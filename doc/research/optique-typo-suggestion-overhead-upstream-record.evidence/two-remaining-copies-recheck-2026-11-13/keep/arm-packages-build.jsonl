@@ -1,0 +1,7 @@
+{"arm":"main","build":0,"tail":["$ tsdown"],"distFiles":145,"runtimeDependencies":[],"holdsTheStateFix":false,"holdsConcat":false}
+{"arm":"base","build":0,"tail":["$ tsdown"],"distFiles":145,"runtimeDependencies":[],"holdsTheStateFix":false,"holdsConcat":false}
+{"arm":"multiple-final","build":0,"tail":["$ tsdown"],"distFiles":145,"runtimeDependencies":[],"holdsTheStateFix":true,"holdsConcat":false}
+{"arm":"both","build":0,"tail":["$ tsdown"],"distFiles":145,"runtimeDependencies":[],"holdsTheStateFix":true,"holdsConcat":false}
+{"arm":"concat","build":0,"tail":["$ tsdown"],"distFiles":145,"runtimeDependencies":[],"holdsTheStateFix":false,"holdsConcat":true}
+{"done":true}
+{"containerExit":0,"stderr":""}

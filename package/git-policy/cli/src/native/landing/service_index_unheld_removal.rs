@@ -112,7 +112,7 @@ pub enum Unheld {
 /// `scan_process`),
 /// as opposed to a scan cut at its bound or unable to list the processes,
 /// which say something else.
-const UNREADABLE_PROCESS_REASON: &str = "PID ";
+pub(crate) const UNREADABLE_PROCESS_REASON: &str = "PID ";
 
 /// How many descriptors of this process (every thread's) name the file with this device and inode.
 /// A process that cannot be counted is not proven to hold none,
@@ -125,7 +125,7 @@ const UNREADABLE_PROCESS_REASON: &str = "PID ";
 /// That matters because this count is the last thing an unheld removal decides on,
 /// and an unknown count keeps an abandoned lock where it is for ever,
 /// which on a container's overlay filesystem is every lock.
-fn own_descriptors_of(device: u64, inode: u64) -> usize {
+pub(crate) fn own_descriptors_of(device: u64, inode: u64) -> usize {
     let Ok(listing) = std::fs::read_dir("/proc/self/fd") else {
         return usize::MAX;
     };

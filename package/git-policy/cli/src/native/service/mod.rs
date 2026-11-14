@@ -170,6 +170,8 @@ pub mod service_client_waiting_words;
 
 /// The client's one-way request to a running service to compile a repository's rules.
 pub mod service_warm_request;
+/// The same re-export for the request's control point.
+pub use service_warm_request::the_controls_window as service_warm_request_control_window;
 
 /// The signals a waiting commit answers by withdrawing its request,
 /// and the flag they set for the wait.
@@ -206,6 +208,9 @@ pub mod service_provision_earlier_service_retirement;
 
 /// The wrapper's own provisioning of the commit service's socket activation.
 pub mod service_provision;
+
+/// The socket a service stops when it was retired before it served anything.
+pub mod service_own_socket_of_a_retire_that_served_nothing;
 
 /// Dropping the service manager's copy of one worktree's units,
 /// so the next start reads the unit files as they are.

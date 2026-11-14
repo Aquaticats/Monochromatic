@@ -6,21 +6,57 @@
     "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.evidence.json",
     "bytes": 140903,
     "sha256": "9b536e96fabfe522fa0921dddfa7b7da3c14730c5c9625c99b7286850425cb17",
-    "rows": 37
+    "rows": 37,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 143088,
+        "sha256": "78269d1614aa9bcda7b9d4fe4e603c98f1823f7813108559f6df96d7032777b8",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "sourceArchive": {
     "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
     "bytes": 392421,
     "sha256": "872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d",
     "uncompressedBytes": 3179766,
-    "records": 41
+    "records": 41,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 3cac1b657b38a1194adb59b1b143a4f7552947a6:doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "previousSnapshotVerification": {
     "path": "doc/audit/depot-owned-allocation-follow-on-verification-2026-10-18.evidence.json",
     "bytes": 2761,
     "sha256": "4d8ae3af1e17999cb444a620e088d83e52b5ae084bcd457c7d59b79d7cef106e",
     "rows": 35,
-    "retainedUnmodified": true
+    "retainedUnmodified": true,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 4428,
+        "sha256": "ef3d9bf7e9e184bd5e09c74295c55fa4ee552ddbfd31eb94d57803dacb8afb78",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "checks": {
     "passed": true,
@@ -119,7 +155,19 @@
     "sourceQualifiedOwnerSeal": {
       "path": "doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
       "bytes": 14201235,
-      "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35"
+      "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     }
   },
   "terminalOsPrivacyInspection": {

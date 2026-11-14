@@ -733,7 +733,7 @@ fn a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a
                 format!("state {}", instance_service()),
                 format!("state {}", instance_socket()),
                 format!("state {}", instance_service()),
-                format!("stop {}", instance_socket()),
+                format!("stop-alone {}", instance_socket()),
                 format!("state {}", instance_service()),
                 format!("state {}", instance_socket()),
                 format!("reset-failed {}", instance_service()),

@@ -1,0 +1,20 @@
+{"step":"changes-restore","exit":0,"signal":null,"tail":[""]}
+{"step":"sacho-sync","exit":2,"signal":null,"tail":[" [#965]: https://github.com/dahlia/optique/issues/965"," [#967]: https://github.com/dahlia/optique/issues/967","the synchronization shown above replaces the materialized unreleased region and may discard hand edits","rerun with `sacho sync --force` to apply it non-interactively"]}
+{"step":"sacho-fmt","exit":2,"signal":null,"tail":[" [#965]: https://github.com/dahlia/optique/issues/965"," [#967]: https://github.com/dahlia/optique/issues/967","the synchronization shown above replaces the materialized unreleased region and may discard hand edits","run `sacho sync --force`, then rerun `sacho fmt` to apply all fixes non-interactively"]}
+{"step":"sacho-check","exit":1,"signal":null,"tail":["+    about ten times faster."," "," [#965]: https://github.com/dahlia/optique/issues/965"," [#967]: https://github.com/dahlia/optique/issues/967"]}
+{"step":"status","exit":0,"signal":null,"tail":[" M packages/core/src/input-trace.ts"," A packages/core/src/internal/immutable-string-map.test.ts"," A packages/core/src/internal/immutable-string-map.ts","warning: untracked cache is disabled on this system or location"]}
+{"step":"changes-diff","exit":0,"signal":null,"tail":[""]}
+{"step":"deno-new-tests","exit":0,"signal":null,"tail":["ok | 2 passed (33 steps) | 0 failed (164ms)","","Check src/internal/immutable-string-map.test.ts","Check src/input-trace.test.ts"]}
+{"step":"mutation-overwrite-mutates-shared-leaf","exit":1,"signal":null,"tail":["","Check src/internal/immutable-string-map.test.ts","Check src/input-trace.test.ts","error: Test failed"]}
+{"mutation":"overwrite-mutates-shared-leaf","caught":true}
+{"step":"mutation-rank-ignores-lower-slots","exit":1,"signal":null,"tail":["","Check src/internal/immutable-string-map.test.ts","Check src/input-trace.test.ts","error: Test failed"]}
+{"mutation":"rank-ignores-lower-slots","caught":true}
+{"step":"mutation-delete-keeps-cleared-bit","exit":1,"signal":null,"tail":["","Check src/internal/immutable-string-map.test.ts","Check src/input-trace.test.ts","error: Test failed"]}
+{"mutation":"delete-keeps-cleared-bit","caught":true}
+{"step":"mutation-set-copies-nothing-in-branch","exit":1,"signal":null,"tail":["","Check src/internal/immutable-string-map.test.ts","Check src/input-trace.test.ts","error: Test failed"]}
+{"mutation":"set-copies-nothing-in-branch","caught":true}
+{"step":"deno-core-suite","exit":0,"signal":null,"tail":["  argument validation ... ok (1ms)","withSuggestions ... ok (32ms)","","ok | 777 passed (8290 steps) | 0 failed | 29 ignored (689 steps) (13s)"]}
+{"step":"bun-new-tests","exit":0,"signal":null,"tail":[""," 33 pass"," 0 fail","Ran 33 tests across 2 files. [122.00ms]"]}
+{"step":"core-build","exit":0,"signal":null,"tail":["ℹ [CJS] dist/terminal-width.d.cts                 0.77 kB │ gzip:  0.43 kB","ℹ [CJS] 44 files, total: 594.60 kB","✔ Build complete in 1501ms","$ tsdown"]}
+{"step":"node-core-suite","exit":0,"signal":null,"tail":["ℹ cancelled 0","ℹ skipped 529","ℹ todo 0","ℹ duration_ms 13657.383928"]}
+{"step":"status-after","exit":0,"signal":null,"tail":[" M packages/core/src/input-trace.ts"," A packages/core/src/internal/immutable-string-map.test.ts"," A packages/core/src/internal/immutable-string-map.ts","warning: untracked cache is disabled on this system or location"]}
