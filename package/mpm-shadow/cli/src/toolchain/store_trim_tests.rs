@@ -730,6 +730,13 @@ fn keeps_a_version_when_the_age_floor_is_the_largest_number() {
     assert_eq!(kept, vec!["node-26.12.0".to_string()]);
     assert_eq!(format_span(bounds.age_floor), "36500 d");
     assert_eq!(bounds.age_floor, MAX_AGE_FLOOR);
+    // A count that does not fit the multiplier is the longest span, not a truncated one.
+    assert_eq!(parse_duration("18446744073709551615ms"), Some(Duration::MAX));
+    assert_eq!(
+        TrimBounds::from_env(&EnvMap::from_pairs(&[("MPM_SHADOW_STORE_WORK_LIMIT", "18446744073709551615ms")]))
+            .work_limit,
+        MAX_WORK_LIMIT
+    );
 }
 
 /// What:

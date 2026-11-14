@@ -277,13 +277,32 @@ pub fn parse_duration(text: &str) -> Option<Duration> {
         ("d", Duration::from_secs(SECONDS_PER_DAY)),
     ] {
         if let Some(number) = trimmed.strip_suffix(suffix) {
-            return number.trim().parse::<u64>().ok().map(|value| return unit.saturating_mul(value as u32));
+            return number.trim().parse::<u64>().ok().map(|value| return scaled(unit, value));
         }
     }
     return trimmed.parse::<u64>().ok().map(Duration::from_secs);
 }
 
 /// What:
+/// What:
+/// `count` of `unit` as a span,
+/// and the longest span there is when the count does not fit the multiplier.
+/// Why:
+/// The count is a `u64` and the multiplier takes a `u32`,
+/// and casting a count that does not fit truncated it instead of saturating:
+/// `18446744073709551615ms` read as 49 days rather than as "no limit".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function scaled(unit: Duration, count: bigint): Duration
+/// ```
+fn scaled(unit: Duration, count: u64) -> Duration {
+    return match u32::try_from(count) {
+        Ok(fits) => unit.saturating_mul(fits),
+        Err(_) => Duration::MAX,
+    };
+}
+
 /// What:
 /// A span in the words a person reads (`41 h`, `3 d`, `12 min`).
 /// Why:
