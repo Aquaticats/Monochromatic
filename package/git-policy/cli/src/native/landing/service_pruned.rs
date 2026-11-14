@@ -73,6 +73,10 @@ static SENT_BACK_REACHED: AtomicU64 = AtomicU64::new(0);
 /// which numbers the marker files of a commit prepared again.
 static SHADOW_HANDED_REACHED: AtomicU64 = AtomicU64::new(0);
 
+/// Counts how often this process reached `ShadowBuilt`,
+/// which numbers the marker files of a commit that builds again.
+static SHADOW_BUILT_REACHED: AtomicU64 = AtomicU64::new(0);
+
 /// What:
 ///  Whether an event says the content to check was removed:
 /// an engine failure that the content is unavailable,
@@ -389,6 +393,7 @@ pub fn reach_service_phase(phase: Phase) -> Result<(), PhaseMarkerError> {
         Phase::ServiceStaged => &STAGED_REACHED,
         Phase::ServiceSentBack => &SENT_BACK_REACHED,
         Phase::ShadowHanded => &SHADOW_HANDED_REACHED,
+        Phase::ShadowBuilt => &SHADOW_BUILT_REACHED,
         Phase::MergeCarried
         | Phase::MergeClearIndex
         | Phase::MergeClearFile

@@ -31,7 +31,7 @@ use crate::commit_args::{resolve_private_commit_args, split_commit_invocation, w
 use crate::commit_preparation::{PreparationRequest, read_prepared_commit, run_native_commit};
 /// The build phase's stretches,
 /// which the creation and Git's build mark as they go.
-use crate::commit_build_part_durations::BuildPartClock;
+use crate::commit_build_part_durations::{BuildPartClock, note_build_part};
 use crate::commit_transaction::TransactionStop;
 use crate::global_arguments::global_layout;
 use crate::shadow_create::take_or_create_shadow;
@@ -39,6 +39,7 @@ use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 /// What the scratch repository's `git commit` made.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -193,6 +194,16 @@ pub fn private_invocation(
 /// await buildWithGit(input)
 /// ```
 ///
+///  A shadow that has gone before Git is asked to build in it is one Git is not asked to build in at all:
+///  the commit builds again in another tree, so no line of Git's about a tree that went is the person's to read.
+///  A shadow that goes while Git builds in it is the wrapper's own cache and never the person's failure:
+///  a tree no sweep explains can still vanish (a person removes it, a drive fills),
+///  so a build whose tree is gone when it failed is made once more in another tree,
+///  and the commit says in its record and its log what it did and lands
+///  (`shadow_create.rs`, `take_or_create_shadow`);
+///  a build whose tree is still there failed for the repository's or the volume's reason and is the commit's to report.
+///  One more build and no more: the second attempt's own ceilings bound it, and a third would be a commit that could not end.
+///
 /// # Errors
 ///
 /// `TransactionStop::NativeExit` with Git's status when Git declined or was aborted (an empty message,
@@ -214,44 +225,90 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
         }
     }
     let carry_conclusion: bool = !(input.mode == TransactionMode::ExplicitPath && has_conclusion_state);
-    // The creation names each of its own stretches, so the shadow is named here only as the surface they run on.
-    let tree: crate::shadow_create::ShadowTree = take_or_create_shadow(
-        input.context,
-        input.cwd,
-        input.capture,
-        own_shadow.as_path(),
-        input.scratch,
-        carry_conclusion,
-        input.clock,
-        input.service,
-    )?;
-    let shadow: &Path = tree.path.as_path();
-    let drawn: Option<PathBuf> = tree.handed.as_ref().map(|handed| { return handed.path().to_path_buf(); });
-    *input.handed = tree.handed;
     // The wrapper adds no option of its own to the person's command line: Git prints what it prints, and `--quiet` reaches it only
     //  when the person typed it.
-    let (globals, commit_args): (Vec<OsString>, Vec<OsString>) = private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
-    let request: PreparationRequest<'_> = PreparationRequest {
-        capture: input.capture,
-        shadow,
-        commit_index: input.commit_index,
-        scratch: input.scratch,
-        global_args: globals.as_slice(),
-        commit_args: commit_args.as_slice(),
-        object_directory: Some(input.capture.layout.object_directory.as_path()),
-    };
-    input.clock.next("client build");
-    let status: i32 = match run_native_commit(input.context, input.cwd, &request) {
-        Ok(code) => code,
-        Err(error) => return Err(TransactionStop::Message(error.to_string())),
-    };
-    if status != 0 {
-        return Err(TransactionStop::NativeExit(status));
+    let (globals, commit_args): (Vec<OsString>, Vec<OsString>) =
+        private_invocation(input.arguments, input.pathspecs, input.mode, input.staged_all, input.selected_privately);
+    let mut attempt: usize = 0;
+    loop {
+        attempt += 1;
+        // The creation names each of its own stretches, so the shadow is named here only as the surface they run on.
+        let tree: crate::shadow_create::ShadowTree = take_or_create_shadow(
+            input.context,
+            input.cwd,
+            input.capture,
+            own_shadow.as_path(),
+            input.scratch,
+            carry_conclusion,
+            input.clock,
+            input.service,
+        )?;
+        let shadow: PathBuf = tree.path.clone();
+        let drawn: Option<PathBuf> = tree.handed.as_ref().map(|handed| { return handed.path().to_path_buf(); });
+        *input.handed = tree.handed;
+        // What: A control may hold the commit at this instant, with its shadow built and Git not yet run in it
+        //       (`transaction_phase.rs`, `Phase::ShadowBuilt`).
+        // Why:  A tree that goes now is the one loss only a second build answers, and no other instant lets a control place it.
+        //       Nothing arms this marker in a run.
+        crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::ShadowBuilt).map_err(|error| {
+            return TransactionStop::Message(format!("the shadow build's test-only phase marker could not be reached: {error}"));
+        })?;
+        let request: PreparationRequest<'_> = PreparationRequest {
+            capture: input.capture,
+            shadow: shadow.as_path(),
+            commit_index: input.commit_index,
+            scratch: input.scratch,
+            global_args: globals.as_slice(),
+            commit_args: commit_args.as_slice(),
+            object_directory: Some(input.capture.layout.object_directory.as_path()),
+        };
+        input.clock.next("client build");
+        if !crate::shadow_drawn::drawn_tree_is_still_there(shadow.as_path()) {
+            // The tree went between this commit's claim on it and the build, so Git is not started in it: a build that cannot
+            //  succeed is one whose words would only alarm the person about the wrapper's own cache.
+            note_build_part(SHADOW_WENT_PART, Duration::ZERO, Duration::ZERO);
+            crate::diagnostic_log::debug(
+                "serviceNative",
+                format!("the shadow {} went before Git was asked to build in it, so this commit builds in a new tree", shadow.display()).as_str(),
+            );
+            if attempt == 1 {
+                *input.handed = None;
+                continue;
+            }
+            return Err(TransactionStop::Message(format!("the shadow {} went before Git was asked to build in it", shadow.display())));
+        }
+        let status: i32 = match run_native_commit(input.context, input.cwd, &request) {
+            Ok(code) => code,
+            Err(error) => return Err(TransactionStop::Message(error.to_string())),
+        };
+        if status != 0 {
+            // What: A build that failed in a tree that is gone is made once more in another tree, and the commit lands.
+            // Why:  The tree is the wrapper's own cache, and a commit may not end with a nonzero status for a tree that went
+            //       under it for a cause no sweep explains (`SPEC.md`, "Merges and commits never fail"). A second build in a
+            //       fresh tree is the commit's own work again and its own ceilings bound it; a third would be a commit that
+            //       could not end, so this is one more and no more.
+            if attempt == 1 && !crate::shadow_drawn::drawn_tree_is_still_there(shadow.as_path()) {
+                note_build_part(SHADOW_WENT_PART, Duration::ZERO, Duration::ZERO);
+                crate::diagnostic_log::debug(
+                    "serviceNative",
+                    format!("the shadow {} went while Git built in it, so this commit builds in a new tree", shadow.display()).as_str(),
+                );
+                // The value that held the tree goes with this attempt, and the next attempt takes or makes another.
+                *input.handed = None;
+                continue;
+            }
+            return Err(TransactionStop::NativeExit(status));
+        }
+        input.clock.next("commit read back");
+        let prepared = read_prepared_commit(input.context, shadow.as_path())?;
+        return Ok(GitBuilt { parents: parents_of(prepared.raw.as_slice()), message: message_of(prepared.raw.as_slice()), commit: prepared.oid, drawn });
     }
-    input.clock.next("commit read back");
-    let prepared = read_prepared_commit(input.context, shadow)?;
-    return Ok(GitBuilt { parents: parents_of(prepared.raw.as_slice()), message: message_of(prepared.raw.as_slice()), commit: prepared.oid, drawn });
 }
+
+/// The name a commit's own timing record carries when the shadow it built in went and it built again:
+///  a fixed name and never a path,
+///  because a build part holds a name a person can read and nothing of a machine's own.
+pub const SHADOW_WENT_PART: &str = "shadow went";
 
 /// Controls for building with Git stay out of the release executable.
 #[cfg(test)]

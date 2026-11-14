@@ -19,7 +19,10 @@ fn a_claimed_tree_says_a_process_holds_it_until_the_claim_ends() {
     let root: PathBuf = fixture("tree-claim-answers");
     let tree: PathBuf = root.join("a-tree");
     std::fs::create_dir(tree.as_path()).expect("a tree");
-    let held: HeldTree = hold(tree.as_path()).expect("the claim of a tree nobody holds");
+    let held: HeldTree = match hold(tree.as_path()) {
+        ClaimTaken::Yes(held) => held,
+        other => panic!("the claim of a tree nobody holds: {other:?}"),
+    };
     assert_eq!(whether_held(tree.as_path()), WhetherHeld::ByALiveProcess, "a claimed tree is one a live process holds");
     drop(held);
     assert_eq!(whether_held(tree.as_path()), WhetherHeld::ByNobody, "the tree is nobody's once the claim ends");
@@ -38,7 +41,7 @@ fn a_claimed_tree_says_a_process_holds_it_until_the_claim_ends() {
 fn a_tree_that_is_not_there_is_neither_claimed_nor_held() {
     let root: PathBuf = fixture("tree-claim-missing");
     let gone: PathBuf = root.join("a-tree-that-is-not-there");
-    assert!(hold(gone.as_path()).is_none(), "nothing claims a tree that is not there");
+    assert!(matches!(hold(gone.as_path()), ClaimTaken::CannotBeAsked), "nothing claims a tree that is not there");
     assert_eq!(whether_held(gone.as_path()), WhetherHeld::CannotBeAsked, "and the volume answered no question about it");
     remove(root.as_path());
 }
@@ -54,8 +57,12 @@ fn a_claim_one_descriptor_holds_is_given_to_no_second() {
     let root: PathBuf = fixture("tree-claim-twice");
     let tree: PathBuf = root.join("a-tree");
     std::fs::create_dir(tree.as_path()).expect("a tree");
-    let first: HeldTree = hold(tree.as_path()).expect("the first claim");
-    assert!(hold(tree.as_path()).is_none(), "a claimed tree gives its claim to no second holder");
+    let first: HeldTree = match hold(tree.as_path()) {
+        ClaimTaken::Yes(held) => held,
+        other => panic!("the first claim: {other:?}"),
+    };
+    // A share of the claim is held by two holders at once, which is what lets a tree change hands with no gap.
+    assert!(matches!(hold(tree.as_path()), ClaimTaken::Yes(_)), "a shared claim is taken by a second holder");
     assert_eq!(whether_held(tree.as_path()), WhetherHeld::ByALiveProcess, "and it says a live process holds it");
     drop(first);
     remove(root.as_path());

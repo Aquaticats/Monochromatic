@@ -271,7 +271,7 @@ fn a_held_tree_is_marked_as_used_from_the_moment_it_is_held() {
     let tree: PathBuf = root.join("drawn-held-old");
     std::fs::create_dir(tree.as_path()).expect("a tree to hold");
     age(tree.as_path(), nothing_holds_after() + Duration::from_secs(60));
-    let _held: HandedShadow = HandedShadow::hold(tree.clone());
+    let _held: HandedShadow = HandedShadow::hold(tree.clone()).expect("the claim of a tree nobody holds");
     assert!(
         wait_until(&|| return !nothing_holds(tree.as_path(), SystemTime::now())),
         "a tree is marked as used from the moment a command holds it"
@@ -298,7 +298,7 @@ fn a_clock_step_forward_never_sweeps_a_tree_a_live_holder_keeps() {
     let folder: PathBuf = drawn_root(&template);
     let held: PathBuf = folder.join("drawn-a-tree-a-commit-builds-in");
     std::fs::create_dir_all(held.as_path()).expect("a tree a commit holds");
-    let _holding: HandedShadow = HandedShadow::hold(held.clone());
+    let _holding: HandedShadow = HandedShadow::hold(held.clone()).expect("the claim of a tree nobody holds");
     let stopped: PathBuf = folder.join("drawn-a-tree-a-command-that-stopped");
     std::fs::create_dir_all(stopped.as_path()).expect("a tree nothing holds");
     // The host clock steps forward three hours, well past the bound and its renewal margin, and a sweep reads it.
@@ -455,7 +455,7 @@ fn a_held_tree_is_renewed_while_its_command_lives() {
     let root: PathBuf = fixture("shadow-drawn-renewal");
     let tree: PathBuf = root.join("drawn-renewed");
     std::fs::create_dir(tree.as_path()).expect("a tree to hold");
-    let _held: HandedShadow = HandedShadow::hold_renewed_every(tree.clone(), Duration::from_millis(10));
+    let _held: HandedShadow = HandedShadow::hold_renewed_every(tree.clone(), Duration::from_millis(10)).expect("the claim of a tree nobody holds");
     age(tree.as_path(), Duration::from_secs(60));
     let aged: SystemTime = std::fs::symlink_metadata(tree.as_path()).expect("metadata").modified().expect("a time");
     std::thread::sleep(Duration::from_millis(120));
@@ -476,7 +476,7 @@ fn a_tree_the_service_took_is_left_to_the_service_and_one_it_did_not_is_removed(
     let root: PathBuf = fixture("shadow-drawn-release");
     let taken: PathBuf = root.join("drawn-taken");
     std::fs::create_dir(taken.as_path()).expect("a tree the service takes");
-    let mut held: HandedShadow = HandedShadow::hold(taken.clone());
+    let mut held: HandedShadow = HandedShadow::hold(taken.clone()).expect("the claim of a tree nobody holds");
     held.the_service_removes_it();
     drop(held);
     let removed: PathBuf = root.join("drawn-released");

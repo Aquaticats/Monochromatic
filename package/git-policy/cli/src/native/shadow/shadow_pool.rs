@@ -377,7 +377,7 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
     if let Err(error) = create_private_directory(staging.as_path()) {
         return Err(GitFailure(format!("the staging folder of the finished shadow {} cannot be made: {error}", staging.display())));
     }
-    let _claimed: Option<crate::tree_held_by_a_live_process::HeldTree> = crate::tree_held_by_a_live_process::hold(staging.as_path());
+    let _claimed: crate::tree_held_by_a_live_process::ClaimTaken = crate::tree_held_by_a_live_process::hold(staging.as_path());
     // The creation names its own stretches; nothing reads them here, so they are taken and dropped rather than
     // left in the process's ledger for a record that this process never writes.
     let mut clock: BuildPartClock = BuildPartClock::begin("shadow fill");

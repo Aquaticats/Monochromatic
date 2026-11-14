@@ -12,16 +12,22 @@
 //!  so it takes the pool's member or makes its own tree and lands;
 //!  a tree that goes after that write is one the commit is already done with,
 //!  because the request carries the change and the landing reads the commit's own scratch tree.
-//!  The two instants are the wrapper's own phase markers (`CLI_GIT_TEST_ONLY_PHASE_SIGNAL`),
-//!  so the loss is placed exactly there and nothing here is a stand-in.
+//!  A tree that goes while Git builds in it is the wrapper's own cache too,
+//!  so the commit builds once more in another tree and lands, and its record says so.
+//!  The first two instants are the wrapper's own phase markers (`CLI_GIT_TEST_ONLY_PHASE_SIGNAL`),
+//!  and the third is a `pre-commit` hook of the fixture's own repository,
+//!  which is linked into the shadow and holds Git inside the build while the tree goes.
+//!  Nothing here is a stand-in for the wrapper.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! pauseAt('shadow-handed'); await rm(handed, { recursive: true }); release(); expect(await commit()).toLand();
+//! await hookStallsAtPreCommit(); await rm(handed, { recursive: true }); release(); expect(await commit()).toLand();
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, FixtureService, Observed, fixture, git, observe, repository, stderr_of, start_fixture_service};
+use super::support::{Fixture, FixtureService, Observed, executable, fixture, git, observe, repository, stderr_of, start_fixture_service};
+use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use git_policy_cli::wrapper_names_old_and_new::SHADOW_DRAWN_FOLDER;
 use std::ffi::OsStr;
@@ -182,5 +188,55 @@ fn a_commit_whose_handed_tree_goes_after_its_last_write_still_lands() {
         vec!["two", "one", "base", "initial"],
         "the commit that lost its tree is on the branch, above the one the draw followed"
     );
+    remove_settled(&case.fixture);
+}
+
+/// The last timing record the repository wrote,
+/// which a commit that built again says what it did in.
+fn last_record(repo: &Path) -> serde_json::Value {
+    let path: PathBuf = repo.join(".git").join(TIMING_FILE);
+    let text: String = std::fs::read_to_string(path.as_path()).expect("the commit's timing record");
+    let last: &str = text.lines().filter(|line| { return !line.trim().is_empty(); }).next_back().expect("one record");
+    return serde_json::from_str(last).expect("a record of one commit");
+}
+
+/// What:
+///  A commit whose handed tree goes while Git builds in it lands, in a tree of its own or one from the pool,
+///  and its record says what it did.
+/// Why:
+///  The tree is the wrapper's own cache and a drive can fill or a person can remove one,
+///  so nothing of that may end a commit with a nonzero status (`SPEC.md`, "Merges and commits never fail").
+///  The commit is held at the wrapper's own marker for the instant its shadow is built and Git has not yet run in it,
+///  the tree goes there, and the build that follows fails on a tree that is gone;
+///  that failure is answered with one more build in another tree (`service_native.rs`, `build_with_git`),
+///  and the commit's timing record names the stretch rather than the terminal.
+#[test]
+fn a_commit_whose_handed_tree_goes_while_git_builds_in_it_still_lands() {
+    let (case, handed): (Case, PathBuf) = a_repository_with_a_drawn_tree("handed-tree-taken-during-the-build");
+    // The marker of the second build is released before it is reached, so only the first build is held.
+    std::fs::write(case.markers.join("shadow-built-2.release"), b"").expect("the release of a second build");
+    let mut command: Command = a_commit_paused_at(&case, "shadow-built", "two");
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("shadow-built-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the instant its shadow is built and Git is about to run in it");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(handed.exists(), "the tree the commit was handed is the tree it is about to build in");
+    // The tree goes, as a person's removal or a full drive takes one: no sweep and no claim is involved.
+    std::fs::remove_dir_all(handed.as_path()).expect("the handed tree goes");
+    std::fs::write(markers.join("shadow-built-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "a commit whose shadow went under its build must still land: {words}");
+    assert!(!words.contains("not a git repository"), "nothing of the wrapper's own cache reaches the person: {words}");
+    let subjects: String = git_text(&case.fixture, case.repo.as_path(), &["log", "--format=%s"]);
+    assert_eq!(subjects.lines().collect::<Vec<&str>>(), vec!["two", "one", "base", "initial"], "the commit is on the branch");
+    let record: serde_json::Value = last_record(case.repo.as_path());
+    let parts: &serde_json::Map<String, serde_json::Value> =
+        record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
+    assert!(parts.contains_key("shadow went"), "the record says the shadow went and the commit built again: {record}");
     remove_settled(&case.fixture);
 }

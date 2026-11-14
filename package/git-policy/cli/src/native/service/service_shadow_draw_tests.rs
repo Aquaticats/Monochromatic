@@ -132,6 +132,53 @@ fn a_clock_step_forward_never_sweeps_a_tree_the_stock_holds() {
 }
 
 /// What:
+///  A sweep that runs in the gap between the service's answer and the commit's claim does not take the tree.
+/// Why:
+///  The answer travels to the commit over a socket and the commit takes its claim when it has read it,
+///  so a sweep in that gap finds a tree nobody holds and, with the wall clock stepped forward, takes it for hours old;
+///  the commit would then claim a tree the sweep had already decided to remove and lose it under its build,
+///  which ends the commit with Git's status (`shadow_create.rs`, `take_or_create_shadow`;
+///  `service_native.rs`, `build_with_git`).
+///  The service keeps its claim across the answer, and the commit's claim overlaps it,
+///  so the tree has a holder at every instant of the change of hands and the sweep's exclusive take is refused.
+#[test]
+fn a_sweep_in_the_gap_between_the_answer_and_the_claim_does_not_take_the_tree() {
+    let root: PathBuf = fixture("shadow-draw-handed-gap");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+    git(repo.as_path(), &["add", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
+    let context: GitContext = git_context();
+    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
+    let _member: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
+    let drawn: PathBuf = crate::shadow_drawn::draw(&context, &template).expect("a draw").expect("a drawn tree");
+    let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
+    stock.note_ready(drawn.clone());
+    // The service answers: the tree leaves the stock, and the answer is on its way to the commit.
+    let handed: PathBuf = stock.hand_out().expect("the stock answers with the tree");
+    assert_eq!(handed, drawn, "the answer names the tree the stock held");
+    // The stock's renewal thread stops, so only the claim the service kept can protect the tree now.
+    std::thread::sleep(Duration::from_millis(50));
+    // The host clock steps forward three hours, as time synchronisation does after a suspend, and a sweep of this worktree runs.
+    let stepped: SystemTime = SystemTime::now() + Duration::from_secs(3 * 60 * 60);
+    let swept: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn_of(template.common_dir.as_path(), template.git_dir.as_path(), stepped);
+    assert!(swept.is_empty(), "a tree the service handed out is no tree a sweep takes while its answer travels: {swept:?}");
+    assert!(drawn.exists(), "and the tree is still there for the commit that is about to claim it");
+    // The commit takes its claim, writes its refs, and the sweep still leaves the tree.
+    let held: crate::shadow_drawn::HandedShadow = crate::shadow_drawn::HandedShadow::hold(drawn.clone()).expect("the claim of a tree the service kept");
+    assert_eq!(
+        crate::tree_held_by_a_live_process::whether_held(drawn.as_path()),
+        crate::tree_held_by_a_live_process::WhetherHeld::ByALiveProcess,
+        "a live process holds it"
+    );
+    assert!(crate::shadow_drawn::sweep_drawn_of(template.common_dir.as_path(), template.git_dir.as_path(), stepped).is_empty(), "and a sweep leaves a claimed tree");
+    drop(held);
+    remove(root.as_path());
+}
+
+/// What:
 ///  A stock that counts a tree the drawn folder no longer holds draws another one,
 ///  so the commit the landing drew for is not answered a path that is gone.
 /// Why:

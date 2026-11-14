@@ -91,7 +91,28 @@ impl ScratchRenewal {
     /// ScratchRenewal.start(path, REFRESH_EVERY);
     /// ```
     pub fn start(path: &Path, every: Duration) -> Self {
-        let held: Option<crate::tree_held_by_a_live_process::HeldTree> = crate::tree_held_by_a_live_process::hold(path);
+        let held: Option<crate::tree_held_by_a_live_process::HeldTree> = match crate::tree_held_by_a_live_process::hold(path) {
+            crate::tree_held_by_a_live_process::ClaimTaken::Yes(claim) => Some(claim),
+            // A tree a sweep is taking is no tree to renew, and a volume that cannot answer leaves the mark alone.
+            crate::tree_held_by_a_live_process::ClaimTaken::BeingTaken
+            | crate::tree_held_by_a_live_process::ClaimTaken::CannotBeAsked => None,
+        };
+        return Self::start_holding(path, every, held);
+    }
+
+    /// What:
+    ///  `start` with the claim already taken,
+    ///  so a holder that took the claim for another reason hands it to this value in one step.
+    /// Why:
+    ///  A drawn tree a commit takes is claimed before the commit asks anything of it,
+    ///  and the claim must then travel with the renewal rather than be taken twice:
+    ///  the second take would be refused by this process's own first claim.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// ScratchRenewal.startHolding(path, every, claim);
+    /// ```
+    pub fn start_holding(path: &Path, every: Duration, held: Option<crate::tree_held_by_a_live_process::HeldTree>) -> Self {
         let (stop, waited): (Sender<()>, Receiver<()>) = channel();
         let renewed: PathBuf = path.to_path_buf();
         let started = std::thread::Builder::new().name(String::from("scratch-renewal")).spawn(move || {
@@ -111,6 +132,23 @@ impl ScratchRenewal {
             );
         }
         return Self { _held: held, stop };
+    }
+
+    /// What:
+    ///  Stops renewing and gives the claim to the caller,
+    ///  so a tree that changes hands is held by this holder until the next one has taken it.
+    /// Why:
+    ///  The stock hands a drawn tree to a commit the service does not control,
+    ///  and the answer that names it travels over a socket:
+    ///  the service's claim must not go while the commit is about to take its own,
+    ///  so the value that stops renewing hands the claim on instead of dropping it.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const claim = renewal.intoClaim(); // the renewal stops; the claim is the caller's
+    /// ```
+    pub fn into_claim(mut self) -> Option<crate::tree_held_by_a_live_process::HeldTree> {
+        return self._held.take();
     }
 
     /// What:

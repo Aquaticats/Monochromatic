@@ -22,6 +22,7 @@ fn phases_are_named_in_transaction_order() {
             "merge-carried-back",
             "service-staged",
             "shadow-handed",
+            "shadow-built",
             "service-prepared",
             "service-sent-back",
             "kept-references-listed",

@@ -119,11 +119,20 @@ pub enum Phase {
     ///  of its own, and nothing else in a commit can be held at that instant (`shadow_create.rs`,
     ///  `take_or_create_shadow`).
     ShadowHanded,
+    /// A commit's shadow is built, with the ref store of this attempt written into it, and Git has not yet run in it;
+    /// repeatable,
+    /// numbered by occurrence (a commit that builds again reaches it again).
+    /// Why:
+    ///   A tree that goes while Git builds in it is the one loss only a second build answers
+    ///  (`service_native.rs`,
+    ///  `build_with_git`),
+    ///  and no other instant of a commit lets a control place that loss.
+    ShadowBuilt,
 }
 
 /// Every phase in the order a command reaches them,
 /// which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 14] = [
+pub const TRANSACTION_TEST_PHASES: [Phase; 15] = [
     Phase::MergeCarried,
     Phase::MergeIntent,
     Phase::MergeClearIndex,
@@ -135,6 +144,7 @@ pub const TRANSACTION_TEST_PHASES: [Phase; 14] = [
     Phase::MergeCarriedBack,
     Phase::ServiceStaged,
     Phase::ShadowHanded,
+    Phase::ShadowBuilt,
     Phase::ServicePrepared,
     Phase::ServiceSentBack,
     Phase::KeptReferencesListed,
@@ -164,6 +174,7 @@ impl Phase {
             Phase::MergeApplied => return "merge-applied",
             Phase::ServiceStaged => return "service-staged",
             Phase::ShadowHanded => return "shadow-handed",
+            Phase::ShadowBuilt => return "shadow-built",
             Phase::ServicePrepared => return "service-prepared",
             Phase::ServiceSentBack => return "service-sent-back",
             Phase::KeptReferencesListed => return "kept-references-listed",

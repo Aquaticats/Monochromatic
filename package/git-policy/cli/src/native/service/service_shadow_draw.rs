@@ -41,10 +41,30 @@ use crate::service_scratch_renewal::ScratchRenewal;
 use crate::scratch_location::SCRATCH_REFRESH_EVERY;
 /// The service's own log.
 use crate::transaction_git::{GitContext, GitFailure};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
+
+/// What:
+///  How long the service keeps the claim on a drawn tree,
+///  or nothing for as long as the service lives.
+/// Why:
+///   A drawn tree stands while its claim is held, and whether it stands with no end is the owner's question and not
+///  this file's (`doc/handover/questions-for-the-owner.md`;
+///  the brief of the branch that added the claim).
+///  The answer is this one constant, for the tree waiting in the stock and for the tree the service has handed out:
+///  `Some(span)` lets go at the first landing after the span, so the tree ages out and a sweep collects it,
+///  and it must be longer than `DRAWN_ANSWER_DEADLINE` (`service_client_shadow_hand_out.rs`),
+///  or a tree would be let go while the answer that names it is still travelling.
+///  `None` keeps each of them until the landing that names the tree is over, and the stocked one until the service ends,
+///  which is what this branch does today.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const A_DRAWN_TREE_IS_KEPT_FOR: Option<Duration> = undefined; // the owner's question, unanswered
+/// ```
+pub const A_DRAWN_TREE_IS_KEPT_FOR: Option<Duration> = None;
 
 /// Lock kept:
 ///  whether this service is already drawing one shadow,
@@ -91,6 +111,46 @@ pub struct DrawnShadows {
     /// #ready: Waiting[] = []
     /// ```
     ready: Mutex<Vec<Waiting>>,
+    /// Lock kept:
+    ///  the trees the service has handed out and the claim it kept on each of them,
+    ///  which the answer that hands one over records and the landing that names it lets go,
+    ///  so two threads reach the list and a tree is never unheld while it changes hands.
+    ///  Under it the list is changed and nothing else:
+    ///  one `push` on the answer's thread and one `retain` where a landing or a draw reads it,
+    ///  with no Git process, no file and no other lock.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// #handed: HandedOut[] = []
+    /// ```
+    handed: Mutex<Vec<HandedOut>>,
+}
+
+/// What:
+///  One tree the service handed out,
+///  with the claim it kept on the tree across the hand-out.
+/// Why:
+///  The answer travels to the commit over a socket, and the commit takes its own claim when it has read it,
+///  so a sweep that ran in that moment would find a tree nobody held and, with the wall clock stepped forward,
+///  take it for hours old.
+///  The service therefore keeps its claim until the landing that names the tree is over,
+///  and the commit's claim overlaps it, so the tree has a holder at every instant of the change of hands.
+///  How long it is kept is `A_DRAWN_TREE_IS_KEPT_FOR`'s answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HandedOut = { path: string; since: Instant; claim: HeldTree };
+/// ```
+#[derive(Debug)]
+struct HandedOut {
+    /// Where the tree is.
+    path: PathBuf,
+    /// When the service handed it out,
+    /// which `A_DRAWN_TREE_IS_KEPT_FOR` counts from.
+    since: Instant,
+    /// The claim the service kept,
+    /// which stops when this value goes.
+    _claim: crate::tree_held_by_a_live_process::HeldTree,
 }
 
 /// What:
@@ -119,6 +179,9 @@ pub struct DrawnShadows {
 struct Waiting {
     /// Where the tree is.
     path: PathBuf,
+    /// When the draw stocked it,
+    /// which `A_DRAWN_TREE_IS_KEPT_FOR` counts from.
+    since: Instant,
     /// The renewal that keeps it from aging out while it waits,
     /// and the claim on it,
     /// both of which stop when this value goes.
@@ -159,7 +222,7 @@ impl DrawnShadows {
         // The renewal is started before the entry is listed, so no answer can name a tree that nothing marks.
         let renewal: ScratchRenewal = ScratchRenewal::start(tree.as_path(), SCRATCH_REFRESH_EVERY);
         let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        ready.push(Waiting { path: tree, _renewal: renewal });
+        ready.push(Waiting { path: tree, since: Instant::now(), _renewal: renewal });
     }
 
     /// What:
@@ -187,7 +250,67 @@ impl DrawnShadows {
             let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             ready.pop()
         };
-        return taken.map(|waiting| { return waiting.path });
+        let waiting: Waiting = taken?;
+        // The claim moves from the renewal to the handed entry in one step, so no sweep finds the tree unheld
+        //  while the answer that names it travels to the commit that will claim it.
+        let claim: Option<crate::tree_held_by_a_live_process::HeldTree> = waiting._renewal.into_claim();
+        if let Some(claim) = claim {
+            let mut handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            handed.push(HandedOut { path: waiting.path.clone(), since: Instant::now(), _claim: claim });
+        }
+        return Some(waiting.path);
+    }
+
+    /// What:
+    ///  Lets go of the claim the service kept on a tree a landing named,
+    ///  and answers whether it held one.
+    /// Why:
+    ///   The commit's own claim is held by then, because the request that names the tree is sent only after the build in
+    ///  it, so the tree stays held by the commit while this claim goes.
+    ///  The landing that named the tree reads its own scratch tree and not this one,
+    ///  and removes it once that landing is over (`service_server.rs`, `remove_the_trees`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// stock.letGoOf(tree) // whether the service held a claim on it
+    /// ```
+    pub fn let_go_of(&self, tree: &Path) -> bool {
+        let mut handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let counted: usize = handed.len();
+        handed.retain(|out| { return out.path != tree; });
+        return handed.len() != counted;
+    }
+
+    /// What:
+    ///  Lets go of the claims the service has kept longer than `A_DRAWN_TREE_IS_KEPT_FOR`,
+    ///  and answers how many it let go.
+    /// Why:
+    ///   The constant is the owner's answer to whether a drawn tree stands with no end while its claim is held;
+    ///  with `None` nothing is let go here, and with a span a tree the service kept too long stops being kept at the first
+    ///  landing that runs after it, so its age takes it and a sweep collects it.
+    ///  A tree the commit took is let go by `let_go_of` when its request arrives, and this is for a tree whose commit
+    ///  never sent one: a commit that gave the tree up, or one that was killed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// stock.letGoOfWhatItKeptTooLong()
+    /// ```
+    pub fn let_go_of_what_it_kept_too_long(&self) -> usize {
+        let Some(kept_for) = A_DRAWN_TREE_IS_KEPT_FOR else { return 0 };
+        let mut let_go: usize = 0;
+        {
+            let mut handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let counted: usize = handed.len();
+            handed.retain(|out| { return out.since.elapsed() < kept_for; });
+            let_go += counted - handed.len();
+        }
+        {
+            let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let counted: usize = ready.len();
+            ready.retain(|waiting| { return waiting.since.elapsed() < kept_for; });
+            let_go += counted - ready.len();
+        }
+        return let_go;
     }
 
     /// What:
@@ -213,7 +336,10 @@ impl DrawnShadows {
         // The paths are read under the lock and asked about without it, so no volume call is made inside the lock.
         let paths: Vec<PathBuf> = {
             let ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            ready.iter().map(|waiting| { return waiting.path.clone(); }).collect()
+            let handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let mut paths: Vec<PathBuf> = ready.iter().map(|waiting| { return waiting.path.clone(); }).collect();
+            paths.extend(handed.iter().map(|out| { return out.path.clone(); }));
+            paths
         };
         let mut gone: Vec<PathBuf> = Vec::new();
         for path in paths {
@@ -224,10 +350,20 @@ impl DrawnShadows {
         if gone.is_empty() {
             return 0;
         }
-        let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let counted: usize = ready.len();
-        ready.retain(|waiting| { return !gone.contains(&waiting.path); });
-        return counted - ready.len();
+        let mut dropped: usize = 0;
+        {
+            let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let counted: usize = ready.len();
+            ready.retain(|waiting| { return !gone.contains(&waiting.path); });
+            dropped += counted - ready.len();
+        }
+        {
+            let mut handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            let counted: usize = handed.len();
+            handed.retain(|out| { return !gone.contains(&out.path); });
+            dropped += counted - handed.len();
+        }
+        return dropped;
     }
 
     /// How many trees the stock holds now.
@@ -256,6 +392,7 @@ pub fn start(context: &GitContext, request: &CommitRequest, stock: &Arc<DrawnSha
     // What: A tree the stock counted that is not there is no tree to hand a commit, and no reason to skip the draw.
     // Why:  The stock is memory only and the drawn folder is on the volume, where any command of the repository may collect
     //       a tree nothing marked; the landing's own thread asks here, so an answer that comes later reads memory alone.
+    let _too_long: usize = stock.let_go_of_what_it_kept_too_long();
     let _gone: usize = stock.drop_what_is_gone();
     if stock.ready() >= DRAWN_LIMIT {
         return;

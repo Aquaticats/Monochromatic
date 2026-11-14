@@ -643,47 +643,12 @@ pub fn take_or_create_shadow(
         false => None,
     };
     if let Some(drawn) = asked {
-        match refusal(&template, drawn.as_path()) {
-            Ok(None) => {
-                // What: A control may hold the command at this instant, between its question of the handed tree and its first write
-                //       into it (`transaction_phase.rs`, `Phase::ShadowHanded`).
-                // Why:  A tree that goes here decides whether the commit lands in it or in a tree of its own, and no other
-                //       instant of a commit can be held at that point. Nothing arms this marker in a run.
-                crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::ShadowHanded).map_err(phase_marker_failure)?;
-                let held = crate::shadow_drawn::HandedShadow::hold(drawn.clone());
-                // What: The tree was this commit's from the answer, and a tree that goes before this write is not a failure.
-                // Why:  The tree is the wrapper's own cache, so nothing about losing it is the person's, and a commit may not end
-                //       with a nonzero status for what another process in the repository did (`SPEC.md`, "Merges and commits
-                //       never fail"). Nothing has been sent to the service yet, and what was written went into a tree this
-                //       command abandons, so the commit takes the pool's member or makes its own tree exactly as it would
-                //       have without the answer.
-                match carry_the_commit_parts(context, cwd, capture, drawn.as_path(), transaction_directory, carry_conclusion, clock) {
-                    Ok(()) => return Ok(ShadowTree { path: drawn, handed: Some(held) }),
-                    Err(error) => {
-                        // A failure whose tree is still there is the repository's or the volume's, and it is the commit's to report.
-                        if crate::shadow_drawn::drawn_tree_is_still_there(drawn.as_path()) {
-                            return Err(error);
-                        }
-                        crate::diagnostic_log::debug(
-                            "shadowDrawn",
-                            format!("the drawn shadow {} went before this commit wrote into it: {error}", drawn.display()).as_str(),
-                        );
-                    }
-                }
-                // The tree stops being this commit's here, and what is left of it goes beside the command (`HandedShadow`).
-                drop(held);
-            }
-            Ok(Some(reason)) => crate::diagnostic_log::debug(
-                "shadowDrawn",
-                format!("refused the drawn shadow {}: {reason}", drawn.display()).as_str(),
-            ),
-            Err(error) => crate::diagnostic_log::debug(
-                "shadowDrawn",
-                format!("refused the drawn shadow {}: {error}", drawn.display()).as_str(),
-            ),
+        // What: The tree this commit was handed, when it could take it and its question of it named nothing to refuse.
+        // Why:  Everything this arm leaves behind is released by the value that held the tree, so a tree this invocation
+        //       cannot use is handed back once and not twice.
+        if let Some(taken) = a_shadow_from_the_handed_tree(context, cwd, capture, &template, drawn.as_path(), transaction_directory, carry_conclusion, clock)? {
+            return Ok(taken);
         }
-        // A tree this invocation cannot use is the service's own, and this commit is the last thing that held it.
-        crate::service_scratch_release_removal::start(drawn);
     }
     clock.next("shadow pool");
     if crate::shadow_pool::take(&template, shadow) {
@@ -694,6 +659,78 @@ pub fn take_or_create_shadow(
     create_shadow_template(context, &template, shadow, clock)?;
     carry_the_commit_parts(context, cwd, capture, shadow, transaction_directory, carry_conclusion, clock)?;
     return Ok(ShadowTree { path: shadow.to_path_buf(), handed: None });
+}
+
+/// What:
+///  The commit's shadow, built in the tree the service handed it,
+///  or nothing when this invocation cannot use that tree,
+///  or the failure of a write whose tree is still there.
+/// Why:
+///   The commit claims the tree before it asks anything of it,
+///  so the tree a sweep finds claimed is one it leaves,
+///  and a tree a sweep has taken to remove is one this commit gives up on instead of building in
+///  (`tree_held_by_a_live_process.rs`).
+///  Everything after the claim can lose the tree to a cause no sweep explains, a person or a full drive,
+///  and none of those may end the commit:
+///  a failure whose tree is gone is answered with nothing, so the commit takes the pool's member or makes its own tree,
+///  and a failure whose tree is still there is the repository's or the volume's and is the commit's to report
+///  (`SPEC.md`, "Merges and commits never fail").
+///  Nothing has been sent to the service when any of this happens, and what was written went into a tree this command
+///  abandons.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = await aShadowFromTheHandedTree({ ... }); // ShadowTree | undefined, or a failure to report
+/// ```
+fn a_shadow_from_the_handed_tree(
+    context: &GitContext,
+    cwd: &Path,
+    capture: &InvocationCapture,
+    template: &ShadowTemplate,
+    drawn: &Path,
+    transaction_directory: &Path,
+    carry_conclusion: bool,
+    clock: &mut BuildPartClock,
+) -> Result<Option<ShadowTree>, GitFailure> {
+    let Some(held) = crate::shadow_drawn::HandedShadow::hold(drawn.to_path_buf()) else {
+        crate::diagnostic_log::debug(
+            "shadowDrawn",
+            format!("the drawn shadow {} is being removed, so this commit takes another tree", drawn.display()).as_str(),
+        );
+        return Ok(None);
+    };
+    // What: A control may hold the command at this instant, between its claim on the handed tree and its first write into it
+    //       (`transaction_phase.rs`, `Phase::ShadowHanded`).
+    // Why:  A tree that goes here decides whether the commit lands in it or in a tree of its own, and no other instant of a
+    //       commit can be held at that point. Nothing arms this marker in a run.
+    crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::ShadowHanded).map_err(phase_marker_failure)?;
+    match refusal(template, drawn) {
+        Ok(None) => {}
+        Ok(Some(reason)) => {
+            crate::diagnostic_log::debug("shadowDrawn", format!("refused the drawn shadow {}: {reason}", drawn.display()).as_str());
+            return Ok(None);
+        }
+        Err(error) => {
+            crate::diagnostic_log::debug("shadowDrawn", format!("refused the drawn shadow {}: {error}", drawn.display()).as_str());
+            return Ok(None);
+        }
+    }
+    match carry_the_commit_parts(context, cwd, capture, drawn, transaction_directory, carry_conclusion, clock) {
+        Ok(()) => return Ok(Some(ShadowTree { path: drawn.to_path_buf(), handed: Some(held) })),
+        Err(error) => {
+            // A failure whose tree is still there is the repository's or the volume's, and it is the commit's to report.
+            if crate::shadow_drawn::drawn_tree_is_still_there(drawn) {
+                return Err(error);
+            }
+            crate::diagnostic_log::debug(
+                "shadowDrawn",
+                format!("the drawn shadow {} went before this commit wrote into it: {error}", drawn.display()).as_str(),
+            );
+            // The tree stops being this commit's here, and what is left of it goes beside the command.
+            drop(held);
+            return Ok(None);
+        }
+    }
 }
 
 /// What:
