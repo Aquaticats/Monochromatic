@@ -123,6 +123,7 @@
 //! const sweep = sweepLandedWorktrees({ context, commonDir, currentRoot, procRoot }, before, now, branch);
 //! ```
 
+use crate::subvolume_remove_walk::Boundary;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_branch_reflog::{MergeMove, branch_made_at, branch_moved_onto};
@@ -190,6 +191,22 @@ pub struct RemovedWorktree {
     /// The branch it had checked out,
     /// which is kept.
     pub branch: String,
+}
+
+/// A worktree this sweep removed and left something in:
+/// what someone else put inside it stands where it was,
+/// with the directories that lead to it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RemovedAroundWorktree {
+    /// The worktree directory,
+    /// which is gone from Git's records and holds nothing but what was left.
+    pub worktree: PathBuf,
+    /// The branch it had checked out,
+    /// which is kept.
+    pub branch: String,
+    /// What stands where it was,
+    /// each with what it is.
+    pub left: Vec<Boundary>,
 }
 
 /// A worktree this sweep left,
@@ -264,6 +281,9 @@ pub struct LandedSweep {
     pub landed_branch: String,
     /// What it removed.
     pub removed: Vec<RemovedWorktree>,
+    /// What it removed and left something in,
+    /// which the notice says in its own words.
+    pub removed_around: Vec<RemovedAroundWorktree>,
     /// What it handed to the commit service to remove,
     /// because that removal is Git's own read of every tracked file and may not be run twice.
     pub handed_over: Vec<HandedOverWorktree>,
@@ -552,6 +572,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         }
         match examine_and_remove(place, &told, one, registered.as_slice(), &LinuxOperations) {
             Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
+            Examined::RemovedAround(left) => sweep.removed_around.push(RemovedAroundWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), left }),
             Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report }),
             Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report }),
             Examined::Handed(record) => sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), record }),
@@ -589,6 +610,9 @@ enum Attempt {
     /// The removal is recorded for the commit service,
     /// which performs it on its own with Git's own judgment of what it would keep.
     Handed(WorkItem),
+    /// The worktree and its registration are gone,
+    /// and what someone else put inside it stands where it was.
+    RemovedAround(Vec<Boundary>),
 }
 
 /// What:
@@ -630,6 +654,7 @@ fn remove_here_or_hand_over(
         }
         RemoveOutcome::Incomplete(report) => return Attempt::Unfinished(report),
         RemoveOutcome::Refused(report) => return Attempt::Refused(report),
+        RemoveOutcome::RemovedAround(left) => return Attempt::RemovedAround(left),
         RemoveOutcome::LeftToGit => {}
     }
     let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.current_root, told) {
@@ -661,6 +686,8 @@ enum Examined {
     /// It stays,
     /// for this reason.
     Kept(String),
+    /// It is gone and something someone else put inside it stayed.
+    RemovedAround(Vec<Boundary>),
     /// Nothing proves the wrapper made it.
     Unproven,
 }
@@ -735,6 +762,7 @@ fn examine_and_remove(
         Attempt::Refused(report) => Examined::Refused(report),
         Attempt::Handed(record) => Examined::Handed(record),
         Attempt::Kept(why) => Examined::Kept(why),
+        Attempt::RemovedAround(left) => Examined::RemovedAround(left),
     };
 }
 

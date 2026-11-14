@@ -13,6 +13,25 @@ and the follow-up decision.
 At 2026-11-13T17:15:29-05:00 the review could not start:
 `systemctl --user list-units --no-legend --plain --state=active 'pi-*.service'` counted 17 Pi runs,
 over the cap of 16 in `doc/handover/agents-at-once-on-this-machine.md`.
+A starter script then checked the count once a minute until 2026-11-13T18:02:05-05:00,
+when its deadline passed with 25 Pi runs active,
+so the review has still not started.
+Its worktree was removed again,
+since step 2 adds it at start.
+
+That attempt left a ready brief and starter in scratch,
+which a reboot may wipe;
+the steps under "How to start it" are enough without them:
+
+- brief:
+  `${HOME}/temp/agent/pi-runs/kitesurf-screening-record-second-review-on-qwen4-2026-11-13-prompt.md`,
+  written for a worktree at commit `ffb1d0d9e4`;
+- diff:
+  `${HOME}/temp/agent/qwen-trials/kitesurf-screening-record-second-review-2026-11-13/change.diff`,
+  from `b68463d293` to `ffb1d0d9e4`;
+- starter that waits for a place under the cap,
+  then runs the unit:
+  `${HOME}/temp/agent/pi-runs/start-kitesurf-second-review-when-a-place-frees-2026-11-13.ts`.
 
 ## How to start it
 

@@ -1,36 +1,30 @@
 //! What:
-//!  The saved copy of each file a conflict-side command replaces,
-//! and the one place that names the pieces of that carve-out:
+//!  The saved copy of each file a command that discards the person's own work replaces,
+//! and the one place that names the pieces of that save:
 //!  the operation and conflicted paths (`conflict_side_state.rs`),
-//! the decision on a command line
-//!  (`conflict_side_decision.rs`),
-//! the notices (`conflict_side_notice.rs`) and the finding and reading of a file
-//!  (`conflict_side_source.rs`).
+//! the finding and reading of a file
+//!  (`conflict_side_source.rs`),
+//!  and the folder the copies go to.
 //! Why:
-//!  `linked-worktree-only` rejects `git checkout --theirs -- a.rs` because it overwrites the worktree file.
-//! During a
-//!  merge,
-//! a rebase,
-//! a cherry-pick or a revert that command is how a conflict is settled,
-//! and the file it overwrites is the
-//!  half-resolved copy a person may have edited by hand.
-//! The owner's decision is to let it through for conflicted paths
-//!  after the current file is copied beside the audit log (`discard_audit.rs`),
-//! so nothing is lost and the copy is named.
+//!  An abort form restores the state before its operation and keeps nothing,
+//!  and a clean that would delete a nested repository deletes it whole,
+//!  so the work that is not the operation's own is copied beside the audit log first
+//!  and the copy is named.
 //!  Everything here is read in process:
 //! the operation from the state files in the Git directory,
 //! the conflicted paths from
 //!  the unmerged entries of the index file.
-//! The copy is written and synced before the caller lets Git run.
+//! The copy is written and synced before the caller runs the command.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const conflicted = unmergedPaths(await readIndex(gitDir));
-//! const decision = decideSides({ pathspecs, prefix, conflicted });
-//! if (decision.kind === 'allow') await saveCopies({ root, commonDir, paths: decision.paths });
+//! await saveCopies({ root, commonDir, paths: conflicted });
 //! ```
 
 use crate::conflict_side_source::{copy_located, locate};
+/// The limits of the folder of saved copies of conflicted files.
+use crate::discarded_prune::{Limits, Problem, directory_name_of, prune};
 use crate::iso_time::format_iso_milliseconds;
 use crate::private_storage::{create_private_directory, create_private_directory_all, sync_directory};
 use std::collections::BTreeSet;
@@ -38,8 +32,6 @@ use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
 
-pub use crate::conflict_side_decision::{SideDecision, decide_sides, literal_path};
-pub use crate::conflict_side_notice::{clean_paths_note, saved_notice};
 pub use crate::conflict_side_source::{FailureKind, SaveFailure};
 pub use crate::conflict_side_state::{Operation, conflicted_paths, operation_in_progress};
 
@@ -186,9 +178,48 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
     return Ok(copies);
 }
 
-/// The decision,
-/// the literal paths,
-/// the copies and the notices.
+/// What:
+///  Applies the age and size limits to the folder of saved copies,
+/// now that a new save is complete and durable,
+/// and gives
+///  the sentences for whatever the pass could not do (empty when it did all it should).
+/// Why:
+///   Pruning after the save,
+/// never before,
+/// means a kill while copying costs no older copy;
+/// the directory just written is
+///  never chosen,
+/// whatever its name says.
+/// Nothing waits on the pass (another pass holding the folder makes this one do
+///  nothing),
+/// and a failure of it never changes the verdict;
+/// it is said in the notice,
+/// so the person sees that the limits
+///  did not apply and why.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await pruneAfterSave(commonDir, copies, milliseconds, limits)
+/// ```
+pub fn prune_after_save(common_dir: &Path, copies: &[SavedCopy], milliseconds: i64, limits: Limits) -> String {
+    let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
+    let mut keep: Option<String> = None;
+    for copy in copies {
+        if let Some(place) = copy.saved_to.as_deref() {
+            keep = directory_name_of(saved_root.as_path(), place);
+            if keep.is_some() {
+                break;
+            }
+        }
+    }
+    if keep.is_none() {
+        return String::new();
+    }
+    let outcome = prune(common_dir, milliseconds, limits, keep.as_deref());
+    return outcome.problems.iter().map(Problem::message).collect();
+}
+
+/// The copies and the limits applied after one.
 #[cfg(test)]
 #[path = "conflict_sides_tests.rs"]
 mod tests;
