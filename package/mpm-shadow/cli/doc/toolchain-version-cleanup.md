@@ -137,7 +137,8 @@ the most specific first:
   with the reason in the line.
 - **this run installed it**.
 - **the tool's `current` link names it**.
-  The pass reads every link once, before it plans,
+  The pass reads every link once,
+  before it plans,
   and another command can repoint one in between,
   so the link is read again at the moment of the removal:
   a version the link names then is not moved aside,
@@ -167,7 +168,9 @@ the most specific first:
   A removal moves both aside,
   so a hold may name either tree or either marker,
   and one list of the paths a version owns answers that question at all three checks:
-  the plan, the second look, and the pass that finishes a removal an earlier run left.
+  the plan,
+  the second look,
+  and the pass that finishes a removal an earlier run left.
 - **it was written inside the age floor**.
 - **another run wrote it after the scan**:
   the directory write time is read again before the rename,
@@ -201,8 +204,10 @@ is renamed back instead,
 and a later pass removes it once nothing holds it,
 and the link names another version.
 What a kill leaves at each step is the same in both cases:
-before a rename, nothing changed;
-after it, the markers and the store-root marker the next install reads,
+before a rename,
+nothing changed;
+after it,
+the markers and the store-root marker the next install reads,
 which asks about the paths a version owns,
 and about the link,
 again before it deletes anything.
