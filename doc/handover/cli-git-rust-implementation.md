@@ -772,6 +772,22 @@ Questions kept for the owner's return:
   (the wrapper removes the copied record;
   mpm-shadow stops leaving it),
   each a review and a release away.
+- Should a binary test's fixture repository be reachable by another account at all?
+  The fixture root is under `/var/mnt/encrypted/cargo-build/…/tmp/`,
+  mode 0755 all the way from a 0777 mount,
+  and a lock written there is 0644,
+  so a process of another account can hold it open.
+  The removal of an unheld lock counts processes of other accounts as unable to hold this account's files
+  (`OTHER_ACCOUNTS_PROCESS_REASON` in `service_index_unheld_removal.rs`),
+  which is true of a home directory and not of these fixtures.
+  The levers named by the agent that found it:
+  `CLI_GIT_TEST_ROOT`,
+  or the build directory's mode.
+- `index_lock_holders.rs`'s module text says a caller that would unlink a lock must keep it when a process of this account refuses a look at its descriptors;
+  the removal counts that process as unseen and removes,
+  by the owner's answer of 2026-11-07 ("Service removes it").
+  Which of the two is changed to match the other?
+  The answer on record points at the module text.
 
 ##### The deletion ended at 18:49:59
 
@@ -1135,6 +1151,157 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Two reviews with defects, two authors finished, and a correction: a merge that met a held lock never failed (2026-11-13T22:32:01-05:00)
+
+Not final and not approved:
+read by the coordinating session from two review files and two runs' last messages,
+nothing here rerun by it except where a command is named.
+
+The journal after the install of `0.6.1-alpha.22`,
+counted again at 22:32 for 22:26:00 to 22:32:00:
+729 lines,
+no manager-wide reload,
+no start that failed at the EXEC step,
+no service at the start limit,
+two services that said `0.6.1-alpha.22` at their start.
+
+**Corrected**:
+the section "The issue 6299 fix is in `main`; two authors' answers go to review; two lock-wait tests are red on `main`" (2026-11-13T19:38:05-05:00) says of those two tests "That is a merge that fails where the project says it waits".
+Both halves are wrong.
+The merge did not fail:
+on `main` it saves its commit on `refs/cli-git/kept/<n>` and exits 0.
+And the project does not say it waits:
+`SPEC.md` says a merge is "preceded by one look at `index.lock` that never waits for another program's command",
+from the owner's answer for a live foreign `index.lock`,
+put in by `4de623c55e` on 2026-11-12 ("The owner forbids waiting on another agent's command").
+The two binary controls assert the wait that commit removed;
+they are the stale side.
+The brief written from the wrong sentence asked an agent to make the merge wait.
+
+The merge that meets a held lock
+(run `merge-that-meets-a-held-index-lock-waits-for-its-live-holder-on-a-machine-with-other-accounts-processes-1`,
+ended 22:24:09,
+commits `feb4917f02` and `e42d2fd76a`):
+
+- Its author found both errors of the brief by running the controls,
+  and found that the processes of other accounts change the words and never the verdict.
+- Then,
+  as the brief asked,
+  it made a merge wait up to `MERGE_LOCK_CEILING` for a lock nothing proves the owner of
+  (61 s in its own cost list where `main` saves at once in 215 ms),
+  and asked in its report whether that is acceptable.
+  By the record it is not:
+  its own report names the case,
+  a person's `git commit` at its editor holds the lock with no descriptor open and no PID file,
+  which is another program's live command.
+- Adopted while the owner was away,
+  from `SPEC.md`'s sentence and its source:
+  the branch goes back to one look and no wait,
+  the two controls are rewritten to state what `main` does,
+  and what does not depend on the wait is kept
+  (the count that names processes,
+  controls that hold the lock open from a child process where the old ones rested on the test binary's name starting with `git`,
+  the control of what unseen processes do to each verdict).
+  The author is resumed with that
+  (`merge-that-meets-a-held-index-lock-keeps-the-rule-that-a-merge-never-waits-prompt.md`,
+  queued near the head).
+- Three things it noticed:
+  `merge_isolation_recovery::tests::a_capture_another_record_still_names_keeps_its_ref` fails alone,
+  four times in a row,
+  where the earlier reading had it pass alone
+  (added to the brief of the run that has those four tests);
+  a binary fixture's root under the build volume can be reached by another account
+  (mode 0755 all the way,
+  the lock 0644),
+  so the removal's tolerance of other accounts' processes rests on a fact the fixtures do not meet;
+  and `index_lock_holders.rs`'s module text disagrees with the removal about a process of this account whose descriptors the kernel refuses.
+  The last two are in "Questions kept for the owner's return".
+- The run ended as `pi-not-stopped` with `piExit.code` 0:
+  its feed has the exit and,
+  one millisecond later,
+  "Pi was still running 5000 ms after SIGKILL",
+  137 s after the agent settled with its whole report.
+  A fresh run on the driver is queued
+  (`driver-run-whose-pi-exited-as-the-last-bound-ran-out-is-not-recorded-as-pi-not-stopped`).
+
+The relink fix's review
+(`~/temp/agent/change-reviews/git-policy-cli-package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not/review.md`,
+ended 22:24:40,
+on `8da5f23325`):
+
+- Two defects,
+  both reproduced against the library,
+  both weighed as standing:
+  the reason a relink failed is forgotten before its record durably reaches `failed`,
+  so a kill between the two leaves a record that is told again every lease period and never settles,
+  and later a notice that says no tool ever answered;
+  and the new read of `toolchain.lock.json` has no guard against a file that is not regular,
+  so a named pipe there holds the add or a service job without end.
+- Sound:
+  where the notice is written,
+  how the reason is keyed,
+  the removal of a copied record.
+- Back to the author in its own session
+  (`relink-fix-of-the-wrapper-answers-its-review-of-8da5f23325-prompt.md`,
+  queued near the head).
+- The review file calls its model `pai/glm-5.2`.
+  The run's feed says `"model":"qwen4-max-preview"`,
+  which is what the launcher starts;
+  the file's own line is the model's guess about itself.
+
+The landed removal's review
+(`~/temp/agent/change-reviews/git-policy-cli-landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit/review.md`,
+ended 22:26:32,
+on `2ef29614c6`):
+
+- **A loss, reproduced**:
+  the typed,
+  unforced removal of a worktree that is a btrfs subvolume destroys a second registered worktree inside it under an ignored directory,
+  with its uncommitted edit to a tracked file.
+  The typed route asks about stranded commits and hidden edits and never about registrations inside;
+  the sweep's looks do.
+  Its control:
+  the same removal with the nested worktree detached at a commit nothing else names is refused.
+- Read and not reproduced:
+  a `HEAD` that is neither a `ref:` line nor an object name is answered as "not detached",
+  where the function's doc says an unreadable record keeps the worktree.
+- The loss is the one the removal-refuses author closed on its own branch in the same hour
+  (the next item here),
+  for the typed route,
+  by the record under "How far the protection of a worktree being removed reaches".
+  So the landed-removal author is resumed
+  (`landed-removal-keeps-git-work-answers-its-review-of-2ef29614c6-prompt.md`,
+  queued near the head)
+  to fix the unreadable `HEAD` and,
+  for the loss,
+  to write no second guard:
+  it runs the review's scripts on a scratch merge of the two branches and says whether the loss still shows and where the two meet.
+  The two branches land together or the second after the first,
+  never the landed-removal branch alone.
+
+The removal that refuses a busy worktree,
+the answer to its review
+(run `removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes-4`,
+ended 22:26:09,
+tip `d34ecbc2ac`,
+`main` merged):
+
+- Three findings answered,
+  each control shown failing first:
+  a nested worktree's changed or staged tracked file,
+  or a commit no reference names,
+  now refuses the typed removal with an opt-out
+  (new `worktree_nested_git_work.rs`;
+  a clean nested worktree still does not keep the outer one);
+  a worktree that is both a fresh candidate and a remembered keep is examined once;
+  the kept record is replaced by one rename.
+- Cost:
+  none measurable with no nested worktree,
+  2 to 4 ms for one clean nested worktree.
+- Its review is queued at the head
+  (`review-git-policy-cli-removal-refuses-a-busy-worktree-answers-after-its-review-of-01d26607ce`,
+  range `main...d34ecbc2ac`).
 
 ##### `0.6.1-alpha.22` is installed; the removal's probes pass against the installed program (2026-11-13T22:27:20-05:00)
 
