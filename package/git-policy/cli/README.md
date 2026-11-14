@@ -576,6 +576,12 @@ Read-only commands,
   so a checkout made at that moment is not left showing the older files.
   A worktree whose folder was deleted still lists its branch but holds no files,
   so it is not a worktree to move and the branch moves as a ref.
+  A branch checked out nowhere sorts itself out after its reference moves:
+  a `git switch` of that worktree that took the branch at the same moment is not undone,
+  and the merge's content is taken out of that worktree, so what its own branch names is what it holds.
+  A `git switch` in the worktree a branch is moved in is treated the same way:
+  the branch follows its merge, the worktree stays on the branch that switch chose,
+  and the report says which.
    Otherwise the branch stays where it is and the report names the reason and the overlapping files.
   A conflict that the word-level second merge pass cannot resolve in every file is reported with the conflicting paths
    and publishes nothing;

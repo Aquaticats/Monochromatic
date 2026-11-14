@@ -8421,6 +8421,25 @@ in-process reader can) gives every value of the multi-valued keys.
   so its index and files are brought to the merge by the two-way `read-tree -u -m`,
   which leaves a path a person has changed with their bytes
   (`advance_pushed_branch_awaiting` in `src/native/push/auto_push_reconcile_branch_advance_elsewhere.rs`).
+  A worktree's move writes its index and files and then the reference,
+  and a `git switch` of that worktree can land in the instant between the last look at the checkout and that write.
+  A switch onto a branch whose tree matches the old tip on the paths the merge changes does not refuse:
+  it carries the merge's content over as a staged change,
+  which the next commit on that branch would publish.
+  The move therefore looks at the checkout once more after the reference moved,
+  and writes the tree of the branch the checkout shows over the paths this move wrote and nowhere else:
+  the merge's content for the pushed branch,
+  and that branch's own content for any other, a path the branch does not have being removed.
+  A path a person has changed since is left as it is and named,
+  and no lock is taken (`AGENTS.md`,
+  rule `NLK`):
+  the reference's compare-and-swap decides who moves the branch,
+  and Git's index lock serialises each write.
+  The report says which of these it found:
+  the checkout followed,
+  it went to another branch and holds nothing of the merge,
+  or it still holds some of the merge and which paths those are
+  (`bring_the_checkout_to_its_branch_awaiting` in `src/native/push/auto_push_reconcile_branch_checkout.rs`).
   An empty status passes trivially;
   uncommitted work in files the move does not write is left exactly as it was,
   and the report says so,
