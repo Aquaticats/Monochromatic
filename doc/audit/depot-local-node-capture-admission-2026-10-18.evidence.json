@@ -6,7 +6,19 @@
   "priorEvidence": {
     "path": "doc/audit/depot-local-node-counterfactual-2026-10-18.evidence.json",
     "bytes": 17947,
-    "sha256": "2cf0ffa80e8eb7bfe761837cc017bae65dd82dc88e909429a8e407d4237c9461"
+    "sha256": "2cf0ffa80e8eb7bfe761837cc017bae65dd82dc88e909429a8e407d4237c9461",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 18756,
+        "sha256": "6918feb3ce5cfbd50597c5aaf0cdaba62d0e6951fc2dc9c9036ea195908e4123",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "sourceFiles": [
     {

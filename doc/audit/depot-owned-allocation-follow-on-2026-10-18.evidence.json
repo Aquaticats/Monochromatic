@@ -8,7 +8,19 @@
     "sha256": "d265c963dbb0c95c70d33019f3603a3b752c0cc40b6e0846069b331ac05807ff",
     "rows": 223,
     "mutated": false,
-    "baselineIndependentReviewNotRepeated": true
+    "baselineIndependentReviewNotRepeated": true,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 837207,
+        "sha256": "6838bd81c4a50389e55260c184e4dde0efcaa5a8a87224f210db4f9ce2664e34",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "identityPolicy": "Same provider/product/run/job/attempt or project/build key grammar as frozen baseline; one row per identity, never add mirrored owner receipts",
   "arithmeticPolicy": {
@@ -2942,7 +2954,19 @@
     "bytes": 392421,
     "sha256": "872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d",
     "uncompressedBytes": 3179766,
-    "records": 41
+    "records": 41,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 3cac1b657b38a1194adb59b1b143a4f7552947a6:doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "nominalKnownProviderWindowListProxyTotal": {
     "usd": "1.2625",
@@ -3040,7 +3064,19 @@
   "appendedTerminalSources": [
     {
       "source": "doc/audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz",
-      "sha256": "c7d97ade72711bc3386591871419757f97f05afb5055f03b8e671dfeadd1cf85"
+      "sha256": "c7d97ade72711bc3386591871419757f97f05afb5055f03b8e671dfeadd1cf85",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 1a562991f6d24f8284b931c7913fb3c30c5f3467:doc/audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "source": "expanded-graph-corrected-github-completed-samples.metadata.json",
@@ -3073,7 +3109,19 @@
       "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35",
       "scope": "selected terminal Depot OS allocation rows only",
       "rowsAdded": 2,
-      "selectedArchiveRecord": "inputs/terminal-depot-os-owner-selected@c97f47141b8bcdd2"
+      "selectedArchiveRecord": "inputs/terminal-depot-os-owner-selected@c97f47141b8bcdd2",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     }
   ],
   "desktopBoundaryHydration": {
@@ -3643,7 +3691,19 @@
     "sourceQualifiedOwnerSeal": {
       "path": "doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
       "bytes": 14201235,
-      "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35"
+      "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     }
   },
   "terminalOsPrivacyInspection": {

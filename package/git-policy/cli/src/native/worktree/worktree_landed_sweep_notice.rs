@@ -109,6 +109,30 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
             sweep.landed_branch
         ));
     }
+    // A worktree whose volume went away during its pass is said as that path's own ending: the emptied root went with one
+    // `rmdir`, and nothing this removal deleted is what freed the space its snapshot held, because the subvolume had gone by
+    // another command's delete.
+    for removed in &sweep.removed_emptied {
+        lines.push(format!(
+            "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}: the subvolume or mount point that \
+             stood inside it had gone by the time its pass ended, so the emptied root went with one `rmdir`, every other entry \
+             of it was removed by this merge, and Git no longer lists it. The branch stays.",
+            removed.worktree.display(),
+            removed.branch,
+            sweep.landed_branch
+        ));
+    }
+    // A worktree removed around something someone else put inside it is said with what was left and what frees the path, and
+    //  the same words are recorded for the person whose merge this was: the path they want next is still taken, and the output
+    //  of a merge is easily missed.
+    for removed in &sweep.removed_around {
+        lines.push(crate::worktree_removal_goes_around_a_foreign_volume::landed_around_line(
+            sweep.landed_branch.as_str(),
+            removed.worktree.as_path(),
+            removed.branch.as_str(),
+            removed.left.as_slice(),
+        ));
+    }
     for unfinished in &sweep.unfinished {
         lines.push(format!(
             "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}, and could not remove its registration, so Git still lists the worktree as missing; this is what finishes it:",

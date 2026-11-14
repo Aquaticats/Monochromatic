@@ -37,7 +37,7 @@ fn precise_is_pnpm_update_name_at_version_and_needs_exactly_one_name() {
     match planned.plan {
         UpdatePlan::Targeted { precise, cargo_args, .. } => {
             assert!(precise);
-            assert!(cargo_args.contains(&"--precise".to_string()) && cargo_args.contains(&"1.0.200".to_string()));
+            assert!(cargo_args.iter().any(|word| { return word == "--precise"; }) && cargo_args.iter().any(|word| { return word == "1.0.200"; }));
         }
         other => panic!("expected targeted, got {other:?}"),
     }
@@ -48,7 +48,7 @@ fn precise_is_pnpm_update_name_at_version_and_needs_exactly_one_name() {
 #[test]
 fn breaking_is_pnpm_update_latest_and_runs_cargos_own_breaking_update() {
     match plan(&["update", "--breaking"]).expect("plans").plan {
-        UpdatePlan::Targeted { cargo_args, .. } => assert!(cargo_args.contains(&"--breaking".to_string())),
+        UpdatePlan::Targeted { cargo_args, .. } => assert!(cargo_args.iter().any(|word| { return word == "--breaking"; })),
         other => panic!("expected targeted, got {other:?}"),
     }
 }

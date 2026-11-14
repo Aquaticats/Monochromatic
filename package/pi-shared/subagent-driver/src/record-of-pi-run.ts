@@ -186,11 +186,17 @@ export function startRecordOfPiRun({
      How many model errors named a rate limit or a quota.
      */
     rateLimitErrors: number;
+
+    /**
+     Whether Pi took the run's first prompt, which is where work may begin.
+     */
+    tookPrompt: boolean;
   } = {
     retries: 0,
     retriesSinceAnswer: 0,
     answers: 0,
     rateLimitErrors: 0,
+    tookPrompt: false,
   };
 
   /**
@@ -243,6 +249,12 @@ export function startRecordOfPiRun({
     },
     note,
     countHandledPrompt: observed.countPromptHandled,
+    countPromptTaken: function countPromptTaken() {
+      state.tookPrompt = true;
+    },
+    promptTaken: function promptTaken() {
+      return state.tookPrompt;
+    },
     feedProblem: feed.problem,
     unrecoveredModelError: observed.unrecoveredModelError,
     retriesTaken: function retriesTaken() {
@@ -293,6 +305,9 @@ export function startRecordOfPiRun({
       piExit,
       piHasExited,
       sessionStats,
+      piStartAttempts,
+      piStartFailures,
+      piStartStoppedBy,
     },) {
       return {
         endReason,
@@ -307,6 +322,9 @@ export function startRecordOfPiRun({
         lastAssistantText: observed.lastAssistantText(),
         retries: state.retries,
         rateLimitErrors: state.rateLimitErrors,
+        piStartAttempts: piStartAttempts ?? 1,
+        ...(piStartFailures === undefined ? {} : { piStartFailures, }),
+        ...(piStartStoppedBy === undefined ? {} : { piStartStoppedBy, }),
         ...modelErrorOf({
           run: observed,
           retries: state.retriesSinceAnswer,

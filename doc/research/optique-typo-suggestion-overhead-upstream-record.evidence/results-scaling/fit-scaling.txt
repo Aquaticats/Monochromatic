@@ -1,0 +1,105 @@
+slope tokens  1.1.1              mean=1.0846 sd=0.0999 [0.9088, 1.1589] min-fit=1.1221
+slope tokens  1.3.6              mean=1.1099 sd=0.059 [1.0334, 1.1738] min-fit=1.1215
+slope tokens  1.4.0-dev.2664     mean=1.1228 sd=0.0319 [1.0692, 1.1449] min-fit=1.1179
+slope tokens  1.4.0-dev.2971     mean=1.2519 sd=0.0476 [1.1876, 1.3155] min-fit=1.3175
+slope options 1.1.1              mean=1.7526 sd=0.0505 [1.6927, 1.8315] min-fit=1.7875
+slope options 1.3.6              mean=1.7078 sd=0.0464 [1.6559, 1.7819] min-fit=1.7718
+slope options 1.4.0-dev.2664     mean=1.6071 sd=0.0301 [1.5594, 1.6356] min-fit=1.6929
+slope options 1.4.0-dev.2971     mean=0.6409 sd=0.0886 [0.5165, 0.7181] min-fit=0.7453
+slope length  1.1.1              mean=0.8201 sd=0.0124 [0.804, 0.8383] min-fit=0.8137
+slope length  1.3.6              mean=-0.0676 sd=0.042 [-0.1323, -0.0148] min-fit=-0.0781
+slope length  1.4.0-dev.2664     mean=-0.0209 sd=0.0298 [-0.0579, 0.0229] min-fit=-0.0524
+slope length  1.4.0-dev.2971     mean=0.0404 sd=0.0407 [-0.0215, 0.0818] min-fit=0.0206
+straight tokens  1.1.1              slope=[0.307918,0.282987,0.261754,0.25346,0.288299] intercept=[-82.217,-69.565,-43.886,-35.645,-55.345] R2=[0.973368,0.982102,0.986528,0.99024,0.98275]
+straight tokens  1.3.6              slope=[0.262649,0.280734,0.279249,0.279296,0.294607] intercept=[-18.176,-60.861,-62.657,-30.879,-56.54] R2=[0.986632,0.986884,0.985103,0.996208,0.985105]
+straight tokens  1.4.0-dev.2664     slope=[0.366467,0.325537,0.293056,0.313969,0.293112] intercept=[-93.587,-72.696,-51.395,-61.745,-40.83] R2=[0.984899,0.991103,0.989907,0.983838,0.995733]
+straight tokens  1.4.0-dev.2971     slope=[0.180279,0.163737,0.14083,0.156763,0.15705] intercept=[-69.36,-64.947,-42.703,-50.428,-48.58] R2=[0.95905,0.95581,0.969808,0.975115,0.964657]
+straight length  1.1.1              slope=[4.55649,4.638561,4.682559,4.784997,4.599826] intercept=[27.972,37.574,56.789,46.292,29.26] R2=[0.999416,0.999361,0.989049,0.942765,0.998812]
+straight length  1.3.6              slope=[-0.056392,-0.059009,-0.087691,-0.035259,-0.059523] intercept=[32.334,35.313,38.529,37.536,33.45] R2=[0.061219,0.057828,0.078112,0.008632,0.070227]
+straight length  1.4.0-dev.2664     slope=[-0.059546,-0.048737,-0.047015,0.008218,-0.041679] intercept=[42.232,44.738,43.877,41.442,43.811] R2=[0.057129,0.036555,0.030742,0.000765,0.027781]
+straight length  1.4.0-dev.2971     slope=[0.013075,0.02587,0.014814,0.077682,-0.010096] intercept=[27.323,26.005,27.507,23.503,28.016] R2=[0.045854,0.512242,0.171274,0.69342,0.071751]
+options shape 1.1.1              R2 linear=[0.954615,0.94589,0.920664,0.920579,0.952016] R2 a+bP2=[0.997467,0.999778,0.998146,0.997895,0.998913] b=[0.06022,0.052469,0.060485,0.064665,0.053404] a=[6.525,5.121,-6.587,-5.202,6.752]
+options shape 1.3.6              R2 linear=[0.927337,0.93984,0.938707,0.951135,0.937113] R2 a+bP2=[0.99921,0.999988,0.99998,0.999061,0.99995] b=[0.065034,0.054988,0.056039,0.05516,0.054446] a=[-5.463,2.129,1.53,6.733,0.736]
+options shape 1.4.0-dev.2664     R2 linear=[0.938765,0.933482,0.935036,0.930477,0.936845] R2 a+bP2=[0.99934,0.999754,0.999837,0.999452,0.999898] b=[0.063889,0.059359,0.058168,0.058061,0.056321] a=[5.908,1.649,1.653,-0.258,2.131]
+options shape 1.4.0-dev.2971     R2 linear=[0.875296,0.997235,0.96512,0.904622,0.957624] R2 a+bP2=[0.68428,0.941984,0.919983,0.838602,0.884588] b=[0.001369,0.001422,0.001334,0.001221,0.001437] a=[7.738,5.227,7.121,7.565,5.664]
+probes tokens  level= 100 1.1.1              probes=1600 expected=1600
+probes tokens  level= 100 1.3.6              probes=1600 expected=1600
+probes tokens  level= 100 1.4.0-dev.2664     probes=1600 expected=1600
+probes tokens  level= 100 1.4.0-dev.2971     probes=0 expected=1600
+probes tokens  level= 200 1.1.1              probes=3200 expected=3200
+probes tokens  level= 200 1.3.6              probes=3200 expected=3200
+probes tokens  level= 200 1.4.0-dev.2664     probes=3200 expected=3200
+probes tokens  level= 200 1.4.0-dev.2971     probes=0 expected=3200
+probes tokens  level= 500 1.1.1              probes=8000 expected=8000
+probes tokens  level= 500 1.3.6              probes=8000 expected=8000
+probes tokens  level= 500 1.4.0-dev.2664     probes=8000 expected=8000
+probes tokens  level= 500 1.4.0-dev.2971     probes=0 expected=8000
+probes tokens  level=1000 1.1.1              probes=16000 expected=16000
+probes tokens  level=1000 1.3.6              probes=16000 expected=16000
+probes tokens  level=1000 1.4.0-dev.2664     probes=16000 expected=16000
+probes tokens  level=1000 1.4.0-dev.2971     probes=0 expected=16000
+probes tokens  level=2000 1.1.1              probes=32000 expected=32000
+probes tokens  level=2000 1.3.6              probes=32000 expected=32000
+probes tokens  level=2000 1.4.0-dev.2664     probes=32000 expected=32000
+probes tokens  level=2000 1.4.0-dev.2971     probes=0 expected=32000
+probes tokens  level=5000 1.1.1              probes=80000 expected=80000
+probes tokens  level=5000 1.3.6              probes=80000 expected=80000
+probes tokens  level=5000 1.4.0-dev.2664     probes=80000 expected=80000
+probes tokens  level=5000 1.4.0-dev.2971     probes=0 expected=80000
+probes options level=   4 1.1.1              probes=400 expected=400
+probes options level=   4 1.3.6              probes=400 expected=400
+probes options level=   4 1.4.0-dev.2664     probes=400 expected=400
+probes options level=   4 1.4.0-dev.2971     probes=0 expected=400
+probes options level=   8 1.1.1              probes=800 expected=800
+probes options level=   8 1.3.6              probes=800 expected=800
+probes options level=   8 1.4.0-dev.2664     probes=800 expected=800
+probes options level=   8 1.4.0-dev.2971     probes=0 expected=800
+probes options level=  16 1.1.1              probes=1600 expected=1600
+probes options level=  16 1.3.6              probes=1600 expected=1600
+probes options level=  16 1.4.0-dev.2664     probes=1600 expected=1600
+probes options level=  16 1.4.0-dev.2971     probes=0 expected=1600
+probes options level=  32 1.1.1              probes=3200 expected=3200
+probes options level=  32 1.3.6              probes=3200 expected=3200
+probes options level=  32 1.4.0-dev.2664     probes=3200 expected=3200
+probes options level=  32 1.4.0-dev.2971     probes=0 expected=3200
+probes options level=  64 1.1.1              probes=6400 expected=6400
+probes options level=  64 1.3.6              probes=6400 expected=6400
+probes options level=  64 1.4.0-dev.2664     probes=6400 expected=6400
+probes options level=  64 1.4.0-dev.2971     probes=0 expected=6400
+probes options level= 128 1.1.1              probes=12800 expected=12800
+probes options level= 128 1.3.6              probes=12800 expected=12800
+probes options level= 128 1.4.0-dev.2664     probes=12800 expected=12800
+probes options level= 128 1.4.0-dev.2971     probes=0 expected=12800
+probes length  level=   4 1.1.1              probes=8000 expected=8000
+probes length  level=   4 1.3.6              probes=8000 expected=8000
+probes length  level=   4 1.4.0-dev.2664     probes=8000 expected=8000
+probes length  level=   4 1.4.0-dev.2971     probes=0 expected=8000
+probes length  level=   8 1.1.1              probes=8000 expected=8000
+probes length  level=   8 1.3.6              probes=8000 expected=8000
+probes length  level=   8 1.4.0-dev.2664     probes=8000 expected=8000
+probes length  level=   8 1.4.0-dev.2971     probes=0 expected=8000
+probes length  level=  12 1.1.1              probes=8000 expected=8000
+probes length  level=  12 1.3.6              probes=8000 expected=8000
+probes length  level=  12 1.4.0-dev.2664     probes=8000 expected=8000
+probes length  level=  12 1.4.0-dev.2971     probes=0 expected=8000
+probes length  level=  16 1.1.1              probes=8000 expected=8000
+probes length  level=  16 1.3.6              probes=8000 expected=8000
+probes length  level=  16 1.4.0-dev.2664     probes=8000 expected=8000
+probes length  level=  16 1.4.0-dev.2971     probes=0 expected=8000
+probes length  level=  32 1.1.1              probes=8000 expected=8000
+probes length  level=  32 1.3.6              probes=8000 expected=8000
+probes length  level=  32 1.4.0-dev.2664     probes=8000 expected=8000
+probes length  level=  32 1.4.0-dev.2971     probes=0 expected=8000
+probes length  level=  64 1.1.1              probes=8000 expected=8000
+probes length  level=  64 1.3.6              probes=8000 expected=8000
+probes length  level=  64 1.4.0-dev.2664     probes=8000 expected=8000
+probes length  level=  64 1.4.0-dev.2971     probes=0 expected=8000
+probes length  level= 128 1.1.1              probes=8000 expected=8000
+probes length  level= 128 1.3.6              probes=8000 expected=8000
+probes length  level= 128 1.4.0-dev.2664     probes=8000 expected=8000
+probes length  level= 128 1.4.0-dev.2971     probes=0 expected=8000
+probes length  level= 256 1.1.1              probes=8000 expected=8000
+probes length  level= 256 1.3.6              probes=8000 expected=8000
+probes length  level= 256 1.4.0-dev.2664     probes=8000 expected=8000
+probes length  level= 256 1.4.0-dev.2971     probes=0 expected=8000
+cross-check 1.1.1: 194.9175 ms per parse, 36864000 cells => 5.287 ns per cell

@@ -411,6 +411,12 @@ mod worktree_copy_forms;
 #[path = "binary_worktree_ladder_tests.rs"]
 mod worktree_ladder;
 
+/// A removal goes around a subvolume or a mount point it did not make:
+/// the worktree and its registration go, what was not the removal's stays as it stood,
+/// and the person is told what frees the path.
+#[path = "binary_worktree_removal_around_a_volume_tests.rs"]
+mod worktree_removal_around_a_volume;
+
 /// Rung 1 of the cheap-worktree ladder:
 /// a snapshot of a clean subvolume worktree equals Git's own checkout.
 #[path = "binary_worktree_snapshot_tests.rs"]
@@ -569,6 +575,11 @@ mod lfs_hang;
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
+/// A commit made through the service where the runtime directory's path is long,
+/// and the short one it is compared with.
+#[path = "binary_long_runtime_directory_tests.rs"]
+mod long_runtime_directory;
+
 /// A commit whose command line names the repository:
 /// `--git-dir` with `--work-tree`,
 /// `GIT_DIR` with `GIT_WORK_TREE`,
@@ -633,6 +644,13 @@ mod push_failure;
 #[path = "binary_push_queued_after_a_killed_wrapper_tests.rs"]
 mod push_queued_after_a_killed_wrapper;
 
+/// A record that waits and nothing announced it:
+/// a running service finds every kind of record by itself,
+/// acts on it once,
+/// and does nothing while there is nothing to do.
+#[path = "binary_a_record_nothing_announced_is_found_tests.rs"]
+mod a_record_nothing_announced_is_found;
+
 /// A held push whose commit a later push of the branch carried to the remote:
 /// the record is settled on Git's proof,
 /// so no command says the opposite of `git status`.
@@ -670,6 +688,12 @@ mod push_trigger;
 /// described and kept otherwise.
 #[path = "binary_stale_ref_lock_tests.rs"]
 mod stale_ref_lock;
+
+/// The lock files a killed wrapper command leaves:
+/// cleared when the wrapper's own record proves the holder gone,
+/// kept when it does not.
+#[path = "binary_killed_holder_lock_tests.rs"]
+mod killed_holder_lock;
 
 
 /// The message and identity options through the service,

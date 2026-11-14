@@ -44,11 +44,19 @@ use git_policy_cli::policy_checks::{ShippedChecks, shipped_checks};
 use git_policy_cli::policy_content::LifecycleContent;
 use git_policy_cli::policy_registry::{POLICY_REGISTRY, PolicyId};
 use git_policy_cli::repository_facts::RepositoryFacts;
+/// What one abort form would discard besides the operation's own state.
+use git_policy_cli::repository_facts_abort_discard::{AbortDiscard, DiscardBaseline};
 use git_policy_cli::repository_location::RepositoryLocation;
+/// The operation a guarded form ends, and the commit a skip writes back.
+use git_policy_cli::rule_abort_operation::{
+    AbortOperation, OperationEnd, SKIP_RESTORES, ended_operation,
+};
 /// The answer one `git add` selection question gives.
 use git_policy_cli::rule_add_explicit::StagedSelection;
 use git_policy_cli::rule_commit_index::IndexVsHead;
 use git_policy_cli::rule_commit_sequencer::SequencerState;
+/// The guarded form whose abort or skip the lifecycle judges.
+use git_policy_cli::rule_linked_worktree::GuardedCommand;
 use git_policy_cli::rule_worktree_dirty::DirtyScope;
 use git_policy_cli::transaction_git::GitContext;
 use git_policy_cli::worktree_identity::{WorktreeIdentity, common_directory};
@@ -70,6 +78,8 @@ use git_policy_cli::wrapper_invocation::{StrippedInvocation, strip_wrapper_contr
 /// // string, but byte-preserving.
 /// ```
 use std::ffi::{OsStr, OsString};
+/// `size_of` is the width of the mode's own type, in bytes.
+use std::mem::size_of;
 /// `PathBuf` is an owned filesystem path of raw bytes.
 use std::path::{Path, PathBuf};
 
@@ -401,7 +411,7 @@ pub fn check_separator(arguments: &[OsString], separator: usize) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FixedFacts = { location: RepositoryLocation; index: IndexVsHead; dirty: boolean; sequencer: SequencerState; remoteGuess: boolean; ignoredAndTracked: string[]; stash: boolean; cleanDeletesOnlyByItsPatterns: boolean; selection: StagedSelection };
+/// type FixedFacts = { location: RepositoryLocation; index: IndexVsHead; dirty: boolean; sequencer: SequencerState; remoteGuess: boolean; ignoredAndTracked: string[]; untrackedAndTracked: string[]; stash: boolean; cleanDeletesOnlyByItsPatterns: boolean; operationWaits: boolean; worktreeWork: boolean; stagedWork: boolean; selection: StagedSelection };
 /// ```
 #[derive(Clone, Debug)]
 pub struct FixedFacts {
@@ -417,8 +427,11 @@ pub struct FixedFacts {
     /// The answer to `remote_guess_creates_branch`.
     pub remote_guess: bool,
     /// The ignored files the tree a forced form writes also tracks;
-    ///  empty unless the mode byte asks for them.
+    ///  empty unless the mode asks for them.
     pub ignored_and_tracked: Vec<String>,
+    /// The untracked files the tree an abort restores also tracks;
+    ///  empty unless the mode asks for them.
+    pub untracked_and_tracked: Vec<String>,
     /// The answer to `repository_holds_a_stash`.
     pub stash: bool,
     /// Whether the dry run of a clean as typed names a path only its own `-e`/`--exclude` patterns call ignored,
@@ -427,6 +440,13 @@ pub struct FixedFacts {
     /// The answer to `staged_selection`,
     ///  for whichever pathspecs were asked about.
     pub selection: StagedSelection,
+    /// Whether the operation a guarded abort or skip form ends waits;
+    ///  when it does not, `abort_discard` answers that Git refuses the form itself.
+    pub operation_waits: bool,
+    /// Whether the person's own work stands in the worktree an abort would write over.
+    pub worktree_work: bool,
+    /// Whether the person's own work stands in the index an abort would reset.
+    pub staged_work: bool,
 }
 
 /// What:
@@ -473,6 +493,21 @@ impl RepositoryFacts for FixedFacts {
         return Ok(self.ignored_and_tracked.clone());
     }
 
+    /// What:
+    ///  Answer with the untracked files the tree an abort or skip restores also tracks,
+    ///  whose paths its reset refuses to write over.
+    /// Why:
+    ///   A non-empty answer is what makes an abort or a skip reject in a linked worktree,
+    ///  and the mode chooses it so the fuzzer reaches that rejection.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// untrackedFilesTheTreeTracks(revision) { return this.untrackedAndTracked; }
+    /// ```
+    fn untracked_files_the_tree_tracks(&mut self, _revision: &OsStr) -> Result<Vec<String>, String> {
+        return Ok(self.untracked_and_tracked.clone());
+    }
+
     /// The answer to `repository_holds_a_stash`,
     ///  which decides whether `stash drop` and `stash clear` reject.
     fn repository_holds_a_stash(&mut self) -> Result<bool, String> {
@@ -509,6 +544,90 @@ impl RepositoryFacts for FixedFacts {
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {
         return Ok(self.sequencer);
+    }
+
+    /// What:
+    ///  Answer with the directory whose `.git` is the repository's common directory:
+    ///  the main checkout of the linked worktree, or the worktree itself.
+    /// Why:
+    ///   A refusal of a shared remote setting names the checkout that owns the file,
+    ///  and the fake location puts that file at `<main>/.git/config`,
+    ///  so the directory holding it is the main checkout.
+    ///  No repository has no such directory,
+    ///  which is the failure the real provider gives when Git cannot name one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// mainWorktreeRoot() {
+    ///   const common = commonDirectory(this.location.identity);
+    ///   return common === undefined ? { error: '...' } : path.dirname(common);
+    /// }
+    /// ```
+    fn main_worktree_root(&mut self) -> Result<PathBuf, String> {
+        // `.parent()` is the directory whose `.git` the common directory is; a worktree's own root stands there.
+        return match common_directory(&self.location.identity).and_then(Path::parent) {
+            Some(root) => Ok(root.to_path_buf()),
+            None => Err(String::from(
+                "the fuzz facts hold no repository, so no main checkout exists to name",
+            )),
+        };
+    }
+
+    /// What:
+    ///  Answer what the abort or skip form would discard besides the operation's own state:
+    ///  the operation the command's own word ends when the mode says one waits,
+    ///  and the work the mode puts in the worktree or the index.
+    /// Why:
+    ///   The guard reads this before it decides anything about an abort,
+    ///  so the three answers it can give are each a mode:
+    ///  no operation of this kind waits (Git refuses the form and discards nothing),
+    ///  the operation waits and holds only its own state (the command runs as Git runs it),
+    ///  or the person's own work stands where the reset writes (the command is refused).
+    ///  The fake holds no recorded conflict result of its own,
+    ///  so the listings compare against the result Git recorded,
+    ///  which is the case no path of them can be confused with a resolution.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// abortDiscard(command) {
+    ///   const ended = endedOperation(command);
+    ///   if (ended === undefined || !this.operationWaits) return { kind: 'nothing-waiting' };
+    ///   return { kind: 'waiting', inProgress: ended[0], ends: ended[1], restored: SKIP_RESTORES,
+    ///     baseline: 'recorded-result',
+    ///     worktree: this.worktreeWork ? ['notes.md'] : [], staged: this.stagedWork ? ['staged.rs'] : [],
+    ///     conflicted: [] };
+    /// }
+    /// ```
+    fn abort_discard(&mut self, command: GuardedCommand) -> Result<AbortDiscard, String> {
+        // The operation a form ends is the command's own reading, so the answer names the state the guard judges.
+        let Some((aborted, ends)): Option<(AbortOperation, OperationEnd)> = ended_operation(command) else {
+            return Ok(AbortDiscard::NothingWaiting);
+        };
+        if !self.operation_waits {
+            return Ok(AbortDiscard::NothingWaiting);
+        }
+        return Ok(AbortDiscard::Waiting {
+            in_progress: aborted,
+            ends,
+            // A skip writes back the tree it stopped at; the fake repository holds that one commit, so an abort's
+            //  reset writes the same tree back.
+            restored: OsString::from(SKIP_RESTORES),
+            // Git recorded the result it computed for the conflict it stopped at, so a path still holding it is
+            //  Git's own text rather than a resolution the wrapper cannot judge.
+            baseline: DiscardBaseline::RecordedResult,
+            // `vec![...]` is an owned list holding the one path the mode puts there.
+            worktree: if self.worktree_work {
+                vec![b"notes.md".to_vec()]
+            } else {
+                Vec::<Vec<u8>>::new()
+            },
+            staged: if self.staged_work {
+                vec![b"staged.rs".to_vec()]
+            } else {
+                Vec::<Vec<u8>>::new()
+            },
+            conflicted: Vec::<Vec<u8>>::new(),
+        });
     }
 
     fn remote_guess_creates_branch(&mut self, _target: &OsStr) -> Result<bool, String> {
@@ -579,6 +698,73 @@ impl RepositoryFacts for FixedFacts {
 }
 
 /// What:
+///  The answers one frontier run gives its repository, as bits of one unsigned integer.
+/// Why:
+///   The fuzzer chooses them and the seeds carry them,
+///  so both need one width to read and write:
+///  `MODE_BYTES` is it,
+///  and widening the answers is a change here and in `fuzz_targets/wrapper_controls.rs`,
+///  which the seed writer reads and the seed control decodes with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Mode = number; // little endian, MODE_BYTES wide
+/// ```
+pub type Mode = u16;
+
+/// The bytes an input spends on its mode, which is the width of `Mode` itself.
+pub const MODE_BYTES: usize = size_of::<Mode>();
+
+/// What:
+///  The bit of a mode that selects the linked worktree;
+///  its absence is no repository at all.
+/// Why:
+///   One bit of the fuzz input chooses between the two locations.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const LINKED_WORKTREE = 0x001;
+/// ```
+pub const LINKED_WORKTREE: Mode = 1 << 0;
+
+/// The bit of a mode that makes the index differ from `HEAD`.
+pub const INDEX_DIFFERS: Mode = 1 << 1;
+
+/// The bit of a mode that makes an operation wait for its conflicts.
+pub const SEQUENCER_WAITS: Mode = 1 << 2;
+
+/// The bit of a mode that makes the target of a `checkout` or `switch` a branch of one remote.
+pub const REMOTE_GUESS: Mode = 1 << 3;
+
+/// The bit of a mode whose worktree holds uncommitted state.
+pub const WORKTREE_DIRTY: Mode = 1 << 4;
+
+/// The bit of a mode whose repository holds an ignored file at a path a restored tree tracks.
+pub const IGNORED_AND_TRACKED: Mode = 1 << 5;
+
+/// The bit of a mode whose repository holds a stash entry.
+pub const STASH_HELD: Mode = 1 << 6;
+
+/// The bit of a mode whose pattern-only `clean` dry run names a path.
+pub const CLEAN_DELETES: Mode = 1 << 7;
+
+/// The bit of a mode whose repository holds an untracked file at a path a restored tree tracks.
+pub const UNTRACKED_AND_TRACKED: Mode = 1 << 8;
+
+/// What:
+///  The bit of a mode in which the operation a guarded abort or skip form ends waits.
+/// Why:
+///   Without it the form's own state is absent,
+///  which is Git's to refuse and discards nothing.
+pub const OPERATION_WAITS: Mode = 1 << 9;
+
+/// The bit of a mode in which the person's own work stands in the worktree an abort writes over.
+pub const WORKTREE_WORK: Mode = 1 << 10;
+
+/// The bit of a mode in which the person's own work stands in the index an abort resets.
+pub const STAGED_WORK: Mode = 1 << 11;
+
+/// What:
 ///  Whether `mode` selects the linked worktree.
 ///  `bool` is true or false.
 /// Why:
@@ -586,28 +772,31 @@ impl RepositoryFacts for FixedFacts {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isLinked = (mode: number) => (mode & 1) === 1;
+/// const isLinked = (mode: number) => (mode & LINKED_WORKTREE) !== 0;
 /// ```
-pub fn mode_is_linked(mode: u8) -> bool {
-    return mode & 1 == 1;
+pub fn mode_is_linked(mode: Mode) -> bool {
+    return mode & LINKED_WORKTREE != 0;
 }
 
 /// What:
-///  Fixed facts chosen by one byte:
+///  Fixed facts chosen by two bytes:
 ///  a linked worktree or no repository,
 ///  and the
-///       seven other answers from its higher bits.
+///       eleven other answers from the remaining bits,
+///  one bit each (`LINKED_WORKTREE` through `STAGED_WORK`).
 /// Why:
 ///   Neither location exists on disk,
 ///  so no configuration and no leftover state is
 ///       found and the defaults apply:
 ///  the built-in content policy is on.
+///  One bit per answer lets the fuzzer choose every answer on its own,
+///  so a rule that reads two of them is seen with each of their four combinations.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function fixedFacts(mode: number): FixedFacts;
 /// ```
-pub fn fixed_facts(mode: u8) -> FixedFacts {
+pub fn fixed_facts(mode: Mode) -> FixedFacts {
     let identity: WorktreeIdentity = if mode_is_linked(mode) {
         WorktreeIdentity::LinkedWorktree {
             common_dir: PathBuf::from("/nonexistent-cli-git-fuzz/main/.git"),
@@ -623,26 +812,35 @@ pub fn fixed_facts(mode: u8) -> FixedFacts {
             // `Vec::<u8>::new()` is an empty owned byte list: the command runs at the top level.
             prefix: Vec::<u8>::new(),
         },
-        index: if mode & 2 == 2 {
+        index: if mode & INDEX_DIFFERS != 0 {
             IndexVsHead::Differs
         } else {
             IndexVsHead::Matches
         },
-        sequencer: if mode & 4 == 4 {
+        sequencer: if mode & SEQUENCER_WAITS != 0 {
             SequencerState::InProgress
         } else {
             SequencerState::NotInProgress
         },
-        dirty: mode & 16 == 16,
-        remote_guess: mode & 8 == 8,
+        dirty: mode & WORKTREE_DIRTY != 0,
+        remote_guess: mode & REMOTE_GUESS != 0,
         // `vec![...]` is an owned list holding the one path a forced form would overwrite.
-        ignored_and_tracked: if mode & 32 == 32 {
+        ignored_and_tracked: if mode & IGNORED_AND_TRACKED != 0 {
             vec![String::from("ignored/kept.env")]
         } else {
             Vec::<String>::new()
         },
-        stash: mode & 64 == 64,
-        clean_deletes: mode & 128 == 128,
+        // The same shape for the untracked file an abort's reset refuses to write over.
+        untracked_and_tracked: if mode & UNTRACKED_AND_TRACKED != 0 {
+            vec![String::from("victim.txt")]
+        } else {
+            Vec::<String>::new()
+        },
+        stash: mode & STASH_HELD != 0,
+        clean_deletes: mode & CLEAN_DELETES != 0,
+        operation_waits: mode & OPERATION_WAITS != 0,
+        worktree_work: mode & WORKTREE_WORK != 0,
+        staged_work: mode & STAGED_WORK != 0,
         // The fake repository holds one path, and the whole worktree and the directory the command runs in
         //  both give it, so a reach-only spelling of `git add` covers a set here as it does in a real one.
         selection: StagedSelection {
@@ -741,8 +939,9 @@ pub enum FrontierSeen {
 }
 
 /// What:
-///  Check the refusal frontier for one argument list at the location `mode` selects,
-///       and say how the lifecycle ended.
+///  Check the refusal frontier for one argument list at the location and with the repository answers `mode`
+///       selects,
+///  and say how the lifecycle ended.
 /// Why:
 ///   Whatever the arguments,
 ///  a forwarded command must not be a real commit,
@@ -754,7 +953,7 @@ pub enum FrontierSeen {
 /// ```ts
 /// function checkFrontier(args: string[], mode: number): FrontierSeen;
 /// ```
-pub fn check_frontier(arguments: &[OsString], mode: u8) -> FrontierSeen {
+pub fn check_frontier(arguments: &[OsString], mode: Mode) -> FrontierSeen {
     let stripped: StrippedInvocation = strip_wrapper_controls(arguments);
     // `mut` lets the lifecycle state what content policies can read.
     let mut checks: ShippedChecks<FixedFacts> = shipped_checks(
