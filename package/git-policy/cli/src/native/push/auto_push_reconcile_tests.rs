@@ -3134,7 +3134,7 @@ fn a_move_that_cannot_be_asked_after_the_publication_is_reported_and_not_failed(
 #[test]
 fn a_switch_in_the_instant_before_the_branch_moves_leaves_the_other_branch_clean() {
     use crate::auto_push_reconcile_branch_advance::Moved;
-    use crate::auto_push_reconcile_branch_checkout::before_the_branch_moves_in_a_control;
+    use crate::auto_push_reconcile_branch_checkout::{Window, in_the_window_in_a_control};
     let s = scenario("ar-ff-switch-before-the-reference");
     advance_remote(&s, "a.txt", "remote\n");
     let target = fetched_remote_tip(&s);
@@ -3142,7 +3142,7 @@ fn a_switch_in_the_instant_before_the_branch_moves_leaves_the_other_branch_clean
     // The branch the person switches to is this repository's own tip, so its tree matches on the merge's path.
     git(&s.local, &["branch", "topic", tip.as_str()]);
     let switching: PathBuf = s.local.clone();
-    let _played = before_the_branch_moves_in_a_control(move || {
+    let _played = in_the_window_in_a_control(Window::BeforeTheBranchMoves, move || {
         git(&switching, &["switch", "--quiet", "topic"]);
     });
     let moved: Result<Moved, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(
@@ -3192,7 +3192,7 @@ fn a_switch_in_the_instant_before_the_branch_moves_leaves_the_other_branch_clean
 fn a_switch_in_another_worktree_before_the_branch_moves_leaves_it_clean() {
     use crate::auto_push_reconcile_branch_advance::Advanced;
     use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
-    use crate::auto_push_reconcile_branch_checkout::before_the_branch_moves_in_a_control;
+    use crate::auto_push_reconcile_branch_checkout::{Window, in_the_window_in_a_control};
     let s = nowhere("ar-switch-in-another-worktree");
     let worktree: PathBuf = s.scenario.root.join("linked");
     git(
@@ -3200,7 +3200,7 @@ fn a_switch_in_another_worktree_before_the_branch_moves_leaves_it_clean() {
         &["worktree", "add", "--quiet", worktree.to_str().expect("utf-8"), "topic"],
     );
     let switching: PathBuf = worktree.clone();
-    let _played = before_the_branch_moves_in_a_control(move || {
+    let _played = in_the_window_in_a_control(Window::BeforeTheBranchMoves, move || {
         git(&switching, &["switch", "--quiet", "-c", "side"]);
     });
     let advanced: Advanced = await_it(advance_pushed_branch_awaiting(
@@ -3240,4 +3240,224 @@ fn a_switch_in_another_worktree_before_the_branch_moves_leaves_it_clean() {
     let listed: String = text_of(&worktree, &["ls-tree", "--name-only", "HEAD"]);
     assert!(!listed.contains("remote.txt"), "a commit there records nothing of the merge: {listed}");
     remove(&s.scenario.root);
+}
+
+/// What:
+///  A staged edit a person makes while the branch is moving is kept byte for byte,
+///  and the report says the worktree still differs from the branch.
+/// Why:
+///  The move writes the checkout and then the reference,
+/// and the repair after it used to take "the index differs from the branch, the worktree equals the index"
+/// as the merge's own content carried onto another branch,
+///  and wrote the branch's tree over it with `git restore`, destroying the person's staged bytes
+///  (a review of commit `6c39c3719a`, its defect 1).
+/// The repair now writes only what a `read-tree -u -m` proves is the move's own content,
+/// and that command refuses a staged edit.
+#[test]
+fn a_staged_edit_made_while_the_branch_moves_is_kept() {
+    use crate::auto_push_reconcile_branch_advance::{Checkout, Moved};
+    use crate::auto_push_reconcile_branch_checkout::{Window, in_the_window_in_a_control};
+    let s = scenario("ar-ff-staged-edit-while-moving");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    let editing: PathBuf = s.local.clone();
+    let _played = in_the_window_in_a_control(Window::AfterTheBranchMoved, move || {
+        // The person stages an edit to a file the merge changes, once the reference has moved.
+        std::fs::write(editing.join("a.txt"), "staged by the person\n").expect("the person's edit");
+        git(&editing, &["add", "--", "a.txt"]);
+    });
+    let moved: Result<Moved, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(
+        &push_git(&s.local),
+        "refs/heads/main",
+        &tip,
+        &target,
+        &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE,
+    ))
+    .expect("git");
+    drop(_played);
+    // What: the person's bytes are read first, because losing them is the harm this control exists for.
+    assert_eq!(
+        std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"),
+        "staged by the person\n",
+        "the person's edit is in the worktree"
+    );
+    assert_eq!(
+        text_of(&s.local, &["show", ":a.txt"]),
+        "staged by the person",
+        "and it is still staged"
+    );
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target, "the branch followed its merge");
+    let Ok(Moved { checkout: Checkout::Holding { paths, .. }, .. }) = moved else {
+        panic!("the report says the worktree still differs: {moved:?}")
+    };
+    assert_eq!(paths, vec![b"a.txt".to_vec()], "and names the path");
+    // What: a commit there records the person's bytes, not the merge's.
+    git(&s.local, &["commit", "--quiet", "-m", "the person's edit"]);
+    assert_eq!(text_of(&s.local, &["show", "HEAD:a.txt"]), "staged by the person");
+    remove(&s.root);
+}
+
+/// What:
+///  An unstaged edit a person makes while the branch is moving is kept byte for byte.
+/// Why:
+///  The repair writes a path only while the worktree still matches the index there,
+/// which `git read-tree -u -m` refuses to find otherwise,
+///  so an unstaged edit is not the repair's to write either
+///  (a review of commit `6c39c3719a`, its defect 1).
+#[test]
+fn an_unstaged_edit_made_while_the_branch_moves_is_kept() {
+    use crate::auto_push_reconcile_branch_advance::Moved;
+    use crate::auto_push_reconcile_branch_checkout::{Window, in_the_window_in_a_control};
+    let s = scenario("ar-ff-unstaged-edit-while-moving");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    let editing: PathBuf = s.local.clone();
+    let _played = in_the_window_in_a_control(Window::AfterTheBranchMoved, move || {
+        std::fs::write(editing.join("a.txt"), "edited by the person\n").expect("the person's edit");
+    });
+    let moved: Result<Moved, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(
+        &push_git(&s.local),
+        "refs/heads/main",
+        &tip,
+        &target,
+        &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE,
+    ))
+    .expect("git");
+    drop(_played);
+    assert_eq!(
+        std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"),
+        "edited by the person\n",
+        "the person's edit is in the worktree"
+    );
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target, "the branch followed its merge");
+    assert_eq!(
+        text_of(&s.local, &["show", ":a.txt"]),
+        "remote",
+        "and the index holds the merge's file, because the edit was never this command's to write"
+    );
+    assert_eq!(text_of(&s.local, &["diff", "--name-only", "--", "a.txt"]), "a.txt", "the edit is an ordinary unstaged change");
+    assert_eq!(text_of(&s.local, &["diff", "--cached", "--name-only"]), "", "and nothing of it is staged");
+    assert!(matches!(moved, Ok(Moved { .. })), "{moved:?}");
+    remove(&s.root);
+}
+
+/// What:
+///  A reference moved as a ref alone, raced by a `git worktree add` of that branch whose session has edited a file
+///  the merge changes, is reported as what it is: the branch is at the merge, that checkout is not, and the step
+///  that finishes it is printed and runs.
+/// Why:
+///  The reference has already moved when the repair is refused,
+/// so the answer "the branch is not at it" was false,
+///  the advice `git merge --ff-only` printed "Already up to date." there,
+/// and the checkout kept the older files under a branch naming the merge,
+///  which the next commit there would record as a reversal
+///  (a review of commit `6c39c3719a`, its defect 2).
+#[test]
+fn a_ref_move_raced_by_a_worktree_add_reports_what_is_true_and_names_the_step() {
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    let s = nowhere("ar-ref-move-raced-by-a-worktree-add");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let taken: PathBuf = taker.clone();
+    let _played = in_the_window_in_a_control(Window::BeforeTheWrite, move || {
+        // Another command's `git worktree add` finishes, and that session edits a file the merge changes.
+        git(&adding, &["worktree", "add", "--quiet", taken.to_str().expect("utf-8"), "topic"]);
+        std::fs::write(taken.join("remote.txt"), "the session's own edit\n").expect("the session's edit");
+    });
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        let pushed = git(&s.scenario.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        assert!(pushed.status.success(), "the merge push runs");
+        return Ok(PushAttempt { exit_code: 0, output: String::new() });
+    };
+    let attempt: PushAttempt = finished(integrate_for(
+        &s.scenario,
+        s.local_tip.as_str(),
+        Some("refs/heads/topic"),
+        "refs/heads/topic",
+        true,
+        &mut push_merge,
+    ));
+    drop(_played);
+    let published: String = text_of(&s.scenario.remote, &["rev-parse", "refs/heads/topic"]);
+    assert_ne!(published, s.local_tip, "the merge was published");
+    assert_eq!(
+        text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]),
+        published,
+        "the branch is at the merge"
+    );
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    // What: the report is read for what it says of the branch and the checkout.
+    // Why: "is not at it" was false, and an advice that does not run in that state fixes nothing.
+    assert!(attempt.output.contains("topic is now at it"), "the branch is said to be at the merge: {}", attempt.output);
+    assert!(!attempt.output.contains("is not at it"), "{}", attempt.output);
+    assert!(
+        attempt.output.contains(taker.to_str().expect("utf-8")),
+        "the worktree is named: {}",
+        attempt.output
+    );
+    assert!(attempt.output.contains("remote.txt"), "its path is named: {}", attempt.output);
+    let step: String = format!("git -C {} checkout {published} -- remote.txt", taker.display());
+    assert!(attempt.output.contains(step.as_str()), "the step that finishes it is printed: {}", attempt.output);
+    assert_eq!(
+        std::fs::read_to_string(taker.join("remote.txt")).expect("the session's edit"),
+        "the session's own edit\n",
+        "and that session's bytes are still there"
+    );
+    // What: the printed step is run, as printed, after the copy the report tells the person to keep.
+    // Why: advice that is not run is advice that may not work.
+    std::fs::write(s.scenario.root.join("the-edits-copy.txt"), "the session's own edit\n").expect("the copy");
+    git(&taker, &["checkout", published.as_str(), "--", "remote.txt"]);
+    assert_eq!(
+        std::fs::read_to_string(taker.join("remote.txt")).expect("the merge's file"),
+        "remote side\n",
+        "the step writes the branch's own file there"
+    );
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and nothing is left differing");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  An explicit push whose merge landed on the remote, while its own push command reported a failure,
+///  is reported as a published merge and exits zero.
+/// Why:
+///  A kill or a dropped connection after the remote accepted makes the push command's report say failed,
+/// and the next attempt then finds the remote's tip to be this run's merge;
+///  the explicit arm answered the original rejection there, so the person was told a push failed although
+///  the merge was on the remote
+///  (a review of commit `6c39c3719a`, its defect 3).
+#[test]
+fn an_explicit_push_whose_merge_landed_is_reported_as_published() {
+    let s = scenario("ar-explicit-merge-landed-reported-failed");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed: String = commit_local(&s, "b.txt", "local\n");
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        // The merge lands, and the command's own report says it failed.
+        git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        return Ok(PushAttempt {
+            exit_code: 1,
+            output: String::from(" ! [rejected] main -> main (the push command was ended)"),
+        });
+    };
+    let attempt: PushAttempt = finished(integrate_for(
+        &s,
+        landed.as_str(),
+        Some("refs/heads/main"),
+        "refs/heads/main",
+        true,
+        &mut push_merge,
+    ));
+    let published: String = text_of(&s.remote, &["rev-parse", "main"]);
+    assert_ne!(published, landed, "the merge is on the remote");
+    assert_eq!(
+        text_of(&s.remote, &["rev-list", "--parents", "--max-count=1", "main"]).split(' ').count(),
+        3,
+        "and it is a merge of the local tip and the old remote tip"
+    );
+    assert_eq!(attempt.exit_code, 0, "a published merge is not a failed push: {}", attempt.output);
+    assert!(attempt.output.contains("is the merge"), "{}", attempt.output);
+    assert!(attempt.output.contains(published.as_str()), "the merge is named: {}", attempt.output);
+    assert!(!attempt.output.contains("not published"), "{}", attempt.output);
+    remove(&s.root);
 }
