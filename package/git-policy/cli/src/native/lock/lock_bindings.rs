@@ -111,6 +111,17 @@ const MOST_NAME_BYTES: usize = 200;
 /// and inert unless the test variable or a control names it.
 pub const A_PIN_IS_REACHABLE: &str = "a-pin-is-reachable";
 
+/// The instant the path's text stands complete under its temporary name,
+/// before it is renamed into place.
+/// Why:
+///   A control states the interleaving that publication must survive:
+///  another command's sweep runs at this instant and may not take away a file a live writer is still
+///  publishing
+///  (`a_sweep_beside_a_path_text_write_leaves_the_record_of_a_standing_lock`).
+///  Named here so both halves of that promise reach one point,
+/// and inert unless the test variable or a control names it.
+pub const A_PATH_TEXT_IS_BEING_WRITTEN: &str = "a-path-text-is-being-written";
+
 /// What:
 ///  One lock a command's own Git took,
 ///  as the command wrote it down.
@@ -348,6 +359,8 @@ fn name_the_path(folder: &Path, digest: &str, lock: &Path) -> Option<()> {
     }
     let temporary: PathBuf = folder.join(format!("{digest}{LOCK_PATH_SUFFIX}.writing"));
     std::fs::write(temporary.as_path(), wanted).ok()?;
+    // A control reaches here to act as another command whose pass sweeps the folder at this instant.
+    crate::service_fault::reach(A_PATH_TEXT_IS_BEING_WRITTEN);
     return std::fs::rename(temporary.as_path(), text.as_path()).ok();
 }
 

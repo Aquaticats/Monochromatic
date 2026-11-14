@@ -19,7 +19,7 @@
 //! writeBinding({...}); expect(bindingOf(commonDir, lock)).toEqual({...});
 //! ```
 
-use crate::lock_bindings::{A_PIN_IS_REACHABLE, Binding, Written, folder_of, of, pin_holds_the_lock, remove, sweep, write};
+use crate::lock_bindings::{A_PATH_TEXT_IS_BEING_WRITTEN, A_PIN_IS_REACHABLE, Binding, Written, folder_of, of, pin_holds_the_lock, remove, sweep, write};
 use crate::test_support::{fixture, remove as remove_fixture};
 use std::path::PathBuf;
 
@@ -296,6 +296,52 @@ fn a_sweep_beside_a_write_leaves_the_record_of_a_standing_lock() {
         "a sweep that ran while the record was being published leaves the record of a standing lock: {found:?}"
     );
     assert!(after.is_some(), "and so does the next one: {after:?}");
+}
+
+/// What:
+///  Another command's sweep, run at the instant the path's text stands complete under its temporary
+///  name, leaves the writer's record of a standing lock where it is:
+///  the writer publishes the text, links the pin, and the lock's record is there afterwards.
+/// Why:
+///  A sweep removes every file of the folder that is not a record of a path
+///  (`sweep`, whose final branch unlinks a name of any other shape),
+///  and the path's text is published under `<digest>.lock-path.writing` before it is renamed
+///  (`name_the_path`).
+///  A sweep that lands between those two steps takes that temporary file away,
+///  the rename fails, `write` writes no record, and a Git killed holding that lock then leaves a lock
+///  no command on this volume can clear
+///  (the second note of a review of `1ee73d2728`).
+///  The order is forced here by the code's own fault point `A_PATH_TEXT_IS_BEING_WRITTEN`,
+///  and the sweep is the production one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// at(APathTextIsBeingWritten, () => sweep(common)); write(common, lock, holder);
+/// expect(bindingOf(common, lock)).toBeDefined();
+/// ```
+#[test]
+fn a_sweep_beside_a_path_text_write_leaves_the_record_of_a_standing_lock() {
+    let (common_dir, lock) = a_lock("binding-sweep-beside-a-path-text", "index.lock");
+    let holder: (i64, String) = (42, an_identity());
+    let swept_at: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
+    let hook_common: PathBuf = common_dir.clone();
+    let ran: std::rc::Rc<std::cell::Cell<bool>> = swept_at.clone();
+    crate::service_fault::hooks::set(
+        A_PATH_TEXT_IS_BEING_WRITTEN,
+        std::rc::Rc::new(move || {
+            // The other command's pass, at the instant this writer's text is complete under its temporary name.
+            sweep(hook_common.as_path());
+            ran.set(true);
+        }),
+    );
+    let written: Option<Written> = write(common_dir.as_path(), lock.as_path(), &holder);
+    crate::service_fault::hooks::clear();
+    assert!(swept_at.get(), "the control reached the instant the path's text was being written, and the sweep ran there");
+    let found: Option<Binding> = of(common_dir.as_path(), lock.as_path());
+    let pinned: bool = written.as_ref().is_some_and(|held| { return pin_holds_the_lock(held); });
+    remove_fixture(common_dir.as_path());
+    assert!(written.is_some() && pinned, "the writer's record of a standing lock is written: {written:?}");
+    assert!(found.is_some(), "and it is read back for the lock that stands: {found:?}");
 }
 
 /// What:

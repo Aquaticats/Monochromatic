@@ -442,3 +442,69 @@ fn a_child_that_takes_the_same_lock_again_is_recorded_again() {
     remove(common.as_path());
     assert!(found.is_some(), "the killed child's standing lock keeps the record of its own take: {found:?}");
 }
+
+/// What:
+///  The most records one lock path may hold while one Git run keeps taking and releasing that path:
+///  the take that stands at the path now, and the take whose lock the run has not yet noticed is gone.
+/// Why:
+///   A Git of many takes, such as a `git rebase` or `git am` of many commits, takes `index.lock` once
+///  per pick,
+///  and each take is a full copy of the index.
+///  A record is a hard link to the take's file, so every record still held keeps one whole index copy
+///  alive on disk:
+///  a run of many takes that held one record per take would hold every intermediate copy until the
+///  run ended,
+///  and on a long rebase of a large repository that can exhaust the disk,
+///  which is a commit that fails
+///  (a review of `1ee73d2728`, finding F1,
+/// which measured the pins of one rebase growing from 10 to 46 and 240 KB to 2.64 MB mid-run).
+///  The bound is two and does not depend on the run's length:
+///  the take at the path now is kept, and a take that has been renamed away is taken away as the
+///  run's next look notices its lock is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const peak = sampleWhile(childTakesTheLockTwelveTimes()); expect(peak).toBeLessThanOrEqual(2);
+/// ```
+#[test]
+fn a_run_of_many_takes_of_one_path_holds_no_more_than_the_bound() {
+    const BOUND: usize = 2;
+    let common: PathBuf = a_watched_git_directory("watch-many-takes");
+    let folder: PathBuf = lock_bindings::folder_of(common.as_path());
+    let started: Option<(Watch, Watched)> = watch_before_starting();
+    let takes: String = format!(
+        "i=0; while [ $i -lt 12 ]; do : > index.lock; printf 'pid %s\\n' $$ > index~pid.lock; mv index.lock index; rm -f index~pid.lock; i=$((i+1)); sleep 0.04; done; sleep 30"
+    );
+    let mut child: Child = a_child_that_takes_the_lock(common.as_path(), takes.as_str());
+    crate::lock_holder_records::note_child_started(child.id());
+    let child_pid: u32 = child.id();
+    let common_for_run: PathBuf = common.clone();
+    let watched: std::thread::JoinHandle<std::io::Result<std::process::ExitStatus>> = std::thread::spawn(move || {
+        return wait_for_a_watched_child(&mut child, started);
+    });
+    let held = |folder: &Path| -> usize {
+        return std::fs::read_dir(folder).map(|entries| { return entries.flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".hold"); }).count(); }).unwrap_or(0);
+    };
+    // Sample the whole run, bounded, and remember the most this path ever held at one moment.
+    let mut peak: usize = 0;
+    let mut saw_takes: bool = false;
+    let began: Instant = Instant::now();
+    // The twelve takes take about half a second, so this samples the whole of them and then a while with none.
+    while began.elapsed() < Duration::from_secs(4) {
+        let now: usize = held(folder.as_path());
+        peak = peak.max(now);
+        saw_takes = saw_takes || now > 0;
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    // SAFETY: `kill` takes a number and a signal and touches no memory; the number is this child's own.
+    unsafe { libc::kill(child_pid as libc::pid_t, libc::SIGKILL) };
+    let joined = watched.join();
+    let _unused: PathBuf = common_for_run;
+    remove(common.as_path());
+    assert!(matches!(joined, Ok(Ok(_))), "the watched run collects the killed child: {joined:?}");
+    assert!(saw_takes, "the run took the lock at least once");
+    assert!(
+        peak <= BOUND,
+        "a run of many takes of one path holds no more than {BOUND} records at any moment, and this one held {peak}"
+    );
+}
