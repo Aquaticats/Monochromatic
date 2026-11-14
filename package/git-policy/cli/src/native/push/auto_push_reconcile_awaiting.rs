@@ -144,7 +144,7 @@ fn followed_sentence(advanced: &Advanced, branch: &str) -> String {
                 )
             } else {
                 format!(
-                    "and {branch} is now at it; the worktree at {}, which shows {there}, still holds the merge's changes to {} ({reason}), so a commit there would publish them",
+                    "and {branch} is now at it; the worktree at {}, which shows {there}, still differs from it on {} and was left as it is ({reason}), so a commit there would record those files as they are",
                     worktree.display(),
                     crate::auto_push_dirty_paths::listed(paths)
                 )
