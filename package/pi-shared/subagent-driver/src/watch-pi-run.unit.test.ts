@@ -34,6 +34,7 @@ import {
   type RecordOfPiRun,
   type RetryWaiting,
   startRecordOfPiRun,
+  START_PAUSE_MILLISECONDS,
   type WatchRequest,
   watchUntilEnded,
 } from '../dist/final/node/index.mjs';
@@ -182,6 +183,7 @@ function optionsOf({
     turnCap: Number.MAX_SAFE_INTEGER,
     retryCap,
     retryBaseSeconds,
+    startPauseSeconds: START_PAUSE_MILLISECONDS / MILLISECONDS_PER_SECOND,
   };
 }
 
