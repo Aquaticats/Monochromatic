@@ -1248,6 +1248,51 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The add-never-skips answer loses a person's lock bytes two ways; what the drawn-tree sweep's code says (2026-11-14T03:02:22-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+and what the coordinating session read in `main` at `476c85295a` without a run.
+
+- **Add never skips** (tip `5e01a74f19`):
+  its review ended at 02:56:58
+  (`~/temp/agent/change-reviews/git-policy-cli-add-never-skips-answers-after-its-fifth-review/review.md`;
+  last message kept in `~/temp/agent/last-messages-of-the-runs-that-ended-2026-11-14T0256-to-0302/keep/`).
+  It built the code and ran its own reproductions.
+  Confirmed:
+  the exclude-line recognition agrees with Git 2.56.0 on thirteen forms,
+  the staging names are ignored,
+  concurrent fillings serialise,
+  the waits it traced are bounded,
+  and a refused repair never fails the add.
+  Two findings:
+  reproduced,
+  when the worktree and the common Git directory are on different filesystems the exchange fails with `EXDEV` and the fallback writes `Cargo.lock` with no second look,
+  so a write of the person's that landed in between is overwritten with no copy
+  (`package_repair_cargo_lock.rs`, `exchange_the_file_read`);
+  read and not run,
+  a kill between `place_the_resolution` and `restore_only_the_cleans_own` leaves the person's edit under a `.restoring` name in the Git directory that no later step recovers or names
+  (`package_repair_prewarm_job.rs`, `fill_the_staging`).
+  Weighed:
+  both end with a person's uncommitted bytes gone,
+  so both go back to the author,
+  resumed in its own session and queued third at 03:02:22,
+  told to run the first reproduction and to establish the second by a run before changing anything
+  (`~/temp/agent/pi-runs/add-never-skips-answers-its-sixth-review-of-2026-11-14-prompt.md`).
+  The branch stays out of a pass.
+- **The drawn shadow tree and the sweep**,
+  read in `main`,
+  the fresh run's brief now carrying it:
+  `nothing_holds` in `shadow/shadow_drawn.rs` decides by the drawn directory's own modification time against `SCRATCH_TREE_ABANDONED_AFTER` and by nothing else;
+  `draw` moves a pool member in with one `rename` and sets no time,
+  and outside tests the only call under `src/native` that sets a file's times is in `worktree/worktree_clone.rs`;
+  `sweep_drawn` walks the drawn folder of every worktree under the common directory and `draw_one` in `service/service_shadow_draw.rs` calls it at every draw.
+  So a member that stood in the pool longer than the bound is past the bound from the moment it is drawn,
+  and the sweep that meets it can be any other worktree's.
+  Not established by this reading:
+  what a commit does when its tree goes between the question it asks of the tree it is handed and its first write into it.
+  That is what the queued run is told to show by a run first.
+
 ##### Pass 31 is in `main` and `0.6.1-alpha.26` is dispatched; pass 29 is not fit: two controls need five CPUs; the pending push is pass 36 (2026-11-14T02:59:44-05:00)
 
 Not final and not approved:
