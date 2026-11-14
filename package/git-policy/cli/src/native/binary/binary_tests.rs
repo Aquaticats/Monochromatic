@@ -582,6 +582,11 @@ mod lfs_hang;
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
+/// A commit made through the service where the runtime directory's path is long,
+/// and the short one it is compared with.
+#[path = "binary_long_runtime_directory_tests.rs"]
+mod long_runtime_directory;
+
 /// A commit whose command line names the repository:
 /// `--git-dir` with `--work-tree`,
 /// `GIT_DIR` with `GIT_WORK_TREE`,
