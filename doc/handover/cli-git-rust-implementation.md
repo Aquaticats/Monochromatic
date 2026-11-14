@@ -1198,6 +1198,91 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landed removal's guard is switched off by another flag, reproduced; back to its author (2026-11-14T10:13:49-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+having built the wrapper and driven it,
+and what the coordinating session queued.
+
+- **The landed removal's guard under the opt-out** (`bab700404d`):
+  two reproduced with controls.
+  With `--no-worktree-copy` a typed `git worktree remove` is forwarded plainly to real Git and the guard never runs,
+  so a hidden edit and a commit held only by a detached `HEAD` are destroyed with status 0,
+  where the plain removal keeps both;
+  the guard's own contract names `--force` and the policy opt-out as the only two things that stand it down.
+  And the refusal prints its way out with the path unquoted,
+  so for a path with a space the printed command ends with status 129 and removes nothing.
+  The author is resumed second in the queue
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-review-of-2026-11-14-prompt.md`).
+- The main checkout still listed 24 entries under `package/pi-shared` at 10:13:49:
+  the run that wrote there has taken both notes and has not yet moved its work.
+- The queue held 57 entries.
+
+##### A Pi run wrote its work into the main checkout for fifty minutes; two reviewed changes are in `main`; a test fix goes to review (2026-11-14T10:11:48-05:00)
+
+Not final and not approved:
+what the coordinating session measured,
+merged and queued,
+and what three runs report of themselves.
+
+- **Found at a merge**:
+  the run `queue-of-runs-is-filled-from-the-driver-package-and-an-entry-whose-start-fails-never-holds-the-entries-behind-it-1`,
+  started this morning to move the queue's filling into the driver package,
+  wrote everything into the main checkout from 09:21:14 on:
+  twenty new files under `package/pi-shared/subagent-driver/src/` and edits to `mise.toml`,
+  `package.json`,
+  `src/batch-run-as-a-unit.ts` and `src/index.ts`,
+  while its own worktree's `git status --short` was empty.
+  That copy of the package is the driver every run is started with.
+  Starts kept working
+  (the filling unit's lines to 10:09:05).
+  Also found:
+  three files of `package/git-policy/cli.fuzz` changed in the main checkout at 02:49:47 to 02:50:04,
+  an earlier draft of what the fuzz sidecar's author then committed on its own branch.
+- **What was done**:
+  a copy of all of it as it stood at 10:10:18 is in `~/temp/agent/stray-edits-of-two-pi-runs-in-the-main-checkout-2026-11-14/keep/`.
+  The run was told at 10:10:43 to write only in its worktree,
+  merge `main`,
+  move its twenty files and apply its four edits there
+  (`~/temp/agent/notes-to-send/note-for-the-queue-filling-run-that-its-files-are-in-the-main-checkout-2026-11-14T1010.md`).
+  That note's fifth step told it to put the main checkout's four files back with `git checkout`,
+  a command this session had not run;
+  the wrapper refuses it there by its `linked-worktree-only` policy,
+  so a second note withdrew the step
+  (`…-that-step-5-of-the-earlier-note-is-withdrawn-2026-11-14T1013.md`),
+  and this session puts those four files back when the run has written `keep/my-work-is-in-my-worktree.txt` in its scratch folder.
+  The three fuzz files were put back by this session with `git checkout --no-enforce-worktree HEAD -- <paths>`,
+  their edits being in the kept patch and their final form on the fuzz branch.
+- **Why it could happen**:
+  the rules file every brief names says the main checkout is read-only for a run,
+  and nothing enforces it;
+  both briefs name files of the main checkout by absolute path for the agent to read.
+  A fresh run is queued first so that a run's unit cannot write there at all
+  (`~/temp/agent/pi-runs/pi-run-cannot-write-into-the-main-checkout-prompt.md`).
+  Until it lands,
+  `git status --short` of the main checkout is read at each round for files no session of the owner's made.
+- **Merged into `main` at 10:08:41 and 10:08:42**,
+  each after `main` was shown to hold nothing of its package that the tip lacks:
+  cargo-shadow's four test assertions for Clippy (`353d5e06d7` as `71a17445fa`;
+  its review ran thirteen planted breaks and each failed at the changed assertion's line)
+  and the driver's start-again
+  (`8eb74428c0` as `0d6303405c`;
+  its review found no defect in four reproductions with stand-in programs).
+  The second merge met the stray edit of `src/index.ts`;
+  the wrapper merged the two by word and kept both,
+  and the merge commit's copy of the package equals the branch's
+  (`git diff 8eb74428c0 0d6303405c -- package/pi-shared` is empty).
+  The driver change is live for every run started from then on;
+  three runs were started after it by 10:09:05.
+- **The failure variants' test** (`8480dea6b4`, one test file):
+  its author reports the old test passing with a sample removed,
+  the new one failing for a missing sample and for two variants counted as one,
+  and a new variant stopping the file from compiling.
+  A review by hand-written brief is queued second
+  (`~/temp/agent/pi-runs/review-git-policy-cli-failure-variant-rendering-test-fails-when-two-variants-share-a-number-prompt.md`).
+- The queue held 57 entries at 10:11:48.
+
 ##### Two reviews with findings: the lock shim takes a live holder's lock three ways; the driver's ask can end a run that is at work (2026-11-14T10:03:21-05:00)
 
 Not final and not approved:
