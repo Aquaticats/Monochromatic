@@ -1198,6 +1198,37 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Issue 6293's last change is right; two things in files the branch brings go back to its author (2026-11-14T11:16:40-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+what the coordinating session measured against `main`,
+and what it queued.
+
+- **Issue 6293** (`71d52acb9a`),
+  fourth review:
+  the last change
+  (a failed push read once for the answer that its branch is gone)
+  keeps every verdict,
+  by a case analysis and thirteen tests run.
+  Two things in files it was given to read,
+  which it calls older than that commit.
+  Measured against `main`:
+  the branch adds `service_server_start_through_the_manager.rs` whole and changes the socket binding and the files of a running instance,
+  so both stand in what the branch brings.
+  - A takeover of the socket is decided by a greeting alone:
+    a live service still in its recovery before `serve` can have its socket unlinked by a second starter,
+    and its later removal of its own files deletes the successor's by path.
+    The socket's mechanism was reproduced;
+    the chain is by reading,
+    set off by a recovery of more than ten seconds.
+  - The probe of the manager waits on a killed child with no bound,
+    by reading.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/issue-6293-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- 22 Pi runs were going at 11:16:40;
+  the queue held 58 entries.
+
 ##### The three removal notices pass and go into pass 40; a sweep beside a write loses the record of a standing lock, back to its author (2026-11-14T11:12:13-05:00)
 
 Not final and not approved:
