@@ -1202,6 +1202,73 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The warm request passed its review and is pass 31; the reload fix's review ran nothing and goes on; mpm-shadow's cleanup has two defects (2026-11-13T23:44:17-05:00)
+
+Not final and not approved:
+read by the coordinating session from three review files,
+nothing rerun by it.
+
+- **Warm request of a commit**
+  (`~/temp/agent/change-reviews/git-policy-cli-warm-request-of-a-commit-connects-within-a-bound-answers-after-its-review/review.md`,
+  ended 23:41:19,
+  on `f09d836d55`):
+  no defect.
+  Four files read whole with the code they call;
+  the six unit controls run through the package's task and passing,
+  the ceiling on the look and the bound on the connection among them at 0.267 s each.
+  It did not run the two binary controls the branch adds
+  (its fixtures' socket paths were too long until it used a short alias for `HOME`).
+  Pass 31 is queued at the head
+  (`integration-pass-31-with-the-warm-request-that-gives-up-its-look-at-a-ceiling-prompt.md`),
+  told to run those two.
+- **The reload fix (issue 6286)**
+  (`~/temp/agent/change-reviews/git-policy-cli-reload-fix-answers-the-instance-that-fails-its-start-at-an-upgrade/review.md`,
+  ended 23:41:51,
+  on `05edb83219`):
+  "final,
+  reading-only.
+  No runs were started",
+  no defect by reading,
+  two close candidates weighed and set aside.
+  Its reasons for running nothing:
+  a cold build,
+  a disposable `HOME` hiding the toolchain,
+  and socket paths too long under its scratch folder.
+  By the record of 12:26:24 a review that ran nothing is started again.
+  It goes on in its own session,
+  so its reading is kept
+  (`go-on-with-the-review-of-the-reload-fix-that-ran-nothing-prompt.md`,
+  queued second),
+  told how three other reviews of this package got past each of the three today,
+  and what to run:
+  the controls of the touched modules,
+  one planted break against the control of the unload's window,
+  and its two candidates as runs.
+  The branch stays out of a pass until then.
+- **mpm-shadow removes the old versions it installed**
+  (`~/temp/agent/change-reviews/mpm-shadow-cli-removes-by-itself-the-old-versions-it-installed-by-size-and-last-modified-time/review.md`,
+  ended 23:38:00,
+  on `e4c7243bbe`):
+  trimming across roots,
+  a pinned version being installed at once,
+  links and tombstones are safe,
+  and the pass cannot fail an install.
+  Two defects,
+  both reproduced by calling the shipped function,
+  both weighed as standing.
+  A pass that cannot read the worktrees' locks skips finishing a removal that was cut short and then deletes the marker for it,
+  so the half-removed version is never finished.
+  And the process table is read once before the removals,
+  so a process that starts in an old version after that loses the version under it
+  (shown with the work limit raised to hold the window open).
+  Back to the author in its own session
+  (`mpm-shadow-removal-of-old-versions-answers-its-review-of-e4c7243bbe-prompt.md`,
+  queued at position 5).
+  The review also notes that the pass puts `git worktree list` on every installing sync through a runner that waits without a bound;
+  that is the queued run for a program an install started.
+- The queue held 52 entries at 23:44:17.
+  It held 46 at 22:53.
+
 ##### The rate-limit plugin's author bounded the proof's harness (2026-11-13T23:38:08-05:00)
 
 Not final and not approved:
