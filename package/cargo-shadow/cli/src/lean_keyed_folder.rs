@@ -214,6 +214,28 @@ pub fn read_ledger(folder: &Path) -> Option<PathBuf> {
 }
 
 /// What:
+/// `pub fn note_build_in(folder: &Path)` sets the modification time of a toolchain's folder to now.
+/// Why:
+/// Mechanism G decides which toolchain folder is old from that folder's own modification time
+/// (`lean_toolchain_folders.rs`),
+/// and a build that reuses a folder nothing new was put in does not change it:
+/// so the shadow sets it on every build it hands to that toolchain,
+/// which makes the time mean "the last build through the shadow with this toolchain"
+/// and one syscall on the path of a build.
+/// A folder that cannot be touched is not an error:
+/// the time it has is then the last time a folder was added under it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const noteBuildIn = (folder: string): void => { try { utimesSync(folder, new Date(), new Date()); } catch {} };
+/// ```
+pub fn note_build_in(folder: &Path) {
+    if let Ok(opened) = fs::File::open(folder) {
+        let _ = opened.set_modified(std::time::SystemTime::now());
+    }
+}
+
+/// What:
 /// `pub fn apply_keyed_build_dir(command: &mut Command, arguments: &[OsString], working_directory: &Path)` sets the keyed build
 /// folder in the environment of the child cargo when every condition holds,
 /// and leaves the ledger.
@@ -243,5 +265,6 @@ pub fn apply_keyed_build_dir(command: &mut Command, arguments: &[OsString], work
     let Ok(root) = fs::canonicalize(found) else { return };
     let folder: PathBuf = keyed_build_dir(&base, &toolchain, &root);
     leave_ledger(&folder, &root);
+    note_build_in(&base.join(KEYED_DIRECTORY).join(&toolchain));
     command.env(BUILD_DIR_VARIABLE, &folder);
 }

@@ -4,9 +4,10 @@
 //! and the key is stable and differs by workspace and by toolchain.
 
 use std::ffi::OsString;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
-use crate::lean_keyed_folder::{base_of_template, configured_base, keyed_build_dir, leave_ledger, read_ledger, toolchain_of, workspace_key};
+use crate::lean_keyed_folder::{base_of_template, configured_base, keyed_build_dir, leave_ledger, note_build_in, read_ledger, toolchain_of, workspace_key};
 use crate::test_scratch::scratch;
 
 #[test]
@@ -60,4 +61,26 @@ fn the_ledger_is_written_once_and_read_back() {
     leave_ledger(&inner, Path::new("/work/one"));
     leave_ledger(&inner, Path::new("/work/two"));
     assert_eq!(read_ledger(&inner), Some(PathBuf::from("/work/one")));
+}
+
+/// A build sets the modification time of the toolchain's own folder,
+/// which is the time mechanism G decides an old folder by.
+/// Why:
+/// a build that reuses a folder whose trees are all there writes nothing in the folder itself,
+/// so without this the folder of a toolchain a worktree builds with every day would look as old as the last worktree that
+/// was new to it.
+#[test]
+fn a_build_sets_the_time_of_the_toolchains_folder_and_a_missing_one_is_no_error() {
+    let root = scratch();
+    let toolchain_folder: PathBuf = root.path().join("toolchain").join("nightly-2026-11-13");
+    std::fs::create_dir_all(&toolchain_folder).expect("a toolchain folder");
+    let now: i64 = crate::lean_identity::now_seconds();
+    crate::lean_test_support::set_time(&toolchain_folder, now - 2 * crate::lean_test_support::DAY);
+    let before: i64 = std::fs::symlink_metadata(&toolchain_folder).expect("the folder").mtime();
+    note_build_in(&toolchain_folder);
+    let after: i64 = std::fs::symlink_metadata(&toolchain_folder).expect("the folder").mtime();
+    assert!(after > before, "the folder's own time moved to the build: {before} then {after}");
+    assert!((crate::lean_identity::now_seconds() - after).abs() < 60, "and it is now: {after}");
+    // A folder that is not there is not an error: the build goes on and the time is the one the folder has.
+    note_build_in(&root.path().join("toolchain").join("not-here"));
 }

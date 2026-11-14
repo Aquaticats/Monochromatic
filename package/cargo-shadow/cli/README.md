@@ -1110,7 +1110,7 @@ caps) are in `src/lean_policy.rs`,
 each beside the measurement it rests on,
 and are coordinator picks with the owner's veto open.
 
-Six mechanisms
+Seven mechanisms
 (the order a run takes them in is its own section below):
 
 - A,
@@ -1244,6 +1244,57 @@ Six mechanisms
   (398 s for the run records on 2026-11-08,
   334 s for Podman and 880 s to list 68,755 profile directories on 2026-11-10),
   so the pause is a twenty-seventh of the shortest one.
+- G,
+  the build folders of toolchains nothing builds with any more.
+  The owner,
+  2026-11-13,
+  after the build folders of two old toolchains were deleted by hand that evening:
+  "mpm-shadow cleans up after itself,
+  cargo-shadow also cleans up after itself",
+  by size and by last modified time.
+  A folder `<base>/toolchain/<toolchain>` goes whole and not one tree at a time:
+  a nightly update dirties every unit of a build folder in place,
+  so a toolchain's folder is the unit in which one nightly's work becomes waste,
+  and deciding about a tree costs a walk of that tree.
+  The rule:
+  while the volume that holds the base has less free space than the bound,
+  the folder whose own modification time is the oldest goes first,
+  and the pass reads that time with one `lstat` of the folder and the free space with one `statvfs`,
+  never with a walk below either.
+  The time it reads is the folder's own,
+  which the shadow sets to now on every build it hands to that toolchain
+  (`note_build_in` in `src/lean_keyed_folder.rs`),
+  so it says when a build last went into that toolchain,
+  and not merely when a worktree last existed that names it.
+  A folder stays when the pass runs under that very toolchain,
+  when its own time moved after the pass judged it,
+  when it is younger than the age,
+  and when any process of the machine has its working directory,
+  program,
+  open file or mapped file under it.
+  The names a checkout pins are deliberately not a reason to keep a folder:
+  on 2026-11-13 fifty-three of this machine's worktrees still pinned `nightly-2026-11-10` while none of them built,
+  and that is what kept its 1.17 TB of build folders through every pass of the day.
+  The removal is gentle and can be taken up again:
+  the folder is renamed into `<base>/.cargo-shadow-retiring` in one step,
+  and then removed one shard at a time,
+  in the idle disk class (`ionice --class idle`, asked for by the pass itself),
+  with one write-and-sync reading of the drive before the first shard and after each,
+  and the pass stops when two readings in a row are over the slow bound,
+  when its own time bound is gone,
+  or when the volume has its free space back.
+  A folder half removed is recognisable as being removed,
+  is finished whole by the next pass before that pass judges anything new,
+  and is never built into again:
+  the place the shadow hands a build no longer holds it,
+  so a build that meets it makes a fresh folder there and rebuilds into that.
+  The bounds are in `src/lean_policy.rs`,
+  each beside the measurement it was sized from,
+  and each can be set for a pass:
+  `lean run --toolchain-folder-free-gib`,
+  `--toolchain-folder-age-hours` and
+  `--toolchain-folder-minutes`.
+  A pass that removed nothing and kept nothing says nothing.
 
 Beyond the build folders,
 `lean run` also retires dated nightly toolchains that no checkout pins
@@ -1266,11 +1317,15 @@ because removing one image also removes an ancestor that only it referenced.
 
 One deadline covers the whole run,
 so the run takes the cheapest mechanism first and the units pass last:
+the build folders of old toolchains,
 run records,
 toolchains,
 Podman,
 idle trees,
 then the older-compiler sweep and the size caps.
+The toolchain folders come first because they are the one mechanism that gives a volume back the space it is out of,
+and because their check costs one `statvfs` and one `lstat` per toolchain folder,
+which is less than any other mechanism of a run spends before it judges anything.
 Measured in the first run (2026-11-07T23:52:28-05:00 to 2026-11-08T01:24:39-05:00):
 2.5 minutes for records and toolchains together,
 20.5 minutes for Podman,
@@ -1500,7 +1555,9 @@ or pin the toolchain by its date (`nightly-2026-11-11`) so a nightly update cann
 ```sh
 # package/cargo-shadow/cli/README.md
 cargo-shadow lean run --dry-run
+cargo-shadow lean run --only toolchain-folders
 cargo-shadow lean run --only units,records
+cargo-shadow lean run --toolchain-folder-free-gib 600 --toolchain-folder-age-hours 24
 cargo-shadow lean records target/verification --dry-run
 cargo-shadow lean service-install
 ```

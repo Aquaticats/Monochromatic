@@ -23,11 +23,12 @@ use crate::lean_progress::{LongPass, Progress};
 use crate::lean_run::{Mechanism, MechanismReport, RUN_ORDER, RunContext, RunOptions, long_pass, run_mechanism, run_order};
 use crate::lean_run_trees::TreeTally;
 use crate::lean_test_support::{DAY, age_everything, make_tree};
+use crate::lean_toolchain_folders::ToolchainFolderLimits;
 use crate::test_scratch::scratch;
 
 #[test]
 fn a_run_starts_with_the_cheap_mechanisms_and_ends_with_the_units_pass() {
-    assert_eq!(run_order(&[]), vec![Mechanism::Records, Mechanism::Toolchains, Mechanism::Podman, Mechanism::Trees, Mechanism::Units]);
+    assert_eq!(run_order(&[]), vec![Mechanism::ToolchainFolders, Mechanism::Records, Mechanism::Toolchains, Mechanism::Podman, Mechanism::Trees, Mechanism::Units]);
 }
 
 #[test]
@@ -59,7 +60,7 @@ fn a_partly_removed_tree_is_counted_apart_from_a_removed_one_and_a_skipped_one()
 fn the_two_long_passes_keep_a_position_and_the_short_mechanisms_do_not() {
     assert!(long_pass(Mechanism::Trees).is_some());
     assert!(long_pass(Mechanism::Units).is_some());
-    for short in [Mechanism::Records, Mechanism::Toolchains, Mechanism::Podman] {
+    for short in [Mechanism::ToolchainFolders, Mechanism::Records, Mechanism::Toolchains, Mechanism::Podman] {
         assert!(long_pass(short).is_none(), "{short:?}");
     }
 }
@@ -76,7 +77,7 @@ fn a_trees_pass_continues_after_the_recorded_tree_and_starts_at_the_front_withou
     for tree in [&first, &second, &third] {
         age_everything(tree, now_seconds() - 30 * DAY);
     }
-    let options: RunOptions = RunOptions { dry_run: false, only: vec![Mechanism::Trees], deadline: Duration::from_secs(120), start: root.path().to_path_buf() };
+    let options: RunOptions = RunOptions { dry_run: false, only: vec![Mechanism::Trees], deadline: Duration::from_secs(120), start: root.path().to_path_buf(), toolchain_folder_limits: ToolchainFolderLimits::default() };
     let environment: GuardEnvironment = GuardEnvironment::real();
     let pinned: HashSet<String> = HashSet::new();
     let checkouts: Vec<PathBuf> = vec![root.path().to_path_buf()];
@@ -112,7 +113,7 @@ fn the_units_pass_continues_after_the_recorded_profile_directory() {
     for tree in [&earlier, &later] {
         age_everything(tree, now_seconds() - 30 * DAY);
     }
-    let options: RunOptions = RunOptions { dry_run: false, only: vec![Mechanism::Units], deadline: Duration::from_secs(120), start: root.path().to_path_buf() };
+    let options: RunOptions = RunOptions { dry_run: false, only: vec![Mechanism::Units], deadline: Duration::from_secs(120), start: root.path().to_path_buf(), toolchain_folder_limits: ToolchainFolderLimits::default() };
     let environment: GuardEnvironment = GuardEnvironment::real();
     let pinned: HashSet<String> = HashSet::new();
     let checkouts: Vec<PathBuf> = Vec::new();
@@ -158,7 +159,7 @@ fn a_resumed_trees_pass_keeps_a_tree_that_holds_a_workspace_recorded_before_its_
     for tree in [&earlier, &later] {
         age_everything(tree, now_seconds() - 30 * DAY);
     }
-    let options: RunOptions = RunOptions { dry_run: false, only: vec![Mechanism::Trees], deadline: Duration::from_secs(120), start: root.path().to_path_buf() };
+    let options: RunOptions = RunOptions { dry_run: false, only: vec![Mechanism::Trees], deadline: Duration::from_secs(120), start: root.path().to_path_buf(), toolchain_folder_limits: ToolchainFolderLimits::default() };
     let environment: GuardEnvironment = GuardEnvironment::real();
     let pinned: HashSet<String> = HashSet::new();
     let checkouts: Vec<PathBuf> = vec![root.path().to_path_buf()];

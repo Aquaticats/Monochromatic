@@ -1088,6 +1088,14 @@ pub mod lean_command;
 /// Named reads of paths and text shared by the lean-folder tools.
 pub mod lean_text;
 
+/// Mechanism G:
+/// the removal of the build folders of toolchains nothing builds with any more.
+pub mod lean_toolchain_folders;
+
+/// The tests of the toolchain-folder removal.
+#[cfg(test)]
+mod lean_toolchain_folders_tests;
+
 /// The tests of the ban on the lean-folder tools starting cargo or themselves.
 #[cfg(test)]
 mod lean_no_recursion_tests;

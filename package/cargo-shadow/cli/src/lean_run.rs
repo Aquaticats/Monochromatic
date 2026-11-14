@@ -61,11 +61,17 @@ use crate::lean_run_discovery::{target_directories, verification_directories};
 use crate::lean_run_report::{Place, measure_places, space_lines};
 /// Imports the names this file uses from `crate::lean_run_steps`.
 use crate::lean_run_steps::{UnitsPass, run_podman, run_records, run_toolchains, sweep_and_cap};
+/// Imports the names this file uses from `crate::lean_toolchain_folders`:
+/// the bounds of mechanism G and the pass that removes a toolchain's folder.
+use crate::lean_toolchain_folders::{ToolchainFolderLimits, run_toolchain_folders};
 
 /// The mechanisms of the run,
 /// by the name `--only` takes.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Mechanism {
+    /// G:
+    /// the build folders of toolchains nothing builds with any more.
+    ToolchainFolders,
     /// C:
     /// idle trees of the host build base.
     Trees,
@@ -93,6 +99,8 @@ pub struct RunOptions {
     /// The directory the run starts from,
     /// inside a checkout.
     pub start: PathBuf,
+    /// The free space and the bounds of the toolchain-folder removal.
+    pub toolchain_folder_limits: ToolchainFolderLimits,
 }
 
 /// The mechanisms in the order a run takes them:
@@ -110,7 +118,12 @@ pub struct RunOptions {
 /// which reached about 700 of several thousand profile directories in 40 minutes.
 /// A pass that a deadline cuts off waits for the next run;
 /// a pass put last therefore starves only itself.
-pub const RUN_ORDER: [Mechanism; 5] = [Mechanism::Records, Mechanism::Toolchains, Mechanism::Podman, Mechanism::Trees, Mechanism::Units];
+/// Why the toolchain folders come first:
+/// they are the one mechanism that gives a volume back the space it is out of,
+/// and the check that finds nothing to do costs one `statvfs` and one `lstat` per toolchain folder
+/// (`lean_toolchain_folders.rs`),
+/// far less than any other mechanism of a run.
+pub const RUN_ORDER: [Mechanism; 6] = [Mechanism::ToolchainFolders, Mechanism::Records, Mechanism::Toolchains, Mechanism::Podman, Mechanism::Trees, Mechanism::Units];
 
 /// What:
 /// `pub fn run_order(requested: &[Mechanism]) -> Vec<Mechanism>` is the mechanisms of a run in the order it takes them.
@@ -279,6 +292,8 @@ pub(crate) struct RunContext<'a> {
 /// Why:
 /// Only the idle-trees pass and the units pass are longer than a run's bound,
 /// so only they keep a position between runs.
+/// The toolchain-folder removal lists its folders again on every pass:
+/// the list is a few `lstat` calls and the claim of a folder is what a stopped pass leaves behind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -288,7 +303,7 @@ pub fn long_pass(mechanism: Mechanism) -> Option<LongPass> {
     return match mechanism {
         Mechanism::Trees => Some(LongPass::Trees),
         Mechanism::Units => Some(LongPass::Units),
-        Mechanism::Records | Mechanism::Toolchains | Mechanism::Podman => None,
+        Mechanism::ToolchainFolders | Mechanism::Records | Mechanism::Toolchains | Mechanism::Podman => None,
     };
 }
 
@@ -306,6 +321,16 @@ pub fn long_pass(mechanism: Mechanism) -> Option<LongPass> {
 /// ```
 pub(crate) fn run_mechanism(mechanism: Mechanism, context: &RunContext) -> MechanismReport {
     return match mechanism {
+        Mechanism::ToolchainFolders => match context.base {
+            Some(found) => MechanismReport {
+                lines: run_toolchain_folders(found, context.options.dry_run, &context.options.toolchain_folder_limits, &context.deadline, context.environment),
+                resume_after: None,
+            },
+            None => MechanismReport {
+                lines: vec![String::from("toolchain folders: no build.build-dir with {workspace-path-hash} in the Cargo configuration, so there is no host build base to look in")],
+                resume_after: None,
+            },
+        },
         Mechanism::Trees => match context.base {
             Some(found) => {
                 let trees: Vec<Tree> = trees_in_order(found);

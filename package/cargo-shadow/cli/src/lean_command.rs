@@ -25,7 +25,7 @@ use crate::lean_guard::GuardEnvironment;
 /// Imports the names this file uses from `crate::lean_identity`.
 use crate::lean_identity::Deadline;
 /// Imports the names this file uses from `crate::lean_policy`.
-use crate::lean_policy::RUN_DEADLINE_SECONDS;
+use crate::lean_policy::{GIB, RUN_DEADLINE_SECONDS};
 /// Imports the names this file uses from `crate::lean_run`.
 use crate::lean_run::{Mechanism, RunOptions, run_lean};
 /// Imports the names this file uses from `crate::lean_run_report`.
@@ -34,6 +34,9 @@ use crate::lean_run_report::summary_line;
 use crate::lean_run_steps::run_records;
 /// Imports the names this file uses from `crate::lean_service_units`.
 use crate::lean_service_units::{SERVICE_NAME, TIMER_NAME, install_service};
+/// Imports the names this file uses from `crate::lean_toolchain_folders`:
+/// the bounds a run ships and the ones the command line sets.
+use crate::lean_toolchain_folders::ToolchainFolderLimits;
 
 /// What:
 /// `fn absent_notes(directories: &[PathBuf]) -> Vec<String>` names each directory that is not a directory on disk.
@@ -93,12 +96,40 @@ pub(crate) fn directories_from(start: &Path, given: &[PathBuf]) -> Vec<PathBuf> 
 /// ```
 pub(crate) fn mechanism_of(name: MechanismName) -> Mechanism {
     return match name {
+        MechanismName::ToolchainFolders => Mechanism::ToolchainFolders,
         MechanismName::Trees => Mechanism::Trees,
         MechanismName::Units => Mechanism::Units,
         MechanismName::Records => Mechanism::Records,
         MechanismName::Toolchains => Mechanism::Toolchains,
         MechanismName::Podman => Mechanism::Podman,
     };
+}
+
+/// What:
+/// `fn applied_toolchain_folder_limits(shipped: ToolchainFolderLimits, free_gib: Option<u64>, age_hours: Option<u64>, minutes: Option<u64>) -> ToolchainFolderLimits`
+/// is the bounds of the toolchain-folder removal with what the caller set.
+/// Why:
+/// Each of the three bounds has a shipped value with its measurement beside it in `src/lean_policy.rs`,
+/// and whoever runs a pass can set any of them for that pass.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const appliedToolchainFolderLimits = (shipped: ToolchainFolderLimits, freeGib?: number, ageHours?: number, minutes?: number): ToolchainFolderLimits => ({ ...shipped, freeSpaceBoundBytes: freeGib === undefined ? shipped.freeSpaceBoundBytes : freeGib * GIB, ageSeconds: ageHours === undefined ? shipped.ageSeconds : ageHours * 3600, passLimit: minutes === undefined ? shipped.passLimit : minutes * 60 });
+/// ```
+pub(crate) fn applied_toolchain_folder_limits(shipped: ToolchainFolderLimits, free_gib: Option<u64>, age_hours: Option<u64>, minutes: Option<u64>) -> ToolchainFolderLimits {
+    let free_space: u64 = match free_gib {
+        Some(gib) => gib.saturating_mul(GIB),
+        None => shipped.free_space_bound_bytes,
+    };
+    let age: i64 = match age_hours {
+        Some(hours) => i64::try_from(hours.saturating_mul(60 * 60)).unwrap_or(i64::MAX),
+        None => shipped.age_seconds,
+    };
+    let pass: Duration = match minutes {
+        Some(chosen) => Duration::from_secs(chosen.saturating_mul(60)),
+        None => shipped.pass_limit,
+    };
+    return ToolchainFolderLimits { free_space_bound_bytes: free_space, age_seconds: age, pass_limit: pass, ..shipped };
 }
 
 /// What:
@@ -155,7 +186,7 @@ pub fn run_lean_action(action: &LeanAction) -> i32 {
         }
     };
     match action {
-        LeanAction::Run { dry_run, only, deadline_minutes } => {
+        LeanAction::Run { dry_run, only, deadline_minutes, toolchain_folder_free_gib, toolchain_folder_age_hours, toolchain_folder_minutes } => {
             let seconds: u64 = match deadline_minutes {
                 Some(minutes) => minutes * 60,
                 None => RUN_DEADLINE_SECONDS,
@@ -164,7 +195,8 @@ pub fn run_lean_action(action: &LeanAction) -> i32 {
             for name in only {
                 mechanisms.push(mechanism_of(*name));
             }
-            let options: RunOptions = RunOptions { dry_run: *dry_run, only: mechanisms, deadline: Duration::from_secs(seconds), start };
+            let toolchain_folder_limits: ToolchainFolderLimits = applied_toolchain_folder_limits(ToolchainFolderLimits::default(), *toolchain_folder_free_gib, *toolchain_folder_age_hours, *toolchain_folder_minutes);
+            let options: RunOptions = RunOptions { dry_run: *dry_run, only: mechanisms, deadline: Duration::from_secs(seconds), start, toolchain_folder_limits };
             return run_lean(&options);
         }
         LeanAction::Records { directory, dry_run, deadline_minutes } => {

@@ -133,6 +133,8 @@ pub enum Command {
 /// by the name `--only` takes.
 #[derive(Clone, Copy, clap::ValueEnum)]
 pub enum MechanismName {
+    /// The build folders of toolchains nothing builds with any more.
+    ToolchainFolders,
     /// Idle trees of the host build base.
     Trees,
     /// The older-compiler sweep and the size caps of profile directories.
@@ -161,6 +163,22 @@ pub enum LeanAction {
         /// in minutes.
         #[arg(long)]
         deadline_minutes: Option<u64>,
+        /// Keep at least this much free space on the volume that holds the shared build directory,
+        /// in GiB,
+        /// and remove the toolchain folders the volume's age order reaches until it has that much free again.
+        /// The default is the volume's free space the runs that write into it need,
+        /// 296 GiB (`TOOLCHAIN_FOLDER_FREE_SPACE_BOUND_BYTES` in `src/lean_policy.rs`).
+        #[arg(long)]
+        toolchain_folder_free_gib: Option<u64>,
+        /// Never remove a toolchain folder whose own modification time is younger than this many hours.
+        /// The default is six hours (`TOOLCHAIN_FOLDER_AGE_SECONDS` in `src/lean_policy.rs`).
+        #[arg(long)]
+        toolchain_folder_age_hours: Option<u64>,
+        /// The longest the toolchain-folder removal of one pass may take,
+        /// in minutes.
+        /// The default is half an hour (`TOOLCHAIN_FOLDER_PASS_SECONDS` in `src/lean_policy.rs`).
+        #[arg(long)]
+        toolchain_folder_minutes: Option<u64>,
     },
     /// Install the systemd user service that keeps `lean run` running:
     /// each pass ends on its own deadline and the next starts a minute after it.

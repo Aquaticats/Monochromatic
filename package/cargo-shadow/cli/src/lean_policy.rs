@@ -142,3 +142,68 @@ pub const PAUSE_BETWEEN_PASSES_SECONDS: u64 = 60;
 /// systemd recorded `2min 22s CPU time over 3h 30min wall clock` for the run that ended 2026-11-09T08:00:00-05:00,
 /// and the unit holds `IOWeight=5` against the default 100 and `IOSchedulingClass=idle`.
 pub const RUN_DEADLINE_SECONDS: u64 = 5 * 3_600;
+
+/// The free space the volume that holds the shared build directory keeps for the runs that write into it:
+/// 296 GiB,
+/// which is the launcher's own floor and the space the longest gap between two passes can take.
+/// Why the volume's free space and not the build directory's own size:
+/// the build directory's size is what the walk for it measures,
+/// and that walk is what takes hours here
+/// (`btrfs filesystem du --summarize` over the same folders ran 72 minutes without finishing on 2026-11-13),
+/// while free space is one `statvfs` and is the quantity a full drive took from twenty runs on 2026-11-12.
+/// Composed of three measured figures:
+/// the launcher holds a run while the volume has less than
+/// `FREE_SPACE_FLOOR_BYTES` = 100 GiB (`package/pi-shared/subagent-driver/src/free-space-floor.ts`,
+/// "about eleven agents' builds");
+/// the volume lost about 36 GiB an hour on 2026-11-13
+/// (`btrfs filesystem du` listing of the same day), and the longest a pass may run is `RUN_DEADLINE_SECONDS` = 5 h,
+/// so a pass cannot be longer than 180 GiB in coming;
+/// and the largest build tree measured (`0b/ab24900891e355/debug`,
+/// 15.83 GiB, `HOST_PROFILE_CAP_BYTES`) has to fit after the removal, rounded up to 16 GiB.
+/// 100 + 180 + 16 = 296.
+/// A proposal,
+/// sized from other rules' measurements rather than from one of its own,
+/// and settable on the command line (`cargo-shadow lean run --toolchain-folder-free-gib`).
+pub const TOOLCHAIN_FOLDER_FREE_SPACE_BOUND_BYTES: u64 = 100 * GIB + 36 * GIB * (RUN_DEADLINE_SECONDS / 3_600) + 16 * GIB;
+
+/// The age a toolchain folder has to reach before it may be removed:
+/// six hours,
+/// which is one hour more than the longest a pass may run (`RUN_DEADLINE_SECONDS`).
+/// Why:
+/// the folder's own modification time is set by every build the shadow hands to that toolchain
+/// (`lean_keyed_folder.rs`),
+/// so a folder a build touched since the previous pass is never a candidate,
+/// and one hour is the margin for a pass that started just before that build did.
+/// A proposal:
+/// no measurement of a build's length settles it,
+/// and the process scan is what keeps a running build's folder whatever its age.
+pub const TOOLCHAIN_FOLDER_AGE_SECONDS: i64 = 6 * 3_600;
+
+/// The longest one pass of the toolchain-folder removal may take:
+/// half an hour,
+/// which is the deletion of two toolchain folders measured on 2026-11-13 divided into its pieces.
+/// Measured then:
+/// 512 shards (two folders of 256) took 19 minutes and 27 seconds (18:30:32 to 18:49:59),
+/// about 2.3 s a shard,
+/// so half an hour is about 790 shards,
+/// which is three toolchain folders of a full shard set,
+/// and the pass stops between two shards and the next one continues.
+/// A proposal,
+/// and the removal is off every build's waiting path: it runs in the service's own pass.
+pub const TOOLCHAIN_FOLDER_PASS_SECONDS: u64 = 30 * 60;
+
+/// A drive reading over this is slow:
+/// 5,000 ms.
+/// Measured 2026-11-13 during the hand deletion of two toolchain folders:
+/// six readings of the build volume were over five seconds while it ran,
+/// 6,104 ms to 15,201 ms,
+/// and the home drive's slowest was 98 ms,
+/// so five seconds is the build volume's own slow answer and not a figure another drive reaches.
+pub const DRIVE_SLOW_READING_MILLIS: u64 = 5_000;
+
+/// How many slow drive readings in a row stop a pass:
+/// two.
+/// Measured 2026-11-13:
+/// the same deletion's six slow readings were never two in a row,
+/// so a rule of two stops a pass that keeps meeting a drive that is not merely busy for a moment.
+pub const DRIVE_SLOW_READINGS_IN_A_ROW: u32 = 2;
