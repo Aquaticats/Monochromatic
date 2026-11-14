@@ -57,6 +57,24 @@ pub const MOVED_BRANCH_REBUILD_CEILING: Duration = ANSWER_CEILING;
 /// the slowest of 52 cold starts took 1,041 ms (`startWaitMs`,
 /// `reachMs`).
 /// One minute is 58 times that.
+///  Why this and no shorter bound for a greeting that has not come:
+/// a greeting that is late is
+///  never by itself read as a service stopped inside its own process.
+/// On 2026-11-12T01:21:10-05:00 a commit waited three
+///  seconds for the greeting of a service that was starting on a machine with dozens of agents,
+/// read the silence as a
+///  service stopped inside its own process,
+/// asked the manager to restart it,
+/// and then asked the manager for a reload that held
+///  it for 139,770 ms and ended the desktop session
+/// (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`);
+/// the service greeted the next time it was
+///  asked,
+/// five seconds later.
+/// The start ceiling is what separates a start that is merely slow from a service that is
+///  stopped inside its own process,
+/// and it is where the one restart of such a service happens
+///  (`service_client_reach_service.rs`).
 pub const START_CEILING: Duration = Duration::from_secs(60);
 
 /// The longest a service waits for the build of its own multi-thread runtime,
@@ -94,28 +112,6 @@ pub const RUNTIME_BUILD_PATIENCE: Duration = START_CEILING;
 /// and a service that is already running greets in well under a millisecond,
 /// so two seconds is twice the slowest start this repository has recorded.
 pub const HAND_OVER_GREETING_WAIT: Duration = Duration::from_secs(2);
-
-/// How long a commit lets a service the manager reports as running stay silent before it asks the manager to restart
-/// it.
-///  Why:
-///  A service greets a connection before it restores anything
-/// (`service_server_greets_before_the_journal_is_restored_tests.rs`),
-/// so a unit the manager calls `active` that has greeted nothing is not starting:
-/// it is stopped inside its own process (a frozen control group,
-/// a debugger,
-/// a suspended machine,
-/// a kernel wait
-/// nothing ends),
-/// and no start brings it back while the manager believes it runs.
-/// Restarting is the one repair of that state,
-/// and the commit is what needs the answer.
-///  Measured:
-/// the slowest of 52 cold starts greeted in 1,041 ms (`START_WAIT`),
-/// so three seconds is nearly three times the slowest start,
-/// and it is under the owner's 5,000 ms bound on what a commit may add to native Git
-/// (`native:perf`,
-/// "commits vs native git should not take 5s longer").
-pub const SERVICE_GREETING_SILENCE: Duration = Duration::from_secs(3);
 
 /// The longest the look at the running processes (`landing/earlier_service_process_look.rs`) takes before the adoption of an
 ///  earlier helper's journal counts the answer as "a service may be running".
@@ -477,6 +473,56 @@ pub const SERVICE_HOLD_CEILING: Duration = Duration::from_secs(10 * 60);
 /// the number is the longest observed landing
 ///  (journal `landing_ms` 119,836 ms) with the same margin of five.
 pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
+
+/// The longest one connection to the commit service is waited for before the client gives it up.
+///  Why:
+///   A connect to a local socket is a kernel step that returns at once,
+/// so the only thing it waits for is room in the socket's queue
+/// of connections nothing has accepted yet.
+/// A queue that is full is a service that has accepted nothing for a long time,
+/// and a blocking connect into it
+///  waits until the service accepts, which for a stopped service is never:
+/// measured on this host on 2026-11-12,
+/// a blocking connect into a listening socket whose queue of one was full
+///  was still waiting after 2,000 ms,
+/// though the two connections before it went in at once.
+///  Measured on this host,
+/// 2026-11-12,
+/// 2,000 connects to a socket whose listener accepts:
+/// 15 us at the median,
+/// 156 us at the 99th percentile and 62.6 ms at the slowest.
+/// Five seconds is 80 times the slowest of those,
+/// and it is `HEARTBEAT_SILENCE`,
+/// the time a service that is working may say nothing:
+/// a socket that has taken no connection for that long is one nothing accepts on.
+pub const CONNECT_CEILING: Duration = Duration::from_secs(5);
+
+/// How long the write of a request may take no byte at all before the service is taken for one that stopped reading.
+///  Why:
+///   A request line is at most `MAX_LINE_BYTES`, one mebibyte,
+/// and it can only be written by a service that reads:
+/// measured on this host on 2026-11-12,
+/// the send buffer of a local stream socket holds 212,992 bytes and one socket's two buffers took
+///  233,152 bytes with nothing reading,
+/// so a request of one mebibyte waits in the kernel for the other end to read it.
+/// A service that reads takes bytes in a few microseconds,
+/// so a write that puts no byte anywhere for this
+///  long is a service that stopped reading,
+/// and it is five beats of a service that is working.
+pub const REQUEST_WRITE_SILENCE: Duration = crate::service_protocol::HEARTBEAT_SILENCE;
+
+/// The longest the whole request of a commit is written into its connection.
+///  Measured on this host,
+/// 2026-11-12:
+/// one mebibyte written into a socket whose reader drains it took 0.4 ms at the median,
+/// 16.6 ms at the 99th
+///  percentile and 18.2 ms at the slowest of 50 runs.
+/// Ten seconds is 550 times the slowest of them,
+/// and it is the wait a command already grants a service's own
+///  start (`START_WAIT`):
+/// a request that is not in by then is one the person should not wait for any longer,
+/// however steadily the service takes it.
+pub const REQUEST_WRITE_CEILING: Duration = Duration::from_secs(10);
 
 /// The longest a connected push may show no progress before it is ended and left to the service's retry plan.
 ///  Unmeasured,
