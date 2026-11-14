@@ -1652,7 +1652,7 @@ await describe({
       },
     },),
     it({
-      name: 'a message whose name is too long to keep is held under its claim, and the run goes on',
+      name: 'a message whose name is too long to keep stays under its claim, and the summary names it',
       fn: async () => {
         /**
          A name that leaves no room for the `.failed-` prefix within the file system's name limit.
@@ -1673,7 +1673,9 @@ await describe({
           },
         },);
         expect(run.status,).toBe(CLEAN_STATUS,);
-        expect(run.inbox.filter((entry,) => entry.startsWith('.claimed-',)).length,).toBe(1,);
+        // The claim keeps the message's own name inside the claiming driver's folder, which no keep name has room for.
+        expect(run.inbox,).toEqual(['.claims',],);
+        expect(run.summary.inboxNotTaken,).toEqual([tooLong,],);
       },
     },),
     it({

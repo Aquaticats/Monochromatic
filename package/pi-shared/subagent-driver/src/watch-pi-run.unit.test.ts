@@ -6,6 +6,8 @@
  @module
  */
 
+import { spawn, } from 'node:child_process';
+import { once, } from 'node:events';
 import {
   mkdir,
   mkdtemp,
@@ -14,7 +16,8 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import { dirname, join, } from 'node:path';
+import { fileURLToPath, } from 'node:url';
 import { setTimeout as wait, } from 'node:timers/promises';
 import {
   describe,
@@ -777,6 +780,174 @@ function connectionWhoseWaitEnds({
     },
     shutDown: async () => ({ stopped: true, }),
   };
+}
+
+/**
+ The folder this test's own modules live in, which a child process reads so the claim it makes is the claim the driver makes.
+ */
+const SOURCE_FOLDER = dirname(fileURLToPath(import.meta.url,),);
+
+/**
+ The name a child writes once it has claimed its message, which is the seam its parent kills it at.
+ */
+const CLAIM_MARKER = 'claimed';
+
+/**
+ Milliseconds a test waits for a child to reach its seam before ending it anyway.
+ */
+const MARKER_WAIT_MILLISECONDS = 30_000;
+
+/**
+ Milliseconds between looks at a child's marker.
+ */
+const MARKER_LOOK_MILLISECONDS = 20;
+
+/**
+ The message a child claims, which must reach a later driver's inbox rather than vanish with the child.
+ */
+const CHILD_MESSAGE_TEXT = 'a message a killed driver claimed';
+
+/**
+ The name the child publishes that message under.
+ */
+const CHILD_MESSAGE_NAME = 'm.txt';
+
+/**
+ A child that claims its message through the real delivery and hangs where the send would go, so its parent can kill it after the
+ claim and before anything is sent.
+ */
+const CHILD_CLAIMING_AND_HANGING = `
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+const source = process.env.WT_SRC;
+const folder = process.env.RUN_FOLDER;
+const { deliverReadyMessage } = await import(source + '/messages-from-the-inbox.ts');
+const { startRecordOfPiRun } = await import(source + '/record-of-pi-run.ts');
+const inbox = join(folder, 'inbox');
+await mkdir(inbox, { recursive: true });
+await writeFile(join(inbox, ${JSON.stringify(CHILD_MESSAGE_NAME)}), ${JSON.stringify(CHILD_MESSAGE_TEXT)});
+const record = startRecordOfPiRun({ feedFile: join(folder, 'child-feed.jsonl') });
+await deliverReadyMessage({
+  watch: {
+    connection: {
+      hasExited: () => false,
+      exitDetails: () => ({}),
+      write: () => {},
+      shutDown: async () => ({ stopped: true }),
+      send: async () => {
+        await writeFile(join(folder, ${JSON.stringify(CLAIM_MARKER)}), 'claimed');
+        return await new Promise(() => {});
+      },
+    },
+    record,
+    options: { runFolder: folder },
+    inbox,
+    deadline: Date.now() + 60000,
+  },
+  name: 'm.txt',
+});
+`;
+
+/**
+ A child that holds its message while Pi works, as a run does when the message meets a turn, and waits there so its parent can kill
+ it in that window, where the run's own disposal never runs.
+ */
+const CHILD_HOLDING_AND_WAITING = `
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+const source = process.env.WT_SRC;
+const folder = process.env.RUN_FOLDER;
+const { watchUntilEnded } = await import(source + '/watch-pi-run.ts');
+const { startRecordOfPiRun } = await import(source + '/record-of-pi-run.ts');
+const inbox = join(folder, 'inbox');
+await mkdir(inbox, { recursive: true });
+await writeFile(join(inbox, ${JSON.stringify(CHILD_MESSAGE_NAME)}), ${JSON.stringify(CHILD_MESSAGE_TEXT)});
+const record = startRecordOfPiRun({ feedFile: join(folder, 'child-feed.jsonl') });
+record.observe({ event: { type: 'agent_start' }, declineDialog: () => {} });
+await watchUntilEnded({
+  connection: {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: () => {},
+    shutDown: async () => ({ stopped: true }),
+    send: async () => {
+      await writeFile(join(folder, ${JSON.stringify(CLAIM_MARKER)}), 'claimed');
+      return { ending: 'answered', record: { success: false, error: 'agent is already running' } };
+    },
+  },
+  record,
+  options: { runFolder: folder },
+  inbox,
+  deadline: Date.now() + 60000,
+  workLeftRunning: async () => [],
+});
+`;
+
+/**
+ Runs a child that claims its message and reaches its seam, then ends it with SIGKILL, as a driver killed at that instruction ends.
+
+ @param folder - the test's folder, where the child's script and its run folder live
+
+ @param source - the script the child runs
+
+ @returns nothing, once the child has been killed
+ */
+async function killChildAtItsSeam({
+  folder,
+  source,
+}: {
+  readonly folder: string;
+  readonly source: string
+},): Promise<void> {
+  /**
+   The child's own folder, with a package file that makes its script a module.
+   */
+  const childFolder = join(folder, 'child',);
+  await mkdir(childFolder,);
+  await writeFile(join(childFolder, 'package.json',), '{"type":"module"}', { encoding: 'utf8', },);
+  /**
+   The child's script.
+   */
+  const script = join(childFolder, 'child.ts',);
+  await writeFile(script, source, { encoding: 'utf8', },);
+  /**
+   The child, whose seam is a marker file it writes.
+   */
+  const child = spawn(process.execPath, [script,], {
+    env: {
+      WT_SRC: SOURCE_FOLDER,
+      RUN_FOLDER: folder,
+    },
+    stdio: 'ignore',
+  },);
+  /**
+   When the test gives up on the child reaching its seam.
+   */
+  const deadline = Date.now() + MARKER_WAIT_MILLISECONDS;
+  for (;;) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the child writes the marker as it goes, so the test looks again after waiting; see doc/lint/sequential-awaits.md
+    const marked = await readFile(join(folder, CLAIM_MARKER,), 'utf8',)
+      .then(function marked() {
+        return true;
+      },)
+      .catch(function unmarked() {
+        return false;
+      },);
+    if (marked) {
+      break;
+    }
+    if (child.exitCode !== null) {
+      throw new Error('the child ended before it claimed its message',);
+    }
+    if (Date.now() >= deadline) {
+      child.kill('SIGKILL',);
+      throw new Error(`the child did not claim its message within ${String(MARKER_WAIT_MILLISECONDS,)} ms`,);
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the same look, again, after the wait between looks; see doc/lint/sequential-awaits.md
+    await wait(MARKER_LOOK_MILLISECONDS,);
+  }
+  child.kill('SIGKILL',);
+  await once(child, 'exit',);
 }
 
 await describe({
@@ -1839,6 +2010,130 @@ await describe({
           sessionStats: null,
         },);
         expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+      },
+    },),
+    it({
+      name: 'keeps and names a message a driver claimed when it was killed before delivery',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The run folder whose inbox the child claims from, and whose claims a later driver reads.
+         */
+        const runFolder = folder.path;
+        /**
+         The inbox both drivers use.
+         */
+        const inbox = join(runFolder, 'inbox',);
+        await killChildAtItsSeam({
+          folder: runFolder,
+          source: CHILD_CLAIMING_AND_HANGING,
+        },);
+        /**
+         The messages a later driver would send, which the kept message must not be among.
+         */
+        const sent: string[] = [];
+        /**
+         The later driver's own record.
+         */
+        const record = startRecordOfPiRun({ feedFile: join(
+          runFolder,
+          'after-kill.jsonl',
+        ), },);
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record,
+          options: optionsOf({ runFolder, },),
+          inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async () => [],
+        },);
+        expect(endReason,).toBe('wall-clock',);
+        expect((await readdir(inbox,)).toSorted(),).toEqual([`.orphaned-${CHILD_MESSAGE_NAME}`,],);
+        expect(await readFile(join(inbox, `.orphaned-${CHILD_MESSAGE_NAME}`,), 'utf8',),).toBe(CHILD_MESSAGE_TEXT,);
+        // A claim says only that delivery had begun, never whether Pi took the message, so a later driver does not send it again.
+        expect(sent,).toEqual([],);
+        /**
+         What the later driver's summary says about the message.
+         */
+        const summary = record.summarize({
+          endReason: 'wall-clock',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.inboxNotTaken,).toEqual([CHILD_MESSAGE_NAME,],);
+        // A second driver on the same inbox keeps and names nothing more.
+        /**
+         The second driver's own record.
+         */
+        const second = startRecordOfPiRun({ feedFile: join(
+          runFolder,
+          'after-kill-second.jsonl',
+        ), },);
+        await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: second,
+          options: optionsOf({ runFolder, },),
+          inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async () => [],
+        },);
+        expect(second.summarize({
+          endReason: 'wall-clock',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },).inboxNotTaken,).toBeUndefined();
+        expect((await readdir(inbox,)).filter((name,) => name.startsWith('.orphaned-',)),).toHaveLength(1,);
+        await record.close();
+        await second.close();
+      },
+    },),
+    it({
+      name: 'keeps and names a message held at work when the driver that held it was killed',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The run folder whose inbox the child holds a message in.
+         */
+        const runFolder = folder.path;
+        /**
+         The inbox both drivers use.
+         */
+        const inbox = join(runFolder, 'inbox',);
+        await killChildAtItsSeam({
+          folder: runFolder,
+          source: CHILD_HOLDING_AND_WAITING,
+        },);
+        /**
+         The messages the later driver would send, which the kept message must not be among.
+         */
+        const sent: string[] = [];
+        /**
+         The later driver's own record.
+         */
+        const record = startRecordOfPiRun({ feedFile: join(
+          runFolder,
+          'after-hold.jsonl',
+        ), },);
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record,
+          options: optionsOf({ runFolder, },),
+          inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async () => [],
+        },);
+        expect(endReason,).toBe('wall-clock',);
+        expect((await readdir(inbox,)).toSorted(),).toEqual([`.orphaned-${CHILD_MESSAGE_NAME}`,],);
+        expect(sent,).toEqual([],);
+        expect(record.summarize({
+          endReason: 'wall-clock',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },).inboxNotTaken,).toEqual([CHILD_MESSAGE_NAME,],);
+        await record.close();
       },
     },),
   ],
