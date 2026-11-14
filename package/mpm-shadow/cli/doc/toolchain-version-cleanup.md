@@ -243,7 +243,9 @@ so the next install runs the pass even when it installs nothing.
 Every deletion goes through one function, `delete_for_good`,
 and each call names the proof it has at that instant:
 
-- **the entry a pass judged**: same device and inode number, same write time, checked once more at the delete;
+- **the entry a pass judged**: same device and inode number,
+  same write time,
+  checked once more at the delete;
 - **bytes this pass moved aside a moment ago**:
   the archives it renamed under a marker,
   whose name no other program writes;
@@ -252,7 +254,10 @@ and each call names the proof it has at that instant:
 
 A name proves nothing about what stands under it,
 and four reviews each found a copy lost by a deletion that trusted one:
-judged, moved aside, held, and finished.
+judged,
+moved aside,
+held,
+and finished.
 With this list a removal deletes only what it has just shown,
 and everything else is put back where a next install finds it,
 or left with one line a person can act on.
