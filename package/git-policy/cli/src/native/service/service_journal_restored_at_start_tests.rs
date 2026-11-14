@@ -124,8 +124,9 @@ fn a_read_that_gives_no_answer_within_its_ceiling_leaves_both_directories_and_re
     assert!(retries.needs_restore(), "the plan the start could not read is read again after a pause");
     assert_eq!(notes.key(), Some(watch.clone()), "the notes' directory is kept too, so the repositories this service looks at are kept for the next start");
     assert!(notes.needs_retry(), "the notes the start could not read are read again after a pause");
-    // The read is let go and answers, so the reads this service owes are made again: the push the earlier service left is due,
-    //  and a notes directory with no note owes nothing more.
+    // The read is let go, so the thread the ceiling left behind ends instead of standing in the kernel for the life of the test
+    //  process, and the reads this service owes are made again: the push the earlier service left is due, and a notes directory
+    //  with no note owes nothing more.
     let _let_go = let_go.send(());
     let found: Vec<std::path::PathBuf> = retries.restore();
     assert_eq!(found, vec![here.clone()], "the read names the repository whose push waits");

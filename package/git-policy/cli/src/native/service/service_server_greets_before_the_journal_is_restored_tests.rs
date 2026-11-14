@@ -182,6 +182,8 @@ fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer
     // The service is told to retire on a connection of its own, so its thread ends here rather than at its idle exit.
     retire(world.socket().as_path());
     let joined: bool = join_within(serving);
+    // The read is let go whatever happened, so the thread the ceiling left behind ends rather than standing in the kernel for the
+    //  life of the test process.
     let _let_go = let_go.send(());
     assert!(joined, "the service ends when it is told to retire, so a read that gave no answer did not hold it");
 }
