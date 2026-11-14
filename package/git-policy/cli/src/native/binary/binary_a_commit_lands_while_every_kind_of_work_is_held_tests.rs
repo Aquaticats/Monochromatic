@@ -272,3 +272,84 @@ fn a_commit_lands_while_every_kind_of_work_is_held() {
     wait_until("the remote holds the measured commit", &|| { return remote_has(&setup, landed.as_str()); });
     remove_settled(&setup.fixture);
 }
+
+/// How many rounds each arm of the measurement is made,
+/// so the range of a figure is a range of the same arm and not of the machine's minutes.
+const ARMS: usize = 3;
+
+/// What:
+///  One commit's time against real Git's for the same commit,
+///  with the service idle and with every kind of work it does held open.
+/// Why:
+///   The owner's rule is that what the wrapper adds on top of real Git's own time for the same commit is at most the larger
+/// of five seconds and twice real Git's time
+/// (`doc/handover/cli-git-rust-implementation.md`, the section of `2026-11-12T14:03:46-05:00`),
+/// and the measurement is the only evidence for it.
+/// The same round measures real Git on the same repository, so the disk and the host are the control arm's
+/// (`AGENTS.md`, rule `TVC`):
+/// an absolute figure here is context and not a finding.
+/// An arm is repeated `ARMS` times and the range is reported, because a difference smaller than the run-to-run spread is
+/// noise (rule `NQB`).
+/// Run alone, because it wants the host's and the fixture's disk to itself:
+/// `mise run //package/git-policy/cli:native:test:binary:host -- --run-ignored only --no-capture -E 'test(/a_commit_timed/)'`
+#[test]
+#[ignore = "a measurement for the record, not a control; run it alone"]
+fn a_commit_timed_against_real_git_with_every_kind_of_work_held() {
+    let setup: Setup = setup("a-commit-timed-against-real-git");
+    let mut idle: Vec<u128> = Vec::new();
+    let mut real: Vec<u128> = Vec::new();
+    for at in 0..ARMS {
+        // Real Git on the same repository, which is the arm the rule compares with.
+        std::fs::write(setup.repo.join("a.txt"), format!("real {at}\n")).expect("the edit");
+        let began: Instant = Instant::now();
+        super::support::direct(&setup.fixture).current_dir(setup.repo.as_path()).args(["commit", "--quiet", "-m", "real", "--", "a.txt"]).output().expect("real Git commits");
+        real.push(began.elapsed().as_millis());
+        // The wrapped commit through the service, with nothing else asked of it.
+        let (_output, took): (Output, Duration) = commit_and_time(&setup, format!("wrapped {at}\n").as_str());
+        idle.push(took.as_millis());
+    }
+    // The queue, held, and the arm that measures what it costs a person.
+    plant_the_queue(&setup);
+    let (_waking, _waking_ms): (Output, Duration) = commit_and_time(&setup, "waking\n");
+    wait_until("a prewarm's clone was reached", &|| { return setup.reached(INSIDE_A_CLONE_STEP); });
+    wait_until("the background sync of the landing was reached", &|| { return setup.reached(INSIDE_A_SYNC); });
+    wait_until("the removal of the landing's scratch tree was reached", &|| { return setup.reached(INSIDE_A_SCRATCH_REMOVAL); });
+    wait_until("the push of the waking commit was reached", &|| { return setup.reached(INSIDE_A_PUSH); });
+    let mut held: Vec<u128> = Vec::new();
+    for at in 0..ARMS {
+        let (_output, took): (Output, Duration) = commit_and_time(&setup, format!("held {at}\n").as_str());
+        held.push(took.as_millis());
+    }
+    eprintln!("MEASURE real_git_ms={real:?} idle_ms={idle:?} held_ms={held:?}");
+    for point in [INSIDE_A_CLONE_STEP, INSIDE_A_SYNC, INSIDE_A_SCRATCH_REMOVAL, INSIDE_A_PUSH] {
+        setup.let_go(point);
+    }
+    remove_settled(&setup.fixture);
+}
+
+/// What:
+///  One commit's time against real Git's for the same commit with nothing else asked of the service.
+/// Why:
+///   The control arm of the measurement above:
+/// the rule compares what the wrapper adds with real Git's own time for the same commit,
+/// so the same round measures both,
+/// and the difference between two trees of the wrapper is only a finding when it is larger than the spread of one arm.
+/// Run alone:
+/// `mise run //package/git-policy/cli:native:test:binary:host -- --run-ignored only --no-capture -E 'test(/a_commit_timed_while_the_service_is_idle/)'`
+#[test]
+#[ignore = "a measurement for the record, not a control; run it alone"]
+fn a_commit_timed_while_the_service_is_idle() {
+    let setup: Setup = setup("a-commit-timed-while-idle");
+    let mut idle: Vec<u128> = Vec::new();
+    let mut real: Vec<u128> = Vec::new();
+    for at in 0..ARMS {
+        std::fs::write(setup.repo.join("a.txt"), format!("real {at}\n")).expect("the edit");
+        let began: Instant = Instant::now();
+        super::support::direct(&setup.fixture).current_dir(setup.repo.as_path()).args(["commit", "--quiet", "-m", "real", "--", "a.txt"]).output().expect("real Git commits");
+        real.push(began.elapsed().as_millis());
+        let (_output, took): (Output, Duration) = commit_and_time(&setup, format!("wrapped {at}\n").as_str());
+        idle.push(took.as_millis());
+    }
+    eprintln!("MEASURE idle_only real_git_ms={real:?} idle_ms={idle:?}");
+    remove_settled(&setup.fixture);
+}

@@ -266,3 +266,51 @@ records above show it had not, and named no duration.
 repository's timing log holds 91 commits of that release: 18 of them waited five seconds or more for their
 answer (the longest 27,145 ms of `answerWaitMs`), and none of the 91 printed the notice. So what a slow answer
 costs is still there to fix, and the false claim that the service had stopped did not come back.
+
+## Thirteen minutes for one commit, 2026-11-12
+
+Between 14:20 and 14:33 the main checkout's service (`0.6.1-alpha.15`) answered nothing for one commit,
+which was sent again four times and never made. The journal of those minutes is saved at
+`${HOME}/temp/agent/diagnose-slow-commit-answers-2026-11-12T1330/main-service-journal-1419-to-1444.md`,
+and the analysis of the six slow commits of the hour before beside it in `report.md`.
+
+That round spent `2450757 ms` of its `30000 ms` budget on housekeeping, which was read at the time as a budget
+that did not hold. It is not: `HOUSEKEEPING_OF_ONE_ROUND` bounds what a round *starts*, and an item that has
+started runs to its end, because a trash of a removed worktree that stopped halfway would need a resume the
+trash did not keep. One trash that began before the budget ran out therefore ran for forty minutes, and the
+line naming the eight items it left for a later round is the budget working, late.
+
+What held the commit was the process's bound on blocking jobs, and the reserve of one place that kept the work
+a person waits for out of it did not survive two faults:
+
+- the reserve is one *place*, and the path that begins a landing needs two asks at once, the ask that says
+  whose a commit's request is and the step that reads the landing's own state. With one place free, the two
+  took turns behind it.
+- three jobs nobody waits for took a thread of the pool without taking a place: the background sync of a
+  landing's records (119,581 ms in that journal), the rules precompile, and the removal of a released scratch
+  tree. The bound therefore never saw them, and the reserve was not a thread that stayed free.
+
+Four new worktrees' repairs, a push of `main` (567,507 ms) and that round were running in those minutes. The
+queue of a landing was empty (`queued_behind=0`), which is what a pool with no place to give looks like from
+the timing log.
+
+### The repair
+
+`SLOW_WORK_RESERVE` is now two places, and `places_a_round_may_take` is the same figure, so one number keeps
+the places slow work may take. The sync, the precompile and the scratch removal ask for a place of slow work,
+so a place of the process's bound is a thread again. A trash item has a bound of its own
+(`TRASH_ITEM_CEILING`, two minutes) and stops between waves of entries, leaving the rest for the next round
+with the identity its record proves it by.
+
+### The controls
+
+- `foundation/blocking_jobs_within_the_budget_tests.rs`,
+  `two_asks_of_the_work_a_person_waits_for_run_while_slow_work_holds_every_place_it_may`:
+  with the reserve at one place it fails with `NotRun` for the second ask; at two it passes.
+- `binary/binary_a_commit_lands_while_every_kind_of_work_is_held_tests.rs`,
+  `a_commit_lands_while_every_kind_of_work_is_held`: two prewarm clones, a landing's sync, a scratch tree's
+  removal and a push are held open through `CLI_GIT_TEST_ONLY_HOLD`, and a commit lands in under twenty
+  seconds. On the tree before the fix the same measurement never reached the prewarm's clone within 180 s.
+- `worktree/worktree_trash_entries_tests.rs`,
+  `a_wave_removes_the_entries_it_names_and_leaves_the_rest_for_the_next_one`: a bound may stop between two
+  waves.
