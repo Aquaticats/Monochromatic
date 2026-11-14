@@ -979,11 +979,11 @@ run = "dprint check --list-different"
 # as before; a crate another Cargo is unpacking right now has no marker yet, so that one fetches too.
 #
 # What it does not judge is whether a lock file is current, because nothing here runs cargo for a lock file whose
-# crates are all in place. Measured on 2026-11-13 with a fixture lock that `cargo metadata --offline --locked` refuses
-# (exit 101, "cannot update the lock file ... because --locked was passed"): the task before this change failed on it,
-# and this one leaves it alone, so the first thing to name it inside a lint is the closure check's own
-# `cargo metadata --offline --locked`, which reports it as a warning finding rather than failing this step. The order
-# the owner fixed on 2026-11-07 ("Fetch then warn") is unchanged: this only decides which lock files need the fetch.
+# crates are all in place: a stale lock file no longer fails this step. A stale lock file fails the lint through the
+# closure check, which runs `cargo metadata --offline --locked` for each package and gets this answer from one
+# (measured on 2026-11-13 with a fixture lock: exit 101, "cannot update the lock file ... because --locked was
+# passed"), as the owner decided on 2026-11-13. The order the owner fixed on 2026-11-07 ("Fetch then warn") is
+# unchanged: this only decides which lock files need the fetch.
 [tasks."fetch:rust-dependencies"]
 description = "Download every locked Cargo dependency of each package (default: all with a Cargo.lock) so the offline closure check can read them"
 usage = """
@@ -1008,11 +1008,13 @@ const { dirname, join } = await import('node:path')
 // so the answer is a fetch.
 //
 // A registry is only crates.io here, because Cargo names the folder it caches a registry in after that registry and a
-// lock file naming any other one cannot be checked against the one folder. A git source needs both halves of what
-// Cargo holds for it (`GitSource::fetch_db` bails in offline mode when the database is absent or lacks the locked
-// revision, whatever the checkout holds): a folder under `git/db` and a ready checkout of the locked revision. The
-// checkout's folder is named by the revision's abbreviation, so a repository whose name two URLs share is told apart
-// by that abbreviation, which Cargo makes unambiguous within a repository.
+// lock file naming any other one cannot be checked against the one folder. A git source needs all of what Cargo holds
+// for one URL (`GitSource::fetch_db` bails in offline mode when the database is absent or lacks the locked revision,
+// whatever the checkout holds): a database under `git/db`, a ready checkout of the locked revision, and the revision
+// itself in that database. Cargo names that folder after the repository plus a hash of the URL, so two URLs that share
+// a repository name are two folders; this reader tells them apart by the URL a database records in its own
+// `FETCH_HEAD` rather than by recomputing Cargo's hash, and a database that records no URL, or that git cannot be
+// asked for the revision, is a fetch.
 const REGISTRY_UNPACK_MARKER = '.cargo-ok'
 const REGISTRY_UNPACK_MARKER_CONTENT = '{"v":1}'
 const GIT_CHECKOUT_MARKER = '.cargo-ok'
@@ -1025,6 +1027,10 @@ const CRATES_IO_FOLDER_PREFIXES = ['index.crates.io-', 'github.com-']
 // own text is hex of that length up to a SHA-256 repository's 64 (`git2::Oid`).
 const SHORTEST_GIT_CHECKOUT_NAME = 7
 const GIT_REVISION_SHAPE = /^[0-9a-f]{7,64}$/u
+// A bound on asking a git database whether it holds a revision, so a database that cannot answer cannot make this
+// task wait forever (the rule that nothing may). A `git cat-file` on this machine's shared home's databases took 30 ms
+// to 40 ms on 2026-11-13, and a question that runs past the bound counts as an answer of no.
+const GIT_QUESTION_CEILING_MILLISECONDS = 10_000
 
 /** The `[[package]]` entries of a `Cargo.lock` as `{ name, version, source }`, or undefined when it is not understood. */
 const lockPackages = (text) => {
@@ -1101,7 +1107,9 @@ const readCargoHome = (cargoHome) => {
   const registryName = onlyRegistryName(cargoHome)
   const tarballSizes = new Map()
   const unpackedRegistryCrates = new Map()
-  const readyGitCheckouts = new Set()
+  // Each database's folder name to the revision abbreviations checked out of it, and each repository name to the
+  // databases carrying it.
+  const readyGitCheckouts = new Map()
   if (registryName !== undefined) {
     for (const entry of entriesOf(join(cargoHome, 'registry', 'cache', registryName))) {
       if (entry.name.endsWith('.crate')) { tarballSizes.set(entry.name, statOf(join(cargoHome, 'registry', 'cache', registryName, entry.name))?.size) }
@@ -1110,21 +1118,25 @@ const readCargoHome = (cargoHome) => {
       if (entry.isDirectory() || entry.isSymbolicLink()) { unpackedRegistryCrates.set(entry.name, join(cargoHome, 'registry', 'src', registryName, entry.name)) }
     }
   }
-  const gitRepositories = new Set()
+  const gitDatabases = new Map()
   for (const databaseEntry of entriesOf(join(cargoHome, 'git', 'db'))) {
     const nameAndHash = /^(?<repository>.+)-[0-9a-f]+$/u.exec(databaseEntry.name)
-    if (nameAndHash !== null && statOf(join(cargoHome, 'git', 'db', databaseEntry.name))?.isDirectory() === true) { gitRepositories.add(nameAndHash.groups.repository.toLowerCase()) }
+    const databaseFolder = join(cargoHome, 'git', 'db', databaseEntry.name)
+    if (nameAndHash === null || statOf(databaseFolder)?.isDirectory() !== true) { continue }
+    const repository = nameAndHash.groups.repository.toLowerCase()
+    const databasesOfRepository = gitDatabases.get(repository) ?? []
+    databasesOfRepository.push({ folder: databaseEntry.name, upstreamUrls: fetchedUrlsOf(databaseFolder) })
+    gitDatabases.set(repository, databasesOfRepository)
   }
   for (const checkoutEntry of entriesOf(join(cargoHome, 'git', 'checkouts'))) {
-    const nameAndHash = /^(?<repository>.+)-[0-9a-f]+$/u.exec(checkoutEntry.name)
-    if (nameAndHash === null) { continue }
     for (const revisionEntry of entriesOf(join(cargoHome, 'git', 'checkouts', checkoutEntry.name))) {
-      if (statOf(join(cargoHome, 'git', 'checkouts', checkoutEntry.name, revisionEntry.name, GIT_CHECKOUT_MARKER)) !== undefined) {
-        readyGitCheckouts.add(nameAndHash.groups.repository.toLowerCase() + ' ' + revisionEntry.name)
-      }
+      if (statOf(join(cargoHome, 'git', 'checkouts', checkoutEntry.name, revisionEntry.name, GIT_CHECKOUT_MARKER)) === undefined) { continue }
+      const abbreviationsOfDatabase = readyGitCheckouts.get(checkoutEntry.name) ?? new Set()
+      abbreviationsOfDatabase.add(revisionEntry.name)
+      readyGitCheckouts.set(checkoutEntry.name, abbreviationsOfDatabase)
     }
   }
-  return { registryName, tarballSizes, unpackedRegistryCrates, readyGitCheckouts, gitRepositories }
+  return { registryName, tarballSizes, unpackedRegistryCrates, readyGitCheckouts, gitDatabases }
 }
 
 /** Why the registry crate the lock file names is not in the cargo home, or undefined when it is there and unpacked. */
@@ -1141,28 +1153,84 @@ const registryCrateMissingFrom = ({ home, name, version }) => {
   return undefined
 }
 
-/** The repository name and locked revision of a git source, or undefined when the source text is not understood. */
+/**
+ A git URL as a lock file and git's own `FETCH_HEAD` each write it, for comparison: no `git+` prefix, no `?` query, no
+ `#` revision, no trailing slash and no `.git` suffix. A URL that still differs after that is a fetch, so the
+ comparison can only be too strict.
+ */
+const normalizedGitUrl = (url) => url.replace(/^git\+/u, '').split('?')[0].split('#')[0].replace(/\/+$/u, '').replace(/\.git$/u, '')
+
+/**
+ The upstream URLs a git database records having been fetched from, or undefined when it records none.
+ Git writes one line per fetched ref into a database's `FETCH_HEAD`, ending in the URL it fetched from: `<sha>` then
+ two tabs then the URL for a bare URL, and `<sha>` then two tabs then `'<ref>' of <url>` for a ref.
+ */
+const fetchedUrlsOf = (databaseFolder) => {
+  const fetchHead = textOf(join(databaseFolder, 'FETCH_HEAD'))
+  if (fetchHead === undefined) { return undefined }
+  const urls = new Set()
+  for (const line of fetchHead.split('\n')) {
+    const [sha, ...rest] = line.split('\t')
+    if (rest.length === 0 || GIT_REVISION_SHAPE.test((sha ?? '').trim()) === false) { continue }
+    const fetched = rest.join('\t').trim()
+    const lastRefOf = fetched.lastIndexOf(' of ')
+    const url = normalizedGitUrl(lastRefOf === -1 ? fetched : fetched.slice(lastRefOf + ' of '.length))
+    if (url !== '') { urls.add(url) }
+  }
+  return urls
+}
+
+/**
+ Answers already given in this pass, so a lock file naming six crates of one repository asks its database once.
+ A database does not lose a revision it has while one pass runs, and one a concurrent garbage collection empties is a
+ fetch on the next pass, as a collection emptying a crate the pass has just read is.
+ */
+const answeredRevisions = new Map()
+
+/** Whether a git database holds the revision, asked of git under a bound; a database that cannot answer is a no. */
+const databaseHoldsRevision = ({ databaseFolder, revision }) => {
+  const asked = databaseFolder + ' ' + revision
+  const answered = answeredRevisions.get(asked)
+  if (answered !== undefined) { return answered }
+  const gitProcess = process.getBuiltinModule('node:child_process')
+  const question = gitProcess.spawnSync('git', ['--git-dir=' + databaseFolder, 'cat-file', '-e', revision], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: GIT_QUESTION_CEILING_MILLISECONDS })
+  const holds = question.status === 0
+  answeredRevisions.set(asked, holds)
+  return holds
+}
+
+/** The repository name, URL and locked revision of a git source, or undefined when the source text is not understood. */
 const gitSourceOf = (source) => {
   const [address, revision, ...beyondTheRevision] = source.slice('git+'.length).split('#')
   if (beyondTheRevision.length > 0 || revision === undefined || !GIT_REVISION_SHAPE.test(revision)) { return undefined }
-  const withoutQuery = address.split('?')[0].replace(/\/+$/u, '')
-  const repository = withoutQuery.slice(Math.max(withoutQuery.lastIndexOf('/'), withoutQuery.lastIndexOf(':')) + 1).replace(/\.git$/u, '').toLowerCase()
+  const url = normalizedGitUrl(address)
+  const repository = url.slice(Math.max(url.lastIndexOf('/'), url.lastIndexOf(':')) + 1).toLowerCase()
   if (repository === '') { return undefined }
-  return { repository, revision }
+  return { repository, revision, url }
 }
 
-/** Why the git checkout the lock file names is not in the cargo home, or undefined when it is there and ready. */
-const gitCheckoutMissingFrom = ({ home, packageName, source }) => {
+/**
+ Why the git checkout the lock file names is not in the cargo home, or undefined when it is there and ready.
+ The database is the one whose recorded URL is the lock file's URL, the checkout is under that database's own folder
+ name, and the revision is asked of that database: two URLs that share a repository name are never one database.
+ */
+const gitCheckoutMissingFrom = ({ cargoHome, home, packageName, source }) => {
   const gitSource = gitSourceOf(source)
   if (gitSource === undefined) { return packageName + ' names a git source this reader does not understand' }
-  const { repository, revision } = gitSource
-  if (!home.gitRepositories.has(repository)) { return packageName + ' has no git database of ' + repository }
-  for (const ready of home.readyGitCheckouts) {
-    const [readyRepository, readyRevision] = ready.split(' ')
-    if (readyRepository !== repository) { continue }
-    if (revision.startsWith(readyRevision) && readyRevision.length >= SHORTEST_GIT_CHECKOUT_NAME) { return undefined }
+  const { repository, revision, url } = gitSource
+  const abbreviation = revision.slice(0, SHORTEST_GIT_CHECKOUT_NAME)
+  const databases = home.gitDatabases.get(repository) ?? []
+  const databasesOfThisUrl = databases.filter((database) => database.upstreamUrls?.has(url) === true)
+  if (databasesOfThisUrl.length === 0) { return packageName + ' has no git database of ' + url }
+  for (const database of databasesOfThisUrl) {
+    const abbreviations = home.readyGitCheckouts.get(database.folder)
+    const readyHere = abbreviations !== undefined && [...abbreviations].some((name) => revision.startsWith(name) && name.length >= SHORTEST_GIT_CHECKOUT_NAME)
+    if (!readyHere) { continue }
+    const databaseFolder = join(cargoHome, 'git', 'db', database.folder)
+    if (!databaseHoldsRevision({ databaseFolder, revision })) { return packageName + ' has a git database of ' + url + ' that does not hold ' + abbreviation }
+    return undefined
   }
-  return packageName + ' has no ready checkout of ' + repository + ' at ' + revision.slice(0, SHORTEST_GIT_CHECKOUT_NAME)
+  return packageName + ' has no ready checkout of ' + url + ' at ' + abbreviation
 }
 
 /** Whether `cargo fetch --locked` has anything to download for one lock file, and what decided it. */
@@ -1187,7 +1255,7 @@ const fetchDecision = ({ cargoHome, home, lockText }) => {
   const registryMissing = registryPackages.map((entry) => [entry, registryCrateMissingFrom({ home, name: entry.name, version: entry.version })])
     .filter(([, why]) => why !== undefined)
   const gitPackages = packages.filter((entry) => typeof entry.source === 'string' && entry.source.startsWith('git+'))
-  const gitMissing = gitPackages.map((entry) => [entry, gitCheckoutMissingFrom({ home, packageName: entry.name + '-' + entry.version, source: entry.source })])
+  const gitMissing = gitPackages.map((entry) => [entry, gitCheckoutMissingFrom({ cargoHome, home, packageName: entry.name + '-' + entry.version, source: entry.source })])
     .filter(([, why]) => why !== undefined)
   if (registryMissing.length > 0) {
     const [[first, firstWhy]] = registryMissing
