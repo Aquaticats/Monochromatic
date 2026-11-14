@@ -9144,8 +9144,10 @@ in-process reader can) gives every value of the multi-valued keys.
   and writes the tree of the branch the checkout shows over the paths this move wrote and nowhere else:
   the merge's content for the pushed branch,
   and that branch's own content for any other, a path the branch does not have being removed.
-  The write is a `git read-tree -u -m` from the tree of the branch the checkout shows,
-  and it replaces a path only while the index holds that from-tree's content and the worktree still matches the index there:
+  The write is a `git read-tree -u -m` between the pushed tip and the merge, in the order the branch the checkout shows needs
+  (the merge in for a checkout still on the pushed branch, the old tip's content out for one a switch took elsewhere),
+  so the two trees differ on exactly the paths this move wrote and no other path is reachable,
+  and it replaces a path only while the index holds the from-tree's content and the worktree still matches the index there:
   a staged edit, a worktree edit and an untracked file each make it refuse,
   which is what proves the bytes it writes are the move's own or a switch's own
   (a review of commit `6c39c3719a`,
