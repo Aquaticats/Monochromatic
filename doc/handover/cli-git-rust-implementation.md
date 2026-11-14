@@ -1198,6 +1198,43 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Two authors answered: the archive's files are kept as plain text, and removal-refuses names a rename rightly; each goes to review (2026-11-14T09:58:49-05:00)
+
+Not final and not approved:
+what two authors report of themselves,
+which this session has not checked,
+and what it queued.
+
+- **The archives' kept files** (tip `a43768a87d`, ended 09:57:18):
+  79 files added from the evidence archive,
+  565,691 bytes,
+  77 identical to the member in history and two changed by the repository's own guards with both digests in the record;
+  kept members 239 of the archive's 240;
+  `.gitignore` re-includes one kept file an ignore line would have hidden;
+  its scan finds no credential and no path into a home;
+  its look at the other removed archives lists 52 Markdown sentences and 5 JSON hits and keeps nothing more.
+  The one file left in history alone is `agent-final-report.md` (17,106 bytes).
+  By the owner's decision the files the sentence covers are kept
+  (the harness, the check scripts, the baked inputs, every raw record);
+  an agent's closing report is none of those four by its name,
+  so it stays where it is,
+  listed,
+  and the reviewer is asked to say what the file is.
+  The reviewer of this branch is resumed in its own session to check the answer with its own scripts,
+  queued second
+  (`~/temp/agent/pi-runs/go-on-with-the-review-of-the-tracked-archives-and-check-the-kept-files-at-a43768a87d-prompt.md`);
+  the branch is merged after that check.
+- **Removal refuses** (tip `52ddd94d5f`, ended 09:53:52):
+  both findings of its fourth review answered:
+  the parser of a status listing no longer cuts a rename's old path short,
+  and the path that remembers a kept worktree asks what the other path asks
+  (four controls,
+  79 tests of the changed modules,
+  nineteen again at four CPUs;
+  no cost measured above the spread).
+  Review queued third (range `main...52ddd94d5f`).
+- The queue held 57 entries at 09:58:49.
+
 ##### The warm request's controls leave no process behind: reviewed with no defect, and pass 39 with the five library controls (2026-11-14T09:53:23-05:00)
 
 Not final and not approved:
