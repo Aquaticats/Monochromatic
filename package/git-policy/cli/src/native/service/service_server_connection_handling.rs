@@ -23,7 +23,7 @@ use crate::service_timing::{Arrival, log, retire_line};
 use crate::service_instance::instance_of;
 use crate::service_work::Wake;
 use crate::service_busy::{EarlyAnswer, LandingBoard};
-use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than, run_blocking_job_within_the_budget};
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_awaited_no_longer_than, run_an_answer_to_a_client};
 use crate::service_reply::{NoteSource, Reply, write_until_answered_noting};
 use crate::service_protocol::{
     ClientMessage, FailureCode, HEARTBEAT_EVERY, MAX_LINE_BYTES, PROTOCOL_VERSION, ServiceMessage, decode_client,
@@ -99,8 +99,9 @@ pub(crate) fn stuck_notice(board: Arc<LandingBoard>, request: Option<String>) ->
 
 /// The answer of one read of the journal for a beat's note:
 /// what the connection has to say,
-/// and the key of the words said last.
-type NoteFromTheBoard = Result<(Option<ServiceMessage>, Option<String>), crate::blocking_job::BlockingJobError>;
+/// and the key of the words said last,
+/// or that no place came for it within its ceiling.
+type NoteFromTheBoard = TheAnswerOfAJobAwaited<(Option<ServiceMessage>, Option<String>)>;
 
 /// What:
 ///  The read of one note while it is still running.
@@ -171,6 +172,11 @@ fn note_from_the_board(board: &LandingBoard, request: Option<&str>, last: Option
     return (Some(ServiceMessage::Waiting { text: words.clone() }), Some(words));
 }
 
+/// `note_from_the_board` as the job of the pool takes it.
+fn note_from_the_board_in_a_job((board, request, last): (Arc<LandingBoard>, Option<String>, Option<String>)) -> (Option<ServiceMessage>, Option<String>) {
+    return note_from_the_board(&board, request.as_deref(), last);
+}
+
 impl NoteSource for StuckNotice {
     async fn note(&mut self) -> Option<ServiceMessage> {
         if self.still_reading.is_none() {
@@ -179,7 +185,13 @@ impl NoteSource for StuckNotice {
             // Cloned rather than taken: the words said last stay the words that were said until a read answers with the next
             //  ones, and a read that outlives its beat answers only beats later.
             let last: Option<String> = self.last.clone();
-            self.still_reading = Some(Box::pin(run_blocking_job_within_the_budget(move || { return note_from_the_board(&board, request.as_deref(), last); })));
+            // A note is an answer a client waits for, so it takes one of the places kept for those and waits for it no longer
+            //  than its ceiling: the work of the service can hold every one of its own places, and a note must not wait on it.
+            self.still_reading = Some(Box::pin(run_an_answer_to_a_client(
+                crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING,
+                (board, request, last),
+                note_from_the_board_in_a_job,
+            )));
         }
         let running: &mut NoteRead = self.still_reading.as_mut().expect("the read of this connection's note was just started");
         // A wait that passes here leaves the read in `still_reading`, so the beat behind this one waits for the same read instead
@@ -188,13 +200,24 @@ impl NoteSource for StuckNotice {
         // This read is over, whatever it answered: the beat behind this one starts the next read.
         self.still_reading = None;
         return match answer {
-            Ok((message, last_said)) => {
+            TheAnswerOfAJobAwaited::Ran((message, last_said)) => {
                 self.last = last_said;
                 message
             }
-            Err(error) => {
-                // No note this beat: the beat itself is the proof of life and is still written.
-                crate::service_warn!("the note of what the landing is inside could not be read for a waiting client: {error}");
+            // No note this beat: the beat itself is the proof of life and is still written, and the beat behind this one
+            //  asks again.
+            TheAnswerOfAJobAwaited::NotRun => {
+                crate::service_warn!(
+                    "the note of what the landing is inside was not read for a waiting client, because no place kept for the answers a client waits for came within {:?}; the beat after this one asks again",
+                    crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING
+                );
+                None
+            }
+            TheAnswerOfAJobAwaited::NoAnswer => {
+                crate::service_warn!(
+                    "the note of what the landing is inside gave no answer within {:?}; the beat after this one asks again",
+                    crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING
+                );
                 None
             }
         };
@@ -269,9 +292,13 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
     if shared.own_git_dir.as_deref() == Some(git_dir.as_path()) {
         return Some(false);
     }
-    // Only asks of the reserve class queue here: no slow work of the service holds a place of it, so this wait is behind
-    //  other requests' own looks and the landing's own steps, each bounded by its own ceiling
-    //  (`blocking_jobs_within_the_budget.rs`, `SLOW_WORK_RESERVE`).
+    // What:
+    //  This look takes a general place, and it waits for it no longer than its ceiling.
+    // Why:
+    //  The reserve keeps slow work out of the general places; it does not keep out a general job that outlasts its own
+    //  ceiling, which keeps its place until its work ends (`blocking_jobs_within_the_budget.rs`).
+    //  So a look that finds no place answers `Unavailable` and the command is told, and the answers a client waits for do
+    //  not queue here at all: they have places kept for them (`PLACES_KEPT_TO_ANSWER_A_CLIENT`).
     return match run_a_job_awaited_no_longer_than(crate::wait_ceilings::LANDING_STATE_CEILING, (mine, git_dir), look_up_the_directory).await {
         TheAnswerOfAJobAwaited::Ran(foreign) => Some(foreign),
         TheAnswerOfAJobAwaited::NotRun => {
@@ -446,6 +473,11 @@ where
     tokio::join!(beats, checking);
 }
 
+/// The decision a withdrawal asks for, as the job of the pool takes it.
+fn withdraw_early_in_a_job((board, id): (Arc<LandingBoard>, String)) -> EarlyAnswer {
+    return board.withdraw_early(id.as_str());
+}
+
 /// Answers the withdrawal of a request.
 async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared) {
     // Behind a write that never returns the landing thread answers nothing, so a request that has not begun to land is
@@ -455,11 +487,30 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
     let board: Arc<LandingBoard> = Arc::clone(&shared.board);
     let asked: String = id.clone();
     // The decision is made by creating files in the journal, which can wait on storage.
-    let early: EarlyAnswer = match run_blocking_job_within_the_budget(move || { return board.withdraw_early(asked.as_str()); }).await {
-        Ok(answer) => answer,
-        // Without a thread to decide here, the landing thread answers between two landings, as it does for a request that began.
-        Err(error) => {
-            crate::service_warn!("the withdrawal of {id} could not be decided here and goes to the landing: {error}");
+    // A withdrawal is an answer a person waits for, so it takes one of the places kept for those and waits for it no longer
+    //  than its ceiling; the work of the service can hold every one of its own places.
+    let early: EarlyAnswer = match run_an_answer_to_a_client(
+        crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING,
+        (board, asked),
+        withdraw_early_in_a_job,
+    )
+    .await
+    {
+        TheAnswerOfAJobAwaited::Ran(answer) => answer,
+        // Without a place or a thread to decide here, the landing thread answers between two landings, as it does for a
+        //  request that began; the request stays queued until then, and the person's own wait for this answer is bounded.
+        TheAnswerOfAJobAwaited::NotRun => {
+            crate::service_warn!(
+                "the withdrawal of {id} was not decided here, because no place kept for the answers a client waits for came within {:?}; the landing thread answers it between two landings",
+                crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING
+            );
+            EarlyAnswer::Queued
+        }
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            crate::service_warn!(
+                "the withdrawal of {id} gave no answer within {:?}, so it goes to the landing thread, which answers it between two landings",
+                crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING
+            );
             EarlyAnswer::Queued
         }
     };
@@ -484,3 +535,8 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
 #[cfg(test)]
 #[path = "service_server_connection_handling_tests.rs"]
 mod tests;
+
+/// Controls for an answer a client waits for while every place of the service's own work is held.
+#[cfg(test)]
+#[path = "service_server_connection_handling_answers_while_every_place_is_held_tests.rs"]
+mod answers_while_every_place_is_held;

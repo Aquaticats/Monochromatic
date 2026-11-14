@@ -1102,6 +1102,17 @@ pub const WAITING_NOTICE_AFTER: Duration = Duration::from_secs(10);
 /// because the lease is what a record left by a round waits for before another round may take it.
 pub const TRASH_ITEM_CEILING: Duration = Duration::from_secs(120);
 
+/// The longest a withdrawal's decision, or a beat's note, waits for a place kept for the answers a client waits for:
+/// five seconds,
+/// which is the silence a client lets the service keep (`HEARTBEAT_SILENCE`):
+/// an answer that has not started by then could not be written before the client has already given up on hearing
+/// anything,
+///  so the wait is ended and the person is told (a note is left to the next beat, a withdrawal goes to the landing
+/// thread, which answers between two landings).
+/// It is not a ceiling on the answer: the read itself is the journal's own,
+///  and the client's waits bound the person's side (`ANSWER_CEILING`, `WITHDRAW_CEILING`).
+pub const CLIENT_ANSWER_PLACE_CEILING: Duration = crate::service_protocol_messages_and_name_checks::HEARTBEAT_SILENCE;
+
 /// The environment variable that sets one trash item's bound in whole seconds,
 /// so a control reaches the bound in a moment instead of waiting it out.
 /// Why:

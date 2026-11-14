@@ -52,11 +52,14 @@ static HELD_TO: AtomicUsize = AtomicUsize::new(usize::MAX);
 /// How many blocking jobs may run at once,
 /// and the places that bound them.
 struct TheBudget {
-    /// The places a job takes and gives back.
+    /// The places the work of the service takes and gives back.
     places: Arc<Semaphore>,
     /// How many places there are,
     /// kept so that a caller can be told the bound without taking one.
     allowed: usize,
+    /// The places kept for the answers a client waits for,
+    /// which the work of the service never takes.
+    answering: Option<Arc<Semaphore>>,
 }
 
 /// What:
@@ -79,15 +82,72 @@ fn budget() -> &'static TheBudget {
     return BUDGET.get_or_init(decide_the_budget);
 }
 
-/// The budget this process makes on its first need:
+/// What:
+///  The budget this process makes on its first need:
 /// the places the budget for parallel work and the limits leave,
-/// and no more than the cap the process asked
-///  for.
+/// no more than the cap the process asked for,
+///  and one of them kept for the answers a client waits for.
+/// Why:
+///  A general place bounds a job only as long as the ceiling of the step that asked for it,
+/// and a step that outlasts its ceiling keeps its place until its work ends,
+/// which a filesystem call that stopped answering can outlast without end.
+/// On `2026-11-13` a review of this branch held every general place with such a step and showed what follows:
+/// a queued client's withdrawal was never decided, so the person was told it was not known whether the commit would
+///  land, and a new commit's look answered `Unavailable`, which ends a commit.
+/// So the answers a client waits for do not ask for a general place at all
+/// (`run_an_answer_to_a_client`),
+/// and the places sum to the process's bound, so a place is still a thread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answering = allowed >= 3 ? PLACES_KEPT_TO_ANSWER_A_CLIENT : 0;
+/// const budget = { places: new Semaphore(allowed - answering), allowed, answering: answering ? new Semaphore(answering) : undefined };
+/// ```
 fn decide_the_budget() -> TheBudget {
     let host: HostResources = HostResources::read();
     let limits: RuntimeLimits = RuntimeLimits::read();
     let allowed: usize = budgeted_workers(&host, &limits).min(HELD_TO.load(Ordering::SeqCst)).max(1);
-    return TheBudget { places: Arc::new(Semaphore::new(allowed)), allowed };
+    // One of the places is kept for the answers a client waits for, where there are enough to keep one from
+    //  (`PLACES_KEPT_TO_ANSWER_A_CLIENT`).
+    let answering: usize = if allowed >= 3 { PLACES_KEPT_TO_ANSWER_A_CLIENT } else { 0 };
+    return TheBudget {
+        places: Arc::new(Semaphore::new(allowed.saturating_sub(answering))),
+        allowed,
+        answering: (answering > 0).then(|| { return Arc::new(Semaphore::new(answering)); }),
+    };
+}
+
+/// What:
+///  How many of the process's places are kept for the answers a client waits for:
+/// one.
+/// Why:
+///  A withdrawal a person waits for and the read a commit's answer waits for must get their turn however long the
+/// jobs holding places take, and the work of the service can hold every place it may take.
+/// One is the smallest number that does that:
+/// the two asks are one read of the journal each,
+/// they take turns at this place,
+/// and a second place would be taken from the work a person's commit needs.
+/// The coordinator's pick under the owner's delegation, open to the owner's veto.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const PLACES_KEPT_TO_ANSWER_A_CLIENT = 1;
+/// ```
+pub const PLACES_KEPT_TO_ANSWER_A_CLIENT: usize = 1;
+
+/// What:
+///  How many places the service's own work may take at once:
+/// the process's places less those kept for the answers a client waits for.
+/// Why:
+///  A control that holds every place of the service's work states how many jobs it must hold,
+/// and the figure is the semaphore's own, not the whole budget: the answers keep their place either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const placesForTheServicesOwnWork = () => budget().places.availablePermits() // while nothing runs
+/// ```
+pub fn places_for_the_services_own_work() -> usize {
+    return budget().allowed.saturating_sub(budget().answering.as_ref().map_or(0, |_| { return PLACES_KEPT_TO_ANSWER_A_CLIENT; }));
 }
 
 /// What:
@@ -516,6 +576,46 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
         };
     }
     return run_a_job_once_awaited_no_longer_than(ceiling, move || { return work(state); }).await;
+}
+
+/// What:
+///  Run `work(state)` as a job of the blocking pool with one of the places kept for the answers a client waits for,
+///  awaiting the place no longer than `ceiling` and then the job no longer than another `ceiling`.
+/// Why:
+///  A withdrawal a person waits for and the read a commit's answer waits for must get their turn however long the
+/// jobs holding places take,
+/// and every place of the service's own work can be held by a step that outlasted its ceiling.
+/// So these two asks never wait for one of those places:
+/// they have one kept for them (`PLACES_KEPT_TO_ANSWER_A_CLIENT`),
+/// and they wait for it no longer than `ceiling`,
+///  so an answer that cannot start is said rather than waited for.
+/// The places of the two classes sum to the process's bound,
+/// so a place of this class is a thread the service's own work cannot be holding.
+/// A process with fewer than three places keeps none for this class,
+/// and the ask here is the general one,
+/// with the same ceiling.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await runAnAnswerToAClient(ceiling, state, work); // { ran } | noPlace | noAnswer
+/// ```
+pub async fn run_an_answer_to_a_client<S: Send + 'static, T: Send + 'static>(ceiling: Duration, state: S, work: fn(S) -> T) -> TheAnswerOfAJobAwaited<T> {
+    let Some(answering) = budget().answering.as_ref() else {
+        // A process of two places or fewer has no place to keep for this class, so the answer takes a general one.
+        return run_a_job_awaited_no_longer_than(ceiling, state, work).await;
+    };
+    let place: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(answering).acquire_owned()).await {
+        Ok(Ok(taken)) => taken,
+        // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
+        Ok(Err(_)) | Err(_) => return TheAnswerOfAJobAwaited::NotRun,
+    };
+    return match tokio::time::timeout(ceiling, run_a_job_holding_the_place(place, move || { return work(state); })).await {
+        Ok(Ok(value)) => TheAnswerOfAJobAwaited::Ran(value),
+        // Only a refusal that promised the job will not run leaves the state as it was.
+        Ok(Err(BlockingJobError::NoThreadToStart)) => TheAnswerOfAJobAwaited::NotRun,
+        Ok(Err(_started_anyway)) => TheAnswerOfAJobAwaited::NoAnswer,
+        Err(_outlasted_its_ceiling) => TheAnswerOfAJobAwaited::NoAnswer,
+    };
 }
 
 /// What:

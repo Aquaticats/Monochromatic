@@ -572,14 +572,16 @@ fn a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_job
 /// The room this control gives the process,
 /// from the relation it tests:
 /// the places the process keeps out of slow work for the work a person waits for (`SLOW_WORK_RESERVE`),
-/// and one place for slow work,
-///  because slow work may take one place at the smallest room this control can state.
+/// one of which is the place kept for the answers a client waits for (`PLACES_KEPT_TO_ANSWER_A_CLIENT`),
+/// and the places slow work may take beside them,
+///  which at this room is one.
 /// Why not a cap on what the machine gave:
 ///  a cap cannot raise the room a container's CPU quota gave,
 ///  and the gate's container gives four CPUs, which is three places
 /// (`room_for_blocking_jobs_in_a_control.rs`).
+/// It is the smallest room in which the answers a client waits for have a place of their own.
 /// The figure comes from the two names and not from this machine or from the gate.
-const THE_ROOM: usize = SLOW_WORK_RESERVE + 1;
+const THE_ROOM: usize = SLOW_WORK_RESERVE + PLACES_KEPT_TO_ANSWER_A_CLIENT;
 
 /// The longest the control lets one ask of the work a person waits for take.
 /// It is the ceiling the two asks are granted, and it is short so a run whose second ask never gets a place fails in a
@@ -587,10 +589,13 @@ const THE_ROOM: usize = SLOW_WORK_RESERVE + 1;
 const A_SHORT_CEILING: Duration = Duration::from_secs(3);
 
 /// What:
-///  Two asks of the work a person waits for both run at once while slow work holds every place it may take.
+///  Two asks of the work a person waits for both run at once while slow work holds every place it may take:
+///  a step of the service's own work and an answer a client waits for.
 /// Why:
-///  A place is not a lane: the ask that says whose a commit's request is and the step that begins its landing are two
-/// asks, and a reserve of one place serves one of them.
+///  A place is not a lane, and the work a person waits for has two classes: a step of the service's own work (the ask that
+/// says whose a commit's request is, the step that begins its landing) and an answer a client reads while it waits (the
+/// note of a beat, a withdrawal's decision). A reserve of one place serves one of them, and a stalled step of the first
+/// class can hold every place of it without end.
 /// On `2026-11-12` the main checkout's service answered a commit thirteen minutes late while its four places were held by
 /// slow work and by jobs of the pool that took a thread without a place
 /// (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`);
@@ -638,8 +643,9 @@ fn two_asks_of_the_work_a_person_waits_for_run_while_slow_work_holds_every_place
     })
     .expect("the runtime has a worker, so the first ask can take its place");
     assert!(has_taken.recv_timeout(PATIENCE).is_ok(), "the first ask of the person's path never took its place");
-    // The second ask, at the same time, granted the same ceiling a landing's own step is.
-    let second: TheAnswerOfAJobAwaited<u8> = run_on_runtime(async { return run_a_job_awaited_no_longer_than(A_SHORT_CEILING, (), fn_seven).await }).expect("the runtime");
+    // The second ask, at the same time: an answer a client waits for, which has the place kept for that class rather than
+    //  one of the places the first ask holds.
+    let second: TheAnswerOfAJobAwaited<u8> = run_on_runtime(async { return run_an_answer_to_a_client(A_SHORT_CEILING, (), fn_seven).await }).expect("the runtime");
     let _let_slow_go = release_slow.send(());
     let _let_first_go = release_first.send(());
     assert!(
