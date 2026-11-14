@@ -5240,19 +5240,21 @@ Two requirements bound the latency the wrapper adds,
 and `native:perf` enforces both:
 
 - A forwarded real Git command gains strictly less than `2,000 ms` (`SPEC.md`).
-- Every commit made through the wrapper adds at most the larger of `5,000 ms` and twice native Git's own time for the same
-  commit
-  (each commit,
-  not a percentile of them):
-  a commit real Git takes 50 ms to make may gain five seconds,
-  and one it takes 30 s to make under disk pressure may gain 60 s.
-  The owner changed the rule on 2026-11-12:
-  "Change the 5s rule to max(5s, double what native git takes)",
-  read as the extra over real Git.
+- Every commit made through the wrapper must not add more than the larger of `5,000 ms` and twice the time the same commit
+  takes with native Git:
+  the wrapper's time minus native Git's time is at most `max(5,000 ms, 2 x native time)`,
+  for each commit,
+  not a percentile of them.
+  The owner changed this rule on 2026-11-12 ("Change the 5s rule to max(5s,
+  double what native git takes)"),
+  read as the extra over real Git,
+  so a commit that native Git needs 30 seconds for under disk pressure may take the wrapper 60 seconds more,
+  while one native Git makes in 50 milliseconds may take the wrapper five seconds more.
   A wrapper time alone says nothing under it,
-  so every wrapper commit is measured beside a native Git commit of the same change set,
+  so every measurement of it pairs the wrapper's commit with native Git's commit of the same state,
   alternating with it,
-  in the same repository and under the same conditions.
+  in the same repository and under the same conditions,
+  and never compares a wrapper time with a read-only native Git query.
   The `native:perf` judge still fails a commit whose paired delta reaches `5,000 ms`,
   which is stricter than this requirement for any commit whose real Git time is over 2.5 s;
   its judge is to be changed to this rule.
@@ -5264,6 +5266,9 @@ which the rule above replaced as the measure of a commit:
 
 > " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
 > The measure is always just commits vs native git should not take 5s longer.
+
+The rule's size changed on 2026-11-12 to `max(5,000 ms, 2 x native time)`;
+the measure stayed the paired one.
 
 The 5-second `timeout --signal=KILL` of the binary tests is a hang guard of the test harness
 (`TIME_BOUND_SECONDS` in `src/native/binary/binary_support.rs`),
