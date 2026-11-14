@@ -16,8 +16,8 @@
 //! ```
 
 use super::{
-    DELETIONS_LOG, DeletedEntries, NestedWorktree, RemovalBegun, RemovalDeletions, SHOWN_ENTRIES, deletions_line, deleted_line, from_status_listing,
-    record_removal_begins, record_removal_deleted, removal_words,
+    DELETIONS_LOG, DeletedEntries, HiddenEntry, HiddenMarks, NestedWorktree, RemovalBegun, RemovalDeletions, SHOWN_ENTRIES, deletions_line,
+    deleted_line, from_status_listing, record_removal_begins, record_removal_deleted, removal_words,
 };
 use crate::test_support::{age, fixture, git, git_context, repository};
 use std::ffi::OsString;
@@ -114,6 +114,7 @@ fn a_nested_worktree_is_named_with_its_own_files() {
             worktree: PathBuf::from("/fixtures/outer/nested"),
             entries: DeletedEntries::from_listing(listing_of(&["personal.txt", "build/"]).as_slice()),
             changed: from_status_listing(b" M tracked.txt\0A  staged.txt\0"),
+            hidden: HiddenMarks { shown: vec![HiddenEntry { path: String::from("hidden.txt"), mark: "assume-unchanged" }], total: 1, unreadable: None },
         }],
     };
     let begun: RemovalBegun = RemovalBegun { id: String::from("0123abcd-1-2") };
@@ -123,6 +124,8 @@ fn a_nested_worktree_is_named_with_its_own_files() {
     assert!(line.contains("\"filesShown\":2,\"filesTotal\":2"), "their count is written: {line}");
     assert!(line.contains("\"changed\":[\"tracked.txt\",\"staged.txt\"]"), "the tracked files it changed are named too: {line}");
     assert!(line.contains("\"changedShown\":2,\"changedTotal\":2"), "and counted: {line}");
+    assert!(line.contains("\"hidden\":[{\"path\":\"hidden.txt\",\"mark\":\"assume-unchanged\"}]"), "the marked file and its mark are named: {line}");
+    assert!(line.contains("\"hiddenShown\":1,\"hiddenTotal\":1"), "and counted: {line}");
     assert!(line.contains("\"command\":[\"worktree\",\"remove\",\"--force\",\"/fixtures/outer\"]"), "a forced removal says so: {line}");
 }
 
@@ -217,6 +220,27 @@ fn a_status_listing_names_the_paths_it_carries_and_both_sides_of_a_rename() {
     let found: DeletedEntries = from_status_listing(b" M a.txt\0A  staged.txt\0R  new.txt\0old.txt\0?? untracked.txt\0");
     assert_eq!(found.shown, vec![String::from("a.txt"), String::from("staged.txt"), String::from("new.txt"), String::from("old.txt"), String::from("untracked.txt")], "{found:?}");
     assert_eq!(found.total, 5, "every record is counted: {found:?}");
+}
+
+/// What:
+///  An `ls-files -v -z` answer becomes the marked files and their marks,
+///  and an entry with no mark is left out.
+/// Why:
+///  The tag is one byte whose case is the whole answer for `assume-unchanged`,
+///  and `S` is `skip-worktree`;
+///  every other entry is a file whose edit `git status` already reports.
+#[test]
+fn a_marked_listing_names_the_files_and_their_marks() {
+    let found: HiddenMarks = HiddenMarks::from_listing(b"H plain.txt\0h hidden.txt\0S skipped.txt\0");
+    assert_eq!(
+        found.shown,
+        vec![
+            HiddenEntry { path: String::from("hidden.txt"), mark: "assume-unchanged" },
+            HiddenEntry { path: String::from("skipped.txt"), mark: "skip-worktree" },
+        ],
+        "{found:?}"
+    );
+    assert_eq!(found.total, 2, "a file with no mark is not counted: {found:?}");
 }
 
 #[test]

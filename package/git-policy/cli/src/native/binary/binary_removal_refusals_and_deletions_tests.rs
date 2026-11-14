@@ -128,8 +128,17 @@ fn a_removal_a_process_works_in_is_refused_and_the_escape_runs_it() {
     assert!(said.contains(format!("process {}", child.id()).as_str()), "the refusal names the process: {said}");
     assert!(said.contains("`sleep`"), "and the program it runs: {said}");
     assert!(said.contains("--no-enforce-worktree"), "and the escape: {said}");
+    assert!(said.contains("`git worktree --no-enforce-worktree remove <path>`"), "and prints the spelling it runs as: {said}");
     assert!(topic.is_dir(), "the worktree is still there");
     assert!(topic.join("README.md").is_file(), "with its files");
+    // Where the token can stand, through this wrapper, with the refusal there to escape:
+    // after `remove` it is that subcommand's own argument, so the refusal stands and Git would refuse the option;
+    for spelling in [["worktree", "remove", "--no-enforce-worktree", "../topic"].as_slice(), ["worktree", "remove", "../topic", "--no-enforce-worktree"].as_slice()] {
+        let not_read: Observed = run_wrapped(&fixture, repo.as_path(), spelling);
+        assert_ne!(not_read.code, Some(0), "a token after `remove` is not read as the escape: {:?} {}", spelling, stderr_of(&not_read));
+        assert!(stderr_of(&not_read).contains("refusing to remove the worktree"), "{:?}: {}", spelling, stderr_of(&not_read));
+        assert!(topic.is_dir(), "and the worktree stays: {:?}", spelling);
+    }
     // The escape is the person's own decision, so the removal runs exactly as real Git runs it.
     let escaped: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "--no-enforce-worktree", "remove", "../topic"]);
     let _ended = child.kill();
@@ -532,6 +541,65 @@ fn kept_record_path(common: &Path) -> PathBuf {
         .map(|entry| return entry.path())
         .next()
         .expect("one kept-worktree record");
+}
+
+/// What:
+///  A nested worktree's edit hidden by `assume-unchanged`, and one hidden by `skip-worktree`,
+///  each keep the outer worktree,
+///  and the escape removes it with the record naming the file and its mark.
+/// Why:
+///  `git status` reports neither mark,
+///  so a refusal that reads only a status listing reads such a worktree as clean,
+///  and real Git never looks into the nested worktree at all:
+///  the refusal is the whole protection (a review of this change, finding 1).
+///  The owner's decision of 2026-11-12T13:04:14 names both marks in its first sentence.
+#[test]
+fn a_removal_is_refused_for_a_nested_worktrees_hidden_edit_and_the_escape_records_it() {
+    for mark in ["assume-unchanged", "skip-worktree"] {
+        let name: String = format!("removal-nested-hidden-{}", mark);
+        let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree(name.as_str(), "nested/\n");
+        let nested: PathBuf = topic.join("nested");
+        git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "nested", nested.to_str().expect("a UTF-8 fixture path")]);
+        std::fs::write(nested.join("README.md"), b"# what the person is in the middle of\n").expect("an edit");
+        git(&fixture, nested.as_path(), &["update-index", format!("--{mark}").as_str(), "README.md"]);
+        let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+        assert_ne!(refused.code, Some(0), "the {mark} edit keeps the outer worktree: {}", stderr_of(&refused));
+        let said: String = stderr_of(&refused);
+        assert!(said.contains(nested.display().to_string().as_str()), "the refusal names the nested worktree: {said}");
+        assert!(said.contains("README.md"), "and the file: {said}");
+        assert!(said.contains(mark), "and the mark that hides it: {said}");
+        assert!(said.contains("--no-enforce-worktree"), "and the escape: {said}");
+        assert_eq!(std::fs::read(nested.join("README.md")).expect("the edit is still there"), b"# what the person is in the middle of\n");
+        let escaped: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "--no-enforce-worktree", "remove", "../topic"]);
+        assert_eq!(escaped.code, Some(0), "the escape runs the removal: {}", stderr_of(&escaped));
+        let record: String = deletion_record(repo.as_path()).expect("the record of what the removal deleted");
+        assert!(record.contains("\"path\":\"README.md\""), "the record names the file: {record}");
+        assert!(record.contains(format!("\"mark\":\"{mark}\"").as_str()), "and its mark: {record}");
+        remove(&fixture);
+    }
+}
+
+/// What:
+///  A detached nested worktree and its untracked file are named in the record,
+///  on the route a person types and on the route Git takes.
+/// Why:
+///  A nested worktree goes with the outer one whatever its `HEAD` names,
+///  and the record is the one safeguard the decision keeps for that loss;
+///  the reader that named the record's nested worktrees kept only branch-bearing registrations,
+///  so a detached one went unrecorded (a review of this change, finding 2).
+#[test]
+fn a_detached_nested_worktree_and_its_file_are_named_in_the_record() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-nested-detached-record", "nested/\n");
+    let nested: PathBuf = topic.join("nested");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "--detach", nested.to_str().expect("a UTF-8 fixture path"), "HEAD"]);
+    std::fs::write(nested.join("precious.txt"), b"untracked work that is only here\n").expect("an untracked file");
+    let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+    assert_eq!(removed.code, Some(0), "a clean detached nested worktree does not keep the outer one: {}", stderr_of(&removed));
+    assert!(!topic.exists(), "the worktree is gone");
+    let record: String = deletion_record(repo.as_path()).expect("the record of what the removal deleted");
+    assert!(record.contains(nested.display().to_string().as_str()), "the record names the detached nested worktree: {record}");
+    assert!(record.contains("\"files\":[\"precious.txt\"]"), "and its untracked file: {record}");
+    remove(&fixture);
 }
 
 /// What:

@@ -14,8 +14,12 @@
 //!  A worktree nested inside another is usually under a name the outer worktree ignores,
 //!  so real Git deletes the whole nested checkout without asking the nested worktree's own rules,
 //!  and an uncommitted edit there has no other copy anywhere.
-//!  The automatic routes already leave a worktree that holds a registered worktree,
+//!  The automatic routes already leave a worktree that holds a worktree this repository registers on a branch,
 //!  which is the stronger answer;
+//!  a nested worktree whose `HEAD` names no branch is invisible to their reader
+//!  (`registrations_of` keeps only branch-bearing registrations),
+//!  so for that one this question is the only guard a typed removal has,
+//!  and the sweep's own gap is a separate change's;
 //!  this question is asked where a person types the removal,
 //!  so the refusal can name the files instead of leaving the worktree alone with no word.
 //!  A branch names its own commits and the branch survives a removal,
@@ -31,7 +35,7 @@
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_landed_registrations::{RegisteredWorktree, registered_worktrees};
 use crate::worktree_ladder_target::checkout_environment;
-use crate::worktree_removal_deletions::DeletedEntries;
+use crate::worktree_removal_deletions::{DeletedEntries, HiddenMarks};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
@@ -60,6 +64,9 @@ pub struct NestedHoldingGitWork {
     /// The tracked files it has changed,
     /// staged changes among them.
     pub changed: DeletedEntries,
+    /// The tracked files whose index entry hides an edit from `git status`,
+    /// which is the only record of that edit beside the file itself.
+    pub hidden: HiddenMarks,
     /// Whether its `HEAD` names a commit no reference contains,
     /// which a removal deletes the only name of.
     pub holds_a_commit_nothing_else_names: bool,
@@ -68,7 +75,7 @@ pub struct NestedHoldingGitWork {
 impl NestedHoldingGitWork {
     /// Whether there is any Git work here at all.
     pub fn anything(&self) -> bool {
-        return self.holds_a_commit_nothing_else_names || self.changed.total > 0;
+        return self.holds_a_commit_nothing_else_names || self.changed.total > 0 || self.hidden.total > 0;
     }
 
     /// What:
@@ -88,6 +95,9 @@ impl NestedHoldingGitWork {
         let mut parts: Vec<String> = Vec::with_capacity(SHOWN_PATHS + 2);
         if self.changed.total > 0 {
             parts.push(format!("changed tracked files ({})", names_of(&self.changed)));
+        }
+        if self.hidden.total > 0 {
+            parts.push(format!("tracked files it hides an edit of ({})", hidden_names_of(&self.hidden)));
         }
         if self.holds_a_commit_nothing_else_names {
             parts.push(String::from("a commit that no reference names, which only its own HEAD holds"));
@@ -132,19 +142,26 @@ pub fn nested_worktrees_holding_git_work(context: &GitContext, common_dir: &Path
 ///  and each of them is Git's own answer:
 ///  a status that leaves out the untracked files,
 ///  which go with the removal and are recorded,
+///  the index's own marks, which that status cannot see,
 ///  and a `for-each-ref` that says whether any reference contains the commit `HEAD` names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// oneNestedWorktree(git, nested) // { worktree, changed, holdsACommitNothingElseNames }
+/// oneNestedWorktree(git, nested) // { worktree, changed, hidden, holdsACommitNothingElseNames }
 /// ```
 fn one_nested_worktree(context: &GitContext, nested: &RegisteredWorktree) -> Result<NestedHoldingGitWork, String> {
     let changed: DeletedEntries = DeletedEntries::changed_tracked_of(context, nested.worktree.as_path(), Some(nested.admin.as_path()));
     if let Some(reason) = &changed.unreadable {
         return Err(reason.clone());
     }
+    // An edit under `assume-unchanged` or `skip-worktree` is invisible to that status listing,
+    //  and it is exactly what the owner's decision names (`HiddenMarks`).
+    let hidden: HiddenMarks = HiddenMarks::of(context, nested.worktree.as_path(), Some(nested.admin.as_path()));
+    if let Some(reason) = &hidden.unreadable {
+        return Err(reason.clone());
+    }
     let holds: bool = detached_commit_nothing_else_names(context, nested)?;
-    return Ok(NestedHoldingGitWork { worktree: nested.worktree.clone(), changed, holds_a_commit_nothing_else_names: holds });
+    return Ok(NestedHoldingGitWork { worktree: nested.worktree.clone(), changed, hidden, holds_a_commit_nothing_else_names: holds });
 }
 
 /// What:
@@ -183,6 +200,30 @@ fn detached_commit_nothing_else_names(context: &GitContext, nested: &RegisteredW
     }
     // `HEAD` that names no commit at all, as an unborn branch does, answers nothing and holds nothing.
     return Ok(output.code == Some(0) && String::from_utf8_lossy(output.stdout.as_slice()).trim().is_empty());
+}
+
+/// What:
+///  The marked paths a refusal shows,
+///  each with its mark,
+///  a few named and the rest counted.
+/// Why:
+///  The mark is what the person has to remove before the edit is visible again,
+///  so it is named beside the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hiddenNamesOf(hidden) // '`a.txt` (assume-unchanged) and 1 more'
+/// ```
+fn hidden_names_of(hidden: &HiddenMarks) -> String {
+    let mut parts: Vec<String> = Vec::with_capacity(SHOWN_PATHS + 1);
+    for one in hidden.shown.iter().take(SHOWN_PATHS) {
+        parts.push(format!("`{}` ({})", one.path, one.mark));
+    }
+    let rest: usize = hidden.total.saturating_sub(parts.len());
+    if rest > 0 {
+        parts.push(format!("and {rest} more"));
+    }
+    return parts.join(", ");
 }
 
 /// What:

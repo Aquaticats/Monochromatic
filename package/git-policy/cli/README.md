@@ -2515,7 +2515,10 @@ A wrapper-only option is removed before Git sees the arguments and applies to th
   and "The remote settings every worktree shares".
   Write it directly after the subcommand,
    for example `git restore --no-enforce-worktree -- <path>` or
-  `git remote --no-enforce-worktree set-url origin <url>`.
+  `git remote --no-enforce-worktree set-url origin <url>`;
+   for `git worktree remove` the subcommand word is `worktree`,
+   so it goes there, `git worktree --no-enforce-worktree remove <path>`,
+   and a token after `remove` is a path of that subcommand, which Git refuses.
 - `--no-enforce-worktree-branch` skips `branch-worktree-only`.
 - `--no-enforce-bulk-add` skips `add-explicit`.
 - `--no-worktree-copy` skips the ignored-state copy into a new linked worktree and the whole worktree ladder:

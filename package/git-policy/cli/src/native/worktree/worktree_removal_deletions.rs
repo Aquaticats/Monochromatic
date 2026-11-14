@@ -74,8 +74,7 @@ use crate::push_failure_notice::fnv_hex;
 use crate::service_protocol::RELEASE;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_ladder_target::checkout_environment;
-use crate::worktree_landed_registrations::registrations_of;
-use crate::worktree_removal_second_look::worktrees_inside;
+use crate::worktree_landed_registrations::registered_worktrees;
 use crate::worktree_remove_registry::registration_of;
 use std::ffi::OsString;
 use std::fmt::Write as _;
@@ -136,6 +135,154 @@ const UNTRACKED_WORDS: [&str; 5] = ["ls-files", "--others", "--directory", "--no
 /// const TRACKED_WORDS = ['status', '--porcelain=v1', '--untracked-files=no', '-z'];
 /// ```
 const TRACKED_WORDS: [&str; 4] = ["status", "--porcelain=v1", "--untracked-files=no", "-z"];
+
+/// The query that names every tracked file of a worktree whose index entry carries a mark that hides an edit from
+/// `git status`:
+/// `assume-unchanged` and `skip-worktree`.
+/// Why:
+///  `git status` reports neither mark,
+///  so a worktree whose only work is an edit under one of them reads as clean,
+///  and the owner's decision of 2026-11-12T13:04:14 names exactly these:
+///  "Git work is never destroyed by a removal: ... an edit to a tracked file, however it is hidden
+///  (`assume-unchanged`, `skip-worktree`)".
+///  `ls-files -v` prints one tag and one path per entry,
+///  a lowercase tag for `assume-unchanged` and `S` for `skip-worktree`,
+///  which is the index's own record of both and needs no content read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const MARKED_WORDS = ['ls-files', '-v', '-z'];
+/// ```
+const MARKED_WORDS: [&str; 3] = ["ls-files", "-v", "-z"];
+
+/// The tag `ls-files -v` puts before a file marked `assume-unchanged`: a lowercase letter.
+/// Why:
+///   Git prints the entry's tag in lowercase for that mark and in uppercase for its plain state,
+///  so the case of one byte is the whole answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isAssumeUnchangedTag = (tag: string) => tag === tag.toLowerCase() && /[a-z]/.test(tag)
+/// ```
+fn is_assume_unchanged_tag(tag: u8) -> bool {
+    return tag.is_ascii_lowercase();
+}
+
+/// The tag `ls-files -v` puts before a file marked `skip-worktree`.
+const SKIP_WORKTREE_TAG: u8 = b'S';
+
+/// What:
+///  The tracked files of one worktree whose index entry carries a mark that hides an edit from `git status`,
+///  as many as a sentence shows.
+/// Why:
+///   The marks are the one kind of changed tracked file neither a status listing nor Git's own removal can see,
+///  and a removal that takes the worktree takes the edit under them.
+///  One entry carries the path and the mark,
+///  because the remedy differs: `git update-index --no-assume-unchanged` against
+///  `git update-index --no-skip-worktree`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type HiddenMarks = { shown: Array<{ path: string; mark: string }>; total: number; unreadable?: string };
+/// ```
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct HiddenMarks {
+    /// The marked files a sentence names,
+    /// at most `SHOWN_ENTRIES` of them.
+    pub shown: Vec<HiddenEntry>,
+    /// How many entries Git listed,
+    /// the shown ones included.
+    pub total: usize,
+    /// Why the listing could not be read,
+    /// when it could not.
+    pub unreadable: Option<String>,
+}
+
+/// One tracked file whose index entry hides an edit from `git status`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HiddenEntry {
+    /// Its path in the worktree.
+    pub path: String,
+    /// The mark its index entry carries,
+    /// `assume-unchanged` or `skip-worktree`.
+    pub mark: &'static str,
+}
+
+impl HiddenMarks {
+    /// What:
+    ///  The marked tracked files of one worktree.
+    /// Why:
+    ///   Nothing else reads these two marks for a worktree that is not the one being removed,
+    ///  and a listing that cannot be read is the reason a removal is refused rather than a removal that goes on.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// HiddenMarks.of(git, worktree, admin) // throws the reason
+    /// ```
+    pub fn of(git: &GitContext, worktree: &Path, admin: Option<&Path>) -> HiddenMarks {
+        let request: GitRequest = GitRequest {
+            cwd: worktree.to_path_buf(),
+            arguments: MARKED_WORDS.iter().map(OsString::from).collect(),
+            without_prefix: true,
+            environment: admin.map_or_else(Vec::new, |git_dir| return checkout_environment(git_dir, worktree)),
+            ..GitRequest::default()
+        };
+        let output: GitOutput = match run_git(git, &request) {
+            Ok(finished) => finished,
+            Err(error) => {
+                return HiddenMarks {
+                    unreadable: Some(format!("Git could not be started to read the marks of the tracked files in {} ({error})", worktree.display())),
+                    ..HiddenMarks::default()
+                };
+            }
+        };
+        if output.code != Some(0) {
+            let said: String = String::from_utf8_lossy(output.stderr.as_slice()).trim().to_owned();
+            return HiddenMarks {
+                unreadable: Some(format!("Git could not read the marks of the tracked files in {} ({said})", worktree.display())),
+                ..HiddenMarks::default()
+            };
+        }
+        return HiddenMarks::from_listing(output.stdout.as_slice());
+    }
+
+    /// What:
+    ///  The marked entries of one `ls-files -v -z` answer,
+    ///  the first `SHOWN_ENTRIES` of them kept.
+    /// Why:
+    ///   Each record is one tag byte, a space and the path,
+    ///  and an entry whose tag is neither lowercase nor `S` carries no mark this record is about.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// HiddenMarks.fromListing('H plain.txt\0h assume.txt\0S skip.txt\0')
+    /// ```
+    fn from_listing(listing: &[u8]) -> HiddenMarks {
+        let mut found: HiddenMarks = HiddenMarks::default();
+        for record in listing.split(|byte: &u8| return *byte == 0).filter(|record: &&[u8]| return !record.is_empty()) {
+            let Some(tag) = record.first() else {
+                continue;
+            };
+            let named: &[u8] = match record.get(1) {
+                Some(space) if *space == b' ' => &record[2..],
+                _ => &record[1..],
+            };
+            let mark: &'static str = match *tag {
+                SKIP_WORKTREE_TAG => "skip-worktree",
+                other if is_assume_unchanged_tag(other) => "assume-unchanged",
+                _ => continue,
+            };
+            if named.is_empty() {
+                continue;
+            }
+            found.total += 1;
+            if found.shown.len() < SHOWN_ENTRIES {
+                found.shown.push(HiddenEntry { path: String::from_utf8_lossy(named).into_owned(), mark });
+            }
+        }
+        return found;
+    }
+}
 
 /// How many entries one record names for one worktree before it counts the rest.
 /// Why:
@@ -284,6 +431,8 @@ pub struct NestedWorktree {
     /// The tracked files it changed,
     /// staged changes among them.
     pub changed: DeletedEntries,
+    /// The tracked files whose index entry hides an edit from `git status`.
+    pub hidden: HiddenMarks,
 }
 
 /// What:
@@ -323,12 +472,15 @@ impl RemovalDeletions {
         //  root: the listing asks Git inside the worktree, so it is told which repository that is.
         let admin: Option<PathBuf> = registration_of(common_dir, worktree, worktree.as_os_str()).ok().map(|found| return found.admin);
         let mut found: RemovalDeletions = RemovalDeletions { ignored: DeletedEntries::ignored_of(git, worktree, admin.as_deref()), nested: Vec::new() };
-        match registrations_of(common_dir) {
+        // Every registration is read, a detached `HEAD` included: a worktree registered inside this one goes with it
+        //  whatever its `HEAD` names, and the record is the one thing left of its files (`registered_worktrees`).
+        match registered_worktrees(common_dir) {
             Ok(registered) => {
-                for nested in worktrees_inside(worktree, registered.as_slice()) {
+                for nested in registered.iter().filter(|one| return one.worktree != worktree && one.worktree.starts_with(worktree)) {
                     let entries: DeletedEntries = DeletedEntries::untracked_and_ignored_of(git, nested.worktree.as_path(), Some(nested.admin.as_path()));
                     let changed: DeletedEntries = DeletedEntries::changed_tracked_of(git, nested.worktree.as_path(), Some(nested.admin.as_path()));
-                    found.nested.push(NestedWorktree { worktree: nested.worktree.clone(), entries, changed });
+                    let hidden: HiddenMarks = HiddenMarks::of(git, nested.worktree.as_path(), Some(nested.admin.as_path()));
+                    found.nested.push(NestedWorktree { worktree: nested.worktree.clone(), entries, changed, hidden });
                 }
             }
             Err(reason) => {
@@ -696,13 +848,37 @@ fn nested_objects(nested: &[NestedWorktree]) -> String {
         if let Some(reason) = &one.entries.unreadable {
             let _ = write!(object, ",\"unreadable\":{}", quote(reason.as_str()));
         }
+        let _ = write!(object, ",\"hidden\":{},\"hiddenShown\":{},\"hiddenTotal\":{}", hidden_objects(&one.hidden.shown), one.hidden.shown.len(), one.hidden.total);
         if let Some(reason) = &one.changed.unreadable {
             let _ = write!(object, ",\"changedUnreadable\":{}", quote(reason.as_str()));
+        }
+        if let Some(reason) = &one.hidden.unreadable {
+            let _ = write!(object, ",\"hiddenUnreadable\":{}", quote(reason.as_str()));
         }
         object.push('}');
         objects.push(object);
     }
     return objects.join(",");
+}
+
+/// What:
+///  The marked tracked files of one nested worktree as JSON objects,
+///  each with its path and its mark.
+/// Why:
+///   The mark is part of what a person has to know:
+///  the remedy names it,
+///  and the log is the only thing left of the file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hiddenObjects([{ path: 'a.txt', mark: 'assume-unchanged' }])
+/// ```
+fn hidden_objects(hidden: &[HiddenEntry]) -> String {
+    let mut objects: Vec<String> = Vec::with_capacity(hidden.len());
+    for one in hidden {
+        objects.push(format!("{{\"path\":{},\"mark\":{}}}", quote(one.path.as_str()), quote(one.mark)));
+    }
+    return format!("[{}]", objects.join(","));
 }
 
 /// The clock a record carries,

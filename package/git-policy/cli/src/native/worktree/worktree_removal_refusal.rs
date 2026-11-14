@@ -212,10 +212,16 @@ fn cannot_tell(question: &str) -> String {
 /// Why:
 ///   One wording keeps both refusals saying the same thing about the same flag,
 ///  and the example puts it where this wrapper reads it,
-///  directly after the subcommand word `worktree`:
-///  a control after `remove` is a token this wrapper reads as the subcommand's own argument,
-///  not as one of its own (`wrapper_invocation.rs`, `leading_controls`).
-const ESCAPE_SENTENCE: &str = "pass --no-enforce-worktree directly after the subcommand, for example `git worktree --no-enforce-worktree remove <path>`, which runs the removal exactly as real Git runs it.";
+///  directly after the subcommand word `worktree`.
+///  Measured through the built wrapper on 2026-11-14 with a busy worktree,
+///  which is the only way to see the difference:
+///  after `worktree` it runs, in Git's own global position (`git --no-enforce-worktree worktree remove`)
+///  it runs too,
+///  and after `remove`, or at the end of the line, it does not:
+///  a control there is read as that subcommand's own argument
+///  (`wrapper_invocation.rs`, `leading_controls`),
+///  and Git would refuse it as an unknown option.
+const ESCAPE_SENTENCE: &str = "pass --no-enforce-worktree directly after the word `worktree`, for example `git worktree --no-enforce-worktree remove <path>`, which runs the removal exactly as real Git runs it; further on, after `remove`, the token is read as a path of that subcommand and Git refuses it, and before `worktree`, among Git's own global options, it is read too.";
 
 /// What:
 ///  The facts one refused removal's record carries.

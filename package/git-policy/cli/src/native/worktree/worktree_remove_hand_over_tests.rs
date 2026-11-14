@@ -707,6 +707,30 @@ fn the_service_removes_a_worktree_whose_ignored_file_was_written_after_the_hand_
 }
 
 /// What:
+///  The service's own removal names a detached nested worktree and its untracked file in the record.
+/// Why:
+///  The service reads the same record builder as the two other routes,
+///  and the reader that found the worktrees inside the candidate kept only branch-bearing registrations,
+///  so a detached nested worktree went with the removal unrecorded (a review of this change, finding 2).
+///  This is the route no person's command runs: the record is the only thing left of that worktree's files.
+#[test]
+fn the_service_records_a_detached_nested_worktree_and_its_file() {
+    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-detached-nested", "nested/\n");
+    // The nested worktree is registered with real Git from the repository, at a detached HEAD, under the ignored name.
+    crate::test_support::git(linked.worktree.as_path(), &["worktree", "add", "--quiet", "--detach", "nested", "HEAD"]);
+    let nested: PathBuf = linked.worktree.join("nested");
+    std::fs::write(nested.join("precious.txt"), b"untracked work that is only here\n").expect("an untracked file");
+    let item: WorkItem = handed_over(&linked);
+    let verdict: Verdict = delete_subvolume_of(&item);
+    assert!(matches!(verdict, Verdict::Done), "the removal goes ahead and the record is written: {verdict:?}");
+    assert!(!linked.worktree.exists(), "the worktree is gone");
+    let record: String = std::fs::read_to_string(linked.common.join(crate::worktree_removal_deletions::DELETIONS_LOG)).expect("the record of the deletion");
+    assert!(record.contains(nested.display().to_string().as_str()), "the record names the detached nested worktree: {record}");
+    assert!(record.contains("\"files\":[\"precious.txt\"]"), "and its untracked file: {record}");
+    remove(linked.root.as_path());
+}
+
+/// What:
 ///  A worktree whose ignored file the worktree the proof was made from holds with the same bytes is removed.
 /// Why:
 ///   The proof that keeps a worktree must not keep every worktree:

@@ -18575,7 +18575,10 @@ Two commands run exactly as Git runs them and leave one audit line each
 by the owner's decision.
 `git worktree remove` is refused in two cases only:
 while a live process works in the worktree,
-and while a worktree this repository registers inside the one named holds Git work no other copy has.
+and while a worktree this repository registers inside the one named holds Git work no other copy has:
+an edit to a tracked file, a staged change,
+a tracked file whose index entry hides an edit (`assume-unchanged` or `skip-worktree`),
+or a commit no reference names.
 The refusal names the process by its number and the kernel's name for the program it runs
 (`/proc/<pid>/comm`),
 never its command line or its environment,
@@ -18587,6 +18590,10 @@ written directly after the subcommand word `worktree`
 because a control after `remove` is read as that subcommand's own argument
 (`leading_controls` in `src/native/invocation/wrapper_invocation.rs`),
 and under it the removal runs exactly as real Git runs it.
+Where the token is read for this command, measured through the built wrapper on 2026-11-14:
+after `worktree` it is read and the removal runs,
+and in Git's own global position (`git --no-enforce-worktree worktree remove <path>`) it is read and runs too;
+after `remove` and at the end of the line it is not read, and Git refuses it as an unknown option.
 A forced removal is never refused: `--force` is the person's own decision that the worktree goes.
 The reading is `process_working_inside`
 (`src/native/worktree/worktree_process_inside.rs`):
