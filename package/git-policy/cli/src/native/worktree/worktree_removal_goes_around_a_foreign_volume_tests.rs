@@ -16,6 +16,7 @@
 
 use super::*;
 use crate::subvolume_remove_walk::{A_MOUNT_POINT, ANOTHER_FILESYSTEM, Boundary};
+use crate::worktree_removal_only_deletions::Reported;
 use crate::test_support::{fixture, remove, shown_notices};
 
 /// The two volumes a control works with:
@@ -75,7 +76,7 @@ fn the_refusal_beside_a_volume_names_both_ways_on() {
         target.as_path(),
         "../wt",
         left.as_slice(),
-        BesideAVolume { reason: "notes.txt is untracked and not ignored", begun: false, only_deletions: false },
+        BesideAVolume { reason: "notes.txt is untracked and not ignored", begun: false, reported: Reported::Something },
     );
 
     for found in &left {
@@ -110,7 +111,7 @@ fn a_refusal_beside_a_volume_over_missing_entries_names_force_and_no_move() {
         target.as_path(),
         "wt",
         left.as_slice(),
-        BesideAVolume { reason: "tracked.txt is missing from the worktree", begun: false, only_deletions: true },
+        BesideAVolume { reason: "tracked.txt is missing from the worktree", begun: false, reported: Reported::OnlyDeletions },
     );
     assert!(report.contains("Git reports nothing about the worktree but entries missing from it"), "the report names the state it found: {report}");
     assert!(report.contains("No record of this program says a removal of this worktree removed them"), "and that nothing proves the deletions are this program's: {report}");
@@ -137,7 +138,7 @@ fn a_refusal_beside_a_volume_with_a_record_names_the_record() {
         target.as_path(),
         "wt",
         left.as_slice(),
-        BesideAVolume { reason: "notes.txt is untracked and not ignored", begun: true, only_deletions: false },
+        BesideAVolume { reason: "notes.txt is untracked and not ignored", begun: true, reported: Reported::Something },
     );
     assert!(report.contains("A record of this program says an earlier removal of this worktree was cut short"), "the record is named: {report}");
     assert!(report.contains("what stands there now is more than the entries it removed"), "and what stands there now: {report}");
@@ -256,5 +257,71 @@ fn a_file_that_is_no_record_is_left_alone() {
     std::fs::write(stranger.as_path(), b"a person's own file\n").expect("a file nobody can read as a record");
     assert!(left_in_place_notices(common.as_path()).is_empty(), "nothing is shown");
     assert_eq!(std::fs::read(stranger.as_path()).expect("the file"), b"a person's own file\n", "and the file is where it was");
+    remove(root.as_path());
+}
+
+/// What:
+///  The report of a removal whose volume went away during its pass says what that path did,
+///  and never what a destroy's line says:
+///  no btrfs subvolume removed in one step,
+///  and no delete waiting behind the command.
+/// Why:
+///   On that path the pass deleted the entries one by one,
+///  the empty root went with one `rmdir`,
+///  and
+///  `go_around` writes no hand-over record,
+///  so a reader told of a queued service delete looks for one that does not exist;
+///  and a worktree that is a plain directory would also be told of a subvolume that never was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = emptiedAroundReport('/repo/wt');
+/// expect(report).toContain('the root went with one `rmdir`');
+/// expect(report).not.toContain('in one step');
+/// ```
+#[test]
+fn the_report_of_a_volume_gone_during_the_pass_says_what_that_path_did() {
+    let root: PathBuf = fixture("around-emptied-report");
+    let target: PathBuf = root.join("wt");
+    let report: String = emptied_around_report(target.as_path());
+    assert!(report.contains(target.to_str().expect("UTF-8")), "the report names the worktree: {report}");
+    assert!(report.contains("Git no longer lists it"), "and that Git forgot it: {report}");
+    assert!(report.contains("deleted its entries one by one"), "and how its entries went: {report}");
+    assert!(report.contains("had gone by the time that pass ended"), "and that the volume was gone when the pass ended: {report}");
+    assert!(report.contains("the root went with one `rmdir`"), "and how the root went: {report}");
+    assert!(report.contains("Nothing was handed to the commit service, so no delete waits behind this command"), "and that no delete waits: {report}");
+    assert!(!report.contains("in one step"), "and never that a destroy took it in one step: {report}");
+    assert!(!report.contains("DESTROY"), "and never the destroy notice's words: {report}");
+    assert!(!report.contains("btrfs subvolume of the worktree"), "and never that a worktree subvolume was removed: {report}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A refusal beside a volume over a tree Git reports nothing about says what is the case:
+///  no entries are missing,
+///  the proof of cleanliness could not settle the tree,
+///  and `--force` is what goes around the volume now.
+/// Why:
+///   The words for a tree whose entries are missing told a person their fresh, clean worktree had been
+///   half emptied by a pass,
+/// in the state every person meets a moment after a worktree is added.
+#[test]
+fn a_refusal_beside_a_volume_over_an_unchanged_tree_names_the_proof_and_no_missing_entry() {
+    let root: PathBuf = fixture("around-refusal-unchanged");
+    let target: PathBuf = root.join("wt");
+    let left: Vec<Boundary> = two_volumes(target.as_path());
+    let report: String = refused_beside_a_volume_report(
+        target.as_path(),
+        "wt",
+        left.as_slice(),
+        BesideAVolume { reason: "tracked.txt is as new as the index, so its stat fields prove nothing", begun: false, reported: Reported::Nothing },
+    );
+    assert!(report.contains("Git reports no change in the worktree at all"), "the report names what Git reports: {report}");
+    assert!(report.contains("could not settle it"), "and that the proof could not settle the tree: {report}");
+    assert!(report.contains("tracked.txt is as new as the index"), "and the reason the proof gave: {report}");
+    assert!(report.contains("This is no state a pass of this program left"), "and that no pass emptied it: {report}");
+    assert!(!report.contains("entries missing from it"), "and never that entries are missing: {report}");
+    assert!(report.contains("git worktree remove --force wt"), "and what goes around the volume now: {report}");
+    assert!(report.contains("Nothing was removed"), "and that the command changed nothing: {report}");
     remove(root.as_path());
 }
