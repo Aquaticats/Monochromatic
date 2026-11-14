@@ -42,7 +42,8 @@ const STATE_WAIT: Duration = Duration::from_secs(20);
 
 /// The prefix of the line a test that cannot run prints,
 /// which names the test between brackets.
-/// A reader or a script can find it, and the `test` task reads it to leave those tests out of its run by name.
+/// A reader or a script can find it,
+/// and the `test` task reads it to leave those tests out of its run by name.
 pub(crate) const NOT_RUN_PREFIX: &str = "cargo-shadow tests: not run [";
 
 /// What:
