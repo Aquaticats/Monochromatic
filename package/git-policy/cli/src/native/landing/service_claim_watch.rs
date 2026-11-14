@@ -85,7 +85,7 @@
 use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::push_failure_notice::fnv_hex;
-use crate::service_instance::instance_of;
+use crate::service_claim_watch_whose_repository_it_is::{of_another_instance, refused_for_another_instance};
 use crate::service_work::work_directory;
 use crate::work_item::{PENDING, WORK_DIRECTORY, state_directory};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
@@ -371,36 +371,6 @@ impl ClaimWatch {
         return crate::push_retry::pause_before(self.failures.max(1), first);
     }
 
-    /// Whether `git_dir` is a directory of another instance,
-    /// which this journal does not hold.
-    fn is_foreign(&self, git_dir: &Path) -> bool {
-        return of_another_instance(self.instance.as_deref(), git_dir);
-    }
-
-    /// What:
-    ///  Whether `git_dir` is refused here for belonging to another instance,
-    /// said in the log when it is.
-    /// Why:
-    ///   A journal holds one instance's repositories,
-    /// so a note written for another one is thrown away by the next start (`scan`),
-    /// and the watch that took it would name a repository this service does not serve.
-    /// Every path that would write a note,
-    /// and the keeping of one that may be missing,
-    /// asks this one question,
-    /// so no two of them can answer it differently.
-    ///
-    /// In TS you'd write (pseudocode):
-    /// ```ts
-    /// if (watch.refusesAsForeign(gitDir)) return; // said once, and nothing is written or owed
-    /// ```
-    fn refuses_as_foreign(&self, git_dir: &Path) -> bool {
-        if !self.is_foreign(git_dir) {
-            return false;
-        }
-        crate::service_warn!("{} belongs to another instance and is not kept for a restart", git_dir.display());
-        return true;
-    }
-
     /// Writes `git_dir` down unless this process has done so.
     /// A write that fails is said and kept for `retry`;
     /// the caller goes on
@@ -412,7 +382,7 @@ impl ClaimWatch {
                 return;
             }
         }
-        if self.refuses_as_foreign(git_dir) {
+        if refused_for_another_instance(self.instance.as_deref(), git_dir) {
             return;
         }
         let Some(directory) = self.store.clone() else {
@@ -453,7 +423,7 @@ impl ClaimWatch {
         if self.store.is_none() || self.holds(git_dir) {
             return;
         }
-        if self.refuses_as_foreign(git_dir) {
+        if refused_for_another_instance(self.instance.as_deref(), git_dir) {
             return;
         }
         self.unwritten.push(git_dir.to_path_buf());
@@ -561,7 +531,7 @@ impl ClaimWatch {
     pub fn retry_reading(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
         let Some(directory) = self.store.clone() else { return Vec::new() };
         for git_dir in std::mem::take(&mut self.unwritten) {
-            if self.refuses_as_foreign(&git_dir) {
+            if refused_for_another_instance(self.instance.as_deref(), git_dir.as_path()) {
                 continue;
             }
             match write_down(directory.as_path(), git_dir.as_path()) {
@@ -631,7 +601,7 @@ impl ClaimWatch {
                     continue;
                 }
             };
-            if self.is_foreign(git_dir.as_path()) {
+            if of_another_instance(self.instance.as_deref(), git_dir.as_path()) {
                 crate::service_warn!("the note {} names {}, which is not this instance's repository, and is removed", path.display(), git_dir.display());
                 let _removed = std::fs::remove_file(path.as_path());
                 continue;
@@ -679,24 +649,6 @@ fn a_record_waits(git_dir: &Path) -> bool {
         return false;
     };
     return listing.next().is_some();
-}
-
-/// Whether `git_dir` belongs to an instance other than `instance`.
-/// Why:
-///   A journal belongs to one instance,
-/// and a note that names another repository is removed by `scan` and refused by `remember`;
-/// the landing thread's `note_for_the_next_service` asks the same question,
-/// so a note it writes cannot be one the next service throws away.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const ofAnotherInstance = (instance, gitDir) => instance !== undefined && instanceOf(gitDir) !== instance;
-/// ```
-fn of_another_instance(instance: Option<&str>, git_dir: &Path) -> bool {
-    return match instance {
-        Some(mine) => instance_of(git_dir) != mine,
-        None => false,
-    };
 }
 
 /// What:

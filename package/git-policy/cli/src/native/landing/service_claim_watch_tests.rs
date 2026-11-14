@@ -1,6 +1,7 @@
 //! Controls for the Git directories a restarted service looks at by itself.
 
 use super::*;
+use crate::service_instance::instance_of;
 use std::ffi::OsString;
 
 /// The first pause of the controls.
