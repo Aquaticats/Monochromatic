@@ -1,0 +1,40 @@
+cases recorded: 31
+cases with differing results: 4
+
+case: unknown-joined-long
+  1.1.1, 1.3.1, 1.3.2, 1.3.6, 1.4.0-dev.2664, 1.4.0-dev.2665, 1.4.0-dev.2667, 1.4.0-dev.2971
+    {"facts":{"hasAllFlag":false,"hasExplicitOnlyFlag":false,"hasNoOnlyFlag":false,"hasIncludeFlag":false,"hasInteractiveFlag":false,"hasPatchFlag":false,"isDryRun":false,"hasPathlessAllowedFlag":false,"hasAmendFlag":false,"hasAllowEmptyFlag":false,"hasPathspecFromFile":false,"hasPathspecFileNul":false,"hasPathspec":true,"hasEscapeHatch":false,"pathspecs":["a.txt"]}}
+  owned-4879a44e
+    {"threw":{"name":"ArgvParseError","message":"Undeclared joined option --unknown names no known option, and cannot be read as a path either.\n  token 0 of 2: --unknown=v\n  region: --unknown=v a.txt"}}
+
+case: unknown-joined-long-then-flag
+  1.1.1, 1.3.1, 1.3.2, 1.3.6, 1.4.0-dev.2664, 1.4.0-dev.2665, 1.4.0-dev.2667, 1.4.0-dev.2971
+    {"facts":{"hasAllFlag":false,"hasExplicitOnlyFlag":false,"hasNoOnlyFlag":false,"hasIncludeFlag":false,"hasInteractiveFlag":false,"hasPatchFlag":false,"isDryRun":false,"hasPathlessAllowedFlag":true,"hasAmendFlag":true,"hasAllowEmptyFlag":false,"hasPathspecFromFile":false,"hasPathspecFileNul":false,"hasPathspec":true,"hasEscapeHatch":false,"pathspecs":["a.txt"]}}
+  owned-4879a44e
+    {"threw":{"name":"ArgvParseError","message":"Undeclared joined option --unknown names no known option, and cannot be read as a path either.\n  token 0 of 3: --unknown=v\n  region: --unknown=v --amend a.txt"}}
+
+case: known-missing-value-long
+  1.1.1, 1.3.1, 1.3.2, 1.3.6, 1.4.0-dev.2664, 1.4.0-dev.2665, 1.4.0-dev.2667, 1.4.0-dev.2971
+    {"facts":{"hasAllFlag":false,"hasExplicitOnlyFlag":false,"hasNoOnlyFlag":false,"hasIncludeFlag":false,"hasInteractiveFlag":false,"hasPatchFlag":false,"isDryRun":false,"hasPathlessAllowedFlag":false,"hasAmendFlag":false,"hasAllowEmptyFlag":false,"hasPathspecFromFile":false,"hasPathspecFileNul":false,"hasPathspec":false,"hasEscapeHatch":false,"pathspecs":[]}}
+  owned-4879a44e
+    {"threw":{"name":"ArgvParseError","message":"Option --message takes a value, but the region ends here.\n  token 0 of 1: --message\n  region: --message"}}
+
+case: known-missing-value-short
+  1.1.1, 1.3.1, 1.3.2, 1.3.6, 1.4.0-dev.2664, 1.4.0-dev.2665, 1.4.0-dev.2667, 1.4.0-dev.2971
+    {"facts":{"hasAllFlag":false,"hasExplicitOnlyFlag":false,"hasNoOnlyFlag":false,"hasIncludeFlag":false,"hasInteractiveFlag":false,"hasPatchFlag":false,"isDryRun":false,"hasPathlessAllowedFlag":false,"hasAmendFlag":false,"hasAllowEmptyFlag":false,"hasPathspecFromFile":false,"hasPathspecFileNul":false,"hasPathspec":false,"hasEscapeHatch":false,"pathspecs":[]}}
+  owned-4879a44e
+    {"threw":{"name":"ArgvParseError","message":"Option -m takes a value, but the region ends here.\n  token 0 of 1: -m\n  region: -m"}}
+
+upstream probe outcome sets: 2
+  arms: 1.1.1, 1.3.1
+    join/positional-joined: {"success":true,"paths":["--unknown=v","a.txt"],"extra":[]}
+    join/positional-separated: {"success":true,"paths":["a.txt"],"extra":["--unknown","v"]}
+    join/positional-after-separator: {"success":true,"paths":["--unknown=v","a.txt"],"extra":[]}
+    missing/short: {"success":true,"extra":["-m"]}
+    missing/long: {"success":true,"extra":["--message"]}
+  arms: 1.3.2, 1.3.6, 1.4.0-dev.2664, 1.4.0-dev.2665, 1.4.0-dev.2667, 1.4.0-dev.2971
+    join/positional-joined: {"success":true,"paths":["a.txt"],"extra":["--unknown=v"]}
+    join/positional-separated: {"success":true,"paths":["a.txt"],"extra":["--unknown","v"]}
+    join/positional-after-separator: {"success":true,"paths":["--unknown=v","a.txt"],"extra":[]}
+    missing/short: {"success":false}
+    missing/long: {"success":false}
