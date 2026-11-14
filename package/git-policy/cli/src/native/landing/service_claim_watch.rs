@@ -603,11 +603,15 @@ pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: 
 /// one that holds another directory's path is left,
 /// and the next name is tried.
 /// What holds a taken name is read the way every record of this wrapper is read,
-/// so a name holding a pipe, a link, a directory or more bytes than a note can hold is answered at once,
+/// so a name holding a pipe,
+/// a link,
+/// a directory or more bytes than a note can hold is answered at once,
 /// left where it is,
 /// and passed over for the next name:
 /// no note this store wrote is any of those,
-/// and a plain read of such a name waits in the kernel, reads a link through, or costs memory for nothing.
+/// and a plain read of such a name waits in the kernel,
+/// reads a link through,
+/// or costs memory for nothing.
 fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
     if let Err(error) = create_private_directory_all(directory) {
         return Err(format!("creating the note directory failed: {error}"));

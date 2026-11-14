@@ -21,9 +21,12 @@ const PATIENCE: Duration = Duration::from_secs(20);
 /// or nothing when it gave no answer within `patience`.
 ///
 /// Why:
-///  The bound is the control's own, so a control that caught a read waiting on a pipe ends and says so.
-///  The thread is left behind at the patience: a read that the kernel never returns is ended only by the
-///  process ending, and waiting for that thread here would hang the control it belongs to.
+///  The bound is the control's own,
+/// so a control that caught a read waiting on a pipe ends and says so.
+///  The thread is left behind at the patience:
+/// a read that the kernel never returns is ended only by the
+///  process ending,
+/// and waiting for that thread here would hang the control it belongs to.
 fn answered_within<Value: Send + 'static>(patience: Duration, work: impl FnOnce() -> Value + Send + 'static) -> Option<Value> {
     let (sender, receiver): (std::sync::mpsc::Sender<Value>, std::sync::mpsc::Receiver<Value>) = std::sync::mpsc::channel::<Value>();
     let started = std::thread::Builder::new().name(String::from("claim-watch-control")).spawn(move || {
