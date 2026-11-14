@@ -599,7 +599,11 @@ Read-only commands,
   an edit you stage or make in the moment the branch moves is kept byte for byte,
   and the report names the files and the step that brings them to the branch when you decide to.
   When a merge push's own command says it failed but the remote took it,
-  the push ends with status 0 and says the remote holds the merge it made.
+  the push ends with status 0, moves your branch to the merge it made, and says where the remote is,
+  which merge it holds, and where your branch is;
+  that holds when the remote moved past the merge before the wrapper looked again.
+  A branch checked out nowhere that a worktree takes while its reference moves is finished by the next
+  command there when a kill interrupts the repair, because the repair leaves a record behind.
    Otherwise the branch stays where it is and the report names the reason and the overlapping files.
   A conflict that the word-level second merge pass cannot resolve in every file is reported with the conflicting paths
    and publishes nothing;

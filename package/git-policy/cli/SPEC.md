@@ -9097,9 +9097,11 @@ in-process reader can) gives every value of the multi-valued keys.
   because sibling worktrees that keep pushing are contention and not a conflict.
   A merge push whose own command reported a failure can have landed all the same
   (a kill or a connection dropped after the remote took it):
-  the next attempt then finds the remote's tip to be that very merge,
-  and the run answers zero with a line saying the remote holds the merge this push made
-  (`published` in `integrate_and_push_awaiting`).
+  the next attempt then finds the remote's tip contains that very merge
+  (a post-receive hook or another push can have moved the remote past it),
+  and the run answers zero after moving the pushed branch as the successful path does,
+  with a line that names the remote's tip, the merge it contains, and where the branch is
+  (`published_on_the_remote` and `the_pushed_branch_follows_awaiting` in `integrate_and_push_awaiting`).
   The merge is computed without reading or writing the local branch,
   the index,
   the worktree or the untracked files,
@@ -9171,6 +9173,20 @@ in-process reader can) gives every value of the multi-valued keys.
   which runs as printed there and overwrites those files, so it tells the person to keep a copy first
   (`WorktreeHolding`,
   `followed_sentence` in `src/native/push/auto_push_reconcile_awaiting.rs`).
+  A session that checks another branch out inside the repair, or a switch that lands between the
+  listing and the repair's first read, is neither a branch that stayed behind nor a worktree that
+  followed: the answer names the branch that worktree shows when the move ends, and the whole answer
+  reads the checkout after the repair and never before it
+  (`shows` in `finish_the_checkout_that_raced_the_move`,
+  `shown_branch_awaiting` in `src/native/push/auto_push_reconcile_branch_checkout.rs`).
+  The repair a reference-only move makes writes an intent record of its own in the worktree that took
+  the branch, with the pushed tip and the merge, and removes it when the repair finished:
+  a kill between the write of the reference and the repair, or inside the repair,
+  leaves that record, and the next command in that worktree reads it;
+  the merge settle installs the merge when the index still holds the pushed tip's content on the
+  paths the merge changes, which is the state such a kill leaves
+  (`record_merge_intent` in `src/native/push/auto_push_reconcile_branch_advance.rs`,
+  `predecessor_only` in `src/native/merge/merge_isolation_recovery.rs`).
   An empty status passes trivially;
   uncommitted work in files the move does not write is left exactly as it was,
   and the report says so,
