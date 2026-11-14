@@ -61,6 +61,9 @@ pub mod service_retry;
 /// The Git directories the service looks at by itself when it starts.
 pub mod service_claim_watch;
 
+/// Whether a Git directory is the repository of the instance whose journal a note is written into.
+pub mod service_claim_watch_whose_repository_it_is;
+
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 

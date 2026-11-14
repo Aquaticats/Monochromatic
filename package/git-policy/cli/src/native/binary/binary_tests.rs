@@ -329,6 +329,11 @@ mod merge_notice;
 #[path = "binary_commit_tests.rs"]
 mod commit;
 
+/// The commit forms real Git refuses,
+/// each refused with Git's own status and words.
+#[path = "binary_commit_form_refusal_tests.rs"]
+mod commit_form_refusal;
+
 /// The Git version text a commit records in the user's cache directory,
 /// and when it trusts it.
 #[path = "binary_version_cache_tests.rs"]
@@ -574,6 +579,11 @@ mod lfs_hang;
 /// compared with native Git.
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
+
+/// A commit made through the service where the runtime directory's path is long,
+/// and the short one it is compared with.
+#[path = "binary_long_runtime_directory_tests.rs"]
+mod long_runtime_directory;
 
 /// A commit whose command line names the repository:
 /// `--git-dir` with `--work-tree`,
