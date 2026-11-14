@@ -442,6 +442,8 @@ Corrected-native Rust parity at `e0790e738d` retains 652 emitted PASS statuses,
 with the same 89 Truepeak and 237 forbidden-strings identities per sample.
 Changed-case/status controls reject equality;
 skip identities remain unenumerated.
+`depot-complete-coverage-desktop-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 Completed-phase mean ratios are 2.86825 for shared builds and 2.21112 for Rust on Depot GHA.
 Corrected native ratios are 3.37416 and 2.20532 respectively.
@@ -760,6 +762,8 @@ SHA-256 `37bd8779e0046a9eab9c25d22f6c4f293f0c059083a3c5d502bef486fa4b5841`.
 Its 16 source-body,
 seven outcome and four deciding source-line joins pass,
 with targeted Markdown and actual rendered-section checks.
+`depot-current-host-gnu-owner-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 Kotlin's claimed unexecuted six JVM methods are retracted and positively resolved.
 The missing semantic projection alone did not prove missing execution.
@@ -833,6 +837,8 @@ the first literal-path assertion was rejected and the corrected realpath compari
 The rejected parent invocation `mise run --file ...` emitted `no task //:--file found`.
 Running the existing task from its owning controller directory passes five receipt hashes,
 44 source-body joins and targeted Markdown lint.
+`depot-current-host-owner-comparison-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Recorded setup and recovery history on 2026-10-18 at 16:33 UTC
 
@@ -2936,7 +2942,7 @@ all four consumers and common-after were skipped,
 and ordinary source identity passed before and after with equal recorded lock hashes.
 The separate artifact-upload failure remains retained because rejection produced no provenance directory.
 [The guard audit](../audit/depot-common-manifest-route-guards-2026-10-17.md)
-and [original provider archive](../audit/depot-native-common-before-negative-2026-10-17.evidence.zip)
+and original provider archive (`../audit/depot-native-common-before-negative-2026-10-17.evidence.zip`)
 retain full outcomes,
 usage,
 and scope.
@@ -2944,6 +2950,8 @@ Issue `#1165` is closed with the exact body and closing comment re-fetched.
 This control gives no source-consumer execution or common-bound credit.
 The independent native guard control remains development-only;
 the actual common-bound replay has now started.
+`depot-native-common-before-negative-2026-10-17.evidence.zip` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The remaining queue is explicit:
 collect all bound routes to terminal state and chain the remaining Scorecard cases;

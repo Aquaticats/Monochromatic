@@ -8,9 +8,11 @@ Terminating its Node driver with `SIGTERM` leaves a detached owning command aliv
 These are repository harness defects;
 Git `2.39.5` and Node `26.12.0` behave according to their documented interfaces.
 
-The [independent receipt][receipt] and [original source archive][sources]
+The [independent receipt][receipt] and original source archive (`../audit/depot-expanded-graph-preflight-2026-10-18.sources.json.gz`)
 retain actual driver execution against explicitly fake owning commands.
 No application test case was executed by these fixtures.
+`depot-expanded-graph-preflight-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 GitHub run `39135886118` is a separate prerequisite failure:
 all its graph steps were skipped after setup omitted configured `cargo-binstall`.
@@ -276,5 +278,4 @@ No empty-search claim is used to infer an upstream defect.
 Nothing is filed or drafted upstream.
 
 [receipt]: ../audit/depot-expanded-graph-preflight-2026-10-18.evidence.json
-[sources]: ../audit/depot-expanded-graph-preflight-2026-10-18.sources.json.gz
 [mise-prerequisite]: mise-cargo-backend-needs-rust-installed.md

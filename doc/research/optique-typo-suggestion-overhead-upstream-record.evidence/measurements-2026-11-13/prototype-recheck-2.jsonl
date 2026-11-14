@@ -1,0 +1,17 @@
+{"step":"deno-fmt-check","exit":0,"tail":["Checked 4 files"]}
+{"step":"deno-lint","exit":0,"tail":["Checked 4 files"]}
+{"step":"deno-check","exit":0,"tail":["Check src/input-trace.test.ts","Check src/internal/immutable-string-map.ts","Check src/internal/immutable-string-map.test.ts"]}
+{"step":"deno-new-tests","exit":0,"tail":["","Check src/internal/immutable-string-map.test.ts","Check src/input-trace.test.ts"]}
+{"step":"bun-new-tests","exit":0,"tail":[" 32 pass"," 0 fail","Ran 32 tests across 2 files. [208.00ms]"]}
+{"step":"mutation-overwrite-mutates-shared-leaf","exit":1,"tail":["Check src/internal/immutable-string-map.test.ts","Check src/input-trace.test.ts","error: Test failed"]}
+{"mutation":"overwrite-mutates-shared-leaf","caught":true}
+{"step":"mutation-rank-ignores-lower-slots","exit":1,"tail":["Check src/internal/immutable-string-map.test.ts","Check src/input-trace.test.ts","error: Test failed"]}
+{"mutation":"rank-ignores-lower-slots","caught":true}
+{"step":"mutation-delete-keeps-cleared-bit","exit":1,"tail":["Check src/internal/immutable-string-map.test.ts","Check src/input-trace.test.ts","error: Test failed"]}
+{"mutation":"delete-keeps-cleared-bit","caught":true}
+{"step":"mutation-set-copies-nothing-in-branch","exit":1,"tail":["Check src/internal/immutable-string-map.test.ts","Check src/input-trace.test.ts","error: Test failed"]}
+{"mutation":"set-copies-nothing-in-branch","caught":true}
+{"step":"deno-core-suite","exit":0,"tail":["Check src/validate.test.ts","Check src/valueparser.test.ts","Check src/with-suggestions.test.ts"]}
+{"step":"core-build","exit":0,"tail":["ℹ [CJS] 44 files, total: 594.60 kB","✔ Build complete in 1345ms","$ tsdown"]}
+{"step":"node-core-suite","exit":0,"tail":["ℹ skipped 529","ℹ todo 0","ℹ duration_ms 13112.936568"]}
+{"step":"sacho-check","exit":0,"tail":["skipped: missing-fragment check skipped because neither --base nor --staged was supplied"]}

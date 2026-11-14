@@ -4,7 +4,19 @@
   "input": {
     "path": "doc/audit/depot-owned-allocation-final-2026-10-18.evidence.json",
     "bytes": 123851,
-    "sha256": "feb386c9daef898718e44b9a9286e43a3547368bda096a3c27b2013bf9f88391"
+    "sha256": "feb386c9daef898718e44b9a9286e43a3547368bda096a3c27b2013bf9f88391",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 126427,
+        "sha256": "865879779501ae34ab732f5a616b2de57c9964b876e47f665e40e874f654afd1",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "checks": {
     "rows": 49,

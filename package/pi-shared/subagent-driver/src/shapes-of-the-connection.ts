@@ -37,6 +37,12 @@ export type ConnectionRequest = {
    */
   readonly environment: NodeJS.ProcessEnv;
   readonly standardErrorFile: string;
+
+  /**
+   Whether Pi's standard error is added to what the file already holds, which is how a run whose Pi is started again keeps the
+   whole of what each Pi printed in one file. It is off by default, so a file a run is given starts empty.
+   */
+  readonly standardErrorAppends?: boolean;
   readonly listeners: ConnectionListeners;
 
   /**

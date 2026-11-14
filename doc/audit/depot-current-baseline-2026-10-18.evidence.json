@@ -25,7 +25,19 @@
         "markdown/single-h1": 1
       }
     },
-    "result": "The whole-tree static profile is not known-good. A whole-tree static gate would fail immediately; a changed-path profile or an explicit advisory baseline is required."
+    "result": "The whole-tree static profile is not known-good. A whole-tree static gate would fail immediately; a changed-path profile or an explicit advisory baseline is required.",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show f9c7bd60825ae51fcf511cd0384dc26f2af8a06f:doc/audit/depot-current-baseline-static-2026-10-18.log.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "unit": {
     "command": "mise run test:unit",
@@ -43,7 +55,19 @@
       ],
       "prerequisiteState": "No build artifacts were present. The first failures reference missing dist/final/node/index.mjs, and the run is dominated by module-resolution errors."
     },
-    "result": "The unit run is invalid as a product baseline. It executed without built prerequisites; 1,979 ERR_MODULE_NOT_FOUND and 987 Cannot find errors dominate, and the 751 named files are a missing-prerequisite cascade rather than product failures. The JSON-parse and Aggregate classes remain separate harness signals. The unit baseline must be rerun after a successful build."
+    "result": "The unit run is invalid as a product baseline. It executed without built prerequisites; 1,979 ERR_MODULE_NOT_FOUND and 987 Cannot find errors dominate, and the 751 named files are a missing-prerequisite cascade rather than product failures. The JSON-parse and Aggregate classes remain separate harness signals. The unit baseline must be rerun after a successful build.",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show ac99991c648e7f703369ffb5acc7207ea020ff30:doc/audit/depot-current-baseline-unit-2026-10-18.log.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "build": {
     "command": "mise run build",
@@ -62,7 +86,19 @@
         "Assertion failed: (0) == (uv_thread_create(t.get(), start_thread, this))"
       ]
     },
-    "result": "The build profile is not known-good in this capture. The failures include SIGABRT and a thread-creation assertion under parallel fanout, which may be host-resource or concurrency induced rather than a product defect; a bounded rebuild with reduced fanout is required before attributing failures."
+    "result": "The build profile is not known-good in this capture. The failures include SIGABRT and a thread-creation assertion under parallel fanout, which may be host-resource or concurrency induced rather than a product defect; a bounded rebuild with reduced fanout is required before attributing failures.",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show ac99991c648e7f703369ffb5acc7207ea020ff30:doc/audit/depot-current-baseline-build-2026-10-18.log.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "ciBaseline": {
     "runs": [
@@ -99,7 +135,19 @@
         "//package/linter/monochromatic-lint:test"
       ],
       "rawLog": "doc/audit/depot-fast-subset-baseline-39199930641-2026-10-18.log.gz",
-      "result": "Known-good build and unit baseline for the five-owner fast subset. This is not a whole-repository baseline, not a complete-profile baseline, and not a gate."
+      "result": "Known-good build and unit baseline for the five-owner fast subset. This is not a whole-repository baseline, not a complete-profile baseline, and not a gate.",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 31b65e086e384a7fe9f1e9008d75aab2794ad9f1:doc/audit/depot-fast-subset-baseline-39199930641-2026-10-18.log.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     "rawLog": "doc/audit/depot-current-baseline-ci-39197594870-2026-10-18.log.gz",
     "failureClasses": [
@@ -111,7 +159,19 @@
       "Android and design builds",
       "unresolved canvg import in jspdf"
     ],
-    "result": "A generic Depot GitHub runner is insufficient for this build profile. The observed failures are environment, toolchain, build-order and dependency failures, not product attribution. The build needs the prepared environment described by the evaluation or a documented prerequisite image; the unit baseline remains invalid until that build succeeds."
+    "result": "A generic Depot GitHub runner is insufficient for this build profile. The observed failures are environment, toolchain, build-order and dependency failures, not product attribution. The build needs the prepared environment described by the evaluation or a documented prerequisite image; the unit baseline remains invalid until that build succeeds.",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 331cc20126d9e529d3f4b49c4828d21a5b6912c5:doc/audit/depot-current-baseline-ci-39197594870-2026-10-18.log.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "limits": [
     "Counts are linter findings or named test files, not distinct product defects.",
