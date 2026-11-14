@@ -3478,6 +3478,16 @@ because Git's own removal is the route that would delete through a mount point.
 `look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume, which the
 registration's own proof still uses.
 
+The proof of cleanliness a removal makes is the stat proof every removal makes,
+and a refusal beside a volume is proven again by the files themselves:
+`check_clean_by_content` settles by reading a file every entry its stat data cannot vouch for
+(the state a worktree is in the moment it was added,
+where a whole-second modification time is not older than the index's and Git's own racy rule says the stat
+data proves nothing either way)
+and makes the untracked scan the ordinary proof makes,
+so a tree refused only because its stat fields prove nothing yet is proven clean and removed around the volume,
+and a tree that proof cannot settle is refused while nothing of it is deleted.
+
 A removal that found such a volume proves what every removal proves before it deletes anything:
 the worktree is registered,
 not locked,
@@ -3494,12 +3504,27 @@ gives the reason Git refuses,
 and words the way on by what the tree in front of it is:
 `git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
 stands, and, for a tree whose entries are all present, clearing or moving what Git would delete.
-A tree whose only trouble is entries missing from it is the shape a pass of this program leaves,
-and the report says which of the two it read:
-a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it,
-and without such a record the report names `--force`,
+The status a removal reads is one of three,
+and the report says which of them it read:
+Git names nothing at all,
+Git names entries and every one is missing from the tree,
+or Git names something else.
+An empty report is no report of deletions,
+so a clean tree is never worded as one a pass half emptied.
+A tree whose entries are missing is the shape a pass of this program leaves,
+and a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it;
+without such a record the report names `--force`,
 says that moving a volume out cannot finish a tree whose tracked entries are gone,
 and never claims that nothing was removed.
+A tree Git names nothing in,
+and which the proof of cleanliness cannot settle,
+is refused in its own words:
+the report says that Git reports no change in the worktree at all,
+gives the reason the proof refused,
+says that this is no state a pass of this program left,
+and names `--force` as what goes around the volume now.
+A tree whose entries are only missing may be finished by the same unforced command once that record proves it,
+and no worktree is ever removed on a cleanliness that was not proven.
 The tree is never handed to Git to get Git's own sentence,
 because Git's removal is what would delete through the mount;
 the report says so instead of pretending to be Git's words.
@@ -6457,8 +6482,15 @@ The client sends `warm` only after `merge`,
 `switch`,
 `rebase` or `reset` exits 0 and the digest of the rules text
 it would load changed,
-only to a service of that worktree that already runs (found by its start arguments),
-and never starts a process.
+only to a service of that worktree that already runs (found by its start arguments,
+read within `WARM_SCAN_CEILING` and only among the processes of this user),
+and it writes no unit,
+asks no manager for a start,
+and starts no process.
+A service killed between that look and the connection is started by the connection itself:
+the socket unit keeps listening,
+which is what socket activation is for,
+and no check before a connection is one with it.
 The client keeps compiling on a cache miss.
 `src/native/policy/policy_forbidden_strings.rs` decides whether that miss writes the shared cache
 (`CachePublisher`,
@@ -6489,6 +6521,13 @@ also leaves the artifact for the next command that publishes,
 so such a machine compiles the rules once per command:
 correct,
 and slower than a cache it cannot fill.
+A request that is not made is not sent either:
+its look at the processes is made within `WARM_SCAN_CEILING` and its connection within `WARM_REQUEST_CONNECT_CEILING`
+(`src/native/service/wait_ceilings.rs`),
+so a process stuck in the kernel and a service whose queue of unaccepted connections is full each cost the command
+that ceiling and no more,
+and the command publishes the artifact itself,
+as it does when no service runs.
 The artifact's publication (`package/forbidden-strings/cli/src/runtime_cache/publish.rs`)
 writes a private temporary and renames it over the artifact,
 syncing neither the file nor its directory:
@@ -7438,7 +7477,12 @@ on the commit path:
   the watch ends nothing that shows work,
   and it ends nothing before the ceiling.
 
-- The landing waits for a foreign `index.lock` until `LANDING_LOCK_CEILING`.
+- The landing waits for a foreign `index.lock` until `LANDING_LOCK_CEILING`,
+  after the pass that removes the locks whose holder the wrapper's own record proves gone
+  (`SPEC.md`,
+  "The lock files a killed command left,
+  and the record that proves its holder gone"):
+  a lock of a command that was killed no longer makes a landing wait for a process that will never let go.
   At the bound the batch is withdrawn before the branch
   moved:
   its intent is removed from the journal,
@@ -7776,6 +7820,11 @@ on the commit path:
   the name still refers to it,
   and only then is it unlinked),
   and the merge goes on.
+  A lock whose holder the wrapper's own record proves gone is removed before the merge looks at it
+  (`SPEC.md`,
+  "The lock files a killed command left,
+  and the record that proves its holder gone"),
+  on the identity that record names rather than on the number alone.
   A holder that runs,
   one nothing proves alive,
   and a lock the proof of disuse does not cover (one that holds content,
@@ -9495,7 +9544,13 @@ in-process reader can) gives every value of the multi-valued keys.
   A claim read before the stop from the pid file beside the lock rests on the same number as the rule above,
   and a Git of a sibling namespace that shares the repository makes a lock at the same path look the same,
   so no claim is made and nothing is removed on one.
-  A lock of a stopped child therefore stays,
+  A lock of a stopped child is named in the repository's record of the processes its commands started,
+  so a later command clears it on the identity that record carries
+  (`SPEC.md`,
+  "The lock files a killed command left,
+  and the record that proves its holder gone");
+  the sweep itself still removes nothing,
+  and a lock the record does not name stays,
   with the command that clears it,
   and so does one whose pid file went first (Git removes a lock's pid file and then the lock,
   so a kill between the two leaves a lock nothing names).
@@ -9863,6 +9918,275 @@ with arguments,
 and reads each range commit's delta with its own `git diff-tree` process;
 the handover lists this as an
 open divergence.
+
+### The lock files a killed command left, and the record that proves its holder gone
+
+A process on this machine can be killed at any instruction
+(an audit of 0.6.1-alpha.14 ended a merge's process group while its checkout waited on a stalled download),
+so a wrapper command or a Git it started can end between creating a lock and renaming it over its target.
+The lock then stands with a PID file naming a process that no longer exists,
+and the next commit waited `LANDING_LOCK_CEILING` for a process that would never let go and then withdrew the person's change
+(`SPEC.md`,
+"Every wait has a bound").
+A lock whose holder the wrapper can prove gone protects nothing,
+so the wrapper keeps the one record that can prove it,
+and the command that meets such a lock removes it and goes on.
+
+#### The record
+
+The wrapper writes one file per process under `<common-git-dir>/cli-git-lock-holders/`
+(`src/native/lock/lock_holder_records.rs`),
+named by that process's number and a digest of its identity,
+and holding one line per process:
+`self <pid> <identity>` for the wrapper itself,
+and `child <pid> <identity>` for every Git it starts and waits for
+(`src/native/invocation/forwarding.rs`,
+`src/native/push/child_watch_one_shot_run.rs`,
+`src/native/push/child_watch_output_watched_on_the_runtime.rs`,
+`src/native/landing/service_hold_retry.rs`).
+The record is written before the first Git of the command starts,
+so a kill at any later instruction leaves it behind,
+and a command that replaces itself with real Git
+(`exec`) is named by its `self` line,
+which the replaced process keeps,
+because the replacement keeps the number and the birth identity.
+
+An identity is the one the commit service's index lock marker already writes
+(`src/native/landing/service_index_identity.rs`):
+the birth identity the kernel reports for that process,
+then the boot ID,
+the PID namespace and the machine ID.
+A part that cannot be read is left out,
+which makes the judgement unknown instead of wrong.
+
+#### The proof
+
+A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_proving.rs`):
+
+- its PID file names a number,
+  and it was born **strictly after** the lock,
+  so it is this lock's holder rather than an earlier one's
+  (`Judge::pid_file_state`,
+  `PidFile::Unproven`).
+  A birth time the file system does not record,
+  or one both files share because the file system's clock is coarse,
+  proves neither order and keeps the lock:
+  a review of `d189162e3e` found a live Git's editor-phase lock removed when a PID file and a lock
+  carried one tick of this volume's clock,
+  and the same stamps are what one Git gives the two files it writes at once,
+  so nothing local tells those two states apart
+  (`lock_birth_times.rs`);
+  a control states a file system of one-second ticks,
+  and one of no birth times,
+  through `CLI_GIT_TEST_ONLY_BIRTH_TIME`;
+- **no live process has that number**.
+  A number a process has now is no proof of anything:
+  it may be the recorded process that still runs,
+  or a later program that reused the number and wrote this very PID file,
+  and nothing tells the two apart.
+  A process table read that fails answers the same way,
+  and the lock stays.
+- every record of this repository naming that number judges `gone`:
+  a process of this boot,
+  this PID namespace and this machine that has ended
+  (`proved_gone_writer`,
+  `holder_state`,
+  `src/native/landing/service_index_identity.rs`).
+  A birth of another boot is gone,
+  because a boot that ends ends every process in it;
+  one record of another boot,
+  namespace or machine is unknown and keeps the lock,
+  because a Git of that namespace or machine may be the writer;
+- the file sits on one of this machine's file systems
+  (the list `stale_ref_lock_judge.rs` already keeps for reference locks);
+- **nothing can write into it**:
+  the kernel's own read lease is taken and refused while any program has the file open for writing,
+  whatever account owns it and whether or not it is dumpable
+  (`the_proof_that_nothing_can_write_into`,
+  `merge_isolation_take_asides_proof.rs`,
+  the proof a merge's asides are removed under).
+  Holding the lease keeps a later writer out until both names are gone.
+  A platform without leases keeps the scan of every readable process,
+  where another account's refusal is the only reason a removal acts through
+  (`OTHER_ACCOUNTS_PROCESS_REASON`),
+  and a refusal of this account's keeps the lock;
+- the name still refers to the very file that was judged,
+  and its device,
+  inode and change time are the ones read before the removal;
+- the PID file is still the very one that was judged when its own name goes,
+  so a Git that took the freed name between the two unlinks keeps its own PID file.
+
+No time decides anything,
+so a correction of the clock moves no verdict.
+A process number alone decides nothing:
+numbers are reused,
+and a record of a process that ended says nothing about the program that has its number now.
+
+The ways the three facts can disagree,
+and what each does:
+
+- a number used again:
+  the lock stays,
+  because the live program may have written the PID file.
+- two records for one number:
+  all must be gone;
+  one of another boot,
+  namespace or machine keeps the lock.
+- a record written after the lock:
+  it names a later process,
+  so its number is live or its record is another
+  machine's,
+  and the lock stays either way.
+- a lock made by a process that then became another program:
+  the same number and the same birth,
+  alive,
+  so it stays.
+- a holder in another PID namespace or on another machine:
+  its record is unknown,
+  so the lock stays.
+- the wrapper's own forwarded command:
+  its `self` record carries the birth the `exec` keeps,
+  so it stays.
+- a zombie,
+  or a process that ended:
+  it has no birth to compare and cannot have written anything since,
+  so the records decide.
+- a program holding the lock open for writing:
+  the lease is refused,
+  so the lock stays,
+  and a reader alone does not keep it,
+  because a reader cannot write into the file.
+
+#### What cannot be proven, and is therefore kept
+
+- A lock the wrapper did not take,
+  by real Git run directly,
+  an editor or an IDE,
+  carries no record,
+  so nothing proves its holder gone and it stays,
+  with the bounded wait and the report it always had.
+- A record of another PID namespace or another machine is unknown:
+  a Git in a container that shares the repository,
+  or one on a machine that mounts it over a network file system,
+  writes a number and a namespace this process cannot interpret,
+  so nothing is cleared.
+- A lock on a network or user-space file system is kept,
+  whatever its record says,
+  because a Git on another machine holds it.
+- A lock carrying the commit service's marker is not judged by this proof:
+  it is handed to the service's own reclaimer
+  (`service_index_reclaim.rs`,
+  `StaleMark::HolderIsGone`),
+  which takes its claim on the file and removes it only when the holder the marker names is gone,
+  so a live service's lock is waited for and a killed one's is removed by its owner.
+- A lock a command has open is a live writer whatever the record says,
+  so it is kept.
+
+The cost of looking at other processes is bounded as the reference lock judgement bounds it:
+the scan runs only when a lock exists and its record is already proven dead,
+it looks at no `/proc/<pid>/fdinfo/<n>` of a process this wrapper did not start,
+and a descriptor the kernel refuses is read as a holder that may live,
+which keeps the lock.
+
+#### The removal, and why two commands cannot both take the lock
+
+The sequence is one file,
+one claim and no repository-wide lock:
+
+1. The lock is judged by its metadata alone,
+   so this process holds no descriptor on it while the scan looks for a holder:
+   a second command's own look is therefore not mistaken for a live writer.
+2. The marker and the PID file are read and closed.
+3. The scan looks for a holder.
+4. The file is opened without following a link and without waiting,
+   and the exclusive `flock` of it is taken,
+   waiting at most two seconds for another command that is removing the same lock.
+   The kernel gives that lock to one holder;
+   a command that cannot take it inside the bound removes nothing.
+5. The device,
+   inode and change time are read again and must be the ones judged,
+   the name must still refer to the opened file,
+   no marker may have appeared,
+   and the PID file must still name the number the record explained.
+6. The lock is unlinked,
+   then its PID file.
+
+Two commands that meet the same abandoned lock therefore cannot both remove it and both take it:
+each must hold the `flock` to reach the unlink,
+exactly one does,
+and the other either finds the name gone before its own last look
+(it removes nothing and goes on with a clear repository)
+or takes the `flock` after that unlink,
+when its identity check refuses the removal.
+Taking the lock afterwards is Git's own exclusive creation,
+so a second writer cannot take a lock the first has taken.
+A file system without `flock` answers something other than a lock,
+and then nothing is removed,
+which is the safe side.
+
+#### What each lock holds
+
+Nothing of the repository is lost,
+because Git never writes its state in place:
+every lock is a new file that Git fills and renames over its target,
+so a lock that never reached its rename holds only the dead holder's unfinished copy.
+For `index.lock` that copy is a new index that was never renamed into place,
+and the index file that is really there is the one the repository had before the kill.
+It is the same for `HEAD.lock`,
+`shallow.lock`,
+`packed-refs.lock`,
+`refs/**/*.lock` and the reftable backend's `reftable/tables.list.lock`:
+the target keeps the content it had,
+and the next command reads it.
+A person who removes such a lock by hand does exactly what this removal does,
+which is why the removal needs no repair afterwards.
+
+#### Where it runs, and what it costs
+
+The pass runs once in the wrapper's own process before the command reaches Git
+(`entry.rs`,
+`meet_the_locks_of_the_working_directory`),
+so every command of any kind meets a clear repository,
+and the commit service runs it before its landing waits for the index
+(`service_land_take_index_lock.rs`),
+so a commit is not withdrawn over a lock the service can prove dead.
+The walk reads directory entries by their own file type,
+skips the object store and the logs,
+and stops at `MOST_ENTRIES` entries,
+which reads about 8,192 entries of a Git directory.
+A repository with no lock pays that walk and one failed lookup of its record folder,
+and starts no Git.
+A command that removed a lock prints one line naming the file,
+the number its PID file held,
+and what the record proved,
+so a person needs no other command to understand what happened.
+A lock that stands and whose number no process of this table has and no record explains gets one line too:
+the lock,
+the number,
+the fact that a Git in another PID namespace or on another machine writes such a number,
+and the `rm` that clears it,
+because that lock can never release itself and nothing here may remove it.
+
+#### A hold that never ends no longer runs Git fifty times
+
+A forwarded index writer (`git add`,
+`git rm`,
+`git mv`) ran Git again while it lost the index to the commit service.
+Behind a hold that never ended,
+that loop ran the command once per attempt and printed the holder's notice once per attempt:
+a second audit of 0.6.1-alpha.14 measured 50 notices in 110 ms for one `git add`
+(`src/native/landing/service_hold_retry.rs`,
+`run_again_within`).
+The wait's own answer now decides:
+a hold that was released,
+or that was never the service's,
+is one another run can meet,
+and a hold proven a dead service's leftover,
+one that outlasted its ceiling,
+is not.
+Such a command shows one attempt's words,
+one notice,
+and its own status.
 
 ### Reference locks left by a Git that was killed
 

@@ -1007,6 +1007,15 @@ Read-only commands,
      Without such a record the report says what the command itself did,
      names `--force`,
      and says that moving a volume out cannot finish a tree whose tracked entries are gone.
+     A worktree whose stat fields prove nothing yet,
+     because its files and its index were written in the same whole second just after the add,
+     is proven by its files instead:
+     the wrapper reads the entries its stat data cannot vouch for and the removal goes around the volume,
+     so adding a worktree,
+     putting a snapshot in it and removing it at once is the documented way and not a refusal.
+     A tree that proof also cannot settle is refused in words that say Git reports no change in the worktree at all,
+     give the reason,
+     and name `--force`.
   A later `git worktree add` at that path meets a directory that is not empty:
      Git's own line says only that it exists,
      and the wrapper adds one line naming each volume a removal left and what frees the path.
@@ -3560,12 +3569,86 @@ and no process a complete scan finds holding it)
 and goes on;
 a lock that proof does not cover stays where it is,
 and so does one whose content is not empty.
+A lock whose holder the wrapper's own record proves gone is cleared before the merge looks at it,
+by the pass the next section describes,
+so a merge does not wait for a process that a kill ended.
 Native Git,
 measured in a fixture,
 never waits:
 a held lock fails the merge in a few milliseconds.
 A merge that native Git runs (a conflict,
 an editor) waits for the lock first in the same way.
+
+#### The lock files a killed command left
+
+A process can be killed at any instruction.
+When a wrapper command or a Git it started ends between creating a lock and renaming it over its target,
+the lock stands and its PID file names a process that no longer exists.
+Before this change the next commit waited a minute for that process and withdrew the person's change;
+the audit of 0.6.1-alpha.14 met exactly that after a merge's process group was killed during a stalled download.
+
+The wrapper now keeps its own account of what it starts,
+in `<common-git-dir>/cli-git-lock-holders/`:
+one file per process,
+naming the wrapper and every Git it started,
+each with the birth identity,
+boot ID,
+PID namespace and machine ID that the commit service's index lock marker already uses.
+A lock is cleared when its PID file names a number no live process has,
+its own birth is strictly later than the lock's (a file system that records no birth time,
+or one whose
+clock is coarse enough to give both files one tick,
+proves neither order and keeps the lock),
+every record of this repository naming that number is a process of this boot,
+this PID namespace and this machine that has ended,
+the file sits on a local file system,
+and the kernel's own read lease says nothing can write into it.
+A number a live process has is never proved gone,
+because the number may have been used before and the live program may be the one that wrote the PID file;
+removing such a lock made a real `git commit --all`,
+held in its editor,
+fail with Git's index-recovery
+message,
+and that is what the proof refuses now.
+A program holding the lock open for writing keeps the lock,
+whatever account owns it,
+and a reader alone does not,
+because a reader cannot write into the file.
+It is removed under an exclusive `flock` of the lock file itself,
+so two commands that meet it at the same instant cannot both remove it and both take it,
+and one line says which lock went and what proved its holder gone.
+Nothing of the repository is lost:
+Git fills a lock and renames it over its target,
+so an `index.lock` that never reached its rename holds only the dead holder's unfinished index,
+and the index that is there is the one the repository had.
+
+Nothing is cleared on a lock the wrapper did not take:
+real Git run directly,
+an editor and an IDE write no record,
+and a process number alone is not a proof,
+because numbers are reused and a Git in another PID namespace writes one this table has never had.
+A record of another namespace or another machine is unknown and is never acted on,
+a lock on a network file system is kept,
+and a lock carrying the commit service's marker goes to the service's own reclaimer.
+A lock that stands,
+whose number no process of this table has and that no record explains,
+gets one line naming the file,
+the number,
+and the `rm` that clears it,
+because that lock cannot release itself and nothing here may remove it.
+
+The pass runs before every wrapped command reaches Git,
+and again in the commit service before its landing waits for the index,
+so a commit is not withdrawn over a lock the wrapper can prove dead.
+It reads the Git directories by their own entries,
+skips the object store and the logs,
+starts no Git,
+and costs one walk of a Git directory's entries on a repository that holds no lock.
+`SPEC.md`,
+"The lock files a killed command left,
+and the record that proves its holder gone",
+has the sequence,
+the proof and its limits.
 
 #### A merge saved for a later command
 
@@ -4056,7 +4139,8 @@ none is waited out or retried on the moved head yet:
   The commit service remains the only writer of a commit,
   so a command that cannot reach it changes nothing and stops.
 - The service does not answer within `ANSWER_CEILING` (20 minutes,
-  heartbeats or not):
+  heartbeats or not)
+  after the lock pass has cleared any lock of a holder the wrapper's record proves gone:
   the client withdraws the request,
   so it
    never lands later by itself,
@@ -5169,8 +5253,13 @@ on the blocking pool and never on the landing thread:
   `rebase` or `reset` exits 0,
   the client compares a digest of the rules text it would load before and after,
   and when it differs sends a one-way `warm` message to the service of that worktree that already runs.
-  The client never starts a service or a process for this,
-  and a command whose rules text did not change reads two small files and sends nothing.
+  The client writes no unit,
+  asks no manager for a start,
+  and starts no process for this;
+  the service it found by its start arguments is asked,
+  and a service killed between that look and the connection is started by the connection itself,
+  because the socket unit keeps listening.
+  A command whose rules text did not change reads two small files and sends nothing.
 
 The client still compiles on a cache miss,
 so a commit that starts before the warm ends compiles as well (the two compiles race and the cache keeps one result).
@@ -5186,7 +5275,7 @@ The question is asked only when the cache holds no artifact for that text,
 which one `stat` answers,
 so a warm cache pays nothing beside the read it always made.
 
-Two cases keep the write on the command's path,
+These cases keep the write on the command's path,
 because nothing else can make it:
 
 - a machine where no service runs for that worktree,
@@ -5196,7 +5285,17 @@ because nothing else can make it:
   since the service's own environment carries no such variable and it would compile the configuration's files
   (or the default appendix) instead.
   A configuration that names files wins over the variable,
-  so a repository with both lists leaves them to the service.
+  so a repository with both lists leaves them to the service;
+- a service that takes no connection within its bound, or a look at the processes that gives no answer.
+  The request's look is made within 250 ms (`wait_ceilings.rs`,
+  `WARM_SCAN_CEILING`) and its connection within 250 ms (`WARM_REQUEST_CONNECT_CEILING`),
+  so a process stuck in the kernel and a service whose queue of unaccepted connections is full,
+  which is what a service stopped inside its own process leaves,
+  each cost the command a ceiling and no more;
+  a request that is not made is not sent,
+  and the command compiles and publishes the rules itself.
+  The line that follows the connection is a few hundred bytes into a send buffer of 212,992 bytes,
+  so it is taken even by a service that reads nothing.
 
 The artifact itself is published without a file or directory sync:
 a reader validates its magic,
