@@ -110,7 +110,7 @@ impl MergePusherAwaiting for PushMergeThroughGitAwaiting<'_> {
 /// ```ts
 /// function followedSentence(advanced: Advanced, branch: string): string;
 /// ```
-fn followed_sentence(advanced: &Advanced, branch: &str) -> String {
+fn followed_sentence(advanced: &Advanced, branch: &str, merge_oid: &str) -> String {
     return match advanced {
         Advanced::Here { kept: false } => format!("and {branch} and this worktree are now at it"),
         Advanced::Here { kept: true } => format!(
@@ -143,8 +143,21 @@ fn followed_sentence(advanced: &Advanced, branch: &str) -> String {
                     worktree.display()
                 )
             } else {
+                // What: the step that finishes this checkout, named with the commit whose tree it must hold.
+                // Why: `git merge --ff-only` says "Already up to date." here, because the branch already names the merge,
+                //      and a `read-tree` refuses while the person's own change stands; the per-path checkout names the
+                //      commit and writes exactly those paths, which is why it is the step printed
+                //      (a review of commit `6c39c3719a`, its defect 2).
+                let from: &str = match shows.as_deref() {
+                    Some(named) if named.strip_prefix("refs/heads/").unwrap_or(named) == branch => merge_oid,
+                    _ => "HEAD",
+                };
                 format!(
-                    "and {branch} is now at it; the worktree at {}, which shows {there}, still differs from it on {} and was left as it is ({reason}), so a commit there would record those files as they are",
+                    "and {branch} is now at it; the worktree at {}, which shows {there}, still differs from it on {} and was left as it is ({reason}), \
+                     so a commit there would record the older files: `git -C {} checkout {from} -- {}` writes the branch's own files there \
+                     (one command per path when that list was cut, and quote a name that holds a space), and it overwrites what those files hold, so keep a copy of them first",
+                    worktree.display(),
+                    crate::auto_push_dirty_paths::listed(paths),
                     worktree.display(),
                     crate::auto_push_dirty_paths::listed(paths)
                 )
@@ -207,6 +220,11 @@ pub async fn integrate_and_push_awaiting(
     // The remote tip a merge was pushed against, with the refusal it got: a remote that still shows that tip did not
     // move, so the refusal was a rule and not a race.
     let mut refused_against: Option<(String, PushAttempt)> = None;
+    // What: the merge this run published, once its push has been tried.
+    // Why: a push command can report a failure after the remote took what it sent (a kill, a connection dropped after
+    //      acceptance), and the next attempt then finds the remote's tip to be this very merge: a push that published a
+    //      merge is never reported as a failed push (a review of commit `6c39c3719a`, its defect 3).
+    let mut published: Option<String> = None;
     for attempt in 1..=MAX_RECONCILE_ATTEMPTS {
         let remote_tip: String = match (fetch_remote_tip_awaiting(git, &destination)).await? {
             Ok(tip) => tip,
@@ -247,6 +265,19 @@ pub async fn integrate_and_push_awaiting(
                     "the remote tip is behind the branch; the rejection was not a divergence",
                 );
                 return Ok(Integrated::NotDivergent(rejected));
+            }
+            (_, Some(true)) if published.as_deref() == Some(remote_tip.as_str()) => {
+                debug(
+                    TAG,
+                    "the remote's tip is the merge this push made: what was reported as a failure was published",
+                );
+                return Ok(Integrated::Finished(PushAttempt {
+                    exit_code: 0,
+                    output: format!(
+                        "{line_prefix}{remote}/{short} is the merge {remote_tip} this push made, so the merge was published; \
+                         the push command's own report of a failure came after the remote had taken it.",
+                    ),
+                }));
             }
             (_, Some(true)) if plan.explicit => {
                 debug(
@@ -303,6 +334,8 @@ pub async fn integrate_and_push_awaiting(
             ),
         );
         let pushed: PushAttempt = (push_merge.push_merge_awaiting(&destination, &merge_oid)).await?;
+        // The merge exists and its push has been tried; whether the remote took it is what the next attempt's fetch says.
+        published = Some(merge_oid.clone());
         if pushed.exit_code == 0 {
             let followed: String = match plan.pushed.branch() {
                 None => String::from("and no local branch follows it"),
@@ -320,7 +353,7 @@ pub async fn integrate_and_push_awaiting(
                             advice: advice_to_move(&merge_oid, "in the worktree that has it checked out"),
                         },
                     };
-                    followed_sentence(&advanced, branch)
+                    followed_sentence(&advanced, branch, &merge_oid)
                 }
             };
             let mut merged_parts: String = String::new();
