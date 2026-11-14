@@ -728,11 +728,11 @@ fn a_git_that_never_answers_costs_the_install_its_worktree_list_within_a_stated_
     store.write_version(CLEANUP_OLD, &["program"]);
     store.write_version(CLEANUP_NAMED, &["program"]);
     fs::write(store.root().join(".mpm-shadow-removal-unfinished"), b"").expect("leave the marker the pass runs for");
-    // A `git` that answers nothing: the stand-in waits on its own sleep, which ends long before the test's deadline
-    // only if something stops it.
+    // A `git` that answers nothing: the stand-in becomes a sleep, so what the runner stops is the sleep itself and
+    // the control leaves nothing behind. The sleep is bounded so a run that outlives this test ends too.
     let standin = store.directory.path().join("standin");
     fs::create_dir_all(&standin).expect("make the stand-in directory");
-    fs::write(standin.join("git"), "#!/bin/sh\nsleep 300\n").expect("write the stand-in");
+    fs::write(standin.join("git"), "#!/bin/sh\nexec sleep 300\n").expect("write the stand-in");
     #[cfg(unix)]
     {
         /// Imports `PermissionsExt` from `std::os::unix::fs`.
