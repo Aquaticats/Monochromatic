@@ -88,6 +88,8 @@ measuring `298,922` bytes;
 `known-source-controls.json` confirms that the scanner retained the inspected Skia/PDFium mappings,
 WebRTC file writer,
 and ANGLE/Dawn loader calls.
+`dependencies-candidates.jsonl.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Browser UI fonts use synchronous Skia file access under a shared manager lock
 

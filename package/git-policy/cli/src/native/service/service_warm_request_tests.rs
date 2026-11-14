@@ -8,6 +8,7 @@ use super::*;
 use std::io::{BufRead, BufReader};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::net::UnixListener;
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use crate::wait_ceilings::WARM_SCAN_CEILING;
 
@@ -170,7 +171,7 @@ fn a_request_into_a_queue_nothing_accepts_ends_at_its_bound() {
     // A queue of no depth takes one connection, and every one after it waits for an accept nothing does.
     let _filling: std::os::unix::net::UnixStream = std::os::unix::net::UnixStream::connect(socket.as_path()).expect("the queue takes one connection");
     let began: Instant = Instant::now();
-    let sent: bool = ask_the_service_at(socket.as_path(), Path::new("/a/repository/.git"), Path::new("/a/repository"));
+    let sent: bool = ask_the_service_at(&Bind::Path(socket.clone()), Path::new("/a/repository/.git"), Path::new("/a/repository"));
     let waited: Duration = began.elapsed();
     assert!(!sent, "nothing was sent into a queue nothing accepts");
     assert!(waited >= WARM_REQUEST_CONNECT_CEILING, "the ceiling is what ended the wait, and it took {waited:?}");
@@ -190,7 +191,7 @@ fn a_request_into_a_socket_that_accepts_is_the_clients_warm_line() {
         let _read = BufReader::new(accepted).read_line(&mut line);
         let _sent = told.send(line);
     });
-    assert!(ask_the_service_at(socket.as_path(), Path::new("/a/repository/.git"), Path::new("/a/repository")), "the request is sent");
+    assert!(ask_the_service_at(&Bind::Path(socket.clone()), Path::new("/a/repository/.git"), Path::new("/a/repository")), "the request is sent");
     let line: String = heard.recv_timeout(WARM_REQUEST_CONNECT_CEILING * 10).expect("the service takes the line");
     let mut expected: String = encode_client(&ClientMessage::Warm { git_dir: PathBuf::from("/a/repository/.git"), repository: PathBuf::from("/a/repository") });
     expected.push('\n');

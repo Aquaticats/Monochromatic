@@ -139,7 +139,7 @@ fn a_changed_pin_is_a_resolution_edit_and_offline_lock_refuses_it() {
     let verdict = compare(&sample_plan(), &parsed);
     assert_eq!(verdict.resolution_edits.len(), 1);
     assert_eq!(verdict.resolution_edits[0].0, "bin");
-    assert!(verdict.resolution_edits[0].1.contains(&"request".to_string()));
+    assert!(verdict.resolution_edits[0].1.iter().any(|name| return name == "request"));
     let error = project(&sample_plan(), &parsed.lock).expect_err("a pin change needs update");
     assert_eq!(error.kind, ErrorKind::Drift);
     assert!(error.message.contains("mpm-shadow update"), "{error}");

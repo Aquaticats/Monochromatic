@@ -1,0 +1,311 @@
+diff --git a/packages/core/src/internal/array-view.test.ts b/packages/core/src/internal/array-view.test.ts
+new file mode 100644
+index 00000000..8ee96c18
+--- /dev/null
++++ b/packages/core/src/internal/array-view.test.ts
+@@ -0,0 +1,118 @@
++/**
++ * Unit tests for array-shaped views of elements that live in another
++ * structure.
++ */
++import { describe, test } from "node:test";
++import * as assert from "node:assert/strict";
++import { virtualArrayOf } from "./array-view.ts";
++
++const ITEMS = ["a", "b", "c", "d"] as const;
++
++function elementsOf(items: readonly string[]) {
++  return {
++    length: items.length,
++    get: (index: number) => items[index],
++  };
++}
++
++describe("virtualArrayOf", () => {
++  test("presents the elements of its source as an array", () => {
++    const view = virtualArrayOf(elementsOf(ITEMS));
++
++    assert.ok(Array.isArray(view));
++    assert.equal(view.length, ITEMS.length);
++    assert.equal(view[0], "a");
++    assert.equal(view[3], "d");
++    assert.equal(view[4], undefined);
++    assert.deepEqual(view.slice(1), ["b", "c", "d"]);
++    assert.deepEqual([...view], [...ITEMS]);
++    assert.deepEqual(view.map((item) => item.toUpperCase()), [
++      "A",
++      "B",
++      "C",
++      "D",
++    ]);
++    assert.ok(view.every((item) => typeof item === "string"));
++    assert.equal(view.join(","), ITEMS.join(","));
++    assert.equal(view.indexOf("c"), 2);
++    assert.equal(view.at(-1), "d");
++    assert.deepEqual(Object.keys(view), ["0", "1", "2", "3"]);
++    assert.equal(JSON.stringify(view), JSON.stringify(ITEMS));
++    assert.ok(1 in view);
++    assert.ok(Object.hasOwn(view, "2"));
++    assert.deepEqual(view, ITEMS);
++    assert.deepEqual(view, ["a", "b", "c", "d"]);
++  });
++
++  test("reports a shorter length than its source could serve", () => {
++    // The source serves a whole shared array and presents a window of it, so
++    // an element outside the window must not leak through.
++    const shared = ["a", "b", "c", "d"];
++    const view = virtualArrayOf({
++      length: 2,
++      get: (index) => shared[index],
++    });
++
++    assert.equal(view.length, 2);
++    assert.deepEqual([...view], ["a", "b"]);
++    assert.equal(view[2], undefined);
++    assert.deepEqual(Object.keys(view), ["0", "1"]);
++    assert.deepEqual(view.slice(0), ["a", "b"]);
++    assert.deepEqual(view, ["a", "b"]);
++  });
++
++  test("an empty view is an empty array", () => {
++    const view = virtualArrayOf(elementsOf([]));
++
++    assert.ok(Array.isArray(view));
++    assert.equal(view.length, 0);
++    assert.deepEqual([...view], []);
++    assert.deepEqual(view, []);
++    assert.equal(JSON.stringify(view), "[]");
++    assert.equal(view.at(-1), undefined);
++  });
++
++  test("carries symbol properties the way an array does", () => {
++    // annotateFreshArray() attaches annotations to array states as a symbol
++    // property, and the parser reads them back through the same view.
++    const annotation = Symbol.for("@test/array-view-annotation");
++    const view = virtualArrayOf(elementsOf(ITEMS)) as readonly string[] & {
++      [key: symbol]: unknown;
++    };
++
++    view[annotation] = "mark";
++    assert.equal(view[annotation], "mark");
++  });
++
++  test("refuses to write an element or the length", () => {
++    const writable = virtualArrayOf(elementsOf(ITEMS)) as string[];
++
++    assert.throws(() => {
++      writable[0] = "z";
++    }, TypeError);
++    assert.throws(() => {
++      writable.length = 0;
++    }, TypeError);
++    assert.throws(() => {
++      delete writable[1];
++    }, TypeError);
++    assert.deepEqual(writable, ITEMS);
++  });
++
++  test("two views of one source do not see each other's window", () => {
++    const shared = ["a", "b", "c", "d"];
++    const first = virtualArrayOf({
++      length: 3,
++      get: (index) => shared[index],
++    });
++    const second = virtualArrayOf({
++      length: 1,
++      get: (index) => shared[index + 2],
++    });
++
++    assert.deepEqual(first, ["a", "b", "c"]);
++    assert.deepEqual(second, ["c"]);
++    assert.equal(first[2], "c");
++    assert.equal(second[0], "c");
++  });
++});
+diff --git a/packages/core/src/internal/array-view.ts b/packages/core/src/internal/array-view.ts
+new file mode 100644
+index 00000000..acd15521
+--- /dev/null
++++ b/packages/core/src/internal/array-view.ts
+@@ -0,0 +1,181 @@
++/**
++ * Array-shaped views of elements that live in another structure.
++ *
++ * Two values the parser hands around grow or shrink by one slot per accepted
++ * token: the state array of `multiple()` and the context's input buffer.
++ * Both are typed `readonly T[]` and are read by indexing, spreading and
++ * `Array.prototype` methods, so a persistent structure cannot replace them
++ * without a type or reader change.  This module keeps the array type and the
++ * readers: the value is a proxy over a real array, every index read is served
++ * from the structure that holds the elements, and no version copies a slot it
++ * did not change.
++ *
++ * The proxy answers `Array.isArray()`, indexing, `length`, iteration, the
++ * `Array.prototype` methods, property enumeration and `node:assert` deep
++ * equality as an array of the same elements; *array-view.test.ts* checks each
++ * of those on Node, Deno and Bun.
++ *
++ * One handler serves every view and finds its elements by the proxy target, so
++ * building a view allocates one empty array and one proxy and no closures: a
++ * view is made once per accepted token, and a per-view handler would cost more
++ * than the copies it removes on ordinary command lines.
++ *
++ * @internal
++ * @since 1.4.0
++ * @module
++ */
++
++/**
++ * Supplies the elements of an array-shaped value.
++ *
++ * @template T The type of the elements.
++ * @internal
++ * @since 1.4.0
++ */
++export interface ArrayElements<T> {
++  /** The number of elements the value presents. */
++  readonly length: number;
++
++  /**
++   * Reads the element at an index.
++   *
++   * @param index The index to read, counted from the start.
++   * @returns The element at the index, or `undefined` when out of range.
++   */
++  get(index: number): T | undefined;
++}
++
++/** Elements behind each proxy target {@link virtualArrayOf} created. */
++const elementsByTarget = new WeakMap<object, ArrayElements<unknown>>();
++
++/**
++ * Reads the elements behind a proxy target.
++ *
++ * @param target The target array of a view.
++ * @returns The elements the view presents.
++ */
++function elementsOf(target: object): ArrayElements<unknown> {
++  const elements = elementsByTarget.get(target);
++  if (elements === undefined) {
++    throw new TypeError("An array view has no elements behind it.");
++  }
++  return elements;
++}
++
++/**
++ * Returns the index a property key names, when it names a present one.
++ *
++ * `Number()` also accepts `"1.0"`, `" 1"` and `"0x1"`, so the conversion is
++ * only accepted when it round-trips to the text an array index would have.
++ *
++ * @param property The property key being read.
++ * @param length The number of elements the value presents.
++ * @returns The index the key names, or `undefined` when it names another key.
++ */
++function indexOfProperty(
++  property: PropertyKey,
++  length: number,
++): number | undefined {
++  if (typeof property !== "string") return undefined;
++  const index = Number(property);
++  if (!Number.isInteger(index) || index < 0 || index >= length) {
++    return undefined;
++  }
++  return String(index) === property ? index : undefined;
++}
++
++/**
++ * Refuses a write to an element of a view.
++ *
++ * @throws {TypeError} Always, because the elements belong to a parser state or
++ *         an input buffer that later versions share.
++ */
++function refuseWrite(): never {
++  throw new TypeError(
++    "An array view of parser state or input cannot be modified.",
++  );
++}
++
++// One handler serves every view: each trap reads the view's elements from its
++// target array, so no element type is known here.  `never[]` is the empty
++// element type, and a proxy handler is bivariant in its target type, so the
++// result of `new Proxy()` keeps the caller's element type.
++const handler: ProxyHandler<never[]> = {
++  get(target, property, receiver) {
++    const elements = elementsOf(target);
++    if (property === "length") return elements.length;
++    const index = indexOfProperty(property, elements.length);
++    if (index !== undefined) return elements.get(index);
++    return Reflect.get(target, property, receiver);
++  },
++  has(target, property) {
++    const elements = elementsOf(target);
++    if (property === "length") return true;
++    if (indexOfProperty(property, elements.length) !== undefined) return true;
++    return Reflect.has(target, property);
++  },
++  ownKeys(target) {
++    const elements = elementsOf(target);
++    const keys: (string | symbol)[] = [];
++    for (let index = 0; index < elements.length; index += 1) {
++      keys.push(String(index));
++    }
++    return [...keys, ...Reflect.ownKeys(target)];
++  },
++  getOwnPropertyDescriptor(target, property) {
++    // `length` is a non-configurable own property of the target array and the
++    // proxy may not hide it, so it is reported from the target.  Index
++    // descriptors come from the elements, which is what makes deep equality
++    // and property enumeration see the presented elements.
++    if (property === "length") {
++      return Reflect.getOwnPropertyDescriptor(target, property);
++    }
++    const elements = elementsOf(target);
++    const index = indexOfProperty(property, elements.length);
++    if (index !== undefined) {
++      return {
++        value: elements.get(index),
++        writable: true,
++        enumerable: true,
++        configurable: true,
++      };
++    }
++    return Reflect.getOwnPropertyDescriptor(target, property);
++  },
++  set(target, property, value) {
++    if (
++      property === "length" ||
++      indexOfProperty(property, elementsOf(target).length) !== undefined
++    ) {
++      refuseWrite();
++    }
++    return Reflect.set(target, property, value);
++  },
++  deleteProperty(target, property) {
++    if (indexOfProperty(property, elementsOf(target).length) !== undefined) {
++      refuseWrite();
++    }
++    return Reflect.deleteProperty(target, property);
++  },
++};
++
++/**
++ * Builds an array that presents elements stored elsewhere.
++ *
++ * The returned value is a proxy over an empty array, so `Array.isArray()`
++ * stays true and `Array.prototype` methods work; writes to its indices and to
++ * `length` throw, because its elements belong to a parser state or an input
++ * buffer that later versions share.
++ *
++ * @template T The type of the elements.
++ * @param elements The reader that serves the elements.
++ * @returns An array-shaped view of the elements.
++ * @throws {TypeError} When an element or `length` is written.
++ * @internal
++ * @since 1.4.0
++ */
++export function virtualArrayOf<T>(elements: ArrayElements<T>): readonly T[] {
++  const target: T[] = [];
++  elementsByTarget.set(target, elements);
++  return new Proxy(target, handler);
++}

@@ -7,7 +7,22 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **16** agents run on this machine at once,
+At most **24** agents run on this machine at once since 2026-11-14T08:54:33-05:00,
+by the owner's answer of that morning
+("Resume at 24":
+halve the gap between 16, which held, and 32 again,
+with the probe ending the level on two slow readings in a row as before;
+`doc/handover/cli-git-rust-implementation.md`,
+"Answers on the owner's return").
+Should twenty-four fail,
+the rule gives twenty.
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-24-20261114T085433`
+(eight hours,
+no successor)
+and the probe a unit named `disk-ceiling-probe-level-24-` with the second it was started in.
+What stood before,
+and why:
+at most 16 agents ran at once,
 counted across every session
 (raised from 4 to 8 on 2026-11-13 at 11:57,
 from 8 to 16 at 12:58:50
@@ -115,7 +130,9 @@ no load is made for the search.
 Levels go four,
 then double until one fails,
 then halve the gap between the last that held and the one that failed.
-The search is done again after the new drive is in (expected 2026-11-15).
+The search is done again after the new drive is in
+(expected 2026-11-17;
+the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-11-15).
 
 ## Readings
 
@@ -962,3 +979,40 @@ two things changed in the same hours.
   and the next cleanup,
   which the system starts by its timer.
   The probe records until 10:48 and is started again then.
+  (It was stopped at 08:54:33 instead,
+  when the level went to twenty-four and a probe that ends on slow readings took its place.)
+
+#### Level 24, started 2026-11-14T08:54:35-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+
+- **To 09:22:48**:
+  twenty-nine readings,
+  the agents going rising from five to seventeen as the places filled.
+  One slow reading of the home drive:
+  7,754 ms at 08:55:36,
+  with eight agents going,
+  the kernel's `some` I/O pressure at 22 percent over ten seconds,
+  and neither `snapper-cleanup.service` nor `snapper-timeline.service` running.
+  The build volume took 2,958 ms once,
+  at 09:03:44.
+  Never two slow readings in a row,
+  so the level stands.
+- **A reading above the level: twenty-eight agents from 09:43 to 09:45**
+  (the probe's last four readings to 09:45:58,
+  and `systemctl` at 09:44:26 and 09:45:50),
+  four over twenty-four,
+  because the loop that fills the places does not count a review it has asked for until its launcher starts it.
+  From 09:23:48 to 09:45:58:
+  twenty-three readings,
+  none slow,
+  the home drive 204 ms at most.
+  Nothing was stopped.
+- **What that reading says about the lead**:
+  a stall of the same kind,
+  shorter,
+  with no snapshot cleanup running and fewer agents than any level that failed.
+  So the cleanup is not the only thing that stalls this drive.
+  In the minutes before it this session installed a wrapper release and made several commits in the main checkout;
+  nothing was measured that ties the reading to either.

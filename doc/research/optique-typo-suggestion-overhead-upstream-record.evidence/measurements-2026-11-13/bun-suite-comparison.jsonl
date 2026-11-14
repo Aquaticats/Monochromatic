@@ -1,0 +1,8 @@
+{"step":"worktree-add","exit":0,"tail":["HEAD is now at 1d6e4594 Merge pull request #1114 from dahlia/feat/with-suggestions","Preparing worktree (detached HEAD 1d6e4594)"]}
+{"step":"baseline-install-offline","exit":0,"tail":["Progress: resolved 537, reused 537, downloaded 0, added 537, done",".../sharp@0.34.5/node_modules/sharp install$ node install/check.js || npm run build",".../sharp@0.34.5/node_modules/sharp install: Done","Done in 4.5s using pnpm v11.28.6"]}
+{"step":"baseline-build","exit":0,"tail":["ℹ [CJS] dist/terminal-width.d.cts                 0.77 kB │ gzip:  0.43 kB","ℹ [CJS] 44 files, total: 594.60 kB","✔ Build complete in 1392ms","$ tsdown"]}
+{"step":"baseline-suite-first","exit":1,"tail":[" 7668 pass"," 157 fail"," 2 errors","Ran 7825 tests across 68 files. [21.11s]"]}
+{"step":"patched-suite","exit":1,"tail":[""," 8457 pass"," 155 fail","Ran 8612 tests across 69 files. [21.73s]"]}
+{"step":"baseline-suite-second","exit":1,"tail":[" 7668 pass"," 157 fail"," 2 errors","Ran 7825 tests across 68 files. [21.64s]"]}
+{"step":"worktree-remove","exit":0,"tail":[""]}
+{"comparison":{"baselineFirstFailures":154,"baselineSecondFailures":154,"patchedFailures":154,"failOnlyWithPatch":[],"failInBothBaselinesNotWithPatch":[],"summaries":[[""," 7668 pass"," 157 fail"," 2 errors","Ran 7825 tests across 68 files. [21.11s]"],["(fail) completion module > nu shell completion > should complete again after a quoted common prefix",""," 8457 pass"," 155 fail","Ran 8612 tests across 69 files. [21.73s]"],[""," 7668 pass"," 157 fail"," 2 errors","Ran 7825 tests across 68 files. [21.64s]"]]}}

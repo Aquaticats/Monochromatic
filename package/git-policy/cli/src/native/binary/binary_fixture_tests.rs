@@ -6,6 +6,7 @@ use super::support::{
     FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, missing_fixture_root_report, give_service_environment, remove_patiently, repository, service_runtime,
     service_is_serving, settle_fixture, spawn_owned, start_fixture_service,
 };
+use git_policy_cli::service_server::Bind;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -447,7 +448,7 @@ fn a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_i
     let listener = std::os::unix::net::UnixListener::bind(&socket).expect("a listening socket");
     assert!(std::os::unix::net::UnixStream::connect(&socket).is_ok(), "the kernel accepts a connection for a listener that has not answered");
     let began: Instant = Instant::now();
-    let silent: bool = !service_is_serving(&socket);
+    let silent: bool = !service_is_serving(&Bind::Path(socket.clone()));
     assert!(silent, "no greeting came, so the service is not serving");
     assert!(began.elapsed() < SILENT_LISTENER_WAIT * 20, "the check ended within its own bound");
     let greeter = std::thread::spawn(move || {
@@ -456,7 +457,7 @@ fn a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_i
             let _greeted = stream.write_all(b"{\"greeting\":true}\n");
         }
     });
-    assert!(service_is_serving(&socket), "a listener that greets is serving");
+    assert!(service_is_serving(&Bind::Path(socket)), "a listener that greets is serving");
     greeter.join().expect("the greeter ends");
     let _removed = std::fs::remove_dir_all(runtime.as_path());
 }
