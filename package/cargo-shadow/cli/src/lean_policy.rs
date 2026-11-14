@@ -156,10 +156,13 @@ pub const RUN_DEADLINE_SECONDS: u64 = 5 * 3_600;
 /// `FREE_SPACE_FLOOR_BYTES` = 100 GiB (`package/pi-shared/subagent-driver/src/free-space-floor.ts`,
 /// "about eleven agents' builds");
 /// the volume lost about 36 GiB an hour on 2026-11-13
-/// (`btrfs filesystem du` listing of the same day), and the longest a pass may run is `RUN_DEADLINE_SECONDS` = 5 h,
+/// (`btrfs filesystem du` listing of the same day),
+/// and the longest a pass may run is `RUN_DEADLINE_SECONDS` = 5 h,
 /// so a pass cannot be longer than 180 GiB in coming;
 /// and the largest build tree measured (`0b/ab24900891e355/debug`,
-/// 15.83 GiB, `HOST_PROFILE_CAP_BYTES`) has to fit after the removal, rounded up to 16 GiB.
+/// 15.83 GiB,
+/// `HOST_PROFILE_CAP_BYTES`) has to fit after the removal,
+/// rounded up to 16 GiB.
 /// 100 + 180 + 16 = 296.
 /// A proposal,
 /// sized from other rules' measurements rather than from one of its own,
@@ -189,7 +192,8 @@ pub const TOOLCHAIN_FOLDER_AGE_SECONDS: i64 = 6 * 3_600;
 /// which is three toolchain folders of a full shard set,
 /// and the pass stops between two shards and the next one continues.
 /// A proposal,
-/// and the removal is off every build's waiting path: it runs in the service's own pass.
+/// and the removal is off every build's waiting path:
+/// it runs in the service's own pass.
 pub const TOOLCHAIN_FOLDER_PASS_SECONDS: u64 = 30 * 60;
 
 /// A drive reading over this is slow:

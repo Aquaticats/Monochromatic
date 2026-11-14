@@ -1278,7 +1278,8 @@ Seven mechanisms
   The removal is gentle and can be taken up again:
   the folder is renamed into `<base>/.cargo-shadow-retiring` in one step,
   and then removed one shard at a time,
-  in the idle disk class (`ionice --class idle`, asked for by the pass itself),
+  in the idle disk class,
+  which the pass asks for itself (`ionice --class idle`),
   with one write-and-sync reading of the drive before the first shard and after each,
   and the pass stops when two readings in a row are over the slow bound,
   when its own time bound is gone,

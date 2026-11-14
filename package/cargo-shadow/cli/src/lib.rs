@@ -1088,6 +1088,10 @@ pub mod lean_command;
 /// Named reads of paths and text shared by the lean-folder tools.
 pub mod lean_text;
 
+/// The removal of one toolchain folder's pieces,
+/// and the drive it is measured on.
+pub mod lean_toolchain_folder_pieces;
+
 /// Mechanism G:
 /// the removal of the build folders of toolchains nothing builds with any more.
 pub mod lean_toolchain_folders;

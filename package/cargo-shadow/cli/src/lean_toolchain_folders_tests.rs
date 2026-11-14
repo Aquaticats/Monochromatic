@@ -14,20 +14,15 @@ use std::time::Duration;
 use crate::lean_guard::GuardEnvironment;
 use crate::lean_identity::{Deadline, now_seconds};
 use crate::lean_test_support::{DAY, age_everything, set_time};
+use crate::lean_toolchain_folder_pieces::{Volume, arm_stop_after_pieces, children_of, disarm_stop_after_pieces, folder_name_of, retiring_directory};
 use crate::lean_toolchain_folders::{
     Candidate,
     ToolchainFolderLimits,
-    Volume,
-    arm_stop_after_pieces,
     candidates,
     changed_since,
-    children_of,
-    disarm_stop_after_pieces,
-    folder_name_of,
     identity_of_candidate,
     pieces_of,
     retire_toolchain_folders,
-    retiring_directory,
 };
 use crate::test_scratch::scratch;
 
@@ -88,7 +83,8 @@ fn environment() -> GuardEnvironment {
     return GuardEnvironment::real();
 }
 
-/// The deadline of these tests: far enough away that it never decides anything.
+/// The deadline of these tests,
+/// far enough away that it never decides anything.
 fn deadline() -> Deadline {
     return Deadline::after(Duration::from_secs(600));
 }
