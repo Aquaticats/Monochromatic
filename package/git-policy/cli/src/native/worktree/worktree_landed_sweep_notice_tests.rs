@@ -63,7 +63,8 @@ fn a_removed_worktree_says_the_ignored_files_went_with_it() {
 /// Why:
 ///  The owner's decision lets both go,
 ///  and each thing that goes is logged
-///  (`doc/handover/cli-git-rust-implementation.md`, 2026-11-12T13:04:14-05:00):
+///  (`doc/handover/cli-git-rust-implementation.md`,
+///  2026-11-12T13:04:14-05:00):
 ///  a person who kept a repository inside an ignored directory has nothing else to look for it with.
 ///
 /// In TS you'd write (pseudocode):
