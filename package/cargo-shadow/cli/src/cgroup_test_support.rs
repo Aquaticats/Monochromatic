@@ -4,14 +4,19 @@
 //! stopped when the test ends however it ends,
 //! and the proof that a test used delegated containment.
 //! Why:
-//! A test that needs a delegated scope must fail loudly where none can be had,
-//! not pass without proving anything;
-//! `CARGO_SHADOW_ALLOW_NO_CGROUP=1` turns that into a printed skip for hosts that cannot delegate (some CI runners).
+//! A test that needs a delegated scope never passes on a host that cannot give it one:
+//! it panics with a line that names the test and says the test did not run,
+//! because a runner counts a test that returns early as passed.
+//! The package's `test` task reads those lines:
+//! it asks the question first,
+//! through `cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope`,
+//! and where the answer is no it leaves those tests out of the run by name,
+//! so its totals are of the tests that ran.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! export function delegatedRoute(): Route | undefined
-//! export function startInScope(command: Command): TestScope | undefined
+//! export function delegatedRoute(): Route  // throws, naming the test, where none can be had
+//! export function startInScope(command: Command): TestScope
 //! ```
 
 /// Reads the records the control group writes.
@@ -29,40 +34,51 @@ use std::time::{Duration, Instant};
 /// and the detection of the route they take.
 use crate::control_group::{ControlGroup, Record, Route, RouteSettings, detect_route, parse_record};
 
-/// The environment variable that lets the tests that need a delegated scope skip,
-/// with a printed reason,
-/// where none can be had.
-pub(crate) const ALLOW_NO_CGROUP: &str = "CARGO_SHADOW_ALLOW_NO_CGROUP";
-
 /// How long a test gives a scope to stop.
 const TEST_STOP: Duration = Duration::from_secs(10);
 
 /// How long a test waits for a state it is looking for.
 const STATE_WAIT: Duration = Duration::from_secs(20);
 
+/// The prefix of the line a test that cannot run prints,
+/// which names the test between brackets.
+/// A reader or a script can find it,
+/// and the `test` task reads it to leave those tests out of its run by name.
+pub(crate) const NOT_RUN_PREFIX: &str = "cargo-shadow tests: not run [";
+
 /// What:
-/// `pub(crate) fn delegated_route() -> Option<Route>` finds the route of this host,
-/// or panics with the missing capability,
-/// or returns `None` after printing a skip when `CARGO_SHADOW_ALLOW_NO_CGROUP` is set.
+/// `pub(crate) fn delegated_route() -> Route` finds the route of this host,
+/// and panics with a line naming this test where the host has none.
 /// Why:
-/// See the module comment.
+/// See the module comment:
+/// no test may pass where the host cannot give it a scope,
+/// and a runner reports an early return as a pass,
+/// so the test fails with the reason and the command that runs it elsewhere instead.
+/// The test's own name is the name the runner gave its thread.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function delegatedRoute(): Route | undefined
+/// export function delegatedRoute(): Route  // throws, naming the test, where none can be had
 /// ```
-pub(crate) fn delegated_route() -> Option<Route> {
+pub(crate) fn delegated_route() -> Route {
     return match detect_route(&RouteSettings::default()) {
-        Ok(found) => Some(found),
+        Ok(found) => found,
         Err(unavailable) => {
-            assert!(
-                std::env::var_os(ALLOW_NO_CGROUP).is_some(),
-                "this host cannot give the test a delegated scope ({unavailable}); set {ALLOW_NO_CGROUP}=1 to skip the tests that need one"
-            );
-            eprintln!("SKIPPED (not evidence for this schedule): no delegated scope ({unavailable}); unset {ALLOW_NO_CGROUP} for a certification run");
-            None
+            let test: String = std::thread::current().name().map(str::to_string).unwrap_or_else(|| { return "<a test the runner did not name>".to_string(); });
+            panic!("{NOT_RUN_PREFIX}{test}]: this host cannot give it a delegated control group ({unavailable}); it runs where a user manager answers on a cgroup v2 mount, for example inside `systemd-run --user --scope --property=Delegate=yes -- mise run //package/cargo-shadow/cli:test`");
         }
     };
+}
+
+/// What:
+/// `pub(crate) fn this_test_needs_a_delegated_scope()` says that the test it starts in cannot pass without a route,
+/// and panics like `delegated_route` where the host has none.
+/// Why:
+/// Most tests that need a scope do not read the route,
+/// so they say what they need in one line that a reader understands,
+/// instead of discarding a value.
+pub(crate) fn this_test_needs_a_delegated_scope() {
+    let _route: Route = delegated_route();
 }
 
 /// A scope started the way a run starts it,
@@ -94,7 +110,7 @@ impl Drop for TestScope {
 }
 
 /// What:
-/// `pub(crate) fn start_in_scope(command: &mut Command) -> Option<TestScope>` starts the command in a fresh delegated scope,
+/// `pub(crate) fn start_in_scope(command: &mut Command) -> TestScope` starts the command in a fresh delegated scope,
 /// through the same launcher a run uses,
 /// and returns once the program is in the scope (a member is listed).
 /// Why:
@@ -103,31 +119,31 @@ impl Drop for TestScope {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function startInScope(command: Command): TestScope | undefined
+/// export function startInScope(command: Command): TestScope
 /// ```
-pub(crate) fn start_in_scope(command: &mut Command) -> Option<TestScope> {
-    let scope: TestScope = start_in_scope_without_waiting(command)?;
+pub(crate) fn start_in_scope(command: &mut Command) -> TestScope {
+    let scope: TestScope = start_in_scope_without_waiting(command);
     wait_until("the program in the scope", &|| { return scope.group.members().map(|found| { return !found.is_empty(); }).unwrap_or(false); });
-    return Some(scope);
+    return scope;
 }
 
 /// What:
-/// `pub(crate) fn start_in_scope_without_waiting(command: &mut Command) -> Option<TestScope>` starts the command in a fresh
+/// `pub(crate) fn start_in_scope_without_waiting(command: &mut Command) -> TestScope` starts the command in a fresh
 /// delegated scope and returns at once.
 /// Why:
 /// A program that leaves the scope as its first act (the escape probe) is never listed as a member when the caller looks.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function startInScopeWithoutWaiting(command: Command): TestScope | undefined
+/// export function startInScopeWithoutWaiting(command: Command): TestScope
 /// ```
-pub(crate) fn start_in_scope_without_waiting(command: &mut Command) -> Option<TestScope> {
-    let route: Route = delegated_route()?;
+pub(crate) fn start_in_scope_without_waiting(command: &mut Command) -> TestScope {
+    let route: Route = delegated_route();
     let group: ControlGroup = ControlGroup::plan(&route).expect("a scope name");
     let mut launch: Command = group.launcher(&route, command, false);
     launch.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::inherit());
     let child: Child = launch.spawn().expect("starts the launcher");
-    return Some(TestScope { child, group });
+    return TestScope { child, group };
 }
 
 /// What:

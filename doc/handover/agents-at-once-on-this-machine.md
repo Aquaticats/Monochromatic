@@ -130,7 +130,9 @@ no load is made for the search.
 Levels go four,
 then double until one fails,
 then halve the gap between the last that held and the one that failed.
-The search is done again after the new drive is in (expected 2026-11-15).
+The search is done again after the new drive is in
+(expected 2026-11-17;
+the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-11-15).
 
 ## Readings
 
@@ -997,6 +999,16 @@ measured by the coordinating session.
   at 09:03:44.
   Never two slow readings in a row,
   so the level stands.
+- **A reading above the level: twenty-eight agents from 09:43 to 09:45**
+  (the probe's last four readings to 09:45:58,
+  and `systemctl` at 09:44:26 and 09:45:50),
+  four over twenty-four,
+  because the loop that fills the places does not count a review it has asked for until its launcher starts it.
+  From 09:23:48 to 09:45:58:
+  twenty-three readings,
+  none slow,
+  the home drive 204 ms at most.
+  Nothing was stopped.
 - **What that reading says about the lead**:
   a stall of the same kind,
   shorter,

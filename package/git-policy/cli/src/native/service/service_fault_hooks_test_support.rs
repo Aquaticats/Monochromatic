@@ -116,6 +116,25 @@ pub(crate) fn hold_on_any_thread(held: HoldOnAnyThread) {
 }
 
 /// What:
+///  Hold `point` on whichever thread reaches it,
+/// giving the end that says the point was reached and the end that lets it go.
+/// Why:
+///   `hold_on_any_thread` with its two ends made is the one shape every control that holds a point needs,
+/// and a control on a thread of its own can wait for the reach where it stands (`finished_within_at`),
+/// which an async control does with a timeout instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [reached, letGo] = holdThePoint('the-read-at-a-start');
+/// ```
+pub(crate) fn hold_the_point(point: &str) -> (tokio::sync::oneshot::Receiver<()>, std::sync::mpsc::Sender<()>) {
+    let (reached, reached_wait) = tokio::sync::oneshot::channel::<()>();
+    let (let_go, held) = std::sync::mpsc::channel::<()>();
+    hold_on_any_thread(HoldOnAnyThread { point: String::from(point), reached, let_go: held });
+    return (reached_wait, let_go);
+}
+
+/// What:
 ///  A point a control holds without holding the thread that reaches it,
 /// with the end that says the point was reached and the end that lets it go.
 /// Why:

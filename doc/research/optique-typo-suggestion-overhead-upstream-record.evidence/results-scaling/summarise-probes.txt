@@ -1,0 +1,5 @@
+one-option token probe 1.1.1              minima=[23.89,95.513,343.889,1365.601] us/token=[23.89,47.76,85.97,170.7] exponent=1.936
+one-option token probe 1.4.0-dev.2971     minima=[26.761,101.693,368.759,1404.529] us/token=[26.76,50.85,92.19,175.57] exponent=1.9
+separator profile N=1000 1.3.6: 37.647 ms/parse, input-trace 19.432 ms (51.6%), set 51.0%
+separator profile N=4000 1.3.6: 447.248 ms/parse, input-trace 351.685 ms (78.6%), set 78.3%
+across 1000 to 4000 tokens: parse exponent 1.785, input-trace exponent 2.089

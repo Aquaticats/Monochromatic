@@ -2,9 +2,10 @@
 //!  The Git directories whose after-commit work this service instance has been woken for,
 //! kept on disk in the instance's own
 //!  journal,
-//! so that a service that starts again looks at them by itself.
+//! so that a service that starts again looks at them by itself,
+//! and a running service finds a record nothing announced.
 //! Why:
-//!  The service learns which repository to drain only from a client's wake,
+//!  The service learns which repository to drain from a client's wake,
 //! and a client wakes it only after a commit.
 //! A service
 //!  that was killed while it held a claim,
@@ -20,6 +21,22 @@
 //! The name is written by the worker thread before it drains a directory for the first time in a process,
 //! never by the
 //!  thread that lands commits.
+//!   A wake can also be lost while a service runs,
+//! and the record it would have run stays in `pending`:
+//! a wrapper killed
+//!  between promoting a landed commit's push and the wake,
+//! a message the service never read,
+//! and a service that was
+//!  starting at that instant all leave one.
+//! The same notes answer that:
+//! on every look (`look_again`,
+//! one every
+//!  `LOOK_AGAIN_AFTER`) the running service reads them again and lists the records waiting in each,
+//! so a record that exists
+//!  and is due is found whether or not anything woke it.
+//! A landing writes its repository's note before it answers the commit,
+//! so
+//!  even a service that started before that landing finds the promotion that follows it.
 //!
 //! Identity:
 //! an instance is named by a hash of the canonical path of its worktree's Git directory (`service_instance::instance_of`),
@@ -32,6 +49,11 @@
 //!  directory,
 //! not a link.
 //! A repository that moved is another instance and is found by its own wake.
+//! A note is written only for this instance's repository:
+//! every path that writes one,
+//! and the keeping of a note that may be missing,
+//! refuses a directory of another instance,
+//!  so this journal never begins to watch one.
 //! Errors:
 //! only a file that is certainly of no use is removed (it holds no path,
 //! names another instance,
@@ -41,6 +63,21 @@
 //!  after a growing pause (`needs_retry`,
 //! `retry`),
 //! so a refused read or a full disk delays the look and never ends it.
+//! Reading:
+//! a note is read the way every record of this wrapper is read (`private_storage::read_regular_file`),
+//! so a name that holds
+//!  no regular file is answered at once,
+//! said once and left where it is,
+//! and so is a file longer than a note can hold:
+//! a
+//!  pipe is never waited on,
+//! a link is never read through,
+//! and neither is removed,
+//! because no note this store wrote
+//!  is any of those.
+//! A write that finds its own name taken reads what holds it the same way,
+//! and uses the next name
+//!  when no note of this store is there.
 //! Durability:
 //! a file is written whole under a staging name and published by one rename (`write_private_file_unsynced`),
 //! so a kill
@@ -61,10 +98,11 @@
 //! ```
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::{ReadRefusal, create_private_directory_all, read_regular_file, write_private_file_unsynced};
 use crate::push_failure_notice::fnv_hex;
-use crate::service_instance::instance_of;
-use crate::work_item::WORK_DIRECTORY;
+use crate::service_claim_watch_whose_repository_it_is::{of_another_instance, refused_for_another_instance};
+use crate::service_work::work_directory;
+use crate::work_item::{PENDING, WORK_DIRECTORY, state_directory};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -77,13 +115,76 @@ pub const WATCH_DIRECTORY: &str = "claim-watch";
 /// The extension of a watch file.
 const WATCH_EXTENSION: &str = "watch";
 
+/// How long a serving service waits between two looks at these notes.
+/// Why:
+///   A record that exists and is due is found whether or not anything woke the service:
+/// a wrapper killed between writing a record and
+///  the wake that would run it,
+/// a wake lost on a socket that was full or a service that was starting,
+/// and a wake that a
+///  command never sent all leave a record nothing told the running service about.
+/// The look is what finds it,
+/// and
+///  this is the longest it can wait.
+/// Five seconds rather than a minute because the record is a person's backup of a commit they
+///  just made,
+/// and rather than a second because an idle service should not be made to work.
+/// It is also the interval the
+///  client's own silence window has (`HEARTBEAT_SILENCE`),
+/// which is as long as this service lets anything wait without a word;
+/// a round that deferred housekeeping asks for its own wake at its own
+///  `LOOK_AGAIN_AFTER_DEFERRING` (`housekeeping_of_one_round.rs`),
+/// which is the same five seconds for the same reason.
+///  Measured on this host on 2026-11-13
+/// (`measure-idle.ts` in
+/// `${HOME}/temp/agent/pending-push-wake-scratch/measurements`,
+/// its log in
+///  `keep/measurements/idle-ten-minutes.log`):
+/// two services of the same repository shape,
+/// one built from `main` (9376f1722e) with no
+///  look and one from this change,
+/// ran side by side for ten minutes with nothing to do,
+/// each with one note in its journal and an
+///  empty `pending` (debug builds).
+/// Over its 120 looks the service with the look used four clock ticks more than the one without
+/// it,
+/// 0.040 s of processor,
+/// which is 0.0067 % of one,
+/// and 897 more context switches.
+/// That is at most 333
+///  microseconds of processor and 7.5 wake-ups for each look,
+/// so 355 services running together would cost 0.024 % of one processor and
+///  about 500 wake-ups a second between them.
+/// One look is one listing of the notes,
+/// one read for each note,
+/// one `stat` of the work directory it names and one listing of that
+///  directory's `pending` (`look_again`,
+/// traced with `strace` in the same folder).
+/// The bound the words of a queued push name is this one
+/// (`queued_push_line` in `service_handoff.rs`).
+pub const LOOK_AGAIN_AFTER: Duration = Duration::from_secs(5);
+
 /// The first words of a watch file,
 /// which also say its format.
 const FORMAT_PREFIX: &str = "claim-watch-1 ";
 
+/// The most bytes a path of this system may have,
+/// which bounds every note this store writes.
+const LONGEST_PATH_BYTES: u64 = 4096;
+
+/// The most bytes one note may hold.
+/// Why:
+///   A note is the format words,
+/// the bytes of one Git directory's path in hexadecimal,
+/// and a last newline;
+/// a path of this system's longest is `LONGEST_PATH_BYTES` bytes and its hex is twice that,
+/// so a longer file is not one this store wrote,
+/// and reading it whole would cost the service memory for nothing.
+const NOTE_FILE_LIMIT: u64 = FORMAT_PREFIX.len() as u64 + 2 * LONGEST_PATH_BYTES + 1;
+
 /// How a read of a watch file is done;
 /// a control replaces it to make a read fail.
-pub type ReadFile<'a> = &'a dyn Fn(&Path) -> std::io::Result<Vec<u8>>;
+pub type ReadFile<'a> = &'a dyn Fn(&Path) -> Result<Vec<u8>, ReadRefusal>;
 
 /// What:
 ///  The Git directories to look at when the service starts,
@@ -159,17 +260,21 @@ fn byte_of_digit_pair(pair: &[u32]) -> Option<u8> {
 }
 
 /// What:
-///  Reads a whole file.
+///  Reads one note the way every record of this wrapper is read.
 /// Why:
 ///  `restored` and `retry` hand it to the versions that take the reading as a parameter,
-/// so a control can make a read fail.
+/// so a control can make a read fail,
+/// and `private_storage::read_regular_file` answers a name that holds no regular file at once,
+/// so a pipe at a note's name is never waited on,
+/// a link at it is never read through,
+/// and a file longer than a note can be is never read into memory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const readFile = (path: string) => fs.readFileSync(path);
+/// const readFile = (path: string) => readRegularFile(path, NOTE_FILE_LIMIT);
 /// ```
-fn read_file(path: &Path) -> std::io::Result<Vec<u8>> {
-    return std::fs::read(path);
+fn read_file(path: &Path) -> Result<Vec<u8>, ReadRefusal> {
+    return read_regular_file(path, NOTE_FILE_LIMIT);
 }
 
 /// What a file holds,
@@ -299,12 +404,6 @@ impl ClaimWatch {
         return crate::push_retry::pause_before(self.failures.max(1), first);
     }
 
-    /// Whether `git_dir` is a directory of another instance,
-    /// which this journal does not hold.
-    fn is_foreign(&self, git_dir: &Path) -> bool {
-        return of_another_instance(self.instance.as_deref(), git_dir);
-    }
-
     /// Writes `git_dir` down unless this process has done so.
     /// A write that fails is said and kept for `retry`;
     /// the caller goes on
@@ -316,8 +415,7 @@ impl ClaimWatch {
                 return;
             }
         }
-        if self.is_foreign(git_dir) {
-            crate::service_warn!("{} belongs to another instance and is not kept for a restart", git_dir.display());
+        if refused_for_another_instance(self.instance.as_deref(), git_dir) {
             return;
         }
         let Some(directory) = self.store.clone() else {
@@ -346,6 +444,9 @@ impl ClaimWatch {
     /// which writes the same note twice at worst.
     /// A watch kept in memory only records it at once,
     /// as `remember` does.
+    /// A directory of another instance is refused here as `remember` refuses it:
+    /// its note would be thrown away by the next start,
+    /// and until then this watch would name a repository the service does not serve.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -353,6 +454,9 @@ impl ClaimWatch {
     /// ```
     pub fn a_note_that_may_be_missing(&mut self, git_dir: &Path) {
         if self.store.is_none() || self.holds(git_dir) {
+            return;
+        }
+        if refused_for_another_instance(self.instance.as_deref(), git_dir) {
             return;
         }
         self.unwritten.push(git_dir.to_path_buf());
@@ -390,6 +494,58 @@ impl ClaimWatch {
         self.failures = self.failures.saturating_add(1);
     }
 
+    /// What:
+    ///  Look at the notes again and name every repository a record waits in,
+    /// whether or not anything woke the service for
+    ///  it.
+    /// Why:
+    ///   The notes are the only place a repository is named durably,
+    /// so a service that runs while a record is written and never
+    ///  announced finds it here:
+    /// the landing writes its repository down before it answers
+    /// (`note_for_the_next_service`),
+    /// and
+    ///  the work loop writes down every repository it is woken for (`remember`).
+    /// The record itself is what is looked for,
+    /// which is
+    ///  why `pending` alone is listed and no finished record is ever read:
+    /// what is done,
+    /// failed or held is not work this
+    ///  look can start,
+    /// and a repository whose records were all settled costs one listing of an empty directory.
+    /// A record the queue cannot claim is
+    ///  left where it is and is looked at again at the next look,
+    /// so a record that waits for another's answer does not wait
+    ///  without a bound for a wake.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const waiting = lookAgain(watch) // scan(); known.filter((dir) => readdir(join(workDir(dir), 'pending')).length > 0)
+    /// ```
+    pub fn look_again(&mut self) -> Vec<PathBuf> {
+        return self.look_again_reading(&read_file);
+    }
+
+    /// `look_again` with the reading of the notes given,
+    /// so that a control can make one fail.
+    pub fn look_again_reading(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
+        // The notes are read again whatever the last reading said, because a landing writes one for a repository before it
+        //  answers a commit, and a service that started before that landing would not know the repository otherwise.
+        let _found: Vec<PathBuf> = self.scan(read);
+        if self.needs_retry() {
+            self.failures = self.failures.saturating_add(1);
+        } else {
+            self.failures = 0;
+        }
+        let mut waiting: Vec<PathBuf> = Vec::new();
+        for git_dir in self.known.clone() {
+            if a_record_waits(git_dir.as_path()) {
+                waiting.push(git_dir);
+            }
+        }
+        return waiting;
+    }
+
     /// Tries again what failed:
     /// the files that could not be written,
     /// and the reading of the store.
@@ -401,9 +557,16 @@ impl ClaimWatch {
     }
 
     /// `retry` with the reading of the files given.
+    /// A directory owed a note is asked whether it still names this instance,
+    /// because a path that resolved to this repository when it was kept may resolve to another
+    ///  one when the pause is over,
+    /// and the note written for it would then be one the next start throws away.
     pub fn retry_reading(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
         let Some(directory) = self.store.clone() else { return Vec::new() };
         for git_dir in std::mem::take(&mut self.unwritten) {
+            if refused_for_another_instance(self.instance.as_deref(), git_dir.as_path()) {
+                continue;
+            }
             match write_down(directory.as_path(), git_dir.as_path()) {
                 Ok(()) => self.known.push(git_dir),
                 Err(reason) => {
@@ -428,6 +591,12 @@ impl ClaimWatch {
     /// that are certainly of no use,
     /// and notes a failure to read as `unread`.
     /// Gives the directories that were not known before.
+    /// A name that holds no regular file,
+    /// and a file longer than a note can hold,
+    /// is said once and left where it is:
+    /// no note this store wrote is either,
+    /// and it is not read again after a pause,
+    /// because a second read of it answers the same.
     fn scan(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
         let Some(directory) = self.store.clone() else { return Vec::new() };
         self.unread = false;
@@ -464,14 +633,26 @@ impl ClaimWatch {
                     }
                 },
                 // Removed between the listing and the read.
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(error) => {
+                Err(ReadRefusal::Missing) => continue,
+                // Nothing this store writes: a pipe, a link or a directory.
+                // It is said once and left where it is,
+                // and it is not read again after a pause, because a second read of it answers the same.
+                Err(ReadRefusal::NotRegular) => {
+                    crate::service_warn!("the note {} is not a regular file, so it holds no repository to look at and stays", path.display());
+                    continue;
+                }
+                // Nothing this store writes either: a note is the format words and one path's bytes in hexadecimal.
+                Err(ReadRefusal::TooLarge) => {
+                    crate::service_warn!("the note {} holds more than the {NOTE_FILE_LIMIT} bytes a note can, so it holds no repository and stays", path.display());
+                    continue;
+                }
+                Err(ReadRefusal::Io(error)) => {
                     crate::service_warn!("the note {} could not be read, so it is read again after a pause: {error}", path.display());
                     self.unread = true;
                     continue;
                 }
             };
-            if self.is_foreign(git_dir.as_path()) {
+            if of_another_instance(self.instance.as_deref(), git_dir.as_path()) {
                 crate::service_warn!("the note {} names {}, which is not this instance's repository, and is removed", path.display(), git_dir.display());
                 let _removed = std::fs::remove_file(path.as_path());
                 continue;
@@ -500,22 +681,25 @@ impl ClaimWatch {
     }
 }
 
-/// Whether `git_dir` belongs to an instance other than `instance`.
+/// Whether a record of `git_dir` waits to be claimed.
 /// Why:
-///   A journal belongs to one instance,
-/// and a note that names another repository is removed by `scan` and refused by `remember`;
-/// the landing thread's `note_for_the_next_service` asks the same question,
-/// so a note it writes cannot be one the next service throws away.
+/// `look_again` asks this of every repository the notes name,
+/// and the answer is the whole of what a look finds:
+/// a listing
+///  of one directory and nothing read,
+/// so a repository whose records are all settled costs one call.
+/// A directory that cannot be
+///  listed holds no record this look can start.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const ofAnotherInstance = (instance, gitDir) => instance !== undefined && instanceOf(gitDir) !== instance;
+/// const aRecordWaits = (gitDir) => { try { return readdir(join(workDir(gitDir), 'pending')).length > 0 } catch { return false } };
 /// ```
-fn of_another_instance(instance: Option<&str>, git_dir: &Path) -> bool {
-    return match instance {
-        Some(mine) => instance_of(git_dir) != mine,
-        None => false,
+fn a_record_waits(git_dir: &Path) -> bool {
+    let Ok(mut listing) = std::fs::read_dir(state_directory(work_directory(git_dir).as_path(), PENDING)) else {
+        return false;
     };
+    return listing.next().is_some();
 }
 
 /// What:
@@ -551,6 +735,16 @@ pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: 
 /// replaced;
 /// one that holds another directory's path is left,
 /// and the next name is tried.
+/// What holds a taken name is read the way every record of this wrapper is read,
+/// so a name holding a pipe,
+/// a link,
+/// a directory or more bytes than a note can hold is answered at once,
+/// left where it is,
+/// and passed over for the next name:
+/// no note this store wrote is any of those,
+/// and a plain read of such a name waits in the kernel,
+/// reads a link through,
+/// or costs memory for nothing.
 fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
     if let Err(error) = create_private_directory_all(directory) {
         return Err(format!("creating the note directory failed: {error}"));
@@ -561,17 +755,29 @@ fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
         let path: PathBuf = directory.join(watch_name(git_dir, attempt));
         match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
             Ok(()) => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match std::fs::read(path.as_path()) {
-                Ok(held) if held == text.as_bytes() => return Ok(()),
-                Ok(held) if decode(held.as_slice()).is_ok() => attempt = attempt.saturating_add(1),
-                Ok(_) => {
-                    if let Err(removal) = std::fs::remove_file(path.as_path()) {
-                        return Err(format!("removing the damaged note {} failed: {removal}", path.display()));
-                    }
-                }
-                Err(read_error) => return Err(format!("reading the note {} failed: {read_error}", path.display())),
-            },
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(format!("writing the note failed: {error}")),
+        }
+        // What holds the taken name decides what this write does with it.
+        let next_name: bool = match read_regular_file(path.as_path(), NOTE_FILE_LIMIT) {
+            Ok(held) if held == text.as_bytes() => return Ok(()),
+            // Another directory's note, which keeps its name.
+            Ok(held) if decode(held.as_slice()).is_ok() => true,
+            // A note of this store that was torn is replaced by the note of this name.
+            Ok(_) => {
+                if let Err(removal) = std::fs::remove_file(path.as_path()) {
+                    return Err(format!("removing the damaged note {} failed: {removal}", path.display()));
+                }
+                false
+            }
+            // A pipe, a link or a directory, and a file longer than a note can hold: left where they are.
+            Err(ReadRefusal::NotRegular | ReadRefusal::TooLarge) => true,
+            // The name went between the create that found it taken and this read, so the same name is tried again.
+            Err(ReadRefusal::Missing) => false,
+            Err(ReadRefusal::Io(error)) => return Err(format!("reading the note {} failed: {error}", path.display())),
+        };
+        if next_name {
+            attempt = attempt.saturating_add(1);
         }
     }
 }

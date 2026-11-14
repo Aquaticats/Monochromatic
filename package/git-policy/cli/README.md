@@ -994,6 +994,11 @@ Read-only commands,
    ioctl and deletes its administrative directory when the mount has `user_subvol_rm_allowed`
    (the doctor prints the commands that set it);
    in every other case Git removes it.
+  The line the removal prints for a destroyed subvolume says where the destroy ran:
+     one that was handed to the commit service names the delete still to come,
+     and one the command made itself,
+     because another command took the hand-over first,
+     says every file is gone now and that nothing waits for the service.
   A subvolume or a mount point below the worktree's root that this wrapper did not make is removed around:
      the wrapper removes every other entry of the worktree,
      leaves the volume and the directories that lead to it exactly as they stand,
@@ -1014,6 +1019,11 @@ Read-only commands,
      entry,
      and the same unforced command reads it and finishes the removal,
      so a command killed in that pass costs the person one more run of what they typed.
+     The record is written over the one an earlier attempt left,
+     so the same command run again after a kill writes it again rather than warning that the pass is
+     unrecorded;
+     a landed removal whose volume had gone by the time its pass ended says so,
+     and never that its own deletions freed the space the snapshot held.
      Without such a record the report says what the command itself did,
      names `--force`,
      and says that moving a volume out cannot finish a tree whose tracked entries are gone.
@@ -1075,27 +1085,45 @@ Read-only commands,
    `<common Git directory>/monochromatic-git-policy-cli` (a snapshot a removal took out of a worktree's pool),
    means the service did not delete it yet:
      while a record for it is still queued,
-     the next command of that repository wakes the service that reads the
-   record,
-     which is every commit and every add.
+     a running service finds it by itself within five seconds
+   (`LOOK_AGAIN_AFTER`),
+     and the next command of that repository wakes the service that reads the record,
+     which is every commit
+   and every add.
      A delete the kernel refuses may pass,
      so the service tries it again,
      and it gives up once the attempts a record
    may cost have run out:
-     the directory then stays,
-     the record is kept in the repository's `failed` work state,
+     the record is then kept in the repository's `failed` work state,
      and the service says in
    `journalctl --identifier=monochromatic-git-policy-cli` why it could not delete it
    (a worktree a program still has open,
    or a mount
    without `user_subvol_rm_allowed`,
-     for two),
-   so the files are yours to remove with `btrfs subvolume delete`.
+     for two).
+     A directory is not left to the service alone:
+     the removal writes a record of its own before it renames anything,
+     and nothing settles that record,
+     so a command of the repository whose output no program reads looks at it,
+     proves the directory is the subvolume the record names,
+     and queues the delete again.
+     That is what finishes a directory whose queue record was settled before the rename,
+     one whose command was killed between the rename and its own repair,
+     and one the service gave up on.
+     After the queueings such a record may cost,
+   which is the three attempts a record may cost,
+     that command
+   prints one line naming the directory,
+   the `journalctl --identifier=monochromatic-git-policy-cli` line holding the service's reason,
+   and the `btrfs subvolume delete` command that removes it,
+     so the files are yours to remove by hand and the space comes back.
      The service deletes one subvolume and nothing else:
      a directory another
    command has put at that name,
-   or a directory that is not a subvolume,
-     is left exactly as it is and named in the journal.
+   or a directory that is not that subvolume,
+     is never queued for a delete:
+     the id the record holds proves what stands there,
+     and the command names the directory and leaves it exactly as it is.
      Nothing of yours is in the removed directory unless you forced the removal:
    a removal without `--force` runs only after the wrapper proved the worktree clean and unlocked,
    and a forced
@@ -4254,18 +4282,19 @@ none is waited out or retried on the moved head yet:
    a start it reports failed ends the wait at once ("commit service did not start"),
    and a unit it reports inactive is asked
    to start after `START_WAIT`.
-  Two causes end the commit at once instead of after that wait,
-  because the command knows them before it waits,
-  and each message names the setting that has to change and every way to change it:
-  a runtime directory that leaves no room for the service's address
-  (that address takes at most 107 bytes,
-  so `XDG_RUNTIME_DIR` may take 40),
-  and a service the account's manager started at another address than the one this command waits at,
+  One cause ends the commit at once instead of after that wait,
+  because the command knows it before it waits,
+  and its message names the setting that has to change and every way to change it:
+  a service the account's manager started at another address than the one this command waits at,
   which happens when `XDG_RUNTIME_DIR` is not the runtime directory the manager runs with
   (a unit,
   a container or a script with one of its own):
   run the commit from your login session,
   or set `XDG_RUNTIME_DIR` to the manager's.
+  A runtime directory whose path leaves no room for the service's socket file is not such a cause:
+  the service is listened at an abstract name derived from that directory instead,
+  and the commit is made (`SPEC.md`,
+  "Where the service listens").
   An account without user services is still told `loginctl enable-linger`,
   which is also what a session bus with no user manager behind it says.
   The commit service remains the only writer of a commit,
@@ -4404,6 +4433,63 @@ none is waited out or retried on the moved head yet:
   issue 6283).
   The twenty commits that stopped inside that staging on 2026-11-10 are measured in
   `doc/planning/cli-git-commits-that-stopped-after-their-add-steps.md`.
+- The command's own options are a form real Git refuses (owner,
+  2026-11-12:
+  "Refuse as Git does (Recommended)").
+  The wrapper answers with Git's own status and Git's own words,
+  because preparation removes the very tokens Git validates before it commits
+  (`-a`,
+  the selection controls and the pathspecs the private index already holds),
+  so a mistyped command would otherwise make a commit real Git refuses.
+  The forms are `-i` with `-o`,
+  `-i` with `-a`,
+  `-a` with `--interactive` or `--patch`,
+  any two of the four options Git's compatibility check counts,
+  `--fixup=reword:` with a path or with any of those four,
+  `--pathspec-from-file` with path arguments,
+  with `-a` or with `--interactive`,
+  `-a` with paths,
+  a pathless `-i` or `-o` where Git allows no empty change,
+  and `--pathspec-file-nul` without `--pathspec-from-file`
+  (`src/native/commit/rule_commit_region_git_refuses.rs`).
+  The words are never kept here:
+  the same command line is given to the installed Git with `--dry-run`,
+  which runs Git's own validation,
+  rolls its index lock back and never looks for a commit
+  (`src/native/commit/commit_form_refusal_from_git.rs`),
+  so a release that rewords a message changes nothing in the wrapper.
+  `--dry-run` is the **first** token of that question,
+  which is the one place no option of yours can take it as its value and no `--`
+  of yours can put it after the end of the options:
+  `git commit -m -- -i` is asked as `git commit --dry-run -m -- -i`.
+  The question is also given an index of its own,
+  a copy of yours in the repository scratch directory,
+  so even a lost option could not write your index or hold the lock beside it;
+  the branch reference is the repository's own,
+  so the option's position is what keeps that,
+  and a control over every generated command line watches `HEAD`,
+  every reference,
+  the index and the worktree.
+  The question is asked where the commit itself runs:
+  your `-C` chain moves the directory once,
+  the `-C` tokens do not reach the question,
+  and `--git-dir`,
+  `--work-tree`,
+  `--bare` and a `GIT_DIR` in your environment keep the meaning Git gives them there.
+  Where Git's own answer is that it would run the command,
+  nothing is refused:
+  the commit goes on and the transaction makes it,
+  and since the question committed nothing,
+  nothing is made twice.
+  Nothing is staged,
+  no reference moves and the commit service is not reached,
+  and a commit that is fine costs one comparison of the parsed options and no process.
+  When real Git gives no answer at all,
+  the refusal is one sentence that names the form and says which way the question
+  failed:
+  a Git that could not be started,
+  a Git that showed no sign of work for the bound of that step and was ended,
+  or a Git that ended without an exit status.
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:
@@ -7432,6 +7518,26 @@ and typed by hand with no socket from the manager and no address it refuses
 and starts nothing.
 The release archive holds that one executable,
 as cargo-binstall requires of every `[[bin]]`.
+
+What the service has to do after a command returns is a record in the worktree's Git directory,
+and a command that writes one wakes the service with one line over its socket.
+A service that keeps running does not wait for that line:
+it reads the notes in its journal every five seconds (`LOOK_AGAIN_AFTER` in
+`src/native/landing/service_claim_watch.rs`)
+and lists the records waiting in each repository the notes name,
+so a client killed between a record and its wake,
+a wake lost on a socket that was full,
+and a wake that was never sent cost the record at most those five seconds and never a commit.
+The look reads nothing finished,
+so a repository whose records were all settled costs one listing of an empty directory,
+and it is not work:
+a service with nothing to do still ends at its idle bound
+(`IDLE_EXIT`).
+A service the manager starts also writes the Git directory of its own worktree into those notes,
+so the records a command left for it are found even when no landing of that process wrote one.
+A repository that no note of the journal names and no wake ever reached is the one case a running service cannot
+find,
+and its record waits for the next wake that names it or for a service that starts and reads the notes again.
 
 The repository is the one the command line names.
 `-C` moves the wrapper,
