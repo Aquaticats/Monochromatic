@@ -37,6 +37,7 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   continuationPromptOf,
+  EMPTY_ANSWER_ASK_LIMIT,
   FEED_PREVIEW_CHARACTERS,
   NESTED_RUN_VARIABLE,
   POLL_MILLISECONDS,
@@ -49,6 +50,8 @@ import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
 import {
+  FIRST_TURN_REPLY,
+  GO_ON_REPLY,
   LONG_REPLY,
   MODEL_ERROR_TEXT,
   PERMANENT_ERROR_TEXT,
@@ -95,6 +98,12 @@ const TURN_CAP = 3;
  four attempts, and each attempt is a turn.
  */
 const TURN_CAP_ABOVE_RETRIES = 8;
+/**
+ Turns a run may start when its subject is an answer that said nothing: the scenario takes four tool turns and the silent answer,
+ then one turn for each ask, so a cap above them keeps the cap out of the subject.
+ */
+const TURN_CAP_ABOVE_THE_EMPTY_ANSWER = 20;
+
 /**
  Seconds before the first retry after a model error, small enough that a test's three-growing delays take under half a second
  and large enough that the feed records the growth rather than rounding it away.
@@ -770,6 +779,107 @@ await describe({
         expect(String(run.feed[waiting]?.problem,),).toContain('native-build',);
         expect(woke,).toBeGreaterThan(waiting,);
         expect(run.feed[woke]?.success,).toBe(true,);
+      },
+    },),
+    it({
+      name: 'asks an agent whose last answer was empty to go on, and reads the report it then gives',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'empty-answer-after-tools',
+          turnCap: TURN_CAP_ABOVE_THE_EMPTY_ANSWER,
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        // The agent answered the ask with the report it owed, which is the last word of the run.
+        expect(run.summary.lastAssistantText,).toBe(GO_ON_REPLY,);
+        expect(run.summary.lastAssistantTextTurn,).toBeUndefined();
+        expect(run.summary.emptyAnswer,).toBeUndefined();
+        /**
+         The messages the driver sent Pi, in order: the prompt, then the ask.
+         */
+        const prompts = run.sentCommands.filter((command,) => command.type === 'prompt',)
+          .map((command,) => String(command.message,),);
+        expect(prompts.length,).toBe(2,);
+        expect(prompts[1],).toContain('Your last answer was empty',);
+        /**
+         The feed's own line for the ask, under a name of its own.
+         */
+        const asked = run.feed.filter((entry,) => entry.kind === 'asked-to-go-on',);
+        expect(asked.length,).toBe(1,);
+        expect(asked[0],).toMatchObject({
+          attempt: 1,
+          of: EMPTY_ANSWER_ASK_LIMIT,
+          success: true,
+        },);
+        // The silent answer the run was kept for is on the feed, so nothing here passed on an agent that never said nothing.
+        expect(run.feed.some((entry,) => (entry.kind === 'assistant') && (entry.text === '') && (entry.toolCalls === 0)),)
+          .toBe(true,);
+      },
+    },),
+    it({
+      name: 'ends a run whose agent answers with nothing however often it is asked as empty-answer, and names the asks',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'empty-answer-always',
+          turnCap: TURN_CAP_ABOVE_THE_EMPTY_ANSWER,
+        },);
+        // Not an ordinary finished run, and not a failure of the driver: the agent's last answer said nothing, twice asked.
+        expect(run.summary.endReason,).toBe('empty-answer',);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.standardError,).toContain('empty-answer',);
+        expect(run.standardError,).toContain(`asked it to go on ${String(EMPTY_ANSWER_ASK_LIMIT,)} times`,);
+        expect(run.summary.driverError,).toBeUndefined();
+        expect(run.summary.workProblem,).toBeUndefined();
+        // The summary says what nobody could read, and which turn's words it carries instead.
+        expect(run.summary.emptyAnswer,).toEqual({ asked: EMPTY_ANSWER_ASK_LIMIT, },);
+        expect(run.summary.lastAssistantText,).toBe(FIRST_TURN_REPLY,);
+        expect(run.summary.lastAssistantTextTurn,).toBe(1,);
+        /**
+         The messages the driver sent Pi: the prompt, then one ask for each time it tried.
+         */
+        const prompts = run.sentCommands.filter((command,) => command.type === 'prompt',)
+          .map((command,) => String(command.message,),);
+        expect(prompts.length,).toBe(EMPTY_ANSWER_ASK_LIMIT + 1,);
+        for (const prompt of prompts.slice(1,)) {
+          expect(prompt,).toContain('Your last answer was empty',);
+        }
+        /**
+         The feed's own lines for the asks, each with the bound it sat under.
+         */
+        const asked = run.feed.filter((entry,) => entry.kind === 'asked-to-go-on',);
+        expect(asked.map((entry,) => entry.attempt,),).toEqual(
+          Array.from({ length: EMPTY_ANSWER_ASK_LIMIT, }, (_unused, at,) => at + 1,),
+        );
+        expect(asked.every((entry,) => entry.of === EMPTY_ANSWER_ASK_LIMIT),).toBe(true,);
+      },
+    },),
+    it({
+      name: 'keeps a run whose agent answered with nothing while its work ran, and asks it to go on only after that work ends',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'leaves-work-running-after-an-empty-answer',
+          turnCap: TURN_CAP_ABOVE_THE_EMPTY_ANSWER,
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        // The empty answer came while a build of the agent's still ran, and the driver woken to that build, never asked to go on:
+        // work the run left is what stands between the run and its end.
+        expect(run.summary.lastAssistantText,).toBe('the build finished and the task goes on',);
+        expect(run.summary.emptyAnswer,).toBeUndefined();
+        expect(run.feed.some((entry,) => entry.kind === 'asked-to-go-on'),).toBe(false,);
+        /**
+         The feed's own record of the wait and of the wake, in the order the driver wrote them.
+         */
+        const waiting = run.feed.findIndex((entry,) => entry.kind === 'waiting',);
+        const woke = run.feed.findIndex((entry,) => entry.kind === 'wake',);
+        expect(waiting,).toBeGreaterThanOrEqual(0,);
+        expect(String(run.feed[waiting]?.problem,),).toContain('native-build',);
+        expect(woke,).toBeGreaterThan(waiting,);
+        expect(run.feed[woke]?.success,).toBe(true,);
+        // The answer that said nothing is on the feed, so the ending above is the one the scenario wrote.
+        expect(run.feed.some((entry,) => (entry.kind === 'assistant') && (entry.stop === 'stop') && (entry.text === '')),)
+          .toBe(true,);
+        await endTheWorkLeftRunning(run.markers,);
       },
     },),
     it({

@@ -145,6 +145,27 @@ function piRetryNoteOf(summary: RunSummary,): string {
 }
 
 /**
+ Says what the driver made of an agent whose last answer said nothing, so the message names the asks rather than leaving a reader
+ to think the agent had finished.
+
+ @param summary - what the caller reads
+
+ @returns the note, in words, or nothing when the run did not end on an empty answer
+ */
+function emptyAnswerNoteOf(summary: RunSummary,): string {
+  /**
+   What the run recorded of the empty answer.
+   */
+  const empty = summary.emptyAnswer;
+  if ((empty === undefined) || (summary.endReason !== 'empty-answer')) {
+    return '';
+  }
+  return (empty.asked === 1)
+    ? ', after its agent answered with no text and no tool call and the driver asked it to go on once'
+    : `, after its agent answered with no text and no tool call and the driver asked it to go on ${String(empty.asked,)} times`;
+}
+
+/**
  Says what Pi reported of a compaction, when one kept the run's prompt waiting, so the message names why Pi took nothing rather
  than leaving a reader to guess.
 
@@ -359,7 +380,7 @@ export async function supervisePiRun(
   },);
   if (!CLEAN_END_REASONS.has(summary.endReason,)) {
     throw new PiRunEndedEarlyError(
-      `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}. The summary is in ${join(
+      `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${piRetryNoteOf(summary,)}${emptyAnswerNoteOf(summary,)}${compactionNoteOf(summary,)}. The summary is in ${join(
         options.runFolder,
         'summary.json',
       )} and Pi's standard error in ${

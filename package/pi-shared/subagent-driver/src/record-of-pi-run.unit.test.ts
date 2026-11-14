@@ -18,6 +18,7 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  EMPTY_ANSWER_ASK_LIMIT,
   preview,
   type RecordOfPiRun,
   type RunFailure,
@@ -152,6 +153,71 @@ await describe({
         record.observe({ event: assistantMessage([{ type: 'text', text: 'first', },],), declineDialog: declineNothing, },);
         record.observe({ event: assistantMessage([{ type: 'text', text: 'second', },],), declineDialog: declineNothing, },);
         expect((await summaryOf(record,)).lastAssistantText,).toBe('second',);
+      },
+    },),
+    it({
+      name: 'an answer that said nothing leaves the earlier words, says which turn they came from, and records the asks',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const feedFile = join(folder.path, 'feed.jsonl',);
+        const { record, } = recordOnOwnClock(feedFile,);
+        record.observe({ event: { type: 'turn_start', }, declineDialog: declineNothing, },);
+        record.observe({
+          event: assistantMessage([{ type: 'text', text: 'first', }, { type: 'toolCall', },],),
+          declineDialog: declineNothing,
+        },);
+        record.observe({ event: { type: 'turn_start', }, declineDialog: declineNothing, },);
+        // A turn that only calls a tool is work under way, not an answer that said nothing.
+        record.observe({
+          event: assistantMessage([{ type: 'toolCall', },],),
+          declineDialog: declineNothing,
+        },);
+        expect(record.lastAnswerWasEmpty(),).toBe(false,);
+        record.observe({ event: { type: 'turn_start', }, declineDialog: declineNothing, },);
+        record.observe({
+          event: assistantMessage([{ type: 'thinking', thinking: 'hm', },],),
+          declineDialog: declineNothing,
+        },);
+        expect(record.lastAnswerWasEmpty(),).toBe(true,);
+        record.countAskToGoOn({
+          attempt: 1,
+          of: EMPTY_ANSWER_ASK_LIMIT,
+          success: true,
+          disposition: 'started',
+          error: null,
+          said: 'go on',
+        },);
+        expect(record.askedToGoOn(),).toBe(1,);
+        /**
+         What the summary says about the ending.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.lastAssistantText,).toBe('first',);
+        expect(summary.lastAssistantTextTurn,).toBe(1,);
+        expect(summary.emptyAnswer,).toEqual({ asked: 1, },);
+        /**
+         What the feed says of the ask.
+         */
+        const feed = await readFile(feedFile, 'utf8',);
+        expect(feed,).toContain('"kind":"asked-to-go-on"',);
+        expect(feed,).toContain('"attempt":1',);
+      },
+    },),
+    it({
+      name: 'an answer with words leaves no empty answer and no turn of an earlier message, and no ask is recorded',
+      fn: async () => {
+        await using folder = await makeFolder();
+        const { record, } = recordOnOwnClock(join(folder.path, 'feed.jsonl',),);
+        record.observe({ event: { type: 'turn_start', }, declineDialog: declineNothing, },);
+        record.observe({
+          event: assistantMessage([{ type: 'text', text: 'done', },],),
+          declineDialog: declineNothing,
+        },);
+        expect(record.askedToGoOn(),).toBe(0,);
+        const summary = await summaryOf(record,);
+        expect(summary.lastAssistantText,).toBe('done',);
+        expect('lastAssistantTextTurn' in summary,).toBe(false,);
+        expect('emptyAnswer' in summary,).toBe(false,);
       },
     },),
     it({

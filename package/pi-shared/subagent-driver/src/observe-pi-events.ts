@@ -66,6 +66,19 @@ export type ObservedPiRun = {
   readonly settledCount: () => number;
   readonly turnCount: () => number;
   readonly lastAssistantText: () => string;
+
+  /**
+   Whether the last assistant message answered with no text and no tool call: the run has nothing of what the agent found and
+   nothing that says it had finished.
+   */
+  readonly lastAnswerWasEmpty: () => boolean;
+
+  /**
+   The turn whose text `lastAssistantText` holds, when the last assistant message carried none of its own; nothing when that text
+   is the last message's, and nothing when no assistant message has carried any.
+   */
+  readonly lastTextTurn: () => number | undefined;
+
   readonly unrecoveredModelError: () => RunFailure;
 
   /**
@@ -136,6 +149,21 @@ export function startObservingPiRun({
     lastAssistantText: string;
 
     /**
+     Whether the last assistant message answered with no text and no tool call.
+     */
+    lastAnswerWasEmpty: boolean;
+
+    /**
+     Whether the last assistant message carried text of its own.
+     */
+    lastMessageHadText: boolean;
+
+    /**
+     The turn whose text `lastAssistantText` holds.
+     */
+    lastTextTurn?: number;
+
+    /**
      The error of the last assistant message, which is a model error only if nothing after it succeeds.
      */
     pendingModelError?: string;
@@ -164,6 +192,8 @@ export function startObservingPiRun({
     settled: 0,
     turns: 0,
     lastAssistantText: '',
+    lastAnswerWasEmpty: false,
+    lastMessageHadText: false,
     compaction: { compacting: false, },
   };
 
@@ -180,13 +210,26 @@ export function startObservingPiRun({
      What the message says.
      */
     const message = assistantMessageOf(event,);
+    /**
+     How many tool calls the message made, which is where a message that says nothing yet has work under way says so.
+     */
+    const toolCalls = message.parts
+      .filter(function isToolCall(part,) {
+        return part.type === 'toolCall';
+      },)
+      .length;
     if (message.text !== '') {
       state.lastAssistantText = message.text;
+      state.lastTextTurn = state.turns;
     }
+    state.lastMessageHadText = message.text !== '';
     /**
      Whether the message ended in an error, which is a model error only when nothing after it recovers.
      */
     const endedInError = message.stop === 'error';
+    // An answer that carries no text and calls no tool, and did not fail, leaves the run with nothing: not what the agent found,
+    // and not the word that it had finished.
+    state.lastAnswerWasEmpty = (message.text === '') && (toolCalls === 0) && (!endedInError);
     if (endedInError) {
       state.pendingModelError = message.error === '' ? MODEL_ERROR_WITHOUT_TEXT : message.error;
       // A failure of its own supersedes what Pi said about the retry that answered the one before it, so a run that ends on
@@ -209,11 +252,7 @@ export function startObservingPiRun({
         length: FEED_PREVIEW_CHARACTERS.assistantText,
       },),
       thinkingChars: message.thinkingChars,
-      toolCalls: message.parts
-        .filter(function isToolCall(part,) {
-          return part.type === 'toolCall';
-        },)
-        .length,
+      toolCalls,
       usage: {
         input: message.usage
           .input,
@@ -374,6 +413,12 @@ export function startObservingPiRun({
     },
     lastAssistantText: function lastAssistantText() {
       return state.lastAssistantText;
+    },
+    lastAnswerWasEmpty: function lastAnswerWasEmpty() {
+      return state.lastAnswerWasEmpty;
+    },
+    lastTextTurn: function lastTextTurn() {
+      return state.lastMessageHadText ? undefined : state.lastTextTurn;
     },
     unrecoveredModelError: function unrecoveredModelError() {
       return (state.unrecoveredModelError === undefined) ? NO_RUN_FAILURE : {

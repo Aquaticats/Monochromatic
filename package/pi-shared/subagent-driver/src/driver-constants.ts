@@ -120,6 +120,14 @@ export const MODEL_ERROR_RETRY_CAP = 3;
 export const MODEL_ERROR_RETRY_BASE_SECONDS = 2;
 
 /**
+ How many times a run asks an agent whose last answer carried no text and no tool call to go on, chosen as the smallest number
+ that gives a hiccup one more turn: the empty answer of 2026-11-13 came after four turns of tool work, and each ask is a turn of
+ its own that costs a model call and the run's wall clock, so a model that answered with nothing twice is not asked again. It
+ bounds the asks, never the run: the run's own wall clock still bounds every wait for their answers.
+ */
+export const EMPTY_ANSWER_ASK_LIMIT = 2;
+
+/**
  Longest wait before one attempt after a model error, chosen to match the `retry.maxAgentDelayMs` default Pi's own automatic
  retry uses (`docs/settings.md` in Pi 1.5.0). It bounds a provider that names an hour of backoff, and it bounds the growth of a
  delay that doubles, so no run waits longer than this for one attempt. It shapes only the errors the driver owns, and a 429 is

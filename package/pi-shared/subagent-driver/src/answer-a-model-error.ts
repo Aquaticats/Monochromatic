@@ -15,7 +15,10 @@ import type {
 import {
   millisecondsLeftUntil,
 } from './deadline.ts';
-import { fieldsOf, } from './read-pi-fields.ts';
+import {
+  dispositionOf,
+  refusedByPi,
+} from './what-pi-did-with-a-message.ts';
 import {
   continuationPromptOf,
   driverRetries,
@@ -142,7 +145,7 @@ async function answerWithAnotherAttempt(
   /**
    Whether Pi refused the prompt itself, or the driver's own silence bound ended the wait.
    */
-  if ((answer.ending === 'silence') || (answeredRefusal(answer,))) {
+  if ((answer.ending === 'silence') || (refusedByPi(answer,))) {
     // Pi refused nothing when the driver's own bound ended the wait, which the run's deadline may be what brought on.
     if (millisecondsLeftUntil(watch.deadline,) === 0) {
       return 'wall-clock';
@@ -172,24 +175,6 @@ function answeredPartlyByACompaction(answer: CommandAnswer,): boolean {
    */
   const { compactionProblem } = answer;
   return compactionProblem !== undefined;
-}
-
-/**
- Tells whether Pi refused the prompt itself.
-
- @param answer - how waiting for Pi's answer ended
-
- @returns whether Pi answered with a refusal
- */
-function answeredRefusal(answer: CommandAnswer,): boolean {
-  if (answer.ending !== 'answered') {
-    return false;
-  }
-  /**
-   Pi's own record, which is what an answered wait carries.
-   */
-  const { record } = answer;
-  return record.success === false;
 }
 
 /**
@@ -223,7 +208,7 @@ function noteRetryAnswer({
   /**
    What Pi did with the prompt.
    */
-  const { disposition, } = fieldsOf(answered.data,);
+  const disposition = dispositionOf(answer,);
   record.note({
     kind: 'retry_prompt',
     success: answered.success ?? false,

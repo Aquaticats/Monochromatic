@@ -26,10 +26,13 @@ export type PiExit = {
 };
 
 /**
- Why a run ended. `idle` and `stop-file` are the ends a run chooses; the others fail the driver.
+ Why a run ended. `idle` and `stop-file` are the ends a run chooses; `empty-answer` is an end the agent brought about by
+ answering with nothing; the others fail the driver.
 
  `idle` means the agent ended its turn with nothing of its own still running: a run whose work is still going when the agent
- settles is kept, and ends on its wall clock instead if the work outlasts it. `model-error` means Pi settled on a last assistant
+ settles is kept, and ends on its wall clock instead if the work outlasts it. `empty-answer` means the agent's last answer
+ carried no text and no tool call, so the run has nothing of what the agent found and nothing that says it had finished, and
+ every ask that it go on was answered the same way. `model-error` means Pi settled on a last assistant
  message that ended in an error nothing recovered from, `pi-not-stopped`
  means Pi was still alive when every bound on ending it ran out, `compaction-failed` means a compaction Pi reported failing left
  it silent instead of taking the prompt, and `driver-failed` covers the driver's own failures.
@@ -37,6 +40,7 @@ export type PiExit = {
 export type EndReason =
   | 'idle'
     | 'stop-file'
+    | 'empty-answer'
     | 'prompt-rejected'
     | 'compaction-failed'
     | 'pi-exited'
@@ -52,6 +56,7 @@ export type EndReason =
 export const END_REASONS: readonly EndReason[] = [
   'idle',
   'stop-file',
+  'empty-answer',
   'prompt-rejected',
   'compaction-failed',
   'pi-exited',
@@ -163,6 +168,51 @@ export type PiRetryGaveUp =
     };
 
 /**
+ One message asking an agent whose last answer said nothing to go on, as the feed carries it.
+ */
+export type EmptyAnswerAsk = {
+  /**
+   Which ask this is, counting from one.
+   */
+  readonly attempt: number;
+
+  /**
+   How many asks a run allows, so a reader sees the bound this one sits under.
+   */
+  readonly of: number;
+
+  /**
+   Whether Pi took the message, which it did not when it refused it or the wait ended first.
+   */
+  readonly success: boolean;
+
+  /**
+   What Pi said it did with the message.
+   */
+  readonly disposition: unknown;
+
+  /**
+   What Pi said when it refused, or the bound that ended the wait.
+   */
+  readonly error: unknown;
+
+  /**
+   The words the driver sent, which the feed keeps a preview of.
+   */
+  readonly said: string;
+};
+
+/**
+ What a run recorded of an agent's last answer that carried no text and no tool call.
+ */
+export type EmptyAnswerOfARun = {
+  /**
+   How many times the driver told the agent its last answer was empty and asked it to go on.
+   */
+  readonly asked: number;
+};
+
+/**
  What `summary.json` holds.
  */
 export type RunSummary = {
@@ -184,6 +234,19 @@ export type RunSummary = {
    */
   readonly sessionStats: unknown;
   readonly lastAssistantText: string;
+
+  /**
+   The turn whose text `lastAssistantText` holds, when that is not the last assistant message: an answer that said nothing leaves
+   the words of an earlier turn there, and a reader of the summary alone must not take them for the agent's last.
+   */
+  readonly lastAssistantTextTurn?: number;
+
+  /**
+   What the run recorded of an agent's last answer that carried no text and no tool call, with how many times the driver asked
+   it to go on. It is here for every run whose last answer said nothing, whether the asks ran out or the run ended another way
+   first; a run that ended with words of the agent's own has no such field.
+   */
+  readonly emptyAnswer?: EmptyAnswerOfARun;
 
   /**
    The error of the last assistant message, when Pi settled on it and nothing after it recovered, which is why the run ended as
@@ -381,6 +444,12 @@ export type RecordOfPiRun = {
   readonly unrecoveredModelError: () => RunFailure;
 
   /**
+   Whether the last assistant message answered with no text and no tool call, so the run has nothing of what the agent found and
+   nothing that says it had finished.
+   */
+  readonly lastAnswerWasEmpty: () => boolean;
+
+  /**
    How many attempts after a model error the run has made, which bounds the retries it may still take.
    */
   readonly retriesTaken: () => number;
@@ -395,6 +464,17 @@ export type RecordOfPiRun = {
    same error is never counted twice.
    */
   readonly countRetry: (retry: RetryTaken,) => void;
+
+  /**
+   How many times the driver has asked the agent to go on after an answer that said nothing.
+   */
+  readonly askedToGoOn: () => number;
+
+  /**
+   Notes one ask on the feed and counts it, so the feed and the summary name the same number.
+   */
+  readonly countAskToGoOn: (ask: EmptyAnswerAsk,) => void;
+
   readonly observe: (observation: EventObservation,) => void;
   readonly summarize: (ending: RunEnding,) => RunSummary;
 

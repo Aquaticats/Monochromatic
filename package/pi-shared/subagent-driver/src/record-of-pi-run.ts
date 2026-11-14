@@ -5,6 +5,8 @@
  */
 
 import type {
+  EmptyAnswerAsk,
+  EmptyAnswerOfARun,
   EventObservation,
   PiRecord,
   RecordOfPiRun,
@@ -54,6 +56,40 @@ function modelErrorOf({
     modelError: failure.problem,
     modelErrorAttempts: retries + 1,
   } : {};
+}
+
+/**
+ What the last answer of a run said nothing with, as the summary carries it.
+
+ @param run - what the run's events said
+
+ @param asked - how many times the driver asked the agent to go on
+
+ @returns the summary's field, or nothing when the agent's last answer carried words
+ */
+function emptyAnswerOf({
+  run,
+  asked,
+}: {
+  readonly run: ObservedPiRun;
+  readonly asked: number
+},): { readonly emptyAnswer?: EmptyAnswerOfARun } {
+  return run.lastAnswerWasEmpty() ? { emptyAnswer: { asked, }, } : {};
+}
+
+/**
+ The turn whose text the summary carries, when that is not the last assistant message.
+
+ @param run - what the run's events said
+
+ @returns the summary's field, or nothing when the text is the last message's own
+ */
+function lastTextTurnOf(run: ObservedPiRun,): { readonly lastAssistantTextTurn?: number } {
+  /**
+   The earlier turn the summary's text came from, if it came from one.
+   */
+  const turn = run.lastTextTurn();
+  return (turn === undefined) ? {} : { lastAssistantTextTurn: turn, };
 }
 
 /**
@@ -186,11 +222,17 @@ export function startRecordOfPiRun({
      How many model errors named a rate limit or a quota.
      */
     rateLimitErrors: number;
+
+    /**
+     How many times the driver asked the agent to go on after an answer that said nothing.
+     */
+    asks: number;
   } = {
     retries: 0,
     retriesSinceAnswer: 0,
     answers: 0,
     rateLimitErrors: 0,
+    asks: 0,
   };
 
   /**
@@ -245,6 +287,7 @@ export function startRecordOfPiRun({
     countHandledPrompt: observed.countPromptHandled,
     feedProblem: feed.problem,
     unrecoveredModelError: observed.unrecoveredModelError,
+    lastAnswerWasEmpty: observed.lastAnswerWasEmpty,
     retriesTaken: function retriesTaken() {
       return state.retries;
     },
@@ -267,6 +310,24 @@ export function startRecordOfPiRun({
         error: preview({
           value: retry.problem,
           length: FEED_PREVIEW_CHARACTERS.modelError,
+        },),
+      },);
+    },
+    askedToGoOn: function askedToGoOn() {
+      return state.asks;
+    },
+    countAskToGoOn: function countAskToGoOn(ask: EmptyAnswerAsk,) {
+      state.asks += 1;
+      note({
+        kind: 'asked-to-go-on',
+        attempt: ask.attempt,
+        of: ask.of,
+        success: ask.success,
+        disposition: ask.disposition,
+        error: ask.error,
+        preview: preview({
+          value: ask.said,
+          length: FEED_PREVIEW_CHARACTERS.inboxMessage,
         },),
       },);
     },
@@ -305,6 +366,11 @@ export function startRecordOfPiRun({
         dialogs: observed.dialogs(),
         sessionStats,
         lastAssistantText: observed.lastAssistantText(),
+        ...lastTextTurnOf(observed,),
+        ...emptyAnswerOf({
+          run: observed,
+          asked: state.asks,
+        },),
         retries: state.retries,
         rateLimitErrors: state.rateLimitErrors,
         ...modelErrorOf({

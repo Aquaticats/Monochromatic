@@ -21,6 +21,7 @@ export {
 } from './checked-runs.ts';
 export {
   COMMAND_ANSWER_MILLISECONDS,
+  EMPTY_ANSWER_ASK_LIMIT,
   FEED_PREVIEW_CHARACTERS,
   MODEL_ERROR_RETRY_BASE_SECONDS,
   MODEL_ERROR_RETRY_CAP,
@@ -40,6 +41,8 @@ export type {
   CommandEnding,
   CompactionOfPi,
   DriverOptions,
+  EmptyAnswerAsk,
+  EmptyAnswerOfARun,
   EndReason,
   EventObservation,
   PiExit,
@@ -120,6 +123,11 @@ export {
   answerModelError,
   type RetryWaiting,
 } from './answer-a-model-error.ts';
+export {
+  askAnAgentWhoseAnswerWasEmpty,
+  type EmptyAnswerAnswer,
+  goOnMessage,
+} from './ask-an-agent-whose-answer-was-empty.ts';
 
 /**
  What the watch for runs that should have come back reads, and the lines it answers with. The command is

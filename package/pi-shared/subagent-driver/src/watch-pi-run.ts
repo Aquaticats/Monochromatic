@@ -33,6 +33,9 @@ import {
   askAboutItsWorkOrReportAFailure,
   type WorkWaitedFor,
 } from './kept-while-work-runs.ts';
+import {
+  askAnAgentWhoseAnswerWasEmpty,
+} from './ask-an-agent-whose-answer-was-empty.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { mayEndIdle, } from './when-a-run-may-end.ts';
 
@@ -487,7 +490,28 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       if (asked !== 'nothing') {
         continue;
       }
-      return 'idle';
+      /**
+       What the agent's last answer came to, when it came to nothing: a run that read an empty answer as its end gave its place to
+       the next run with no report written, which is what one of 2026-11-13 did. Asking goes only after the work above, so an agent
+       that ended its turn with an empty answer while a build it started compiles is woken to that build, never asked to repeat
+       itself.
+       */
+      const answeredNothing = await askAnAgentWhoseAnswerWasEmpty({
+        watch,
+        waited,
+      },);
+      if (answeredNothing === 'asked') {
+        continue;
+      }
+      if (answeredNothing === 'nothing') {
+        return 'idle';
+      }
+      if ((answeredNothing === 'wall-clock') || (answeredNothing === 'pi-exited')) {
+        return answeredNothing;
+      }
+      // The asks are used up, or Pi refused the one that was left, and the agent's last answer still says nothing: the run ends
+      // on that answer, which is neither a run that came back nor a failure of the driver.
+      return 'empty-answer';
     }
   }
   /* oxlint-enable eslint/no-await-in-loop */

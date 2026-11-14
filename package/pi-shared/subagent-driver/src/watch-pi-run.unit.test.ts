@@ -28,6 +28,7 @@ import {
   type ConnectionToPi,
   COMMAND_ANSWER_MILLISECONDS,
   type DriverOptions,
+  EMPTY_ANSWER_ASK_LIMIT,
   isRecord,
   type PiRecord,
   POLL_MILLISECONDS,
@@ -493,6 +494,142 @@ async function feedOf(runFolder: string,): Promise<readonly PiRecord[]> {
   return (await readFile(join(runFolder, 'feed.jsonl',), 'utf8',)).split('\n',)
     .filter((line,) => line !== '')
     .map(recordOf,);
+}
+
+/**
+ The words the run here began with, which a summary carries as the agent's last when every answer after them says nothing.
+ */
+const FIRST_WORDS = 'the first words of the run';
+
+/**
+ Observes a first turn that said something and called a tool, which is where the words a later summary carries come from.
+
+ @param record - the run's record
+ */
+function observeFirstTurnWithWords(record: RecordOfPiRun,): void {
+  record.observe({
+    event: { type: 'turn_start', },
+    declineDialog: refuseDialog,
+  },);
+  record.observe({
+    event: {
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: FIRST_WORDS, }, { type: 'toolCall', },],
+        stopReason: 'toolUse',
+      },
+    },
+    declineDialog: refuseDialog,
+  },);
+}
+
+/**
+ Observes an assistant message that answered with nothing, and the settle after it.
+
+ @param record - the run's record
+ */
+function observeEmptyAnswer(record: RecordOfPiRun,): void {
+  record.observe({
+    event: { type: 'turn_start', },
+    declineDialog: refuseDialog,
+  },);
+  record.observe({
+    event: {
+      type: 'message_end',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'thinking', thinking: 'hm', },],
+        stopReason: 'stop',
+      },
+    },
+    declineDialog: refuseDialog,
+  },);
+  record.observe({
+    event: { type: 'agent_settled', },
+    declineDialog: refuseDialog,
+  },);
+}
+
+/**
+ Starts a run whose Pi worked a turn with words and then ended another turn with an answer that said nothing.
+
+ @returns the run, and the folder that goes with it
+ */
+async function startRunThatAnsweredNothing(): Promise<RunUnderTest> {
+  const run = await startRunAtWork();
+  observeFirstTurnWithWords(run.record,);
+  observeEmptyAnswer(run.record,);
+  return run;
+}
+
+/**
+ A connection whose every message is taken at once, and whose Pi then answers with nothing again.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param record - the run's record, which the answer is observed on
+
+ @returns the connection a watch reads
+ */
+function connectionWhosePiAnswersNothing({
+  sent,
+  record,
+}: {
+  readonly sent: string[];
+  readonly record: RecordOfPiRun
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message, } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      observeEmptyAnswer(record,);
+      return {
+        ending: 'answered',
+        record: { success: true, },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
+ A connection whose every message ends the wait before Pi answers it.
+
+ @param ending - how the wait ends
+
+ @param sent - where the messages the watch sends are recorded
+
+ @returns the connection a watch reads
+ */
+function connectionWhoseWaitEnds({
+  ending,
+  sent,
+}: {
+  readonly ending: 'deadline' | 'pi-exited';
+  readonly sent: string[]
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message, } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      return {
+        ending,
+        problem: (ending === 'deadline') ? 'no answer before the deadline' : 'pi exited',
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
 }
 
 await describe({
@@ -1068,6 +1205,140 @@ await describe({
         const feed = await feedOf(run.runFolder,);
         expect(feed.some((entry,) => entry.kind === 'waiting'),).toBe(false,);
         expect(feed.some((entry,) => entry.kind === 'wake'),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'asks an agent whose last answer said nothing to go on, and ends idle once the reply carries words',
+      fn: async () => {
+        await using run = await startRunThatAnsweredNothing();
+        /**
+         The messages the watch sent, which is the one ask.
+         */
+        const sent: string[] = [];
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiReplies({ sent, record: run.record, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+        },);
+        expect(endReason,).toBe('idle',);
+        expect(sent.length,).toBe(1,);
+        expect(sent[0],).toContain('Your last answer was empty',);
+        /**
+         What the summary says about the ending, and what the feed says of the ask.
+         */
+        const summary = run.record.summarize({
+          endReason: 'idle',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        // The reply carried the agent's words, so nothing is left of the empty answer.
+        expect(summary.emptyAnswer,).toBeUndefined();
+        expect(summary.lastAssistantText,).toBe('recovered',);
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.filter((entry,) => entry.kind === 'asked-to-go-on',).map((entry,) => entry.attempt,),).toEqual([1,],);
+      },
+    },),
+    it({
+      name: 'ends a run as empty-answer once the asks are used up, and the summary names how many went',
+      fn: async () => {
+        await using run = await startRunThatAnsweredNothing();
+        /**
+         The messages the watch sent, which is one ask for each time it tried.
+         */
+        const sent: string[] = [];
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiAnswersNothing({ sent, record: run.record, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+        },);
+        expect(endReason,).toBe('empty-answer',);
+        expect(sent.length,).toBe(EMPTY_ANSWER_ASK_LIMIT,);
+        /**
+         What the summary says about the ending.
+         */
+        const summary = run.record.summarize({
+          endReason: 'empty-answer',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.emptyAnswer,).toEqual({ asked: EMPTY_ANSWER_ASK_LIMIT, },);
+        // The summary names the turn whose words it carries, so an earlier turn's sentence is never read as the agent's last.
+        expect(summary.lastAssistantText,).toBe(FIRST_WORDS,);
+        expect(summary.lastAssistantTextTurn,).toBe(1,);
+        expect(summary.driverError,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'a refused ask ends the run on the empty answer, with Pi\'s refusal on the feed',
+      fn: async () => {
+        await using run = await startRunThatAnsweredNothing();
+        /**
+         The messages the watch sent, which is the one ask Pi refused.
+         */
+        const sent: string[] = [];
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, refuses: true, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+        },);
+        expect(endReason,).toBe('empty-answer',);
+        expect(sent.length,).toBe(1,);
+        /**
+         What the feed says of the refusal, and what the summary counts.
+         */
+        const feed = await feedOf(run.runFolder,);
+        const asked = feed.filter((entry,) => entry.kind === 'asked-to-go-on',);
+        expect(asked.length,).toBe(1,);
+        expect(asked[0]?.success,).toBe(false,);
+        expect(asked[0]?.error,).toBe('refused',);
+        const summary = run.record.summarize({
+          endReason: 'empty-answer',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.emptyAnswer,).toEqual({ asked: 1, },);
+      },
+    },),
+    it({
+      name: 'an ask the run ends before leaves the empty answer standing, under the ending that ended the wait',
+      fn: async () => {
+        for (const [ending, expected,] of [['deadline', 'wall-clock',], ['pi-exited', 'pi-exited',],] as const) {
+          await using run = await startRunThatAnsweredNothing();
+          /**
+           The messages the watch sent, which is the ask the wait ended under.
+           */
+          const sent: string[] = [];
+          // oxlint-disable-next-line eslint/no-await-in-loop -- one run per ending, each with its own folder
+          const endReason = await watchUntilEnded({
+            connection: connectionWhoseWaitEnds({ ending, sent, },),
+            record: run.record,
+            options: optionsOf({ runFolder: run.runFolder, },),
+            inbox: run.inbox,
+            deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+          },);
+          expect(endReason,).toBe(expected,);
+          expect(sent.length,).toBe(1,);
+          /**
+           What the summary says about the empty answer the run ended on.
+           */
+          // oxlint-disable-next-line eslint/no-await-in-loop -- the record of the run just ended
+          const summary = run.record.summarize({
+            endReason: expected,
+            piExit: {},
+            piHasExited: true,
+            sessionStats: null,
+          },);
+          expect(summary.emptyAnswer,).toEqual({ asked: 1, },);
+        }
       },
     },),
   ],

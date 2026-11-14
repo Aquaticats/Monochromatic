@@ -10,9 +10,13 @@
  */
 
 import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
-import type { CommandAnswer, } from './driver-types.ts';
 import { preview, } from './previews-of-pi-messages.ts';
-import { fieldsOf, } from './read-pi-fields.ts';
+import {
+  dispositionOf,
+  outcomeTextOf,
+  refusedByPi,
+  takenByPi,
+} from './what-pi-did-with-a-message.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { wakeMessageOf, } from './work-the-run-left-running.ts';
 
@@ -170,7 +174,7 @@ export async function askAboutItsWork({
     },);
   delete waited.work;
   // A message Pi refused woke nobody, so nothing is owed a reply and the run cannot go on: the agent was never told its work ended.
-  if (refusedByIt({ answer, },)) {
+  if (refusedByPi(answer,)) {
     return 'refused';
   }
   // A message Pi took into a turn is answered by that turn, and the run stays up until its reply settles. A message Pi handled
@@ -218,100 +222,4 @@ export async function askAboutItsWorkOrReportAFailure({
       .noteWorkProblem(String(error,),);
     return 'nothing';
   }
-}
-
-/**
- Tells whether Pi refused the message itself, which is no answer and no run started.
-
- @param answer - how waiting for Pi's answer ended
-
- @returns whether Pi answered with a refusal
-
- @example
- ```ts
- const refused = refusedByIt({ answer: { ending: 'answered', record: { success: false } }, },);
- ```
- */
-function refusedByIt({ answer, }: { readonly answer: CommandAnswer },): boolean {
-  if (answer.ending !== 'answered') {
-    return false;
-  }
-  /**
-   Pi's own record, which is what an answered wait carries.
-   */
-  const { record } = answer;
-  return record.success === false;
-}
-
-/**
- What Pi said it did with a prompt.
-
- @param answer - how waiting for Pi's answer ended
-
- @returns what Pi said, or nothing when Pi answered nothing
-
- @example
- ```ts
- const disposition = dispositionOf({ ending: 'answered', record: { data: { disposition: 'handled' } }, },);
- ```
- */
-function dispositionOf(answer: CommandAnswer,): unknown {
-  if (answer.ending !== 'answered') {
-    return undefined;
-  }
-  /**
-   Pi's own record, which is what an answered wait carries.
-   */
-  const { record } = answer;
-  /**
-   What Pi did with the prompt.
-   */
-  const { disposition, } = fieldsOf(record.data,);
-  return disposition;
-}
-
-/**
- Tells whether Pi took a message.
-
- @param answer - how waiting for Pi's answer ended
-
- @returns whether Pi answered that it handled it
-
- @example
- ```ts
- const taken = takenByPi({ ending: 'answered', record: { success: true }, },);
- ```
- */
-function takenByPi(answer: CommandAnswer,): boolean {
-  if (answer.ending !== 'answered') {
-    return false;
-  }
-  /**
-   Pi's own record, which is what an answered wait carries.
-   */
-  const { record } = answer;
-  return record.success === true;
-}
-
-/**
- What the feed says of a message: Pi's own word for a refusal, or the bound that ended the wait.
-
- @param answer - how waiting for Pi's answer ended
-
- @returns what the feed keeps
-
- @example
- ```ts
- const said = outcomeTextOf({ ending: 'silence', problem: 'no answer' },);
- ```
- */
-function outcomeTextOf(answer: CommandAnswer,): unknown {
-  if (answer.ending !== 'answered') {
-    return answer.problem;
-  }
-  /**
-   Pi's own record, which is what an answered wait carries.
-   */
-  const { record } = answer;
-  return record.error ?? null;
 }
