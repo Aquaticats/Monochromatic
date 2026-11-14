@@ -143,7 +143,7 @@ catalog:
   'openai': '>=6.22.0'
   'opentype.js': '>=2.0.0'
   'oxlint': '>=1.93.0'
-  'oxlint-tsgolint': '>=7.0.2006'
+  'oxlint-tsgolint': '>=7.0.2007'
   'p-limit': '>=7.3.3'
   # p-memoize-fork.fuzz differential subject; not a runtime dependency anywhere.
   'p-memoize': '>=9.0.0'
@@ -190,7 +190,7 @@ catalog:
   'toml-eslint-parser': '>=1.0.3'
   'ts-pattern': '>=5.9.2'
   'type-fest': '>=5.10.0'
-  'typebox': '>=1.4.6'
+  'typebox': '>=1.4.7'
   'typesafe-i18n': '>=5.27.1'
   # Exact prerelease pin: a `>=7.1.0-beta` lower bound resolves the
   # `7.1.0-dev.*` nightlies (semver orders `dev` after `beta`), and

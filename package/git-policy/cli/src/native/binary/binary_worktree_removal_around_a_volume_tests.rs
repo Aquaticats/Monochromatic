@@ -664,3 +664,45 @@ fn a_removal_over_missing_entries_without_a_record_says_what_is_true() {
     assert_eq!(tree_of(volume.as_path()), before, "the volume survives the forced finish too");
     remove(&fixture);
 }
+
+/// What:
+///  A worktree removed in the second it was added,
+///  with a volume inside it,
+///  goes around the volume:
+///  its entries' stat fields prove nothing yet (Git's own racy rule),
+///  and Git's own check settles which files they are.
+/// Why:
+///   The state every person meets who adds a worktree,
+/// puts a snapshot inside it and removes it at once refused with
+///  exit 1 and said entries were missing from a tree nothing was missing from
+/// (an integration pass's section 8,
+/// its probe `probe-removal-and-commit-timing.ts`).
+///  The documented way is that an unforced removal goes around the volume,
+/// so this control ages nothing and rewrites
+///  no index:
+///  it adds, puts the volume in, and removes.
+#[test]
+fn a_worktree_removed_in_the_second_it_was_added_goes_around_its_volume() {
+    let fixture: Fixture = fixture("removal-around-the-same-second");
+    if !on_btrfs_or_acknowledged(&fixture, "removal-around-the-same-second") {
+        remove(&fixture);
+        return;
+    }
+    let repo: PathBuf = a_repository_with_rules(&fixture, "snap/\n");
+    let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../topic"]);
+    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
+    let target: PathBuf = fixture.root.join("topic");
+    // Nothing ages the tracked files and no Git command runs in the worktree: its entries' whole-second times are the index's,
+    // which is the racy state Git's own rule names.
+    let volume: PathBuf = a_volume_at(target.as_path(), "snap", "kept in the same second");
+    let before: Vec<String> = tree_of(volume.as_path());
+
+    let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+    let said: String = stderr_of(&removed);
+    assert_eq!(removed.code, Some(0), "the unforced removal goes around the volume: {said}");
+    assert!(said.contains("left where it stands"), "and says what it left: {said}");
+    assert!(said.contains(volume.to_str().expect("a UTF-8 fixture path")), "naming the volume: {said}");
+    assert_eq!(tree_of(volume.as_path()), before, "the volume is untouched");
+    assert!(!listing(&fixture, repo.as_path()).contains("/topic\n"), "Git no longer lists the worktree");
+    remove(&fixture);
+}

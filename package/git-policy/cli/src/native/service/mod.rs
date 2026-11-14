@@ -170,6 +170,8 @@ pub mod service_client_waiting_words;
 
 /// The client's one-way request to a running service to compile a repository's rules.
 pub mod service_warm_request;
+/// The same re-export for the request's control point.
+pub use service_warm_request::the_controls_window as service_warm_request_control_window;
 
 /// The signals a waiting commit answers by withdrawing its request,
 /// and the flag they set for the wait.
