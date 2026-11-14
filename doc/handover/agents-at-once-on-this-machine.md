@@ -7,12 +7,31 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **32** agents run on this machine at once,
+At most **18** agents run on this machine at once,
 counted across every session
 (raised from 4 to 8 on 2026-11-13 at 11:57,
 from 8 to 16 at 12:58:50
 and from 16 to 32 at 17:12,
-each time when the level before had held its hour).
+each time when the level before had held its hour;
+lowered from 32 to 24 on 2026-11-14 at 01:16:46,
+from 24 to 20 at 01:21:35
+and from 20 to 18 at 01:42:18,
+each time when the level before failed its criterion,
+by the rule under "What counts as the ceiling":
+halve the gap between the last level that held, sixteen, and the one that failed).
+Twenty-four stopped no start:
+the provider pools take about twenty-five at most,
+and twenty to twenty-two agents were going at both failures.
+Twenty and eighteen do:
+nothing new starts until fewer are going,
+and no run that is going is stopped.
+Should level eighteen fail,
+the same rule gives seventeen,
+and after that the search ends at sixteen,
+the last level that held.
+The readings and what is not established about their cause are under
+"Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00" and
+"Level 20 fails on the home drive, 2026-11-14T01:37:37-05:00 to 01:41:00-05:00".
 The branch `feat/pi-shared-subagent-driver-start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`,
 not in `main`,
 carries the number in a file of its own that still reads sixteen;
@@ -484,3 +503,282 @@ one line a minute:
   The deletion takes its own write-and-sync reading of both drives before each shard,
   recorded in the same readings file with a `during` field and no agent count.
   **The hour that judges this level starts when the deletion has ended.**
+
+#### The hour that judges, 2026-11-13T18:51:10-05:00 to 19:49:23-05:00
+
+Not final and not approved:
+read by the coordinating session from the probe's own file
+(`~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/probe-readings.jsonl`,
+summarised by `summarise-the-probe-readings-between-two-times.ts` beside it).
+Neither the sizing walk nor the deletion ran in this hour.
+
+- **What was going was twenty to twenty-two agent units,
+  not thirty-two.**
+  59 readings,
+  one a minute;
+  the count of `pi-*.service` units at each:
+  least 20,
+  median 21,
+  most 22.
+  That count holds every session's Pi runs on this machine and no agent of another kind.
+  The cap of thirty-two was never reached,
+  because one author pool of twenty and the reviews held to five bound it,
+  which the owner chose to keep at 17:56.
+- Home drive write-and-sync:
+  median 1 ms,
+  slowest 91 ms.
+- Build volume write-and-sync:
+  median 7 ms,
+  slowest 3,361 ms;
+  the five slowest 1,288,
+  1,461,
+  2,395,
+  2,572 and 3,361 ms.
+  No reading over five seconds,
+  so never two in a row.
+- Load average over one minute:
+  least 5.27,
+  median 11.11,
+  most 20.27.
+- Runs started in the hour:
+  twelve,
+  each with a first answer;
+  the slowest first answer 75,032 ms,
+  none over 120 s
+  (`time-to-first-answer-of-each-pi-run-started-since.ts`).
+- Runs that ended in the hour:
+  ten;
+  none on a disk error.
+  Two ended `driver-failed` by the defect of issue 6299,
+  each with its work done,
+  before its fix reached `main` at 19:36:16.
+- **By the criterion,
+  twenty to twenty-two agents held for an hour on this disk.**
+  That is the highest count this file holds an undisturbed hour for.
+  The ceiling is not found:
+  no count above twenty-five can be reached while the pools stay as they are,
+  so the search rests here until the owner changes a pool or the new disk arrives,
+  when it is found again from four.
+- The cap in "The cap now" stays thirty-two:
+  it is a bound never to pass,
+  and nothing measured says it is too high or too low.
+
+#### A later hour at the same count, 2026-11-14T00:15:00-05:00 to 00:58:17-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+No probe of the drives ran in this hour:
+the last reading before it is of 2026-11-13T19:49:23-05:00.
+
+- **Agents**: 22 agent units going at 00:59,
+  the count of the judged hour.
+- **First answers**
+  (`time-to-first-answer-of-each-pi-run-started-since.ts`,
+  runs started since 23:15):
+  seventeen runs,
+  all answered,
+  the slowest in 98,843 ms,
+  six of them in over a minute,
+  none over the 120 s that fails a level.
+  In the judged hour the slowest was under 75 s.
+- **The user service manager**
+  (`~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`):
+  29 slow answers asked between 00:16 and 00:56,
+  from 7,600 ms to 73,292 ms;
+  the nine hours and twenty minutes before hold 41.
+  In its samples the load average runs from 35 to 96 on eight threads
+  (13.8 at the judged hour's last reading),
+  the kernel's full I/O stall over ten seconds from 3 to 40 percent,
+  and the journal daemon is in uninterruptible sleep in most.
+  These figures fail no level.
+- **What it did to work**:
+  five of 49 commits through the wrapper took over five seconds
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section of 2026-11-14T00:58:17-05:00),
+  one of them 19.8 s between the manager logging a unit started and the program's first line.
+  By the owner's answer under "What counts as the ceiling" a slow commit is no symptom.
+- **By the criterion the level still holds**
+  (no longer so:
+  the probe started at 01:00 failed the level at 01:10:30,
+  see "Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00"):
+  no first answer over 120 s,
+  no run ended on a disk error.
+  The second half of the criterion had no reading,
+  so the probe runs again since 01:00
+  (unit `disk-ceiling-probe-level-32-while-reviews-and-four-passes-build-20261114T0100`,
+  eight hours;
+  it ends with status 3 when a drive's write-and-sync takes over five seconds twice in a row).
+- What differs from the judged hour at the same count is not measured.
+  Not ruled out:
+  reviews that build the wrapper's crate cold,
+  four integration passes building at once,
+  a `cargo-shadow-lean.service` that ran 56 minutes until 00:31,
+  and `toolchain-daily-update.service`,
+  whose timer fired at 00:16:25,
+  two seconds before the first slow answer of the service manager in this hour was asked
+  (found at 01:18, after this section was written).
+
+#### Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+The cause is not established and none is claimed.
+
+- **The readings**
+  (`keep/probe-readings.jsonl`;
+  home drive write-and-sync in ms,
+  agents going beside each):
+  00:59:04 111,136 (22);
+  01:01:55 1 (20);
+  01:02:55 128 (20);
+  01:04:17 1 (20);
+  01:05:17 1 (21);
+  01:06:17 3 (21);
+  01:07:17 132,701 (21);
+  01:10:30 10,339 (20);
+  01:12:25 29,020 (21);
+  01:13:54 7 (21);
+  01:14:54 102,109 (21);
+  01:17:36 37,279 (21);
+  01:18:45 40,119 (22);
+  01:20:25 52 (21).
+  The build volume in the same readings:
+  2 to 178 ms,
+  once 2,553 ms.
+- **Level thirty-two fails at 01:10:30**:
+  two readings in a row over five seconds
+  (132,701 ms and 10,339 ms)
+  with twenty and twenty-one agents going.
+  The rule gives twenty-four.
+  The filling unit that had run since 17:12 ended at 01:12:16;
+  one at level twenty-four was started at 01:16:46.
+- **Level twenty-four fails at 01:18:45**:
+  37,279 ms at 01:17:36 and 40,119 ms at 01:18:45,
+  two readings in a row,
+  both after the filling unit was at twenty-four,
+  with twenty-one and twenty-two agents going.
+  They are the last reading of one probe process and the first of the next
+  (the first had ended with status 3 on 102,109 ms and 37,279 ms,
+  of which only the second falls after 01:16:46),
+  so no single process printed this failure;
+  the criterion asks for two readings in a row and these are.
+  The rule gives twenty.
+  The filling unit at twenty-four was stopped between two rounds
+  and one at twenty started at 01:21:35
+  (`fill-free-places-and-put-ended-reviews-back-at-level-20-20261114T0123`,
+  eight hours,
+  no successor;
+  the stamp in its name is two minutes late).
+  The probe runs again since 01:21:42
+  (`disk-ceiling-probe-level-20-since-the-filler-is-at-20-20261114T0122`,
+  eight hours).
+- **The count did not change between the level that held and the two that failed**:
+  the judged hour of level thirty-two
+  (2026-11-13 18:51 to 19:49)
+  had twenty to twenty-two agents and no slow reading twice in a row;
+  both failures have twenty to twenty-two.
+  So the label on the level discriminates nothing here,
+  and what does is not known.
+- **Running in the failing hour and not in the judged one**:
+  `toolchain-daily-update.service`
+  (its timer fired 00:16:25,
+  the service started 00:16:48 and was still in its start step at 01:20:49;
+  `mise run toolchain:update:daily`,
+  which checks the packages before it updates;
+  `CPUQuota` 200%,
+  `MemoryMax` 8G,
+  `IOWeight` 1,
+  `Nice` 10).
+  By 01:18 its cgroup had read 7.83 GB and written 5.24 GB on the home device.
+  Other timers of the hour:
+  `snapper-cleanup` 00:00:07,
+  `logrotate` 00:22:41,
+  `btrfs-qgroup-rescan-home` 00:37:12
+  (answered "already consistent, nothing to do";
+  the kernel logged a quota scan of the home filesystem completed at 00:14:49 and at 00:53:37),
+  `kopia-snapshot-all` 00:40:36
+  (in `auto-restart` at 01:19),
+  `rclone-bisync-garage` 01:00:36.
+  None of these is shown to be the cause.
+- **Who used the home device in one minute of it**
+  (01:17:21 to 01:18:21,
+  from each unit's `io.stat` under the user manager's `app.slice`;
+  `keep/home-drive-bytes-by-unit-over-one-minute-2026-11-14T0617.txt`;
+  system units are not in the sample):
+  all 99 units and scopes together wrote about 2 MiB and read about 1.4 GiB.
+  The largest readers:
+  the JetBrains toolbox 490 MiB,
+  the daily update 233 MiB,
+  sixteen command scopes 298 MiB together,
+  twenty-one Pi units 173 MiB together.
+  A stall of 37 s falls in that minute,
+  so the writes of the user's units do not explain it;
+  reads,
+  system units and the filesystem's own work are not told apart by this sample.
+- **Against the other half of the criterion**:
+  no Pi run went without a first answer for 120 s,
+  and none ended on a disk error.
+- **Not done yet**:
+  the control reading,
+  the same count with the daily update ended,
+  to see whether the stalls go with it.
+  The question whether an hour that holds the daily update may judge a level is kept for the owner
+  (`doc/handover/cli-git-rust-implementation.md`,
+  "Questions kept for the owner's return").
+
+#### Level 20 fails on the home drive, 2026-11-14T01:37:37-05:00 to 01:41:00-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+The cause is not established and none is claimed.
+
+- **The readings at level twenty**
+  (home drive write-and-sync in ms,
+  agents going beside each;
+  the filling unit was at twenty from 01:21:35):
+  01:25:57 2 (21);
+  01:26:57 540 (21);
+  01:28:06 1 (19);
+  01:29:06 70,462 (18);
+  01:31:16 233 (19);
+  01:32:18 33 (20);
+  01:33:18 87 (19);
+  01:34:19 1 (20);
+  01:35:19 11 (20);
+  01:36:19 187 (20);
+  01:37:37 143,475 (20);
+  01:41:00 57,262 (18).
+  The build volume in the same readings:
+  6 to 47 ms.
+- **Level twenty fails at 01:41:00**:
+  143,475 ms and 57,262 ms,
+  two readings in a row,
+  with twenty and eighteen agents going.
+  The probe ended with status 3.
+  The rule gives eighteen.
+  The filling unit at twenty was stopped and one at eighteen started at 01:42:18
+  (`fill-free-places-and-put-ended-reviews-back-at-level-18-20261114T0142`,
+  eight hours,
+  no successor);
+  the probe runs again since then
+  (`disk-ceiling-probe-level-18-since-the-filler-is-at-18-20261114T0142`,
+  eight hours).
+- **What else ran in those minutes**:
+  `toolchain-daily-update.service` until 01:40:01,
+  so the first of the two readings falls wholly inside it
+  and the second began about three seconds after it ended;
+  and this session's own work in the main checkout:
+  one run of `package/mpm-shadow/cli`'s Clippy task from 01:36
+  (in a scope with `IOWeight=1`,
+  its build folder on the build volume),
+  and the merge of integration pass 28 at 01:38:12 with its push
+  (26 files,
+  4,112 lines).
+  None of these is shown to be the cause.
+- **The control hour starts here**:
+  the daily update has ended,
+  so readings from 01:42 on are the same machine without it.
+  If the stalls stop while eighteen to twenty agents go,
+  that is evidence about the daily update and none about the count,
+  and the level is still the one the criterion gave;
+  raising it again is the owner's question already kept.
