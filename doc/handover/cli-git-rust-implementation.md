@@ -1302,6 +1302,62 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The reviewer's quota is dry by the owner's word; no review starts until the owner says where reviews go (2026-11-14T18:07:36-05:00)
+
+Not final and not approved:
+what the owner wrote,
+what the coordinating session measured and changed,
+and what waits on an answer.
+
+- **The owner wrote**,
+  between 18:02:34 and 18:05:33:
+  "My Qwen quota has ran dry."
+- **Measured at 18:06:38.**
+  Seven review runs' summaries written since 17:30 hold the provider's `insufficient_quota` answer:
+  the masking of credentials,
+  the queue filling,
+  mpm-shadow's removal of old versions,
+  the push of a branch not checked out and the test services' journal change,
+  the last two twice,
+  each put back at the head by the filling unit at 18:04:13,
+  started again and ended on the same answer.
+  No run on the reviewer's model was going;
+  all 19 Pi units going were authors and passes on `neuralwatt`,
+  model `deepseek-v4.1-flash-flex`.
+  The pools at 18:07:09:
+  `neuralwatt-flex` 20 of 20,
+  `neuralwatt-kimi-flex` 0 of 20,
+  `qwen-token-plan` 0 of 5,
+  the other default pools closed.
+- **Changed at 18:06:57**,
+  so that no start is spent on an answer that cannot come:
+  while the file
+  `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/no-run-on-the-reviewer-model-starts-while-this-file-exists.md`
+  exists,
+  the queue's starter starts no entry for `qwen4-max-preview`.
+  The entries keep their places;
+  runs for the default pools go on starting.
+  Deleting the file ends the hold.
+  The filling unit runs the starter anew each round,
+  so the change needs no restart.
+- **What waits on it**:
+  the reviews of the masking (so the rotation of credentials too),
+  of the queue filling,
+  of mpm-shadow's removal of old versions,
+  of the drawn shadow tree,
+  of the scan for a process that has gone,
+  of the push of a branch not checked out,
+  and of the test services' journal change;
+  and every answer an author gives from here on.
+  Authors,
+  passes and fresh runs are not held.
+- **Asked of the owner through the question tool**:
+  where reviews go while the quota is dry.
+  The project's rule sends reviews of a change to `qwen4-max-preview` alone,
+  so another reviewer is the owner's to choose.
+  Until an answer,
+  the hold stands and nothing is sent to another model.
+
 ##### The drawn shadow tree's third answer goes to review (2026-11-14T18:02:02-05:00)
 
 Not final and not approved:
