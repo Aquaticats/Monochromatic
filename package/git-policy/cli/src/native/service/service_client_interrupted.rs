@@ -22,18 +22,23 @@
 //! const watch = watchForAStop(); try { await submit() } finally { watch.release() }
 //! ```
 
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 
-/// The signal the person sent,
-/// and zero while none was seen:
-/// an `AtomicI32` because a handler may only write one word.
-static STOP_REQUESTED: AtomicI32 = AtomicI32::new(0);
-
-/// The process that sent that signal,
-/// and zero while none was seen or where the kernel named none:
-/// a terminal's interrupt or a signal the kernel raised carries no sender,
-/// and the record says so rather than guessing one.
-static STOP_SENDER: AtomicI32 = AtomicI32::new(0);
+/// What:
+///  The stop the wait answers,
+///  as one word:
+///  the signal in the low half and one more than its sender in the high half,
+///  so zero means no stop,
+///  in the encoding `stop_word` owns.
+/// Why:
+///  A signal handler may run on any thread at any instruction,
+///  and two words let a stop that arrives between the wait's two reads rename the first stop's sender:
+///  a record would then pair one stop's signal with another stop's process,
+///  and the command would end by a signal whose sender it never named
+///  (`stop_word.rs`,
+/// and the same hazard the relay's word closes).
+///  One word cannot be read half written.
+static STOP: AtomicU64 = AtomicU64::new(0);
 
 /// The connection whose read is running,
 /// and minus one while none is:
@@ -98,18 +103,16 @@ const KEPT_IGNORED: [std::os::raw::c_int; 2] = [libc::SIGHUP, libc::SIGQUIT];
 /// process.on(signal, () => { if (alreadyAsked) { signal(SIG_DFL); raise(signal) } else { asked = signal } });
 /// ```
 extern "C" fn note_the_stop(signal: std::os::raw::c_int, info: *mut libc::siginfo_t, _context: *mut std::ffi::c_void) {
-    if STOP_REQUESTED.swap(signal, Ordering::SeqCst) == 0 {
-        // What: The process that sent the signal is kept where the kernel named one.
-        // Why:  The person's "who stopped my commit" is answered by the sender, and `si_pid` is on the list of what a handler may
-        //       read; a terminal's interrupt and a timer carry no sender and keep zero.
-        //
-        // In TS you'd write (pseudocode):
-        // ```ts
-        // sender = info && info.fromProcess ? info.pid : 0;
-        // ```
-        if let Some(pid) = crate::signal_report::sender_in_report(info) {
-            STOP_SENDER.store(pid, Ordering::SeqCst);
-        }
+    // What: The signal and the process the kernel named as its sender go in as one word, written once.
+    // Why:  The record states which stop ended the commit and who sent it, and a handler that wrote the two apart would let
+    //       a reader take half of one stop beside half of another; `si_pid` is on the list of what a handler may read, and a
+    //       terminal's interrupt and a timer carry no sender, which the word states as zero.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (stop.swap(pack(signal, senderOf(info))) === 0) { wake(); return }
+    // ```
+    if STOP.swap(crate::stop_word::packed(signal, crate::signal_report::sender_in_report(info)), Ordering::SeqCst) == 0 {
         // The read the wait is inside is woken here, because the kernel may deliver this signal to any thread of the process,
         //  and a thread that is not the waiting one only writes the flag the waiter reads after its own read gives up.
         let reading: i32 = READING.load(Ordering::SeqCst);
@@ -132,75 +135,33 @@ extern "C" fn note_the_stop(signal: std::os::raw::c_int, info: *mut libc::siginf
 }
 
 /// What:
-///  The process that sent the stop this commit answers,
-///  and nothing while none was sent or the kernel named none.
-/// Why:
-///  Two agents on one repository stop each other's commits with `SIGTERM` at their own bounds,
-///  and a record that says only "signal 15" cannot tell a person's Ctrl-C from a tool's bound:
-///  the sender is the difference,
-/// and it is the one fact that says whose bound it was.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// stopSender() // the pid that sent the stop, or undefined
-/// ```
-pub(crate) fn stop_sender() -> Option<i32> {
-    let sender: i32 = STOP_SENDER.load(Ordering::SeqCst);
-    if sender <= 0 {
-        return None;
-    }
-    return Some(sender);
-}
-
-/// What:
 ///  The stop a waiting commit answers,
 ///  as the one fact it is:
 ///  the signal,
 ///  and the process the kernel named as its sender.
 /// Why:
 ///  A signal handler may run on any thread at any instruction,
-///  and a wait that read the signal and then, a step later, the sender could pair one stop's signal with the
-///  sender of a stop that arrived between the two reads
-///  (`signal_relay_relayed_stop.rs` states the same hazard for the relay's own word).
+///  and a wait that read the signal and then,
+/// a step later,
+/// the sender could pair one stop's signal with the
+///  sender of a stop that arrived between the two reads.
 ///  The command ends by the signal it names and its record states that sender,
-///  so the two have to be one fact read once.
+///  so the two have to be one fact read once (`stop_word.rs`).
+///  The relay's word is the second place a stop can come from,
+///  and it is one word too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// stop() // [SIGTERM, 4242], or undefined
 /// ```
 pub(crate) fn stop() -> Option<(i32, Option<i32>)> {
-    // THE CONTROL COMMIT READS THE TWO WORDS IN ORDER, which is the shape the call sites had before the fix.
-    let signal: i32 = stop_requested()?;
-    return Some((signal, stop_sender()));
-}
-
-/// What:
-///  The signal a waiting commit stops for,
-///  and nothing while none was sent.
-/// Why:
-///   A signal that arrives while a Git child of the preparation runs is relayed to that child
-///  (`signal_relay.rs`),
-///  and the child may be gone or may not act on it,
-///  so the relay notes the stop for this wait:
-///  an interrupted commit is not made whatever its preparation was inside.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// stopRequested() ?? takeRelayedStop()
-/// ```
-pub(crate) fn stop_requested() -> Option<i32> {
-    let signal: i32 = STOP_REQUESTED.load(Ordering::SeqCst);
-    if signal != 0 {
-        return Some(signal);
+    // What: One read of the wait's own word, and then the relayed one if the wait's is empty.
+    // Why:  Each read carries a stop whole, so no delivery can rename the sender of the stop this answers; the word is not
+    //       cleared here, because the handler tells a second signal from a first by it.
+    if let Some(stopped) = crate::stop_word::unpacked(STOP.load(Ordering::SeqCst)) {
+        return Some(stopped);
     }
-    // What: A stop the preparation relayed carries the process the kernel named, and the record must name it too.
-    // Why:  A tool that sends `SIGTERM` at its own bound and a person's interrupt send the same number, and only the sender
-    //       tells them apart (`commit_stop_reason.rs`, `client-signal`); the relay keeps the sender beside the signal, so
-    //       the wait hands it to the record as the handler of the wait does.
-    let (relayed, sender): (i32, Option<i32>) = crate::signal_relay_relayed_stop::take()?;
-    STOP_SENDER.store(sender.unwrap_or(0), Ordering::SeqCst);
-    return Some(relayed);
+    return crate::signal_relay_relayed_stop::take();
 }
 
 /// What:
@@ -279,8 +240,7 @@ pub(crate) struct StopWatch {
 /// watchForAStop() // the release is the value's drop
 /// ```
 pub(crate) fn watch_for_a_stop() -> StopWatch {
-    STOP_REQUESTED.store(0, Ordering::SeqCst);
-    STOP_SENDER.store(0, Ordering::SeqCst);
+    STOP.store(0, Ordering::SeqCst);
     let mut previous: Vec<(std::os::raw::c_int, libc::sigaction)> = Vec::new();
     for signal in WATCHED {
         // SAFETY: a null new action only reads what is in place, into this local.
@@ -318,8 +278,7 @@ pub(crate) fn watch_for_a_stop() -> StopWatch {
 
 impl Drop for StopWatch {
     fn drop(&mut self) {
-        STOP_REQUESTED.store(0, Ordering::SeqCst);
-        STOP_SENDER.store(0, Ordering::SeqCst);
+        STOP.store(0, Ordering::SeqCst);
         READING.store(-1, Ordering::SeqCst);
         for (signal, before) in std::mem::take(&mut self.previous) {
             // SAFETY: `before` is the action this watch replaced, read back by `sigaction`; putting it back touches no
@@ -343,8 +302,8 @@ impl Drop for StopWatch {
 /// ```
 #[cfg(test)]
 pub(crate) fn stop_requested_for_test(signal: i32, sender: Option<i32>) {
-    STOP_SENDER.store(sender.unwrap_or(0), Ordering::SeqCst);
-    STOP_REQUESTED.store(signal, Ordering::SeqCst);
+    // One word, as the handler writes it: the seam stands for a delivery and never for half of one.
+    STOP.store(crate::stop_word::packed(signal, sender), Ordering::SeqCst);
 }
 
 /// The watch and its flag are controlled in the test module.

@@ -270,14 +270,9 @@ fn a_relayed_stop_is_kept_for_the_wait_that_asks() {
     // What: The wait of a commit reads the stop the way the command does, and names the sender in its record.
     // Why:  The relay and the wait are two steps, and a sender dropped between them is the fault this control is for.
     assert_eq!(
-        crate::service_client_interrupted::stop_requested(),
-        Some(libc::SIGTERM),
-        "the wait is told which signal the person sent"
-    );
-    assert_eq!(
-        crate::service_client_interrupted::stop_sender(),
-        Some(mine),
-        "and the process the kernel named is the one its record states"
+        crate::service_client_interrupted::stop(),
+        Some((libc::SIGTERM, Some(mine))),
+        "the wait is told which signal the person sent, and the process the kernel named as its sender"
     );
     drop(guard);
     assert_eq!(crate::signal_relay_relayed_stop::take(), None, "one stop is applied once");

@@ -128,7 +128,12 @@ fn a_process_signal_with_no_sender_is_still_a_process_signal() {
     let mut bytes: Vec<u8> = report_the_kernel_wrote();
     let mine: i32 = i32::try_from(std::process::id()).expect("a process ID fits");
     let needle: [u8; 4] = mine.to_ne_bytes();
-    let found: Vec<usize> = bytes.windows(4).enumerate().filter(|(_, window)| *window == needle).map(|(at, _)| { return at; }).collect();
+    let mut found: Vec<usize> = Vec::new();
+    for (at, window) in bytes.windows(4).enumerate() {
+        if window == needle {
+            found.push(at);
+        }
+    }
     assert_eq!(found.len(), 1, "the sender appears once in the report: {found:?}");
     let at: usize = found[0];
     bytes[at..at + 4].fill(0);
@@ -142,7 +147,8 @@ fn a_process_signal_with_no_sender_is_still_a_process_signal() {
 ///  A sender code no process sent names no process,
 ///  so the relay does not relay a terminal's signal and the record states no sender.
 /// Why:
-///  A terminal's interrupt, a kernel fault and a timer are not a process's bound,
+///  A terminal's interrupt,
+/// a kernel fault and a timer are not a process's bound,
 ///  and relaying one is what the relay's own rule forbids.
 ///
 /// In TS you'd write (pseudocode):

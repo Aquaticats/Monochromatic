@@ -47,6 +47,10 @@ pub mod signal_relay;
 /// kept for the command that waits after it.
 pub mod signal_relay_relayed_stop;
 
+/// A stop's signal and the process the kernel named as its sender,
+/// kept as one word so a delivery or a kill cannot pair one stop's signal with another's sender.
+pub mod stop_word;
+
 /// What the kernel's own report of a signal says:
 /// whether a process sent it,
 /// and which one,

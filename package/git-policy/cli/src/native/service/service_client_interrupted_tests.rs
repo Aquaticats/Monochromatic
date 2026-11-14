@@ -11,6 +11,13 @@ use std::path::PathBuf;
 /// The variable that makes a run of this test the child whose death is the assertion.
 const SECOND_SIGNAL_CHILD: &str = "CLI_GIT_INTERRUPTED_SECOND_SIGNAL_CHILD";
 
+/// The process that sent the signals these controls raise themselves,
+/// so a statement about a sender can name it.
+#[cfg(unix)]
+fn own_process() -> Option<i32> {
+    return Some(i32::try_from(std::process::id()).expect("a process ID fits"));
+}
+
 /// What is in place for `signal` now,
 /// as `sigaction` reports it.
 #[cfg(unix)]
@@ -41,13 +48,13 @@ fn action_of(signal: std::os::raw::c_int) -> libc::sigaction {
 #[test]
 fn the_first_signal_is_noted_and_the_command_goes_on() {
     let watch: StopWatch = watch_for_a_stop();
-    assert_eq!(stop_requested(), None, "nothing was sent yet");
+    assert_eq!(stop(), None, "nothing was sent yet");
     // SAFETY: `raise` sends one signal to this thread, which is the one whose watch notes it.
     let sent: libc::c_int = unsafe { libc::raise(libc::SIGINT) };
     assert_eq!(sent, 0, "the interrupt was sent");
-    assert_eq!(stop_requested(), Some(libc::SIGINT), "the wait is told which signal came");
+    assert_eq!(stop(), Some((libc::SIGINT, own_process())), "the wait is told which signal came, and this process sent it");
     drop(watch);
-    assert_eq!(stop_requested(), None, "the watch ends with the flag it set");
+    assert_eq!(stop(), None, "the watch ends with the flag it set");
 }
 
 /// What:
@@ -99,7 +106,7 @@ fn a_stop_wakes_the_read_the_wait_is_inside() {
     let (read_answered, waited): (bool, std::time::Duration) = reading.join().expect("the reading thread ends");
     assert!(read_answered, "the read ended with an answer, not with its timeout");
     assert!(waited < std::time::Duration::from_secs(2), "the read ended {} ms after it began", waited.as_millis());
-    assert_eq!(stop_requested(), Some(libc::SIGINT), "the stop is noted for the wait");
+    assert_eq!(stop(), Some((libc::SIGINT, own_process())), "the stop is noted for the wait, with this process as its sender");
     drop(watch);
 }
 
@@ -120,9 +127,9 @@ fn a_stop_wakes_the_read_the_wait_is_inside() {
 #[test]
 fn a_stop_that_names_its_sender_is_kept() {
     stop_requested_for_test(libc::SIGTERM, Some(4_242));
-    assert_eq!(stop_sender(), Some(4_242), "the process that sent the stop is kept");
+    assert_eq!(stop(), Some((libc::SIGTERM, Some(4_242))), "the process that sent the stop is kept");
     stop_requested_for_test(libc::SIGINT, None);
-    assert_eq!(stop_sender(), None, "a keyboard's interrupt names no process");
+    assert_eq!(stop(), Some((libc::SIGINT, None)), "a keyboard's interrupt names no process");
 }
 
 /// What:
@@ -148,9 +155,9 @@ fn the_wait_answers_a_hangup_and_a_quit_too() {
         // SAFETY: `raise` sends one signal to this thread, which is the one whose watch notes it.
         let sent: libc::c_int = unsafe { libc::raise(signal) };
         assert_eq!(sent, 0, "signal {signal} was sent");
-        assert_eq!(stop_requested(), Some(signal), "the wait is told which signal came");
+        assert_eq!(stop(), Some((signal, own_process())), "the wait is told which signal came, and this control sent it");
         drop(watch);
-        assert_eq!(stop_requested(), None, "the watch ends with the flag it set");
+        assert_eq!(stop(), None, "the watch ends with the flag it set");
     }
 }
 
@@ -261,12 +268,12 @@ fn a_signal_the_caller_ignored_stays_ignored_and_is_never_a_stop() {
     // SAFETY: `raise` sends one signal to this thread; both signals are ignored, so neither can end this control.
     let raised: (libc::c_int, libc::c_int) = unsafe { (libc::raise(libc::SIGHUP), libc::raise(libc::SIGQUIT)) };
     assert_eq!(raised, (0, 0), "the shielded signals were sent");
-    assert_eq!(stop_requested(), None, "a signal the caller ignored is no stop of the commit");
+    assert_eq!(stop(), None, "a signal the caller ignored is no stop of the commit");
     // The other watched signals are still answered: the ignore is what is honoured, not the whole watch.
     // SAFETY: `raise` sends one signal to this thread, whose watch notes it.
     let stopped: libc::c_int = unsafe { libc::raise(libc::SIGTERM) };
     assert_eq!(stopped, 0, "the stop was sent");
-    assert_eq!(stop_requested(), Some(libc::SIGTERM), "a signal the caller did not ignore is still a stop");
+    assert_eq!(stop(), Some((libc::SIGTERM, own_process())), "a signal the caller did not ignore is still a stop, and this control sent it");
     drop(watch);
     // SAFETY: the two dispositions read at the start are the process's own; putting them back touches no memory.
     let _hup = unsafe { libc::sigaction(libc::SIGHUP, &ignored, std::ptr::null_mut()) };
@@ -294,12 +301,10 @@ fn a_stop_relayed_during_the_preparation_keeps_the_sender_the_kernel_named() {
     let _stale = crate::signal_relay_relayed_stop::take();
     stop_requested_for_test(0, None);
     crate::signal_relay_relayed_stop::note(libc::SIGTERM, Some(4_242));
-    assert_eq!(stop_requested(), Some(libc::SIGTERM), "the wait learns the signal the relay kept");
-    assert_eq!(stop_sender(), Some(4_242), "and the process the kernel named as its sender");
+    assert_eq!(stop(), Some((libc::SIGTERM, Some(4_242))), "the wait learns the signal the relay kept, with the process the kernel named");
     // A relayed stop with no sender is no sender, and never the one the last stop named.
     crate::signal_relay_relayed_stop::note(libc::SIGTERM, None);
-    assert_eq!(stop_requested(), Some(libc::SIGTERM), "the second stop is taken too");
-    assert_eq!(stop_sender(), None, "a signal no process sent names no process");
+    assert_eq!(stop(), Some((libc::SIGTERM, None)), "the second stop is taken too, and names no process");
 }
 
 /// What:
@@ -313,7 +318,9 @@ fn a_stop_relayed_during_the_preparation_keeps_the_sender_the_kernel_named() {
 ///  what ended the command (`commit_stop_reason.rs`,
 /// `client-signal`).
 ///  The handler may run on any thread at any instruction,
-///  and the call site used to read the signal and then, a step later, the sender.
+///  and the call site used to read the signal and then,
+/// a step later,
+/// the sender.
 ///  This control puts a second stop exactly where that step was:
 ///  it is the shape the call site has,
 ///  and it states what the wait took.
@@ -348,7 +355,8 @@ fn a_stop_that_arrives_while_the_first_is_answered_never_renames_its_sender() {
 }
 
 /// What:
-///  The stop the wait answers, taken the way its call site takes it,
+///  The stop the wait answers,
+/// taken the way its call site takes it,
 ///  with the moment between the call site's two reads given to the control.
 /// Why:
 ///  The call site read the signal and then the sender,
@@ -361,8 +369,8 @@ fn a_stop_that_arrives_while_the_first_is_answered_never_renames_its_sender() {
 /// ```
 #[cfg(unix)]
 fn what_the_wait_took(between: impl FnOnce()) -> Option<(i32, Option<i32>)> {
-    // THE CONTROL COMMIT: the shape the call site had, one read and then the other with work between.
-    let signal: i32 = stop_requested()?;
+    // One call, one read: what the second delivery does afterwards cannot change what was taken.
+    let taken: Option<(i32, Option<i32>)> = stop();
     between();
-    return Some((signal, stop_sender()));
+    return taken;
 }
