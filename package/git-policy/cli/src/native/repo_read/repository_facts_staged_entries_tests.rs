@@ -1,9 +1,9 @@
 //! What:
-//!  The two listings that name a path whose content the index holds while the worktree does not,
-//!  and the reading that intersects them.
+//!  The listing that names a path whose index holds a whole entry,
+//!  and the reading that keeps only the paths the caller already listed.
 //! Why:
 //!  A save step that reads only worktree files reports such a path as having nothing to copy,
-//!  and the abort that follows would then discard it unsaved.
+//!  and the abort that follows would then discard the staged content unsaved.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -22,7 +22,8 @@ fn words(arguments: &[OsString]) -> Vec<String> {
 
 /// Each listing names exactly the paths it was given,
 ///  literally and below the repository root,
-///  after the caller's global options.
+///  after the caller's global options,
+///  and prints each answer from the repository root.
 #[test]
 fn each_listing_names_exactly_the_paths_it_was_given() {
     let global: [OsString; 2] = [OsString::from("-C"), OsString::from("/repo")];
@@ -42,6 +43,7 @@ fn each_listing_names_exactly_the_paths_it_was_given() {
             "/repo",
             "ls-files",
             "--stage",
+            "--full-name",
             "-z",
             "--",
             ":(top,literal)new.txt",
