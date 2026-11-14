@@ -762,6 +762,13 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - The queue of runs filled from the package, its third answer (tip `a634fbf060`, added 2026-11-14T17:41-05:00):
+    a lock that now holds the queue and its set-aside records,
+    or the folder of one file for each entry,
+    which its README describes and rejects;
+    does a put-back finish an interrupted set-aside itself;
+    and does the read of which runs are going move inside the held step,
+    at the cost of a subprocess call under the lock?
   - The queue of runs filled from the package, its second answer (tip `01a855c051`, added 2026-11-14T15:26-05:00):
     a lock over the queue's read,
     change and write,
@@ -1270,6 +1277,66 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The discarding commands lose no file any more and still wait without a ceiling; mpm-shadow's install restores a kept version under a wrong name; the queue filling's third answer goes to review (2026-11-14T17:41:33-05:00)
+
+Not final and not approved:
+what two reviews and one author report of themselves,
+and what the coordinating session queued.
+
+- **The discarding commands** (`4027b63582`),
+  sixth review:
+  the first to find no way a file is lost.
+  The guards read as sound for the cases it traced,
+  and the built wrapper refused `clean -ffdX` in the main worktree with everything left whole.
+  What it reports is waits.
+  Reproduced on a FUSE mount that stalls in a private mount namespace:
+  a `symlink_metadata` call with no ceiling on the path of `checkout` and `switch` blocked for more than 8 s until the connection was aborted,
+  where the same call under the crate's own ceiling answers at 3 s.
+  By reading:
+  the second look at a bare repository's shape in a clean runs outside the walk's ceiling.
+  The author is resumed for those two
+  (`~/temp/agent/pi-runs/discarding-commands-answers-its-sixth-review-of-2026-11-14-prompt.md`).
+  A third,
+  by reading,
+  is in code of `main` the branch does not change and reaches every guarded command:
+  the read of a repository's location makes `canonicalize` and `symlink_metadata` calls with no ceiling.
+  A fresh run is queued for it,
+  asked for the cost on every command as well
+  (`~/temp/agent/pi-runs/read-of-a-repositorys-location-that-every-guarded-command-asks-ends-within-a-ceiling-prompt.md`).
+- **mpm-shadow's install removes no version**,
+  the fresh run's branch (`0d6f26b31d`),
+  its review:
+  every wait is bounded.
+  One reproduced end to end:
+  the fallback name a claim is written under has two fields and the parser that reads it back expects three,
+  so the claim of a killed removal for a version with dots comes back as the wrong version
+  (`26.11.0` as `11.0`)
+  and one for a plain number is never recovered;
+  the writer reaches the fallback only after eight claims of one process number.
+  One reproduced with no loss:
+  of two recoveries at once the loser prints a false "cannot be given back".
+  One by reading:
+  a fall-through added by the change can delete a third run's download in progress.
+  And a limit:
+  a reused process number can postpone a claim's recovery without end.
+  The author is resumed
+  (`~/temp/agent/pi-runs/mpm-shadow-install-removes-no-version-answers-its-second-review-of-2026-11-14-prompt.md`).
+- **The queue of runs filled from the package** (tip `a634fbf060`, ended 17:35:36):
+  the author reports the three findings answered by widening what the lock holds to the queue and its records,
+  with the lock-free folder described and rejected in the README,
+  and the review's four scripts run before and after.
+  Its questions go to the kept list:
+  the lock's reach against the lock-free folder;
+  whether a put-back finishes an interrupted set-aside itself;
+  whether the read of what is going moves inside the held step.
+  Review queued (range `main...a634fbf060`, 23 code files),
+  and that review is where a lock chosen over the rule's first choice is weighed.
+- Read at 17:40:06:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  Neither resumed session is named by the credential scan.
+  The queue held 67 entries at 17:41:33.
 
 ##### The change that keeps a test's service out of the user journal is written and goes to review; it names a cause for two of the gate's red tests (2026-11-14T17:28:47-05:00)
 
