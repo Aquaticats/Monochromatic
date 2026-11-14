@@ -33,6 +33,7 @@ import {
   SessionFileUnreadableError,
   sessionFileInSummary,
 } from './session-file-of-a-run.ts';
+import { wholeLinesOf, } from './whole-lines-of-a-feed.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -69,6 +70,9 @@ export type SavedReview = {
 /**
  Reads the text of the last assistant message in a session's records.
 
+ The session file is Pi's own, and it is read while a resumed Pi may still be appending to it, so the record it ends with may be
+ one the writer has not finished: that cut text is no record and is left alone rather than parsed.
+
  @param shown - the session file, one JSON record per line
 
  @returns the message's text parts joined, or empty text when the session holds no assistant message
@@ -83,7 +87,7 @@ export function lastAssistantTextIn({ shown, }: { readonly shown: string },): st
    The last assistant message found so far.
    */
   const parts: string[][] = [];
-  for (const line of shown.split('\n',)) {
+  for (const line of wholeLinesOf({ shown, },)) {
     if (line === '') {
       continue;
     }
