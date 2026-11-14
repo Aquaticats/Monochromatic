@@ -69,6 +69,28 @@
 //!  `HEAD` or the shallow file,
 //!  and the file that is really there is the one the repository had before.
 //!
+//! Every name the pass reads may have been made by another program,
+//! and each read is opened so that a name of the wrong kind cannot hold it:
+//!
+//!  - the lock and its PID file:
+//!    `symlink_metadata` for their identity and their times,
+//!    which opens nothing and cannot wait;
+//!  - the lock's bytes:
+//!    `open_to_judge`,
+//!    with `O_NOFOLLOW`,
+//!    `O_NONBLOCK` and `O_CLOEXEC`,
+//!    so a link is not followed and a pipe is never waited on;
+//!  - the PID file's number:
+//!    `plain_file::read_plain_file`,
+//!    which refuses anything but a plain file
+//!    and bounds what it reads (`stopped_git_locks.rs`,
+//!    `pid_named_by`);
+//!  - a record's bytes:
+//!    `plain_file::read_plain_file`,
+//!    the same way;
+//!  - the marker inside a lock:
+//!    the descriptor the lock was opened with.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! clearOne({ lock, commonDir }); // { lock, pid, evidence } | undefined

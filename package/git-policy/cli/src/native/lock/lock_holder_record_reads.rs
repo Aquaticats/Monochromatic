@@ -23,7 +23,7 @@
 //! ```
 
 /// The record files and their lines.
-use crate::lock_holder_records::{CHILD_LINE, SELF_LINE, folder_of};
+use crate::lock_holder_records::{CHILD_KIND, SELF_KIND, folder_of};
 /// The one judgement of a holder the commit service's marker also uses.
 use crate::process_identity::process_birth_identity;
 use crate::service_index_identity::{HolderState, holder_state};
@@ -46,6 +46,10 @@ const RECORD_LIMIT: u64 = SMALL_FILE_LIMIT;
 ///   A record that cannot be read names nobody,
 ///  and a line that is not one of the two kinds is dropped,
 ///  so a file a person edited decides nothing.
+///  Both spellings a writer of this branch has used are read,
+///  one space after the kind and two,
+///  because a record of the two-space form is still on disk wherever
+///  this branch has run and the writer wrote exactly that for a forwarded command's own line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,21 +58,21 @@ const RECORD_LIMIT: u64 = SMALL_FILE_LIMIT;
 fn holders_of(text: &str) -> Vec<(i64, String)> {
     let mut holders: Vec<(i64, String)> = Vec::new();
     for line in text.lines().skip(1) {
-        let rest: &str = match line.strip_prefix(SELF_LINE) {
-            Some(found) => found,
-            None => line.strip_prefix(CHILD_LINE).unwrap_or(""),
+        // The kind and the rest of the line, with whatever spacing the writer used: the first form wrote two spaces
+        //  after `self` (`self  <pid> <identity>`), and records of it are on disk wherever this branch has run.
+        let Some((kind, rest)) = line.split_once(' ') else {
+            continue;
         };
-        if rest.is_empty() {
+        if kind != SELF_KIND && kind != CHILD_KIND {
             continue;
         }
-        let mut parts = rest.splitn(2, ' ');
-        let (Some(pid), Some(identity)) = (parts.next(), parts.next()) else {
+        let Some((pid, identity)) = rest.trim_start().split_once(' ') else {
             continue;
         };
-        let (Ok(number), false) = (pid.parse::<i64>(), identity.is_empty()) else {
+        let (Ok(number), false) = (pid.trim().parse::<i64>(), identity.trim().is_empty()) else {
             continue;
         };
-        holders.push((number, identity.to_owned()));
+        holders.push((number, identity.trim().to_owned()));
     }
     return holders;
 }

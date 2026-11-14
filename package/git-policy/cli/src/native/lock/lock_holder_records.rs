@@ -51,11 +51,11 @@ pub(crate) const HOLDER_FOLDER: &str = "cli-git-lock-holders";
 /// The first line of every record.
 pub const RECORD_HEADER: &str = "monochromatic-git-policy-cli lock-holder-record v1";
 
-/// What a line naming the writing process begins with.
-pub(crate) const SELF_LINE: &str = "self ";
+/// What a line naming the writing process is called.
+pub(crate) const SELF_KIND: &str = "self";
 
-/// What a line naming a Git the writing process started begins with.
-pub(crate) const CHILD_LINE: &str = "child ";
+/// What a line naming a Git the writing process started is called.
+pub(crate) const CHILD_KIND: &str = "child";
 
 /// What:
 ///  The repository this command works in,
@@ -233,9 +233,38 @@ pub fn identity_of_birth(birth: &str) -> String {
 pub fn record_text(holders: &[(&str, i64, String)]) -> String {
     let mut text: String = format!("{RECORD_HEADER}\n");
     for (kind, pid, identity) in holders {
-        text.push_str(format!("{kind} {pid} {identity}\n").as_str());
+        text.push_str(record_line(kind, *pid, identity).as_str());
     }
     return text;
+}
+
+/// What:
+///  One line of a record:
+///  the kind,
+///  a space,
+///  the process number,
+///  a space,
+///  the identity.
+/// Why:
+///  The writer and the reader had two spellings:
+///  this function wrote `self  <pid>` (a kind that already ended in a space,
+/// then another),
+///  the append path wrote `child <pid>`,
+///  and the reader parsed only the second,
+///  so a forwarded command's own record named nobody and could never explain its lock
+///  (a review of `675771e759`,
+/// finding 1).
+///  One formatter serves both writers now,
+///  and the reader accepts the two-space form older records carry
+///  (`lock_holder_record_reads.rs`,
+/// `holders_of`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordLine('self', 42, identity) // "self 42 <identity>\n"
+/// ```
+pub fn record_line(kind: &str, pid: i64, identity: &str) -> String {
+    return format!("{kind} {pid} {identity}\n");
 }
 
 /// What:
@@ -272,7 +301,7 @@ fn record_file_of_this_process(folder: &Path) -> Option<PathBuf> {
 /// ```
 pub fn record_this_process(common_dir: &Path) {
     let folder: PathBuf = folder_of(common_dir);
-    let _noted = note(folder.as_path(), SELF_LINE, std::process::id());
+    let _noted = note(folder.as_path(), SELF_KIND, std::process::id());
 }
 
 /// What:
@@ -287,7 +316,7 @@ pub fn record_this_process(common_dir: &Path) {
 /// ```
 pub fn record_a_child_started(common_dir: &Path, pid: u32) {
     let folder: PathBuf = folder_of(common_dir);
-    let _noted = note(folder.as_path(), CHILD_LINE, pid);
+    let _noted = note(folder.as_path(), CHILD_KIND, pid);
 }
 
 /// What:
@@ -299,7 +328,7 @@ pub fn record_a_child_started(common_dir: &Path, pid: u32) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// appendFileSync(file, `${kind}${pid} ${identity}\n`)
+/// appendFileSync(file, recordLine(kind, pid, identity))
 /// ```
 fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
     let Some(path) = record_file_of_this_process(folder) else {
@@ -321,6 +350,6 @@ fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
         return Ok(());
     }
     let mut file: std::fs::File = std::fs::OpenOptions::new().append(true).open(path.as_path())?;
-    file.write_all(format!("{kind}{pid} {identity}\n").as_bytes())?;
+    file.write_all(record_line(kind, i64::from(pid), identity.as_str()).as_bytes())?;
     return Ok(());
 }

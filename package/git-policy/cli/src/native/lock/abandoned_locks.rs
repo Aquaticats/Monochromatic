@@ -125,25 +125,77 @@ impl Outcome {
 /// function lockCandidates(roots: string[]): string[];
 /// ```
 pub fn lock_candidates(roots: &[PathBuf]) -> Vec<PathBuf> {
+    return walked(roots).locks;
+}
+
+/// What:
+///  The lock files one walk found,
+///  and whether the walk saw every file of the Git directories it searched.
+/// Why:
+///  A lock the walk did not visit can still need the record that explains it,
+///  and the sweep removes records nothing needs.
+///  A walk that stopped at its depth bound or at its entry bound has not seen every lock,
+///  and no sweep may then decide what is litter:
+///  a lock below the bound had its record taken away by exactly that mistake
+///  (a review of `675771e759`,
+/// finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Walked = { locks: string[]; complete: boolean };
+/// ```
+pub struct Walked {
+    /// Every lock file the walk found,
+    ///  in path order.
+    pub locks: Vec<PathBuf>,
+    /// Whether every directory the walk reached was searched to its end.
+    pub complete: bool,
+}
+
+/// What:
+///  Search the Git directories `roots` for lock files,
+///  and say whether the search was whole.
+/// Why:
+///  A directory at the depth bound,
+///  one whose entries ran past the entry bound,
+///  and one that could not be read are three ways to miss a lock,
+///  and each leaves `complete` false.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function walked(roots: string[]): Walked;
+/// ```
+pub fn walked(roots: &[PathBuf]) -> Walked {
     let mut found: Vec<PathBuf> = Vec::new();
+    let mut complete: bool = true;
     let mut seen: usize = 0;
     for root in roots {
         let mut pending: Vec<(PathBuf, usize)> = vec![(root.clone(), 0)];
         while let Some((directory, depth)) = pending.pop() {
             let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
+                // A directory this account may not read may hold a lock.
+                complete = false;
                 continue;
             };
             for entry in entries.flatten() {
                 seen += 1;
                 if seen > MOST_ENTRIES {
+                    complete = false;
                     break;
                 }
                 let Ok(kind) = entry.file_type() else {
+                    complete = false;
                     continue;
                 };
                 if kind.is_dir() {
-                    if depth < MOST_DEPTH && !SKIPPED_FOLDERS.contains(&entry.file_name().to_string_lossy().as_ref()) {
+                    if SKIPPED_FOLDERS.contains(&entry.file_name().to_string_lossy().as_ref()) {
+                        continue;
+                    }
+                    if depth < MOST_DEPTH {
                         pending.push((entry.path(), depth + 1));
+                    } else {
+                        // Deeper than this walk goes: what it holds is a lock no sweep may call litter.
+                        complete = false;
                     }
                     continue;
                 }
@@ -155,7 +207,7 @@ pub fn lock_candidates(roots: &[PathBuf]) -> Vec<PathBuf> {
     }
     found.sort();
     found.dedup();
-    return found;
+    return Walked { locks: found, complete };
 }
 
 /// What:
@@ -186,7 +238,8 @@ fn is_a_lock_name(name: &str) -> bool {
 /// ```
 pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
     let mut outcome: Outcome = Outcome::default();
-    let candidates: Vec<PathBuf> = lock_candidates(roots);
+    let searched: Walked = walked(roots);
+    let candidates: Vec<PathBuf> = searched.locks;
     let Some(first) = roots.first() else {
         return outcome;
     };
@@ -206,7 +259,13 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
     }
     // The records are swept against the locks that still stand, so a record that can still explain a lock stays and the
     //  litter of finished commands goes.
-    sweep(common_dir.as_path(), standing_lock_pids(outcome.standing.as_slice()).as_slice());
+    //  A walk that stopped at its own bounds has not seen every lock, so a record that no standing lock of it names may
+    //  still explain one below the bound: nothing is swept then. A lock made after this walk cannot be explained by a
+    //  record naming a dead number either, because a Git that takes a lock writes its own number into the PID file, and a
+    //  PID file left over from an earlier holder (the one case a record would be read for) is a lock no pass may remove.
+    if searched.complete {
+        sweep(common_dir.as_path(), standing_lock_pids(outcome.standing.as_slice()).as_slice());
+    }
     return outcome;
 }
 

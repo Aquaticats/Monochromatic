@@ -518,6 +518,96 @@ fn a_lock_whose_record_names_a_live_process_is_kept() {
 }
 
 /// What:
+///  A forwarded command's own record is swept once that command has ended,
+///  so the folder does not grow with every command run in a repository.
+/// Why:
+///  The writer put two spaces after `self` and the reader parsed one,
+///  so a forwarded command's own record named nobody and the sweep never removed it:
+///  every command left a file,
+/// and past 512 files a lookup reads only the first 512
+///  (a review of `675771e759`,
+/// finding 1).
+///  Eight forwarded commands must leave at most the records of the commands still running.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let n = 0; n < 8; n++) expect(runWrapped(['status']).code).toBe(0);
+/// expect(countRecords(repo)).toBeLessThanOrEqual(1);
+/// ```
+#[test]
+fn a_forwarded_commands_own_record_is_swept_so_the_folder_does_not_grow() {
+    let (fixture, repo): (Fixture, PathBuf) = staged_fixture("record-folder-growth");
+    let folder: PathBuf = git_policy_cli::lock_holder_records::folder_of(repo.join(".git").as_path());
+    for _ in 0..8 {
+        let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+        assert_eq!(observed.code, Some(0), "a forwarded command goes on: {}", stderr_of(&observed));
+    }
+    let left: Vec<String> = std::fs::read_dir(folder.as_path()).map(|entries| { return entries.flatten().map(|entry| { return entry.file_name().to_string_lossy().into_owned(); }).collect(); }).unwrap_or_default();
+    assert!(left.len() <= 1, "eight forwarded commands leave at most the record of the command that is running, not eight: {left:?}");
+    super::commit::remove_settled(&fixture);
+}
+
+/// What:
+///  A named pipe at a lock's PID-file name does not hold a command.
+/// Why:
+///  The pass reads a PID file on every command now,
+///  and a read that opens a pipe waits for a writer that may never come
+///  (a review of `675771e759`,
+/// finding 2).
+///  The read goes through `plain_file`,
+/// which refuses everything but a plain file.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantFifo('.git/index~pid.lock'); expect(runWrapped(['status']).code).toBe(0); // within the bound
+/// ```
+#[test]
+fn a_fifo_at_a_pid_file_name_does_not_hold_the_command() {
+    let (fixture, repo): (Fixture, PathBuf) = staged_fixture("fifo-pid-file");
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock");
+    let fifo: PathBuf = pid_file_of(lock.as_path());
+    let made: std::process::Output = Command::new("mkfifo").arg(fifo.as_path()).output().expect("mkfifo runs");
+    assert!(made.status.success(), "the control makes a named pipe: {}", String::from_utf8_lossy(made.stderr.as_slice()));
+    let (after, elapsed) = after_running(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock");
+    assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
+    assert!(elapsed < GOES_ON_WITHIN, "the command took {elapsed:?}, which is a read that waited on a pipe");
+    assert!(lock.exists(), "a lock whose PID file is not a plain file keeps its place: {}", after.said);
+    super::commit::remove_settled(&fixture);
+}
+
+/// What:
+///  A lock below the walk's depth bound keeps the record that explains it.
+/// Why:
+///  The sweep removes a record nothing needs,
+///  and a lock the walk did not visit can still need one:
+///  a record taken away leaves a lock no later pass can prove abandoned
+///  (a review of `675771e759`,
+/// finding 3).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantDeepRefLock(deadHolder); expect(runWrapped(['status']).code).toBe(0); expect(record).toExist();
+/// ```
+#[test]
+fn a_lock_below_the_walks_depth_keeps_the_record_that_explains_it() {
+    let (fixture, repo): (Fixture, PathBuf) = staged_fixture("deep-lock-record");
+    let (pid, identity) = a_dead_holder();
+    let deep: PathBuf = repo.join(".git/refs/heads/a/b/c/d/e/f/g/h/i.lock");
+    std::fs::create_dir_all(deep.parent().expect("the lock's folder")).expect("the deep folders");
+    std::fs::write(deep.as_path(), b"0000000000000000000000000000000000000000\n").expect("the deep lock");
+    write_after_the_lock(deep.as_path(), format!("pid {pid}\n").as_str());
+    plant_record(repo.as_path(), &[("child", pid, identity)], "record-deep-lock");
+    let observed: Observed = run_wrapped(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+    assert_eq!(observed.code, Some(0), "the command goes on: {}", stderr_of(&observed));
+    let folder: PathBuf = git_policy_cli::lock_holder_records::folder_of(repo.join(".git").as_path());
+    let kept: bool = std::fs::read_dir(folder.as_path()).map(|entries| { return entries.flatten().any(|entry| { return entry.file_name().to_string_lossy().starts_with("record-deep-lock"); }); }).unwrap_or(false);
+    assert!(kept, "a lock the walk could not see keeps the record that explains it");
+    assert!(deep.exists(), "and the lock itself is left alone");
+    super::commit::remove_settled(&fixture);
+}
+
+/// What:
 ///  A lock whose PID file names a number a live process has now is kept,
 ///  even when a record of a dead process names that number:
 ///  the number was used before,
