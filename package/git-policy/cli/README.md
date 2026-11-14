@@ -91,12 +91,30 @@ Every earlier name keeps working in this release:
    so an upgrade or a downgrade changes no unit text and nothing has to make the user manager re-read what it holds.
   A `systemctl --user status` of the service shows that link as its program.
   A unit the manager already holds at an older text is dropped and started again rather than reloaded,
-   which is this worktree's own unit and nobody else's.
+   which is this worktree's own unit and nobody else's,
+   and the socket is stopped in the mode that leaves the service alone,
+  so a landing another command began in the
+   meantime is never cut.
+  The link the releases before this one named (`service-program` in the notes folder) is pointed at the running
+   executable too,
+  so an instance whose loaded text is one of theirs starts this release instead of a program the
+   install removed.
   That repair never costs a commit:
   a service still landing a batch,
-  a manager that stops answering and a link that cannot be written are each one line,
+  a manager that stops answering,
+  a stop it does not take,
+  and a unit another command starts again inside the wait are each one line,
    the units are left as they are,
   and the commit lands through the service that is running.
+  The one failure a commit outlives rather than mends is the program link:
+   pointing it never ends a commit,
+  but what the link still names decides whether that commit lands.
+  A program of this release (a link a build of this release left at another path) greets as this release and the commit
+   lands;
+  another release's program that will not step aside ends the commit with the message that names the link and the runtime
+   directory that could not hold it;
+  and a path that cannot be executed starts nothing,
+  so the commit ends saying the service did not start.
   A service that an older program started under `cli-git@<instance>` keeps running from its own install folder
    and lands the commits that older programs send it;
   this release neither stops it nor removes the old units.
@@ -4299,8 +4317,10 @@ none is waited out or retried on the moved head yet:
   A request is a JSON object and a framing newline,
   and the service takes it only when the whole line arrived:
   a line that ends with the connection instead of its newline is refused and never queued.
-  So a commit is called "not made, and it cannot land later" only when no attempt of it put one whole line on the wire;
-  after an attempt that did, the same give-up is reported as a result that is not known,
+  So a commit is called "not made,
+  and it cannot land later" only when no attempt of it put one whole line on the wire;
+  after an attempt that did,
+  the same give-up is reported as a result that is not known,
   and the commit's staged work and scratch tree stay where they are.
   A commit whose whole request did reach the service is never described as one a waking service cannot land:
   that message says the service may still make it and names `git log -1`.
@@ -4312,7 +4332,8 @@ none is waited out or retried on the moved head yet:
   whether the commit was made,
   that your staged changes and working files are as they were,
   and the three steps that end it.
-  Those steps are, in this order:
+  Those steps are,
+  in this order:
   `git monochromatic-git-policy-cli service status`,
   which says whether this worktree's service answers and names the unit that serves it;
   a restart of that one unit (`systemctl --user restart` and the name the status printed),
@@ -4323,7 +4344,8 @@ none is waited out or retried on the moved head yet:
   never the `@*` pattern of every service of the account,
   because restarting them all stops the commits of every other worktree.
   A service that wakes after the command ended makes no commit:
-  the request it still holds is dropped, because the command on that connection is gone.
+  the request it still holds is dropped,
+  because the command on that connection is gone.
 - The branch keeps changing:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with
@@ -5367,8 +5389,13 @@ on the blocking pool and never on the landing thread:
   `rebase` or `reset` exits 0,
   the client compares a digest of the rules text it would load before and after,
   and when it differs sends a one-way `warm` message to the service of that worktree that already runs.
-  The client never starts a service or a process for this,
-  and a command whose rules text did not change reads two small files and sends nothing.
+  The client writes no unit,
+  asks no manager for a start,
+  and starts no process for this;
+  the service it found by its start arguments is asked,
+  and a service killed between that look and the connection is started by the connection itself,
+  because the socket unit keeps listening.
+  A command whose rules text did not change reads two small files and sends nothing.
 
 The client still compiles on a cache miss,
 so a commit that starts before the warm ends compiles as well (the two compiles race and the cache keeps one result).
@@ -5384,7 +5411,7 @@ The question is asked only when the cache holds no artifact for that text,
 which one `stat` answers,
 so a warm cache pays nothing beside the read it always made.
 
-Two cases keep the write on the command's path,
+These cases keep the write on the command's path,
 because nothing else can make it:
 
 - a machine where no service runs for that worktree,
@@ -5394,7 +5421,17 @@ because nothing else can make it:
   since the service's own environment carries no such variable and it would compile the configuration's files
   (or the default appendix) instead.
   A configuration that names files wins over the variable,
-  so a repository with both lists leaves them to the service.
+  so a repository with both lists leaves them to the service;
+- a service that takes no connection within its bound, or a look at the processes that gives no answer.
+  The request's look is made within 250 ms (`wait_ceilings.rs`,
+  `WARM_SCAN_CEILING`) and its connection within 250 ms (`WARM_REQUEST_CONNECT_CEILING`),
+  so a process stuck in the kernel and a service whose queue of unaccepted connections is full,
+  which is what a service stopped inside its own process leaves,
+  each cost the command a ceiling and no more;
+  a request that is not made is not sent,
+  and the command compiles and publishes the rules itself.
+  The line that follows the connection is a few hundred bytes into a send buffer of 212,992 bytes,
+  so it is taken even by a service that reads nothing.
 
 The artifact itself is published without a file or directory sync:
 a reader validates its magic,
@@ -7507,10 +7544,9 @@ and a commit that ends there names the journal command.
   (`src/native/service/service_provision_instance_unloaded.rs`).
   A service that is landing a batch when that repair asks it to retire is left running and the commit goes on
   through it,
-  and so is one whose manager stops answering:
+  and so is one whose manager stops answering or whose unit another command starts again inside the wait:
   the repair is repeated by the next commit,
-  and no
-  commit waits for a landing or fails for one.
+  and no commit waits for a landing or fails for one.
   The program the units start is not named in their text but through a link the wrapper points at
   the executable it is running
   (`$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,

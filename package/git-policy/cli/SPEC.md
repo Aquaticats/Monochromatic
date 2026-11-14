@@ -6548,8 +6548,15 @@ The client sends `warm` only after `merge`,
 `switch`,
 `rebase` or `reset` exits 0 and the digest of the rules text
 it would load changed,
-only to a service of that worktree that already runs (found by its start arguments),
-and never starts a process.
+only to a service of that worktree that already runs (found by its start arguments,
+read within `WARM_SCAN_CEILING` and only among the processes of this user),
+and it writes no unit,
+asks no manager for a start,
+and starts no process.
+A service killed between that look and the connection is started by the connection itself:
+the socket unit keeps listening,
+which is what socket activation is for,
+and no check before a connection is one with it.
 The client keeps compiling on a cache miss.
 `src/native/policy/policy_forbidden_strings.rs` decides whether that miss writes the shared cache
 (`CachePublisher`,
@@ -6580,6 +6587,13 @@ also leaves the artifact for the next command that publishes,
 so such a machine compiles the rules once per command:
 correct,
 and slower than a cache it cannot fill.
+A request that is not made is not sent either:
+its look at the processes is made within `WARM_SCAN_CEILING` and its connection within `WARM_REQUEST_CONNECT_CEILING`
+(`src/native/service/wait_ceilings.rs`),
+so a process stuck in the kernel and a service whose queue of unaccepted connections is full each cost the command
+that ceiling and no more,
+and the command publishes the artifact itself,
+as it does when no service runs.
 The artifact's publication (`package/forbidden-strings/cli/src/runtime_cache/publish.rs`)
 writes a private temporary and renames it over the artifact,
 syncing neither the file nor its directory:
@@ -8195,7 +8209,8 @@ now inside these bounds:
   A line is read in chunks under the bound the connection carries,
   because one `read_line` restarts the operating system's read timeout with every chunk a service sends,
   so a service that dribbles bytes and never ends its line held a client inside one call for ever.
-- A request is a JSON object and a framing newline, and the service takes it only when the whole line arrived.
+- A request is a JSON object and a framing newline,
+  and the service takes it only when the whole line arrived.
   A line that ends with the connection instead of its newline is not decoded,
   not queued,
   and refused in the service's log
@@ -8204,13 +8219,15 @@ now inside these bounds:
   and neither carries the proof alone:
   the client's chunked write can leave every byte of the object and only the newline unsent,
   and the service used to decode that at end of stream and land it
-  (the review of this change, finding 1).
+  (the review of this change,
+  finding 1).
 - The client says the service never took a request only when it never put one whole request line on the wire.
   A give-up on the write ends with `ClientFailure::ServiceNotReading`,
   which says the commit was not made and cannot land later
   (`landing/service_messages_of_a_service_that_stopped.rs`),
   only when no attempt of this command delivered a whole line;
-  after an attempt that did, a give-up ends with the "not known" failure,
+  after an attempt that did,
+  a give-up ends with the "not known" failure,
   whose commit's scratch tree stays with the service's claim on it.
   The failure that says the branch holds no commit of this command's yet does not say a waking service drops it:
   the landing's client-gone check races the connection writer's heartbeat,
@@ -8570,14 +8587,54 @@ and
   because the start that follows may be hours away:
   the service exits after three idle hours,
   and the manager starts it again from whatever the link names then.
+  The link the releases before this one named in every unit text they wrote
+  (`service_instance.rs`,
+  `EARLIER_RELEASES_PROGRAM_POINTER`,
+  `<runtime>/systemd/user/<notes>/service-program`)
+  is pointed at the running executable too,
+  so an instance whose loaded text is theirs starts this release instead of a
+  program the install removed,
+  which would fail every start at the EXEC step and end at the manager's start limit.
   The one thing left is a unit the manager holds at an older text,
   and it is dropped rather than reloaded (`service_provision_instance_unloaded.rs`):
   a service that runs is asked to retire first,
   so the batch it holds is finished,
-  the worktree's socket is stopped,
+  the worktree's socket is then stopped in the mode that leaves the service alone,
+  because a plain stop carries through `Requires=` to a service another command started meanwhile,
+  and such a service is asked to retire and waited for instead of ever being stopped,
   the manager is asked what it holds of the worktree's units until it holds neither,
   and the socket is started again,
   so the next start reads the file as it is now.
+  That repair never ends a commit it cannot finish:
+  a manager that answers nothing,
+  a stop it does not take,
+  a service still running at the retirement wait,
+  and a unit another command starts again inside the wait are each one line on the wrapper's log,
+  with nothing stopped,
+  the record of what the manager read left unwritten,
+  and the commit going on through whatever the manager runs
+  (`a_manager_that_stops_answering_after_the_stop_leaves_the_commit_to_go_on`,
+  `a_service_that_is_still_landing_leaves_the_commit_to_go_on_and_stops_nothing`,
+  `a_unit_the_manager_keeps_past_the_wait_leaves_the_commit_to_go_on_and_the_record_unwritten`).
+  The link is the one thing whose failure the commit outlives rather than mends,
+  and it decides whether that commit lands:
+  pointing it never ends a commit,
+  the units are still written,
+  and a start then runs the program the link still names
+  (`point_program_link` in `service_provision.rs`,
+  `a_program_link_that_cannot_be_pointed_leaves_the_commit_to_go_on`).
+  That program is this release when a build of this release left the link at another path,
+  and the commit lands through it;
+  when it is another release's and it will not step aside on the retire or on the restart,
+  the commit ends with "The commit service that is running was started from another release ...",
+  whose words name the link and the runtime directory that could not hold it;
+  and when it cannot be executed at all (a directory,
+  a path an upgrade removed) the start fails and the commit ends with
+  "The commit service did not start".
+  Nothing smaller is safe there:
+  the commit service is the only writer of a commit,
+  this release does not hand one to another release's service,
+  and the manager reads the program from the link on the text it holds.
   The cost is this worktree's own:
   measured in a disposable manager holding 4,059 units,
   the manager held a stopped socket and service no longer on the first 50 ms poll,
@@ -20070,7 +20127,8 @@ The bound holds for each commit,
 not for a percentile of them.
 It is the owner's change of 2026-11-12,
 "The five-second rule is changed":
-"Change the 5s rule to max(5s, double what native git takes)",
+"Change the 5s rule to max(5s,
+double what native git takes)",
 read as the extra over real Git.
 The requirements it replaces were the flat 5,000 ms,
 which is what the owner set on 2026-11-01:

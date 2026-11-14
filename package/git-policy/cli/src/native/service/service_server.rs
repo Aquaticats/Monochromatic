@@ -389,6 +389,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     // The marker made ahead is removed whichever way this loop ends.
     let _prestaged = PrestageGuard;
     let mut retiring: bool = false;
+    // What: How many commits this process was asked to land.
+    // Why:  A service retired before it served anything has nothing to finish, and its socket is stopped so the client that
+    //       retired it cannot start it again and again (`stop_own_socket_before_serving_anything`).
+    let mut served: usize = 0;
     // When the service last took work, so that the idle exit stays what `IDLE_EXIT` says while a known worktree is asked about
     //  far more often.
     let mut last_work: Instant = Instant::now();
@@ -478,6 +482,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 Job::Retire => retiring = true,
                 Job::Activity => {}
                 Job::Commit(request, stream, arrival) => {
+                    served += 1;
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
                     // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
@@ -564,6 +569,16 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             crate::service_error!("ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
             return;
         }
+    }
+    // What: A service retired before it served anything stops its own socket, so the connection that retired it does not
+    //       start another one.
+    // Why:  A client of another release retires every service it meets, and each of its connections starts one; the manager's
+    //       start limit then leaves the unit failed for as long as no command in that worktree runs
+    //       (`stop_own_socket_before_serving_anything`).
+    if served == 0
+        && let Some(instance) = settings.instance.as_deref()
+    {
+        let _stopped: bool = crate::service_own_socket_of_a_retire_that_served_nothing::stop_own_socket_before_serving_anything(instance);
     }
     // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
     crate::service_durable::drain();

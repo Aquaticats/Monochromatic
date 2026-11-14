@@ -1,0 +1,18 @@
+{
+  "created": "2026-11-14T14:00:44.871Z",
+  "updated": "2026-11-14T14:00:44.871Z",
+  "name": "000-allow-codex-updates",
+  "description": "Permanent Codex network allowance for app daemon, ChatGPT, pnpm, mise and JetBrains installs across version updates; requested 2026-11-14.",
+  "action": "allow",
+  "duration": "always",
+  "operator": {
+    "operand": "process.path",
+    "data": "^(?:/usr/lib/chatgpt/resources/codex|(?:/var/home/user|/home/user)/(?:\\.codex/packages/app-server-daemon/releases/[^/]+/bin/codex|\\.cache/JetBrains/[^/]+/acp-agents/codex-acp/[^/]+/node_modules/@openai/codex(?:-[^/]+)?/vendor/[^/]+/(?:bin/codex|codex/codex)|\\.local/share/(?:pnpm/(?:store|global)/.+|mise/installs/npm-openai-codex/.+)/node_modules/@openai/codex(?:-[^/]+)?/vendor/[^/]+/(?:bin/codex|codex/codex)))$",
+    "type": "regexp",
+    "list": [],
+    "sensitive": true
+  },
+  "enabled": true,
+  "precedence": true,
+  "nolog": false
+}
