@@ -9,7 +9,10 @@
  */
 
 import type { CommandAnswer, } from './driver-types.ts';
-import { fieldsOf, } from './read-pi-fields.ts';
+import {
+  fieldsOf,
+  textOf,
+} from './read-pi-fields.ts';
 
 /**
  Tells whether Pi took a message.
@@ -108,6 +111,41 @@ export function outcomeTextOf(answer: CommandAnswer,): unknown {
 }
 
 /**
+ The words a refusal uses when Pi had begun a turn as the message arrived.
+
+ Pi 1.5.2 throws "Agent is already processing. Specify streamingBehavior ('steer' or 'followUp') to queue the message." from
+ `prompt` when it is streaming (`dist/core/agent-session.js`), and the RPC mode answers the command with that text as its error;
+ the package's own stand-in says "agent is already running". Both name the same fact, and a refusal that names it is no refusal of
+ the message: the same message goes through once Pi rests.
+ */
+const WORDS_OF_A_WORKING_PI: readonly string[] = [
+  'already processing',
+  'already running',
+];
+
+/**
+ Tells whether a refusal says Pi was at work as the message arrived.
+
+ @param said - what Pi said when it refused
+
+ @returns whether the words name a Pi that had begun a turn
+
+ @example
+ ```ts
+ const working = refusalNamesPiAtWork('Agent is already processing. Specify streamingBehavior ...');
+ ```
+ */
+export function refusalNamesPiAtWork(said: string,): boolean {
+  /**
+   The words in one case, so a provider or a Pi that capitalises differently is still read.
+   */
+  const lowered = said.toLowerCase();
+  return WORDS_OF_A_WORKING_PI.some(function namesWork(words,) {
+    return lowered.includes(words,);
+  },);
+}
+
+/**
  What a message the driver sent Pi came to, read from the state Pi was left in after it was sent.
 
  `taken` is Pi's word that it has the message; `at-work` is a refusal Pi gave while it was working, which is no answer about the
@@ -129,7 +167,7 @@ export type MessageToPi =
 
  @param answer - how waiting for Pi's answer ended
 
- @param piWorks - whether Pi was working when the answer was read, which is the state a refusal is judged by
+ @param piWorks - whether Pi was working when the answer was read, which is one of the two things a refusal is judged by
 
  @returns what the message came to
 
@@ -154,5 +192,13 @@ export function messageToPiCameTo({
   if (takenByPi(answer,)) {
     return { ending: 'taken', };
   }
-  return piWorks ? { ending: 'at-work', } : { ending: 'refused', };
+  /**
+   What Pi said for refusing, which names a Pi at work in the words Pi 1.5.2 uses for it.
+   */
+  const said = textOf(answer.record
+    .error,);
+  if (piWorks || refusalNamesPiAtWork(said,)) {
+    return { ending: 'at-work', };
+  }
+  return { ending: 'refused', };
 }

@@ -665,8 +665,9 @@ function connectionThatRefusesWhilePiWorks({
 }
 
 /**
- A connection whose first message arrives while Pi begins a turn, so Pi refuses it, and whose later messages are taken. The turn
- that began ends on its own shortly after, as a queued steer would, so a message held for Pi to rest can go again.
+ A connection whose first message arrives while Pi begins a turn, so Pi refuses it in the words Pi uses for a Pi at work, and whose
+ later messages are taken. The turn that began settles before the refusal is read, so the refusal words are what tell the driver
+ that Pi was at work, not the state left behind.
 
  @param sent - where the messages the watch sends are recorded
 
@@ -702,33 +703,30 @@ function connectionWhoseFirstMessageMeetsATurn({
           event: { type: 'agent_start', },
           declineDialog: refuseDialog,
         },);
-        setTimeout(
-          function endTheTurn() {
-            record.observe({
-              event: { type: 'turn_start', },
-              declineDialog: refuseDialog,
-            },);
-            record.observe({
-              event: {
-                type: 'message_end',
-                message: {
-                  role: 'assistant',
-                  content: [{
-                    type: 'text',
-                    text: 'working on the steer',
-                  },],
-                  stopReason: 'stop',
-                },
+        queueMicrotask(function endTheTurn() {
+          record.observe({
+            event: { type: 'turn_start', },
+            declineDialog: refuseDialog,
+          },);
+          record.observe({
+            event: {
+              type: 'message_end',
+              message: {
+                role: 'assistant',
+                content: [{
+                  type: 'text',
+                  text: 'working on the steer',
+                },],
+                stopReason: 'stop',
               },
-              declineDialog: refuseDialog,
-            },);
-            record.observe({
-              event: { type: 'agent_settled', },
-              declineDialog: refuseDialog,
-            },);
-          },
-          0,
-        ).unref();
+            },
+            declineDialog: refuseDialog,
+          },);
+          record.observe({
+            event: { type: 'agent_settled', },
+            declineDialog: refuseDialog,
+          },);
+        },);
         return {
           ending: 'answered',
           record: {

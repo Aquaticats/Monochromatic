@@ -64,6 +64,10 @@ export {
   goOnMessage,
 } from './ask-an-agent-whose-answer-was-empty.ts';
 export {
+  messageToPiCameTo,
+  type MessageToPi,
+} from './what-pi-did-with-a-message.ts';
+export {
   cgroupOf,
   unitNamedBy,
   wakeMessageOf,

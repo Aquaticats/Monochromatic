@@ -1241,8 +1241,12 @@ The wake that sends an agent back to work it left is held and sent again once Pi
 a message from the inbox waits for that rest instead of being kept as failed,
 the attempt after a model error is not counted and goes again once Pi rests,
 and the steer or prompt a message arrives as is chosen again on the look that sends it.
-Every send reads what came of it from the state Pi was left in,
-and an ending after an await is decided on a state read after that await:
+Every send reads what came of it from the state Pi was left in and from the words Pi refused with:
+Pi 1.5.2 refuses a prompt sent while it streams with
+"Agent is already processing. Specify streamingBehavior ... to queue the message.",
+which names the same fact as a record that says Pi works,
+and either one makes the refusal no answer about the message.
+An ending after an await is decided on a state read after that await:
 the read of work a run left running is followed by a second look at rest and at the model error,
 so a turn that began, or settled on an error, during that read is neither ended nor left unanswered.
 The asks never make a run wait without end:
