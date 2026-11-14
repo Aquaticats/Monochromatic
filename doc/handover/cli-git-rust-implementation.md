@@ -1230,6 +1230,49 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The fuzz seeds pass and are in `main`; the drawn tree and the package state go back; the stale launchers' answer goes to review (2026-11-14T12:46:32-05:00)
+
+Not final and not approved:
+what three reviews and one author report of themselves,
+and what the coordinating session merged and queued.
+
+- **The fuzz sidecar's seeds** (`0e3035a31a`):
+  no defect.
+  The review checked all fifteen seeds on disk against the table byte for byte,
+  ran the 47 library controls,
+  and showed the guard failing for one seed put back to its old bytes.
+  Merged as `66d958c483` at 12:46:32;
+  the sidecar's type check on `main` after the merge is running,
+  its output kept beside the earlier ones.
+- **The drawn shadow tree** (`f9557d3e6e`):
+  the last change is right (21 controls run).
+  One reproduced in the code the task is about,
+  older than the branch:
+  the sweep judges a tree abandoned by the wall clock,
+  so a forward step of the clock of more than the renewal's margin,
+  as time synchronisation gives after a suspend,
+  deletes a tree a live commit is building in and that commit fails.
+  The task's own sentence covers it,
+  so the author is resumed second and the branch is not integrated yet
+  (`~/temp/agent/pi-runs/drawn-shadow-tree-answers-its-second-review-of-2026-11-14-prompt.md`).
+  The kept question on a drawn tree that stands with no end stays open with it.
+- **Package state of a new worktree** (`afc54765d4`),
+  third review:
+  a record set aside by `take_aside` can be a fresh one that an install beside it just wrote,
+  and after a kill the next pass's sweep deletes it without reading it,
+  leaving a launcher with no record and a relink that reports success
+  (two of the three steps reproduced,
+  the kill by reading).
+  A second,
+  reproduced and reached by no documented path:
+  a record that names the lock by a third spelling of its path is deleted.
+  The author is resumed third
+  (`~/temp/agent/pi-runs/package-state-of-a-new-worktree-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **mpm-shadow's stale launchers** (tip `649a45b459`, ended 12:40:46):
+  the author reports its second review answered.
+  Review queued fourth (range `main...649a45b459`).
+- The queue held 63 entries at 12:46:32.
+
 ##### mpm-shadow `0.2.7-alpha.11` is released, in the toolchain lock and installed; the first minutes of `0.6.1-alpha.29` are clean (2026-11-14T12:37:49-05:00)
 
 Not final and not approved:
