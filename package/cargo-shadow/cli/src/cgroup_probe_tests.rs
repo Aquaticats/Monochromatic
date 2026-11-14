@@ -46,15 +46,15 @@ fn group_of(pid: &str) -> String {
 
 /// Probe 0,
 /// the question the package's test task asks before it runs the suite:
-/// can this host give the tests a delegated control group,
-/// with no acknowledgement set (`CARGO_SHADOW_ALLOW_NO_CGROUP`)?
+/// can this host give the tests a delegated control group?
 /// Why:
 /// The task runs this test alone and reads nothing of it but the status:
 /// green names the slice the scopes are made in,
-/// red carries the reason this host has none.
+/// red is the line `delegated_route` panics with,
+/// which names this test and says it did not run.
 /// The answer is the very guard every test that needs a scope begins with,
 /// so no second copy of the route question can disagree with the tests,
-/// and a test that would have failed is never counted as the product's.
+/// and a test that could not run is never counted as passed.
 #[test]
 fn probe_0_the_host_can_give_the_tests_a_delegated_scope() {
     let route = delegated_route();
