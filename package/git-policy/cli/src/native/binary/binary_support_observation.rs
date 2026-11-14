@@ -344,6 +344,11 @@ pub fn work_listing(work: &Path) -> String {
 /// the packs or the push's failure after the command must first wait for the records to leave `pending`,
 ///  `claimed` and `recovering`;
 /// it waits only where a work directory exists.
+///  This wait is `SERVICE_WORK_PATIENCE`, which is shorter than one claim's lease (`CLAIM_LEASE`, 120 seconds):
+/// a record whose handler answered with a retry keeps its claim until that lease ends,
+/// so a control that waits here cannot see such a record settle.
+/// A control that means to read one attempt of such a record reads that instead
+/// (`observe_without_waiting_for_the_after_commit_work`).
 pub fn settle_service_work(directory: &Path) {
     let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
         return;
