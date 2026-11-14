@@ -653,17 +653,17 @@ fn a_service_at_an_abstract_name_is_asked_to_retire_and_the_repair_finishes() {
     machine.host.git = PathBuf::from("/usr/bin/git-of-another-resolution");
     assert!(!record_says_read(&machine), "the texts this host writes now are not the ones the record names");
     let (_, asked_again) = standing_at_an_abstract_name(&address);
-    let mut manager: UntilAsked = UntilAsked {
+    let mut second_manager: UntilAsked = UntilAsked {
         service: instance_service(),
         socket: instance_socket(),
         asked: std::sync::Arc::clone(&asked_again),
         socket_stopped: false,
     };
-    let began: std::time::Instant = std::time::Instant::now();
-    crate::service_provision::provision_with(&machine.host, &mut manager).expect("a text that changed while the service ran is repaired");
-    let took: Duration = began.elapsed();
+    let second_began: std::time::Instant = std::time::Instant::now();
+    crate::service_provision::provision_with(&machine.host, &mut second_manager).expect("a text that changed while the service ran is repaired");
+    let second_took: Duration = second_began.elapsed();
     assert!(asked_again.load(std::sync::atomic::Ordering::SeqCst), "the service running the text from before was asked to retire");
     assert!(record_says_read(&machine), "and the repair wrote the record of the texts the manager now read");
-    assert!(took < machine.host.retirement_wait, "the second repair did not spend the retirement wait either: {took:?}");
+    assert!(second_took < machine.host.retirement_wait, "the second repair did not spend the retirement wait either: {second_took:?}");
     remove(machine.root.as_path());
 }
