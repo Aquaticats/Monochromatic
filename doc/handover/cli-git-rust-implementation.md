@@ -1136,6 +1136,60 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.22` is installed; the removal's probes pass against the installed program (2026-11-13T22:27:20-05:00)
+
+Not final and not approved:
+read by the coordinating session from the output of `native:release:wait`,
+`native:install` and its own probe run.
+
+- The release run ended with success and `monochromatic-git-policy-cli-v0.6.1-alpha.22` is published with its archives for both Linux targets
+  (`cargo-publish.yml` run 43551019300).
+  It carries passes 26,
+  23 and 25.
+- `native:install -- 0.6.1-alpha.22` exited 0 between 22:26:29 and 22:26:44;
+  `git --version` reads `monochromatic-git-policy-cli 0.6.1-alpha.22`;
+  the sample commit of `toolchain.lock.json` took 1,646 ms
+  (its timing line reads `totalMs` 1,624,
+  outcome `landed`).
+  The output is `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/install-of-0-6-1-alpha-22-output.txt`.
+- The journal of the wrapper's units from 22:26:00,
+  counted at 22:27:20 by `count-what-the-wrapper-units-did-between-two-times.ts`:
+  105 lines,
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at the start limit,
+  one service that said `0.6.1-alpha.22` at its start.
+  After `0.6.1-alpha.21` the main checkout's service had failed within seconds of the install;
+  this time it did not.
+  The count is taken again when the next run ends,
+  since other worktrees' services start later.
+- **The probes of the removal, against the installed program**,
+  to cover what the check of the meeting did not run:
+  pass 25's own probe script,
+  copied with the installed program's path
+  (`~/temp/agent/probes-of-the-removal-around-a-volume-against-installed-0-6-1-alpha-22-2026-11-13/`,
+  the log in its `keep/`).
+  Every scene behaves as the pass reported for its own build:
+  aged files with the volume ignored,
+  exit 0 in 13 ms with the around report;
+  fresh files,
+  exit 1 and nothing changed;
+  the same after a status in the same second,
+  exit 1;
+  after a status a second and a half later,
+  exit 0;
+  the volume not ignored,
+  exit 1 unforced and exit 0 with `--force`.
+  In every scene the foreign volume is still a subvolume root with mode 755 and its file has the same bytes.
+  The ordinary removal:
+  exit 0 in 15 ms,
+  nothing left.
+  A commit of one changed file added 27,
+  27 and 26 ms over real Git's 7,
+  6 and 6 ms.
+  The probe's fixtures were deleted afterwards.
+- The next release is `0.6.1-alpha.23`.
+
 ##### Pass 25 is in `main` and `0.6.1-alpha.22` is dispatched; a run ended on an empty answer; the add-never-skips author answered (2026-11-13T22:19:52-05:00)
 
 Not final and not approved:
