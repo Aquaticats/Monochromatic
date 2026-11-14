@@ -164,3 +164,140 @@ Its filename was not the active decision.
 The prior silent Git HTTPS fetch's cause remains unknown.
 The [Chromium contribution handover](../handover/chromium-live-histogram-contribution.md)
 retains the build state and remaining native validation work.
+
+## Homebrew and Codex allowances at 2026-11-14T09:00:44-05:00
+
+Status:
+agent-verified host repair;
+owner approval remains open.
+Codex installed the rules and ran the checks described here.
+
+### Observed failures and correction
+
+`uupd-manual.service` failed because its Homebrew module reported:
+
+```text
+Error: Failed to download https://formulae.brew.sh/api/internal/packages.x86_64_linux.jws.json!
+```
+
+The same invocation's Flatpak module completed successfully.
+Its interleaved output did not identify a separate Flatpak failure.
+The Homebrew curl executable resolved to
+`/var/home/linuxbrew/.linuxbrew/Cellar/curl/8.23.0/bin/curl`.
+Its enabled exact-path rule had `action: reject` and `duration: always`.
+Before the repair,
+this curl failed to connect to `formulae.brew.sh:443`,
+returned exit status `7`,
+and reported HTTP `000`.
+
+The daemon log also recorded saved rejects for Codex app-server releases `0.168.0` and `0.169.0`.
+When their contents were read during this repair,
+both files already contained `action: allow` despite their `reject-` filenames.
+The initial filename-based description of those files as current rejects was wrong.
+Their exact release paths still did not cover subsequent updates.
+
+### Permanent rules and scope
+
+The host runs OpenSnitch `1.8.0` under `opensnitch.service`.
+The installed files are root-owned,
+mode `0600`,
+in `/etc/opensnitchd/rules`:
+
+- `000-allow-homebrew-curl.json` covers Homebrew curl in any version of its existing Cellar root,
+  plus the `opt/curl` spelling.
+  The saved copy is [the Homebrew curl rule](opensnitch-homebrew-curl-rule.json).
+- `000-allow-codex-updates.json` covers the app-server's release directories,
+  the ChatGPT executable,
+  pnpm and legacy mise Codex packages,
+  and JetBrains Codex ACP installations.
+  The saved copy is [the Codex update rule](opensnitch-codex-updates-rule.json).
+
+Both use `action: allow`,
+`duration: always`,
+`precedence: true`,
+and case-sensitive anchored expressions on `process.path`.
+They cover both `/home` and `/var/home` spellings.
+Version directory names are variable;
+the executable names and install roots stay constrained.
+They allow outbound destinations for these executables,
+including future endpoints those executables contact.
+They do not verify the executable's publisher or checksum.
+
+`rpm --query --configfiles opensnitch` does not list either custom rule as a package-owned config file.
+They are persistent host configuration,
+independent of the Homebrew and Codex version directories.
+A relocation to a different install layout or deliberate removal of these files would require a new rule.
+No future software update or reboot was performed as part of this verification.
+
+OpenSnitch logged live reloads for both final filenames at `2026-11-14T14:00:44Z`.
+The existing precedence-selection explanation in this document applies to these `000-` rules.
+The selecting predicate was re-read in
+[`daemon/rule/loader.go:497 to 515`](https://github.com/evilsocket/opensnitch/blob/b404c4c6316760fa7bc415509d3f8d747f7dc9cc/daemon/rule/loader.go#L497-L515):
+
+```go
+if rule.Action == Reject || rule.Action == Deny || rule.Precedence == true {
+    return rule
+}
+```
+
+`agent-browser` confirmed that the pinned selection contains this predicate.
+
+### Cleanup and verification
+
+The user then requested deletion of rules that should no longer be present.
+The cleanup removed `18` rules covered by the new allowances:
+the Homebrew curl reject,
+the Codex version-specific entries,
+and the older pnpm-only Codex expression.
+Each file was read before deletion,
+and its SHA-256 was checked again immediately before unlinking it.
+The replacement rules were required to be enabled,
+permanent precedence allows before any deletion.
+
+The original download probe was:
+
+```sh
+/home/linuxbrew/.linuxbrew/opt/curl/bin/curl \
+  --fail --silent --show-error \
+  --connect-timeout 10 --max-time 25 \
+  --output /dev/null --write-out 'HTTP %{http_code}\n' \
+  https://formulae.brew.sh/api/internal/packages.x86_64_linux.jws.json
+```
+
+After installing the rules,
+the same command returned HTTP `200` and exit status `0`.
+Current and hypothetical future release paths matched the expressions;
+unrelated users,
+unrelated executables,
+and suffix lookalikes did not match the fixture cases.
+
+The real Codex `0.169.0` executable was also exercised through its stdio app-server protocol,
+using a private disposable Codex home copied from the configured home.
+`account/read` with `refreshToken: false` and `account/rateLimits/read` both returned successful responses.
+Only response field names were logged;
+account identities and credentials were not printed.
+This verified the reported account-read boundary and an authenticated network read.
+It did not run a model request or restart the user's active Codex session.
+
+After deleting the superseded rules,
+the download probe again returned HTTP `200`,
+and both Codex account methods again succeeded.
+The daemon log recorded deletion of every superseded file at `2026-11-14T14:03:46Z`.
+The updater's stale `start-limit-hit` state was cleared with
+`systemctl reset-failed uupd-manual.service`.
+The full system updater was not rerun.
+
+### Upstream filing decision
+
+No upstream issue or comment is proposed.
+The evidence identifies local application policy rather than an upstream defect:
+the matching Homebrew reject was loaded,
+and adding the intended allowance changed the same download probe from HTTP `000` to HTTP `200`.
+The upstream-fault constraint fails.
+Upstream can implement rule changes,
+and application rules are an existing supported use case,
+but contribution acceptance and maintainer willingness were not investigated because no upstream change is requested.
+No upstream source patch was prototyped.
+`gh search issues 'precedence reject rules' --repo evilsocket/opensnitch --json number,title,state,url --limit 100`
+returned no matches.
+No matching OpenSnitch exemption was found in `.out-of-scope/`.

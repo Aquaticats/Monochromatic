@@ -1,42 +1,52 @@
 //! What:
-//!  The shadow ref store:
-//! a snapshot of every real ref,
-//!       the private target ref,
-//!       symbolic refs,
-//!       and the private `HEAD`.
+//!  The real refs a shadow's ref store is written from:
+//!  every ref of the worktree at invocation,
+//!  read from the ref files when they can be read and from one Git child otherwise.
 //! Why:
-//!  Hooks resolve tags,
-//! other branches and remote-tracking refs as they stood at invocation.
-//!  With the files backend the snapshot is one `packed-refs` file and the private target is a loose ref,
-//!  which takes precedence over a packed entry;
-//!  with reftable the snapshot is one `update-ref --stdin` transaction.
-//!  A reference name is bytes,
-//!  so a valid name that is not text reaches the shadow unchanged and never refuses the snapshot.
+//!  Hooks inside the shadow resolve tags,
+//! other branches and remote-tracking refs as they stood at invocation,
+//!  so the snapshot has to be every ref Git would print.
+//! `git for-each-ref` answers that,
+//! and it is the whole repository's answer:
+//! 199 KiB for this repository's 1,982 packed and 40 loose refs,
+//! and as a child of a commit it took 3.8 to 26.4 seconds on 2026-11-12 while
+//!  the same command alone took 4 to 5 ms.
+//! The package's own reader of Git's ref files answers the same question without
+//!  starting anything,
+//! and every layout it cannot prove (a reftable store,
+//! an unknown object format,
+//! a ref name it declines,
+//! a damaged `packed-refs`) ends in the Git child,
+//!  so a decline adds a start and changes no answer.
+//! Three rules keep the answer Git's answer rather than a set nearly like it,
+//! and each was a case a review of this reader found the code getting wrong:
+//!  a linked worktree's per-worktree namespaces come only from its own Git directory,
+//! so the shared directory's copies of them are left out;
+//!  a symbolic ref is printed with the name its chain ends at,
+//! not with the name it points at directly;
+//!  and a symbolic ref whose chain ends at no ref,
+//! or in a loop,
+//! is not printed at all.
+//! `the_reader_answers_every_kind_of_store_as_git_does_or_declines` holds all three.
+//! The writer of the store is `shadow_ref_write.rs`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! await writeShadowRefs({ gitPath, cwd, shadowPath, capture });
+//! await listRealRefs({ gitPath,
+//! cwd });
+//! // or the ref files,
+//! when they can be read
 //! ```
 
-/// One shadow Git start,
-/// one real Git start,
-/// and their failure text.
-use crate::shadow_git::shadow_request;
+/// One real Git start,
+/// and its failure text.
 use crate::transaction_git::{GitContext, GitFailure, GitOutput, GitRequest, run_git_checked};
-/// Private file writes for the snapshot,
-/// published whole and not synced.
-use crate::private_storage::write_private_file_unsynced;
-/// Journal enums:
-/// the ref backend,
-/// the base and the symbolic `HEAD` at invocation.
-use crate::transaction_journal::{Base, RefFormat, SymbolicHead};
-/// A reference name as the bytes Git printed it.
-use crate::ref_name::RefName;
-/// Owned argument text,
-/// for a reference name that is bytes.
-use std::ffi::OsString;
-/// The operating-system name of a name given as bytes.
-use crate::path_bytes::os_from_path_bytes;
+/// The package's own reader of Git's ref files,
+/// which answers without a Git start.
+use crate::repo_read_refs::{RefValue, Refs};
+/// The ref backend,
+/// which decides whether files or tables hold the refs.
+use crate::transaction_journal::RefFormat;
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -53,11 +63,6 @@ fn is_line_feed_byte(byte: &u8) -> bool {
 fn is_nul_byte(byte: &u8) -> bool {
     return *byte == 0;
 }
-
-/// Header Git writes for a sorted `packed-refs` file without peeled lines.
-///  The trailing space matches Git's own writer,
-/// which older readers require.
-pub const PACKED_REFS_HEADER: &str = "# pack-refs with: sorted \n";
 
 /// What:
 ///  One real ref at invocation.
@@ -89,14 +94,279 @@ fn compare_by_name_bytes(left: &RefSnapshotEntry, right: &RefSnapshotEntry) -> s
     return left.name.cmp(&right.name);
 }
 
-/// The failure for a `packed-refs` file that could not be written.
-/// `map_err` takes this function by path.
-fn packed_refs_failure(error: std::io::Error) -> GitFailure {
-    return GitFailure(format!("writing packed-refs failed: {error}"));
+/// Which of Git's namespaces a linked worktree keeps in its own Git directory rather than in the shared one.
+///  Git's own table is `parse_worktree_ref` (`refs.c`):
+/// these three are per-worktree,
+/// every other name is shared,
+/// and `git pack-refs` never packs these three.
+pub const PER_WORKTREE_NAMESPACES: [&str; 3] = ["refs/bisect", "refs/worktree", "refs/rewritten"];
+
+/// What:
+///  Where a ref snapshot is read from:
+///  the two Git directories of a worktree,
+///  the ref backend and the width of an object name.
+/// Why:
+///   The shared refs live in the common directory and the per-worktree namespaces in the worktree's
+/// own,
+///  so one snapshot needs both paths beside the backend that decides whether files or tables hold them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SnapshotSources = { gitDir: string; commonDir: string; refFormat: RefFormat; hexLength?: number };
+/// ```
+#[derive(Clone, Debug)]
+pub struct SnapshotSources {
+    /// Absolute Git directory of the owning worktree.
+    pub git_dir: PathBuf,
+    /// Absolute common Git directory.
+    pub common_dir: PathBuf,
+    /// Ref storage backend.
+    pub ref_format: RefFormat,
+    /// The number of hexadecimal digits of an object name,
+    /// or `None` for an object format no reader here knows,
+    ///  which sends the snapshot to Git.
+    pub hex_length: Option<usize>,
+}
+
+impl SnapshotSources {
+    /// What:
+    ///  The sources of one worktree of a repository whose object format Git named.
+    /// Why:
+    ///   A caller holds the paths and the format names as Git printed them,
+    /// and the width of an object name is derived once here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// SnapshotSources.of(gitDir, commonDir, refFormat, objectFormat)
+    /// ```
+    pub fn of(git_dir: PathBuf, common_dir: PathBuf, ref_format: RefFormat, object_format: &str) -> SnapshotSources {
+        return SnapshotSources { git_dir, common_dir, ref_format, hex_length: crate::ref_files::hex_length(object_format) };
+    }
 }
 
 /// What:
-///  Lists every real ref of the owning worktree in byte order.
+///  One ref of the reader as a snapshot entry,
+///  with the object name of a symbolic ref filled in later.
+/// Why:
+///   The reader answers a value in two shapes and the snapshot keeps one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const entryOf = (name: string, value: RefValue): RefSnapshotEntry
+/// ```
+fn entry_of(name: &str, value: RefValue) -> RefSnapshotEntry {
+    // A name is bytes in a ref store, and the reader hands it as text only where it is text.
+    let bytes: Vec<u8> = name.as_bytes().to_vec();
+    return match value {
+        RefValue::Direct(oid) => RefSnapshotEntry { name: bytes, oid, symref: Vec::new() },
+        RefValue::Symbolic(target) => RefSnapshotEntry { name: bytes, oid: String::new(), symref: target.into_bytes() },
+    };
+}
+
+/// What:
+///  Every real ref of a worktree,
+///  read from the ref files,
+///  or `None` when only Git can say what it would print.
+/// Why:
+///   `git for-each-ref` over every ref is the whole repository's answer:
+/// 199 KiB for the 1,982 packed and 40 loose refs of this repository,
+/// and as a child of a commit it took 3.8 to 26.4 seconds on 2026-11-12 while real Git answered the
+///  same question in 4 to 5 milliseconds
+/// (`doc/troubleshooting/cli-git-one-child-of-a-commit-takes-seconds.md`).
+///  The reader here is the package's own,
+/// which the policy queries,
+/// the automatic push and the worktree clean already use;
+/// every layout it cannot prove (an unknown object format,
+/// a reftable store,
+/// a ref name it declines,
+///  a damaged `packed-refs`) is `None`,
+/// and the caller then starts Git as before,
+/// so a decline adds a Git start and changes no result.
+///  A symbolic ref's object name is the one its chain ends at,
+/// which is what Git prints beside it,
+/// and a chain that ends nowhere is printed with none,
+/// as Git prints it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refsReadFromFiles = (sources) => sharedRefs.list() + perWorktreeNamespaces;
+/// ```
+/// What:
+///  One entry of the snapshot read from the ref files,
+///  or `None` when the reader cannot prove the answer.
+/// Why:
+///   Every refusal is `None` here and a Git start there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refsReadFromFiles = (sources) => sharedRefs.list() + perWorktreeNamespaces;
+/// ```
+fn refs_read_from_files(sources: &SnapshotSources) -> Option<Vec<RefSnapshotEntry>> {
+    let hex_length: usize = sources.hex_length?;
+    if sources.ref_format != RefFormat::Files {
+        return None;
+    }
+    // A worktree that does not own its Git directory resolves the per-worktree namespaces to its own,
+    // so the shared directory's copies of them are another worktree's refs and are not this snapshot's.
+    let linked: bool = sources.git_dir != sources.common_dir;
+    let shared: Refs = Refs::new(sources.common_dir.as_path(), hex_length);
+    // The entries are built once and sorted once: a name is bytes, and the entry holds those bytes, so the list is
+    //  made in place rather than through a table keyed by a copy of every name.
+    let mut entries: Vec<RefSnapshotEntry> = Vec::new();
+    for (name, value) in shared.list()? {
+        if linked && is_a_per_worktree_name(name.as_str()) {
+            continue;
+        }
+        entries.push(entry_of(name.as_str(), value));
+    }
+    // A worktree that does not own its Git directory keeps these three namespaces in its own, never in `packed-refs`.
+    if linked {
+        let own: Refs = Refs::new(sources.git_dir.as_path(), hex_length);
+        for namespace in PER_WORKTREE_NAMESPACES {
+            for (name, value) in own.loose_namespace(namespace)? {
+                entries.push(entry_of(name.as_str(), value));
+            }
+        }
+    }
+    // Both halves are sorted by name already, and the worktree's three namespaces are disjoint from the shared list,
+    //  so one sort of the whole list is what Git's byte order needs and no name is ever replaced.
+    entries.sort_by(compare_by_name_bytes);
+    // What:
+    //  Every chain is resolved against the targets as they are stored, before any of them is rewritten.
+    // Why:
+    //  Git counts a chain's depth from the ref files, one name at a time, so one name's answer never
+    //  depends on which other name was answered first. Resolving in place made it depend: a chain that
+    //  passed through a shorter chain sorting before it read that name already collapsed to its own end,
+    //  counted fewer links than it has, and was kept where Git drops it (`aa -> bb -> cc -> dd -> ee` with
+    //  `zz -> aa`: Git drops `zz` for being five links long, and the reader kept it).
+    //  So the ends are found first, in a list of their own, and the entries are read and never written
+    //  while they are being read.
+    let mut ends: Vec<Option<(Vec<u8>, String)>> = Vec::with_capacity(entries.len());
+    for entry in &entries {
+        ends.push(if entry.symref.is_empty() { None } else { end_of_a_symbolic_chain(entries.as_slice(), entry.symref.as_slice()) });
+    }
+    let mut kept: Vec<RefSnapshotEntry> = Vec::with_capacity(entries.len());
+    for (entry, end) in entries.into_iter().zip(ends) {
+        match end {
+            // A direct ref is its own answer.
+            None if entry.symref.is_empty() => kept.push(entry),
+            // A chain that ends nowhere, or beyond Git's depth, is not a ref Git prints.
+            None => {}
+            Some((ends_at, oid)) => kept.push(RefSnapshotEntry { name: entry.name, symref: ends_at, oid }),
+        }
+    }
+    return Some(kept);
+}
+
+/// What:
+///  Whether a ref name lives in one of the namespaces Git keeps in a worktree's own Git directory.
+/// Why:
+///   Git resolves such a name to the worktree's own directory and never to the shared one,
+/// so a shared copy of it is another worktree's ref.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isPerWorktreeName = (name) => PER_WORKTREE.some((ns) => name.startsWith(`${ns}/`))
+/// ```
+fn is_a_per_worktree_name(name: &str) -> bool {
+    for namespace in PER_WORKTREE_NAMESPACES {
+        if name.len() > namespace.len() && name.starts_with(namespace) && name.as_bytes()[namespace.len()] == b'/' {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// How many symbolic refs one listing follows before it leaves the name out.
+///
+/// Git's own bound is `SYMREF_MAXDEPTH` (5) in `refs/files-backend.c`,
+/// and it counts the ref being listed as the first level:
+///  `refs/heads/link-2` pointing through four links at `refs/heads/main` is printed,
+/// and `refs/heads/link-1` pointing through five is not
+/// (measured with Git 2.56.0 on a fixture of five and of six links,
+///  `the_reader_answers_every_kind_of_store_as_git_does_or_declines`).
+/// So four links are followed here,
+/// and a name whose chain needs a fifth is dropped as Git drops it.
+pub const SYMBOLIC_REF_DEPTH_IN_A_LISTING: usize = 4;
+
+/// What:
+///  The direct ref a symbolic ref's chain ends at,
+///  as its name and its object,
+///  or `None` when the chain ends at no ref or in a loop.
+/// Why:
+///  `for-each-ref` prints neither a ref that points at a name that does not exist nor one that points back into its own chain,
+/// and the name it prints beside a symbolic ref is the end of the chain,
+///  so a two-step chain is printed with the ref it finally names.
+///  The depth is Git's own,
+///  counted as Git counts it (`SYMBOLIC_REF_DEPTH_IN_A_LISTING`),
+/// so a chain Git refuses to follow is dropped here too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const endOfChain = (entries, target) => { let name = target; for (let step = 0; step < 4; step++) { const found = findByName(entries, name); if (found === undefined) return undefined; if (entries[found].symref === '') return [name, entries[found].oid]; name = entries[found].symref } return undefined }
+/// ```
+fn end_of_a_symbolic_chain(entries: &[RefSnapshotEntry], target: &[u8]) -> Option<(Vec<u8>, String)> {
+    let mut current: Vec<u8> = target.to_vec();
+    for _step in 0..SYMBOLIC_REF_DEPTH_IN_A_LISTING {
+        // The entries are in Git's byte order, so a step of the chain is one binary search and allocates nothing.
+        let found: usize = find_by_name(entries, current.as_slice())?;
+        if entries[found].symref.is_empty() {
+            return Some((entries[found].name.clone(), entries[found].oid.clone()));
+        }
+        current = entries[found].symref.clone();
+    }
+    return None;
+}
+
+/// What:
+///  Where a ref name sits in the snapshot's own byte order,
+///  or `None` when the snapshot holds no such name.
+/// Why:
+///   The entries are sorted by name once,
+/// and a symbolic ref's every step is a search of that order,
+///  written here as the search itself because the snapshot's names are what is compared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const findByName = (entries, name) => { let low = 0, high = entries.length; while (low < high) { const middle = low + ((high - low) >> 1); const order = compare(entries[middle].name, name); if (order < 0) low = middle + 1; else if (order > 0) high = middle; else return middle } return undefined }
+/// ```
+fn find_by_name(entries: &[RefSnapshotEntry], name: &[u8]) -> Option<usize> {
+    let mut low: usize = 0;
+    let mut high: usize = entries.len();
+    while low < high {
+        let middle: usize = low.saturating_add(high.saturating_sub(low) / 2);
+        match entries[middle].name.as_slice().cmp(name) {
+            std::cmp::Ordering::Less => low = middle.saturating_add(1),
+            std::cmp::Ordering::Greater => high = middle,
+            std::cmp::Ordering::Equal => return Some(middle),
+        }
+    }
+    return None;
+}
+
+/// What:
+///  Lists every real ref of the owning worktree in byte order,
+/// from the ref files when they can be read,
+///  and from one Git child otherwise.
+/// Why:
+///   The answer is the snapshot the shadow's ref store is written from;
+/// who answers it decides whether a commit starts Git over every ref of the
+///  repository at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refs = refsReadFromFiles(sources) ?? listRealRefs({ gitPath, cwd });
+/// ```
+pub fn list_real_refs_from(context: &GitContext, cwd: &Path, sources: &SnapshotSources) -> Result<Vec<RefSnapshotEntry>, GitFailure> {
+    if let Some(read) = refs_read_from_files(sources) {
+        return Ok(read);
+    }
+    return list_real_refs(context, cwd);
+}
+
+/// What:
+///  Lists every real ref of the owning worktree in byte order,
+/// from one `git for-each-ref`.
 /// Why:
 ///   Sorting by bytes matches the incumbent's `Buffer.compare` order in the packed file.
 ///
@@ -143,349 +413,7 @@ pub fn list_real_refs(context: &GitContext, cwd: &Path) -> Result<Vec<RefSnapsho
     return Ok(refs);
 }
 
-/// What:
-///  Formats the files-backend snapshot of every direct ref except the private target.
-/// Why:
-///   The target is written loose,
-/// so a packed copy would only be shadowed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// formatPackedRefs({ refs, targetRef });
-/// ```
-pub fn format_packed_refs(refs: &[RefSnapshotEntry], target_ref: &RefName) -> Vec<u8> {
-    let mut text: Vec<u8> = PACKED_REFS_HEADER.as_bytes().to_vec();
-    for entry in refs {
-        if !(entry.symref.is_empty() && entry.name.as_slice() != target_ref.bytes()) {
-            continue;
-        }
-        text.extend_from_slice(entry.oid.as_bytes());
-        text.push(b' ');
-        text.extend_from_slice(entry.name.as_slice());
-        text.push(b'\n');
-    }
-    return text;
-}
-
-/// What:
-///  The bytes of a direct ref's file:
-/// the object name and a line feed.
-/// Why:
-///   That is the whole of a loose ref on the files backend,
-///  so a ref the wrapper writes is the ref Git reads.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// Buffer.from(`${oid}\n`)
-/// ```
-fn direct_ref_value(oid: &str) -> Vec<u8> {
-    let mut bytes: Vec<u8> = oid.as_bytes().to_vec();
-    bytes.push(b'\n');
-    return bytes;
-}
-
-/// What:
-///  The bytes of a symbolic ref's file:
-/// `ref:` ,
-///  the target and a line feed.
-/// Why:
-///   The target is bytes,
-/// because a reference name is,
-///  and a name that is not text reaches the shadow unchanged.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// Buffer.concat([Buffer.from('ref: '), target, Buffer.from('\n')])
-/// ```
-fn symbolic_ref_value(target: &[u8]) -> Vec<u8> {
-    let mut bytes: Vec<u8> = b"ref: ".to_vec();
-    bytes.extend_from_slice(target);
-    bytes.push(b'\n');
-    return bytes;
-}
-
-/// What:
-///  Writes one loose ref of a shadow,
-///  replacing what the name already holds.
-/// Why:
-///   A second attempt of the same transaction finds what the first one wrote,
-/// and a shadow's own `HEAD` is written by the skeleton before this,
-///  so a ref write replaces.
-///  The parents are made only when the write finds none:
-/// a snapshot ref such as `refs/remotes/origin/HEAD` lives packed in the real repository,
-///  so the shadow can hold no directory for it.
-///  The shadow is thrown away when its transaction ends and recovery removes it whole,
-/// so a torn ref file changes no outcome and none is synced.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeFile(join(shadow, name), bytes).catch(async (error) => { if (error.code !== 'ENOENT') throw error; await mkdir(dirname(path), { recursive: true }); await writeFile(path, bytes); });
-/// ```
-fn write_loose_ref(shadow: &Path, name: &OsString, value: &[u8]) -> std::io::Result<()> {
-    let path: PathBuf = shadow.join(name);
-    return match std::fs::write(path.as_path(), value) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            let Some(parent) = path.parent() else {
-                return Err(error);
-            };
-            std::fs::create_dir_all(parent)?;
-            std::fs::write(path.as_path(), value)
-        }
-        other => other,
-    };
-}
-
-/// What:
-///  Turns the result of one ref write into the failure a commit reports.
-/// Why:
-///   Both kinds of loose ref report the same way,
-/// and a named function stands where a closure that built
-///  that text stood.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function refFailure(error: Error): GitFailure; // new GitFailure(`writing a shadow ref failed: ${error}`)
-/// ```
-fn ref_failure(error: std::io::Error) -> GitFailure {
-    return GitFailure(format!("writing a shadow ref failed: {error}"));
-}
-
 /// How many symbolic refs the private target is followed through.
 ///  Git's own limit for a chain of symbolic refs is five,
 /// and a chain that does not end within it is refused here as Git refuses it.
 pub const SYMBOLIC_REF_CHAIN_LIMIT: usize = 5;
-
-/// What:
-///  The target of a real symbolic ref,
-///  or `None` when that name is a direct ref.
-/// Why:
-///   The walk over a chain asks this once per step;
-/// a named function stands where a closure the linter refuses stood.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const symbolicTargetOf = (refs, name) => refs.find((e) => e.symref && e.name === name)?.symref;
-/// ```
-fn symbolic_target_of<'refs>(refs: &'refs [RefSnapshotEntry], name: &[u8]) -> Option<&'refs [u8]> {
-    for entry in refs {
-        if !entry.symref.is_empty() && entry.name.as_slice() == name {
-            return Some(entry.symref.as_slice());
-        }
-    }
-    return None;
-}
-
-/// What:
-///  The name a loose ref write ends at,
-///  following the real repository's symbolic refs.
-/// Why:
-///   `git update-ref <ref> <oid>` follows a symbolic ref and writes the ref it names,
-/// and a branch can itself be a symbolic ref to another branch;
-/// a direct write at the first name would collapse that chain into a direct ref
-///  that a hook could tell apart.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const targetOf = (refs, name) => { for (let step = 0; step < LIMIT; step++) { const symref = symbolicTargetOf(refs, name); if (!symref) return name; name = symref; } throw new GitFailure(`symbolic ref chain ${name} is too long`); };
-/// ```
-fn end_of_symbolic_chain(refs: &[RefSnapshotEntry], name: &[u8]) -> Result<Vec<u8>, GitFailure> {
-    let mut current: Vec<u8> = name.to_vec();
-    for _step in 0..SYMBOLIC_REF_CHAIN_LIMIT {
-        let Some(target) = symbolic_target_of(refs, current.as_slice()) else {
-            return Ok(current);
-        };
-        current = target.to_vec();
-    }
-    return Err(GitFailure(format!(
-        "the symbolic ref {} does not end within {SYMBOLIC_REF_CHAIN_LIMIT} steps, as Git refuses one that long",
-        String::from_utf8_lossy(name)
-    )));
-}
-
-/// What:
-///  Writes the files backend's `HEAD`,
-///  and the private target ref it names.
-/// Why:
-///   `HEAD` and a loose ref are two small files,
-/// and Git reads them directly;
-/// the reference update and the symbolic ref that wrote them were two Git starts
-///  per commit for a few bytes each.
-///  The target is written where the chain of symbolic refs ends,
-///  as the `git update-ref` this replaces wrote it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeLooseRef(shadow, endOfChain(refs, target), `${oid}\n`); await writeLooseRef(shadow, 'HEAD', `ref: ${target}\n`);
-/// ```
-fn write_files_shadow_head(
-    shadow: &Path,
-    symbolic_head: &SymbolicHead,
-    base: &Base,
-    refs: &[RefSnapshotEntry],
-) -> Result<(), GitFailure> {
-    let head: OsString = OsString::from("HEAD");
-    match symbolic_head {
-        SymbolicHead::Branch(reference) => {
-            if let Base::Commit(oid) = base {
-                let target: Vec<u8> = end_of_symbolic_chain(refs, reference.bytes())?;
-                write_loose_ref(shadow, &os_from_path_bytes(target.as_slice()), direct_ref_value(oid).as_slice()).map_err(ref_failure)?;
-            }
-            write_loose_ref(shadow, &head, symbolic_ref_value(reference.bytes()).as_slice()).map_err(ref_failure)?;
-            return Ok(());
-        }
-        SymbolicHead::Detached => {
-            let Base::Commit(oid) = base else {
-                return Err(GitFailure(String::from(
-                    "A detached HEAD has no unborn preparation base.",
-                )));
-            };
-            write_loose_ref(shadow, &head, direct_ref_value(oid).as_slice()).map_err(ref_failure)?;
-            return Ok(());
-        }
-    }
-}
-
-/// What:
-///  Points the shadow `HEAD` at the private target:
-///  symbolic to the branch,
-/// or detached at the base.
-/// Why:
-///   A detached `HEAD` needs a base,
-/// and an unborn branch has no object to write.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeShadowHead({ gitPath, shadowPath, symbolicHead, base });
-/// ```
-fn write_shadow_head(
-    context: &GitContext,
-    shadow: &Path,
-    symbolic_head: &SymbolicHead,
-    base: &Base,
-) -> Result<(), GitFailure> {
-    match symbolic_head {
-        SymbolicHead::Branch(reference) => {
-            if let Base::Commit(oid) = base {
-                run_git_checked(
-                    context,
-                    &shadow_request(
-                        shadow,
-                        shadow,
-                        &[OsString::from("update-ref"), reference.as_os_str().to_os_string(), OsString::from(oid)],
-                    ),
-                )?;
-            }
-            run_git_checked(
-                context,
-                &shadow_request(
-                    shadow,
-                    shadow,
-                    &[OsString::from("symbolic-ref"), OsString::from("HEAD"), reference.as_os_str().to_os_string()],
-                ),
-            )?;
-            return Ok(());
-        }
-        SymbolicHead::Detached => {
-            let Base::Commit(oid) = base else {
-                return Err(GitFailure(String::from(
-                    "A detached HEAD has no unborn preparation base.",
-                )));
-            };
-            run_git_checked(
-                context,
-                &shadow_request(shadow, shadow, &["update-ref", "--no-deref", "HEAD", oid.as_str()]),
-            )?;
-            return Ok(());
-        }
-    }
-}
-
-/// What:
-///  Writes the shadow ref store:
-///  the snapshot,
-/// the symbolic refs,
-/// the private target ref and `HEAD`.
-/// Why:
-///   The order matches the incumbent's:
-///  symbolic refs come after their targets exist,
-/// and `HEAD` comes last.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await writeShadowRefs({ gitPath, cwd, shadowPath, capture });
-/// ```
-pub fn write_shadow_refs(
-    context: &GitContext,
-    cwd: &Path,
-    shadow: &Path,
-    ref_format: RefFormat,
-    target_ref: &RefName,
-    symbolic_head: &SymbolicHead,
-    base: &Base,
-) -> Result<(), GitFailure> {
-    let refs: Vec<RefSnapshotEntry> = list_real_refs(context, cwd)?;
-    let files: bool = ref_format == RefFormat::Files;
-    match ref_format {
-        RefFormat::Files => {
-            // Unsynced: nothing reads the throwaway shadow's refs after a crash on the files backend, so a torn or lost
-            // `packed-refs` changes no recovery outcome (`binary_recovery_tearing_shadow_tests.rs`).
-            write_private_file_unsynced(
-                PathBuf::from(shadow).join("packed-refs").as_path(),
-                format_packed_refs(&refs, target_ref).as_slice(),
-            )
-            .map_err(packed_refs_failure)?;
-        }
-        RefFormat::Reftable => {
-            let mut lines: Vec<u8> = Vec::new();
-            for entry in &refs {
-                if !(entry.symref.is_empty() && entry.name.as_slice() != target_ref.bytes()) {
-                    continue;
-                }
-                lines.extend_from_slice(b"create ");
-                lines.extend_from_slice(entry.name.as_slice());
-                lines.push(b' ');
-                lines.extend_from_slice(entry.oid.as_bytes());
-                lines.push(b'\n');
-            }
-            let mut request: GitRequest = shadow_request(shadow, shadow, &["update-ref", "--stdin"]);
-            request.input = Some(lines);
-            run_git_checked(context, &request)?;
-        }
-    }
-    for entry in &refs {
-        if entry.symref.is_empty() {
-            continue;
-        }
-        // A symbolic ref is a file holding `ref: <target>`; the reftable backend keeps its refs in tables only Git writes.
-        if files {
-            write_loose_ref(
-                shadow,
-                &os_from_path_bytes(entry.name.as_slice()),
-                symbolic_ref_value(entry.symref.as_slice()).as_slice(),
-            )
-            .map_err(ref_failure)?;
-            continue;
-        }
-        run_git_checked(
-            context,
-            &shadow_request(
-                shadow,
-                shadow,
-                &[
-                    OsString::from("symbolic-ref"),
-                    os_from_path_bytes(entry.name.as_slice()),
-                    os_from_path_bytes(entry.symref.as_slice()),
-                ],
-            ),
-        )?;
-    }
-    if files {
-        return write_files_shadow_head(shadow, symbolic_head, base, &refs);
-    }
-    return write_shadow_head(context, shadow, symbolic_head, base);
-}
-
-/// Shadow ref controls stay out of the release executable.
-#[cfg(test)]
-#[path = "shadow_refs_tests.rs"]
-mod tests;

@@ -449,7 +449,19 @@
     "path": "doc/audit/depot-expanded-graph-github-repetition-2026-10-18.sources.json.gz",
     "bytes": 154139,
     "sha256": "f3fb9967cba82508ccf37968ea772c97e2363d39a61df7d2d69ee66d9b9e0a9b",
-    "records": 20
+    "records": 20,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 05d02428a0a0322ab4267a7d522c593317541699:doc/audit/depot-expanded-graph-github-repetition-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "nativeCorrectionRun": "fnvwqfg0bb",
   "nativeCorrectionResultsIncluded": false,
