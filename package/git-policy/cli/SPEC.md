@@ -4432,25 +4432,32 @@ of which the two that rewrite link layouts in place are the service's work whene
   Then `cargo clean --offline --package <member>` for every member,
   so registry and git dependencies are reused and
   the worktree's own crates rebuild with the worktree's own paths.
-  That clean is not the add's work, and it runs only where the worktree's own build directory holds
+  That clean is not the add's work,
+  and it runs only where the worktree's own build directory holds
   state a build could reuse:
   Cargo keeps the fingerprints that make an artifact fresh inside the build directory,
   so a worktree that starts without one rebuilds its own crates by itself,
   and a copied `target/` alone is no reason to clean.
   Measured on 2026-11-12 on this repository:
   a copy of a built workspace whose `target/` held the source's binary was rebuilt by the copy's first
-  build, which named the copy's own path,
+  build,
+  which named the copy's own path,
   while the clean a copied `target/` used to ask for was a full workspace resolution that deleted
-  nothing, 32.8 to 47.7 s of work in each of three adds that took that clean 34 times
+  nothing,
+  32.8 to 47.7 s of work in each of three adds that took that clean 34 times
   (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
   Where the worktree's build directory does hold that state,
   the add moves it to the filling's staging name (`<build directory>.monochromatic-prewarm`) in one
-  rename, under the filling's marker, and adds the workspace to the same `prewarm` record,
+  rename,
+  under the filling's marker,
+  and adds the workspace to the same `prewarm` record,
   so no build that starts at once finds artifacts Cargo would call fresh:
-  it finds no build directory and compiles everything itself, which is correct and only slower.
+  it finds no build directory and compiles everything itself,
+  which is correct and only slower.
   The filling then cleans that staged copy and publishes it back with the rename that never replaces,
   so a worktree that built in the meantime keeps what it made.
-  The add runs no `cargo clean` in that path, which is what keeps an add inside its bound:
+  The add runs no `cargo clean` in that path,
+  which is what keeps an add inside its bound:
   the clean's quiet window is six hundred seconds and its ceiling eighteen minutes.
   Where the state cannot be moved aside at all (a staging name another writer holds,
   or a directory that cannot be renamed),
@@ -5178,11 +5185,20 @@ and "never discard user data"):
   and one `git commit-tree` holds them all under slot names on `refs/cli-git/carried/<n>`,
   written with an all-zero old value;
   the merge's record names the commit and every path with its two layers.
-  The ref goes only once no record that is still there names its commit
-  (`a_record_still_names_the_capture` in `src/native/merge/merge_isolation_carry.rs`):
+  The ref goes only once no record whose carry has not finished names its commit
+  (`another_record_still_needs_the_capture` in `src/native/merge/merge_isolation_carry.rs`):
   a merge that saves its result for a later finish writes a second record beside the first,
   both name one capture,
   and the record settled first must not take the ref the other one still needs for the person's bytes.
+  A record says beside itself when its carry has finished
+  (`<record>.settled`,
+  `mark_carry_finished` in `merge_isolation_journal.rs`),
+  written before the ref is decided,
+  so the last finished record to go is the one that drops the reference:
+  two commands can settle at once,
+  each finding the other's record,
+  and a deletion that finds the name already gone counts as done,
+  so no order of two commands leaves the ref with nobody to drop it.
   The objects are written and the ref exists before the first byte of the checkout changes.
   The ref is removed only once its bytes are back in the checkout,
   and the merge's record,
@@ -5190,10 +5206,14 @@ and "never discard user data"):
   goes after it:
   a deletion that met another command's lock on that ref keeps the record,
   and the next command's recovery removes both,
+  while a deletion refused because the name is already gone removes the record at once,
   so no capture ref is ever left for a person to clean up by hand
+  and no record is ever kept for a retry that cannot succeed
   (a cross-vendor audit of alpha.12,
   "Capture-ref cleanup is never retried after a transient failure",
-  found the record removed first).
+  found the record removed first;
+  the second review of the branch that refused conflict-side commands
+  found the record kept for ever against a ref that was already gone).
   That set includes the paths whose index entry carries the `assume-unchanged` or `skip-worktree` mark:
   Git's own status,
   `git diff-files`,
@@ -7424,7 +7444,12 @@ on the commit path:
   `HEAD` is read again immediately before the branch moves,
   and a worktree that changed branch by then keeps the record as well.
   The record and the side ref go when the merge lands,
-  and the side ref is deleted only while it still holds the merge's commit.
+  and the side ref is deleted only while it still holds the merge's commit;
+  a kept ref that is already gone,
+  pruned by age or removed by another command,
+  counts as deleted,
+  so a record never waits for a name nothing can remove
+  (`drop_side_ref_awaiting` in `src/native/merge/merge_isolation_recovery_cleanup.rs`).
   and everything the merge does not change is left as it is,
   so an edit made meanwhile to such a file is carried forward.
   Staged content is never written over:
@@ -8502,7 +8527,8 @@ in-process reader can) gives every value of the multi-valued keys.
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
-  The name carries the commit the push sent, which is the commit the branch named before the push read the worktree's verdicts,
+  The name carries the commit the push sent,
+  which is the commit the branch named before the push read the worktree's verdicts,
   and never the newest work record the round claimed:
   a commit that lands after that claim is what the push sends,
   so a record named for the claimed commit would replace an unread account of that commit with words about another one and
@@ -8520,7 +8546,8 @@ in-process reader can) gives every value of the multi-valued keys.
   the display cap of a notice stays on a push that did not finish,
   which a later try says the same thing about.
 - A record that could not be written never leaves its work items settled as if it existed:
-  the words it would have carried go to the service journal, every line of them,
+  the words it would have carried go to the service journal,
+  every line of them,
   and what the items become follows what a later try can say.
   A push that landed,
   whose account the storage refused,
@@ -14448,12 +14475,14 @@ from this invocation's own capture.
 The skeleton is the directory itself,
 `objects`,
 `objects/info` and `refs`:
-`objects/pack`, `refs/heads` and `refs/tags` are left to Git,
+`objects/pack`,
+`refs/heads` and `refs/tags` are left to Git,
 which makes the loose object's own directory and the loose ref it writes,
 and the check answers "no pack and no ref" with one question about each absent directory
 (`shadow_skeleton.rs`,
 `shadow_pool_member.rs`).
-A member that holds one of the three is refused, which is what a shadow a commit has used holds.
+A member that holds one of the three is refused,
+which is what a shadow a commit has used holds.
 
 #### A shadow handed out from the drawn folder
 
@@ -14462,7 +14491,8 @@ and hands it over:
 this is the option of
 `doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`
 that the owner decided for on 2026-11-11,
-in its checked form, so every question a claim asks is asked of the tree that is handed out.
+in its checked form,
+so every question a claim asks is asked of the tree that is handed out.
 
 - The drawn trees live in `<common-dir>/monochromatic-git-policy-cli-shadow-drawn/<worktree>`,
   one entry per tree named `drawn-<identity>`,
@@ -14490,17 +14520,22 @@ in its checked form, so every question a claim asks is asked of the tree that is
   so two commits that ask at once never get one tree;
   a restarted service hands out nothing it did not draw,
   and a tree an earlier one drew is left to the sweep by its age.
-- The ask is bounded at `DRAWN_ANSWER_DEADLINE`, 250 ms,
+- The ask is bounded at `DRAWN_ANSWER_DEADLINE`,
+  250 ms,
   which is a hundred and fifty times the largest answer measured over 3,000 round trips
   (`service_client_shadow_hand_out.rs`).
-  A socket nobody listens on, a service that does not answer, an empty stock,
+  A socket nobody listens on,
+  a service that does not answer,
+  an empty stock,
   and an answer naming a tree that is not this worktree's drawn one are all the same to a commit:
-  it takes the pool's member or makes its creation, within the bounds it has today,
+  it takes the pool's member or makes its creation,
+  within the bounds it has today,
   and says nothing.
 - A commit that is handed a tree runs `refusal` on it,
   which is the same check a claim runs and is all reads,
   then writes the ref store into it as it does into a claimed member.
-  A commit that concludes something is never handed one: it carries the state a conclusion leaves,
+  A commit that concludes something is never handed one:
+  it carries the state a conclusion leaves,
   which the landing that concludes compares at the path its own scratch tree holds.
   A tree this invocation refuses is released in the background and the commit takes the other routes.
 - The tree is renewed every `SCRATCH_REFRESH_EVERY` while the command that holds it lives,
@@ -14510,15 +14545,22 @@ in its checked form, so every question a claim asks is asked of the tree that is
   and the sweep removes the tree once it has not been renewed for `SCRATCH_TREE_ABANDONED_AFTER`.
   `sweep_drawn` runs beside every wrapped command,
   beside the service's own draw,
-  and for a removed worktree, which takes the trees of its own folder that nothing renewed and leaves a fresh one:
-  a tree a live commit holds is fresh, and its Git is reading it while the removal runs.
-- The request that lands a commit names the drawn tree it was built in, in its `shadow` field,
+  and for a removed worktree,
+  which takes the trees of its own folder that nothing renewed and leaves a fresh one:
+  a tree a live commit holds is fresh,
+  and its Git is reading it while the removal runs.
+- The request that lands a commit names the drawn tree it was built in,
+  in its `shadow` field,
   and the service removes that tree with the scratch tree once that landing is over.
-  A request the service answered as not landed, or never took,
-  leaves the tree to the command, which releases it beside itself in the background.
+  A request the service answered as not landed,
+  or never took,
+  leaves the tree to the command,
+  which releases it beside itself in the background.
 - A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
-  their commit makes its creation, and it asks nothing.
-- A commit that concludes a merge, a cherry-pick or a revert is handed no drawn tree yet,
+  their commit makes its creation,
+  and it asks nothing.
+- A commit that concludes a merge,
+  a cherry-pick or a revert is handed no drawn tree yet,
   and takes the pool's member or makes its creation as it did before:
   the landing that concludes compares the state Git left in the shadow with the copy it kept,
   reading the shadow at the path the commit's own scratch tree holds
@@ -14544,8 +14586,10 @@ in its checked form, so every question a claim asks is asked of the tree that is
   It is the service's `rename` that the drawn route moves off the commit's wait:
   `330` measured claims put a median 0.08 ms and at most 5,606 ms in it
   (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
-  "The cost, over 330 commits").
-- A handed-out tree is checked before it is used, and a claimed member is checked before it is used,
+  "The cost,
+  over 330 commits").
+- A handed-out tree is checked before it is used,
+  and a claimed member is checked before it is used,
   and everything the check reads is a read:
   its `config` must be the text this invocation's creation would write,
   its alternates must name this invocation's object directory,
