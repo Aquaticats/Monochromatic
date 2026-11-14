@@ -115,7 +115,7 @@ fn a_merge_that_meets_a_lock_no_process_proves_saves_itself_and_the_next_command
     }
 }
 
-/// The branch tip,/// The branch tip,
+/// The branch tip,
 /// read without taking any lock.
 fn snapshot_head(fixture: &Fixture, repo: &Path) -> String {
     return git_text(fixture, repo, &["rev-parse", "HEAD"]);

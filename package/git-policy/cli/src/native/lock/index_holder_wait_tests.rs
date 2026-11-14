@@ -369,7 +369,7 @@ mod lock_remover {
 /// ```ts
 /// const holder = holdOpen(lock)
 /// const began = performance.now()
-/// // 'held-by-another-command', and well inside the second this control allows
+/// // 'held-by-another-command', well inside the ten seconds this control allows
 /// expect(lookAtTheIndexBeforeAMerge(index, sink).kind).toBe('held-by-another-command')
 /// expect(performance.now() - began).toBeLessThan(10000)
 /// ```
