@@ -1325,6 +1325,24 @@ from three last messages kept under
   the reviewer is resumed in its own session to check the answer at `091397b096` with its own scripts
   (`go-on-with-the-review-of-the-tracked-archives-and-check-the-answer-at-091397b096-prompt.md`).
 - The queue held 65 entries at 02:25:40.
+- **A commit that does not land says what stopped it**
+  (`fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it`,
+  tip `4bc6db7533`,
+  ended 02:23:37,
+  level with `main`):
+  the timing record of a commit the command itself stopped now says `client-failure` with one word of 37 for the reason,
+  where `main` says `unidentified`;
+  an interrupted commit writes its record before the signal ends it and names the signal's sender;
+  `SIGHUP` and `SIGQUIT` are answered by the wait.
+  One case was dropped in its merge with `main`:
+  a manager exchange that ran out during the start no longer fails the commit,
+  as pass 17 and the reload fix decided.
+  Each control was shown failing with its fix removed.
+  It names a sixth library test red on `main`
+  (`push::push_held_back_by_a_blocked_commit::…::a_commit_that_lands_after_the_verdicts_were_read_is_not_published`),
+  which is one of the five that `ec658fd836` answers.
+  Review queued at 02:28
+  (range `main...4bc6db7533`).
 
 ##### Two authors' work goes to review: issue 6300's answer and the lock of a killed Git where births are equal (2026-11-14T02:16:26-05:00)
 
