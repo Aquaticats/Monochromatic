@@ -990,6 +990,8 @@ the launcher that builds the session's environment asks it, once, before it make
   so a summary naming `pi-not-stopped` omits it and claims nothing about Pi having gone.
   `feedProblem` names why the feed is incomplete when it is,
   `workProblem` says what the driver could not read when it asked what the run left running,
+  `emptyAnswer` says the agent's last answer carried no text and no tool call, and how many times the driver asked it to go on,
+  `lastAssistantTextTurn` names the turn whose words `lastAssistantText` holds when the last answer said nothing,
   `modelError` carries what the model said when the run ended on it,
   `piRetryGaveUp` carries what Pi's own automatic retry reported when it gave up on that error,
   `compactionProblem` carries what Pi reported of a compaction that kept the prompt waiting,
@@ -1090,6 +1092,7 @@ or in the provider's own store.
 
 `endReason` in the summary says how.
 `idle` and `stop-file` exit 0.
+`empty-answer`,
 `prompt-rejected`,
 `compaction-failed`,
 `pi-exited`,
@@ -1164,6 +1167,46 @@ or `feedProblem` does.
 A run that settled is never reported that way for a read that failed after its work was done:
 that failure is `workProblem`,
 and the end reason stays the one the run earned.
+
+`empty-answer` means the agent's last answer carried no text and no tool call,
+so the run holds nothing of what the agent found and nothing that says it had finished.
+An assistant message like that is a normal stop, not an error:
+the run of 2026-11-13 that ended this way did it 61 seconds into its fifth turn,
+after four turns of tool work
+(`pi-runs/five-library-controls-of-main-that-state-what-main-changed-are-true-again-1`),
+and the driver closed it as `idle`.
+Its summary read as a run that came back after saying it was about to start,
+its report was never written,
+and the place it held went to the next run.
+So before a run ends as `idle`,
+the driver reads what its last answer said,
+and one that said nothing is asked to go on in the agent's own session:
+the ask says only what happened,
+that the answer held no text and no tool call,
+and that the agent either goes on with its task or says that it has finished and gives its report.
+`EMPTY_ANSWER_ASK_LIMIT` in `src/driver-constants.ts` bounds the asks at two,
+and each is an `asked-to-go-on` line on the feed carrying its number, the bound, and what Pi made of it.
+An agent that goes on after an ask ends the run as it would have anyway:
+the reply's words are the summary's `lastAssistantText`,
+and no `emptyAnswer` is written.
+Once the asks are gone, or Pi refuses the one that was left,
+the run ends `empty-answer`,
+and its summary carries `emptyAnswer` with how many times the agent was asked.
+A summary whose last answer said nothing is never read as the agent's own words:
+`lastAssistantTextTurn` names the turn whose words `lastAssistantText` holds,
+so an earlier turn's sentence cannot pass for the agent's last.
+
+The ask comes after the driver has found nothing of the run's still running:
+an agent that ended its turn with an empty answer while a build it started compiles
+is woken to that build,
+never asked to repeat itself,
+because what stands between that run and its end is the work it left.
+The asks never make a run wait without end:
+the run's own wall clock still bounds every wait for their answers,
+and a wait the wall clock or Pi's leaving ended keeps that ending,
+with `emptyAnswer` still saying the last answer said nothing and how many asks had gone.
+`empty-answer` is neither a run that came back nor a failure of the driver:
+the driver asked, in the agent's own session, as often as its bound allows.
 
 `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from,
 and `modelError` holds what the model said.
