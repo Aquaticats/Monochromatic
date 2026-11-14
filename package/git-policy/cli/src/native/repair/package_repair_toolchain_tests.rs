@@ -60,19 +60,35 @@ const SUMMARY: &str = "toolchain install: 3 installed, 62 unchanged, 0 failed";
 
 /// A fixture `mpm-shadow` that records every start,
 /// prints the summary on standard output,
-/// rewrites the stale record,
+/// rewrites the record of the launcher named `rewrites` (which is the one an install of a real lock answers for),
 /// and exits
 ///  with `install_status`.
-fn fake_mpm(root: &Path, bin: &Path, destination: &Path, install_status: i32) {
+fn fake_mpm(root: &Path, bin: &Path, destination: &Path, rewrites: &str, install_status: i32) {
     let script: String = format!(
         // The install's own children read the search path the repair resolved it on, so the fixture rewrites its launcher
         //  record with the shell's own `printf` and reaches no other program.
         "#!/bin/sh\necho \"$* in $(pwd -P) root=$MONOCHROMATIC_WORKTREE_ROOT\" >> '{record}'\necho '{SUMMARY}'\nif [ {install_status} -eq 0 ]; then printf '{{\"lockFile\":\"%s\"}}\\n' '{own}' > '{launch}'; fi\nexit {install_status}\n",
         record = root.join("record").display(),
-        launch = destination.join(LAUNCHERS).join("foreign.launch").display(),
+        launch = destination.join(LAUNCHERS).join(format!("{rewrites}.launch")).display(),
         own = destination.join(LOCK_FILE).display(),
     );
     executable(bin.join("mpm-shadow").as_path(), script.as_bytes());
+}
+
+/// Write the worktree's own lock,
+/// declaring one tool with these bins,
+/// which are the launcher names an install of that lock rewrites.
+fn lock(destination: &Path, bins: &[&str]) {
+    let declared: Vec<String> = bins.iter().map(|bin| format!("\"{bin}\"")).collect();
+    let text: String = format!("{{\"schemaVersion\":1,\"tools\":{{\"cargo:own\":{{\"bins\":[{}]}}}}}}", declared.join(","));
+    std::fs::write(destination.join(LOCK_FILE), text).expect("lock");
+}
+
+/// Write the launcher a record sits beside,
+/// which is a file an install writes and nothing but a copy leaves behind.
+fn launcher(destination: &Path, name: &str) {
+    std::fs::create_dir_all(destination.join(LAUNCHERS)).expect("launchers");
+    std::fs::write(destination.join(LAUNCHERS).join(name), b"#!/bin/sh\nexit 0\n").expect("launcher");
 }
 
 /// The install runs once,
@@ -85,7 +101,7 @@ fn fake_mpm(root: &Path, bin: &Path, destination: &Path, install_status: i32) {
 fn installs_frozen_once_in_the_worktree_and_reports_the_summary() {
     let (root, destination, bin, environment) = scene("toolchain-install");
     record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
-    fake_mpm(&root, &bin, &destination, 0);
+    fake_mpm(&root, &bin, &destination, "foreign", 0);
     let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
     assert_eq!(finding.tool, Tool::Toolchain);
     let Outcome::Repaired { detail, .. } = &finding.outcome else { panic!("expected a success: {finding:?}") };
@@ -104,7 +120,7 @@ fn installs_frozen_once_in_the_worktree_and_reports_the_summary() {
 fn a_failing_install_names_its_reason_and_the_command() {
     let (root, destination, bin, environment) = scene("toolchain-install-fails");
     record(&destination, "foreign", root.join("source/toolchain.lock.json").as_path());
-    fake_mpm(&root, &bin, &destination, 1);
+    fake_mpm(&root, &bin, &destination, "foreign", 1);
     let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
     let Outcome::Failed { reason, run_instead } = finding.outcome else { panic!("expected a failure") };
     assert!(reason.contains("exit status"), "{reason}");
@@ -203,4 +219,117 @@ fn the_launcher_records_are_read_as_a_job_of_the_pool() {
         asked,
         "the launcher records were read without asking for a place of the process's bound on blocking jobs, so the read ran on the task that polls the repairs"
     );
+}
+
+/// What:
+///  A record for a name this worktree's lock declares nowhere is a copy of an earlier release's layout:
+///  no install rewrites it,
+///  so the relink removes it and reports the install's own success.
+/// Why:
+///  An add copies `.cache/toolchain-launchers` from the checkout the worktree was copied from,
+///  and `mpm-shadow install` writes a launcher only for the bins the worktree's own lock declares.
+///  A record left by a renamed bin was therefore counted as still stale after every install,
+///  so every new worktree was reported as not relinked although the install had done everything its lock asked,
+///  and the service retried an install that could never change that record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// lock(destination, ['own']); record('own', source); record('renamed', source);
+/// assert(outcomeOf(repairToolchain(destination)) === 'repaired'); assert(!exists('renamed.launch'));
+/// ```
+#[test]
+fn a_record_the_lock_declares_nowhere_is_removed_instead_of_failing_the_relink() {
+    let (root, destination, bin, environment) = scene("toolchain-copy-of-an-older-layout");
+    lock(&destination, &["own"]);
+    record(&destination, "own", root.join("source/toolchain.lock.json").as_path());
+    record(&destination, "renamed", root.join("source/toolchain.lock.json").as_path());
+    launcher(&destination, "renamed");
+    // The install rewrites the record of the name the lock declares, which is all a real install does.
+    fake_mpm(&root, &bin, &destination, "own", 0);
+    let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
+    assert!(matches!(finding.outcome, Outcome::Repaired { .. }), "an install that did everything its lock asks is not a failed relink: {finding:?}");
+    assert!(!destination.join(LAUNCHERS).join("renamed.launch").exists(), "the record no install rewrites is left in the worktree");
+    assert!(!destination.join(LAUNCHERS).join("renamed").exists(), "the launcher beside that record is left in the worktree");
+    assert!(destination.join(LAUNCHERS).join("own.launch").exists(), "the record the install rewrote is still there");
+    remove(&root);
+}
+
+/// What:
+///  A worktree whose only stale records are such copies starts no install at all,
+///  and the copies still go.
+/// Why:
+///   Nothing an install does would change them,
+///   so starting one costs a minute of the add or the service and answers nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// lock(destination, ['own']); record('renamed', source);
+/// assert(repairToolchain(destination) === undefined); assert(!exists('renamed.launch'));
+/// ```
+#[test]
+fn a_worktree_whose_only_stale_records_are_copies_starts_no_install() {
+    let (root, destination, bin, environment) = scene("toolchain-only-copies");
+    lock(&destination, &["own"]);
+    record(&destination, "renamed", root.join("source/toolchain.lock.json").as_path());
+    fake_mpm(&root, &bin, &destination, "own", 0);
+    assert!(repair_toolchain(destination.as_path(), &environment).is_none(), "an install was reported for records no install answers for");
+    assert!(!root.join("record").exists(), "an install was started for records no install answers for");
+    assert!(!destination.join(LAUNCHERS).join("renamed.launch").exists(), "the copy is left in the worktree");
+    remove(&root);
+}
+
+/// What:
+///  A record whose name the worktree's lock does declare is still a failed relink when the install leaves it stale,
+///  and the worktree keeps it.
+/// Why:
+///   This is the state the repair exists to catch:
+///   the layout this release writes was not rewritten,
+///   and the worktree would run the copied checkout's tool versions.
+///   The rule above may never turn that into a success.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// lock(destination, ['own', 'declared']); record('own', source); record('declared', source);
+/// assert(outcomeOf(repairToolchain(destination)).reason.includes('1 launcher records still name another lock file'));
+/// ```
+#[test]
+fn a_record_the_lock_declares_is_still_a_failed_relink_when_the_install_leaves_it_stale() {
+    let (root, destination, bin, environment) = scene("toolchain-declared-stays");
+    lock(&destination, &["own", "declared"]);
+    record(&destination, "own", root.join("source/toolchain.lock.json").as_path());
+    record(&destination, "declared", root.join("source/toolchain.lock.json").as_path());
+    fake_mpm(&root, &bin, &destination, "own", 0);
+    let finding: Finding = repair_toolchain(destination.as_path(), &environment).expect("a finding");
+    let Outcome::Failed { reason, run_instead } = finding.outcome else { panic!("a record the lock declares and the install leaves stale is a failure: {finding:?}") };
+    assert!(reason.contains("1 launcher records still name another lock file"), "{reason}");
+    assert!(run_instead.contains(MANUAL_COMMAND), "{run_instead}");
+    assert!(destination.join(LAUNCHERS).join("declared.launch").exists(), "a record the check counts is never removed");
+    remove(&root);
+}
+
+/// What:
+///  The service's own face removes the copies too,
+///  so a worktree relinked by the commit service holds nothing another checkout wrote.
+/// Why:
+///  The add's face and the service's face settle the worktree from the same decision,
+///  and the service is the one that runs in production when a service answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await repairToolchainAwaiting(destination); assert(!exists('renamed.launch'));
+/// ```
+#[test]
+fn the_service_face_removes_the_copies_as_well() {
+    let (root, destination, bin, environment) = scene("toolchain-service-copies");
+    lock(&destination, &["own"]);
+    record(&destination, "own", root.join("source/toolchain.lock.json").as_path());
+    record(&destination, "renamed", root.join("source/toolchain.lock.json").as_path());
+    launcher(&destination, "renamed");
+    fake_mpm(&root, &bin, &destination, "own", 0);
+    let runtime = tokio::runtime::Builder::new_multi_thread().worker_threads(1).enable_all().build().expect("a runtime");
+    let finding: Option<Finding> = runtime.block_on(async { return repair_toolchain_awaiting(destination.as_path(), &environment).await });
+    let Some(answered) = finding else { panic!("the record the lock declares is still relinked") };
+    assert!(matches!(answered.outcome, Outcome::Repaired { .. }), "{answered:?}");
+    assert!(!destination.join(LAUNCHERS).join("renamed.launch").exists(), "the service face leaves the copy in the worktree");
+    remove(&root);
 }

@@ -25,6 +25,11 @@
 //! A failed install never fails the add:
 //! it prints the reason and
 //!  `mise run toolchain:install`.
+//! A launcher record whose name the worktree's own lock declares nowhere is a copy of a layout an earlier release
+//!  had:
+//! no install rewrites it,
+//! so the relink removes it instead of reporting a stale record that no install can ever answer,
+//! and the success is counted over the records the lock does declare.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -37,9 +42,140 @@ use crate::diagnostic_log::debug;
 use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_command::{ToolCommand, ToolLimits, ToolRun, find_program, run_refused, run_tool_awaiting};
 use crate::package_repair_report::{Finding, Outcome, Tool, finding_from, missing_tool};
+use std::collections::HashSet;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+
+/// What:
+///  The launcher names this worktree's lock declares,
+///  which are the names an install may rewrite a record for,
+///  or nothing when the lock cannot be read as one carrying names.
+/// Why:
+///   `mpm-shadow install` writes a launcher and its record for each bin the lock declares and touches nothing else,
+///  so a record for any other name is a copy of a layout an earlier release had and no install answers for it.
+///   A lock this release cannot read leaves every record something an install answers,
+///  which keeps the check as strict as it was before the names were read at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const declared = (destination) => new Set(Object.values(JSON.parse(readFile(join(destination, 'toolchain.lock.json'))).tools).flatMap((tool) => tool.bins ?? []));
+/// ```
+fn declared_launcher_names(destination: &Path) -> Option<HashSet<String>> {
+    let text: String = std::fs::read_to_string(destination.join(LOCK_FILE)).ok()?;
+    let lock: serde_json::Value = serde_json::from_str::<serde_json::Value>(text.as_str()).ok()?;
+    let tools: &serde_json::Map<String, serde_json::Value> = lock.get("tools")?.as_object()?;
+    let mut names: HashSet<String> = HashSet::new();
+    for tool in tools.values() {
+        for bin in tool.get("bins").and_then(serde_json::Value::as_array).into_iter().flatten() {
+            if let Some(name) = bin.as_str() {
+                names.insert(name.to_owned());
+            }
+        }
+    }
+    return (!names.is_empty()).then_some(names);
+}
+
+/// What:
+///  The launcher name a record belongs to:
+///  its own file name without the record's extension.
+/// Why:
+///   The launcher beside a record is named exactly so,
+///  and the lock declares those names,
+///  so this is what tells a record an install rewrites from a copy no install rewrites.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const launcherName = (record) => basename(record, '.launch');
+/// ```
+fn launcher_name(record: &Path) -> Option<String> {
+    return record.file_stem()?.to_str().map(str::to_owned);
+}
+
+/// What:
+///  What a worktree's launcher directory holds:
+///  the records an install rewrites,
+///  and the copies of an earlier release's layout beside them.
+/// Why:
+///  The two are answered differently:
+///  a stale record an install rewrites is a failure when the install leaves it stale,
+///  while no install can rewrite a record for a name the lock declares nowhere,
+///  so failing over it would report work no tool of this release can do.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Launchers = { stale: string[]; unrewritable: string[] };
+/// ```
+struct Launchers {
+    /// Records naming another lock that the worktree's own lock declares a launcher for.
+    stale: Vec<PathBuf>,
+    /// Records naming another lock for a name the worktree's own lock declares nowhere.
+    unrewritable: Vec<PathBuf>,
+}
+
+/// What:
+///  The two kinds of stale launcher record of `destination`,
+/// read from the launcher directory and the lock alone.
+/// Why:
+///   Both faces of the repair decide the install from this,
+///  and the count after the install asks it again,
+///  so the rule that tells an install's work from a copy lives in one place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const launchersOf = (destination) => { const declared = declaredLauncherNames(destination); return { stale: namedAnother.filter((r) => declared?.has(launcherName(r)) ?? true), unrewritable: declared ? namedAnother.filter((r) => !declared.has(launcherName(r))) : [] }; };
+/// ```
+fn launchers_of(destination: &Path) -> Launchers {
+    let named_another: Vec<PathBuf> = stale_launch_records(destination);
+    let Some(declared) = declared_launcher_names(destination) else {
+        return Launchers { stale: named_another, unrewritable: Vec::new() };
+    };
+    let mut stale: Vec<PathBuf> = Vec::new();
+    let mut unrewritable: Vec<PathBuf> = Vec::new();
+    for record in named_another {
+        match launcher_name(record.as_path()) {
+            Some(name) if declared.contains(&name) => stale.push(record),
+            _ => unrewritable.push(record),
+        }
+    }
+    return Launchers { stale, unrewritable };
+}
+
+/// What:
+///  Remove the launcher records, and the launchers beside them,
+///  that this worktree's lock declares nowhere.
+/// Why:
+///   They are copies of a layout an earlier release had,
+///  carried in by the copy that made the worktree,
+///  and they name another checkout's lock file,
+///  which is the state this repair exists to end.
+///  No install rewrites them and nothing runs them,
+///  so leaving them would keep a record that names another checkout in every worktree copied from this one.
+///  A record that cannot be removed is said and left:
+///  it is no install's work, so the relink neither fails nor waits on it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const record of unrewritable) { unlink(record); unlink(record.withExtension('')); }
+/// ```
+fn remove_what_no_install_rewrites(destination: &Path, records: &[PathBuf]) {
+    for record in records {
+        let launcher: PathBuf = record.with_extension("");
+        match std::fs::remove_file(record.as_path()) {
+            Ok(()) => debug(TAG, format!("{}: removed {}, whose launcher name {} declares nowhere", destination.display(), record.display(), LOCK_FILE).as_str()),
+            Err(error) => {
+                debug(TAG, format!("{}: {} is no record any install rewrites and it could not be removed ({error})", destination.display(), record.display()).as_str());
+                continue;
+            }
+        }
+        // The launcher beside the record goes with it, so nothing in the worktree keeps a copy of the source's layout.
+        match std::fs::remove_file(launcher.as_path()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => debug(TAG, format!("{}: {} could not be removed ({error})", destination.display(), launcher.display()).as_str()),
+        }
+    }
+}
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairToolchain";
@@ -270,20 +406,22 @@ async fn prepare_install_within_the_budget(destination: &Path, environment: &Rep
 }
 
 /// What:
-///  How many launcher records still name another lock file,
+///  How many launcher records the worktree's lock declares still name another lock file,
 /// as a job of the process's blocking pool.
 /// Why:
 ///  The records are read again after the install,
 /// on the same task the install was awaited from,
 /// so the same rule holds:
 /// no storage read of the launcher directory runs on the task that polls the repairs.
+///  The count leaves out the copies no install rewrites,
+///  because an install that did everything the lock asks of it is not a failed relink.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const left = await countStaleWithinTheBudget(destination);
 /// ```
 fn count_stale_in_a_job(destination: PathBuf) -> usize {
-    return stale_launch_records(destination.as_path()).len();
+    return launchers_of(destination.as_path()).stale.len();
 }
 
 /// What:
@@ -307,6 +445,8 @@ async fn count_stale_within_the_budget(destination: &Path) -> Result<usize, Bloc
 /// Why:
 ///  Both faces decide it the same way before they wait,
 /// so neither can start a tool the other would not.
+///  A launcher record whose name this worktree's lock declares nowhere is removed here,
+///  so every face that asks what the worktree needs also leaves it holding nothing another checkout wrote.
 /// This face runs on the caller's own thread,
 /// which polls no wait of the repair,
 /// so its reads need no place of the pool;
@@ -317,9 +457,12 @@ async fn count_stale_within_the_budget(destination: &Path) -> Result<usize, Bloc
 /// function prepareInstall(destination: string, environment: RepairEnvironment): ToolchainRepair;
 /// ```
 fn prepare_install_on_a_caller_thread(destination: &Path, environment: &RepairEnvironment) -> ToolchainRepair {
-    let stale: Vec<PathBuf> = stale_launch_records(destination);
-    if stale.is_empty() {
-        debug(TAG, format!("{}: every launcher record names this worktree", destination.display()).as_str());
+    let launchers: Launchers = launchers_of(destination);
+    // A copy of an earlier release's layout is removed rather than reported: no install rewrites it, and it names another
+    //  checkout's lock until it goes.
+    remove_what_no_install_rewrites(destination, launchers.unrewritable.as_slice());
+    if launchers.stale.is_empty() {
+        debug(TAG, format!("{}: every launcher record this worktree's lock declares names this worktree", destination.display()).as_str());
         return ToolchainRepair::NothingToDo;
     }
     let own_link: PathBuf = destination.join(OWN_LINK);
@@ -470,7 +613,7 @@ pub fn repair_toolchain(destination: &Path, environment: &RepairEnvironment) -> 
                 // No install was made, and the runtime's own reason is what the person is told.
                 Err(refusal) => run_refused(work.program.as_path(), started, &refusal),
             };
-            install_finding(&work, &run, Ok(stale_launch_records(work.destination.as_path()).len()))
+            install_finding(&work, &run, Ok(launchers_of(work.destination.as_path()).stale.len()))
         }
     };
 }
