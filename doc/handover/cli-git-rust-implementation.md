@@ -176,7 +176,9 @@ So, as the project's own rules until the owner changes them:
 - This session runs at most four agents at once, Pi runs and Sonnet subagents counted together, whatever the provider pools would take.
   The pool limits in `package/pi-shared/subagent-driver/src/pool-limits.ts` stay what a provider answers at once;
   they are no longer a number to fill to, and "you have 62 slots" in the section "Scope of the work: the Git wrapper, and the driver, mpm and Cargo it is worked on with" is void while the cap stands.
-- The cap is raised step by step until this disk's ceiling is found, and found again after the new drive is in (expected 2026-11-15).
+- The cap is raised step by step until this disk's ceiling is found, and found again after the new drive is in
+  (expected 2026-11-17;
+  the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-11-15).
 - The scratch folder is to be cleaned by rule, not by the owner.
 - `podman system reset` replaces the image prune of the wind-down section; that step is closed.
 - No long move or copy between the two drives in either direction.
@@ -1238,6 +1240,61 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Pass 43 is in `main` and `0.6.1-alpha.31` is dispatched; the new drive is expected two days later (2026-11-14T14:41:29-05:00)
+
+Not final and not approved:
+what one pass reports of itself,
+and what the coordinating session measured,
+merged and queued.
+
+- **The owner wrote at about 14:39** that the enterprise SSD's arrival slipped to 2026-11-17,
+  asked how everything stands,
+  and asked for the task list to be brought up to date,
+  which was done at 14:41.
+  The two handover lines that name the date are changed
+  (this file,
+  under "Owner decisions in force",
+  and `doc/handover/agents-at-once-on-this-machine.md`).
+- **Pass 43** (tip `50c5d8ac0c`:
+  a watch note of another repository)
+  reported fit at 14:38:52:
+  build,
+  both test compiles and Clippy clean,
+  the sixteen claim-watch controls and the tests of the changed modules passing at full CPUs and at four,
+  both guard modules passing.
+  It says the meeting with pass 38,
+  which changes the same watch-note files,
+  is still to be made by whoever merges the later of the two.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `11dbedf329` at 14:40:19,
+  and `0.6.1-alpha.31` was dispatched at 14:40:28
+  (run 43633361840).
+  Passes 38,
+  41,
+  42 and 44,
+  all going,
+  were told.
+  The wait for the release,
+  the install and the sample commit run as one background command;
+  the journal checks follow.
+  The next wrapper release is `0.6.1-alpha.32`.
+- **The fuzz sidecar's type check** on `main` at `11dbedf329`:
+  exit 0 at 14:41:12
+  (`~/temp/agent/fuzz-sidecar-type-check-on-main-after-its-merge-2026-11-14T1022/keep/type-check-on-main-at-11dbedf329-2026-11-14T1441.txt`).
+- At 14:39:47:
+  22 Pi runs going;
+  58 entries in the queue
+  (six reviews,
+  24 resumes,
+  28 fresh runs);
+  `/var/home` 71% used with 501 G free,
+  `/var/mnt/encrypted` 41% used with 2.1 T free.
+  Two runs that ended at 14:32 and 14:38 measured `~/temp/agent` at 314 and 330 GiB by `du`,
+  the largest folders `change-reviews` 94 GiB,
+  `pkgrepair-repair-off-the-path` 65 GiB,
+  the scratch of the no-service-manager author 54 GiB
+  and `sonnet-audits` 45 GiB.
 
 ##### The landing author answered its fourth review; its review is queued first (2026-11-14T14:37:32-05:00)
 
