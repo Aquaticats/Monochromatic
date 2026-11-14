@@ -140,3 +140,48 @@ fn a_marked_file_the_worktree_does_not_hold_is_not_named() {
     std::fs::remove_file(fixture.worktree.join("base.txt")).expect("the file goes");
     assert_eq!(fixture.hidden(), Ok(Vec::new()), "an absent file is nothing a removal deletes");
 }
+
+/// How long a read that must not wait may take to answer in a control.
+const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// A named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
+fn make_pipe(path: &std::path::Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
+/// What:
+///  A named pipe where a worktree's index would be is answered without waiting for a writer,
+///  and the worktree is kept.
+/// Why:
+///  The read runs inside a merge's sweep and inside a typed removal,
+/// so a read that waited for a writer would hold the person's merge for ever
+///  (`SPEC.md`, "Every wait has a bound";
+///  a review of `528279d099`, finding 2).
+///  The wait is this control's own: a thread asks, and the control ends it.
+#[test]
+fn a_named_pipe_at_the_index_is_not_waited_for() {
+    let fixture: Fixture = a_repository_with_a_worktree("hidden-edits-pipe");
+    let index: PathBuf = fixture.admin.join("index");
+    std::fs::remove_file(index.as_path()).expect("a regular index goes");
+    make_pipe(index.as_path());
+    let (sender, receiver) = std::sync::mpsc::channel::<Result<Vec<String>, String>>();
+    let asked: Fixture = Fixture { common: fixture.common.clone(), worktree: fixture.worktree.clone(), admin: fixture.admin.clone() };
+    std::thread::spawn(move || {
+        let _ = sender.send(asked.hidden());
+    });
+    let answer: Result<Vec<String>, String> = match receiver.recv_timeout(PATIENCE) {
+        Ok(found) => found,
+        Err(_) => panic!("the index was read through a pipe, and the read waited for a writer for {PATIENCE:?}"),
+    };
+    let reason: String = match answer {
+        Ok(empty) => panic!("a pipe at the index proves nothing, so the worktree must stay, but the read answered {empty:?}"),
+        Err(reason) => reason,
+    };
+    assert!(reason.contains("not a plain file"), "the refusal names what stands there: {reason}");
+    assert!(fixture.worktree.exists(), "and nothing was removed");
+}

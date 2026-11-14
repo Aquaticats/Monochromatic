@@ -38,7 +38,7 @@ use crate::worktree_clean_stat_verdicts::ASSUME_VALID;
 use crate::worktree_clean_tree_walk::{ContentTarget, paths_whose_content_differs};
 use crate::worktree_clean::{StatEntry, stored_stats};
 use std::os::unix::fs::MetadataExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The extended-flags bit Git uses for a `skip-worktree` entry.
 /// Why:
@@ -52,6 +52,17 @@ const SHOWN_PATHS: usize = 3;
 /// How many digits a SHA-256 object name has,
 /// which is the one length that is not SHA-1.
 const SHA256_DIGITS: usize = 32;
+
+/// How many bytes of a worktree's index this reads.
+/// Why:
+///  An index holds one entry per tracked path,
+/// so a file past this bound is not one Git wrote for a repository this program meets:
+/// on 2026-11-14 this repository's index held 3,333,744 bytes for about 13,500 tracked paths,
+/// and the reader of packed references and of one object both stop at 256 MiB as well
+/// (`repo_read_refs.rs`, `repo_read_object.rs`).
+///  A file past the bound keeps the worktree rather than being read whole,
+/// so no file beside a checkout decides how much memory a merge reads.
+const INDEX_LIMIT: u64 = 256 << 20;
 
 /// What:
 ///  The tracked files of `worktree` whose bytes are not the blob their index entry names,
@@ -78,15 +89,17 @@ pub(crate) fn hidden_edits_beneath(context: &GitContext, worktree: &Path, admin:
     let hash_length: usize = repository_hash_length(common_dir).ok_or_else(|| return String::from("the repository configuration cannot be read, so no marked entry can be compared with its file"))?;
     let format: ObjectFormat = if hash_length == SHA256_DIGITS { ObjectFormat::Sha256 } else { ObjectFormat::Sha1 };
     // One open file gives both the bytes and the time, so the time belongs to the bytes that were read.
-    let index_path = admin.join("index");
-    let mut index_file: std::fs::File = std::fs::File::open(index_path.as_path())
-        .map_err(|error| return format!("the index of {} cannot be read ({error}), so no marked entry can be compared with its file", worktree.display()))?;
+    //  The open is the one every record of this program uses: no follow of a final link, and no waiting for a
+    //  writer when the name holds a named pipe, which would hold a merge or a removal for ever.
+    let index_path: PathBuf = admin.join("index");
+    let index_file: std::fs::File = crate::private_storage::open_regular_file(index_path.as_path())
+        .map_err(|refusal| return format!("the index of {} cannot be read as one plain file ({}), so no marked entry can be compared with its file", worktree.display(), refusal_words(&refusal)))?;
     let index_seconds: u32 = index_file
         .metadata()
         .map_err(|error| return format!("the index of {} cannot be examined ({error})", worktree.display()))?
         .mtime() as u32;
     let mut bytes: Vec<u8> = Vec::new();
-    std::io::Read::read_to_end(&mut index_file, &mut bytes)
+    std::io::Read::read_to_end(&mut std::io::Read::take(index_file, INDEX_LIMIT), &mut bytes)
         .map_err(|error| return format!("the index of {} cannot be read ({error})", worktree.display()))?;
     let entries: Vec<IndexEntry> = parse_index(bytes.as_slice(), format).ok_or_else(|| return format!("the index of {} has a layout this program does not know, so no marked entry can be compared with its file", worktree.display()))?;
     let stats: Vec<StatEntry> = stored_stats(bytes.as_slice(), hash_length).ok_or_else(|| return format!("the index entries of {} have a layout this program does not know", worktree.display()))?;
@@ -117,6 +130,28 @@ pub(crate) fn hidden_edits_beneath(context: &GitContext, worktree: &Path, admin:
         said.push(format!("and {} more files whose edits no command of Git sees", counted - said.len()));
     }
     return Ok(said);
+}
+
+/// What:
+///  Why an index could not be read,
+///  in words a person reads.
+/// Why:
+///  A named pipe or a device at the name is the state this read must refuse rather than wait on,
+///  and a person has to know which of the two happened to them:
+///  nothing there is a file Git wrote,
+///  while an input-output error is the disk's answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refusalWords(new ReadRefusal.NotRegular()) // 'it is not a plain file (a named pipe, a device or a directory)'
+/// ```
+fn refusal_words(refusal: &crate::private_storage::ReadRefusal) -> String {
+    return match refusal {
+        crate::private_storage::ReadRefusal::Missing => String::from("nothing exists at that name"),
+        crate::private_storage::ReadRefusal::NotRegular => String::from("it is not a plain file (a named pipe, a device or a directory)"),
+        crate::private_storage::ReadRefusal::TooLarge => format!("it holds more than {INDEX_LIMIT} bytes"),
+        crate::private_storage::ReadRefusal::Io(error) => format!("the file system refused the read ({error})"),
+    };
 }
 
 /// What:

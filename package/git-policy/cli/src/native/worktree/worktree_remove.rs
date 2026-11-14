@@ -422,11 +422,11 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     if !request.plan.force && !request.escaped_by_the_person {
         let mut reasons: Vec<String> = match git_work_a_removal_would_strand(request.context, request.common_dir, target, registration.admin.as_path()) {
             Ok(stranded) => stranded,
-            Err(reason) => vec![format!("nothing proves no commit of this worktree is named by nothing, so nothing is removed: {reason}")],
+            Err(reason) => vec![format!("nothing proves no commit of this worktree is named by nothing: {reason}")],
         };
         match hidden_edits_beneath(request.context, target, registration.admin.as_path(), request.common_dir) {
             Ok(mut edits) => reasons.append(&mut edits),
-            Err(reason) => reasons.push(format!("nothing proves no edit there is hidden from Git, so nothing is removed: {reason}")),
+            Err(reason) => reasons.push(format!("nothing proves no edit there is hidden from Git: {reason}")),
         }
         if !reasons.is_empty() {
             let report: String = crate::worktree_removal_typed_git_work::git_work_refusal(target, reasons.as_slice());

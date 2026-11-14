@@ -63,6 +63,40 @@ fn is_force(token: &OsString) -> bool {
 }
 
 /// What:
+///  The one directory a `git worktree remove` names and whether the person forced it,
+///  for the plain forms Git accepts,
+///  or nothing for any other form.
+/// Why:
+///  Two callers read the same words:
+///  the plan the ladder serves,
+///  and the guard a typed removal meets before any route,
+///  which resolves the directory as Git does rather than with this plan.
+///  One reading of the words keeps the two from disagreeing about which form they are looking at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// operandAndForce(args, index) // { operand, force } | undefined
+/// ```
+pub(crate) fn operand_and_force(arguments: &[OsString], subcommand_index: usize) -> Option<(OsString, bool)> {
+    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" || arguments.get(subcommand_index + 1)?.as_encoded_bytes() != b"remove" {
+        return None;
+    }
+    let rest: &[OsString] = &arguments[subcommand_index + 2..];
+    let (force, operand): (bool, &OsString) = match rest {
+        [only] if !only.as_encoded_bytes().starts_with(b"-") => (false, only),
+        [separator, only] if separator.as_encoded_bytes() == b"--" => (false, only),
+        [flag, only] if is_force(flag) && !only.as_encoded_bytes().starts_with(b"-") => (true, only),
+        [flag, separator, only] if is_force(flag) && separator.as_encoded_bytes() == b"--" => (true, only),
+        _ => return None,
+    };
+    // Joined to the start directory an empty operand would name that directory, while Git answers that '' is not a working tree.
+    if operand.is_empty() {
+        return None;
+    }
+    return Some((operand.clone(), force));
+}
+
+/// What:
 ///  Plan one invocation of `git worktree remove` that names exactly one directory and at most one `-f` or `--force`.
 /// Why:
 ///   Every other option changes what Git checks,
@@ -80,29 +114,15 @@ fn is_force(token: &OsString) -> bool {
 /// function parseRemovePlan(args: string[], subcommandIndex: number, start: string, commonDir?: string): RemovePlan | undefined;
 /// ```
 pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start: &Path, common_dir: Option<&Path>) -> Option<RemovePlan> {
-    if arguments.get(subcommand_index)?.as_encoded_bytes() != b"worktree" || arguments.get(subcommand_index + 1)?.as_encoded_bytes() != b"remove" {
-        return None;
-    }
-    let rest: &[OsString] = &arguments[subcommand_index + 2..];
-    let (force, operand): (bool, &OsString) = match rest {
-        [only] if !only.as_encoded_bytes().starts_with(b"-") => (false, only),
-        [separator, only] if separator.as_encoded_bytes() == b"--" => (false, only),
-        [flag, only] if is_force(flag) && !only.as_encoded_bytes().starts_with(b"-") => (true, only),
-        [flag, separator, only] if is_force(flag) && separator.as_encoded_bytes() == b"--" => (true, only),
-        _ => return None,
-    };
-    // Joined to the start directory an empty operand would name that directory, while Git answers that '' is not a working tree.
-    if operand.is_empty() {
-        return None;
-    }
+    let (operand, force): (OsString, bool) = operand_and_force(arguments, subcommand_index)?;
     // Git matches the typed name against the registered paths first, and a name that matches one of them names that worktree.
     if let Some(common) = common_dir
         && let Some(target) = crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())
     {
-        return Some(RemovePlan { target, operand: operand.clone(), force });
+        return Some(RemovePlan { target, operand, force });
     }
-    let target: PathBuf = std::fs::canonicalize(start.join(operand)).ok()?;
-    return target.is_dir().then_some(RemovePlan { target, operand: operand.clone(), force });
+    let target: PathBuf = std::fs::canonicalize(start.join(operand.as_os_str())).ok()?;
+    return target.is_dir().then_some(RemovePlan { target, operand, force });
 }
 
 /// Removal plan controls stay out of the release executable.

@@ -320,3 +320,116 @@ fn the_printed_opt_out_runs_for_a_hostile_path() {
     assert!(!scene.task.exists(), "and the worktree is gone");
     remove(&scene.fixture);
 }
+
+/// A named pipe at `path`,
+/// which blocks whoever opens it for reading until a writer comes.
+fn make_pipe(path: &std::path::Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let name: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("path text");
+    // SAFETY: `name` is a NUL-terminated string that outlives the call.
+    let result: libc::c_int = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(result, 0, "mkfifo {}", path.display());
+}
+
+/// What:
+///  The same command the wrapper runs,
+///  under a bound of its own rather than the harness's long backstop.
+/// Why:
+///  A control whose subject is a write that must not wait has to end the wait itself,
+///  or the failing case would hold the run for the harness's whole backstop.
+fn wrapped_within(fixture: &Fixture, seconds: &str) -> Command {
+    use super::support::bounded_for;
+    return bounded_for(fixture, fixture.root.join("bin/git").as_path(), wrapper_first_path(fixture).as_os_str(), seconds);
+}
+
+/// The directory and the registration name a scene's worktree has.
+fn admin_of(fixture: &Fixture, directory: &str) -> PathBuf {
+    let common: PathBuf = std::fs::canonicalize(fixture.root.join("repo/.git")).expect("the common Git directory");
+    return common.join("worktrees").join(directory);
+}
+
+/// What:
+///  Under `core.ignorecase`, a name that differs in case from the worktree still names it for Git,
+///  and the guard refuses it.
+/// Why:
+///  Git folds ASCII case when it matches the operand (`fspathcmp` under `core.ignorecase`),
+///  so a guard that resolves bytes alone finds no worktree and stands down,
+///  and Git removes a worktree holding a hidden edit or a commit nothing else names
+///  (a review of `528279d099`, finding 1).
+///  The case-equal name is the control that the guard is active at all.
+#[test]
+fn a_case_differing_name_is_guarded_where_git_resolves_it() {
+    for upper in ["TASK", "TaSk"] {
+        let scene: Scene = a_repository_with_a_recorded_worktree("removal-ignorecase-hidden-edit");
+        scene.hide_an_edit();
+        run_direct(&scene.fixture, scene.repo.as_path(), &["config", "core.ignorecase", "true"]);
+        let refused: Observed = scene.remove_with(&["worktree", "remove", upper]);
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{upper} must be refused under core.ignorecase: {said}");
+        assert!(said.contains(TRACKED), "and names the hidden edit: {said}");
+        assert!(scene.task.join(TRACKED).exists(), "nothing was removed");
+        remove(&scene.fixture);
+    }
+    // The commit only a detached HEAD names, by the same name.
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-ignorecase-stranded");
+    let commit: String = scene.detach_and_commit();
+    run_direct(&scene.fixture, scene.repo.as_path(), &["config", "core.ignorecase", "true"]);
+    let refused: Observed = scene.remove_with(&["worktree", "remove", "TASK"]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "a commit only the HEAD names is refused by a case-differing name too: {said}");
+    assert!(said.contains(&commit[..12]), "and named: {said}");
+    assert!(scene.task.exists(), "nothing was removed");
+    remove(&scene.fixture);
+}
+
+/// What:
+///  Without `core.ignorecase`, Git itself refuses the case-differing name,
+///  and the guard is not what stops it.
+/// Why:
+///  The guard stands down exactly where Git names no worktree,
+///  and this is the state that shows the stand-down is Git's refusal rather than a hole.
+#[test]
+fn without_ignorecase_git_itself_refuses_the_case_differing_name() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-ignorecase-off");
+    scene.hide_an_edit();
+    run_direct(&scene.fixture, scene.repo.as_path(), &["config", "core.ignorecase", "false"]);
+    let refused: Observed = scene.remove_with(&["worktree", "remove", "TASK"]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(128), "Git answers that TASK is not a working tree: {said}");
+    assert!(scene.task.join(TRACKED).exists(), "and nothing was removed");
+    remove(&scene.fixture);
+}
+
+/// What:
+///  A named pipe at the worktree's index stops neither a typed removal nor a merge,
+///  and the worktree is kept.
+/// Why:
+///  The hidden-edit question reads that index,
+///  and a read that waited for a writer would hold the person's merge for ever
+///  (`SPEC.md`, "Every wait has a bound";
+///  a review of `528279d099`, finding 2).
+///  Each command carries a bound of its own, so the failing case ends the control instead of the run.
+#[test]
+fn a_named_pipe_at_the_index_holds_neither_a_removal_nor_a_merge() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-fifo-index-typed");
+    let task: String = scene.task.display().to_string();
+    let index: PathBuf = admin_of(&scene.fixture, "task").join("index");
+    std::fs::remove_file(index.as_path()).expect("a regular index goes");
+    make_pipe(index.as_path());
+    let refused: Observed = observe(wrapped_within(&scene.fixture, "30").current_dir(scene.repo.as_path()).args(["worktree", "remove", task.as_str()]).env("CLI_GIT_TEST_ONLY_JOURNAL_SOCKET", "@cli-git-review-journal-nobody"), b"");
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "the pipe is answered rather than waited on: {said}");
+    assert!(said.contains("not a plain file"), "and named: {said}");
+    assert!(scene.task.exists(), "nothing was removed");
+    remove(&scene.fixture);
+
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-fifo-index-merge");
+    let index: PathBuf = admin_of(&scene.fixture, "task").join("index");
+    std::fs::remove_file(index.as_path()).expect("a regular index goes");
+    make_pipe(index.as_path());
+    let merged: Observed = observe(wrapped_within(&scene.fixture, "30").current_dir(scene.repo.as_path()).args(["merge", "--no-edit", BRANCH]).env("CLI_GIT_TEST_ONLY_JOURNAL_SOCKET", "@cli-git-review-journal-nobody"), b"");
+    let said: String = stderr_of(&merged);
+    assert_eq!(merged.code, Some(0), "the merge ends, and keeps the worktree: {said}");
+    assert!(scene.task.exists(), "the sweep left it: {said}");
+    remove(&scene.fixture);
+}

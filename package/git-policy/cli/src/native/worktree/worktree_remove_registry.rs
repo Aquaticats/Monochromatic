@@ -234,6 +234,126 @@ pub fn path_git_picks_for_operand(common_dir: &Path, operand: &OsStr) -> Option<
 }
 
 /// What:
+///  The worktree Git's own `git worktree remove <operand>` picks for `operand`,
+///  or nothing when it picks none,
+///  or the reason this cannot be told.
+/// Why:
+///  Git resolves the operand in two steps,
+/// and a wrapper that resolves it another way names a different worktree,
+/// or none where Git names one:
+///  (`find_worktree` in `worktree.c`, Git 2.56.0)
+///  first the whole operand as the last components of a registered path,
+///  meeting at a directory boundary,
+///  compared with `fspathcmp` and answered only when exactly one registration matches;
+///  then the operand joined to the command's prefix,
+///  resolved with `realpath`,
+///  compared with `fspathcmp` against each registration's own `realpath`.
+///  `fspathcmp` folds ASCII case exactly when the repository sets `core.ignorecase`
+///  (`dir.c`: `strcasecmp` or `strcmp`; `environment.c` for the setting),
+///  so a resolution that compares bytes alone picks nothing for a name that differs in case,
+///  and a guard standing down there hands the removal to Git with its Git work unasked
+///  (a review of `528279d099`, finding 1).
+///  Two registrations naming one directory leave Git's own pick to the order of its list,
+///  which this reader does not have,
+///  so that answer is the reason rather than a guess.
+///  A main working tree Git refuses as a removal is no worktree here either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function gitWorktreeForOperand({ commonDir, operand, start, foldCase }): PathBuf | undefined; // throws the reason
+/// ```
+///
+/// # Errors
+///
+/// The words for registrations this cannot read,
+/// or for an operand two registrations answer,
+/// which leaves the caller to refuse rather than to guess.
+pub fn git_worktree_for_operand(common_dir: &Path, operand: &OsStr, start: &Path, fold_case: bool) -> Result<Option<PathBuf>, String> {
+    let worktrees: PathBuf = common_dir.join("worktrees");
+    let registered: Vec<RegisteredPath> = registered_paths(common_dir, worktrees.as_path())?;
+    // Git's first step: the whole operand as the last components of a registered path, at a directory boundary.
+    let mut by_suffix: Vec<&RegisteredPath> = Vec::new();
+    for listed in &registered {
+        let Some(at) = last_components_start(listed.path.as_slice(), operand.as_bytes()) else { continue };
+        let tail: &[u8] = &listed.path[at..];
+        let same: bool = match fold_case {
+            true => tail.eq_ignore_ascii_case(operand.as_bytes()),
+            false => tail.eq(operand.as_bytes()),
+        };
+        if same {
+            by_suffix.push(listed);
+        }
+    }
+    if by_suffix.len() == 1 {
+        return only_if_linked(by_suffix[0]);
+    }
+    if by_suffix.len() > 1 {
+        // Two registrations end in the name: Git falls to the resolved path, and answers nothing here.
+        return Ok(None);
+    }
+    // Git's second step: the operand as a path, resolved, against every registration resolved the same way.
+    let joined: PathBuf = match Path::new(operand).is_absolute() {
+        true => PathBuf::from(operand),
+        false => start.join(operand),
+    };
+    let resolved: PathBuf = match std::fs::canonicalize(joined.as_path()) {
+        Ok(found) => found,
+        // Git's `real_pathdup` answers nothing here too, so the operand names no worktree of this repository.
+        Err(_error) => return Ok(None),
+    };
+    let mut by_path: Option<&RegisteredPath> = None;
+    for listed in &registered {
+        let Ok(theirs) = std::fs::canonicalize(Path::new(OsStr::from_bytes(listed.path.as_slice()))) else { continue };
+        let same: bool = match fold_case {
+            true => theirs.as_os_str().as_bytes().eq_ignore_ascii_case(resolved.as_os_str().as_bytes()),
+            false => theirs == resolved,
+        };
+        if !same {
+            continue;
+        }
+        if by_path.is_some() {
+            return Err(format!(
+                "more than one registration names {}, so which one Git picks is its list's order and nothing this program can read",
+                resolved.display()
+            ));
+        }
+        by_path = Some(listed);
+    }
+    return match by_path {
+        Some(only) => only_if_linked(only),
+        None => Ok(None),
+    };
+}
+
+/// What:
+///  The real path of one registration's worktree,
+///  or nothing when it is the main working tree Git refuses as a removal.
+/// Why:
+///  A worktree that is no longer there is nothing a removal deletes from the file system,
+/// and a directory this cannot resolve may still be there:
+/// the second is the reason,
+/// because a guarded removal must not stand down on a fact it could not read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// onlyIfLinked(registered) // canonical path | undefined
+/// ```
+fn only_if_linked(listed: &RegisteredPath) -> Result<Option<PathBuf>, String> {
+    if listed.id.is_none() {
+        // Git answers "is a main working tree" and removes nothing.
+        return Ok(None);
+    }
+    let spelled: &Path = Path::new(OsStr::from_bytes(listed.path.as_slice()));
+    return match std::fs::canonicalize(spelled) {
+        Ok(found) => Ok(found.is_dir().then_some(found)),
+        Err(error) => match std::fs::symlink_metadata(spelled) {
+            Err(_absent) => Ok(None),
+            Ok(_there) => Err(format!("{} is there and cannot be resolved ({error})", spelled.display())),
+        },
+    };
+}
+
+/// What:
 ///  The registration of `target` in the repository whose common Git directory is `common_dir`,
 /// when it is a linked worktree of that repository.
 /// Why:

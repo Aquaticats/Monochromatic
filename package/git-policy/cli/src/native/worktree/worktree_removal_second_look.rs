@@ -143,12 +143,12 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     match git_work_a_removal_would_strand(look.context, look.common_dir, worktree, admin) {
         Ok(stranded) if stranded.is_empty() => {}
         Ok(stranded) => return Some(stranded.join("; ")),
-        Err(reason) => return Some(format!("nothing proves no commit of this worktree is named by nothing, so nothing is removed: {reason}")),
+        Err(reason) => return Some(format!("nothing proves no commit of this worktree is named by nothing: {reason}")),
     }
     match hidden_edits_beneath(look.context, worktree, admin, look.common_dir) {
         Ok(edits) if edits.is_empty() => {}
         Ok(edits) => return Some(edits.join("; ")),
-        Err(reason) => return Some(format!("nothing proves no edit there is hidden from Git, so nothing is removed: {reason}")),
+        Err(reason) => return Some(format!("nothing proves no edit there is hidden from Git: {reason}")),
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
     // inside at all: a process older than the directory cannot have changed into it.
