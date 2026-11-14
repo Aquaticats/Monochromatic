@@ -66,9 +66,9 @@ static DRAWING: AtomicBool = AtomicBool::new(false);
 ///  which the draw marked with the moment it drew them.
 ///  A tree it still holds is marked by the renewal that travels with the entry,
 ///  so a stocked tree never reaches the age a sweep takes one at,
+///  and the claim that renewal keeps says the same to a sweep whose clock stepped forward
+///  (`tree_held_by_a_live_process.rs`),
 ///  and the answer itself reads nothing but memory.
-///  The lock it is read under guards nothing on disk and dies with the process,
-///  so it is never a lock a commit can be left waiting on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -76,9 +76,20 @@ static DRAWING: AtomicBool = AtomicBool::new(false);
 /// ```
 #[derive(Debug, Default)]
 pub struct DrawnShadows {
-    /// The trees nobody has asked for yet,
-    /// in the order they were drawn,
-    /// each with the renewal that keeps it from aging out while it waits here.
+    /// Lock kept:
+    ///  the trees nobody has asked for yet,
+    ///  which the draw's own thread records and every connection's answer takes,
+    ///  so two threads reach the list and a list of trees is not one word an atomic could hold.
+    ///  Under it the list is changed and nothing else:
+    ///  one `push` on the draw's thread and one `pop` where a commit's question is answered,
+    ///  with no Git process, no file and no other lock,
+    ///  and it guards nothing on disk and dies with the process,
+    ///  so it is never a lock a commit can be left waiting on.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// #ready: Waiting[] = []
+    /// ```
     ready: Mutex<Vec<Waiting>>,
 }
 
@@ -94,9 +105,11 @@ pub struct DrawnShadows {
 ///  The renewal beats on a thread of its own,
 ///  the first beat at once and then at the pace a holding command uses,
 ///  which is half the age a sweep takes a tree at,
-///  so no sweep ever finds a stocked tree old enough to take (`shadow_drawn.rs`, `nothing_holds`).
-///  It stops when the entry leaves the stock, and with the service:
-///  a service that is gone renews nothing, and the sweep collects the tree a bound later.
+///  so no sweep ever finds a stocked tree old enough to take (`shadow_drawn.rs`, `nothing_holds`),
+///  and it carries the claim on the tree, which no wall-clock step can take away
+///  (`tree_held_by_a_live_process.rs`).
+///  Both stop when the entry leaves the stock, and with the service:
+///  a service that is gone renews and claims nothing, and the sweep collects the tree a bound later.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,7 +120,8 @@ struct Waiting {
     /// Where the tree is.
     path: PathBuf,
     /// The renewal that keeps it from aging out while it waits,
-    /// which stops when this value goes.
+    /// and the claim on it,
+    /// both of which stop when this value goes.
     _renewal: ScratchRenewal,
 }
 

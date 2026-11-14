@@ -200,7 +200,7 @@ fn node_at_an_exact_version_skips_the_index_and_a_missing_checksum_names_the_arc
     let rig = Rig::new();
     serve_node(&rig.http, "26.13.0");
     assert_eq!(resolve_node(&rig.context(), Some("26.13.0")).expect("resolved").version, "26.13.0");
-    assert!(!rig.http.requests().contains(&"https://nodejs.org/dist/index.json".to_string()));
+    assert!(!rig.http.requests().iter().any(|url| return url == "https://nodejs.org/dist/index.json"));
     let error = resolve_node(&rig.context(), Some("26.99.0")).expect_err("no checksums for that release");
     assert!(error.message().contains("has no row for node-v26.99.0-linux-"), "{error:?}");
 }

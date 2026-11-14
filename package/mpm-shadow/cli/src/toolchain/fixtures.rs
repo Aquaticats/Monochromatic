@@ -161,6 +161,26 @@ pub(crate) fn sample_lock() -> Lock {
     return Lock { tools };
 }
 
+/// What:
+/// The pid of a process that has ended,
+/// so a temporary named after it is one a killed run would have left.
+/// Why:
+/// A leftover of an atomic write is judged by whether its process still runs,
+/// and a test that wants the killed case needs a pid the kernel no longer lists.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function pidOfAProcessThatEnded(): number
+/// ```
+#[cfg(target_os = "linux")]
+pub(crate) fn pid_of_a_process_that_ended() -> u32 {
+    let mut child: std::process::Child = std::process::Command::new("true").spawn().expect("start a short-lived program");
+    let pid: u32 = child.id();
+    child.wait().expect("wait for it");
+    assert!(!std::path::Path::new("/proc").join(pid.to_string()).exists(), "the kernel no longer lists pid {pid}");
+    return pid;
+}
+
 /// A disposable repository scope on disk:
 /// the sample plan and the rendered sample lock written under a fresh
 /// directory,
