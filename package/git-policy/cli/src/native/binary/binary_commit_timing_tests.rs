@@ -2405,7 +2405,7 @@ fn a_commit_the_caller_did_not_shield_is_stopped_by_the_stop() {
     unsafe {
         command.pre_exec(|| {
             let _core_file: std::io::Result<()> = super::support::LimitKind::CoreFile.apply(0, 0);
-            Ok(())
+            return Ok(());
         });
     }
     let running = super::fault_run::spawn_watched(&fixture, &mut command);
@@ -2463,7 +2463,7 @@ fn shielded_and_answered(label: &str, signal: libc::c_int) -> serde_json::Value 
         command.pre_exec(move || {
             libc::signal(signal, libc::SIG_IGN);
             let _core_file: std::io::Result<()> = super::support::LimitKind::CoreFile.apply(0, 0);
-            Ok(())
+            return Ok(());
         });
     }
     let running = super::fault_run::spawn_watched(&fixture, &mut command);
