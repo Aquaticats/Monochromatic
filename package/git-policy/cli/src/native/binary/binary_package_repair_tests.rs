@@ -28,12 +28,13 @@
 
 /// Import the shared fixtures and bounded process helpers.
 use super::commit::remove_settled;
-use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, bounded, executable, fixture, git, link_real_git, observe, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
+use super::support::{Fixture, Observed, SERVICE_WORK_PATIENCE, bounded, executable, fixture, git, link_real_git, observe, observe_without_waiting_for_the_after_commit_work, remove, repository, run_wrapped, settle_service_work, stderr_of, while_test_lives, wrapped};
 use super::support::on_btrfs_or_acknowledged;
 use super::worktree_snapshot::{commit_all, subvolume_repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Duration;
 
 /// The environment variable that acknowledges a real tool is absent on this machine,
 /// so its controls may be skipped.
@@ -91,11 +92,46 @@ fn repository_with_node_modules(fixture: &Fixture) -> PathBuf {
 /// empty when nothing was recorded.
 /// The commit service runs the tools of a new worktree,
 /// so a record read here is read after every observed wrapped command waited for the service's after-commit work to settle
-/// (`supervised_wait`):
+/// (`supervised_wait`),
+/// or after the bounded wait a control of one attempt takes (`wait_for_pnpm_runs`):
 /// an add returns after the record and the wake,
 /// and the line the tool wrote is there once that wait ends.
 fn recorded(record: &Path) -> Vec<String> {
     return std::fs::read_to_string(record).map(|text: String| { return text.lines().map(str::to_owned).collect(); }).unwrap_or_default();
+}
+
+/// How long a control waits for the commit service's first attempt at a repair to have run the tool.
+/// Why:
+///  The add hands the work over and returns,
+/// the wake reaches the lane at once,
+/// and pnpm's own record is what the control reads;
+/// a record nothing writes is the defect the wait names,
+/// so the wait is bounded.
+const PNPM_ATTEMPT_PATIENCE: Duration = Duration::from_secs(30);
+
+/// What:
+///  Wait until the tool's record holds `count` lines.
+/// Why:
+///  A repair whose tool failed is answered with a retry,
+/// and the service tries it again only when the record's claim lease ends (`CLAIM_LEASE`, 120 seconds),
+/// for up to `MAX_TRIES` tries.
+/// A control about the hand-over reads the first attempt,
+/// so it waits for that attempt's record and not for the repair to settle.
+///
+/// # Panics
+///
+/// When the tool ran fewer times than `count` within `PNPM_ATTEMPT_PATIENCE`.
+fn wait_for_pnpm_runs(record: &Path, count: usize) {
+    let began: std::time::Instant = std::time::Instant::now();
+    while recorded(record).len() < count {
+        assert!(
+            began.elapsed() < PNPM_ATTEMPT_PATIENCE,
+            "the commit service ran pnpm {} times within {PNPM_ATTEMPT_PATIENCE:?} and not {count}: {:?}",
+            recorded(record).len(),
+            recorded(record)
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// Add a worktree from the repository and require success.
@@ -104,6 +140,26 @@ fn add(fixture: &Fixture, repo: &Path, options: &[&str], branch: &str, destinati
     arguments.extend_from_slice(options);
     arguments.extend_from_slice(&["-b", branch, destination]);
     let created: Observed = run_wrapped(fixture, repo, arguments.as_slice());
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    return created;
+}
+
+/// What:
+///  Add a worktree and require success,
+/// without waiting for the after-commit work the add hands over.
+/// Why:
+///  `add` waits for that work to settle,
+/// which is the reading of every control whose point is the state the service left.
+/// A repair whose tool failed is not that state:
+/// a retryable failure keeps the record's claim,
+/// so the service tries it again only when that claim's lease ends (120 seconds),
+/// up to `MAX_TRIES` tries,
+/// and a control about the add's own hand-over would read the retries instead.
+fn add_without_waiting_for_the_after_commit_work(fixture: &Fixture, repo: &Path, options: &[&str], branch: &str, destination: &str) -> Observed {
+    let mut arguments: Vec<&str> = vec!["worktree", "add"];
+    arguments.extend_from_slice(options);
+    arguments.extend_from_slice(&["-b", branch, destination]);
+    let created: Observed = observe_without_waiting_for_the_after_commit_work(wrapped(fixture).current_dir(repo).args(arguments.as_slice()), b"");
     assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
     return created;
 }
@@ -191,17 +247,23 @@ fn quiet_runs_the_repair_and_says_nothing_about_success() {
 /// so the switches and the worktree are read from the run the service made,
 /// and a tool that fails is the service's line,
 /// not the add's.
+/// What this control reads is that first run:
+/// a failed tool is answered with a retry the code bounds at the record's claim lease (`CLAIM_LEASE`, 120 seconds) for up to
+/// `MAX_TRIES` tries,
+/// so waiting for the repair to settle would read the retries,
+/// and the control waits for the first attempt's record instead (`wait_for_pnpm_runs`).
 #[test]
 fn a_failing_pnpm_never_fails_the_add() {
     let fixture: Fixture = fixture("repair-pnpm-fails");
     let repo: PathBuf = repository_with_node_modules(&fixture);
     let record: PathBuf = fake_pnpm(&fixture, 1);
-    let created: Observed = add(&fixture, repo.as_path(), &[], "one", "../one");
+    let created: Observed = add_without_waiting_for_the_after_commit_work(&fixture, repo.as_path(), &[], "one", "../one");
     let printed: String = stderr_of(&created);
     let line: &str = printed.lines().find(|line: &&str| { return line.contains(REPAIRED_WORDS); }).expect("one line about the repair");
     assert!(line.contains("pnpm"), "{line}");
     assert!(line.contains(fixture.root.join("one").to_str().expect("utf8")), "{line}");
     assert!(fixture.root.join("one/node_modules/dep/index.js").exists(), "the copy is kept");
+    wait_for_pnpm_runs(record.as_path(), 1);
     let ran: Vec<String> = recorded(record.as_path());
     assert_eq!(ran.len(), 1, "pnpm ran once, in the new worktree: {ran:?}");
     assert!(ran[0].contains("--offline") && ran[0].contains("--frozen-lockfile"), "{ran:?}");

@@ -246,6 +246,33 @@ pub fn supervised_wait(mut child: Child, input: &[u8], cleanup: impl FnOnce()) -
 ///  When the command is a commit transaction or a manual page under the shared bound;
 ///  see `shared_bound_misuse`.
 pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
+    return observe_with(command, input, true);
+}
+
+/// What:
+///  Run a command to completion and observe it without waiting for the after-commit work the commit service runs.
+/// Why:
+///  Every observed command waits for that work (`settle_service_work`),
+/// because most controls read what the push or the upkeep did after the command returned.
+/// A control about what the command itself said,
+/// or about the service's first attempt at a step whose record the service tries again at the end of a claim's lease,
+/// would wait minutes for tries it does not mean to read,
+/// and a lease is 120 seconds (`CLAIM_LEASE`).
+///
+/// # Panics
+///  As `observe_raw`.
+pub fn observe_without_waiting_for_the_after_commit_work(command: &mut Command, input: &[u8]) -> Observed {
+    return observe_with(command, input, false);
+}
+
+/// What:
+///  The body both faces above share:
+///  one run of a command, and the wait for the after-commit work given or refused.
+/// Why:
+///  The two faces differ only in that wait,
+/// so the bound,
+/// the misuse check and the reading live once.
+fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commit_work: bool) -> Observed {
     match shared_bound_misuse(command) {
         Some(SharedBoundMisuse::CommitTransaction) => panic!(
             "a commit under the shared bound: the work of a landed commit happens in the commit service, outside the command's \
@@ -266,6 +293,9 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
         .spawn()
         .expect("process starts");
     let output: Output = supervised_wait(child, input, || {
+        if !waiting_for_the_after_commit_work {
+            return;
+        }
         if let Some(directory) = command.get_current_dir() {
             settle_service_work(directory);
         }
