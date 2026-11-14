@@ -77,6 +77,14 @@ const STORAGE_CALLS: &[&str] = &[
     "OpenOptions::new()",
     ".sync_all()",
     ".sync_data(",
+    // The calls a round of housekeeping and a landing's recovery make, which the first list missed:
+    // a create that must not replace, a mode change, a truncate, a time, and the two flushes a descriptor can be given.
+    "File::create_new(",
+    "std::fs::set_permissions(",
+    ".set_len(",
+    ".set_modified(",
+    "libc::fsync",
+    "libc::fdatasync",
 ];
 
 /// The waits that block the thread they run on until something else moves,
@@ -153,6 +161,19 @@ pub(super) const RULES: &[Rule] = &[
             // The project's own child wait is a future a task awaits, and a `select!` arm is awaited too, so only a
             // call that is neither is a wait that holds the worker.
             return !(joined.contains(".await") || joined.contains("=>"));
+        },
+    },
+    Rule {
+        id: "unbounded-channel-wait",
+        reason: "waits on a channel with no end; on an exit path it keeps a worktree the manager is already restarting, \
+                 and on a worker it stops the task that would send, so a wait that ends is `recv_timeout` or an awaited receive",
+        place: Place::Everywhere,
+        matches: |_line, joined| {
+            if !joined.contains(".recv()") {
+                return false;
+            }
+            // An awaited receive is the runtime's own (and a `select!` arm awaits), and one with a bound is not this rule's.
+            return !(joined.contains(".await") || joined.contains("=>") || joined.contains("recv_timeout(") || joined.contains("try_recv("));
         },
     },
     Rule {
@@ -240,6 +261,39 @@ pub(super) const ALLOWED: &[Allowed] = &[
         file: "service/service_log_lines_off_the_calling_thread.rs",
         rule: "thread-start",
         why: "the one thread that writes the service's log lines, and it exists because a caller must never wait for the stream: a landing was held 7.35 s by a full FIFO, and the journal's own disk held commits for 56 to 199 s (the audit of 0.6.1-alpha.14). Its job never returns while the process runs, which a job of the blocking pool cannot be, so nothing of that pool replaces it; the entry goes when the process's log is a stream a write cannot wait on, where a caller writes its own line",
+    },
+    Allowed {
+        file: "landing/service_claim_renewal_running.rs",
+        rule: "unbounded-channel-wait",
+        why: "the registration's own thread answers the renewal it was asked for at once, and the channel holds one slot \
+              between a caller and that thread; no exit path waits on it, and the entry goes when the renewal is a task \
+              whose tick a task awaits",
+    },
+    Allowed {
+        file: "process/stuck_children_reaped_when_the_kernel_lets_go.rs",
+        rule: "unbounded-channel-wait",
+        why: "the reaper's own thread waits for the child it is handed; a caller that drops the handle closes the channel and \
+              the wait ends, so no wait here outlives the command that made it",
+    },
+    Allowed {
+        file: "push/child_watch_one_shot_run.rs",
+        rule: "unbounded-channel-wait",
+        why: "the one-shot watch of a step left running waits for its child on its own thread; the caller drops the handle \
+              when the child is refused, which closes the channel and ends the wait",
+    },
+    Allowed {
+        file: "service/service_hold_a_step_for_a_control.rs",
+        rule: "blocking-sleep",
+        why: "the pause of a control's hold, which stands in for a storage call that does not return and holds a job's \
+              thread on purpose; it is inert unless a control names the step in its environment or in this process, and the \
+              entry goes when no control of the service needs to hold a step open",
+    },
+    Allowed {
+        file: "foundation/parallel_runner.rs",
+        rule: "unbounded-channel-wait",
+        why: "the synchronous runner waits for the worker threads it started itself, on the thread of the command or of the \
+              landing that asked for the run; each item's own ceiling bounds its item and no worker of the runtime is held, \
+              and the entry goes when a run of this kind is awaited by a task, where its own receiver ends with it",
     },
     Allowed {
         file: "foundation/scratch_entry_removal.rs",

@@ -579,6 +579,32 @@ pub async fn run_a_job_awaited_no_longer_than<S: Send + 'static, T: Send + 'stat
 }
 
 /// What:
+///  Run `work(state)` as a job of the blocking pool with a place of slow work and a place of the process's bound held,
+///  awaiting each of them no longer than `ceiling`.
+/// Why:
+///  A step of slow work that can wait on storage with no end must be bounded like any other, and it takes the places a
+/// slow step takes: the place of slow work that leaves the reserve free, and a place of the process's bound, so a place
+/// stays a thread.
+/// A place that no place comes for within the ceiling proves the work never started, and a work that outlasts the
+/// ceiling after it started may have done its work; the two are told apart here as everywhere else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await runASlowJobOnceAwaitedNoLongerThan(ceiling, state, work); // { ran } | noPlace | noAnswer
+/// ```
+pub async fn run_a_slow_job_once_awaited_no_longer_than<S: Send + 'static, T: Send + 'static>(ceiling: Duration, state: S, work: fn(S) -> T) -> TheAnswerOfAJobAwaited<T> {
+    let slow: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(ceiling, Arc::clone(slow_places()).acquire_owned()).await {
+        Ok(Ok(taken)) => taken,
+        // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
+        Ok(Err(_closed)) => return TheAnswerOfAJobAwaited::NotRun,
+        Err(_elapsed) => return TheAnswerOfAJobAwaited::NotRun,
+    };
+    let answer: TheAnswerOfAJobAwaited<T> = run_a_job_once_awaited_no_longer_than(ceiling, move || { return work(state); }).await;
+    drop(slow);
+    return answer;
+}
+
+/// What:
 ///  Run `work(state)` as a job of the blocking pool with one of the places kept for the answers a client waits for,
 ///  awaiting the place no longer than `ceiling` and then the job no longer than another `ceiling`.
 /// Why:

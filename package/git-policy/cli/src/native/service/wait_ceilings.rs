@@ -1113,6 +1113,40 @@ pub const TRASH_ITEM_CEILING: Duration = Duration::from_secs(120);
 ///  and the client's waits bound the person's side (`ANSWER_CEILING`, `WITHDRAW_CEILING`).
 pub const CLIENT_ANSWER_PLACE_CEILING: Duration = crate::service_protocol_messages_and_name_checks::HEARTBEAT_SILENCE;
 
+/// The longest one listing of a trash's directory waits for a place of slow work, and for the listing itself:
+/// a minute,
+/// which is the wait a state step of the service is granted (`LANDING_STATE_CEILING`).
+/// The listing is one `getdents` of one directory: measured on this host at 2.9 ms for 15,000 entries and 11.1 ms for
+/// 60,000 (`keep/runs/trash-listing-against-my-tip-4768e9e809.log`),
+/// so a minute is far beyond an ordinary one,
+/// and a directory on a mount that stopped answering holds the call in the kernel with no end.
+/// A listing that gets no place or no answer within it removes nothing and answers that it is tried again.
+pub const TRASH_LISTING_CEILING: Duration = START_CEILING;
+
+/// The longest the service waits for the syncs it queued before it leaves:
+/// five seconds.
+/// The syncs are the records of the landings already answered;
+/// the operating system finishes every write a killed process leaves (`service_durable.rs`),
+/// and a record a power cut leaves half published is what the next start's recovery settles,
+/// so a service that waited longer would outlast the stop that ends it and hold a worktree the manager is restarting.
+/// It is the silence a client lets the service keep (`HEARTBEAT_SILENCE`), which is the longest this service lets anything
+/// wait without a word.
+pub const EXIT_DRAIN_CEILING: Duration = Duration::from_secs(5);
+
+/// The longest a commit's request waits for the look that says whose it is, before the command is told that the service
+///  could not look:
+/// the client's own answer ceiling (`ANSWER_CEILING`).
+/// The look is asked again every `CLIENT_ANSWER_PLACE_CEILING` while the client waits and is beaten,
+/// so a look starved of a place by storage that stopped answering never fails a commit inside the time its command
+///  gives the service.
+pub const ROUTING_LOOK_PATIENCE: Duration = ANSWER_CEILING;
+
+/// The pause between two asks of the look that says whose a commit's request is:
+/// five seconds, the silence a client lets the service keep (`HEARTBEAT_SILENCE` and
+///  `CLIENT_ANSWER_PLACE_CEILING`).
+/// Each ask is granted its own `LANDING_STATE_CEILING`, so the pause only keeps the retries from crowding the places.
+pub const ROUTING_LOOK_RETRY_PAUSE: Duration = Duration::from_secs(5);
+
 /// The environment variable that sets one trash item's bound in whole seconds,
 /// so a control reaches the bound in a moment instead of waiting it out.
 /// Why:

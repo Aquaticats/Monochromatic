@@ -236,13 +236,29 @@ fn start_background() -> UnboundedSender<Job> {
     return sender;
 }
 
-/// Waits until every sync handed to the background task so far is done.
+/// What:
+///  Waits, bounded, until every sync handed to the background task so far is done,
+///  and says what it leaves to the next start when that bound runs out.
+/// Why:
 ///  A control uses it to see the queue empty;
-/// the service does not wait for it on a commit's path.
+/// the service does not wait for it on a commit's path but on its exit paths
+/// (`service_server.rs`), where a wait with no end keeps a worktree the manager is already restarting.
+/// The syncs are the records of landings already answered:
+/// each is a flush of a file the operating system finishes on its own when this process is gone,
+/// and a record a power cut leaves half published is what the next start's recovery settles
+///  (`service_journal.rs`, the open batches).
+///  The bound is `EXIT_DRAIN_CEILING`, which is the longest this service lets anything wait without a word.
 pub fn drain() {
     let (done, answered) = channel::<()>();
     if sender().send(Job::Barrier(done)).is_ok() {
-        let _waited = answered.recv();
+        match answered.recv_timeout(crate::wait_ceilings::EXIT_DRAIN_CEILING) {
+            Ok(()) => {}
+            // Nobody waits for this: the records are as a power cut leaves them, which the next start's recovery settles.
+            Err(_still_syncing) => crate::service_warn!(
+                "the records of the landings answered before this stop were still being synced after {:?}, so this process leaves them to the operating system's write-back; a record a power cut leaves is settled by the next start's recovery",
+                crate::wait_ceilings::EXIT_DRAIN_CEILING
+            ),
+        }
     }
 }
 

@@ -373,10 +373,9 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
     //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
     match decode_client(line.trim_end_matches('\n')) {
         Ok(ClientMessage::Commit(request)) => {
-            // The question of whose this request is runs beside the beats of its connection, not before them, so a check
-            //  whose own read waits on storage never leaves the client silent (`queue_a_commit`).
-            let deciding = is_foreign(shared, request.git_dir.clone());
-            queue_a_commit(request, write_half, shared, accepted, deciding).await;
+            // The question of whose this request is runs beside the beats of its connection, not before them, and it is asked
+            //  again while the client waits, so a look starved of a place never fails the commit (`queue_a_commit`).
+            queue_a_commit(request, write_half, shared, accepted).await;
         }
         Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
@@ -436,10 +435,7 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
 /// ```ts
 /// const [beats, queued] = await Promise.all([writeUntilAnswered(socket, messages), decide().then(queueOrRefuse)]);
 /// ```
-async fn queue_a_commit<Decide>(request: Box<crate::service_protocol::CommitRequest>, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant, decide: Decide)
-where
-    Decide: std::future::Future<Output = Option<bool>> + Send,
-{
+async fn queue_a_commit(request: Box<crate::service_protocol::CommitRequest>, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant) {
     let id: String = request.id.clone();
     let (reply, mut messages) = Reply::new();
     let answering: UnboundedSender<ServiceMessage> = reply.sender();
@@ -447,8 +443,37 @@ where
     // What a beat asks for before it, held here because the writer borrows it for the whole wait.
     let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(id.clone()));
     // What the check's answer is written with, and what it does with the request it decides about.
+    let deciding_shared: ConnectionShared = shared.clone();
+    let deciding_git_dir: PathBuf = request.git_dir.clone();
     let checking = async move {
-        match decide.await {
+        // What:
+        //  The look that says whose the request is, asked again while the client waits and is beaten.
+        // Why:
+        //  A general place bounds a look only as long as its ceiling, and a step that outlasted its ceiling keeps its place
+        //  until its work ends, which a mount that stopped answering can outlast.
+        //  The project's rule is that a commit never fails, so a look that finds no place or no answer is asked again
+        //  rather than answered `Unavailable`: the command waits, and the person is told it waits by the beats.
+        //  The request is queued only once the look answers, because a request for another worktree must never land here.
+        let began: Instant = Instant::now();
+        let mut asked: usize = 0;
+        let answer: Option<bool> = loop {
+            match is_foreign(&deciding_shared, deciding_git_dir.clone()).await {
+                Some(foreign) => break Some(foreign),
+                None if began.elapsed() < crate::wait_ceilings::ROUTING_LOOK_PATIENCE => {
+                    asked += 1;
+                    tokio::time::sleep(crate::wait_ceilings::ROUTING_LOOK_RETRY_PAUSE).await;
+                }
+                None => {
+                    crate::service_error!(
+                        "the instance of {} could not be looked at in {asked} asks over {:?}, so its commit is answered `unavailable`; this is the one answer a look that never came leaves",
+                        deciding_git_dir.display(),
+                        crate::wait_ceilings::ROUTING_LOOK_PATIENCE
+                    );
+                    break None;
+                }
+            }
+        };
+        match answer {
             // A request for another worktree is not this instance's to land, so it never reaches the landing.
             Some(true) => {
                 crate::service_warn!("refused a commit for {}, which another instance serves", request.git_dir.display());

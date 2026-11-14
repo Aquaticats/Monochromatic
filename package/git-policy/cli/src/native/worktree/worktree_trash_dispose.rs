@@ -593,14 +593,52 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
     //  A round starts at the manifest's first entry, and the entries an earlier round removed are absent:
     // a round that handed those over again would spend its whole bound walking over them and remove nothing new,
     //  which is a trash that never finishes. The listing is one read of a directory the emptying already holds open.
-    let present: std::collections::HashSet<std::ffi::OsString> = match std::fs::read_dir(handle_path(held.trash.as_ref())) {
-        Ok(listing) => listing.flatten().map(|found| { return found.file_name(); }).collect(),
+    // What:
+    //  Which of the manifest's entries the trash still holds,
+    //  read by a job of the blocking pool under its own ceiling.
+    // Why:
+    //  A listing is a read of a directory, and a directory on a mount that stopped answering holds that read in the kernel
+    //  with no end: made by the task that awaits the emptying, it would take a worker of the runtime with it, and with it
+    //  the lane and the service's idle exit.
+    //  The pass that turns the listing into one answer per entry is the same job, because it reads what the listing holds,
+    //  and a pass over a manifest of many entries is work a worker must not do either.
+    //  A listing that gets no place or no answer removes nothing and answers that it is tried again.
+    let entries_named: Vec<std::ffi::OsString> = (0..manifest.entries.len()).map(|index| { return std::ffi::OsString::from(entry_name(index)); }).collect();
+    let still_there: Vec<bool> = match crate::blocking_jobs_within_the_budget::run_a_slow_job_once_awaited_no_longer_than(
+        crate::wait_ceilings::TRASH_LISTING_CEILING,
+        (Arc::clone(&held.trash), entries_named),
+        which_entries_are_still_there,
+    )
+    .await
+    {
+        crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::Ran(Ok(present)) => present,
         // A trash that cannot be listed is left alone with that reason, and nothing was removed.
-        Err(error) => return EmptiedTrash::Kept(TrashLeft::kept(format!("{} cannot be listed ({error}), so it is left alone", held.inside.display()))),
+        crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::Ran(Err(reason)) => {
+            return EmptiedTrash::Kept(TrashLeft::kept(format!("{} {reason}", held.inside.display())));
+        }
+        // A listing that got no place, or gave no answer, removed nothing: the round could not work, which is a retry and
+        //  not progress (`worktree_trash_dispose_awaiting.rs`).
+        crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::NotRun => {
+            return EmptiedTrash::LeftForALaterRound {
+                left: TrashLeft::kept(format!(
+                    "the listing of {} got no place within {:?}, so nothing was removed and it is tried again when its claim runs out",
+                    held.inside.display(),
+                    crate::wait_ceilings::TRASH_LISTING_CEILING
+                )),
+                removed: 0,
+            };
+        }
+        crate::blocking_jobs_within_the_budget::TheAnswerOfAJobAwaited::NoAnswer => {
+            return EmptiedTrash::LeftForALaterRound {
+                left: TrashLeft::kept(format!(
+                    "the listing of {} gave no answer within {:?}, so nothing was removed and it is tried again when its claim runs out",
+                    held.inside.display(),
+                    crate::wait_ceilings::TRASH_LISTING_CEILING
+                )),
+                removed: 0,
+            };
+        }
     };
-    let still_there: Vec<bool> = (0..manifest.entries.len())
-        .map(|index| { return present.contains(std::ffi::OsStr::new(entry_name(index).as_str())); })
-        .collect();
     // The position in the manifest this round has walked to, and how many entries that were there it removed.
     let mut done: usize = 0;
     let mut removed: usize = 0;
@@ -659,6 +697,28 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
         // The entries are gone and the directory above them stays, which the words say.
         Err(refused) => EmptiedTrash::Kept(TrashLeft::kept(format!("the trash directory {} stays ({refused})", manifest.name))),
     };
+}
+
+/// What:
+///  One answer per entry name,
+///  saying which of them the trash still holds.
+/// Why:
+///   This is the listing and the pass over it as one job of the blocking pool:
+/// the directory is read once,
+///  and every name the manifest records is looked up in it,
+/// which is the whole of what a round needs to know before it hands any entry over.
+///  The trash is held open, so the reading follows the handle the emptying proved and not a path that could be replaced.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stillThere = (trash, names) => { const present = new Set(readdirSync(handlePath(trash))); return names.map((name) => present.has(name)) }
+/// ```
+fn which_entries_are_still_there((trash, names): (Arc<File>, Vec<std::ffi::OsString>)) -> Result<Vec<bool>, String> {
+    let present: std::collections::HashSet<std::ffi::OsString> = match std::fs::read_dir(handle_path(trash.as_ref())) {
+        Ok(listing) => listing.flatten().map(|found| { return found.file_name(); }).collect(),
+        Err(error) => return Err(format!("cannot be listed ({error}), so it is left alone")),
+    };
+    return Ok(names.iter().map(|name| { return present.contains(name); }).collect());
 }
 
 /// What:

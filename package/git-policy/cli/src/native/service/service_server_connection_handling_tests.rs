@@ -214,22 +214,21 @@ fn a_commit_whose_directory_check_waits_is_beaten_while_it_waits() {
     let (shared, mut jobs) = shared_in("connection-slow-directory-check");
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, write_half, mut client) = connection();
-        // The check answers only when this control lets it, so "while the check waits" is a state and not a duration.
-        let (released, held) = tokio::sync::oneshot::channel::<()>();
-        let deciding = async move {
-            let _released = held.await;
-            return Some(false);
-        };
+        // The look answers only when this control lets it go, so "while the check waits" is a state and not a duration.
+        let (reached, was_reached) = tokio::sync::oneshot::channel::<()>();
+        let (let_go, still_held) = std::sync::mpsc::channel::<()>();
+        hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_INSTANCE_READ), reached, let_go: still_held });
         let serving: tokio::task::JoinHandle<()> = tokio::spawn(async move {
             let mut writing: OwnedWriteHalf = write_half;
-            queue_a_commit(Box::new(a_request_of("slow-check")), &mut writing, &shared, Instant::now(), deciding).await;
+            queue_a_commit(Box::new(a_request_of("slow-check")), &mut writing, &shared, Instant::now()).await;
         });
+        was_reached.await.expect("the look of the Git directory reaches its read");
         // The first line is a beat: the check has not answered, so nothing of the landing has been said yet.
         let first: ServiceMessage = tokio::time::timeout(the_longest_a_beat_may_wait, next_line(&mut client))
             .await
             .expect("the beat comes while the check waits");
         assert_eq!(first, ServiceMessage::Heartbeat, "the beat comes while the check waits");
-        released.send(()).expect("the check is let go");
+        let_go.send(()).expect("the check is let go");
         // The request reaches the landing once the check says it is this instance's, and only then is it answered.
         let Job::Commit(request, reply, _arrival) = jobs.recv().await.expect("the request is queued") else {
             panic!("a commit request is queued");
