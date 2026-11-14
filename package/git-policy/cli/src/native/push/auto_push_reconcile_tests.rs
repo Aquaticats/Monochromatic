@@ -3456,8 +3456,376 @@ fn an_explicit_push_whose_merge_landed_is_reported_as_published() {
         "and it is a merge of the local tip and the old remote tip"
     );
     assert_eq!(attempt.exit_code, 0, "a published merge is not a failed push: {}", attempt.output);
-    assert!(attempt.output.contains("is the merge"), "{}", attempt.output);
-    assert!(attempt.output.contains(published.as_str()), "the merge is named: {}", attempt.output);
+    assert!(
+        attempt.output.contains(format!("which contains the merge {published} this push made").as_str()),
+        "the remote's tip and the merge this run made are named: {}",
+        attempt.output
+    );
     assert!(!attempt.output.contains("not published"), "{}", attempt.output);
     remove(&s.root);
+}
+
+/// What:
+///  A merge push that landed while its own command reported a failure,
+///  and a hook on the remote that moved past the merge before the next fetch,
+///  is still reported as a published merge, and the branch follows it.
+/// Why:
+///  The remote's tip then contains the merge instead of being it,
+/// and the test for equality missed it, so the typed push ended with the first rejection although
+///  the remote held the merge this run made
+///  (a review of commit `c15fc5a7b1`, its finding 1).
+#[test]
+fn an_explicit_push_whose_merge_landed_and_the_remote_moved_past_it_is_reported_as_published() {
+    let s = scenario("ar-merge-landed-then-remote-advanced");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed: String = commit_local(&s, "b.txt", "local\n");
+    let mut merge_pushed: Option<String> = None;
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        // The merge lands, its own command reports a failure, and a hook on the remote moves past the merge.
+        git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        let tree: String = text_of(&s.remote, &["rev-parse", &format!("{merge_oid}^{{tree}}")]);
+        let child: String = text_of(&s.remote, &["commit-tree", tree.as_str(), "-p", merge_oid, "-m", "a hook moved past the merge"]);
+        git(&s.remote, &["update-ref", "refs/heads/main", child.as_str()]);
+        merge_pushed = Some(merge_oid.to_owned());
+        return Ok(PushAttempt {
+            exit_code: 1,
+            output: String::from(" ! [rejected] main -> main (the push command was ended)"),
+        });
+    };
+    let attempt: PushAttempt = finished(integrate_for(
+        &s,
+        landed.as_str(),
+        Some("refs/heads/main"),
+        "refs/heads/main",
+        true,
+        &mut push_merge,
+    ));
+    let remote_tip: String = text_of(&s.remote, &["rev-parse", "main"]);
+    let merge: String = merge_pushed.expect("the merge was pushed");
+    assert_ne!(remote_tip, merge, "the control moved the remote past the merge");
+    assert_eq!(attempt.exit_code, 0, "a published merge is not a failed push: {}", attempt.output);
+    assert!(attempt.output.contains(remote_tip.as_str()), "the remote's position is named: {}", attempt.output);
+    assert!(attempt.output.contains(merge.as_str()), "the merge this run made is named: {}", attempt.output);
+    assert!(
+        attempt.output.contains("and main and this worktree are now at it"),
+        "the branch follows the merge: {}",
+        attempt.output
+    );
+    assert_eq!(
+        text_of(&s.local, &["rev-parse", "refs/heads/main"]),
+        merge,
+        "the branch is at the merge this run made, not at the hook's commit"
+    );
+    remove(&s.root);
+}
+
+/// What:
+///  The path that finds the merge this run made on the remote moves the pushed branch and says where it is.
+/// Why:
+///  That path answered zero and said the merge was published, but never moved the branch and never said where it
+/// was, so the branch stayed behind the remote with nothing telling the person
+///  (a review of commit `c15fc5a7b1`, its finding 2).
+#[test]
+fn the_published_merge_path_moves_the_branch_and_says_where_it_is() {
+    let s = scenario("ar-published-merge-moves-the-branch");
+    advance_remote(&s, "a.txt", "remote\n");
+    let landed: String = commit_local(&s, "b.txt", "local\n");
+    let mut merge_pushed: Option<String> = None;
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        // The merge lands and its own command reports a failure; the remote keeps the merge.
+        git(&s.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        merge_pushed = Some(merge_oid.to_owned());
+        return Ok(PushAttempt {
+            exit_code: 1,
+            output: String::from(" ! [rejected] main -> main (the push command was ended)"),
+        });
+    };
+    let attempt: PushAttempt = finished(integrate_for(
+        &s,
+        landed.as_str(),
+        Some("refs/heads/main"),
+        "refs/heads/main",
+        true,
+        &mut push_merge,
+    ));
+    let merge: String = merge_pushed.expect("the merge was pushed");
+    assert_eq!(text_of(&s.remote, &["rev-parse", "main"]), merge, "the remote holds the merge");
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    assert!(
+        attempt.output.contains("and main and this worktree are now at it"),
+        "the report says where the branch is: {}",
+        attempt.output
+    );
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), merge, "and the branch is there");
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "", "the checkout followed too");
+    remove(&s.root);
+}
+
+/// What:
+///  The move of a reference alone records the repair it is about to make in the worktree that took the branch,
+///  so a kill inside that repair leaves a record a later command reads.
+/// Why:
+///  The worktree moves write such a record and settle it; the ref-only repair wrote none, so a kill partway through
+/// its `read-tree` left a checkout whose next commit records a reversal of the published merge, with nothing for any
+///  later command to find (a review of commit `c15fc5a7b1`, its finding 3).
+#[test]
+fn a_ref_only_move_records_the_repair_a_kill_would_leave_half_done() {
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    use crate::merge_isolation_journal::{MERGE_INTENT_DIRECTORY, parse_merge_intent};
+    let s = nowhere("ar-ref-move-records-its-repair");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let taken: PathBuf = taker.clone();
+    // What: the record is read at the instant the repair is about to write.
+    // Why: a control that looked after the move would see it removed, which proves nothing about the kill window.
+    let seen: std::rc::Rc<std::cell::RefCell<Option<String>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
+    let _early = in_the_window_in_a_control(Window::BeforeTheWrite, move || {
+        git(&adding, &["worktree", "add", "--quiet", taken.to_str().expect("utf-8"), "topic"]);
+    });
+    let recorded_in: PathBuf = taker.clone();
+    let watched: std::rc::Rc<std::cell::RefCell<Option<String>>> = std::rc::Rc::clone(&seen);
+    let _recorded = in_the_window_in_a_control(Window::AfterTheRecord, move || {
+        let git_dir: PathBuf = PathBuf::from(
+            String::from_utf8_lossy(&git(&recorded_in, &["rev-parse", "--absolute-git-dir"]).stdout).trim(),
+        );
+        let directory: PathBuf = git_dir.join(MERGE_INTENT_DIRECTORY);
+        let mut found: Vec<String> = Vec::new();
+        for entry in std::fs::read_dir(directory.as_path()).expect("the record directory") {
+            let path: PathBuf = entry.expect("an entry").path();
+            let bytes: Vec<u8> = std::fs::read(path.as_path()).expect("the record");
+            let intent = parse_merge_intent(bytes.as_slice()).expect("a record this release wrote");
+            found.push(format!(
+                "{} -> {} for {}",
+                intent.old_oid,
+                intent.new_oid,
+                intent.target_ref.clone().unwrap_or_default()
+            ));
+        }
+        *watched.borrow_mut() = Some(found.join("\n"));
+    });
+    let pushed_merge: std::sync::Arc<std::sync::Mutex<Option<String>>> = std::sync::Arc::new(std::sync::Mutex::new(None));
+    let remembering: std::sync::Arc<std::sync::Mutex<Option<String>>> = std::sync::Arc::clone(&pushed_merge);
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        let pushed = git(&s.scenario.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        assert!(pushed.status.success(), "the merge push runs");
+        *remembering.lock().expect("the cell") = Some(merge_oid.to_owned());
+        return Ok(PushAttempt { exit_code: 0, output: String::new() });
+    };
+    let attempt: PushAttempt = finished(integrate_for(
+        &s.scenario,
+        s.local_tip.as_str(),
+        Some("refs/heads/topic"),
+        "refs/heads/topic",
+        true,
+        &mut push_merge,
+    ));
+    drop(_recorded);
+    drop(_early);
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    let record: String = seen.borrow().clone().unwrap_or_default();
+    let merge: String = pushed_merge.lock().expect("the cell").clone().unwrap_or_default();
+    assert_eq!(
+        record,
+        format!("{} -> {} for refs/heads/topic", s.local_tip, merge),
+        "the record names the move the repair finishes"
+    );
+    let git_dir: PathBuf = PathBuf::from(
+        String::from_utf8_lossy(&git(&taker, &["rev-parse", "--absolute-git-dir"]).stdout).trim(),
+    );
+    assert!(
+        !git_dir.join(MERGE_INTENT_DIRECTORY).is_dir()
+            || std::fs::read_dir(git_dir.join(MERGE_INTENT_DIRECTORY)).expect("the directory").next().is_none(),
+        "and the repair that finished removes it"
+    );
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "the checkout was brought to the merge");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A record a killed ref-only repair left is finished by the next command in that worktree:
+///  the checkout is brought to the merge and the record goes.
+/// Why:
+///  The record is what makes a kill recoverable, and a record nothing reads is no record
+///  (a review of commit `c15fc5a7b1`, its finding 3).
+#[test]
+fn a_record_a_killed_ref_only_repair_left_is_finished_by_the_next_command() {
+    use crate::merge_isolation_journal::{MERGE_INTENT_DIRECTORY, MergeIntent, write_merge_intent};
+    let s = nowhere("ar-killed-ref-repair-record");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", taker.to_str().expect("utf-8"), "topic"]);
+    let git_dir: PathBuf = PathBuf::from(
+        String::from_utf8_lossy(&git(&taker, &["rev-parse", "--absolute-git-dir"]).stdout).trim(),
+    );
+    // The state a kill inside the repair leaves: the reference at the merge, the index and files at the pushed tip,
+    //  and the record an owner that is gone wrote.
+    git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
+    let mut owner: crate::transaction_owner::TransactionOwner =
+        crate::transaction_owner::current_transaction_owner("7f0c4d20-0000-4000-8000-000000000003", "2026-11-14T00:00:00.000Z")
+            .expect("an owner record");
+    owner.owner_identity = String::from("linux:1");
+    let _record: PathBuf = write_merge_intent(
+        git_dir.as_path(),
+        &MergeIntent {
+            owner,
+            repository_root: taker.clone(),
+            target_ref: Some(String::from("refs/heads/topic")),
+            old_oid: s.local_tip.clone(),
+            new_oid: s.merge.clone(),
+            side_ref: None,
+            carried: None,
+        },
+    )
+    .expect("the record a kill leaves");
+    assert_eq!(
+        text_of(&taker, &["status", "--porcelain=v1"]),
+        "A  local.txt\nD  remote.txt",
+        "the control states the stale checkout: the index holds the pushed tip while HEAD names the merge"
+    );
+    // The next command in that worktree runs the recovery every command runs.
+    let place: crate::merge_isolation_recovery::RecoveryPlace = crate::merge_isolation_recovery::RecoveryPlace {
+        git: crate::transaction_git::GitContext {
+            real_git: PathBuf::from("/usr/bin/git"),
+            overlay: fixture_environment(),
+            global_prefix: Vec::new(),
+            common_dir: Some(git_dir.clone()),
+        },
+        cwd: taker.clone(),
+        common_dir: git_dir.clone(),
+        git_dir: git_dir.clone(),
+    };
+    let mut stderr: Vec<u8> = Vec::new();
+    let outcomes = await_it(crate::merge_isolation_recovery_records::recover_interrupted_merges_awaiting(
+        &place,
+        git_dir.as_path(),
+        &mut stderr,
+    ))
+    .expect("the recovery runs");
+    assert_eq!(outcomes.len(), 1, "the record was read: {}", String::from_utf8_lossy(&stderr));
+    assert_eq!(
+        text_of(&taker, &["status", "--porcelain=v1"]),
+        "",
+        "and the checkout was brought to the merge: {}",
+        String::from_utf8_lossy(&stderr)
+    );
+    assert_eq!(
+        std::fs::read_to_string(taker.join("remote.txt")).expect("the merge's file"),
+        "remote side\n",
+        "the file the merge added is there"
+    );
+    assert!(
+        !git_dir.join(MERGE_INTENT_DIRECTORY).is_dir()
+            || std::fs::read_dir(git_dir.join(MERGE_INTENT_DIRECTORY)).expect("the directory").next().is_none(),
+        "and the record is gone"
+    );
+    // What: a commit there now records the merge's content, not the older files.
+    // Why: that reversal was the harm the record exists to prevent.
+    git(&taker, &["commit", "--quiet", "--allow-empty", "-m", "a commit after the recovery"]);
+    assert_eq!(text_of(&taker, &["show", "HEAD:remote.txt"]), "remote side");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A checkout that took the branch inside the window and then switched away is reported as the branch being at the
+///  merge, naming the branch that worktree shows, and never as "the branch is not at it".
+/// Why:
+///  The reference had already moved when the repair ran, so "not at it" was false and the advice
+/// `git merge --ff-only` was a no-op there
+///  (a review of commit `c15fc5a7b1`, its finding 4).
+#[test]
+fn a_raced_checkout_that_switched_away_is_reported_as_the_branch_being_at_the_merge() {
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    let s = nowhere("ar-raced-checkout-switched-away");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let taken: PathBuf = taker.clone();
+    let _early = in_the_window_in_a_control(Window::BeforeTheWrite, move || {
+        git(&adding, &["worktree", "add", "--quiet", taken.to_str().expect("utf-8"), "topic"]);
+    });
+    let switching: PathBuf = taker.clone();
+    let _late = in_the_window_in_a_control(Window::BeforeTheRepairReads, move || {
+        // The session that took the branch checks something else out in the instant before the repair reads it.
+        git(&switching, &["switch", "--quiet", "--create", "other"]);
+    });
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        let pushed = git(&s.scenario.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        assert!(pushed.status.success(), "the merge push runs");
+        return Ok(PushAttempt { exit_code: 0, output: String::new() });
+    };
+    let attempt: PushAttempt = finished(integrate_for(
+        &s.scenario,
+        s.local_tip.as_str(),
+        Some("refs/heads/topic"),
+        "refs/heads/topic",
+        true,
+        &mut push_merge,
+    ));
+    drop(_late);
+    drop(_early);
+    let published: String = text_of(&s.scenario.remote, &["rev-parse", "refs/heads/topic"]);
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]), published, "the branch is at the merge");
+    assert!(attempt.output.contains("topic is now at it"), "the branch is said to be at the merge: {}", attempt.output);
+    assert!(!attempt.output.contains("is not at it"), "and never that it is not: {}", attempt.output);
+    assert!(attempt.output.contains("other"), "the branch the worktree shows is named: {}", attempt.output);
+    assert!(!attempt.output.contains("git merge --ff-only"), "and no step that is a no-op there: {}", attempt.output);
+    assert_eq!(text_of(&taker, &["symbolic-ref", "--short", "HEAD"]), "other", "the worktree stays where its session put it");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  The report names the branch the worktree shows after the repair, not the one it showed before it.
+/// Why:
+///  A switch landing inside the repair left the answer naming the old branch: "this worktree is now at it" while it
+///  shows another one, or a branch it no longer shows
+///  (a review of commit `c15fc5a7b1`, its finding 5).
+#[test]
+fn the_report_names_the_branch_the_worktree_shows_after_the_repair() {
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    use crate::auto_push_reconcile_branch_checkout::{Window as CheckoutWindow, in_the_window_in_a_control as in_the_checkout_window};
+    let s = nowhere("ar-report-names-the-branch-after-the-repair");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let taken: PathBuf = taker.clone();
+    let _early = in_the_window_in_a_control(Window::BeforeTheWrite, move || {
+        git(&adding, &["worktree", "add", "--quiet", taken.to_str().expect("utf-8"), "topic"]);
+    });
+    let switching: PathBuf = taker.clone();
+    let _during = in_the_checkout_window(CheckoutWindow::WhileTheCheckoutIsRepaired, move || {
+        git(&switching, &["switch", "--quiet", "--create", "other"]);
+    });
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        let pushed = git(&s.scenario.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        assert!(pushed.status.success(), "the merge push runs");
+        return Ok(PushAttempt { exit_code: 0, output: String::new() });
+    };
+    let attempt: PushAttempt = finished(integrate_for(
+        &s.scenario,
+        s.local_tip.as_str(),
+        Some("refs/heads/topic"),
+        "refs/heads/topic",
+        true,
+        &mut push_merge,
+    ));
+    drop(_during);
+    drop(_early);
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    assert_eq!(text_of(&taker, &["symbolic-ref", "--short", "HEAD"]), "other", "the worktree shows the other branch");
+    // What: the branch the report names as the one the worktree shows is the one it shows at the end.
+    // Why: reusing the read taken before the repair named `topic`, a branch that worktree no longer shows.
+    assert!(
+        attempt.output.contains("which shows other"),
+        "the report names the branch the worktree shows: {}",
+        attempt.output
+    );
+    assert!(
+        !attempt.output.contains("which shows topic"),
+        "and not the one it showed before the repair: {}",
+        attempt.output
+    );
+    assert!(
+        !attempt.output.contains("are now at it"),
+        "and never says the worktree followed: {}",
+        attempt.output
+    );
+    remove(&s.scenario.root);
 }
