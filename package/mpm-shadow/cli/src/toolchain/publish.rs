@@ -215,3 +215,73 @@ pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(
     drop(guard);
     return Ok(());
 }
+
+/// What:
+/// Writes `text` to `target` the way `write_atomically` does,
+/// and gives the new file the mode the old one had.
+/// Why:
+/// The plan is a file people own;
+/// a rename replaces its inode,
+/// so a plan kept readable by its owner alone would come back readable by everyone.
+/// A target that does not exist yet keeps the mode a new file gets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function writeAtomicallyKeepingMode(target: string, text: string): void
+/// ```
+#[cfg(unix)]
+fn write_atomically_keeping_mode(target: &Path, text: &str) -> Result<(), ToolchainError> {
+    use std::os::unix::fs::PermissionsExt;
+    let mode: Option<u32> = match fs::metadata(target) {
+        Ok(metadata) => Some(metadata.permissions().mode()),
+        Err(_) => None,
+    };
+    write_atomically(target, text)?;
+    if let Some(bits) = mode
+        && let Err(error) = fs::set_permissions(target, fs::Permissions::from_mode(bits))
+    {
+        return Err(ToolchainError::failure(format!("cannot keep the mode of {}: {error}", target.display())));
+    }
+    return Ok(());
+}
+
+/// What:
+/// `write_atomically_keeping_mode` where the platform has no mode to keep.
+/// Why:
+/// Windows and macOS are out of scope for now,
+/// and a plan written there is an ordinary new file.
+#[cfg(not(unix))]
+fn write_atomically_keeping_mode(target: &Path, text: &str) -> Result<(), ToolchainError> {
+    return write_atomically(target, text);
+}
+
+/// What:
+/// Publishes `text` as the new plan if the plan still has the revision `expected`.
+/// Why:
+/// Only this command writes the plan,
+/// and only to append an entry;
+/// another mpm-shadow adding a tool at the same moment read the file before this run did,
+/// so writing over it would drop that entry.
+/// The scope lock makes the re-read and the write one step as far as other runs can tell,
+/// and the file keeps the permissions it had,
+/// because the global plan is readable by its owner alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function publishPlan(scope: Scope, expected: Revision, text: string): void
+/// ```
+pub fn publish_plan(scope: &Scope, expected: &Revision, text: &str) -> Result<(), ToolchainError> {
+    let guard: Guard = acquire_guard(scope)?;
+    let observed: Revisions = read_revisions(scope)?;
+    if expected != &observed.plan {
+        drop(guard);
+        return Err(ToolchainError::drift(format!(
+            "{} changed while this command was running, so the new entry was not written; \
+             run the command again to start from the current file",
+            scope.plan_file.display()
+        )));
+    }
+    let result: Result<(), ToolchainError> = write_atomically_keeping_mode(&scope.plan_file, text);
+    drop(guard);
+    return result;
+}
