@@ -243,6 +243,11 @@ pub mod service_client_reach_service;
 /// its socket and its journal folder.
 pub mod service_instance;
 
+/// The address one worktree's service listens at:
+/// a socket file under the runtime directory when that path fits one socket address,
+/// and an abstract name when it does not.
+pub mod service_address_of_a_worktree;
+
 /// The files an instance of the commit service keeps between runs:
 /// the note beside its socket that names its worktree,
 /// and the journal that remembers its batches.

@@ -6169,6 +6169,21 @@ where a name holding a pipe would hold it for ever.
 A record of a plan is read the way every record of this wrapper is read
 (`private_storage::read_regular_file`),
 so a pipe at a plan's name is answered at once and left alone rather than waited on and discarded.
+A watch note is read the same way
+(`private_storage::read_regular_file`,
+`src/native/landing/service_claim_watch.rs`),
+so a note whose name holds a pipe,
+a link or a directory is answered at once,
+said once and left where it is,
+and so is a file longer than a note can hold:
+none of those is a note this service wrote,
+so none is waited on,
+read through or removed,
+and none is read again after a pause,
+because a second read of it answers the same.
+The write a landing makes before the client is answered reads a taken name the same way,
+so a name holding one of those is passed over for the next name
+rather than holding the thread that lands and answers.
 The listing of that journal answers twice:
 the entries it names,
 and an error that ended it before it named them all,
@@ -8095,17 +8110,14 @@ on the commit path:
   so the start could only happen at the bound that ended it.
 - What a command already knows before that wait ends it at once instead,
   and the message names the cause and every way to change it
-  (`refuse_a_path_no_socket_address_can_carry` in `src/native/service/service_instance.rs`
-  and `service_commit_starts_the_server.rs`):
-  an address longer than one socket address can hold
-  (the runtime directory,
-  the folder of the sockets,
-  the instance and `.sock` take at most 107 bytes,
-  so the runtime directory may take 40),
-  which is counted on the spelling the commit's own connect uses and is asked before anything is created;
-  and a runtime directory this account cannot write,
+  (`service_commit_starts_the_server.rs`):
+  a runtime directory this account cannot write,
   which is where the address,
-  the output and the notes live.
+  the output and the notes live,
+  and whose error number is replaced by the setting that decides it.
+  A runtime directory too long for a socket path is not such a cause:
+  the service is listened at an abstract name there, and the commit is made (`SPEC.md`,
+  "Where the service listens").
   There is no longer a state a service manager could create and a command could not reach:
   the manager takes no part in an address,
   a start or a wait.
@@ -14388,6 +14400,51 @@ And an earlier release's journal under the account's state directory is not adop
 those were written by a service a manager started,
 and `service stop-units-of-removed-worktrees` still sweeps them there.
 
+### Where the service listens
+
+One commit service runs per worktree,
+and its address is made from the runtime directory (`XDG_RUNTIME_DIR`) and the instance name of the worktree
+(`src/native/service/service_address_of_a_worktree.rs`):
+
+- A runtime directory whose socket path fits one socket address keeps the socket file:
+  `<runtime directory>/monochromatic-git-policy-cli/<instance>.sock`.
+  One socket address carries 107 bytes of name (`sun_path` less the zero that ends the name),
+  so this form serves a runtime directory of at most 40 bytes,
+  which is every session whose runtime directory is the one its login gave it.
+- A runtime directory whose socket path does not fit is listened at under a Linux abstract name:
+  `@monochromatic-git-policy-cli/<user id>/<digest digits>/<instance>`,
+  where the digest is sixteen hexadecimal digits of the runtime directory's real path.
+  In pieces:
+  the service's own name,
+  the account,
+  the digest,
+  and the instance.
+  A client computes the same name for itself,
+  binds it at its service,
+  and both reach it whatever working directory they run in.
+  A name leaves nothing behind when its process dies,
+  so a killed service leaves no address to clear away.
+  Two other ways of naming a long address each lost:
+  an address relative to a held-open directory (`/proc/self/fd/<n>/<name>`) reaches a socket only from the process
+  that holds the descriptor,
+  so nothing else can name it;
+  and a name relative to a working directory reaches it only from the directory the two processes share,
+  which a service started by another command does not.
+- The name is an abstract address and has no permission bits,
+  and what stands in for the directory's mode is the kernel's own word about who took a connection (`SO_PEERCRED`):
+  the service reads it before it says a word to any client,
+  and a client refuses a connection another account's process took (`ClientFailure::OtherAccount`).
+  The name carries the user id,
+  so two accounts never bind one name;
+  the name carries the digest of the directory's real path and never of its spelling,
+  so two spellings of one runtime directory are one service and two runtime directories are two,
+  exactly as two socket files are.
+- A system whose unix sockets have no abstract namespace has only the path form,
+  and a runtime directory that leaves no room for it is refused before anything is waited for,
+  with the length named,
+  the longest runtime directory that works,
+  and the setting that decides it (`ClientFailure::SocketPathTooLong`).
+
 ### Machines with no way to reach the service
 
 A commit on a machine where no socket answers and no user service manager can be asked to start one
@@ -14784,6 +14841,76 @@ A commit that was not built again prints no note.
 Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
 A `--` that is the value of an option (`git commit -m --`) is a value and not the separator.
+A form of `git commit` that real Git refuses is refused with Git's own status and words
+(owner,
+2026-11-12:
+"Refuse as Git does (Recommended)").
+Preparation removes exactly the tokens Git validates before it commits,
+so a command whose options are such a form would otherwise reach the private `git commit`
+as an ordinary one and make a commit real Git refuses:
+`-i`/`--include` with `-o`/`--only`,
+`-i` with `-a`,
+`-a` with `--interactive` or `--patch`,
+any two of the four options Git's own compatibility check counts
+(`-i/--include`,
+`-o/--only`,
+`-a/--all`,
+`--interactive/-p/--patch`,
+with `--patch` counted as `--interactive`),
+`--fixup=reword:` with a path or with any of those four,
+`--pathspec-from-file` with pathspec arguments,
+with `-a` or with `--interactive`,
+`-a` with pathspec arguments,
+a pathless `-i` or `-o` where Git allows no empty change,
+and `--pathspec-file-nul` without `--pathspec-from-file`
+(`src/native/commit/rule_commit_region_git_refuses.rs`).
+No message is kept in the wrapper:
+the same command line is given to the installed Git with `--dry-run` added,
+which runs Git's own validation,
+rolls its index lock back and never looks for a commit,
+and the status and the bytes Git printed are handed on unchanged
+(`src/native/commit/commit_form_refusal_from_git.rs`),
+so a release that rewords a message changes nothing here.
+The question is `commit`,
+then `--dry-run`,
+then the caller's own options:
+the first token after `commit` is in option position whatever it spells,
+so no option the caller wrote can take `--dry-run` as its value,
+and no `--` the caller wrote can put it after the end of the options
+(`git commit -m -- -i` is asked as `git commit --dry-run -m -- -i`).
+The question is asked in the directory the commit's own Git runs in and with the
+`-C` tokens removed,
+so one `-C` chain moves Git once,
+and `--git-dir`,
+`--work-tree`,
+`--bare` and a `GIT_DIR` or `GIT_WORK_TREE` in the caller's environment keep the
+meaning Git gives them after that last `-C`
+(`commit_command.rs`,
+`where_the_commit_runs`).
+It is given an index of its own,
+a copy of the caller's in the repository scratch directory,
+so that a lost option could not write the caller's index or hold the lock beside it;
+the branch reference and the object store are the repository's own,
+which the option's position is what keeps,
+and a control over every generated command line records `HEAD`,
+every reference,
+the index bytes and the worktree before and after the question.
+A form whose rule stands but whose own answer from Git is that it would run the
+command is not refused:
+zero is Git's answer that the form is one it accepts,
+the dry run made no commit,
+and the transaction that follows makes the one commit the caller asked for,
+so nothing is made twice.
+The refusal comes before the transaction,
+so nothing is staged,
+no reference moves and the commit service is not reached,
+and a command Git accepts costs one comparison of the parsed region and no process.
+When real Git gives no answer,
+the sentence is the wrapper's own and it names the form and which of the three
+happened:
+Git could not be started,
+Git showed no sign of work for the bound of that step and was ended,
+or Git ended without an exit status.
 A pathspec commit during a revert or a cherry-pick,
 which Git accepts,
 behaves as real Git does,
