@@ -25,7 +25,8 @@ use super::observe::observe_all;
 use super::prune_cargo::{PresentVersion, prune_toolchain};
 use super::layout::{find_tool_bin, tool_directory};
 use super::published_archive::{
-    current_link_of, is_published_archive, named_archives, newest_installed_archive, plan_archive_prune, running_version_archive,
+    current_link_of, is_published_archive, named_archives, newest_installed_archive, plan_archive_prune, remove_older_archives,
+    running_version_archive,
 };
 use super::runner::RunRequest;
 use super::scope::{Scope, ScopeKind, repo_scope};
@@ -758,3 +759,63 @@ fn the_archive_prune_rule_keeps_the_longer_alpha_number() {
     let removals = plan_archive_prune(&versions_present(&[(EARLIER_ALPHA, true), (LATER_ALPHA, true)]));
     assert_eq!(removals, vec![(ID.to_string(), EARLIER_ALPHA.to_string())]);
 }
+
+//region a superseded release-archive version another run removed first
+
+/// How many files the slow version of the release-archive control holds.
+/// Why:
+/// Deleting costs about 30 microseconds per file on this machine's store volume
+/// (`doc/toolchain-version-cleanup.md`, "The measurement it was sized from"),
+/// so this many files make the first deletion last long enough for the control's second actor to act inside it.
+const SLOW_ARCHIVE_VERSION_FILES: usize = 6_000;
+
+/// What:
+/// A release-archive version another command removed between the listing that judged it and the removal itself is a
+/// finished cleanup: the removal ends well and does not claim to have deleted it.
+/// Why:
+/// The renewal of this repository's own archive tools is the same newest-only rule as the crate one,
+/// and the review of 2026-11-14 found the same two-line pattern at both removal sites
+/// (`published_archive.rs`, `remove_older_archives`): two commands sharing one store root reach the same version.
+#[test]
+fn a_superseded_archive_version_another_run_removed_first_is_a_finished_cleanup() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    finish_archive(&root, "0.3.0");
+    // The removal deletes the newest older version first, so this is the tree it is inside when the other run acts.
+    let slowest: PathBuf = tool_dir.join("0.2.2");
+    finish_archive(&root, "0.2.2");
+    for file in 0..SLOW_ARCHIVE_VERSION_FILES {
+        fs::write(slowest.join(format!("filler{file}")), b"x").expect("fill the version");
+    }
+    let later: PathBuf = tool_dir.join("0.2.1");
+    finish_archive(&root, "0.2.1");
+    let listing: usize = fs::read_dir(&slowest).expect("list the slow version").count();
+
+    let watched: PathBuf = slowest.clone();
+    let vanishing: PathBuf = later.clone();
+    let other_run: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let started: std::time::Instant = std::time::Instant::now();
+        loop {
+            let left: usize = fs::read_dir(&watched).map(|entries| return entries.count()).unwrap_or(0);
+            if left < listing {
+                // One rename, so this control does not empty the same tree the run under test is emptying.
+                fs::rename(&vanishing, vanishing.with_file_name(".0.2.1.removed-by-the-other-run"))
+                    .expect("the other run removes the version");
+                return;
+            }
+            assert!(started.elapsed() < std::time::Duration::from_secs(60), "the slow version was never removed");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    });
+
+    let removed: Vec<PathBuf> = remove_older_archives(&root, ID, BIN, &InstallKeeps::default(), "0.3.0")
+        .expect("a version that is already gone is a finished cleanup");
+    other_run.join().expect("the other run finished");
+
+    assert_eq!(removed, vec![slowest.clone()], "this run deleted the slow version and nothing else: {removed:?}");
+    assert!(!later.exists(), "the other run removed the second version");
+    assert!(tool_dir.join("0.3.0").join("release-folder").join(BIN).is_file(), "the newest finished version stays");
+}
+
+//endregion
