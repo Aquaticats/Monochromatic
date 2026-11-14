@@ -304,6 +304,24 @@ mise run prepareAndBuild
 
 ### Tool inventory and drift
 
+Every `toolchain:*` task has a `toolchain:*:global` twin that acts on the
+machine-global plan and lock
+(`${XDG_CONFIG_HOME:-$HOME/.config}/monochromatic-dev/toolchain/toolchain.plan.jsonc`
+and its `toolchain.lock.json`)
+instead of this checkout's:
+`toolchain:install:global`,
+`toolchain:list:global`,
+`toolchain:update:global`
+and `toolchain:outdated:global`.
+They pass extra arguments after `--` to `mpm-shadow`,
+so `mise run toolchain:install:global -- cargo:fastmod` adds that tool to the
+machine's plan and installs it
+(`mpm-shadow install --global cargo:fastmod`);
+the command,
+its argument and the entry shapes are in
+[`package/mpm-shadow/cli/README.md`](package/mpm-shadow/cli/README.md),
+section "Adding a tool with install".
+
 - `mise run toolchain:update` re-resolves the floating requests and the
   channel stamps to their current upstream versions and rewrites
   `toolchain.lock.json` as a reviewable diff

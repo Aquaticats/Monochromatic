@@ -994,6 +994,11 @@ Read-only commands,
    ioctl and deletes its administrative directory when the mount has `user_subvol_rm_allowed`
    (the doctor prints the commands that set it);
    in every other case Git removes it.
+  The line the removal prints for a destroyed subvolume says where the destroy ran:
+     one that was handed to the commit service names the delete still to come,
+     and one the command made itself,
+     because another command took the hand-over first,
+     says every file is gone now and that nothing waits for the service.
   A subvolume or a mount point below the worktree's root that this wrapper did not make is removed around:
      the wrapper removes every other entry of the worktree,
      leaves the volume and the directories that lead to it exactly as they stand,
@@ -1015,6 +1020,11 @@ Read-only commands,
      entry,
      and the same unforced command reads it and finishes the removal,
      so a command killed in that pass costs the person one more run of what they typed.
+     The record is written over the one an earlier attempt left,
+     so the same command run again after a kill writes it again rather than warning that the pass is
+     unrecorded;
+     a landed removal whose volume had gone by the time its pass ended says so,
+     and never that its own deletions freed the space the snapshot held.
      Without such a record the report says what the command itself did,
      names `--force`,
      and says that moving a volume out cannot finish a tree whose tracked entries are gone.
