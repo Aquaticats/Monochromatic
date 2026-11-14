@@ -18673,7 +18673,15 @@ A `-x` clean needs no such reading:
 it deletes every untracked file whether a pattern calls it ignored or not,
 and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
 which the status measurement over-reports rather than under-reports.
-A clean in a linked worktree that deletes ignored files with two or more `-f` keeps every nested Git repository first.
+A clean in a linked worktree that deletes ignored files keeps every nested Git repository first,
+whatever force count it carries,
+because Git's hold at one force sees a `.git` entry and not a bare repository:
+`git clean -fXd` at one force prints `Removing ignored-bare/` and `Skipping repository ignored-inner`
+(measured on this host with native Git 2.56.0, 2026-11-14),
+and with `clean.requireForce=false` a clean with no `-f` does the same.
+The dry run is asked at the force count the person typed,
+so it names the truth for every count,
+and the force count is no gate anywhere in this reading.
 Every one of those dry runs is started in the directory the clean runs in
 (`CleanDryRun` in `src/native/command/command_clean.rs`,
 whose directory comes from `command_run_directory` in `src/native/policy/command_run_directory.rs`
@@ -18702,13 +18710,14 @@ so a reading that waited for `-d` let that clean delete a repository unsaved,
 and what the clean really deletes is Git's own dry run.
 The same holds for the interactive transform,
 which caps a menu that offers a repository whether the clean descends or names a pathspec.
-Git removes such a repository whole (`builtin/clean.c`,
-`if (force > 1) rm_flags = 0`),
+Git removes such a repository whole
+(`builtin/clean.c`: at two or more forces `rm_flags` loses `REMOVE_DIR_KEEP_NESTED_GIT`,
+and at one force and at none that flag keeps a directory holding a `.git` entry and no bare one),
 with its own history and its uncommitted files,
 and the outer worktree reports it as one ignored directory,
 so nothing else the policy reads can see the work inside it.
-One force never removes a nested repository,
-so a clean with one force asks nothing about them.
+One force removes a bare repository and keeps one with a `.git` entry,
+so a clean at any force count is asked what it would delete.
 Git names the paths itself:
 the typed clean's `--dry-run` names each path Git would remove,
 and every one of those names is read as a path.
@@ -18739,11 +18748,11 @@ because moving that one takes everything inside it.
 The look inside those paths runs on an awaited thread for no longer than the read ceiling a Git query has,
 because a directory read or a metadata lookup on a mount whose server stopped answering never returns;
 a look that gives no answer in that time stops the command and names the directory.
-Git's one-force answer is no list of the same repositories and is not read:
-at one force the directory walk skips every nested repository itself (`DIR_SKIP_NESTED_GIT`),
-without a word,
-so a repository below an untracked directory was deleted unsaved while that answer named nothing,
-and `msg_would_skip_git_dir` reaches the answer only for a repository inside a directory the answer already lists.
+The dry run is read at the force count typed,
+and it names what Git deletes at that count:
+at one force the directory walk skips a repository with a `.git` entry (`DIR_SKIP_NESTED_GIT`,
+`msg_would_skip_git_dir`) and names a bare one as an ordinary ignored directory (`Removing ignored-bare/`),
+so the bare one is saved and the `.git` shape is left where Git keeps it.
 A path Git had to quote (a name holding a newline,
 a quote or another byte it cannot print) is decoded
 before anything reads it as a path,
@@ -19029,6 +19038,15 @@ a metadata lookup on a mount whose server stopped answering waits in the kernel 
 The rename and the directory flushes of a nested repository saved aside are bounded the same way,
 and a rename still waiting at the ceiling is reported as "the wrapper cannot tell whether it moved",
 naming both places, because an abandoned rename may still complete.
+The bytes of a pathspec file are read under a byte bound (`PATHSPEC_FILE_READ_LIMIT`,
+eight mebibytes,
+`service/wait_ceilings.rs`):
+the read runs on a thread the command stops waiting for at `PATHSPEC_FILE_READ_CEILING`,
+so a read with no bound kept growing this process's memory after the answer,
+and a sparse file of four gibibytes raised the wrapper's resident memory to a scope's whole gibibyte
+in the five seconds before the refusal (measured on this host, 2026-11-14);
+a file past the bound is refused with its size named,
+and a pipe is still read, which is what a process substitution names.
 A metadata lookup that fails for any reason other than `NotFound` is a failure of the reading,
 never "this marked path is unedited":
 the first says nothing about the bytes and the second would let a form overwrite an edit nobody saw.
@@ -19049,6 +19067,42 @@ The guard therefore does not rest on `require-root` staying enabled to see the w
 Each listing is asked once per command,
 with each answer intersected against the written paths in the wrapper's own process
 (`repo_read/repository_facts_paths_in_the_way.rs`).
+
+Every reading that names a path is measured from the directory the command runs in,
+which `command_run_directory` answers once and `paths_in_the_way` hands to every reading of the
+form's words,
+and each answer is written as the worktree root spells it:
+`run_directory_prefix` puts that directory's own prefix before a name the command read from there
+(`policy/command_run_directory.rs`).
+The places, each with the directory its own query starts Git in:
+the `ls-tree` of a whole tree asks with `--full-tree` and needs no directory;
+the `ls-tree` of a path form starts in the run directory, so its pathspecs mean what they mean to
+the command, and its answers are rooted with that directory's prefix;
+`ls-files --cached` does the same, with `:(top)` when the form names no path;
+`checkout-index --prefix` joins the value to the run directory, or takes it whole when it is
+absolute, and writes no entry when the pair lands outside the worktree;
+`mv`'s sources and destination are read from the filesystem there;
+a pathspec file's relative name is read from there;
+the clean's dry run starts there (`CleanDryRun`);
+the two listings of the worktree ask with `-- :(top)`;
+and the marked paths of a hidden edit are listed from the top and given back to Git as
+`:(top,literal)` pathspecs, while the bytes of one are hashed from its full path below the
+worktree root
+(`repo_read/repository_facts_edits_the_status_hides.rs`).
+Before this, a path form inside a `!` alias was looked for below the caller
+(`git wipe` in `wt/sub` wrote the top-level `b.txt` over an untracked file the guard never named),
+an `assume-unchanged` edit at the top was invisible to a `reset --hard` run in `sub`,
+and a pathspec file's relative name was read from the wrong directory when `-C` moved the command
+(measured on this host with native Git 2.56.0, 2026-11-14).
+Two words a reading used to mistook are read as Git reads them:
+a separated `--prefix` value is the option's value and no pathspec
+(`git checkout-index -f --prefix out/ -- a.txt` writes `out/a.txt` alone,
+which the reading named `out/out/keep.txt` and refused),
+and no positional word is dropped for being equal to the `--pathspec-from-file` name,
+because the option's own table already consumes a separated value
+(`git checkout -f topic --pathspec-from-file=topic` was read as aimed at the index, whose paths do
+not hold `topic`'s new file, and wrote over an untracked `b.txt`).
+Both measured on this host with native Git 2.56.0, 2026-11-14.
 `--directory` names a directory the worktree holds whole as one entry (`nested/`),
 which is the entry a refusal must name,
 and bounds a listing to one entry per such directory instead of one per file inside it.

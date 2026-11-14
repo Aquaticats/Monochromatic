@@ -2552,6 +2552,22 @@ The rule is:
   Both dry runs start where the clean runs,
   which is the top of the working tree for a clean a `!` alias starts,
   so a pattern that reaches a file above the directory you stood in is still measured.
+- A clean in a linked worktree that deletes ignored files keeps every nested Git repository whole
+  before it runs, whatever force count it carries,
+  and the clean then runs as typed:
+  the repository is moved to
+  `<common Git directory>/monochromatic-git-policy-cli/discarded/<stamp>/<path>` and the notice names
+  where, before Git starts.
+  The force count is no exception because one force is Git's hold on a folder with a `.git` entry
+  and not on a bare repository, whose whole history is deleted there
+  (`git clean -fXd` prints `Removing ignored-bare/` and `Skipping repository ignored-inner`,
+  measured on this host with native Git 2.56.0, 2026-11-14);
+  a clean with no `-f` under `clean.requireForce=false` deletes the same repository and is kept the
+  same way.
+  An interactive clean whose menu would offer a bare repository is stopped at any force count,
+  naming the repository and the two ways to run that clean with it in hand:
+  without `-i`, so it is saved first, or with `--no-enforce-worktree`, so the menu and your choice
+  run as real Git runs them.
 - A form that only moves `HEAD` (`git checkout <branch>`,
   `git switch <branch>`) is rejected in any worktree
    only while it holds uncommitted tracked changes.
@@ -2599,6 +2615,14 @@ The rule is:
   write over".
   A file named by `--pathspec-from-file` is read for at most five seconds: Git itself waits with no
   end for a pipe nobody writes to, and this wrapper's rule is that nothing waits forever.
+  It is read for at most eight mebibytes as well, and a larger file is refused with its size named,
+  because a read the wrapper has stopped waiting for must not go on filling memory;
+  a pipe is still read, so `--pathspec-from-file=<(printf 'a.txt\n')` works as it does in Git.
+  A revision spelled exactly like that file's name is still the revision
+  (`git checkout -f topic --pathspec-from-file=topic` writes `topic`'s tree, which is what the
+  guard then refuses over an untracked file it would replace),
+  and a `--prefix` value written as the next word is that option's value alone
+  (`git checkout-index -f --prefix out/ -- a.txt` writes `out/a.txt` and nothing else).
   It is read the way Git reads it: a line that begins with a double quote is C-unquoted,
   a carriage return is dropped, and a zero-byte file is no pathspec at all, so the form becomes the
   whole-tree form Git really runs (`checkout -f other --pathspec-from-file=<empty>` switches the
@@ -2748,6 +2772,11 @@ A clean an alias runs is therefore measured over what it really deletes:
 an untracked file an `-e` pattern names above you,
 and a nested repository above you,
 are kept or refused before Git runs.
+Every other reading of a form's own paths is measured from that directory too,
+and each answer is written as the worktree root spells it,
+so a path form an alias runs over a file at the top is refused from a subdirectory,
+and an `assume-unchanged` edit at the top is read by a `git reset --hard` you run in `sub`
+(measured on this host with native Git 2.56.0, 2026-11-14).
 
 Two commands are never rejected and always leave one audit line (outcome `logged`,
 with `writtenBeforeGitRuns` `true`,
