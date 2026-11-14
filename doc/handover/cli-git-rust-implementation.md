@@ -1121,7 +1121,7 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
-##### The no-manager author answered two findings; the archives run stopped at four archives; a commit was written without a deletion it named (2026-11-13T21:20:50-05:00)
+##### The no-manager author answered two findings; the archives run stopped at four archives (2026-11-13T21:20:50-05:00)
 
 Not final and not approved:
 read by the coordinating session from each run's last message and report,
@@ -1210,26 +1210,38 @@ report `~/temp/agent/tracked-archives-removed-and-their-data-kept-as-plain-files
 - The run ended as `driver-failed`
   (`SyntaxError: Unterminated string in JSON at position 509`)
   after its report was written and pushed.
-  Its driver was started at 17:56:40,
-  before the fix for issue 6299 was merged at 19:36:16,
-  so this is the old code;
-  runs started after the merge have ended `idle`.
+  That message,
+  character for character,
+  is issue 6295's
+  ("Issue 6295: the Pi driver records a finished run as failed"):
+  the driver parsed a `process` tool result out of the feed,
+  which keeps only a cut-short preview of it.
+  The run's feed holds ten `process` results.
+  Its driver was started at 17:56:40;
+  the driver in `main` since `47a403a0e2` (19:36:16) catches that parse
+  (`package/pi-shared/subagent-driver/src/work-the-run-left-running.ts`,
+  the `try` around the parse of `record.result`),
+  and runs started after it have ended `idle`.
 
-A commit written without a deletion its author says it named:
+Retracted at 21:24:
+a commit written without a deletion it named.
 
-- The archives run's commit `e1b703cd03` (2026-11-13T20:22:46-05:00) adds a folder of 158 new files and still holds the archive the same step deleted;
-  `83075d8a1f` deletes it six minutes later.
-  Read by the coordinating session with `git show --stat`:
-  the first lists 164 files and no deleted file,
-  the second deletes `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`.
-  The new folder's name is the archive's name without `.zip`.
-- Whether the commit's list of paths named the deleted file is the author's word;
-  the feed cuts the command short and the Pi session file holds it whole.
-- A fresh run is queued near the head
-  (`commit-of-named-paths-holds-every-deletion-it-names-when-the-list-also-names-a-new-folder`):
-  the commands read from the session file,
-  the same commands through real Git side by side,
-  and a commit of named paths that holds every path it names or refuses and says which.
+- The archives author reported that the wrapper's commit of named paths "wrote a commit without the archive deletion when the same pathspec list also named a new directory".
+  The first version of this section took that as a possible wrapper defect and queued a fresh run for it.
+- Read whole from the run's Pi session file
+  (`~/temp/agent/archives-run-commit-that-left-out-a-deletion-read-from-its-pi-session-2026-11-13/keep/the-two-commit-commands-and-their-results.txt`):
+  the first commit named the new folder and the `.zip`,
+  and the wrapper refused it before anything landed,
+  as real Git does,
+  because the new folder was untracked
+  (`explicit-path-commit/pathspec-matches-nothing`,
+  with the advice to `git add` it).
+  The author then added the folder and committed again with a list that no longer held the `.zip`.
+  Commit `e1b703cd03` holds exactly what its command named.
+- So no defect of the wrapper is shown.
+  The run was taken out of the queue before it started and its brief deleted.
+  The archives author's continuation brief says what happened,
+  so its next commits name deleted paths too.
 
 ##### Pass 26, the smaller build tree, is in `main`; no release is made for it alone (2026-11-13T21:14:18-05:00)
 
@@ -1309,6 +1321,11 @@ written by the coordinating session from the pass's report and its own commands'
   (`package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not`,
   since 17:25)
   and was told of all three by a note in its inbox.
+  The commit of 21:22:23 printed two more,
+  for the worktrees of two authors resumed minutes before
+  (add-never-skips and the warm request),
+  sent to the same run by a second note:
+  five in ten minutes.
   Corrected at 21:22:
   this line first said that run was in the queue.
 
