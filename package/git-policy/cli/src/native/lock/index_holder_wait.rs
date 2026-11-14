@@ -65,7 +65,7 @@ const MERGE_CONSEQUENCE: &str = "the merge does not apply until that lock is gon
 
 /// The sentence a command's dead owner's line ends on when nothing else holds the lock:
 /// the command clears it and goes on.
-pub const CLEARS_A_DEAD_OWNERS_LOCK: &str = "the merge clears that lock when nothing else holds it and goes on; if anything else holds it, nothing was changed and the lock was left in place";
+pub const CLEARS_A_DEAD_OWNERS_LOCK: &str = "the merge clears that lock when nothing else holds it and goes on; if anything else holds it, nothing was written by this step and the lock was left in place";
 
 /// The bounded scan of open descriptors.
 use crate::index_lock_holders::scan_platform_holders_bounded;
@@ -99,14 +99,14 @@ pub enum IndexWait {
     /// The lock's PID file names a process that no longer runs,
     /// so nothing will release it;
     /// the diagnostic was written,
-    ///  nothing was changed and the lock was left in place.
+    ///  nothing was written by the wait and the lock was left in place.
     OwnerGone(
         /// How long the wait lasted.
         Duration,
     ),
     /// The lock was still held at the ceiling;
     /// the line naming the blocker was written,
-    /// nothing was changed and the lock was left
+    /// nothing was written by the wait and the lock was left
     ///  in place.
     GaveUp(
         /// How long the wait lasted.

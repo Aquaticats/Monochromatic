@@ -196,9 +196,11 @@ pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>, end: Wa
 /// function ceilingLine({ lockPath, blocker, waitedSeconds, consequence }): string;
 /// ```
 pub fn ceiling_line(lock_path: &Path, blocker: &str, waited_seconds: u64, consequence: &str) -> String {
+    // A wait writes nothing, and it is reached after a clear that may have written the branch's content over the person's
+    //  bytes, so the line says what the wait did rather than what the command did.
     return format!(
-        "monochromatic-git-policy-cli: {lock} is still held after {waited_seconds} seconds by {blocker}, so {consequence}; nothing was changed and the lock was \
-         left in place. Run the command again once that program is done.\n",
+        "monochromatic-git-policy-cli: {lock} is still held after {waited_seconds} seconds by {blocker}, so {consequence}; nothing was written by this \
+         wait, and the lock was left in place. Run the command again once that program is done.\n",
         lock = lock_path.display()
     );
 }
