@@ -1295,6 +1295,30 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The gate's new failure passes on this machine and in 94 earlier gate logs; pass 44 changed the lock code whose words it printed; a fresh run has it (2026-11-14T18:55:33-05:00)
+
+Not final and not approved:
+what the coordinating session measured and queued.
+
+- **`worktree_copy_concurrent::an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_copy`**,
+  the one failure of the gate on `0.6.1-alpha.34` that the 28 do not hold:
+  its `FAIL` line is in that one gate log and its `PASS` line in 94 of the gate logs kept;
+  run once on this machine at `main` at 18:55:33 with the five other controls of its module,
+  6 of 6 passed
+  (`~/temp/agent/gate/keep/host-run-of-the-worktree-copy-concurrent-controls-at-main-after-the-gate-on-c6a7e45273.txt`).
+  No file of its own module changed with pass 44,
+  and three under `src/native/lock/` did
+  (`index_holder_wait.rs`,
+  `index_lock_evidence.rs`,
+  `index_lock_evidence_words.rs`),
+  which is the code whose words the wrapper printed when the control failed.
+  One failure in one run cannot tell a rare timing from something the change brought.
+  A fresh run is queued at the head to reproduce it under the container's conditions,
+  say whether `4576839066` shows it,
+  and make the control's own sentence true
+  (`~/temp/agent/pi-runs/add-finishes-while-another-adds-real-git-holds-the-index-lock-in-the-gate-container-prompt.md`).
+  By the owner's answer it does not hold the next release.
+
 ##### The gate on `0.6.1-alpha.34` fails the same 28 and one more, a control of two adds at once; its first six minutes are clean (2026-11-14T18:53:57-05:00)
 
 Not final and not approved:
