@@ -772,6 +772,14 @@ Questions kept for the owner's return:
     a service that is alive but stopped (a debugger, a starved acceptor) reads as recovering,
     and the command ends after up to two minutes;
     is a shorter bound wanted with the same words?
+  - mpm-shadow's install removes no version, the fresh run (tip `0d6f26b31d`, added 2026-11-14T17:04-05:00):
+    its author's open questions,
+    as it words them at the end of
+    `~/temp/agent/mpm-shadow-install-removes-no-version-answers-its-review-in-a-fresh-run-scratch/keep/report.md`:
+    the cleanup's clock,
+    the bound of one hour on a program,
+    its guard's refusal against another branch's going on,
+    and whether the prune of archives needs a race in a fixture.
   - mpm-shadow's cleanup of old versions, its fourth answer (tip `b416f1e2b0`, added 2026-11-14T16:23-05:00):
     a held good copy kept aside while its name holds an unfinished install waits for that install to finish or fail;
     is it deleted after a stated time,
@@ -1262,6 +1270,177 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### A path shaped like a placeholder stops a whole batch of reviews, back to the brief writer's author; the cargo-shadow test task's answer goes to its reviewer (2026-11-14T17:18:05-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session queued.
+
+- **The brief writer for a change to tests alone** (`30ccacc4ef`),
+  third review:
+  the reading of awkward names with `-z`,
+  the brief for a deletion,
+  a second run keeping an earlier review file,
+  and the round trip of a rendered path are right by its runs.
+  One reproduced that the change makes reachable:
+  a path shaped like one of the template's placeholders (`@BREAK@.ts`) is put in raw,
+  the second scan for leftover placeholders throws,
+  and the caller awaits each brief with no catch,
+  so every later branch of the batch is skipped.
+  The reviewer says the name is uncommon,
+  and that the scan and the missing catch are in files the change did not touch.
+  This session weighs it as worth the fix:
+  the writer is what every range review here starts from,
+  and one branch stopping a batch is how reviews would be lost without a word.
+  The author is resumed
+  (`~/temp/agent/pi-runs/review-brief-writer-for-tests-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **The cargo-shadow test task** (tip `2b0db25306`, ended 17:12:45):
+  the author reports that a host with no reachable user manager now says how many tests ran and names the 67 that did not,
+  counting none of them as passed,
+  where it said `872 passed` before;
+  a test of those run by name fails with `not run`;
+  the variable that made it pass is gone.
+  It names one test of `main` that fails or passes from run to run on this machine
+  (`shim::an_unrecorded_launcher…`)
+  and a race in a fixture of `round_thirteen_tests`,
+  neither its own.
+  The change being tests and a task file,
+  its reviewer is resumed to check it
+  (`~/temp/agent/pi-runs/go-on-with-the-review-of-the-cargo-shadow-test-task-and-check-the-answer-at-2b0db25306-prompt.md`).
+- Read at 17:16:59:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  Neither resumed session is named by the credential scan.
+  The gate on `0.6.1-alpha.33` has given no verdict yet.
+
+##### The read-only main checkout's second review finds one wrong message and three older losses in the driver; three authors' answers go to review (2026-11-14T17:04:30-05:00)
+
+Not final and not approved:
+what one review and three authors report of themselves,
+and what the coordinating session read and queued.
+
+- **A Pi run cannot write into the main checkout** (`8e55456582`),
+  second review:
+  the waits are bounded,
+  the finish path never forces a removal,
+  relative paths are refused;
+  the reviewer had no manager to probe the encodings of paths.
+  One in the change,
+  reproduced with a stand-in for the manager:
+  a run that did start and wrote its summary,
+  and whose worktree another launcher of its name then removed,
+  is told "no unit was started and no run happened".
+  The author is resumed for it,
+  and asked for a control that starts a real transient unit for each awkward path
+  (`~/temp/agent/pi-runs/pi-run-cannot-write-into-the-main-checkout-answers-its-second-review-of-2026-11-14-prompt.md`).
+- **Three things the same review found in files of `main` the change does not touch**,
+  each a loss of what an agent made:
+  the cleanup between two attempts of a start removes a worktree by force with no look at who owns it,
+  so a second start of that name loses uncommitted work (reproduced with real Git);
+  the number of a run's folder is chosen from a listing before anything is reserved,
+  so two starts at once can share a folder (by reading);
+  and a resumed wake drops `--run=<n>` and not the detached `--run <n>`,
+  so the resumed run writes over the first run's summary (reproduced).
+  Two fresh runs are queued,
+  the first two as one task since both are two starts of one name
+  (`…/two-starts-of-one-run-name-never-share-a-run-folder-or-remove-each-others-worktree-prompt.md`,
+  `…/resumed-wake-of-a-run-never-reuses-the-folder-of-the-run-before-it-prompt.md`).
+- **A landing never waits behind housekeeping** (tip `0b847be249`, ended 16:58:47):
+  the author reports the fifth review's three answered and names what it left
+  (other request kinds still answer unavailable on a starved look,
+  none of them a commit;
+  the landing thread's own journal storage has no ceiling as a step).
+  Review queued first (27 code files);
+  passes 29 and 34 go on waiting for its verdict.
+- **The discarding commands** (tip `4027b63582`, ended 16:58:36):
+  the author reports the three findings fixed with controls and the two things it had left either fixed or stated,
+  168 tests of the guard's modules and 82 binary controls passing;
+  it found one control that had been failing since the fourth review's own fix,
+  which that round's checks did not run.
+  Review queued second (33 code files).
+- **mpm-shadow's install removes no version**,
+  the fresh run from `e51ae27709` (tip `0d6f26b31d`, ended 17:01:51):
+  the author reports the review answered without opening the earlier run's folder or sessions,
+  as its brief required.
+  Its open questions are at the end of its `keep/report.md`
+  (the cleanup's clock,
+  a bound of one hour on a program,
+  a guard that refuses where another branch goes on,
+  and whether the prune of archives needs a race in a fixture);
+  they are added to the kept list by that pointer.
+  Review queued third (23 code files).
+- **`0.6.1-alpha.33`**,
+  the user journal from 17:00:15 until it was read at 17:04:30,
+  short of the six minutes:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  four starts saying `0.6.1-alpha.33`,
+  each the installed program in its own unit.
+- Read at 17:03:07:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  The resumed session is not named by the credential scan.
+  The queue held 68 entries at 17:04:30.
+
+##### `0.6.1-alpha.33` is installed and its gate is running (2026-11-14T17:00:34-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **`0.6.1-alpha.33`** (pass 38):
+  published by 17:00:21,
+  installed here from 17:00:21 to 17:00:31,
+  sample commit 1,051 ms,
+  `--version` answering `0.6.1-alpha.33`.
+  Its gate was started at 17:00:34 on `4576839066`,
+  the commit `main` pointed at with the release's bump and the lock
+  (unit and log `gpc-gate-wrapper-next-alpha-on-4576839066-20261114T170034-0500`);
+  a bounded wait for its verdict runs in the background.
+  The journal checks of its first minutes are still to run.
+- The wrapper releases of 2026-11-14 after the owner's return,
+  in order:
+  `0.6.1-alpha.28` (pass 37),
+  `0.6.1-alpha.29` (pass 39),
+  `0.6.1-alpha.30` (pass 40),
+  `0.6.1-alpha.31` (pass 43),
+  `0.6.1-alpha.32` (pass 42),
+  `0.6.1-alpha.33` (pass 38).
+
+##### The drive probe held level 24 for its eight hours, with 28 slow readings and not the four this file said; it is started again (2026-11-14T16:55:07-05:00)
+
+Not final and not approved:
+what the coordinating session measured,
+and a correction of its own earlier count.
+
+- **The probe of both drives at level 24**,
+  started 08:54:35,
+  ended at its bound with status 0:
+  "level 24 held 28800 s on the probe; slowest write-and-sync 10405 ms".
+  It never read two slow in a row.
+  Of its 532 readings,
+  28 took a second or more.
+  The slowest was on the build drive at 12:06:02 with 20 agent units going (10,405 ms);
+  others on the build drive of 9,633 ms at 15:24:00,
+  8,350 ms at 16:07:14,
+  7,557 ms at 15:07:50 and 5,921 ms at 16:42:30;
+  on the home drive 7,754 ms at 08:55:36 with eight units going and 5,536 ms at 12:48:16.
+  The agent units going at those readings were 19 to 24,
+  the providers' pools and not the cap holding the count.
+- **Correction.**
+  The sections of 14:37:32 and 14:41:29 in this file,
+  and what was told to the owner at 14:27 and 14:41,
+  said that four of 266 readings from 10:00 to 14:27 took a second or more.
+  That count was read through `tail`,
+  which cut the list;
+  the same span holds more,
+  the 10,405 ms reading among them.
+  The count of this section is taken with no cap on its output.
+- **Started again** at 16:54:54 at level 24 for another 28,800 s
+  (`disk-ceiling-probe-level-24-20261114T165454`).
+  The level stays at 24 by the owner's answer of 08:54;
+  the search for the ceiling is done again when the new drive is in.
 
 ##### Pass 38 is in `main` and `0.6.1-alpha.33` is dispatched; pass 44 reported fit and goes on to hold the new `main`; the brief writer's second answer goes to review (2026-11-14T16:54:04-05:00)
 
