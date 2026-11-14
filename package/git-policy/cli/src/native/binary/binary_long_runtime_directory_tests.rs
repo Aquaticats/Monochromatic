@@ -187,13 +187,14 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
     let bus_directory: PathBuf = super::support::short_runtime_directory(&fixture);
     let services: Arc<Mutex<Vec<Child>>> = Arc::new(Mutex::new(Vec::new()));
     let start: Box<dyn Fn() + Send> = {
-        let runtime: PathBuf = runtime.clone();
-        let instance: String = instance.clone();
+        // What the stand-in manager's start needs of its own: the spelling it starts a service at, and the instance.
+        let started_at: PathBuf = runtime.clone();
+        let started_for: String = instance.clone();
         let journal: PathBuf = fixture.root.join("journal");
         let home: PathBuf = fixture.root.join("home");
         let started: Arc<Mutex<Vec<Child>>> = Arc::clone(&services);
         Box::new(move || {
-            let address: Bind = socket_address_of(runtime.as_path(), instance.as_str());
+            let address: Bind = socket_address_of(started_at.as_path(), started_for.as_str());
             // A manager asked to start a unit that already runs starts nothing: the stand-in asks for a service only where
             // one is not answering.
             if git_policy_cli::service_address_of_a_worktree::the_address_is_there(&address) {
@@ -211,7 +212,7 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
                 Bind::Inherited => panic!("the stand-in manager names the address it starts a service at"),
             }
             command
-                .args(["--instance", instance.as_str()])
+                .args(["--instance", started_for.as_str()])
                 .env_clear()
                 .env("PATH", "/usr/bin:/bin")
                 .env("HOME", home.as_path())
