@@ -440,14 +440,17 @@ pub(super) const ALLOWED: &[Allowed] = &[
               the job holds 250 ms. The entry goes with the control that sets that hold",
     },
     Allowed {
-        file: "service/service_is_gone_after_a_stop.rs",
-        rule: "blocking-sleep",
-        why: "the pause between looks at a stopped service's end, on the synchronous sweep and removal commands, which build no runtime",
-    },
-    Allowed {
         file: "service/service_client.rs",
         rule: "blocking-sleep",
         why: "the client's pause between connects, on the synchronous commit command",
+    },
+    Allowed {
+        file: "service/service_fault.rs",
+        rule: "blocking-sleep",
+        why: "the pause of a control's hold between the address being bound and the first greeting, which a control arms by naming a \
+              pipe in `CLI_GIT_TEST_ONLY_SERVICE_HOLD_BEFORE_SERVING`. It runs on the service's start thread, before `serve` \
+              builds the runtime at all, so it pauses no worker and no task; a hold a person could arm in a release run is \
+              bounded by `HOLD_PATIENCE` (60 s). The entry goes with the seam the fourth review's control needs",
     },
     Allowed {
         file: "service/service_server_start_by_the_wrapper.rs",

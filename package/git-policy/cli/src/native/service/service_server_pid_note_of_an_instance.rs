@@ -117,7 +117,7 @@ pub fn claim(note: &Path, pid: i32) -> std::io::Result<()> {
             //  removes so the next round can publish; a note naming a live process is that service's, and is looked at again.
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 if held_by_another_live_process(note).is_none() {
-                    let _removed = std::fs::remove_file(note);
+                    let _a_stale_note_removed = std::fs::remove_file(note);
                 }
             }
             Err(refused) => return Err(refused),
@@ -165,8 +165,8 @@ pub(crate) fn a_control_runs_before_the_publish(step: impl FnOnce() + 'static) {
 fn run_the_controls_step_before_the_publish() {
     #[cfg(test)]
     BEFORE_THE_PUBLISH.with(|slot| {
-        let step: Option<Box<dyn FnOnce()>> = slot.borrow_mut().take();
-        if let Some(step) = step {
+        let left: Option<Box<dyn FnOnce()>> = slot.borrow_mut().take();
+        if let Some(step) = left {
             step();
         }
     });
