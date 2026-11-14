@@ -104,8 +104,6 @@ export {
   PiRunEndedEarlyError,
   supervisePiRun,
 } from './supervise-pi-run.ts';
-export { watchUntilEnded, } from './watch-pi-run.ts';
-export type { WatchRequest, } from './watch-request.ts';
 export {
   type StartWaitingRequest,
   startWaitingForAnAnswer,
@@ -119,15 +117,6 @@ export {
   putTheRunAway,
   type RunPutAway,
 } from './put-the-run-away.ts';
-export {
-  answerModelError,
-  type RetryWaiting,
-} from './answer-a-model-error.ts';
-export {
-  askAnAgentWhoseAnswerWasEmpty,
-  type EmptyAnswerAnswer,
-  goOnMessage,
-} from './ask-an-agent-whose-answer-was-empty.ts';
 
 /**
  What the watch for runs that should have come back reads, and the lines it answers with. The command is
@@ -227,13 +216,6 @@ export {
   wakeResumeWordsOf,
   workWaitMillisecondsOf,
 } from './wake-a-run-whose-work-outlives-its-turn.ts';
-export {
-  cgroupOf,
-  unitNamedBy,
-  wakeMessageOf,
-  workOutlivingTheTurnIn,
-  workTheToolReportedIn,
-} from './work-the-run-left-running.ts';
 
 /**
  A batch started as its own systemd user unit, so it outlives the process that asked for it: `start-a-batch-in-its-own-unit.ts`.
@@ -349,6 +331,11 @@ export {
   startLineSplitter,
   type SplitPiOutputRequest,
 } from './split-pi-output.ts';
+
+/**
+ The library surface of one run after its prompt, kept in a file of its own for the same reason.
+ */
+export * from './index-of-watching-a-run.ts';
 
 /**
  The library surface of reading a run's own records, kept in a file of its own for the same reason.

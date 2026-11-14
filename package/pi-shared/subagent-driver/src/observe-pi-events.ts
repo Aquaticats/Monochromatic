@@ -40,6 +40,12 @@ const NOTED_EVENT_TYPES: ReadonlySet<string> = new Set([
 ],);
 
 /**
+ The absence of an earlier turn whose text the summary carries: either the last assistant message carried its own words, or no
+ assistant message has carried any.
+ */
+export const NO_EARLIER_TEXT_TURN: unique symbol = Symbol('the summary holds no words from an earlier turn');
+
+/**
  What Pi reports of its own session, measured on the run's own clock rather than the epoch's.
  */
 type CompactionInTheRun =
@@ -74,10 +80,10 @@ export type ObservedPiRun = {
   readonly lastAnswerWasEmpty: () => boolean;
 
   /**
-   The turn whose text `lastAssistantText` holds, when the last assistant message carried none of its own; nothing when that text
-   is the last message's, and nothing when no assistant message has carried any.
+   The turn whose text `lastAssistantText` holds, when the last assistant message carried none of its own; {@link
+   NO_EARLIER_TEXT_TURN} when that text is the last message's, and when no assistant message has carried any.
    */
-  readonly lastTextTurn: () => number | undefined;
+  readonly lastTextTurn: () => number | typeof NO_EARLIER_TEXT_TURN;
 
   readonly unrecoveredModelError: () => RunFailure;
 
@@ -229,7 +235,9 @@ export function startObservingPiRun({
     const endedInError = message.stop === 'error';
     // An answer that carries no text and calls no tool, and did not fail, leaves the run with nothing: not what the agent found,
     // and not the word that it had finished.
-    state.lastAnswerWasEmpty = (message.text === '') && (toolCalls === 0) && (!endedInError);
+    state.lastAnswerWasEmpty = (message.text === '')
+      && (toolCalls === 0)
+      && (!endedInError);
     if (endedInError) {
       state.pendingModelError = message.error === '' ? MODEL_ERROR_WITHOUT_TEXT : message.error;
       // A failure of its own supersedes what Pi said about the retry that answered the one before it, so a run that ends on
@@ -418,7 +426,10 @@ export function startObservingPiRun({
       return state.lastAnswerWasEmpty;
     },
     lastTextTurn: function lastTextTurn() {
-      return state.lastMessageHadText ? undefined : state.lastTextTurn;
+      if (state.lastMessageHadText || (state.lastTextTurn === undefined)) {
+        return NO_EARLIER_TEXT_TURN;
+      }
+      return state.lastTextTurn;
     },
     unrecoveredModelError: function unrecoveredModelError() {
       return (state.unrecoveredModelError === undefined) ? NO_RUN_FAILURE : {

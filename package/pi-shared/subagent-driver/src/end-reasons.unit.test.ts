@@ -64,6 +64,19 @@ await describe({
       },
     },),
     it({
+      name: 'an agent whose last answer said nothing never passes for a run that came back',
+      fn: async () => {
+        // Pi left cleanly and nothing failed late, so only the reason says the run has no report to read.
+        expect(finalEndReason({
+          endReason: 'empty-answer',
+          stopped: true,
+          modelError: NO_RUN_FAILURE,
+          feedProblem: NO_RUN_FAILURE,
+          piExit: { code: 0, },
+        },),).toBe('empty-answer',);
+      },
+    },),
+    it({
       name: 'a Pi whose leaving could not be confirmed never ends clean',
       fn: async () => {
         expect(finalEndReason({

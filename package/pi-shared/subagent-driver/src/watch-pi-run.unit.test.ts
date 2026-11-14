@@ -1311,15 +1311,26 @@ await describe({
     it({
       name: 'an ask the run ends before leaves the empty answer standing, under the ending that ended the wait',
       fn: async () => {
-        for (const [ending, expected,] of [['deadline', 'wall-clock',], ['pi-exited', 'pi-exited',],] as const) {
+        /**
+         Ends one run under the ending a wait can meet, and reads what the summary counted.
+         */
+        async function expectTheAskEndedUnder({
+          ending,
+          expected,
+        }: {
+          readonly ending: 'deadline' | 'pi-exited';
+          readonly expected: 'wall-clock' | 'pi-exited'
+        },): Promise<void> {
           await using run = await startRunThatAnsweredNothing();
           /**
            The messages the watch sent, which is the ask the wait ended under.
            */
           const sent: string[] = [];
-          // oxlint-disable-next-line eslint/no-await-in-loop -- one run per ending, each with its own folder
           const endReason = await watchUntilEnded({
-            connection: connectionWhoseWaitEnds({ ending, sent, },),
+            connection: connectionWhoseWaitEnds({
+              ending,
+              sent,
+            },),
             record: run.record,
             options: optionsOf({ runFolder: run.runFolder, },),
             inbox: run.inbox,
@@ -1330,7 +1341,6 @@ await describe({
           /**
            What the summary says about the empty answer the run ended on.
            */
-          // oxlint-disable-next-line eslint/no-await-in-loop -- the record of the run just ended
           const summary = run.record.summarize({
             endReason: expected,
             piExit: {},
@@ -1339,6 +1349,15 @@ await describe({
           },);
           expect(summary.emptyAnswer,).toEqual({ asked: 1, },);
         }
+
+        await expectTheAskEndedUnder({
+          ending: 'deadline',
+          expected: 'wall-clock',
+        },);
+        await expectTheAskEndedUnder({
+          ending: 'pi-exited',
+          expected: 'pi-exited',
+        },);
       },
     },),
   ],

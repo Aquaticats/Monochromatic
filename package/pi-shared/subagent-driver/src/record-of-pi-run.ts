@@ -86,10 +86,10 @@ function emptyAnswerOf({
  */
 function lastTextTurnOf(run: ObservedPiRun,): { readonly lastAssistantTextTurn?: number } {
   /**
-   The earlier turn the summary's text came from, if it came from one.
+   The earlier turn the summary's text came from, or the sentinel that says it came from none.
    */
   const turn = run.lastTextTurn();
-  return (turn === undefined) ? {} : { lastAssistantTextTurn: turn, };
+  return ((typeof turn) === 'symbol') ? {} : { lastAssistantTextTurn: turn, };
 }
 
 /**
