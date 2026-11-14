@@ -762,6 +762,13 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - The drawn shadow tree, its third answer (tip `be2299c325`, added 2026-11-14T18:02-05:00):
+    a tree handed to a commit that never sends its request is kept with no bound
+    (`A_DRAWN_TREE_IS_KEPT_FOR` is `None`),
+    so the list of handed trees grows by one for each such commit;
+    keep that,
+    or give it a span,
+    whose cost the author wrote beside the constant?
   - A removal run from inside an unprivileged user namespace (integration pass 41, added 2026-11-14T17:52-05:00):
     the guard that refuses a worktree a process works in cannot read other processes' working folders there and refuses every unforced removal;
     keep that,
@@ -1294,6 +1301,130 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The reviewer's quota is dry by the owner's word; no review starts until the owner says where reviews go (2026-11-14T18:07:36-05:00)
+
+Not final and not approved:
+what the owner wrote,
+what the coordinating session measured and changed,
+and what waits on an answer.
+
+- **The owner wrote**,
+  between 18:02:34 and 18:05:33:
+  "My Qwen quota has ran dry."
+- **Measured at 18:06:38.**
+  Seven review runs' summaries written since 17:30 hold the provider's `insufficient_quota` answer:
+  the masking of credentials,
+  the queue filling,
+  mpm-shadow's removal of old versions,
+  the push of a branch not checked out and the test services' journal change,
+  the last two twice,
+  each put back at the head by the filling unit at 18:04:13,
+  started again and ended on the same answer.
+  No run on the reviewer's model was going;
+  all 19 Pi units going were authors and passes on `neuralwatt`,
+  model `deepseek-v4.1-flash-flex`.
+  The pools at 18:07:09:
+  `neuralwatt-flex` 20 of 20,
+  `neuralwatt-kimi-flex` 0 of 20,
+  `qwen-token-plan` 0 of 5,
+  the other default pools closed.
+- **Changed at 18:06:57**,
+  so that no start is spent on an answer that cannot come:
+  while the file
+  `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/no-run-on-the-reviewer-model-starts-while-this-file-exists.md`
+  exists,
+  the queue's starter starts no entry for `qwen4-max-preview`.
+  The entries keep their places;
+  runs for the default pools go on starting.
+  Deleting the file ends the hold.
+  The filling unit runs the starter anew each round,
+  so the change needs no restart.
+- **What waits on it**:
+  the reviews of the masking (so the rotation of credentials too),
+  of the queue filling,
+  of mpm-shadow's removal of old versions,
+  of the drawn shadow tree,
+  of the scan for a process that has gone,
+  of the push of a branch not checked out,
+  and of the test services' journal change;
+  and every answer an author gives from here on.
+  Authors,
+  passes and fresh runs are not held.
+- **Asked of the owner through the question tool**:
+  where reviews go while the quota is dry.
+  The project's rule sends reviews of a change to `qwen4-max-preview` alone,
+  so another reviewer is the owner's to choose.
+  Until an answer,
+  the hold stands and nothing is sent to another model.
+
+##### The drawn shadow tree's third answer goes to review (2026-11-14T18:02:02-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+and what the coordinating session queued.
+
+- **A drawn shadow tree handed to a commit is never removed by the sweep for its age** (tip `be2299c325`, ended 17:57:51):
+  the author reports that a tree the service handed out is kept through the removal's own step,
+  so the question and the removal are one,
+  and that a commit whose tree went in the middle builds once more in another and lands,
+  with the person's worktree untouched.
+  Both controls are quoted failing with the fix out;
+  412 unit tests,
+  29 guard tests and 6 binary controls pass on the merged tree.
+  Cost by its measurement:
+  the answer path 250 to 430 ns against 20 ns before,
+  a landing's draw unchanged within noise,
+  one `lstat` more for a commit.
+  It leaves one constant for the owner,
+  `A_DRAWN_TREE_IS_KEPT_FOR`,
+  set to no bound,
+  under which the list of handed trees grows by one for each commit that never sends a request;
+  added to the kept list.
+  Review queued (range `main...be2299c325`, 12 code files).
+- Read at 18:02:02:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+
+##### The cargo-shadow test task passes whole on `main`; the masking's review has started and its reviewer is told to use stand-in values alone; the push of a branch not checked out goes to its fifth review (2026-11-14T17:57:04-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+and what the coordinating session ran,
+sent and queued.
+
+- **The cargo-shadow test task on `main` at `2c88505f65`**,
+  run once after the merge in a scope held to four CPUs,
+  ended 17:55:30:
+  `872 tests run: 872 passed, 21 skipped`,
+  status 0,
+  with 872 lines that each name a passing test,
+  the one that goes both ways on this machine (`shim::an_unrecorded_launcher…`) among them this time
+  (`~/temp/agent/cargo-shadow-test-task-on-main-after-its-merge-2026-11-14T1752/keep/test-task-on-main-at-2c88505f65.txt`).
+- **The review of the masking** was going at 17:56:09.
+  The note this session owed its reviewer went into its inbox at 17:56:30:
+  stand-in values and a disposable store only,
+  a disposable `HOME`,
+  the author's scripts that read this machine's real sources read and never run,
+  no real Pi started,
+  and what the review is asked above all
+  (`~/temp/agent/notes-to-send/note-for-the-reviewer-of-the-masking-of-secret-values-stand-in-values-only-2026-11-14T1757.md`).
+- **The push of a branch that is not checked out** (tip `36cae084ae`, ended 17:51:41):
+  the author reports the five findings of its fourth review answered,
+  each control quoted failing first,
+  537 tests of the push modules and 13 binary controls passing,
+  and names one window its record cannot close
+  (a worktree registered after the listing before the write,
+  whose own `reset` read the old tip in the same instant,
+  with the wrapper killed before the listing after the write),
+  which would need a sweep of the common directory.
+  Review queued (range `main...36cae084ae`, 15 code files).
+  It was first queued under a name that counted one review too many and was renamed while still queued,
+  to `review-git-policy-cli-push-of-a-branch-that-is-not-checked-out-answers-after-its-fourth-review`.
+- Read at 17:56:09:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  The queue held 68 entries at 17:57:04.
 
 ##### The masking of credentials is written and goes to review first; pass 41 is not fit as it stands; the landing goes back a sixth time; the cargo-shadow test task is in `main` (2026-11-14T17:52:38-05:00)
 
