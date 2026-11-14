@@ -1246,8 +1246,16 @@ and what the coordinating session measured and queued.
   **The branch has passed and waits for the next integration pass**;
   passes 37 and 38 had both started.
   That review says it had Kimi K3.1 Pro check its two findings.
-  The record is that reviews of a change go to qwen4 alone;
-  how a review run reached another model was not looked into.
+  Read from its Pi session file
+  (the one `summary.json` of its run folder names):
+  the reviewer, qwen4, called Pi's own `advisor` tool once,
+  after its review file was written and its runs had ended
+  (the run's tool counts: 25 reads, 28 shell commands, 3 writes, 2 edits, 1 advisor);
+  the advisor it reached is Kimi K3.1 Pro,
+  which confirmed both findings and added one claim the reviewer checked against the code and dismissed.
+  No other run was started and no other reviewer's folder was read.
+  The repository's rule for a qwen4 review is "alongside advisor, never instead",
+  so this is the recorded shape and nothing is to be changed for it.
 - **Twenty-eight agents were going at 09:44:26 and at 09:45:50**
   (`systemctl --user list-units --state=active 'pi-*.service'`),
   four over the cap of twenty-four.
