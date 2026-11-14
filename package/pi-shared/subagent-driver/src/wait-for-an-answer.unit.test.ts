@@ -10,6 +10,7 @@ import {
   describe,
   expect,
   it,
+  type TestContext,
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   type CommandAnswer,
@@ -186,6 +187,10 @@ function compactionProblemOf(answer: CommandAnswer,): string {
 
 await describe({
   name: startWaitingForAnAnswer.name,
+  // One test of this file holds a fake clock, which replaces the process's timers and its date, so the tests here run one at a
+  // time: a sibling beside the holder would read the replaced clock rather than the host's. See the fake-timer recipe in
+  // package/test-harness/core/README.md.
+  concurrency: 1,
   children: [
     it({
       name: 'ends on the silence bound when Pi reports no compaction, naming that bound',
@@ -239,7 +244,16 @@ await describe({
     },),
     it({
       name: 'the silence starts afresh when a compaction ends, so a wait that was nearly out gets the whole bound again',
-      fn: async () => {
+      fn: async ({ sinon, }: TestContext,) => {
+        /**
+         The clock this test holds, so the bound under test comes due when the test says rather than when a loaded host gets to
+         it: the margin between the test's own step and the wait's bound was 10 ms, and a stall past it settled the wait first.
+         */
+        const clock = sinon.useFakeTimers({
+          now: Date.now(),
+          toFake: ['Date', 'setTimeout', 'clearTimeout',],
+          shouldClearNativeTimers: true,
+        },);
         /**
          The compaction Pi reports.
          */
@@ -252,23 +266,26 @@ await describe({
           deadline: Date.now() + FAR_DEADLINE_MILLISECONDS,
           compactionOfPi: compaction.of,
         },);
-        // Almost all of the bound is spent before Pi begins compacting.
-        await sleep(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
+        // Almost all of the bound is spent before Pi begins compacting, and the clock moves only by what the test asks for.
+        clock.tick(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
+        expect(watched.settled(),).toBe(false,);
         compaction.begin();
         watched.waiting
           .pauseSilence();
-        expect(await settledWithin(watched, COMPACTION_MILLISECONDS,),).toBe(false,);
+        // Pi is at work, so none of the time a compaction takes is silence, however long Pi spends there.
+        clock.tick(COMPACTION_MILLISECONDS,);
+        expect(watched.settled(),).toBe(false,);
         compaction.end();
         watched.waiting
           .resumeSilence(NO_RUN_FAILURE,);
-        /**
-         When the silence began counting again, so the test can tell a fresh bound from what was left of the old one.
-         */
-        const resumedAt = Date.now();
+        // A wait that kept the silence it served before would have settled here, on the little the bound had left near 10 ms.
+        expect(watched.settled(),).toBe(false,);
+        clock.tick(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
+        expect(watched.settled(),).toBe(false,);
+        // The whole bound again: the last of it, and not a millisecond before.
+        clock.tick(LOOK_MILLISECONDS,);
         await watched.done;
         expect(watched.answer().ending,).toBe('silence',);
-        // A wait that kept the silence it served before would have ended on the little the bound had left, near 10 ms.
-        expect(Date.now() - resumedAt,).toBeGreaterThanOrEqual(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
       },
     },),
     it({
