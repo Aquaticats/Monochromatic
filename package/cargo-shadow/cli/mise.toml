@@ -54,11 +54,15 @@ if (asked.status === 0) {
 // can go stale as tests are added.
 const suite = spawnSync('cargo', ['nextest', 'run', '--release', '--no-fail-fast', '--success-output=final'], { stdio: 'inherit', env: { ...unacknowledged, [ACKNOWLEDGEMENT]: '1' } })
 const reason = (asked.stderr ?? '').split('\n').map((line) => { return line.trim(); }).find((line) => { return line.includes('cannot give the test a delegated scope'); }) ?? ''
+if (reason === '') {
+  // The question answered 100 without the line this task quotes, so its own output is all there is to show.
+  process.stderr.write((asked.stdout ?? '') + (asked.stderr ?? ''))
+}
 console.error(
   [
     '',
     'This host cannot give the tests a delegated control group.',
-    reason === '' ? 'The reason is in the output of the question above.' : `The reason, as the tests put it: ${reason}`,
+    reason === '' ? 'The reason is in the output of the question, printed above.' : `The reason, as the tests put it: ${reason}`,
     'Every test that needs one printed a SKIPPED line above, in this run: it did not run, so nothing it stands for was checked here,',
     'and none of those tests is a failure of cargo-shadow.',
     'They run where this account has a user manager on a cgroup v2 mount, for example inside a delegated scope of it:',
