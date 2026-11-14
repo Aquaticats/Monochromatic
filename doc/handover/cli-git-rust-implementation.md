@@ -28454,6 +28454,18 @@ and the reviewer could not rebuild the author's end-to-end starts of Pi.
   "Merge all (Recommended)".
   The three amendments of 2026-11-14 in the decision record are accepted by it.
 - Merged as `bf5ebb6170` at 16:09:08.
+- What the merge reaches,
+  measured at 16:10:
+  the installed Pi (`@earendil-works/pi-coding-agent` 1.5.2 in the pnpm store under `~/.local/share/pnpm/store/v11/links/`) has its `proper-lockfile` as a link to the main checkout's `package/pnpm-override/shim-proper-lockfile`,
+  whose `index.cjs` was written by the merge at 16:09:08.
+  So every Pi started on this machine since then,
+  in any worktree,
+  loads the merged shim,
+  and a branch's own copy of the shim was never what a Pi run in its worktree loaded.
+  The runs going at the merge keep the old shim in memory until they end.
+  No lock entry stood in `~/.pi/agent` at 16:10:38
+  (names listed,
+  nothing read).
 - What this session watches for:
   a Pi start that ends on a lock it cannot judge,
   whose message names the command;
