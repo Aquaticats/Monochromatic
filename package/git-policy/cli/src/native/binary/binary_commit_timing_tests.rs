@@ -387,11 +387,21 @@ fn slow_commit_git(fixture: &Fixture, seconds: u64) -> PathBuf {
 /// so only the stop ends the step.
 const BEYOND_THE_CEILING_SECONDS: u64 = 60;
 
+/// How long the stand-in Git sleeps in the control of a step that outlasts the ceiling it really runs under,
+/// in seconds:
+/// twice that ceiling, so only the stop can end the step.
+///  The 60 a sleep equal to the ceiling was cannot tell the stop from the step's own end:
+/// the ceiling reached 60 s in `wait_ceilings.rs`
+/// (`SCRATCH_COMMIT_STEP_CEILING_FLOOR`),
+/// and the notice counts it from the first look that found the step,
+/// which is up to `LOOK_INTERVAL` (250 ms) after the step started
+/// (`native_commit_waiting_notice.rs`),
+/// so the sleep ended first and the commit landed.
+const BEYOND_THE_PRODUCTION_CEILING_SECONDS: u64 = git_policy_cli::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING.as_secs() * 2;
+
 /// A commit whose message came with the command and whose scratch `git commit` outlasts the ceiling
-/// (16,332 ms,
-/// owner,
-/// 2026-11-08,
-/// "About 16 seconds")
+/// the step really runs under (`wait_ceilings.rs`,
+/// `SCRATCH_COMMIT_STEP_CEILING`)
 /// is stopped,
 /// says that nothing was committed and that the same command can be run again,
 /// and changes neither the branch nor the person's files.
@@ -407,7 +417,7 @@ fn a_scratch_commit_that_outlasts_the_ceiling_is_stopped_and_nothing_is_committe
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
     let mut command: Command = commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
     let edited: Vec<u8> = std::fs::read(repo.join("a.txt")).expect("a.txt");
-    let mut path: std::ffi::OsString = slow_commit_git(&fixture, BEYOND_THE_CEILING_SECONDS).into_os_string();
+    let mut path: std::ffi::OsString = slow_commit_git(&fixture, BEYOND_THE_PRODUCTION_CEILING_SECONDS).into_os_string();
     path.push(":");
     path.push(fixture.root.join("bin"));
     command.env("PATH", path);
@@ -416,7 +426,7 @@ fn a_scratch_commit_that_outlasts_the_ceiling_is_stopped_and_nothing_is_committe
     let lasted: Duration = began.elapsed();
     let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
     assert_eq!(served.code, Some(1), "{stderr}");
-    assert!(lasted < Duration::from_secs(BEYOND_THE_CEILING_SECONDS), "the stop did not end the step: {lasted:?}");
+    assert!(lasted < Duration::from_secs(BEYOND_THE_PRODUCTION_CEILING_SECONDS), "the stop did not end the step: {lasted:?}");
     assert!(stderr.contains("was stopped after") && stderr.contains("nothing was committed"), "{stderr}");
     assert!(stderr.contains("Run the same `git commit` command again"), "{stderr}");
     assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
