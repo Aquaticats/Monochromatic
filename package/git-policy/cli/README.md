@@ -3658,6 +3658,22 @@ a command that meets one waits for the lock,
  bounded,
 because only finishing that merge lets the command read the checkout.
 
+A lock a program takes after the merge has looked,
+and before Git's own fast-forward,
+is a third case,
+and it ends in one of two states:
+
+- A lock a process that no longer runs left is cleared on the commit service's proof of disuse,
+  by the same step that puts the person's own bytes back,
+  and the merge is made again on those bytes and lands.
+- A lock that is still held,
+  or one that proof does not cover,
+  saves the merge on `refs/cli-git/kept/<n>` and exits 0 like the cases above,
+  and the line states what the checkout holds:
+  the paths the merge changes hold the branch's content where the person's bytes were,
+  those bytes are kept on the capture's ref it names,
+  and the next git command in this worktree puts them back and finishes the merge.
+
 #### A branch that moved while the merge was prepared
 
 The merge commit is built on the head the merge was computed on,

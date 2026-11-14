@@ -5379,6 +5379,22 @@ with the conflicting paths named,
 only where no resolution exists.
 The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
 
+A lock another program takes at any instant between a merge's look at the index and its last step
+is no exception to that bar.
+It ends in one of two states:
+
+- The merge lands,
+  which is what a lock a process that no longer runs left allows once it is cleared on the commit
+  service's proof of disuse,
+  and what a lock that goes while the person's own bytes are put back allows.
+- The merge is saved for a later command with the branch unmoved and the command exiting 0,
+  and where the lock that stopped Git's own update also stops the putting back of the person's own bytes,
+  the command states what the files hold,
+  which ref keeps their bytes,
+  and which command puts them back.
+
+No line of such a command says the checkout is as it was when it is not.
+
 The owner on 2026-11-10:
 "Dozens of agents at once is normal operation."
 That is the load every command is built for,
