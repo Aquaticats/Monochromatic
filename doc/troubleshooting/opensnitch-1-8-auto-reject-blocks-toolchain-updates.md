@@ -235,6 +235,7 @@ The selecting predicate was re-read in
 [`daemon/rule/loader.go:497 to 515`](https://github.com/evilsocket/opensnitch/blob/b404c4c6316760fa7bc415509d3f8d747f7dc9cc/daemon/rule/loader.go#L497-L515):
 
 ```go
+// daemon/rule/loader.go
 if rule.Action == Reject || rule.Action == Deny || rule.Precedence == true {
     return rule
 }
@@ -257,6 +258,7 @@ permanent precedence allows before any deletion.
 The original download probe was:
 
 ```sh
+# /home/linuxbrew/.linuxbrew/opt/curl/bin/curl
 /home/linuxbrew/.linuxbrew/opt/curl/bin/curl \
   --fail --silent --show-error \
   --connect-timeout 10 --max-time 25 \
@@ -286,6 +288,13 @@ The daemon log recorded deletion of every superseded file at `2026-11-14T14:03:4
 The updater's stale `start-limit-hit` state was cleared with
 `systemctl reset-failed uupd-manual.service`.
 The full system updater was not rerun.
+
+The saved JSON copies matched the installed files by SHA-256.
+The Markdown record passed the scoped `lint:monochromatic-lint` task.
+Its CommonMark rendering through Pandoc preserved the incident headings,
+rule links,
+account method names,
+and download URL.
 
 ### Upstream filing decision
 

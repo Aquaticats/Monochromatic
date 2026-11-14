@@ -14,6 +14,7 @@ import {
   MODEL_ERROR_RETRY_BASE_SECONDS,
   MODEL_ERROR_RETRY_CAP,
   parseDriverOptions,
+  START_PAUSE_MILLISECONDS,
 } from '../dist/final/node/index.mjs';
 
 const COMPLETE = [
@@ -26,6 +27,11 @@ const COMPLETE = [
   '--idle-seconds=1.5',
   '--turn-cap=80',
 ] as const;
+
+/**
+ Milliseconds in a second, so a limit the options state in seconds is derived from the value the driver ships.
+ */
+const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
  Reads the error a command line gives.
@@ -63,6 +69,7 @@ await describe({
           turnCap: 80,
           retryCap: MODEL_ERROR_RETRY_CAP,
           retryBaseSeconds: MODEL_ERROR_RETRY_BASE_SECONDS,
+          startPauseSeconds: START_PAUSE_MILLISECONDS / MILLISECONDS_PER_SECOND,
         },);
       },
     },),
@@ -116,6 +123,15 @@ await describe({
         expect(options.retryBaseSeconds,).toBe(0.25,);
         // Zero retries is the run this driver made before it retried anything, so a coordinator may ask for it.
         expect(parseDriverOptions([...COMPLETE, '--retry-cap=0',],).retryCap,).toBe(0,);
+      },
+    },),
+    it({
+      name: 'reads the pause before another start, and refuses one that is no number above zero',
+      fn: async () => {
+        expect(parseDriverOptions([...COMPLETE, '--start-pause-seconds=0.25',],).startPauseSeconds,).toBe(0.25,);
+        for (const value of ['0', '-1', 'soon', 'Infinity',]) {
+          expect(errorOf([...COMPLETE, `--start-pause-seconds=${value}`,],),).toContain('must be a number above zero',);
+        }
       },
     },),
     it({

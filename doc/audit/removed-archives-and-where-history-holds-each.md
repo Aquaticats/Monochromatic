@@ -926,10 +926,11 @@ SHA-256 `88073f4fd7a6e22b0c268e63d70eca7e89b01448174917b712adc34a98bcac12`.
 
 ### `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence/`
 
-Every member these documents cite,
-byte for byte except the seven the repository's own guards changed:
+Every member of the archive but agent-final-report.md,
+which is the agent's own account and none of the four things the sentence names;
+byte for byte except the nine the repository's own guards changed:
 five markdown members re-wrapped and given fence labels,
-one JSON member re-wrapped,
+three JSON members re-wrapped,
 and one text file whose final newline was made canonical.
 The documents are doc/research/optique-typo-suggestion-overhead-upstream-record.md,
 doc/troubleshooting/deno-run-with-an-npm-import-map-fails-beside-a-package-json.md,
@@ -945,6 +946,9 @@ at their archive-relative paths under that folder.
 A member the repository changed carries the digest it had in the archive first
 and the digest it has in the tree second.
 
+- `Containerfile`:
+  4904 bytes,
+  SHA-256 `4e44bb7775a47a11ddc77e3e22e1b8b55be64fb6d644b9d5f22ce6fd8b60097d`.
 - `agent-scaling-report.md`:
   21653 bytes,
   SHA-256 `384ce4184137ad4bc2d892870dad886c0cccd6fd815aefeac03497bd78a23a32`;
@@ -953,9 +957,21 @@ and the digest it has in the tree second.
 - `coordinator-check/cost-model.ts`:
   4035 bytes,
   SHA-256 `913fff44074a0f04352937d21a35665a4dfe67a94b10942345507a8f8b866fdf`.
+- `coordinator-check/independent-check-output.jsonl`:
+  1281 bytes,
+  SHA-256 `1ef6cb681e6da63e43e6431f0f15b3e736577b09cc8bfafbb5cad8b3d398cc94`.
+- `coordinator-check/independent-check.ts`:
+  3593 bytes,
+  SHA-256 `e0803926ff9eb40f5fed302857451f291665e51775cd5b20bddd3105d56b0748`.
 - `coordinator-check/literal-no-match-rounds.jsonl`:
   1134 bytes,
   SHA-256 `571bba4495f840dece8c266779cc677b3f74c790d46a2ac2cac276da004c833c`.
+- `coordinator-check/literal-no-match-variant.ts`:
+  3681 bytes,
+  SHA-256 `9108684586232773582597c90efa84a7c0b1ff28c8ee139489cf848c24262ded`.
+- `coordinator-check/one-typo-on-0.7.0.ts`:
+  2085 bytes,
+  SHA-256 `86de90ab332b7759543e75842fc928cccf2fccd0209e87a66444035e916a10b9`.
 - `coordinator-check/one-typo-rounds.jsonl`:
   782 bytes,
   SHA-256 `0babc707f261529bf489832c0ed856d162a739de8b77fce823f4fe7f5927ba57`.
@@ -965,17 +981,63 @@ and the digest it has in the tree second.
 - `coordinator-check/reproducer-rounds.jsonl`:
   2794 bytes,
   SHA-256 `50b006101d01cc8f561187266e74057f6ba7ea6243224c43e8c7694b8bb60eb0`.
+- `coordinator-check/reproducer.ts`:
+  3377 bytes,
+  SHA-256 `99c464e4c53caf790338a5516ec92d93c0deb3f6c36a3d9cfe9d277f1ff7f708`.
+- `coordinator-check/run-reproducer.ts`:
+  2106 bytes,
+  SHA-256 `06317dddb4c3d2fb15a7a60611856ded859a255fae546d8b1e376c9738df41be`.
+- `coordinator-check/run-script-per-arm.ts`:
+  1903 bytes,
+  SHA-256 `890fcf6ce3065eb75ed1a756672f3527217732c32c8d474a6e4b8352f6cfbfcb`.
 - `coordinator-check/separator-variant-rounds.jsonl`:
   840 bytes,
   SHA-256 `73d31bdd0e152bef92ed9b47442fac4ce23b325db91757a47372eb1d74f7daaf`.
+- `coordinator-check/separator-variant.ts`:
+  3428 bytes,
+  SHA-256 `eaccf4f0739da7ab47115331267b4a25d29c57ecc29b89b68afb32f6246e7a8c`.
+- `coordinator-check/token-quadratic-check.ts`:
+  2099 bytes,
+  SHA-256 `480ef4c5c0e6765f3363fd7f367ff8854982a6e49139fc6764d18f0a4f6d28b7`.
 - `coordinator-check/token-quadratic-rounds.jsonl`:
   2549 bytes,
   SHA-256 `6589386a465cde20a99bd2cac05f51ca111a2c672a370f9c9150846a1ef9df00`.
+- `ctx/meta.json`:
+  6297 bytes,
+  SHA-256 `9b8e9878b57c476972ce7154839cbba2c4ea974cc48539bef218761dc1d18805`.
+- `ctx/owned/src/abbrev.ts`:
+  3357 bytes,
+  SHA-256 `e12eed79de985608f54666f7c64a8ede9bc2d5e104325cea3a13f04b20cb6dc1`.
+- `ctx/owned/src/escape-hatch.ts`:
+  5145 bytes,
+  SHA-256 `4fc7791d7e1520630ce3c7085379eef20d726db901d127d77448613b13365148`.
+- `ctx/owned/src/parser/argv.ts`:
+  9919 bytes,
+  SHA-256 `11d52a903688fa247990dbdf79470fe4c77774dc712905c2d254c294136bad40`.
+- `ctx/owned/src/parser/commit-flag-aliases.ts`:
+  2458 bytes,
+  SHA-256 `a27d7e1c35591526ba504348582d5719dbbf658028894756ed288a58fa2fddc3`.
+- `ctx/owned/src/parser/commit-normalise.ts`:
+  7527 bytes,
+  SHA-256 `ffac8cd028b658a505967e1f3bfe2fe4fdd89482cac61aa64f11a812bb862c71`.
+- `ctx/owned/src/parser/commit.ts`:
+  8722 bytes,
+  SHA-256 `9a7114efcf4f4eeff63ad2c6d1512b56bff72515c843e7414749e67e808e103b`.
+- `data/issue988-paths.json`:
+  31892 bytes,
+  SHA-256 `97c1eedd4a76242db7f33c55a88305fb31a24c56a5b5a91ab3f6b21f6caab244`;
+  in the tree 34893 bytes,
+  SHA-256 `1d074d33dcb1ef07cda04f250deec5cef24f292490b348f4acd104db971adbde`.
 - `data/real-paths.json`:
   56452 bytes,
   SHA-256 `6fefc0c682d1eff105615c58c72bde368f08dd59f9ad130b5580382468a4ed5e`;
   in the tree 59453 bytes,
   SHA-256 `3cad2d5c962d3d7734654f720e6c3fd0bbe584008d63e919a5e0d89f6b588bad`.
+- `data/short-paths.json`:
+  5274 bytes,
+  SHA-256 `ccbc3a7cc7eab9163a2653a9532bcf31c176fe830354e1002baf279aa87d8ab1`;
+  in the tree 8275 bytes,
+  SHA-256 `f3fd7245b9591077359401a0b19a80aadc240124d6d5cfd99198c45602369b10`.
 - `measurements-2026-11-13/Containerfile.older-lines`:
   1611 bytes,
   SHA-256 `c398f08360128d5c1979aed266f93c9917a02f69a03e14b8c95424c2869b6bd1`.
@@ -1129,9 +1191,69 @@ and the digest it has in the tree second.
 - `results-scaling/fit.json`:
   54531 bytes,
   SHA-256 `89c2f13eba257107e554073e3139c98b5f9f5beb7210fc6dd6419f51f21efbc3`.
+- `results-scaling/probes-summary.json`:
+  1150 bytes,
+  SHA-256 `d5adaed33d576f7df0c4492b3f9938c1c2f7fdb804a9cd511f80274cd19dec8c`.
+- `results-scaling/profile-sizes.jsonl`:
+  5981 bytes,
+  SHA-256 `c333c076fbc9002a4cbfed6b99b98129c51a98850c024c03c72db9b2da9f4947`.
+- `results-scaling/profile-sizes.log`:
+  120 bytes,
+  SHA-256 `8ead8e007b7ff29bbcadcbc3a493139d31f52079c7c7e23d611a949e84ff2dae`.
+- `results-scaling/profiles.jsonl`:
+  15031 bytes,
+  SHA-256 `8e7662022f6f4827bd0b6ebb5e5ed46dbb3d4564a464d76d7b901a2147b764fc`.
+- `results-scaling/profiles.log`:
+  305 bytes,
+  SHA-256 `56fbeda0ec339d1b5b293c0eed8b921b4681ce42f114e4ad9b60a9f23b839dfd`.
+- `results-scaling/run-meta.json`:
+  1397 bytes,
+  SHA-256 `2fa6d3a5d2433a1aaa7403fb599c749a95a39db2591766643d243363bc6f3e75`.
+- `results-scaling/scaling.jsonl`:
+  146439 bytes,
+  SHA-256 `8647e5afb954f61fe40a39a78e9a45837dac5da98dea2e8902e4e11ab435cd2b`.
+- `results-scaling/scaling.log`:
+  756 bytes,
+  SHA-256 `da44cc46b21346153b733a92ac663b65c3de8817090803f576c7f5dfb9679cad`.
+- `results-scaling/search-summary.json`:
+  761 bytes,
+  SHA-256 `6bcc28beaa4a4da7f9feac00d65697da96d2364e6cf0b5942cc1f8dbf96bfceb`.
+- `results-scaling/search.jsonl`:
+  1848 bytes,
+  SHA-256 `e939a7ae34bb344e6cc32845c7cea15df87cbe13613a241316d16208748197ff`.
+- `results-scaling/search.log`:
+  0 bytes,
+  SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
+- `results-scaling/separator-spread.jsonl`:
+  26996 bytes,
+  SHA-256 `fd3cb56f1b8a74d406862aea7efa4abd91e6c3e21d62c297a0a225138a672f88`.
+- `results-scaling/separator-spread.log`:
+  442 bytes,
+  SHA-256 `24d6e1c6de17ef7002a743698914d89c15f111416df354a5bab6d53a339e2dfc`.
+- `results-scaling/separator-summary.json`:
+  1722 bytes,
+  SHA-256 `268b6b4c17a9b6966caaf239f6ab2c78ed02ce29d4a9ba5094257d6feceb5a3c`.
+- `results-scaling/separator.jsonl`:
+  7792 bytes,
+  SHA-256 `03678dbef6400a9e938aa8cb33d0c8f024df3a5038885c48248de670caac6da8`.
+- `results-scaling/separator.log`:
+  449 bytes,
+  SHA-256 `16f5ee80d1582a9b9589bd3f9431e86ffe91b968a37d5197c070f39de3fe3fa2`.
+- `results-scaling/summarise-probes.txt`:
+  522 bytes,
+  SHA-256 `ce851d00666e4b64f4a7ebd6e1b210f785dc16bae2cdad149c53649cd6d387b8`.
 - `results-scaling/summarise-search.txt`:
   294 bytes,
   SHA-256 `37fc472fa880edaea181c519c2e7b4274d0008ff29cc1a1aec086ffa9957991b`.
+- `results-scaling/summarise-separator.txt`:
+  733 bytes,
+  SHA-256 `fd03c43d136b513886a2edf69785cfebd6cb09f5842cb624b847f2f39040ed75`.
+- `results-scaling/token-probe.jsonl`:
+  7285 bytes,
+  SHA-256 `bf64bc8bfb726b72351bbb5fea2d732fe2d5512713deb3c275d9bae8a348b3eb`.
+- `results-scaling/token-probe.log`:
+  0 bytes,
+  SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 - `results/behavior-comparison.json`:
   12964 bytes,
   SHA-256 `9c758c79d6792972f77c6eca9167be65eb60624b54c7cd5e8217d492b4af1f23`.
@@ -1187,6 +1309,126 @@ and the digest it has in the tree second.
 - `results/summary.json`:
   101537 bytes,
   SHA-256 `b1dc11fbf1f27a6fa862494746771021789a4c589e5c9c9533d32254f4a5afd5`.
+- `scripts/analyse-profile.ts`:
+  9661 bytes,
+  SHA-256 `b1163326170703190e0a0faa95ed00789733ce57532bf935a4771dc231db16f6`.
+- `scripts/behavior-all.ts`:
+  925 bytes,
+  SHA-256 `612cd13f4e211181c44ded97307a71804bbfec8c94e58b1d49fd40f96e323af2`.
+- `scripts/behavior.ts`:
+  6193 bytes,
+  SHA-256 `b3ef8446df13edd3b800f4529668aa170d6f3d216c90da8ada1b81d3fb3d5000`.
+- `scripts/compare-behavior.ts`:
+  4408 bytes,
+  SHA-256 `911ae7113fe89439cd41569a36e4c4d9f8a2d9074f1bced4a044a8a83c2528fc`.
+- `scripts/fit-scaling.ts`:
+  22373 bytes,
+  SHA-256 `ca1eb07e99f0e92b20a5a1807eddaf4e6b1608eb782e8e411dba1a6c9bb71401`.
+- `scripts/gen-inputs.ts`:
+  5727 bytes,
+  SHA-256 `74e81c443ebfb6760add44df9985582e98aaea5a01c55d51ed8879899b4559e8`.
+- `scripts/gen-meta.ts`:
+  8837 bytes,
+  SHA-256 `20f773cff71c34154f63663f24c54cb4d7314913887b0e34af24cca42dc1abe9`.
+- `scripts/harness.ts`:
+  4527 bytes,
+  SHA-256 `0c44e49860ad7c38a51583abe4eb4317c824cb676e0f733c97cd19e42ae1589b`.
+- `scripts/issue988-parser.ts`:
+  2605 bytes,
+  SHA-256 `861f57aea46ac5f35c1b58927f1c01496a11fb37227c0fc355bb8ada02af023b`.
+- `scripts/measure-scaling.ts`:
+  5767 bytes,
+  SHA-256 `ef621ee75625d4a8a2d5274c9734f6200e6fa561348f28f992eb32a674b9e54d`.
+- `scripts/measure.ts`:
+  5723 bytes,
+  SHA-256 `75290c153d06c0f1dfa69afd0629f1d0323f94d44d52bf8bb676f1eed95937ac`.
+- `scripts/profile-run.ts`:
+  2984 bytes,
+  SHA-256 `aeeab74a475ebb19677dd7d02fd5162170222bca5fcab85d5653daa6bd0c3a84`.
+- `scripts/profile-run2.ts`:
+  3278 bytes,
+  SHA-256 `c224b83a0c598196a59cc38bc6d0d93e44120b6d32c6f86225d3b834ccec2b8f`.
+- `scripts/profile-separator-sizes.ts`:
+  2288 bytes,
+  SHA-256 `21cdccaf9f055eb4548aeaee5aa8d30b2288a156d664d9bffb7906bc6bb70dba`.
+- `scripts/profile-separator.ts`:
+  1933 bytes,
+  SHA-256 `dec8b634d677453b28c72c3692a9cfc4f61195fc5aab3405ae7b3b08a529f912`.
+- `scripts/profile-workload.ts`:
+  2664 bytes,
+  SHA-256 `208387b94a379f7c896003c0e4bc523bd964c2135844e111e4702389be403570`.
+- `scripts/report-tables.ts`:
+  9313 bytes,
+  SHA-256 `5bd823bec8ba3af8599f5f0b1a4be0f06599887e0490df589948285e2451fd48`.
+- `scripts/run-all.ts`:
+  11770 bytes,
+  SHA-256 `f4484bfa669b4bf1f6c07fe7f63c12d4b239ec00cf7a5b8e6e6c4c0ae5e78c32`.
+- `scripts/run-arm.ts`:
+  6121 bytes,
+  SHA-256 `a3cddeaf3854eb1b4b2d44d8cc417500be9eb5fce54a66e027df9728bc4206a4`.
+- `scripts/scaling-all.ts`:
+  4764 bytes,
+  SHA-256 `627220e894f808e2588b8dcb422ee55a8be9defc5537d86c93d4ac75d6ebd477`.
+- `scripts/scaling-grid.ts`:
+  2056 bytes,
+  SHA-256 `1d08f2727b8da299679fbaca10ae71ef786d445f392e92bd2e45fb524c591d26`.
+- `scripts/scaling-parser.ts`:
+  5474 bytes,
+  SHA-256 `e2af32f18883328093e38fda169c28cf946183096b15d97fc6a6ca197823e10d`.
+- `scripts/scaling-run.ts`:
+  4878 bytes,
+  SHA-256 `deb7184f2a2710821b000766c42c799b525d18d40f5ed0ae1069329529528b87`.
+- `scripts/scaling-token-probe.ts`:
+  2155 bytes,
+  SHA-256 `4446f3d92a89f4dcda927619d2c39d1e90452fb3449ac7d8103662aa1815a019`.
+- `scripts/search-cost.ts`:
+  7644 bytes,
+  SHA-256 `305288b6e72e5b8602a6d2158b3ab0a9e95034b87f0a9df9a53642c80d564efb`.
+- `scripts/separator-all.ts`:
+  4893 bytes,
+  SHA-256 `76439e7011d679fae28a856a6d84533d37f9f2067066e4acda72bdca9bde1bcd`.
+- `scripts/separator-parser.ts`:
+  4865 bytes,
+  SHA-256 `57efeab2301ebc256a58826dee3c472f745e48314dc98a6b42f516347f829b42`.
+- `scripts/separator-run.ts`:
+  3805 bytes,
+  SHA-256 `87f33f1bfd00d77be24bd9e7c7bedc9cb00453baa8d196f9b8f1452ee8c83467`.
+- `scripts/spread.ts`:
+  7198 bytes,
+  SHA-256 `c4e1776ad9191ddd2f071c10ddaa9a98528c9df8cd9d1eba8dfa9c4704540cca`.
+- `scripts/summarise-probes.ts`:
+  7151 bytes,
+  SHA-256 `325d2400689129c93b6f0835a13efcbcbb7e58b58bcccff7b8bcf1ee2742c5a0`.
+- `scripts/summarise-search.ts`:
+  4799 bytes,
+  SHA-256 `bb3f33e598552f6178f815f6e7ffc9e566886f33ec9f14e48dc8876616022c2d`.
+- `scripts/summarise-separator.ts`:
+  6700 bytes,
+  SHA-256 `60672e904a277b7005d654f600df819056898886b7cee0d0355707b2c370fb02`.
+- `scripts/summarise.ts`:
+  8597 bytes,
+  SHA-256 `99801c8e79129664faab07dd86be02c775e865d00c19b547dbe69fdc31d20cba`.
+- `scripts/upstream-probes.ts`:
+  4467 bytes,
+  SHA-256 `54d2d0033020f8bedcbd2c4173463bebe3d41a096656299deaba2c3af2e4421b`.
+- `scripts/workloads.ts`:
+  6478 bytes,
+  SHA-256 `b14b6fcb5aad026dc8160042b49d6d8b6c2ba5258bca6c70b7d19ea2b9bc91db`.
+- `src/abbrev.ts`:
+  3357 bytes,
+  SHA-256 `e12eed79de985608f54666f7c64a8ede9bc2d5e104325cea3a13f04b20cb6dc1`.
+- `src/escape-hatch.ts`:
+  5145 bytes,
+  SHA-256 `4fc7791d7e1520630ce3c7085379eef20d726db901d127d77448613b13365148`.
+- `src/parser/commit-flag-aliases.ts`:
+  2458 bytes,
+  SHA-256 `a27d7e1c35591526ba504348582d5719dbbf658028894756ed288a58fa2fddc3`.
+- `src/parser/commit-normalise.ts`:
+  7527 bytes,
+  SHA-256 `ffac8cd028b658a505967e1f3bfe2fe4fdd89482cac61aa64f11a812bb862c71`.
+- `src/parser/commit.ts`:
+  9404 bytes,
+  SHA-256 `12e880110f70d96dfcfd6d9463c79198cd33a4bb062b0fe21c70e10ad1116115`.
 - `two-remaining-copies-recheck-2026-11-13/Containerfile.annotated`:
   735 bytes,
   SHA-256 `3e767600df7aab20158640fe13ae8c63f21a4a8ab762a83c87e848b180b1fdc3`.
@@ -1439,6 +1681,23 @@ and the digest it has in the tree second.
 - `two-remaining-copies-recheck-2026-11-13/verify-new-link.ts`:
   1344 bytes,
   SHA-256 `00e0bb7121ab7d48912b523c91a023810f0ebc63b9ad93578f601eb62839e5a5`.
+
+Kept for the sentence of the research record that names the harness,
+the check
+scripts,
+the baked inputs and every raw record of both rounds (owner decision,
+2026-11-14,
+"Keep as plain text"):
+`scripts/` and the top-level `Containerfile` for the harness and the check scripts,
+`coordinator-check/` for the coordinator's own check scripts with the rounds they
+printed,
+`data/` with `src/` and `ctx/` for the baked inputs (the path lists and
+the pinned parser sources the measurements read),
+and `results/` with
+`results-scaling/` for both rounds' records.
+`agent-final-report.md` is neither,
+and is listed in that folder README rather than
+kept.
 
 Two of those members are kept for a citation by description,
 not by name:
