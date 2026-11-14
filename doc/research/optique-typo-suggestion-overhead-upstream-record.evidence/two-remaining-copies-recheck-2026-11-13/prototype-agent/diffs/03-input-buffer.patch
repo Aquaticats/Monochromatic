@@ -1,0 +1,416 @@
+diff --git a/changes.d/core/consumed-argument-buffer.md b/changes.d/core/consumed-argument-buffer.md
+new file mode 100644
+index 00000000..d4d24c36
+--- /dev/null
++++ b/changes.d/core/consumed-argument-buffer.md
+@@ -0,0 +1,3 @@
++ -  Dropped the tokens `argument()` consumed from the input buffer without
++    copying the tokens after them, so a parse of many positional arguments no
++    longer copies the rest of the command line for each token it consumes.
+diff --git a/packages/core/src/internal/input-buffer-view.test.ts b/packages/core/src/internal/input-buffer-view.test.ts
+new file mode 100644
+index 00000000..c161fe0d
+--- /dev/null
++++ b/packages/core/src/internal/input-buffer-view.test.ts
+@@ -0,0 +1,121 @@
++/**
++ * Unit tests for views of the input buffer that share the tokens they were
++ * cut from.
++ */
++import { describe, test } from "node:test";
++import * as assert from "node:assert/strict";
++import {
++  dropPrefixFrom,
++  leadingOf,
++  VIEW_THRESHOLD,
++} from "./input-buffer-view.ts";
++
++const TOKENS = ["p0", "p1", "p2", "p3"] as const;
++
++function longBuffer(length: number): readonly string[] {
++  return Array.from({ length }, (_, index) => `p${index}`);
++}
++
++describe("dropPrefixFrom", () => {
++  test("presents the tokens after a prefix", () => {
++    const base = [...TOKENS];
++
++    assert.deepEqual(dropPrefixFrom(base, 1), ["p1", "p2", "p3"]);
++    assert.deepEqual(dropPrefixFrom(base, 3), ["p3"]);
++    assert.deepEqual(dropPrefixFrom(base, 4), []);
++    assert.deepEqual(base, [...TOKENS]);
++  });
++
++  test("an empty tail is an empty array", () => {
++    const base = ["p0"];
++    const tail = dropPrefixFrom(base, 1);
++
++    assert.ok(Array.isArray(tail));
++    assert.equal(tail.length, 0);
++    assert.deepEqual(tail, []);
++  });
++
++  test("dropping zero keeps the same array", () => {
++    const base = [...TOKENS];
++
++    assert.equal(dropPrefixFrom(base, 0), base);
++  });
++
++  test("two drops from one array do not see each other", () => {
++    const base = [...TOKENS];
++    const one = dropPrefixFrom(base, 1);
++    const two = dropPrefixFrom(base, 2);
++
++    assert.deepEqual(one, ["p1", "p2", "p3"]);
++    assert.deepEqual(two, ["p2", "p3"]);
++    assert.equal(one[0], "p1");
++    assert.equal(two[0], "p2");
++    assert.deepEqual(base, [...TOKENS]);
++  });
++
++  test("dropping the prefix of a view continues from the same array", () => {
++    const base = longBuffer(VIEW_THRESHOLD + 10);
++    const once = dropPrefixFrom(base, 1);
++    const twice = dropPrefixFrom(once, 2);
++
++    assert.deepEqual(once, base.slice(1));
++    assert.deepEqual(twice, base.slice(3));
++    assert.deepEqual(dropPrefixFrom(twice, VIEW_THRESHOLD + 7), []);
++    assert.deepEqual(base, longBuffer(VIEW_THRESHOLD + 10));
++  });
++
++  test("a long buffer is cut without copying it", () => {
++    const base = longBuffer(VIEW_THRESHOLD + 1);
++    const tail = dropPrefixFrom(base, 1);
++
++    assert.ok(Array.isArray(tail));
++    assert.equal(tail.length, VIEW_THRESHOLD);
++    assert.equal(tail[0], "p1");
++    assert.equal(tail[VIEW_THRESHOLD - 1], `p${VIEW_THRESHOLD}`);
++    assert.deepEqual(tail, base.slice(1));
++    // A second cut of a view keeps reading the same tokens as the array.
++    assert.deepEqual(dropPrefixFrom(tail, VIEW_THRESHOLD - 1), [base.at(-1)]);
++  });
++
++  test("a short buffer is copied and shares nothing", () => {
++    const base = [...TOKENS];
++    const tail = dropPrefixFrom(base, 1);
++
++    // Below the threshold the code keeps today's plain arrays, so the result is
++    // an ordinary array that owns its slots.
++    assert.notEqual(tail, base);
++    assert.deepEqual(tail, ["p1", "p2", "p3"]);
++  });
++});
++
++describe("leadingOf", () => {
++  test("copies the first tokens of a plain array", () => {
++    const base = [...TOKENS];
++
++    assert.deepEqual(leadingOf(base, 1), ["p0"]);
++    assert.deepEqual(leadingOf(base, 3), ["p0", "p1", "p2"]);
++    assert.deepEqual(leadingOf(base, 9), [...TOKENS]);
++    assert.deepEqual(leadingOf(base, 0), []);
++    assert.deepEqual(base, [...TOKENS]);
++  });
++
++  test("copies the first tokens of a view without reading the view", () => {
++    const base = longBuffer(VIEW_THRESHOLD + 5);
++    const view = dropPrefixFrom(base, 4);
++
++    assert.deepEqual(leadingOf(view, 2), ["p4", "p5"]);
++    assert.deepEqual(leadingOf(view, 1), ["p4"]);
++    assert.deepEqual(leadingOf(view, VIEW_THRESHOLD + 5), base.slice(4));
++    assert.deepEqual(leadingOf(view, 0), []);
++  });
++
++  test("a copied prefix is a plain array the caller owns", () => {
++    const base = longBuffer(VIEW_THRESHOLD + 5);
++    const view = dropPrefixFrom(base, 1);
++    const prefix = leadingOf(view, 2) as string[];
++
++    prefix[0] = "changed";
++    assert.equal(prefix[0], "changed");
++    assert.equal(view[0], "p1");
++  });
++});
+diff --git a/packages/core/src/internal/input-buffer-view.ts b/packages/core/src/internal/input-buffer-view.ts
+new file mode 100644
+index 00000000..8822527e
+--- /dev/null
++++ b/packages/core/src/internal/input-buffer-view.ts
+@@ -0,0 +1,111 @@
++/**
++ * Views of the parser's input buffer that share the tokens it was cut from.
++ *
++ * `argument()` drops the tokens it consumed from the context's buffer, and the
++ * buffer is typed `readonly string[]` and read by indexing and by
++ * `Array.prototype` methods, including by parsers library users write.  A
++ * plain array cannot drop its first token without copying the rest, so
++ * consuming N positional arguments copies 1 + 2 + ... + N tokens.  This module
++ * keeps the type and the readers: the buffer becomes a view that remembers the
++ * array it was cut from and how far, and cutting a view again moves the offset
++ * instead of walking offsets or copying tokens.
++ *
++ * @internal
++ * @since 1.4.0
++ * @module
++ */
++
++import { virtualArrayOf } from "./array-view.ts";
++
++/**
++ * Tokens a buffer must have left before cutting a view instead of copying.
++ *
++ * A cut costs about three microseconds whether the buffer is long or short: one
++ * proxy allocation, the index reads a probe of every option parser makes, and
++ * the caller's prefix copy.  Copying the rest of the buffer instead costs about
++ * a third of a nanosecond per token left, so the copy is the faster way until
++ * the buffer holds some sixteen thousand tokens.  Below this number the code
++ * keeps plain arrays and the time it spent before; above it, the cost of a cut
++ * stops growing with the buffer.  Measured with the threshold lower, at 4,096,
++ * a parse of 8,000 tokens was 22% slower with views; at 8,192 one of 16,000 was
++ * 28% slower; at 32,000, where views cover the whole parse, both settings were
++ * faster than the copy, 2.7 and 1.8 times (*crossover-sweep.ts*,
++ * *matrix-summary.jsonl*, *final-thresholds.ts*).  The threshold therefore sits
++ * where the win is proven and the loss is not reachable.
++ *
++ * Exported so tests can size their buffers around it; nothing outside this
++ * module reads it.
++ */
++export const VIEW_THRESHOLD = 16384;
++
++/** The array a buffer view was cut from, and how far it was cut. */
++interface PrefixBase<T> {
++  readonly base: readonly T[];
++  readonly offset: number;
++}
++
++/** Base array and offset behind each array {@link dropPrefixFrom} returned. */
++const prefixBases = new WeakMap<object, PrefixBase<unknown>>();
++
++/**
++ * Returns an array without its first `count` elements, sharing the array they
++ * were cut from.
++ *
++ * The receiver is never modified, so a view obtained earlier keeps the tokens
++ * it had, and a parser context discarded by backtracking cannot show a cursor
++ * another context moved.
++ *
++ * @template T The type of the elements.
++ * @param array The array to cut, plain or virtual.
++ * @param count The number of leading elements to drop.
++ * @returns An array holding the elements from `count` on.
++ * @internal
++ * @since 1.4.0
++ */
++export function dropPrefixFrom<T>(
++  array: readonly T[],
++  count: number,
++): readonly T[] {
++  if (count <= 0) return array;
++  const known = prefixBases.get(array) as PrefixBase<T> | undefined;
++  const base = known?.base ?? array;
++  const offset = (known?.offset ?? 0) + count;
++  if (base.length - offset < VIEW_THRESHOLD) return base.slice(offset);
++  const view = virtualArrayOf<T>({
++    length: base.length - offset,
++    get: (index) => base[offset + index],
++  });
++  prefixBases.set(view, { base, offset });
++  return view;
++}
++
++/**
++ * Copies the first `count` elements into a plain array.
++ *
++ * `Array.prototype.slice()` on a view reads every element it copies through
++ * the proxy traps, which costs about a microsecond for a copy of two tokens and
++ * about 70 ns for each token beyond; this reads the shared array directly, so
++ * taking the tokens a parse step consumed stays cheap however long the buffer
++ * is.
++ *
++ * @template T The type of the elements.
++ * @param array The array to read, plain or virtual.
++ * @param count The number of leading elements to copy.
++ * @returns A new array holding at most `count` elements.
++ * @internal
++ * @since 1.4.0
++ */
++export function leadingOf<T>(
++  array: readonly T[],
++  count: number,
++): readonly T[] {
++  const known = prefixBases.get(array) as PrefixBase<T> | undefined;
++  if (known === undefined) return array.slice(0, count);
++  const available = known.base.length - known.offset;
++  const end = count < available ? count : available;
++  const leading: T[] = [];
++  for (let index = 0; index < end; index += 1) {
++    leading.push(known.base[known.offset + index]);
++  }
++  return leading;
++}
+diff --git a/packages/core/src/primitives.test.ts b/packages/core/src/primitives.test.ts
+index 1c097853..d5a2f942 100644
+--- a/packages/core/src/primitives.test.ts
++++ b/packages/core/src/primitives.test.ts
+@@ -29,6 +29,9 @@ import {
+   option,
+   passThrough,
+ } from "@optique/core/primitives";
++// A relative import reads the source under Node too, where the package
++// import map points at the built output and the constants are not exported.
++import { VIEW_THRESHOLD as bufferThreshold } from "./internal/input-buffer-view.ts";
+ import { formatUsage } from "@optique/core/usage";
+ import {
+   choice,
+@@ -2951,6 +2954,86 @@ describe("argument", () => {
+     }
+   });
+ 
++  it("should keep a buffer consumed twice from mixing tokens", () => {
++    const parser = argument(string());
++    const twoTokens = object({
++      first: argument(string()),
++      second: argument(string()),
++    });
++    const tokens = Array.from(
++      { length: bufferThreshold + 2 },
++      (_, index) => `p${index}`,
++    );
++    const context = {
++      buffer: tokens,
++      state: parser.initialState,
++      optionsTerminated: false,
++      usage: parser.usage,
++    };
++
++    const oneToken = parser.parse(context);
++    const twoTokensParsed = twoTokens.parse({
++      ...context,
++      state: twoTokens.initialState,
++    });
++    assert.ok(oneToken.success);
++    assert.ok(twoTokensParsed.success);
++    if (!oneToken.success || !twoTokensParsed.success) return;
++
++    // The buffer is past the size at which it starts sharing its tokens, so a
++    // buffer that drops its prefix by editing the array both contexts share
++    // shows the other context's cursor here.
++    assert.equal(oneToken.next.buffer.length, tokens.length - 1);
++    assert.equal(twoTokensParsed.next.buffer.length, tokens.length - 2);
++    assert.equal(oneToken.next.buffer[0], tokens[1]);
++    assert.equal(twoTokensParsed.next.buffer[0], tokens[2]);
++    assert.equal(oneToken.next.buffer.at(-1), tokens.at(-1));
++    assert.deepEqual(oneToken.next.buffer, tokens.slice(1));
++    assert.deepEqual(twoTokensParsed.next.buffer, tokens.slice(2));
++
++    // The buffer both were consumed from still holds every token.
++    assert.equal(context.buffer.length, tokens.length);
++    assert.equal(context.buffer[0], tokens[0]);
++    assert.deepEqual(context.buffer, tokens);
++  });
++
++  it("should keep an async buffer consumed twice from mixing tokens", async () => {
++    const parser = argument(asyncFileSuggestingParser());
++    const twoTokens = object({
++      first: argument(asyncFileSuggestingParser()),
++      second: argument(asyncFileSuggestingParser()),
++    });
++    const tokens = Array.from(
++      { length: bufferThreshold + 2 },
++      (_, index) => `p${index}.log`,
++    );
++    const context = {
++      buffer: tokens,
++      state: parser.initialState,
++      optionsTerminated: false,
++      usage: parser.usage,
++    };
++
++    const oneToken = await parser.parse(context);
++    const twoTokensParsed = await twoTokens.parse({
++      ...context,
++      state: twoTokens.initialState,
++    });
++    assert.ok(oneToken.success);
++    assert.ok(twoTokensParsed.success);
++    if (!oneToken.success || !twoTokensParsed.success) return;
++
++    assert.equal(oneToken.next.buffer.length, tokens.length - 1);
++    assert.equal(twoTokensParsed.next.buffer.length, tokens.length - 2);
++    assert.equal(oneToken.next.buffer[0], tokens[1]);
++    assert.equal(twoTokensParsed.next.buffer[0], tokens[2]);
++    assert.deepEqual(oneToken.next.buffer, tokens.slice(1));
++    assert.deepEqual(twoTokensParsed.next.buffer, tokens.slice(2));
++
++    assert.equal(context.buffer.length, tokens.length);
++    assert.deepEqual(context.buffer, tokens);
++  });
++
+   it("should parse an integer argument", () => {
+     const parser = argument(integer({ min: 0 }));
+     const context = {
+diff --git a/packages/core/src/primitives.ts b/packages/core/src/primitives.ts
+index 04102401..b7ce2eda 100644
+--- a/packages/core/src/primitives.ts
++++ b/packages/core/src/primitives.ts
+@@ -43,6 +43,7 @@ import {
+   suggestWithDependency,
+ } from "./internal/dependency.ts";
+ import { annotateFreshArray, getAnnotations } from "./internal/annotations.ts";
++import { dropPrefixFrom, leadingOf } from "./internal/input-buffer-view.ts";
+ import { extractDependencyMetadata } from "./dependency-metadata.ts";
+ import {
+   type EffectfulSchedulingNodesFn,
+@@ -2713,7 +2714,7 @@ export function argument<M extends Mode, T>(
+             buildTraceEntry(
+               "argument-value",
+               rawInput,
+-              context.buffer.slice(0, i + 1),
++              leadingOf(context.buffer, i + 1),
+               syncValueParser,
+               parseResult,
+             ),
+@@ -2722,7 +2723,7 @@ export function argument<M extends Mode, T>(
+             success: true as const,
+             next: {
+               ...next,
+-              buffer: context.buffer.slice(i + 1),
++              buffer: dropPrefixFrom(context.buffer, i + 1),
+               state: createOptionParseState(
+                 parseResult,
+                 rawInput,
+@@ -2730,7 +2731,7 @@ export function argument<M extends Mode, T>(
+               ),
+               optionsTerminated,
+             },
+-            consumed: context.buffer.slice(0, i + 1),
++            consumed: leadingOf(context.buffer, i + 1),
+           };
+         },
+         async () => {
+@@ -2740,7 +2741,7 @@ export function argument<M extends Mode, T>(
+             buildTraceEntry(
+               "argument-value",
+               rawInput,
+-              context.buffer.slice(0, i + 1),
++              leadingOf(context.buffer, i + 1),
+               valueParser,
+               parseResult,
+             ),
+@@ -2749,11 +2750,11 @@ export function argument<M extends Mode, T>(
+             success: true as const,
+             next: {
+               ...next,
+-              buffer: context.buffer.slice(i + 1),
++              buffer: dropPrefixFrom(context.buffer, i + 1),
+               state: createOptionParseState(parseResult, rawInput, valueParser),
+               optionsTerminated,
+             },
+-            consumed: context.buffer.slice(0, i + 1),
++            consumed: leadingOf(context.buffer, i + 1),
+           };
+         },
+       );

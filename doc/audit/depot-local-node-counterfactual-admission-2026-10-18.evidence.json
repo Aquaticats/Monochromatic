@@ -5,7 +5,19 @@
   "baseline": {
     "path": "doc/audit/depot-remaining-local-unit-2026-10-18.evidence.json",
     "bytes": 34500,
-    "sha256": "4ab50aa47743dad3177b51a595fcf30713c637a9694d948adf4dc7fe73e1a016"
+    "sha256": "4ab50aa47743dad3177b51a595fcf30713c637a9694d948adf4dc7fe73e1a016",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 34926,
+        "sha256": "91a308232b3dcdc3fa7b850bde246440ca698200384cb323cbd7165f3840e82d",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "sourceFiles": [
     {

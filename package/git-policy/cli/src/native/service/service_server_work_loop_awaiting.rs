@@ -1,7 +1,8 @@
 //! What:
 //!  The loop of the commit service's after-commit work as a task of the runtime,
-//! and the three storage steps only it makes:
+//! and the storage steps only it makes:
 //! it waits for wakes and due retries,
+//! looks at the repositories a record waits in even when no wake came,
 //! runs a round of repository work for them,
 //!  and keeps the service from exiting idle while a repository waits to be looked at again.
 //! Why:
@@ -29,7 +30,7 @@ use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_a
 use crate::wait_ceilings::AFTER_COMMIT_STATE_CEILING;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::PushRetries;
-use crate::service_claim_watch::ClaimWatch;
+use crate::service_claim_watch::{ClaimWatch, LOOK_AGAIN_AFTER};
 use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most_awaiting};
 use crate::service_retry::RetrySchedule;
 use crate::service_work::{GitHandlers, Wake};
@@ -227,6 +228,90 @@ fn restore_in_a_job(mut retries: PushRetries) -> (PushRetries, Vec<PathBuf>) {
 }
 
 /// What:
+///  Ask the store which repositories a record waits in,
+/// as a job of the process's blocking pool,
+/// and give the watch back
+///  with them.
+/// Why:
+///   The look lists the notes and one work directory for each,
+/// so it is storage like the notes themselves,
+/// and a
+///  filesystem that stopped answering would hold a worker the runtime needs if a task did it.
+/// The watch has one owner at a
+///  time,
+/// so the job takes it and hands it back,
+/// and nothing locks it.
+/// A look that could not run says nothing:
+/// it is
+///  asked again at the next bound,
+/// and a journal that stopped answering is said by the notes' own retry
+///  (`retry_awaiting`),
+/// which grows its pause instead of printing a line every few seconds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [watch, waiting] = await lookAwaiting(watch)
+/// ```
+async fn look_awaiting(watch: ClaimWatch) -> (ClaimWatch, Vec<PathBuf>) {
+    if watch.key().is_none() {
+        let mut kept: ClaimWatch = watch;
+        let waiting: Vec<PathBuf> = kept.look_again();
+        return (kept, waiting);
+    }
+    let unchanged: ClaimWatch = watch.clone();
+    return match run_a_job_awaited_no_longer_than(AFTER_COMMIT_STATE_CEILING, watch, look_in_a_job).await {
+        TheAnswerOfAJobAwaited::Ran((back, waiting)) => (back, waiting),
+        // Nothing was read, so nothing is owed: the next bound asks again, and a store that keeps refusing is named by the
+        //  notes' own retry.
+        TheAnswerOfAJobAwaited::NotRun => (unchanged, Vec::new()),
+        // The job may still hold a place of the blocking bound, so the store owes a read that thins its attempts out
+        //  (`notes_owed_again`); the look's own pause grows with it here.
+        TheAnswerOfAJobAwaited::NoAnswer => {
+            let owed: ClaimWatch = notes_owed_again(unchanged);
+            (owed, Vec::new())
+        }
+    };
+}
+
+/// `look_awaiting`'s work,
+/// as the job of the pool takes it.
+fn look_in_a_job(mut watch: ClaimWatch) -> (ClaimWatch, Vec<PathBuf>) {
+    let waiting: Vec<PathBuf> = watch.look_again();
+    return (watch, waiting);
+}
+
+/// What:
+///  Keep the watch and the plan in the schedule for what they still owe.
+/// Why:
+///   Both are a directory the loop must come back to by itself,
+/// and both are taken out of the schedule when they are due,
+/// so a
+///  round that ran nothing must put them back as a round that ran something does,
+/// or a note that could not be written and a plan
+///  that could not be read would wait for the next wake.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepWhatIsOwed(retries, watch, plan) // re-add the store's and the plan's own directories after their pauses
+/// ```
+fn keep_what_the_watch_and_the_plan_owe(retries: &mut RetrySchedule, watch: &ClaimWatch, plan: &PushRetries, watch_scheduled: &mut bool, plan_scheduled: &mut bool) {
+    if !*watch_scheduled
+        && let Some(key) = watch.key()
+        && watch.needs_retry()
+    {
+        retries.replace(&[], vec![(key, watch.pause(plan.first()))], Instant::now());
+        *watch_scheduled = true;
+    }
+    if !*plan_scheduled
+        && plan.needs_restore()
+        && let Some(directory) = plan.plans()
+    {
+        retries.replace(&[], vec![(directory.to_path_buf(), plan.restore_pause())], Instant::now());
+        *plan_scheduled = true;
+    }
+}
+
+/// What:
 ///  Runs the after-commit work of each repository named,
 /// one repository at a time,
 /// folding wakes that arrive while it
@@ -264,6 +349,18 @@ fn restore_in_a_job(mut retries: PushRetries) -> (PushRetries, Vec<PathBuf>) {
 /// and the wake for the earliest plan is kept in the same schedule as the lease wakes,
 /// so
 ///  the service neither forgets the plan nor exits idle while a try is pending.
+/// A wake may also never come at all,
+/// while the service runs and the record it would have run waits:
+/// so the wait below never
+///  outlasts `LOOK_AGAIN_AFTER`,
+/// and each time it ends there the loop asks its journal's notes which repositories hold a record in
+///  `pending`
+/// (`look_awaiting`).
+/// That look keeps nothing alive:
+/// a service with nothing to do still ends at its idle bound,
+/// and a
+///  look that found nothing runs no round,
+/// so the clock alone never makes the service work.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -318,8 +415,20 @@ pub async fn work_loop_awaiting(
         busy.fetch_add(1, Ordering::SeqCst);
         counted_waiting = true;
     }
+    // What: When the next look at the notes is due.
+    // Why:  A record that exists and is due is found by this service whether or not anything woke it, so the wait below
+    //       never outlasts this moment, and the look beside it asks which repositories hold a record no claim took
+    //       (`service_claim_watch.rs`, `LOOK_AGAIN_AFTER`). The look is not work of its own: it keeps nothing alive, so a
+    //       service with nothing to do still ends at its idle bound.
+    let mut look_at: Instant = Instant::now() + LOOK_AGAIN_AFTER;
     loop {
-        let first: Option<Wake> = match receive_for_at_most_awaiting(receiver, retries.next_wait(Instant::now())).await {
+        let now: Instant = Instant::now();
+        let until_look: Duration = look_at.saturating_duration_since(now);
+        let until_a_wake: Option<Duration> = match retries.next_wait(now) {
+            Some(due) => Some(due.min(until_look)),
+            None => Some(until_look),
+        };
+        let first: Option<Wake> = match receive_for_at_most_awaiting(receiver, until_a_wake).await {
             Received::Item(wake) => Some(wake),
             Received::Timeout => None,
             Received::Closed => return,
@@ -371,40 +480,60 @@ pub async fn work_loop_awaiting(
                 wakes.push((directory, None));
             }
         }
+        // What: The look at the notes, when its bound is over, and every repository whose records wait.
+        // Why:  A record written and never announced stays in `pending` until something looks, and a running service is the
+        //       only thing that can look.
+        if Instant::now() >= look_at {
+            let (back, waiting): (ClaimWatch, Vec<PathBuf>) = look_awaiting(watch).await;
+            watch = back;
+            for directory in waiting {
+                // A wake already named this repository, and its round takes the same records: one drain, not two.
+                let mut named_already: bool = false;
+                for (named, _) in &wakes {
+                    if named == &directory {
+                        named_already = true;
+                    }
+                }
+                if !named_already {
+                    wakes.push((directory, None));
+                }
+            }
+            // A look that leaves the store owing a read is asked for less often until its pause runs out, so a journal that
+            //  stopped answering cannot fill the blocking pool with looks of it.
+            let pause: Duration = match watch.needs_retry() {
+                true => watch.pause(push_retries.first()).max(LOOK_AGAIN_AFTER),
+                false => LOOK_AGAIN_AFTER,
+            };
+            look_at = Instant::now() + pause;
+        }
         let mut ran: Vec<PathBuf> = Vec::new();
         for (directory, _) in &wakes {
             ran.push(directory.clone());
         }
-        // Written down before the first claim of a repository, so that a service killed while it holds the claim is followed by one
-        //  that knows where to look. This task does it, never the one that lands commits.
-        for directory in &ran {
-            watch = remember_awaiting(watch, directory.as_path()).await;
-        }
-        // The same repositories are looked at for the kinds that can take minutes, beside the round below: the round claims the
-        //  pushes alone, so a person's push is taken however long a trash, a prewarm, an upkeep or a review then runs.
-        for wake in &wakes {
-            slow.ask(wake.clone());
-        }
-        let (back, asked): (PushRetries, Vec<(PathBuf, Duration)>) = run_round_awaiting(wakes, handlers, push_retries, &ClaimTime::read()).await;
-        push_retries = back;
-        // A directory the round named for its plan alone (the common directory of a bare repository) replaces its old entry too.
-        for (directory, _) in &asked {
-            ran.push(directory.clone());
-        }
-        retries.replace(ran.as_slice(), asked, Instant::now());
-        if !watch_scheduled
-            && let Some(key) = watch.key()
-            && watch.needs_retry()
-        {
-            retries.replace(&[], vec![(key, watch.pause(push_retries.first()))], Instant::now());
-            watch_scheduled = true;
-        }
-        if !plan_scheduled
-            && push_retries.needs_restore()
-            && let Some(directory) = push_retries.plans()
-        {
-            retries.replace(&[], vec![(directory.to_path_buf(), push_retries.restore_pause())], Instant::now());
-            plan_scheduled = true;
+        if !wakes.is_empty() {
+            // Written down before the first claim of a repository, so that a service killed while it holds the claim is followed by one
+            //  that knows where to look. This task does it, never the one that lands commits.
+            for directory in &ran {
+                watch = remember_awaiting(watch, directory.as_path()).await;
+            }
+            // The same repositories are looked at for the kinds that can take minutes, beside the round below: the round claims the
+            //  pushes alone, so a person's push is taken however long a trash, a prewarm, an upkeep or a review then runs.
+            for wake in &wakes {
+                slow.ask(wake.clone());
+            }
+            let (back, asked): (PushRetries, Vec<(PathBuf, Duration)>) = run_round_awaiting(wakes, handlers, push_retries, &ClaimTime::read()).await;
+            push_retries = back;
+            // A directory the round named for its plan alone (the common directory of a bare repository) replaces its old entry too.
+            for (directory, _) in &asked {
+                ran.push(directory.clone());
+            }
+            retries.replace(ran.as_slice(), asked, Instant::now());
+            // Whether the watch and the plan still owe a read is asked after the round, which is what changed them.
+            keep_what_the_watch_and_the_plan_owe(&mut retries, &watch, &push_retries, &mut watch_scheduled, &mut plan_scheduled);
+        } else {
+            // Nothing to drain: only the look's own bound went by, so what the watch and the plan still owe is scheduled here
+            //  exactly as a round schedules it, and no round is run for a clock that moved.
+            keep_what_the_watch_and_the_plan_owe(&mut retries, &watch, &push_retries, &mut watch_scheduled, &mut plan_scheduled);
         }
         // A repository waiting to be looked at again keeps the service from exiting idle, as running work does.
         if !retries.is_empty() && !counted_waiting {

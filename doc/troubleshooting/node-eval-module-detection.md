@@ -231,7 +231,10 @@ then passes the resulting JavaScript to `node --input-type=module --check`.
 The installed `node_modules/@types/node/module.d.ts` documents that stripping API.
 Every generated Dockerfile program passed this check;
 an intentionally malformed JavaScript body failed the same checker.
-The [BuildKit source archive](../audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz)
+The BuildKit source archive (`../audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz`)
 retains the preflight commands and results.
 This checks syntax only;
 the subsequent remote consumers establish execution separately.
+`depot-buildkit-platform-campaign-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+Its cited records are in `doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json`.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.

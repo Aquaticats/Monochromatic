@@ -1,0 +1,16 @@
+# The recheck image plus the arm the kept patch produces, so that the patch as kept is timed and not only the agent's
+# arm it was derived from. Mount-free, no network at run time. A tag of its own.
+#
+#   podman build --tag localhost/optique-two-remaining-copies-recheck-kept-patch:2026-11-13 --file Containerfile.kept-patch .
+
+FROM localhost/optique-two-remaining-copies-recheck:2026-11-13
+
+COPY arms/multiple-final /arms/multiple-final
+COPY image/run-kept-patch-timing.ts /run-kept-patch-timing.ts
+
+RUN set -eux; \
+    cd /repo; \
+    sed "s#/path/to/optique#/arms/multiple-final#g" /repo/maps/src-checkout.json > /maps/recheck-multiple-final.json; \
+    deno cache --no-config --import-map /maps/recheck-multiple-final.json token-scaling.ts commit-paths.ts mixed-scaling.ts
+
+ENTRYPOINT ["node", "/run-kept-patch-timing.ts"]
