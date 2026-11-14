@@ -82,6 +82,9 @@ fn subcommand(command: GuardedCommand) -> &'static str {
         GuardedCommand::AbortRebase => "rebase",
         GuardedCommand::AbortPick => "cherry-pick",
         GuardedCommand::AbortAm => "am",
+        GuardedCommand::SkipRebase => "rebase",
+        GuardedCommand::SkipPick => "cherry-pick",
+        GuardedCommand::SkipAm => "am",
     };
 }
 

@@ -288,6 +288,17 @@ pub const RESTORE_LONG_OPTIONS: &[&str] = &[
 ///  each takes `--ab` and refuses `--a` as ambiguous, 2026-11-12).
 pub const SHORTEST_ABORT: usize = 4;
 
+/// The shortest spelling of `--skip` Git accepts:
+/// `--sk`.
+/// Why:
+///   The four commands that read `--skip` (`rebase`,
+/// `cherry-pick`,
+/// `revert` and `am`) accept that prefix and refuse `--s` as ambiguous,
+///  with the options they each carry beside it,
+///  so the two-figure prefix after the dashes is where their tables stop being ambiguous
+///  (measured on this host with native Git 2.56.0, 2026-11-13).
+pub const SHORTEST_SKIP: usize = 4;
+
 /// What:
 ///  Whether a token spells the long option `wanted` by a spelling Git accepts for the command whose
 ///  other long option names are `siblings`,
@@ -567,7 +578,8 @@ pub fn abort_discard(region: &[OsString]) -> Discard {
 ///   `--skip` drops the commit or patch the operation stopped at and goes on,
 ///  and the reset it makes over the worktree throws away the hand resolution of that conflict
 ///  (measured with Git 2.56.0 for every form).
-///  `--sk` is the shortest prefix no sibling option shares.
+///  `--sk` is the shortest prefix no sibling option shares,
+///  which `spells_long` reads from the sibling names Git's own table holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -575,7 +587,7 @@ pub fn abort_discard(region: &[OsString]) -> Discard {
 /// ```
 pub fn skip_discard(region: &[OsString]) -> Discard {
     for token in options_of(region) {
-        if spells_long(token, "--skip", 4) {
+        if spells_long_from(token, "skip", SHORTEST_SKIP) {
             return Discard::Overwrites;
         }
     }

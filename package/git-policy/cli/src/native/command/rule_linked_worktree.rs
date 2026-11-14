@@ -44,7 +44,7 @@ use crate::command_clean::{CleanRegion, clean_changes_worktree, parse_clean_regi
 use crate::command_worktree::worktree_removal;
 use crate::command_discard::{
     Discard, abort_discard, checkout_discard, force_discard, read_tree_discard, restore_discard,
-    restores_index_only, revision_before_paths, skip_discard, switch_discard,
+    restores_index_only, skip_discard, switch_discard,
 };
 use crate::command_options::OptionError;
 use crate::command_reset::{ResetMode, ResetRegion, parse_reset_region};

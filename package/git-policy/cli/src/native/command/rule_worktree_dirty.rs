@@ -267,7 +267,6 @@ pub fn replaced_answers(asked: &[Vec<u8>], tracked: &[Vec<u8>], answer: &[Vec<u8
 /// function ignoredPathsQueries(globalPrefix: string[], paths: string[]): string[][];
 /// ```
 pub fn ignored_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
-pub fn ignored_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
     return others_paths_queries(global_prefix, paths, &["--ignored"]);
 }
 
@@ -333,6 +332,22 @@ fn others_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>], modes: &[
     return queries;
 }
 
+/// What:
+///  The arguments of one `git ls-files` listing of the whole worktree,
+///  after the invocation's global options.
+///  `&[&str]` borrows the listing's own option words.
+/// Why:
+///   A rule that lists what the worktree holds asks Git once over the whole worktree
+///  instead of once per path it wrote,
+///  with every directory it holds whole collapsed into one entry;
+///  the listing starts the way the ones that name paths do,
+///  from the top of the worktree and with `-z` so every answer's bytes are exactly the path's,
+///  so one reading of an answer serves both.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function listingArguments(globalPrefix: string[], selection: string[]): string[];
+/// ```
 pub fn listing_arguments(global_prefix: &[OsString], selection: &[&str]) -> Vec<OsString> {
     return listing_head(global_prefix, selection);
 }
@@ -364,52 +379,6 @@ fn listing_head(global_prefix: &[OsString], selection: &[&str]) -> Vec<OsString>
         head.push(OsString::from(token));
     }
     return head;
-}
-
-        head.push(OsString::from(token));
-    }
-    for token in selection {
-        head.push(OsString::from(*token));
-    }
-    for token in ["-z", "--full-name", "--"] {
-        head.push(OsString::from(token));
-    }
-    return head;
-}
-
-/// What:
-///  The same listing split into as many starts as the system's argument limit allows,
-///  each asking about every path exactly as it is.
-///  `&[Vec<u8>]` borrows the paths as their tree holds them.
-///  `&mut Vec<OsString>` is the head the last start left to reuse.
-/// Why:
-///   One start carries what the system accepts,
-///  and a worktree with millions of paths is asked in bounded starts instead of failing to start at all.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function chunkedPathspecQueries(head: string[], paths: string[], scratch: string[]): string[][];
-/// ```
-fn chunked_pathspec_queries(head: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
-    let mut queries: Vec<Vec<OsString>> = Vec::<Vec<OsString>>::new();
-    let mut current: Vec<OsString> = head.to_vec();
-    let mut carried: usize = 0;
-    for path in paths {
-        let mut spec: Vec<u8> = TOP_LITERAL_PATHSPEC.to_vec();
-        spec.extend_from_slice(path);
-        // A chunk that already holds a path opens a new one rather than overrunning the system's limit.
-        if carried > 0 && carried + spec.len() > IGNORED_PATHS_QUERY_BYTES {
-            queries.push(current);
-            current = head.to_vec();
-            carried = 0;
-        }
-        carried += spec.len();
-        current.push(spec_argument(spec.as_slice()));
-    }
-    if carried > 0 {
-        queries.push(current);
-    }
-    return queries;
 }
 
 /// What:
