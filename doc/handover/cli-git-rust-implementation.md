@@ -815,6 +815,24 @@ Questions kept for the owner's return:
   It also removes a toolchain that checkouts still pin when its folder is old enough,
   at the price of a rebuild;
   the report gives its reasons in its section 9.
+- mpm-shadow's removal of old versions it installed,
+  written and going to review (tip `e4c7243bbe`),
+  carries three bounds its author proposes and nobody decided:
+  the two stores together may hold 24 GiB of what the pass can judge
+  (twice the 11.3 GiB that locks pin today;
+  the stores hold 55.4 GiB,
+  so the first pass would remove 31.4 GiB,
+  listed in `~/temp/agent/mpm-shadow-self-cleanup-2026-11-13-scratch/keep/what-would-be-removed-today.txt`);
+  nothing written within the last hour goes;
+  and one pass removes for at most two seconds.
+  Its author also asks:
+  should the llama.cpp builds (nine unnamed versions,
+  28.4 GiB) have a bound of their own,
+  and should flat downloads be judged at all
+  (the pass removes a flat download even of a version a lock names,
+  since nothing reads one).
+  Nothing is removed until the branch is reviewed,
+  merged and released.
 
 ##### The deletion ended at 18:49:59
 
@@ -1183,6 +1201,326 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### 0.6.1-alpha.23 is published and installed (2026-11-13T23:14:59-05:00)
+
+Not final and not approved;
+run and read by the coordinating session.
+
+- Release run 43554797871 and its `cargo-publish.yml` run 43554888828 ended with success;
+  the release `monochromatic-git-policy-cli-v0.6.1-alpha.23` carries both archives.
+- Installed on this machine between 23:14:39 and 23:14:47
+  (`~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/install-of-0-6-1-alpha-23-output.txt`).
+  The wrapper answers `0.6.1-alpha.23`.
+- The sample commit of the lock took 993 ms
+  (its timing line:
+  187 ms preparing,
+  183 ms reaching the service across the change of release,
+  504 ms waiting for the answer;
+  answered by alpha.23).
+- The journal from 23:14:00 to 23:14:59,
+  67 lines:
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at its start limit.
+  That is the first minute alone;
+  the count over six minutes is taken at the next pass over the runs.
+- It holds pass 27 alone.
+  The next release is `0.6.1-alpha.24`.
+
+##### Pass 27 is in main and alpha.23 is dispatched; the landed sweep keeps snapshot-made worktrees; two mpm-shadow runs read (2026-11-13T23:10:21-05:00)
+
+Not final and not approved:
+read by the coordinating session from two runs' last messages and one review file.
+What it measured itself is marked so.
+
+- **Pass 27**
+  (run `integration-pass-27-for-alpha-25-1`,
+  ended 23:00:53,
+  recorded `pi-not-stopped`,
+  the driver ending a queued run has;
+  tip `7bf72d66a0`):
+  reports the guards-refuse branch (`193ad97fc6`) fit.
+  Build,
+  both test compiles and Clippy green at the tip;
+  the seventeen controls the branch adds pass;
+  three probes through its own build behave as claimed;
+  the five tests red there are the ones red on `main`.
+  Checked by the coordinating session before merging:
+  the tip holds `b72d0524f1`,
+  and `main` held no wrapper commit the tip lacked
+  (four handover commits alone).
+  Merged at 23:03:53 as `63b55a57d0`.
+  Release run 43554797871 dispatched for `0.6.1-alpha.23`
+  (the first dispatch was refused for a note of 211 characters where 200 is the most;
+  shortened).
+  Its commit timing,
+  four runs of three rounds:
+  ten rounds added 21 to 59 ms over real Git,
+  two added 307 ms and 1,323 ms once each.
+  Passes 28 to 30 were told at 23:10 that a fit tip holds `63b55a57d0`.
+- **Left by the two branches that met in it**:
+  `save_copies` in `conflict/conflict_sides.rs` has no caller outside tests on `main`
+  (counted with `rg` at 23:06),
+  and `SPEC.md` still describes that machinery.
+  A fresh run is queued
+  (`copy-saving-code-of-the-wrapper-that-nothing-calls-since-the-refusals-is-removed-with-its-spec-text`),
+  told to keep whatever a branch not yet in `main` calls.
+- **The landed sweep keeps worktrees for a false reason**
+  (seen and measured by the coordinating session at the merge):
+  the sweep left pass 27's worktree
+  "though its branch … is now on main:
+  process 5289 belongs to this account,
+  hides its working folder,
+  and nothing shows it started before this worktree was made".
+  Process 5289 is the account's `systemd --user`,
+  started 08:57:18;
+  the worktree's record under `.git/worktrees` was born at 20:16:28.
+  The wrapper reads the worktree's age from its folder's birth time
+  (`age_of`,
+  `worktree_removal_second_look.rs`),
+  and that folder's birth time is 2026-11-08 03:33:27,
+  five days before it was made.
+  Of fourteen worktrees whose record was made between 20:00 and 23:59,
+  thirteen folders carry that one birth time to the millisecond
+  (`~/temp/agent/landed-sweep-keeps-a-worktree-because-of-the-service-manager-2026-11-13/keep/birth-time-of-each-worktree-folder-beside-its-git-record.txt`).
+  The reading,
+  not yet confirmed:
+  a worktree made as a snapshot keeps its source folder's birth time,
+  so the service manager keeps every such landed worktree,
+  and 164 worktrees stand.
+  A fresh run is queued at position 11
+  (`landed-worktree-made-as-a-snapshot-is-not-kept-because-of-a-process-older-than-it`).
+  Pass 27's worktree stays where it is until that is known;
+  nothing in it is anyone's.
+- **mpm-shadow, `install <tool>` (issue 6300), review of `f4296268c3`**
+  (`~/temp/agent/change-reviews/mpm-shadow-cli-install-takes-a-tool-and-adds-it-to-the-plan/review.md`,
+  ended 22:58:40):
+  the add itself is sound,
+  some of it run with the built program on the `go:` route.
+  Two findings,
+  both reproduced with `strace`.
+  The plan's temporary file is created at `0666` less the umask and holds the whole plan before the `chmod` to the plan's own mode,
+  against the code's own comments:
+  the change's own,
+  back to its author
+  (`issue-6300-install-takes-a-tool-answers-its-review-of-f4296268c3-prompt.md`,
+  queued at position 6).
+  A publish waits on the scope guard with no bound when its holder lives and does not move:
+  in `main` before this change
+  (`publish.rs` lines 129 to 131 and 198,
+  read at 23:07),
+  so a fresh run
+  (`mpm-shadow-command-that-publishes-never-waits-without-a-bound-for-the-scope-guard`).
+  The review also read,
+  without running it,
+  that a child program is waited for with no bound (`runner.rs` line 185 on `main`):
+  a second fresh run
+  (`mpm-shadow-install-never-waits-without-a-bound-for-a-program-it-started`).
+  Both bounds' values are for their runs to measure and propose.
+- **mpm-shadow removes the old versions it installed**
+  (run `mpm-shadow-removes-by-itself-the-old-versions-it-installed-by-size-and-last-modified-time-1`,
+  ended 23:01:27,
+  tip `e4c7243bbe`,
+  five commits,
+  773 tests pass):
+  after an install,
+  while the two stores hold more than a bound,
+  the oldest written versions go first,
+  and a version stays when a lock of any worktree names it,
+  this run installed it,
+  a `current` link names it,
+  a process of this account runs or holds it,
+  or it is inside an age floor.
+  Measured read-only:
+  the stores hold 55.4 GiB,
+  11.3 GiB of it pinned by a lock;
+  a replay against the real listing would remove 59 items,
+  33.9 GiB.
+  Nothing was removed.
+  Its review is queued at the head
+  (`review-mpm-shadow-cli-removes-by-itself-the-old-versions-it-installed-by-size-and-last-modified-time`,
+  range `main...e4c7243bbe`).
+  Its three bounds and two questions are in "Questions kept for the owner's return".
+- **What that author noticed in the tool as it is**:
+  38 processes of this account were running wrapper programs the store no longer held
+  (alpha.18 and alpha.20),
+  because the removals an install already did ask neither the process table nor other worktrees' locks;
+  a worktree pinned to alpha.20 loses it when another installs alpha.21,
+  and puts it back at its next install.
+  A fresh run is queued from that branch's tip
+  (`mpm-shadow-install-removes-no-version-that-a-lock-names-or-a-process-runs`,
+  base `e4c7243bbe`),
+  and the sighting went at 23:10 to the reload fix's author,
+  whose task is the instance that fails its start at an upgrade;
+  whether a removed version is that failure's cause is not established.
+- **cargo-shadow's removal of old toolchains' build folders, review of `744824fdc2`**
+  (`~/temp/agent/change-reviews/cargo-shadow-cli-removes-by-itself-the-build-folders-of-old-toolchains-by-size-and-last-modified-time/review.md`,
+  ended 23:06:17):
+  the removal is sound
+  (no link followed,
+  a claim is an atomic rename with identity checked,
+  nothing reported removed that is not,
+  no wait without a bound).
+  Two findings in the reading of how fast the drive answers,
+  both reproduced against the built program and both called low by the reviewer:
+  a dry run writes the 1 MiB probe file into the build base and leaves it;
+  and the probe is opened without `O_EXCL`,
+  so a regular file or hard link already at its name has its first megabyte zeroed,
+  against the commit's own subject.
+  Weighed as standing,
+  each small and cheap to close;
+  back to the author in its own session
+  (`cargo-shadow-removal-of-old-toolchain-folders-answers-its-review-of-744824fdc2-prompt.md`,
+  queued at position 7).
+- The queue held 49 entries at 23:10:21,
+  before that last one.
+
+##### The long runtime directory's review found a first commit that fails under one spelling, and a number its author made wrong (2026-11-13T23:01:12-05:00)
+
+Not final and not approved:
+read by the coordinating session from the review file;
+the number in the second finding was computed by it from the constants at the tip,
+nothing else rerun.
+
+The review of `1032d1ec91`
+(`~/temp/agent/change-reviews/git-policy-cli-commit-is-made-when-the-runtime-directory-path-is-too-long-for-a-socket/review.md`,
+ended 22:54:12)
+found the abstract address's detection,
+the peer-credential checks at both ends,
+provisioning under concurrent commits and every wait's bound sound.
+It built no wrapper and ran no commit.
+Two findings,
+both weighed as standing:
+
+- A long runtime directory spelled with a `..` part over a directory that does not exist yet
+  gives the client one abstract name (from the spelling) and the socket unit another
+  (from the real path,
+  once provisioning has made the directory).
+  The two names differing is reproduced with the function compiled alone;
+  the commit ending "the commit service did not start" is read from the order of calls.
+  Rare,
+  and the first commit only,
+  but the project's rule is that a commit never fails.
+- The author's own commit `401297e28a` changed the longest runtime directory of the path form from 40 bytes to 39,
+  in the function's doc,
+  in `SPEC.md` and in three test files' comments.
+  40 was right:
+  the folder name is 28 bytes,
+  the part after the runtime directory 67,
+  and 107 less 67 is 40
+  (computed with `node` at 22:59:41).
+
+Back to the author in its own session
+(`long-runtime-directory-answers-its-review-of-1032d1ec91-prompt.md`,
+queued at 23:01:12,
+position 6 of 44),
+with an end-to-end control asked for,
+since the review ran none.
+The queue held 44 entries then.
+
+##### Three authors answered, the add-never-skips answer has four reproduced defects, and the queue is longer than at 21:00 (2026-11-13T22:53:57-05:00)
+
+Not final and not approved:
+read by the coordinating session from one review file and three runs' last messages,
+nothing here rerun by it.
+
+- **Discarding commands**
+  (run `discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file-4`,
+  ended 22:47:34,
+  tip `1edafc6c7d`,
+  `main` merged twice):
+  the author saw all ten losses of its second review on the old build and answered each,
+  with real Git measured for every rule the fixes rest on
+  (an empty pathspec file,
+  C-quoting,
+  the last `--source`,
+  one force deleting a bare repository).
+  Each control quoted failing without its fix.
+  Its whole binary suite:
+  1,163 of 1,180,
+  the seventeen red ones in families whose files equal `main`'s.
+  Its third review is queued at the head
+  (`review-git-policy-cli-discarding-commands-answers-after-its-second-review`,
+  range `main...1edafc6c7d`).
+- **The push of a branch that is not checked out**
+  (run `push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch-4`,
+  ended 22:47:41,
+  tip `6c39c3719a`,
+  level with `main`):
+  the review's reproduction showed a switch in the instant before the branch moves carrying the merge's content onto the other branch.
+  After the reference moves,
+  the move now looks at what the checkout shows and puts back,
+  path by path,
+  what it wrote and no person changed;
+  no lock.
+  Two controls,
+  one of them in another session's worktree,
+  each failing without the look.
+  Cost:
+  about 17 ms for a move in this repository,
+  3.7 ms in a fixture of two worktrees.
+  Its review is queued at the head
+  (`review-git-policy-cli-push-of-a-branch-not-checked-out-answers-after-its-second-review`,
+  range `main...6c39c3719a`).
+  It noticed that the landed sweep's notice says another worktree's branch "is now on" the merged branch,
+  which reads as if that worktree's `HEAD` had moved.
+  Open,
+  no run.
+- **Add never skips, fifth review**
+  (`~/temp/agent/change-reviews/git-policy-cli-add-never-skips-answers-after-its-fourth-review/review.md`,
+  ended 22:48:23,
+  on `c69516c715`):
+  the rollback window and the bounded reads are sound,
+  and four defects are reproduced,
+  all weighed as standing.
+  The placement deletes a person's own lock when that is what stood at the lock as the filling began,
+  and a kill or a restore that cannot write then leaves it nowhere,
+  against the two sentences the last answer put into `SPEC.md`.
+  A lock over the new read limit of 1 MiB is treated as absent and the add's restore deletes the tracked file.
+  The check for the wrapper's exclude line trims a leading space and a trailing tab that Git keeps,
+  so the trash can be staged.
+  Two fillings of one workspace delete each other's resolution mirror.
+  Back to the author
+  (`add-never-skips-answers-its-fifth-review-of-2026-11-13-prompt.md`,
+  queued).
+  This is the fifth review of this branch,
+  and each found something new in what the answer before it added;
+  the brief says so and asks the author to read its own diff as that reviewer would before writing.
+- **The driver's unit test of the silence after a compaction**
+  (run `driver-unit-test-of-the-silence-after-a-compaction-passes-in-its-suite-as-it-does-alone-1`,
+  ended 22:50:29,
+  tip `e816c1dc7b`,
+  one test file):
+  the test decided its outcome by ten milliseconds of real time between two timers armed one after the other;
+  measured by hand,
+  a stall of 9 ms between them fails it with the recorded assertion.
+  The test now holds a clock of its own and moves it by hand.
+  A change to a test file alone,
+  so its review has a hand-written brief
+  (`~/temp/agent/change-reviews/pi-shared-subagent-driver-unit-test-of-the-silence-after-a-compaction-holds-its-own-clock/brief.md`,
+  queued at the head),
+  which lets the reviewer plant one break at a time.
+  It read its worktree's package links,
+  as the note about the relink asked:
+  none names another checkout.
+  It saw two other tests of the driver fail in the suite and pass alone
+  (a run's wall clock of three seconds has to hold a stand-in's start);
+  a fresh run is queued
+  (`driver-two-unit-tests-of-a-run-that-ends-at-its-wall-clock-pass-in-their-suite-as-they-do-alone`).
+- **The queue**:
+  46 entries at 22:53,
+  where it held about 40 at 21:00,
+  though some twenty-five runs ended in between.
+  Each ended run is answered with one to three new entries
+  (a review,
+  an author's answer,
+  a run for a defect seen on the way),
+  and the author pool the owner keeps at twenty is full throughout.
+  Reviews drain within the hour on their own pool;
+  authors' entries far from the head,
+  the sixteen stranded continuations among them,
+  have not moved since they were queued.
 
 ##### The removal-around answer passed its third review and is pass 30; cargo-shadow's cleanup of old toolchains is written (2026-11-13T22:46:59-05:00)
 

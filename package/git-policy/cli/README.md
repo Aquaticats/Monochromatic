@@ -2699,70 +2699,87 @@ The deliberate way is always the same:
 
 During a merge,
 a rebase,
-a cherry-pick or a revert there is one exception.
+a cherry-pick or a revert there is no exception.
 `git checkout --ours|--theirs -- <path>`,
 `git checkout <rev> -- <path>`,
 `git checkout --merge -- <path>` and the
  `git restore` forms with `--ours`,
 `--theirs`,
-`--source` or `--merge` run for conflicted paths only
- (the paths with an unmerged index entry),
+`--source` or `--merge` are refused,
  in the main worktree and in a linked one,
- after the wrapper saves your current file.
-The copy goes to `monochromatic-git-policy-cli/discarded/<UTC time>/<path>` in the common Git directory,
-beside `monochromatic-git-policy-cli-audit.jsonl`,
- and the wrapper prints where before Git runs:
+ because the file they replace holds the conflict resolution you have written,
+ which exists nowhere else.
+The refusal names every such file,
+ says that no copy is kept,
+ and names `--no-enforce-worktree`,
+ which replaces the file exactly as real Git does and copies nothing.
+It is one line;
+here it is wrapped to be read:
 
 ```text
-monochromatic-git-policy-cli: saved your copy of a.rs to
-  /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-02T14-01-07/a.rs
-  before this command replaces it (a.rs was conflicted).
+monochromatic-git-policy-cli: git checkout with paths, --force, --patch, --ours or --theirs is
+rejected in the main git worktree: it overwrites files with other content, so your edits to them
+are gone. The merge in progress left `a.rs` with an unmerged index entry, and it holds the
+resolution you have written so far, which exists nowhere else: this command replaces its content,
+and it keeps no copy of it. To settle the conflict and keep what you wrote, edit the file, stage it
+(`git add -- <paths>`) and commit the result with no paths (`git commit --message <message>`);
+`git show :1:<path>`, `git show :2:<path>` and `git show :3:<path>` print the base and the two
+sides, and `git diff -- <path>` prints the file as it stands. If you have decided to replace it on
+purpose, copy the file first (`cp -- <path> <path>.before-the-opt-out`) and pass
+`--no-enforce-worktree` directly after the subcommand: the command then runs exactly as real Git
+runs it, and no copy is kept; `cp -- <path>.before-the-opt-out <path>` puts your file back
+afterwards, and you can delete the copy then.
 ```
 
-A path that is not conflicted keeps the rejection,
- and a line that names conflicted and clean paths together is rejected whole with the clean paths named.
-Write each conflicted file by its own name after `--`;
- a directory,
+A path is named only when it is read as one plain file below the working directory.
+A directory,
+a trailing slash,
 a wildcard,
 pathspec magic,
 a missing `--`,
 `--force`,
 `--patch`,
-`--pathspec-from-file` and
- `restore --staged` are not covered and stay rejected.
+`--pathspec-from-file`,
+`restore --staged` and a global pathspec mode
+ (`--icase-pathspecs`,
+`GIT_ICASE_PATHSPECS` and the glob,
+noglob and literal forms)
+ keep the rejection without a sentence about a conflict,
+ because none of them names one file,
+ and the command is still refused.
  A token that is the value of `--source`,
  `-s` or `--conflict` is never read as `--worktree` or `--staged`,
- so `git restore --source -W --staged -- f` (a tag can be named `-W`) is an index-only restore and stays rejected,
- and the rejection names `git restore --staged`,
- not a restore of file content.
-A conflicted path that is deleted in your worktree has nothing to copy,
-and the command runs.
-When a copy cannot be written (no space,
-no permission),
-the command is rejected and says why.
- A symbolic link or a file where a directory in front of the name should be (`dir` for `dir/file`) is never followed:
- Git would replace it with a real directory and it would be lost unsaved,
- so the command is rejected,
- names `dir`
- and says to move it out of the way or save it first.
- A file that changes while it is being copied (an editor's atomic save,
- an append,
- a rewrite in place) is not reported saved:
- the copy is removed,
- the command is rejected,
- and running it again once nothing writes to the file goes through.
- A file that another program changes while the save runs is your risk.
- A pathspec mode (`--icase-pathspecs`,
- `GIT_ICASE_PATHSPECS` and the glob,
- noglob and literal forms) keeps the rejection,
- and when every path you named is a conflicted file the message names the mode and says the same command without it
- is saved first and then allowed.
- The same holds for pathspec magic on a conflicted file's name (`:(icase)a.rs`,
- `:!a.rs`,
- `:/a.rs`):
- the message names the magic and the file,
- and naming the file itself is saved first and then allowed.
-The abort forms of the same operations are decided the same way.
+ so `git restore --source -W --staged -- f` (a tag can be named `-W`) is an index-only restore and is refused
+ as that form,
+ not as a restore of file content.
+ A symbolic link or a file where a directory in front of the name should be (`dir` for `dir/file`) is never
+ replaced unsaved:
+ Git would replace it with a real directory,
+ so the refusal names `dir/file` and what stands at `dir` stays as you left it.
+ A `GIT_` variable the in-process reader does not tolerate (such as `GIT_CONFIG_GLOBAL`) keeps the refusal
+ and names no file,
+ because which file the line would replace cannot then be read.
+The advice in that message is checked by running it:
+`binary/binary_conflict_side_tests.rs` reads each command out of the refusal and runs it in a fixture
+(the backup,
+the opt-out and the restore;
+the three `git show` sides and `git diff`;
+and the `git add` with the `git commit` that concludes the merge,
+through the wrapper's own commit service).
+A backup it named earlier (`git diff -- <path> > backup.patch`) writes a combined diff on an unmerged path,
+which `git apply` refuses,
+so it named no way back;
+the copy above replaced it,
+and the concluding commit now stages first and passes no paths,
+because a commit that names paths while a merge waits leaves the merge in progress.
+
+This replaced the wrapper's earlier behaviour,
+which copied each conflicted file beside the audit log and
+then let the command run
+ (`SPEC.md`,
+ "What never discarding a person's data means").
+
+The abort forms of the same operations keep their own carve-out.
 `git merge --abort`,
 `git rebase --abort`,
 `git cherry-pick --abort`,
@@ -2912,7 +2929,9 @@ the working directory and the arguments,
 `cwdHex`,
 `argumentsHex`),
  so a name that is not UTF-8 still names the command that was run
- (a decision that saved conflicted files also lists where each copy went).
+ (a decision that saved a copy also lists where each copy went).
+ A `saved-conflict` line is one an earlier release wrote,
+and no command writes it now.
 When uncommitted work disappears,
 `git rev-parse --git-common-dir` locates the file;
  a line that says `allowed` or `hatch` near the time of the loss names the command that was let through.
@@ -4457,7 +4476,7 @@ A policy whose protection `warn` would remove produces a configuration warning e
 - `discardedCopies.maxAgeDays`:
    positive integer,
    default `30`.
-  Saves of conflicted files older than this many days are removed when a new save is written.
+  Saves older than this many days are removed when a new save is written.
 - `discardedCopies.maxSize`:
    a number of bytes above zero or a string such as `"256m"`
    (`k`,
