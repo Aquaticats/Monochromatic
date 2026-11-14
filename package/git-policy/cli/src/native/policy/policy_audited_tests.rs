@@ -1,13 +1,18 @@
 //! What:
 //!  The two audited endings:
 //!  which forms reach them,
-//!  that neither is refused,
+//!  that neither is refused for the reason the linked-worktree rule exists,
+//!  that a removal is refused only by the removal guard,
 //!  and that a form which deletes nothing writes nothing.
 //! Why:
 //!  The owner decided these run as Git runs them,
-//!  so a refusal here would be a defect,
+//!  so the dirty and ignored-file questions that rule asks are never put to them,
 //!  and a line for a
 //!       form that deletes nothing would be noise a reader has to filter.
+//!  The removal guard is the one refusal the same owner decided:
+//!  a worktree a process works in,
+//!  or one whose nested worktree holds Git work no other copy has,
+//!  is refused before Git starts (`worktree_removal_refusal.rs`).
 
 use super::record_audited;
 use crate::command_test_support::{audit_records, os_arguments};
@@ -22,6 +27,7 @@ use crate::rule_linked_worktree::{
 };
 use crate::test_support::{fixture, git, remove, repository};
 use crate::worktree_identity::WorktreeIdentity;
+use crate::worktree_removal_refusal::WORKTREE_REMOVAL_REFUSED_CODE;
 use std::path::PathBuf;
 
 /// The decision for one invocation written as text.
@@ -68,13 +74,35 @@ fn only_a_removal_and_a_deletion_are_audited() {
     }
 }
 
-/// The check itself never refuses an audited form,
+/// The check refuses an audited removal only through the removal guard,
 ///  and a repository that does not exist writes nothing.
 #[test]
-fn an_audited_form_is_never_refused() {
+fn an_audited_removal_is_refused_only_by_the_removal_guard() {
     let mut checks: ShippedChecks<ScriptedFacts> = shipped_checks(
         scripted_facts(),
         os_arguments(&["worktree", "remove", "../topic"]),
+        crate::policy_content::LifecycleContent::None,
+        Vec::<crate::effective_target::ToolCacheDirectory>::new(),
+    );
+    let PolicyOutcome::Findings(findings) =
+        checks.check(PolicyId::LinkedWorktreeOnly, Trigger::PreForward)
+    else {
+        unreachable!("the linked-worktree check answers with the findings it made");
+    };
+    assert!(
+        findings.iter().all(|finding| return finding.code == WORKTREE_REMOVAL_REFUSED_CODE),
+        "{findings:?}",
+    );
+    assert!(checks.facts.asked.contains(&String::from("location")));
+}
+
+/// A removal the person forced is never refused,
+///  because `--force` is that person's own decision that the worktree goes.
+#[test]
+fn a_forced_removal_is_never_refused() {
+    let mut checks: ShippedChecks<ScriptedFacts> = shipped_checks(
+        scripted_facts(),
+        os_arguments(&["worktree", "remove", "--force", "../topic"]),
         crate::policy_content::LifecycleContent::None,
         Vec::<crate::effective_target::ToolCacheDirectory>::new(),
     );
