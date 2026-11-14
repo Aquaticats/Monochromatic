@@ -532,3 +532,74 @@ fn a_restore_that_cannot_write_leaves_the_placement_kept_bytes_on_disk() {
     assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), THE_RESOLUTION, "and the lock is as the clean left it");
     remove(root.as_path());
 }
+
+/// What:
+///  A lock on another filesystem than the displaced directory is written after one more reading of it,
+///  and a write a person made since the reading is kept and left where they wrote it.
+/// Why:
+///   A linked worktree whose common Git directory the main checkout holds puts the two names on different filesystems,
+/// where neither an exchange nor a rename reaches across:
+/// the bytes have to be written,
+/// and the write is what the plain one overwrote anything that landed after the reading,
+/// with no copy kept.
+/// The kernel's own answer for that setup is `EXDEV`,
+/// which this control makes the exchange give without a private mount namespace
+/// (`rename_that_never_replaces::THE_NAMES_ARE_ON_DIFFERENT_FILESYSTEMS`);
+/// the review's own probe shows the same errno from a tmpfs against the host filesystem.
+/// The write a person makes lands at the hold point between the reading and the write, which is the window
+/// such a step cannot close.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// crossDevice(true); hook(() => writeFileSync(lock, PERSON)); const said = restoreOnlyTheCleansOwn(...); expect(readFileSync(lock)).toEqual(PERSON); expect(copiesWith(gitDir, PERSON).length).toBe(1)
+/// ```
+#[test]
+fn a_cross_device_write_keeps_a_persons_newer_lock_instead_of_overwriting_it() {
+    let root: PathBuf = fixture("cargo-lock-cross-device-write");
+    let lock: PathBuf = root.join(LOCK_FILE);
+    let git_dir: PathBuf = git_directory(root.as_path());
+    // The state `exchange_the_file_read` is entered in after a resolution was placed: the lock holds the resolution, and the
+    //  checked-out bytes are what the restore is putting back.
+    std::fs::write(lock.as_path(), THE_RESOLUTION).expect("the resolution the clean left");
+    let planted: PathBuf = lock.clone();
+    BEFORE_THE_CROSS_DEVICE_WRITE.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            std::fs::write(planted.as_path(), THE_PERSONS_NEWEST_WRITE).expect("the person's newer write");
+        }));
+    });
+    crate::rename_that_never_replaces::THE_NAMES_ARE_ON_DIFFERENT_FILESYSTEMS.with(|flag| flag.set(true));
+    let said: Option<String> = restore_only_the_cleans_own(root.as_path(), Some(CHECKED_OUT), Some(git_dir.as_path()), THE_RESOLUTION);
+    crate::rename_that_never_replaces::THE_NAMES_ARE_ON_DIFFERENT_FILESYSTEMS.with(|flag| flag.set(false));
+    BEFORE_THE_CROSS_DEVICE_WRITE.with(|hook| { *hook.borrow_mut() = None; });
+    assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), THE_PERSONS_NEWEST_WRITE, "the person's newer bytes stand where they wrote them: {said:?}");
+    let kept: Vec<PathBuf> = copies_with(git_dir.as_path(), THE_PERSONS_NEWEST_WRITE);
+    assert_eq!(kept.len(), 1, "and a copy of them is kept, under a name the answer gives: {kept:?} {said:?}");
+    let words: String = said.expect("the person is told what became of the bytes");
+    assert!(words.contains(kept[0].display().to_string().as_str()), "the answer names the copy: {words}");
+    remove(root.as_path());
+}
+
+/// What:
+///  With nothing landing in that window the same step puts the checked-out bytes back,
+///  so the second look closes nothing it should not.
+/// Why:
+///   This is the control of the control:
+/// the cross-device step must still do its work when the file is the one the reading named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// crossDevice(true); expect(restoreOnlyTheCleansOwn(...)).toBeUndefined(); expect(readFileSync(lock)).toEqual(CHECKOUT)
+/// ```
+#[test]
+fn a_cross_device_write_with_nothing_in_its_window_puts_the_checkout_back() {
+    let root: PathBuf = fixture("cargo-lock-cross-device-write-with-nothing");
+    let lock: PathBuf = root.join(LOCK_FILE);
+    let git_dir: PathBuf = git_directory(root.as_path());
+    std::fs::write(lock.as_path(), THE_RESOLUTION).expect("the resolution the clean left");
+    crate::rename_that_never_replaces::THE_NAMES_ARE_ON_DIFFERENT_FILESYSTEMS.with(|flag| flag.set(true));
+    let said: Option<String> = restore_only_the_cleans_own(root.as_path(), Some(CHECKED_OUT), Some(git_dir.as_path()), THE_RESOLUTION);
+    crate::rename_that_never_replaces::THE_NAMES_ARE_ON_DIFFERENT_FILESYSTEMS.with(|flag| flag.set(false));
+    assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), CHECKED_OUT, "the checked-out bytes are back: {said:?}");
+    assert!(copies_with(git_dir.as_path(), CHECKED_OUT).is_empty(), "and the checked-out bytes are in the branch, so nothing of them is kept");
+    remove(root.as_path());
+}

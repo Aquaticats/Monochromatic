@@ -56,12 +56,24 @@ pub fn rename_noreplace(_from: &Path, _to: &Path) -> std::io::Result<()> {
 /// ```
 #[cfg(target_os = "linux")]
 pub fn exchange(from: &Path, to: &Path) -> std::io::Result<()> {
+    #[cfg(test)]
+    if THE_NAMES_ARE_ON_DIFFERENT_FILESYSTEMS.with(std::cell::Cell::get) {
+        return Err(std::io::Error::from_raw_os_error(libc::EXDEV));
+    }
     use std::os::unix::ffi::OsStrExt;
     let source = std::ffi::CString::new(from.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
     let target = std::ffi::CString::new(to.as_os_str().as_bytes()).map_err(std::io::Error::other)?;
     // SAFETY: both strings are valid NUL-terminated paths for the call.
     let done: i32 = unsafe { libc::renameat2(libc::AT_FDCWD, source.as_ptr(), libc::AT_FDCWD, target.as_ptr(), libc::RENAME_EXCHANGE) };
     return if done == 0 { Ok(()) } else { Err(std::io::Error::last_os_error()) };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may make every exchange on this thread get the refusal two names on different filesystems get (`EXDEV`),
+    /// which needs a private mount namespace and a second filesystem to produce on a test host
+    /// (`a_cross_device_write_keeps_a_persons_newer_lock_instead_of_overwriting_it`).
+    pub(crate) static THE_NAMES_ARE_ON_DIFFERENT_FILESYSTEMS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[cfg(not(target_os = "linux"))]

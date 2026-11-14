@@ -1761,3 +1761,126 @@ fn a_lock_the_filling_cannot_read_stops_its_clean_and_stays_as_it_is_found() {
         remove(root.as_path());
     }
 }
+
+/// The variable that makes this test's child run the filling instead of asserting, and the one that tells it the fixture.
+const A_KILLED_FILLINGS_CHILD: &str = "CLI_GIT_TEST_SIXTH_REVIEW_KILLED_FILLING";
+
+/// What:
+///  A filling killed between placing a resolution and putting a person's lock bytes back is finished by the next filling:
+///  their bytes are back at the lock.
+/// Why:
+///   A kill at any instruction is ordinary on this machine, and this is the one window of the design whose kept copy nothing
+/// scanned:
+/// the lock held Cargo's resolution, the person's edit sat at a kept name under the Git directory,
+/// and the next filling took the resolution as its baseline, so their edit left the worktree without a word.
+/// The kill is real here: the child process runs the filling with a stand-in Cargo whose second clean waits, and the
+/// parent kills it with `SIGKILL` while it waits.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawn(theTestBinary, ['--exact', name, '--nocapture'], { env: fixture }); await marker('sleeping'); child.kill('SIGKILL'); expect(lockHoldsThePersonsBytes()).toBe(true)
+/// ```
+#[test]
+fn a_filling_killed_between_placing_a_resolution_and_restoring_is_finished_by_the_next_one() {
+    // The child: the filling itself, with the stand-in Cargo and the fixture the parent made.
+    if std::env::var(A_KILLED_FILLINGS_CHILD).is_ok() {
+        let root: PathBuf = PathBuf::from(std::env::var("CLI_GIT_TEST_SIXTH_REVIEW_ROOT").expect("the fixture root"));
+        let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+        let fill: Fill = Fill {
+            cargo: root.join("cargo-that-waits-in-the-second-clean"),
+            limits: ToolLimits { window: std::time::Duration::from_secs(30), ceiling: std::time::Duration::from_secs(30) },
+            kept_in: Some(root.join("git-dir")),
+            worktree: root.clone(),
+            filling: String::from("the-filling-the-parent-kills"),
+        };
+        let _filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+        return;
+    }
+    let root: PathBuf = fixture("prewarm-killed-between-placement-and-restore");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    // The person's own lock, which no clean accepts and only a resolution makes current.
+    let persons: &[u8] = b"# the person's own lock edit, made after the add returned\n";
+    let lock: PathBuf = entry.root.join(LOCK_FILE);
+    std::fs::write(lock.as_path(), persons).expect("the person's write");
+    // The stand-in Cargo: refuses the first `--locked` clean, resolves in the mirror, and in the second clean says it is waiting
+    //  and sleeps, which is the moment the parent kills the filling.
+    let refused: PathBuf = root.join("refused-once");
+    let sleeping: PathBuf = root.join("the-second-clean-waits");
+    let resolution: &str = "# what the resolution wrote\n";
+    let cargo: PathBuf = root.join("cargo-that-waits-in-the-second-clean");
+    let body: String = format!(
+        "#!/bin/sh\nif [ \"$1\" = clean ]; then\n  if [ ! -e '{refused}' ]; then\n    : > '{refused}'\n    echo 'error: cannot update the lock file because --locked was passed to prevent this' >&2\n    exit 101\n  fi\n  : > '{sleeping}'\n  sleep 30\n  exit 0\nfi\nif [ \"$1\" = metadata ]; then\n  printf '%s' '{resolution}' > Cargo.lock\n  exit 0\nfi\nexit 0\n",
+        refused = refused.display(),
+        sleeping = sleeping.display(),
+        resolution = resolution,
+    );
+    crate::test_support::executable(cargo.as_path(), body.as_bytes());
+    let child: std::process::Child = std::process::Command::new(crate::test_support::this_test_binary().expect("the test binary"))
+        .args(["--exact", "repair::package_repair_prewarm_job::tests::a_filling_killed_between_placing_a_resolution_and_restoring_is_finished_by_the_next_one", "--nocapture", "--test-threads=1"])
+        .env(A_KILLED_FILLINGS_CHILD, "1")
+        .env("CLI_GIT_TEST_SIXTH_REVIEW_ROOT", root.to_str().expect("the fixture root is text"))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("the child filling starts");
+    // Wait, bounded, for the second clean to be the step that is running: the placement has happened and the restore has not.
+    let began: std::time::Instant = std::time::Instant::now();
+    while !sleeping.is_file() {
+        assert!(began.elapsed() < std::time::Duration::from_secs(60), "the child never reached its second clean");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let mut child: std::process::Child = child;
+    let _killed = child.kill();
+    let _waited = child.wait();
+    // The state the kill leaves: the lock holds the resolution, and the person's bytes are at a kept name with a note beside it.
+    assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), resolution.as_bytes(), "the kill left the resolution at the lock");
+    assert!(!copies_with_the_lock_module(root.join("git-dir").as_path(), persons).is_empty(), "and the person's bytes are kept under the Git directory");
+    // The next filling, with a Cargo that accepts the resolution: without the recovery it takes the resolution as its baseline and
+    //  publishes, and the person's edit never comes back.
+    let quiet: PathBuf = root.join("cargo-that-accepts-the-lock");
+    crate::test_support::executable(quiet.as_path(), b"#!/bin/sh\nexit 0\n");
+    let fill: Fill = Fill {
+        cargo: quiet,
+        limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
+        kept_in: Some(root.join("git-dir")),
+        worktree: root.clone(),
+        filling: String::from("the-filling-that-looks-next"),
+    };
+    let next: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+    assert!(next.is_ok(), "the next filling completes: {next:?}");
+    assert_eq!(
+        std::fs::read(lock.as_path()).expect("the lock"),
+        persons,
+        "the person's bytes are back at the lock after the next filling; the kept copies are {:?}",
+        copies_with_the_lock_module(root.join("git-dir").as_path(), persons)
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  Every file under one lock's displaced directory whose bytes are `bytes`.
+/// Why:
+///   A control has to see whether a person's bytes are kept, without depending on the name the step chose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const copiesWithTheLockModule = (gitDir, bytes) => walk(join(gitDir, DISPLACED_DIRECTORY)).filter((path) => readFileSync(path).equals(bytes))
+/// ```
+fn copies_with_the_lock_module(git_dir: &Path, bytes: &[u8]) -> Vec<PathBuf> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    let mut pending: Vec<PathBuf> = vec![git_dir.join(crate::package_repair_cargo_lock::DISPLACED_DIRECTORY)];
+    while let Some(directory) = pending.pop() {
+        let Ok(listing) = std::fs::read_dir(directory.as_path()) else { continue };
+        for found_entry in listing.flatten() {
+            let path: PathBuf = found_entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if std::fs::read(path.as_path()).ok().as_deref() == Some(bytes) {
+                found.push(path);
+            }
+        }
+    }
+    found.sort();
+    return found;
+}

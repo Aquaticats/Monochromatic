@@ -42,7 +42,9 @@ use crate::diagnostic_log::debug;
 use crate::package_repair_cargo::{locked_clean_arguments, manual_command};
 /// The lock file the filling's report names,
 /// and the faces that read it and put the checked-out bytes back over a resolution's.
-use crate::package_repair_cargo_lock::{LOCK_FILE, Placed, place_the_resolution, read_lock, restore_only_the_cleans_own};
+use crate::package_repair_cargo_lock::{
+    LOCK_FILE, Placed, forget_what_a_placement_kept, place_the_resolution, put_back_what_a_killed_placement_left, read_lock, restore_only_the_cleans_own,
+};
 use crate::package_repair_command::{ToolCommand, ToolEnd, ToolLimits, ToolRun, find_program, run_tool_awaiting};
 use crate::package_repair_prewarm::{BUILD_DIRECTORY_VARIABLE, PrewarmEntry, STAGING_SUFFIX, TARGET_DIRECTORY_VARIABLE, decode};
 use crate::package_repair_prewarm_claim::{TheClaim, TheLease, claim_the_names};
@@ -1174,6 +1176,14 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
     //  runs after the add returned, when the person may be working in the worktree, so the clean itself must never write
     //  that lock (`--locked`): a lock it refuses is resolved by Cargo first, and the checked-out lock goes back only when
     //  the file still holds exactly the bytes that resolution wrote (`package_repair_cargo_lock.rs`).
+    // A repair that was killed between placing a resolution and putting a person's bytes back left them at a kept name with a
+    //  note beside them; this is the next command that looks, so it puts them back when the lock still holds that resolution,
+    //  and names them otherwise.
+    if let Some(directory) = fill.kept_in.as_ref() {
+        for said in put_back_what_a_killed_placement_left(entry.root.as_path(), directory) {
+            debug(TAG, format!("{}: {said}", entry.root.display()).as_str());
+        }
+    }
     let lock_before: Option<Vec<u8>> = match read_lock(entry.root.as_path()) {
         Ok(bytes) => bytes,
         // Something that is not a regular file stands at the lock's name. It is the person's, so it is not read, not
@@ -1216,11 +1226,7 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
                 if let Some(kept) = displaced.as_ref() {
                     let back: bool = matches!(read_lock(entry.root.as_path()), Ok(Some(bytes)) if Some(bytes.as_slice()) == lock_before.as_deref());
                     if back {
-                        if let Err(error) = std::fs::remove_file(kept.as_path())
-                            && error.kind() != std::io::ErrorKind::NotFound
-                        {
-                            debug(TAG, format!("{} could not be removed after the restore ({error})", kept.display()).as_str());
-                        }
+                        forget_what_a_placement_kept(kept.as_path());
                     } else {
                         debug(
                             TAG,

@@ -397,6 +397,16 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
     //  tracked file away as a file the clean had created, and the worktree would be left with its Cargo.lock deleted.
     //  So a lock that cannot be read stops this workspace's clean here, before anything is written, and the line names the file and
     //  what stands there; the copy the worktree already holds is what a build then reuses, exactly as when a clean fails.
+    // A repair that was killed between placing a resolution and putting a person's bytes back left them at a kept name with a
+    //  note beside them; this clean is the next command that looks, so it puts them back when the lock still holds that
+    //  resolution, and names them otherwise.
+    let mut put_back: String = String::new();
+    if let Some(directory) = kept_in {
+        for said in crate::package_repair_cargo_lock::put_back_what_a_killed_placement_left(workspace.root.as_path(), directory) {
+            put_back.push_str(said.as_str());
+            put_back.push(' ');
+        }
+    }
     let lock_before: Option<Vec<u8>> = match read_lock(workspace.root.as_path()) {
         Ok(bytes) => bytes,
         Err(reason) => {
@@ -407,7 +417,11 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
     let run: ToolRun = timed_clean_awaiting(tool, &command).await;
     // The bytes the clean displaced are kept before the checked-out lock comes back, and the line says where they are
     //  (`package_repair_cargo_lock.rs`).
-    let displaced: Option<String> = restore_lock(workspace.root.as_path(), lock_before.as_deref(), kept_in);
+    let displaced: Option<String> = match (restore_lock(workspace.root.as_path(), lock_before.as_deref(), kept_in), put_back.is_empty()) {
+        (said, true) => said,
+        (Some(said), false) => Some(format!("{put_back}{said}")),
+        (None, false) => Some(put_back.trim_end().to_owned()),
+    };
     return match run.end {
         ToolEnd::Succeeded => Done::Cleaned(displaced),
         ToolEnd::Failed(reason) => workspace_failed(manual.as_str(), reason),

@@ -523,6 +523,19 @@ pub fn place_the_resolution(root: &Path, resolution: &[u8], before: Option<&[u8]
         // What came out is the bytes the filling read at its start, and this step cannot tell whether they are the checkout's or a
         //  write of the person's made since the add returned: the branch holds the checkout's and nobody holds theirs. The copy
         //  stays until the caller's restore has put those bytes back at the lock, and a kill before that leaves them on disk.
+        //
+        // The note beside them says which resolution is at the lock now, so the next command that looks can put them back when the
+        //  lock still holds that very resolution, and leave and name them when a write landed instead.
+        if let Err(reason) = write_the_note(staged.as_path(), path.as_path(), resolution) {
+            // Without the note a kill here would strand bytes nothing could place, so this step gives way with the bytes back at the lock.
+            return match crate::rename_that_never_replaces::exchange(staged.as_path(), path.as_path()) {
+                Ok(()) => {
+                    let _dropped = std::fs::remove_file(staged.as_path());
+                    Placed::GaveWay(format!("{reason}, so the file is left exactly as it is found and the repair gives way"))
+                }
+                Err(error) => Placed::GaveWay(format!("{reason} and putting those bytes back failed ({error}), so they are kept at {}", staged.display())),
+            };
+        }
         return Placed::Placed { displaced: Some(staged) };
     }
     #[cfg(test)]
@@ -651,14 +664,11 @@ fn exchange_the_file_read(path: &Path, checkout: &[u8], read: &[u8], directory: 
     if let Err(error) = crate::rename_that_never_replaces::exchange(staged.as_path(), path) {
         let _dropped = std::fs::remove_file(staged.as_path());
         // A displaced directory on another filesystem than the worktree cannot exchange a file with the lock (`EXDEV`),
-        //  which is what a linked worktree whose Git directory the main checkout holds does:
-        // no step taken from here can reach across, so this is the plain write such a setup allows,
-        //  and its one window is the one no step from outside the writer closes there.
+        //  which is what a linked worktree whose Git directory the main checkout holds does.
+        // No rename can reach across either, so the bytes are written; but the write is the same step as everywhere else here:
+        //  the lock is read once more first, and bytes that are not the ones the reading named are a person's, kept and left.
         if is_cross_device(&error) {
-            return match std::fs::write(path, checkout) {
-                Ok(()) => Restored::TheCheckoutIsBack,
-                Err(refusal) => Restored::LeftAsFound(format!("{} could not be written ({refusal})", path.display())),
-            };
+            return write_over_the_lock_after_a_second_look(path, checkout, read, directory);
         }
         if !crate::rename_that_never_replaces::rename_unsupported(&error) {
             return Restored::LeftAsFound(format!("{} could not be replaced ({error})", path.display()));
@@ -724,6 +734,61 @@ fn replace_after_a_second_look(path: &Path, checkout: &[u8], read: &[u8], direct
         return Restored::LeftAsFound(format!("{} could not be replaced ({error})", path.display()));
     }
     return Restored::TheCheckoutIsBack;
+}
+
+/// What:
+///  Write the checked-out bytes over a lock the displaced directory cannot exchange with,
+///  after one more reading of it,
+///  and keep and leave bytes a person wrote since the reading instead.
+/// Why:
+///   A linked worktree whose common Git directory the main checkout holds puts the two names on different
+/// filesystems,
+/// and neither an exchange nor a rename reaches across them,
+/// so this is a plain write.
+/// A plain write is the step that loses a write nothing kept,
+/// which is why the lock is read once more at the moment of writing:
+/// bytes that are not the ones the reading named arrived after it,
+/// so they are a person's,
+/// they are kept under the displaced directory,
+/// and the file is left exactly as they wrote it.
+/// The one window such a step cannot close is the two adjacent calls between that reading and this write;
+/// every write before the reading is judged here, and every write after the write stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const standing = readTheLockAt(path); if (standing !== read) { keepTheBytes(dir, path, standing); return theirWriteStays(); } writeFileSync(path, checkout); return theCheckoutIsBack();
+/// ```
+fn write_over_the_lock_after_a_second_look(path: &Path, checkout: &[u8], read: &[u8], directory: &Path) -> Restored {
+    #[cfg(test)]
+    BEFORE_THE_CROSS_DEVICE_WRITE.with(|hook| {
+        if let Some(write) = hook.borrow().as_ref() {
+            write();
+        }
+    });
+    let standing: Option<Vec<u8>> = match read_the_lock_at(path) {
+        Ok(bytes) => bytes,
+        // What stands there is not a regular file, so it is a person's and it stays where it is.
+        Err(_refusal) => return Restored::TheirWriteStays(None),
+    };
+    if standing.as_deref() != Some(read) {
+        let Some(theirs) = standing else {
+            // The file went away between the reading and this one: nothing of theirs stands there, and the checked-out bytes are not
+            //  written where a person's file may appear a moment later.
+            return Restored::TheirWriteStays(None);
+        };
+        return match keep_the_bytes(directory, path, theirs.as_slice()) {
+            Ok(copy) => Restored::TheirWriteStays(Some(copy)),
+            Err(reason) => Restored::LeftAsFound(format!(
+                "the {LOCK_FILE} of {} was written after the clean and the bytes that stand there could not be kept ({reason}), so they are left \
+                 exactly as they are found",
+                path.display()
+            )),
+        };
+    }
+    return match std::fs::write(path, checkout) {
+        Ok(()) => Restored::TheCheckoutIsBack,
+        Err(refusal) => Restored::LeftAsFound(format!("{} could not be written ({refusal})", path.display())),
+    };
 }
 
 /// What:
@@ -828,6 +893,254 @@ fn write_where_nothing_stands(path: &Path, checkout: &[u8]) -> Restored {
     return Restored::TheCheckoutIsBack;
 }
 
+/// What the note beside a placement's kept bytes is suffixed with.
+/// Why:
+///   The kept bytes are a `Cargo.lock.restoring` name,
+/// which the restore's own staging uses too,
+/// and only a note says that a placement made this one,
+/// for which lock,
+/// and over which resolution:
+/// without it a later command cannot tell whether the lock still holds the resolution the placement put there
+/// or a write a person made since.
+const NOTE_SUFFIX: &str = ".note";
+
+/// What:
+///  The note a placement leaves beside the bytes it kept,
+///  or nothing when it is absent or cannot be read.
+/// Why:
+///   A later command needs three facts and no more:
+/// the lock,
+/// the kept bytes,
+/// and which resolution stood at the lock when they were displaced.
+/// A note that cannot be read is not acted on:
+/// a placement that left one is re-derived by nothing,
+/// so an unreadable note is left and named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theNoteOf = (staged) => `${staged}${NOTE_SUFFIX}`;
+/// ```
+fn the_note_of(staged: &Path) -> PathBuf {
+    let mut named: std::ffi::OsString = staged.as_os_str().to_os_string();
+    named.push(NOTE_SUFFIX);
+    return PathBuf::from(named);
+}
+
+/// What:
+///  Write the note a placement leaves beside the bytes it kept,
+///  naming the lock, those bytes,
+///  and the resolution it put at the lock.
+/// Why:
+///   A kill between the placement and the restore leaves the lock holding Cargo's resolution and a person's bytes at the
+/// kept name;
+/// a later command that reads the note can put them back when the lock still holds that very resolution,
+/// and leaves and names them otherwise.
+/// A note that cannot be written makes the placement give way instead of keeping bytes nothing can place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const writeTheNote = (staged, lock, resolution) => writePrivateFile(theNoteOf(staged), JSON.stringify({ v: 1, lock, displaced: staged, resolutionDigest, resolutionBytes }))
+/// ```
+fn write_the_note(staged: &Path, lock: &Path, resolution: &[u8]) -> Result<(), String> {
+    let Some(lock_text) = lock.to_str() else { return Err(format!("{} is not valid UTF-8, so no note can name it", lock.display())) };
+    let Some(staged_text) = staged.to_str() else { return Err(format!("{} is not valid UTF-8, so no note can name it", staged.display())) };
+    let mut fields: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+    fields.insert(String::from("v"), serde_json::Value::from(1));
+    fields.insert(String::from("lock"), serde_json::Value::from(lock_text));
+    fields.insert(String::from("displaced"), serde_json::Value::from(staged_text));
+    fields.insert(String::from("resolutionDigest"), serde_json::Value::from(crate::service_instance::digest_of_bytes(resolution)));
+    fields.insert(String::from("resolutionBytes"), serde_json::Value::from(resolution.len() as u64));
+    let text: String = serde_json::Value::Object(fields).to_string();
+    let note: PathBuf = the_note_of(staged);
+    return crate::private_storage::write_private_file_unsynced(note.as_path(), text.as_bytes())
+        .map_err(|error| format!("{} could not be written ({error})", note.display()));
+}
+
+/// What one note says.
+#[derive(Debug)]
+struct TheNote {
+    /// The lock whose bytes the placement displaced.
+    lock: PathBuf,
+    /// Where those bytes are kept.
+    displaced: PathBuf,
+    /// The digest of the resolution the placement put at the lock.
+    resolution_digest: String,
+    /// The resolution's length, so a digest of the wrong length is no match.
+    resolution_bytes: u64,
+}
+
+/// What:
+///  The note at this name,
+///  read the bounded way,
+///  or why it is not one.
+/// Why:
+///   The tree of displaced bytes is the wrapper's own,
+/// and a note is read by a later command that trusts nothing it cannot verify.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readTheNote = (path) => parse(readRegularFile(path, LOCK_READ_LIMIT))
+/// ```
+fn read_the_note(path: &Path) -> Result<TheNote, String> {
+    let bytes: Vec<u8> = match crate::private_storage::read_regular_file(path, LOCK_READ_LIMIT) {
+        Ok(bytes) => bytes,
+        Err(crate::private_storage::ReadRefusal::Missing) => return Err(format!("{} is not there", path.display())),
+        Err(refusal) => return Err(format!("{} {}, so it was not read", path.display(), refusal_words(&refusal))),
+    };
+    let Ok(parsed) = serde_json::from_slice::<serde_json::Value>(bytes.as_slice()) else {
+        return Err(format!("{} does not hold a note", path.display()));
+    };
+    let (Some(lock), Some(displaced), Some(digest), Some(count)) = (
+        parsed.get("lock").and_then(serde_json::Value::as_str),
+        parsed.get("displaced").and_then(serde_json::Value::as_str),
+        parsed.get("resolutionDigest").and_then(serde_json::Value::as_str),
+        parsed.get("resolutionBytes").and_then(serde_json::Value::as_u64),
+    ) else {
+        return Err(format!("{} does not hold a note", path.display()));
+    };
+    return Ok(TheNote { lock: PathBuf::from(lock), displaced: PathBuf::from(displaced), resolution_digest: String::from(digest), resolution_bytes: count });
+}
+
+/// What:
+///  The names of the notes under one lock's displaced directory,
+///  in a fixed order so two commands act on them in the same one.
+/// Why:
+///   A list that answered in the filesystem's order would make a control flaky and two recoveries disagree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const notesUnder = (dir) => readdir(dir).filter((name) => name.endsWith('.note')).sort()
+/// ```
+fn the_notes_under(directory: &Path) -> Vec<PathBuf> {
+    let Ok(listing) = std::fs::read_dir(directory) else { return Vec::new() };
+    let mut notes: Vec<PathBuf> = listing
+        .flatten()
+        .map(|found| return found.path())
+        .filter(|path| return path.extension().is_some_and(|extension| return extension == std::ffi::OsStr::new(NOTE_SUFFIX.trim_start_matches('.'))))
+        .collect();
+    notes.sort();
+    return notes;
+}
+
+/// What:
+///  Forget a placement whose bytes are back at the lock:
+///  its kept copy and the note beside it.
+/// Why:
+///   The copy is the caller's own once the restore has put those bytes back,
+/// and the note would otherwise send a later command looking for a copy that is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const forgetWhatAPlacementKept = (staged) => { unlink(staged); unlink(theNoteOf(staged)) }
+/// ```
+pub fn forget_what_a_placement_kept(staged: &Path) {
+    for path in [staged.to_path_buf(), the_note_of(staged)] {
+        match std::fs::remove_file(path.as_path()) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                crate::diagnostic_log::debug("packageRepairCargoLock", format!("{} could not be removed ({error})", path.display()).as_str());
+            }
+        }
+    }
+}
+
+/// What:
+///  Put back the bytes a killed placement moved aside,
+///  or name where they are,
+///  for the lock of this workspace.
+/// Why:
+///   A kill between placing a resolution and putting a person's bytes back leaves the lock holding Cargo's resolution and
+/// their edit at a kept name;
+/// nothing scanned that tree, so a later filling took the resolution as its baseline and the edit left the worktree
+/// without a word.
+/// A note says which resolution was placed,
+/// so this step can tell the two states apart:
+/// the lock still holding that very resolution means their bytes go back in the one step that judges what it displaces,
+/// and any other lock is a write made since,
+/// which is left where it stands with their earlier bytes kept and named.
+/// A note whose kept bytes are gone is a filling that finished, and it goes.
+/// Every line this answers is for the person.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const putBackWhatAKilledPlacementLeft = (lock, keptIn) => notesUnder(copiesDirectory(keptIn, lock)).flatMap((note) => settle(note, lock))
+/// ```
+pub fn put_back_what_a_killed_placement_left(root: &Path, kept_in: &Path) -> Vec<String> {
+    let lock: PathBuf = root.join(LOCK_FILE);
+    let directory: PathBuf = copies_directory(kept_in, lock.as_path());
+    let mut said: Vec<String> = Vec::new();
+    for note_path in the_notes_under(directory.as_path()) {
+        let note: TheNote = match read_the_note(note_path.as_path()) {
+            Ok(note) => note,
+            Err(_unreadable) => {
+                // A note this step cannot read is left where it is: it is not this step's to delete.
+                continue;
+            }
+        };
+        if note.lock != lock {
+            // One lock's notes sit under that lock's own directory, so a note for another lock is left alone.
+            continue;
+        }
+        let Ok(kept_at) = read_the_lock_at(note.displaced.as_path()) else {
+            said.push(format!("{} is not a regular file, so the bytes a repair kept from {} stay where they are", note.displaced.display(), lock.display()));
+            continue;
+        };
+        let Some(kept_bytes) = kept_at else {
+            // Nothing is kept there any more: the filling that made the note finished and took its copy, so the note goes.
+            let _dropped = std::fs::remove_file(note_path.as_path());
+            continue;
+        };
+        let standing: Option<Vec<u8>> = match read_the_lock_at(lock.as_path()) {
+            Ok(bytes) => bytes,
+            Err(refusal) => {
+                said.push(format!("{refusal}, so the bytes a repair kept at {} stay there", note.displaced.display()));
+                continue;
+            }
+        };
+        let still_the_resolution: bool = standing.as_ref().is_some_and(|bytes| {
+            return bytes.len() as u64 == note.resolution_bytes && crate::service_instance::digest_of_bytes(bytes.as_slice()) == note.resolution_digest;
+        });
+        if !still_the_resolution {
+            said.push(format!(
+                "the {LOCK_FILE} of {} was written after a repair displaced another version of it, so the file is left as it is found and those bytes are kept at {}",
+                root.display(),
+                note.displaced.display()
+            ));
+            continue;
+        }
+        if let Err(error) = crate::rename_that_never_replaces::exchange(note.displaced.as_path(), lock.as_path()) {
+            said.push(format!(
+                "the {LOCK_FILE} of {} holds a resolution a killed repair placed, and putting the bytes that stood there back failed ({error}), so they are kept at {}",
+                root.display(),
+                note.displaced.display()
+            ));
+            continue;
+        }
+        // The exchange hands back whatever the lock held at that instant, which is the resolution when nothing was written since.
+        let handed_back: Option<Vec<u8>> = read_the_lock_at(note.displaced.as_path()).ok().flatten();
+        let was_the_resolution: bool = handed_back.as_ref().is_some_and(|bytes| {
+            return bytes.len() as u64 == note.resolution_bytes && crate::service_instance::digest_of_bytes(bytes.as_slice()) == note.resolution_digest;
+        });
+        if !was_the_resolution {
+            said.push(format!(
+                "the {LOCK_FILE} of {} was written while a killed repair's bytes were being put back, so that write stands and the bytes the repair displaced are kept at {}",
+                root.display(),
+                note.displaced.display()
+            ));
+            continue;
+        }
+        let _dropped = std::fs::remove_file(note.displaced.as_path());
+        let _dropped_note = std::fs::remove_file(note_path.as_path());
+        said.push(format!(
+            "the {LOCK_FILE} of {} is back as it stood before a repair was killed: {} bytes a person had written",
+            root.display(),
+            kept_bytes.len()
+        ));
+    }
+    return said;
+}
+
 /// What:
 ///  Stage the checked-out bytes in the displaced directory,
 ///  where the exchange and the fallback take them from,
@@ -892,6 +1205,13 @@ thread_local! {
     ///   The window cannot be reached from outside the writer on a wall clock,
     /// and a control that waited on one would pass whatever the code did.
     pub(crate) static BETWEEN_THE_READING_AND_THE_ROLLBACK: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+
+    /// A control may write the lock between the reading a cross-device write is judged by and the write itself,
+    /// which is the window that write cannot close.
+    /// Why:
+    ///   The window is two adjacent calls,
+    /// and a control that waited on one would pass whatever the code did.
+    pub(crate) static BEFORE_THE_CROSS_DEVICE_WRITE: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Controls stay out of the release executable.
