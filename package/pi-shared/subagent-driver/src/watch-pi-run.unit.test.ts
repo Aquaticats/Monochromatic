@@ -665,7 +665,90 @@ function connectionThatRefusesWhilePiWorks({
 }
 
 /**
- A connection whose every message ends the wait before Pi answers it.
+ A connection whose first message arrives while Pi begins a turn, so Pi refuses it, and whose later messages are taken. The turn
+ that began ends on its own shortly after, as a queued steer would, so a message held for Pi to rest can go again.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param record - the run's record, which the scripted Pi writes its events to
+
+ @returns the connection a watch reads
+ */
+function connectionWhoseFirstMessageMeetsATurn({
+  sent,
+  record,
+}: {
+  readonly sent: string[];
+  readonly record: RecordOfPiRun
+},): ConnectionToPi {
+  /**
+   Whether a message has gone yet: the first one meets the turn, every later one is taken.
+   */
+  let sentAny = false;
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message, } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      if (!sentAny) {
+        sentAny = true;
+        // Pi begins a turn as the message arrives, so the message meets a Pi at work and is refused. The turn ends on a timer, so
+        // the refusal is read while Pi works and the run rests on a later look.
+        record.observe({
+          event: { type: 'agent_start', },
+          declineDialog: refuseDialog,
+        },);
+        setTimeout(
+          function endTheTurn() {
+            record.observe({
+              event: { type: 'turn_start', },
+              declineDialog: refuseDialog,
+            },);
+            record.observe({
+              event: {
+                type: 'message_end',
+                message: {
+                  role: 'assistant',
+                  content: [{
+                    type: 'text',
+                    text: 'working on the steer',
+                  },],
+                  stopReason: 'stop',
+                },
+              },
+              declineDialog: refuseDialog,
+            },);
+            record.observe({
+              event: { type: 'agent_settled', },
+              declineDialog: refuseDialog,
+            },);
+          },
+          0,
+        ).unref();
+        return {
+          ending: 'answered',
+          record: {
+            success: false,
+            error: 'agent is already running',
+          },
+        };
+      }
+      // Taken: the turn it starts answers with words and settles.
+      observeSuccessfulReply(record,);
+      return {
+        ending: 'answered',
+        record: { success: true, },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
 
  @param ending - how the wait ends
 
@@ -1551,6 +1634,212 @@ await describe({
           ending: 'pi-exited',
           expected: 'pi-exited',
         },);
+      },
+    },),
+    it({
+      name: 'a model error that lands while the work is being read is answered by an attempt, not ended',
+      fn: async () => {
+        await using run = await startRunWhoseLastAnswerHadWords();
+        /**
+         The messages the watch sent, which must include the attempt at the error.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was read, so the error lands inside the first read.
+         */
+        let reads = 0;
+        const endReason = await watchUntilEnded({
+          connection: connectionWhosePiReplies({
+            sent,
+            record: run.record,
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.runFolder,
+            retryCap: 3,
+            retryBaseSeconds: 0,
+          },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+          workLeftRunning: async function readWork() {
+            reads += 1;
+            if (reads === 1) {
+              // A turn Pi began during the read settles on a model error another attempt may fix.
+              run.record.observe({
+                event: { type: 'agent_start', },
+                declineDialog: refuseDialog,
+              },);
+              run.record.observe({
+                event: {
+                  type: 'message_end',
+                  message: {
+                    role: 'assistant',
+                    content: [],
+                    stopReason: 'error',
+                    errorMessage: '503 service unavailable: the provider is overloaded',
+                  },
+                },
+                declineDialog: refuseDialog,
+              },);
+              run.record.observe({
+                event: { type: 'agent_settled', },
+                declineDialog: refuseDialog,
+              },);
+            }
+            return [];
+          },
+        },);
+        // The error is answered by an attempt rather than ending a run that was resting before the read.
+        expect(endReason,).toBe('idle',);
+        expect(run.record.retriesTaken(),).toBe(1,);
+        expect(run.record.unrecoveredModelError().failed,).toBe(false,);
+        expect(sent.length,).toBe(1,);
+      },
+    },),
+    it({
+      name: 'a wake refused because Pi began a turn is held, and goes again once Pi rests',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        /**
+         The messages the watch sent: the wake Pi refused at work, then the wake it took at rest.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was read: the build runs, then its end meets a turn, then it is gone.
+         */
+        let reads = 0;
+        const endReason = await watchUntilEnded({
+          connection: connectionWhoseFirstMessageMeetsATurn({
+            sent,
+            record: run.record,
+          },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+          workLeftRunning: async function readWork() {
+            reads += 1;
+            return (reads === 1) ? ['proc_1 (native-build) 486667 mise run build'] : [];
+          },
+        },);
+        // The wake is no ending: it goes again once the turn that refused it ends.
+        expect(endReason,).toBe('idle',);
+        expect(run.record.isRunning(),).toBe(false,);
+        expect(sent.length,).toBe(2,);
+        const feed = await feedOf(run.runFolder,);
+        const wakes = feed.filter((entry,) => entry.kind === 'wake',);
+        expect(wakes.at(-1)?.success,).toBe(true,);
+      },
+    },),
+    it({
+      name: 'a message from the inbox that meets a turn begun is delivered once Pi rests, and never shelved',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        await writeFile(join(run.inbox, MESSAGE_NAME,), MESSAGE_TEXT,);
+        /**
+         The messages the watch sent: the message Pi refused at work, then the same message it took at rest.
+         */
+        const sent: string[] = [];
+        const endReason = await watchUntilEnded({
+          connection: connectionWhoseFirstMessageMeetsATurn({
+            sent,
+            record: run.record,
+          },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (HOLD_MILLISECONDS * 100),
+          workLeftRunning: async () => [],
+        },);
+        expect(endReason,).toBe('idle',);
+        // The message went twice: the refusal is no answer about it, and the second try is the one Pi took.
+        expect(sent.filter((message,) => message === MESSAGE_TEXT).length,).toBe(2,);
+        expect((await readdir(run.inbox,)).some((name,) => name.startsWith('.failed-',)),).toBe(false,);
+        /**
+         What the summary says about the messages Pi never took, which is none.
+         */
+        const summary = run.record.summarize({
+          endReason: 'idle',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.inboxNotTaken,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'a message Pi refuses while it rests is kept aside and named in the summary',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        await writeFile(join(run.inbox, MESSAGE_NAME,), MESSAGE_TEXT,);
+        /**
+         The messages the watch sent: the one message, refused while Pi rested.
+         */
+        const sent: string[] = [];
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({
+            sent,
+            refuses: true,
+          },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async () => [],
+        },);
+        expect(endReason,).toBe('wall-clock',);
+        expect((await readdir(run.inbox,)),).toContain(`.failed-${MESSAGE_NAME}`,);
+        /**
+         What the summary says about the message Pi never took.
+         */
+        const summary = run.record.summarize({
+          endReason: 'wall-clock',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+      },
+    },),
+    it({
+      name: 'a message still waiting when the run ends is kept aside and named in the summary',
+      fn: async () => {
+        await using run = await startRunThatSettled();
+        await writeFile(join(run.inbox, MESSAGE_NAME,), MESSAGE_TEXT,);
+        /**
+         The messages the watch sent: the message, refused while Pi worked.
+         */
+        const sent: string[] = [];
+        const endReason = await watchUntilEnded({
+          connection: connectionThatRefusesWhilePiWorks({
+            sent,
+            record: run.record,
+            beforeAnswer: function piBeginsATurn() {
+              // Pi begins a turn as the message arrives and keeps working, so the run never rests again.
+              run.record.observe({
+                event: { type: 'agent_start', },
+                declineDialog: refuseDialog,
+              },);
+            },
+          },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async () => [],
+        },);
+        expect(endReason,).toBe('wall-clock',);
+        expect((await readdir(run.inbox,)),).toContain(`.failed-${MESSAGE_NAME}`,);
+        /**
+         What the summary says about the message the run ended before handing over.
+         */
+        const summary = run.record.summarize({
+          endReason: 'wall-clock',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
       },
     },),
   ],
