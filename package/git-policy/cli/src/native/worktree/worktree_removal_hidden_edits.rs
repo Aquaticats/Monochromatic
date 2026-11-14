@@ -138,8 +138,7 @@ fn sentence(path: &[u8]) -> String {
     return format!(
         "the tracked file {shown} is marked assume-unchanged or skip-worktree, and its bytes are not the ones its index entry \
          names, so no command of Git sees that edit. Commit it, move it somewhere else, or remove the mark \
-         (`git update-index --no-assume-unchanged -- {shown}`, or `--no-skip-worktree`), and remove the worktree again; \
-         `git worktree remove --force` runs as Git runs it and deletes the edit"
+         (`git update-index --no-assume-unchanged -- {shown}`, or `--no-skip-worktree`), and remove the worktree again"
     );
 }
 
