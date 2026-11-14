@@ -312,10 +312,12 @@ pub fn write(common_dir: &Path, lock: &Path, file: (u64, u64), holder: &(i64, St
     let _removed_record = std::fs::remove_file(record.as_path());
     let _removed_pin = std::fs::remove_file(pin.as_path());
     std::fs::hard_link(lock, pin.as_path()).ok()?;
-    let linked: LockMetadata = crate::index_lock_evidence::read_lock_metadata(pin.as_path()).ok()??;
-    if (linked.device, linked.inode) != file {
-        let _removed_record = std::fs::remove_file(record.as_path());
-        let _removed_pin = std::fs::remove_file(pin.as_path());
+    let linked: Option<LockMetadata> = crate::index_lock_evidence::read_lock_metadata(pin.as_path()).ok().flatten();
+    if !matches!(linked, Some(seen) if (seen.device, seen.inode) == file) {
+        // The path holds another file than the one this record is named for, so this pin describes nothing: it goes with
+        //  the record that was never published.
+        let _unlinked_record = std::fs::remove_file(record.as_path());
+        let _unlinked_pin = std::fs::remove_file(pin.as_path());
         return None;
     }
     let temporary: PathBuf = folder.join(format!("{name}{HOLDER_SUFFIX}.writing"));

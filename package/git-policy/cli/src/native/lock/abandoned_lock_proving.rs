@@ -22,6 +22,9 @@
 //!    about a PID file that no longer names the recorded number,
 //!    or about a Git the record does not name,
 //!    and each of those keeps the lock.
+//!    The record's two files are named for the lock's path and for the very file it pinned,
+//!    so the removal that acts on it takes away that record and never one another command wrote for a
+//!    later lock at the same path (a review of `f8f5cba090`, finding 1).
 //!    Only the commands whose Git this process waits for write such a record:
 //!    a command that replaces itself with real Git keeps no process,
 //!    so its lock keeps the second proof or stands.

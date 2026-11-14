@@ -392,7 +392,7 @@ fn a_finished_child_takes_away_only_the_record_of_its_own_lock() {
     let found: Option<Binding> = lock_bindings::of(common.as_path(), lock.as_path());
     let kept: bool = matches!(&found, Some(bound) if bound.pid == concurrent_holder.0);
     let records: usize = std::fs::read_dir(lock_bindings::folder_of(common.as_path()).as_path())
-        .map(|entries| entries.flatten().filter(|entry| entry.file_name().to_string_lossy().ends_with(".holder")).count())
+        .map(|entries| { return entries.flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".holder"); }).count(); })
         .unwrap_or(0);
     remove(common.as_path());
     assert!(kept, "the finished child took away only its own record, and the concurrent lock's record stays: {found:?} (records left: {records})");

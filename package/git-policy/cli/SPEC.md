@@ -9984,11 +9984,47 @@ So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
   and **pins** the very inode with a hard link beside it.
   While the link exists the file system cannot give that inode to another file,
   so a lock made again at that path is a different file and no record describes it;
+- the digest those two files are named for covers the lock's path **and** the device and inode of
+  the file the writer found there,
+  never the path alone
+  (a review of `f8f5cba090`, finding 1).
+  One command's Git renames its lock over its target and the next command's Git takes the same path
+  microseconds later,
+  so a name of the path alone would be one name for two locks,
+  and the command that finished its own would have no way to take away only its own record:
+  the removal it ran destroyed the record of a lock that still stood,
+  and a Git killed holding that lock then left a lock no command on this volume could clear.
+  With the file in the name,
+  a removal acts on the records of the one instance it is about,
+  and every such removal names the instance it decided about instead of looking at the path again;
 - a record whose lock the child finished, by renaming it over its target or rolling it back,
   is taken away as the child ends,
   and one whose lock no longer stands is swept by the next command
   (`sweep`).
   A record whose lock still stands is kept.
+  The sweep takes a record away by the name that record itself carries,
+  never by a name worked out from the path it names,
+  for the same reason.
+
+What a kill at each step of that leaves, and who removes it:
+
+- after the pin and before the record:
+  a pin that names the lock and no record.
+  The next command's sweep removes the pin
+  (`sweep`, whose pin pass takes away a pin no record explains),
+  and the lock keeps the birth-order gate until then;
+- after the record: a record and its pin.
+  If the child then finished its lock,
+  the command takes them away as the child ends;
+  if it was killed holding it, the record is what lets the next command clear the lock,
+  and the sweep keeps it as long as the pin names the file standing there;
+- between the two unlinks of one removal:
+  the record without its pin.
+  A reader finds no pin and keeps the lock,
+  and the sweep removes the record whose pin is gone.
+  No step of a removal can take away a record whose lock stands,
+  because the pin holds that lock's inode and every record of a later lock at the path is named for its
+  own file.
 
 The events are the whole proof, so a queue the kernel dropped (`IN_Q_OVERFLOW`),
 a watch that ended,
@@ -10175,7 +10211,8 @@ one claim and no repository-wide lock:
    and the PID file must still name the number the record explained.
 6. The lock is unlinked,
    then its PID file,
-   then the record of that lock and its pin.
+   then the record of that lock and its pin,
+   the record named by the very file that was judged rather than by what the path holds then.
 
 Two commands that meet the same abandoned lock therefore cannot both remove it and both take it:
 each must hold the `flock` to reach the unlink,

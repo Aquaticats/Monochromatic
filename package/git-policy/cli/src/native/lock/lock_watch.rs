@@ -24,6 +24,27 @@
 //!  a watch that ended,
 //!  more names than one run follows,
 //!  and a platform without a watch leave the lock to the bounded wait and report it has today.
+//!  What a kill at each step of a run leaves,
+//!  and who removes it:
+//!
+//!  - after a binding's pin and before its record:
+//!    a pin and no record,
+//!    which the next command's sweep removes
+//!    (`lock_bindings.rs`,
+//! `sweep`);
+//!  - after a binding's record:
+//!    a record whose pin names the lock,
+//!    which this command takes away when its child finished the lock
+//!    (`forget_what_the_child_finished`)
+//!    and which the next commands keep while the pin names the file standing at the path,
+//!    because it is the proof that clears a lock a killed child left;
+//!  - between the two unlinks of one removal:
+//!    a record without its pin,
+//!    so a reader keeps the lock and the next sweep removes the record.
+//!
+//!  No step of a removal can take away a record whose lock stands:
+//!  every record is named for the very file its writer pinned,
+//!  and the pin keeps that inode out of every later file at the path.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
