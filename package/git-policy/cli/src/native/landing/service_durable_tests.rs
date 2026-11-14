@@ -369,3 +369,44 @@ fn a_published_landing_whose_queue_no_task_takes_waits_for_nothing() {
         remove(root.as_path());
     });
 }
+
+/// The longest this control lets the exit's drain take before it calls it a wait with no end:
+/// the shipped ceiling plus a wide margin for a loaded machine.
+const THE_DRAIN_MAY_TAKE: std::time::Duration = crate::wait_ceilings::EXIT_DRAIN_CEILING.saturating_add(std::time::Duration::from_secs(10));
+
+/// What:
+///  The exit's drain returns within its bound while a queued sync is held and cannot finish,
+///  and it leaves that sync to the operating system's write-back.
+/// Why:
+///  `drain()` is on the service's exit paths (idle exit, worktree gone, queue closed, retire), and the syncs it waits for
+///  now take places of slow work: a trash emptying that stalled on storage can hold them, so an unbounded wait here would
+///  keep a worktree the manager is already restarting.
+/// The sync is held by a control of the package's own step, not by a slow disk.
+#[test]
+fn the_exit_drain_ends_within_its_bound_while_a_sync_cannot_finish() {
+    let (root, file) = record("durable-drain-bounded");
+    let holds: std::path::PathBuf = root.join("holds");
+    std::fs::create_dir_all(holds.as_path()).expect("the hold's directory");
+    crate::service_hold_a_step_for_a_control::hold_for_a_control(crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC, holds.as_path());
+    let let_go: std::path::PathBuf = crate::service_hold_a_step_for_a_control::let_go_file(holds.as_path(), crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC);
+    let before: u64 = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+    // The batch is queued and held before the exit asks for the barrier, so the barrier stands behind the held sync.
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let deferral = begin(false);
+        flush_file(&file, "x").expect("queued");
+        deferral.settle(true);
+    });
+    let (finished, drained) = std::sync::mpsc::channel::<()>();
+    let draining: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        drain();
+        let _said = finished.send(());
+    });
+    let ended: bool = drained.recv_timeout(THE_DRAIN_MAY_TAKE).is_ok();
+    let synced_by_then: u64 = BACKGROUND_SYNCED.load(std::sync::atomic::Ordering::SeqCst);
+    // The sync is let go whatever came, so a run that saw no end still leaves its thread finishing.
+    std::fs::write(let_go.as_path(), b"").expect("the file that lets the held sync go");
+    let _joined = draining.join();
+    assert!(ended, "the exit's drain did not end within {THE_DRAIN_MAY_TAKE:?} while a queued sync was held");
+    assert_eq!(synced_by_then, before, "the held sync did not finish, so the drain left it to the operating system's write-back");
+    remove(root.as_path());
+}

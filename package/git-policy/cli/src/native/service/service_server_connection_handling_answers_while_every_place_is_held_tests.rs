@@ -255,3 +255,91 @@ fn the_note_of_a_beat_is_read_while_every_place_of_the_work_is_held() {
     }
     assert!(started, "the note of a beat was not read within {A_BOUND:?} while every place of the service's own work was held");
 }
+
+/// The ceiling this control grants one ask of the routing look:
+/// a fifth of a second, so a starved look reaches its answer in a moment instead of the shipped minute.
+const THE_LOOKS_CEILING: Duration = Duration::from_millis(200);
+
+/// The longest this control watches a commit whose look is starved:
+/// one pause of the look and three of its asks, which is longer than the answer a look with a place comes to.
+const A_WATCH: Duration =
+    crate::wait_ceilings::ROUTING_LOOK_RETRY_PAUSE.saturating_add(THE_LOOKS_CEILING.saturating_mul(3));
+
+/// What:
+///  A commit whose routing look finds no general place is beaten and taken up once a place comes,
+///  and it is never answered `Unavailable`.
+/// Why:
+///  The project's rule is that a commit never fails: a look starved of a place by storage that stopped answering used to
+///  answer `Unavailable`, which ends the command. The look is asked again while the client waits instead
+///  (`ROUTING_LOOK_PATIENCE`), and the request is queued only once the look answers.
+/// The general places are held by the package's own jobs, not by a slow disk.
+#[test]
+fn a_commit_is_never_failed_by_a_starved_routing_look() {
+    let _room: usize = crate::parallel_test_support::room_for("a_commit_is_never_failed_by_a_starved_routing_look", THE_ROOM);
+    crate::wait_ceilings::hold_the_routing_look_to(THE_LOOKS_CEILING);
+    let (shared, _journal, mut jobs) = shared_in_a_control("connection-commit-starved-look");
+    let (stuck, release) = hold_every_place_of_the_work("a_commit_is_never_failed_by_a_starved_routing_look");
+    let heard: Vec<ServiceMessage> = crate::lazy_runtime::run_on_runtime(async move {
+        // The pair and the connection are made inside the runtime, where the reactor they belong to runs.
+        let (service, client_end) = UnixStream::pair().expect("a connected pair");
+        let serving = crate::lazy_runtime::spawn_on_runtime(handle_connection(service, shared)).expect("a worker for the connection");
+        let (mut read_half, mut write_half) = client_end.into_split();
+        let line: String = encode_client(&ClientMessage::Commit(Box::new(a_commit_request_named("starved-look"))));
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, format!("{line}\n").as_bytes()).await.expect("the request line is sent");
+        let mut reader = tokio::io::BufReader::new(read_half);
+        let mut heard: Vec<ServiceMessage> = Vec::new();
+        let deadline: tokio::time::Instant = tokio::time::Instant::now() + A_WATCH;
+        while tokio::time::Instant::now() < deadline {
+            let mut line: String = String::new();
+            let left = deadline.saturating_duration_since(tokio::time::Instant::now());
+            let Ok(Ok(_read)) = tokio::time::timeout(left, tokio::io::AsyncBufReadExt::read_line(&mut reader, &mut line)).await else { break };
+            if let Ok(message) = crate::service_protocol::decode_service(line.trim_end_matches('\n')) {
+                heard.push(message);
+            }
+        }
+        serving.abort();
+        return heard;
+    })
+    .expect("the runtime");
+    let failed_by_the_look: bool = heard.iter().any(|message| {
+        return matches!(message, ServiceMessage::Failed { code, .. } if *code == FailureCode::Unavailable);
+    });
+    // The places are let go, and the look that was starved now finds one, so the request is taken up.
+    let _let_the_places_go = release.send(());
+    for holder in stuck {
+        holder.abort();
+    }
+    let queued: bool = crate::lazy_runtime::run_on_runtime(async {
+        return tokio::time::timeout(A_WATCH, jobs.recv()).await.is_ok();
+    })
+    .expect("the runtime");
+    assert!(!failed_by_the_look, "the commit was answered `unavailable` by a look that found no place: {heard:?}");
+    assert!(queued, "the request was not taken up once a general place came: {heard:?}");
+}
+
+/// A commit request this control sends,
+/// naming a Git directory of no repository,
+/// so nothing of it is landed.
+fn a_commit_request_named(id: &str) -> crate::service_protocol::CommitRequest {
+    return crate::service_protocol::CommitRequest {
+        id: String::from(id),
+        repository: PathBuf::from("/nowhere"),
+        common_dir: PathBuf::from("/nowhere/.git"),
+        git_dir: PathBuf::from("/nowhere/repo/gitdir"),
+        reference: crate::ref_name::RefName::from_text("refs/heads/main"),
+        base: "a".repeat(40),
+        changes: Vec::new(),
+        message: String::from("m\n"),
+        author: None,
+        committer: String::from("T <t@example.invalid> 1793535889 +0000"),
+        amend: false,
+        tree: None,
+        commit: None,
+        cleanup: None,
+        index: PathBuf::from("/nowhere/repo/gitdir/index"),
+        scratch: PathBuf::from("/nowhere/repo/gitdir/monochromatic-git-policy-cli-service-a-0"),
+        shadow: None,
+        captured: 0,
+        holder: String::new(),
+    };
+}

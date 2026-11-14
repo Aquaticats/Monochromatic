@@ -1141,6 +1141,48 @@ pub const EXIT_DRAIN_CEILING: Duration = Duration::from_secs(5);
 ///  gives the service.
 pub const ROUTING_LOOK_PATIENCE: Duration = ANSWER_CEILING;
 
+/// What:
+///  The ceiling of one ask of the look that says whose a commit's request is:
+///  the one a control stated, or `LANDING_STATE_CEILING`.
+/// Why:
+///  A control of the look's starvation has to reach "no place came" in a moment rather than wait the shipped minute out,
+///  and only the ceiling the ask is granted decides when that answer comes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lookCeiling = () => statedLookCeiling() ?? LANDING_STATE_CEILING;
+/// ```
+pub fn routing_look_ceiling() -> Duration {
+    #[cfg(test)]
+    {
+        let stated: u64 = A_ROUTING_LOOK_CEILING.load(std::sync::atomic::Ordering::SeqCst);
+        if stated > 0 {
+            return Duration::from_millis(stated);
+        }
+    }
+    return LANDING_STATE_CEILING;
+}
+
+/// The ceiling a control stated for the routing look, in milliseconds;
+/// zero when none did.
+/// The release executable keeps nothing of it.
+#[cfg(test)]
+static A_ROUTING_LOOK_CEILING: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// What:
+///  State the ceiling of one ask of the routing look, so a control reaches its `NotRun` in a moment.
+/// Why:
+///  The shipped ceiling is a minute: a control that must see a look starved would otherwise spend two minutes proving it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdTheRoutingLookTo(200); // the next asks are granted 200 ms
+/// ```
+#[cfg(test)]
+pub(crate) fn hold_the_routing_look_to(ceiling: Duration) {
+    A_ROUTING_LOOK_CEILING.store(u64::try_from(ceiling.as_millis()).unwrap_or(u64::MAX), std::sync::atomic::Ordering::SeqCst);
+}
+
 /// The pause between two asks of the look that says whose a commit's request is:
 /// five seconds, the silence a client lets the service keep (`HEARTBEAT_SILENCE` and
 ///  `CLIENT_ANSWER_PLACE_CEILING`).

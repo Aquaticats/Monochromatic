@@ -299,7 +299,7 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
     //  ceiling, which keeps its place until its work ends (`blocking_jobs_within_the_budget.rs`).
     //  So a look that finds no place answers `Unavailable` and the command is told, and the answers a client waits for do
     //  not queue here at all: they have places kept for them (`PLACES_KEPT_TO_ANSWER_A_CLIENT`).
-    return match run_a_job_awaited_no_longer_than(crate::wait_ceilings::LANDING_STATE_CEILING, (mine, git_dir), look_up_the_directory).await {
+    return match run_a_job_awaited_no_longer_than(crate::wait_ceilings::routing_look_ceiling(), (mine, git_dir), look_up_the_directory).await {
         TheAnswerOfAJobAwaited::Ran(foreign) => Some(foreign),
         TheAnswerOfAJobAwaited::NotRun => {
             crate::service_error!("the system gave no place for the look at the instance of a Git directory, so the request it belongs to is not taken; the next send looks again");
@@ -308,7 +308,7 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
         TheAnswerOfAJobAwaited::NoAnswer => {
             crate::service_error!(
                 "the instance of a Git directory gave no answer within {:?}, so the request it belongs to is not taken; the next send looks again",
-                crate::wait_ceilings::LANDING_STATE_CEILING
+                crate::wait_ceilings::routing_look_ceiling()
             );
             None
         }
