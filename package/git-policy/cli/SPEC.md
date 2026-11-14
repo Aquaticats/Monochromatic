@@ -7555,6 +7555,17 @@ on the commit path:
   both are answered as the interrupt is,
   and the command still ends by the one that came,
   so a quit keeps the core file the system would make for it.
+  A hang-up or a quit the process started with ignored stays ignored,
+  and the commit is landed:
+  `nohup` shields the command it starts that way,
+  a caller that shields a commit means it to survive a closing terminal,
+  native Git lands it,
+  and replacing the caller's ignore withdrew a request the caller asked to be shielded from,
+  which is a commit that fails where real Git lands one.
+  The interrupt and the stop keep being answered whatever was in place,
+  because a shell that ignores the interrupt for a background job is no statement about a person's Ctrl-C.
+  A stop that arrives while a Git child of the preparation runs reaches the wait through the relay,
+  and it carries the process the kernel named as its sender the same way the wait's own signal does.
   It then withdraws its request exactly as a wait that reached its ceiling does,
   and the service's answer decides the ending:
   a request that landed before the signal came is reported as the commit it made,
