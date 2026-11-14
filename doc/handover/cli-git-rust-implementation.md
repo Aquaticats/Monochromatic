@@ -1198,6 +1198,52 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's cleanup goes back for downloads a live process holds; the lock shim's answer goes to its reviewer; the driver's scan fails on a process that ended (2026-11-14T11:26:17-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+what the coordinating session read in the driver's source,
+and what it queued.
+
+- **mpm-shadow's cleanup** (`3a96da6dbf`),
+  third review:
+  one reproduced with a harness on the real library and a real holder process:
+  a file of a version's downloads held open by a live process does not protect the version,
+  since all three holder checks compare against the version's folder or marker alone;
+  the harm named is an `update` whose download folder is renamed away,
+  so its install fails.
+  One by reading:
+  `current` is read once,
+  and a repoint between that read and the move aside can leave it naming a deleted version.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/mpm-shadow-removal-of-old-versions-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **The lock shim of Pi** (tip `37287ade63`, ended 11:20:44):
+  the author reports the three findings answered
+  (23 control cases;
+  the review's three reproductions ending with no defect shown;
+  a real start of the installed Pi for five lock states,
+  each ending within about a minute and naming the command where a person must act).
+  Under the adopted reading a lock of the old kind whose holder is gone is not taken over,
+  since an empty directory names no process:
+  it is refused with the command that clears it.
+  That holds for locks left by a Pi started before the new shim is installed,
+  and is the owner's to veto with the reading itself.
+  The change is `.cjs`,
+  which the brief writer does not read yet,
+  so its reviewer is resumed in its own session to check the answer,
+  queued third
+  (`~/temp/agent/pi-runs/go-on-with-the-review-of-the-lock-shim-and-check-the-answer-at-37287ade63-prompt.md`).
+- **A driver defect read from the source**:
+  that run's summary holds `workProblem: Error: ESRCH: no such process, read '/proc/4038785/comm'`,
+  and one other summary holds a work problem.
+  `src/work-the-run-left-running.ts` treats `ENOENT` alone as a path that is gone (line 49),
+  where `src/going-runs.ts` treats `ENOENT` and `ESRCH` alike (line 173);
+  a process that ends between the listing and the read answers `ESRCH`.
+  A fresh run is queued sixth
+  (`~/temp/agent/pi-runs/scan-for-work-a-run-left-running-treats-a-process-that-has-gone-as-gone-prompt.md`).
+- 22 Pi runs were going at 11:26:17;
+  the queue held 60 entries.
+
 ##### The landing's author and the no-manager author answered; each answer goes to review (2026-11-14T11:20:59-05:00)
 
 Not final and not approved:
