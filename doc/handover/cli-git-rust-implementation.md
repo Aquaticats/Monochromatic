@@ -970,6 +970,83 @@ the coordinating session's reading of two runs that ended at 19:06:08 and 19:09:
   the review of the issue 6299 fix,
   and the commit-forms author.
 
+##### The issue 6299 fix is in `main`; two authors' answers go to review; two lock-wait tests are red on `main` (2026-11-13T19:38:05-05:00)
+
+Not final and not approved:
+the coordinating session's reading of three runs that ended between 19:30:47 and 19:34:03,
+and of its own commands.
+
+- **Issue 6299.**
+  The review of `7faa687169`
+  (`~/temp/agent/change-reviews/pi-shared-subagent-driver-a-run-that-settled-and-whose-pi-exited-zero-never-ends-as-driver-failed/review.md`)
+  found no defect:
+  it read the thirteen changed source files whole,
+  built the package in a copy,
+  wrote and ran four probes
+  (the reading order and a cut preview,
+  a failed read keeping the end reason,
+  writer and reader ordering across 200 runs,
+  whole lines of a session),
+  and ran the changed unit suites and the two end-to-end tests.
+  The review run itself ended `driver-failed` by the defect under review,
+  with its review written.
+- `main` had changed one document of the driver since the branch began
+  (`0ece9aeaec`),
+  so the merged code is the reviewed code.
+  Merged as `47a403a0e2` at 19:36:16;
+  the commit `1803914631` closes the issue.
+- After the merge the package's type check failed in the main checkout,
+  because its tests import the built output and that was older than the merge
+  (`has no exported member 'PROCESSES_RECORD_KIND'`).
+  After `mise run //package/pi-shared/subagent-driver:build` the type check is clean
+  (`~/temp/agent/driver-type-check-on-main-after-the-issue-6299-merge-2026-11-13/keep/`).
+  The launcher's commands run from source,
+  and the counts command answered after the merge.
+  What a run that ends from here on shows
+  (`idle` where it was `driver-failed`,
+  or a `workProblem` beside the end reason)
+  is still to be read from the next runs that end.
+- **Guards refuse with an opt-out**
+  (tip `193ad97fc6`).
+  The author ran the second review's reproductions,
+  saw both findings,
+  and fixed them with three controls each shown failing first:
+  a deletion refused because the name is already gone counts as done
+  (asked of Git, never read from the refusal's words),
+  and the last finished record of a capture drops its ref.
+  Cost on the waiting path, round by round:
+  `git status` +0.84 ms median,
+  a merge that carries an edit -1.23 ms median.
+  Its review over `main...193ad97fc6` is queued at the head.
+- **Reload fix, the two observations**
+  (tip `ca3b4f34d5`, after the pinned `575c585373` that pass 22 carries).
+  No wait of the unload can end a commit any more
+  (the functions return a value that cannot be an error),
+  with a control that failed before;
+  the link's message now says exactly when a commit cannot be written.
+  Its review over `575c585373...3cd5317f1b` is queued at the head;
+  a pass follows it once pass 22 is in `main`.
+  The author names a sentence in `doc/planning/git-wrapper-reload-remedy.md`,
+  outside the package,
+  that still carries the older condition;
+  it is corrected with that follow-up.
+- **Two tests are red on `main` on this machine**,
+  found by the guards-refuse author on a worktree of `main`'s tip:
+  `merge_never_fails::a_merge_waits_for_a_held_index_lock_and_then_lands`
+  and `merge_never_fails::a_merge_that_waits_out_a_live_holder_is_saved_and_not_failed`.
+  A merge that meets a held `index.lock` ends after about three seconds with
+  "held by an owner nothing proves alive",
+  because the scan finds no holder and could not look at 689 processes of other accounts.
+  That is a merge that fails where the project says it waits,
+  on any machine that runs containers and system services.
+  A fresh run is queued near the head
+  (`~/temp/agent/pi-runs/merge-that-meets-a-held-index-lock-waits-for-its-live-holder-on-a-machine-with-other-accounts-processes-prompt.md`).
+- Also from that author,
+  now in briefs:
+  a worktree's `target/debug` can hold a wrapper binary older than the branch after the shared build folder was cleaned;
+  a probe asks Cargo where its binary is and checks the version and time.
+  Whether cargo-shadow should leave such a copy at all is for the cargo-shadow cleanup run's report to say.
+
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
 Not final and not approved:
