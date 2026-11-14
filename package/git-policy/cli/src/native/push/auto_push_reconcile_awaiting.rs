@@ -185,6 +185,49 @@ fn shows_here(shows: &Option<String>) -> String {
 }
 
 /// What:
+///  The words that say where the branch the push sent is, once the merge is on the remote:
+/// it moves the branch and words what the move came to.
+/// Why:
+///  Every path that leaves a published merge behind must say where the pushed branch is and, when it is not at the
+/// merge, the step that finishes it:
+///  a checkout that could not follow, a worktree that took the branch, and a move that could not even be attempted
+/// all have their own sentence.
+///  The published-merge path of the loop answers with the same words as the path whose push command succeeded,
+/// because both published the same merge
+///  (a review of commit `c15fc5a7b1`, its finding 2: that path never moved the branch and never said where it was).
+///  The move is a task's work,
+/// and its own errors are reported rather than raised,
+///  because a published merge is never a failed push.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const followed = await thePushedBranchFollows({ git, plan, local, merge });
+/// ```
+async fn the_pushed_branch_follows_awaiting(
+    git: &PushGit,
+    plan: &Reconcile<'_>,
+    local: &str,
+    merge_oid: &str,
+) -> String {
+    let Some(branch_ref) = plan.pushed.branch() else {
+        return String::from("and no local branch follows it");
+    };
+    let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
+    // What: the merge is published, so where the branch is now is a report and never a failure.
+    // Why: a move that could not even be asked -- a worktree whose folder went while the push ran, a program the system
+    //      refused -- used to leave the loop as an error, and the push then exited nonzero with "may or may not have
+    //      taken the merge" about a merge it had published (a review of commit `98de70959d`, finding 1).
+    let advanced: Advanced = match advance_pushed_branch_awaiting(git, branch_ref, local, merge_oid).await {
+        Ok(answer) => answer,
+        Err(error) => Advanced::Not {
+            reason: format!("the move could not be attempted: {error}"),
+            advice: advice_to_move(merge_oid, "in the worktree that has it checked out"),
+        },
+    };
+    return followed_sentence(&advanced, branch, merge_oid);
+}
+
+/// What:
 ///  The reconcile loop,
 /// awaited by a caller that is itself a task of the runtime.
 /// Why:
@@ -255,6 +298,17 @@ pub async fn integrate_and_push_awaiting(
             );
             return Ok(Integrated::Finished(refusal));
         }
+        // What: the merge this run published, when the remote holds it somewhere in its history.
+        // Why: a merge push can land and then report a failure, and the remote may move past that merge before the next
+        //      fetch (a post-receive hook, another push): the remote's tip then contains the merge instead of being it,
+        //      and a test for equality missed it (a review of commit `c15fc5a7b1`, its finding 1).
+        let published_on_the_remote: Option<String> = match published.as_deref() {
+            Some(merge) => match (is_ancestor_awaiting(git, merge, &remote_tip)).await? {
+                Some(true) => Some(merge.to_owned()),
+                _ => None,
+            },
+            None => None,
+        };
         match (
             (is_ancestor_awaiting(git, &remote_tip, &local)).await?,
             (is_ancestor_awaiting(git, &local, &remote_tip)).await?,
@@ -266,16 +320,22 @@ pub async fn integrate_and_push_awaiting(
                 );
                 return Ok(Integrated::NotDivergent(rejected));
             }
-            (_, Some(true)) if published.as_deref() == Some(remote_tip.as_str()) => {
+            (_, Some(true)) if published_on_the_remote.is_some() => {
+                let merge: String = published_on_the_remote.unwrap_or_default();
                 debug(
                     TAG,
-                    "the remote's tip is the merge this push made: what was reported as a failure was published",
+                    &format!("{remote}/{short} at {remote_tip} contains the merge {merge} this push made, so what was reported as a failure was published"),
                 );
+                // What: the same move and the same sentence as the path whose push command reported success.
+                // Why: the merge is published either way, and the branch must follow it and be said to
+                //      (a review of commit `c15fc5a7b1`, its finding 2: this path moved nothing and said nothing of the branch).
+                let followed: String = the_pushed_branch_follows_awaiting(git, plan, &local, &merge).await;
                 return Ok(Integrated::Finished(PushAttempt {
                     exit_code: 0,
                     output: format!(
-                        "{line_prefix}{remote}/{short} is the merge {remote_tip} this push made, so the merge was published; \
-                         the push command's own report of a failure came after the remote had taken it.",
+                        "{line_prefix}to undo this merge, `git revert -m 1 {merge}` keeps both sides' commits and removes its effect.\n\
+                         {line_prefix}{remote}/{short} is at {remote_tip}, which contains the merge {merge} this push made, so the merge was published \
+                         even though its own command reported a failure, {followed} (merge {merge}).",
                     ),
                 }));
             }
@@ -290,8 +350,7 @@ pub async fn integrate_and_push_awaiting(
                 return Ok(Integrated::Finished(PushAttempt {
                     exit_code: 0,
                     output: format!(
-                        "{line_prefix}{}/{short} already contains {local}; nothing to push.",
-                        destination.remote
+                        "{line_prefix}{remote}/{short} already contains {local}; nothing is left to push, and {merged_into} is at {local}, which is what this push sent.",
                     ),
                 }));
             }
@@ -337,25 +396,7 @@ pub async fn integrate_and_push_awaiting(
         // The merge exists and its push has been tried; whether the remote took it is what the next attempt's fetch says.
         published = Some(merge_oid.clone());
         if pushed.exit_code == 0 {
-            let followed: String = match plan.pushed.branch() {
-                None => String::from("and no local branch follows it"),
-                Some(branch_ref) => {
-                    let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
-                    // What: the merge is published, so where the branch is now is a report and never a failure.
-                    // Why: a move that could not even be asked -- a worktree whose folder went while the push ran, a
-                    //      program the system refused -- used to leave the loop as an error, and the push then exited
-                    //      nonzero with "may or may not have taken the merge" about a merge it had published
-                    //      (a review of commit `98de70959d`, finding 1).
-                    let advanced: Advanced = match advance_pushed_branch_awaiting(git, branch_ref, &local, &merge_oid).await {
-                        Ok(answer) => answer,
-                        Err(error) => Advanced::Not {
-                            reason: format!("the move could not be attempted: {error}"),
-                            advice: advice_to_move(&merge_oid, "in the worktree that has it checked out"),
-                        },
-                    };
-                    followed_sentence(&advanced, branch, &merge_oid)
-                }
-            };
+            let followed: String = the_pushed_branch_follows_awaiting(git, plan, &local, &merge_oid).await;
             let mut merged_parts: String = String::new();
             for line in announce(line_prefix, (journal_identifier(plan.explicit), label), &committed.merged) {
                 merged_parts.push_str(format!("{line}\n").as_str());
