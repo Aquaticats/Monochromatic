@@ -60,6 +60,7 @@ fn candidate(tool: &str, version: &str, bytes: u64, written_seconds_ago: u64) ->
         downloads: None,
         bytes,
         written: SystemTime::now() - Duration::from_secs(written_seconds_ago),
+        inode: None,
         leftover: false,
     };
 }
@@ -594,6 +595,9 @@ fn deletes_a_held_copy_whose_name_another_run_took() {
     fs::rename(&version, &marker).expect("move the version aside");
     fs::create_dir_all(&version).expect("install the newer copy");
     fs::write(version.join("program"), b"fresh copy").expect("write the newer copy");
+    // A finished archive install writes this marker last, and only a finished copy displaces a held one.
+    fs::write(version.join(crate::toolchain::archive_staging::COMPLETE_MARKER), b"node 26.11.0\n")
+        .expect("mark the newer copy finished");
     let mut held = std::process::Command::new("sleep")
         .arg("60")
         .current_dir(&marker)
@@ -960,6 +964,117 @@ fn puts_back_a_marker_whose_version_current_names() {
 }
 
 //endregion every path a version owns, and the link that names it
+
+//region the entry a removal holds, an unfinished name, and a deferred marker
+
+/// What:
+/// A fresh install that lands between the removal's look and its move is kept, under its own name.
+/// Why:
+/// `move_aside` looks at a version, then renames it several system calls later,
+/// and `publish_staged` replaces a version with two renames:
+/// a copy that lands in between is a finished install, and deleting it discards the install.
+/// The order is held by the two halves of a removal, not by two threads racing.
+#[test]
+fn keeps_a_fresh_install_that_lands_between_the_look_and_the_move() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let candidates = fixture.candidates();
+    let judged = candidates
+        .iter()
+        .find(|found| return found.version == "26.11.0")
+        .expect("the oldest version is scanned")
+        .clone();
+    // What: the removal's first half, which is the look that refuses an entry that is not the judged one.
+    // Why: it passes here, because the judged entry is still in place.
+    crate::toolchain::store_trim::judged_entry_still_there(&judged).expect("the judged entry is there").expect("present");
+
+    // What: an install's atomic replace, exactly as `publish_staged` does it: the old copy aside, the new one in.
+    // Why: this is what lands between the look and the move.
+    let fresh: PathBuf = fixture.root.join("fresh");
+    fs::create_dir_all(&fresh).expect("make the fresh copy");
+    fs::write(fresh.join("program"), b"fresh copy").expect("write the fresh copy");
+    fs::write(fresh.join(crate::toolchain::archive_staging::COMPLETE_MARKER), b"node 26.11.0\n")
+        .expect("mark the fresh copy finished");
+    fs::rename(&version, fixture.root.join("node/.26.11.0.replaced")).expect("move the old copy aside");
+    fs::rename(&fresh, &version).expect("put the fresh copy in place");
+
+    let moved = crate::toolchain::store_trim::move_judged_entry(&judged);
+
+    assert!(moved.is_err(), "the removal took a copy it did not judge");
+    assert_eq!(
+        fs::read(version.join("program")).expect("read the fresh copy"),
+        b"fresh copy",
+        "the fresh install is not under its own name any more"
+    );
+    assert!(
+        !crate::toolchain::store_versions::removal_markers(&fixture.root).iter().any(|marker| return marker.version == "26.11.0"),
+        "a marker was left holding a copy the removal did not judge"
+    );
+}
+
+/// What:
+/// A held, finished copy stays aside when the version's name holds an install that has not finished.
+/// Why:
+/// A `cargo binstall` crate installs in place, so the name can be held by a half-written directory;
+/// deleting the held, finished copy for it would leave the only working copy gone,
+/// and putting it back would write over the install in flight.
+#[test]
+fn keeps_a_held_finished_copy_when_the_name_holds_an_unfinished_install() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("cargo/keep/1.0.0");
+    fs::create_dir_all(&version).expect("make the version");
+    fs::write(version.join("program"), b"old good copy").expect("write the old good copy");
+    let marker: PathBuf = tombstone_of(&version);
+    fs::rename(&version, &marker).expect("move the old copy aside"); // a removal an earlier run cut short
+    // An install in place has taken the name and has not finished: no crate record yet.
+    fs::create_dir_all(&version).expect("start the install in place");
+    fs::write(version.join("partial"), b"half-written").expect("write the half-written file");
+    fs::write(unfinished_marker(&fixture.root), b"").expect("write the unfinished-removal marker");
+    let mut child = std::process::Command::new("sleep")
+        .arg("60")
+        .current_dir(&marker)
+        .spawn()
+        .expect("start a process holding the old copy");
+
+    let finished = finish_removals(&fixture.run());
+    let _ = child.kill();
+    let _ = child.wait();
+
+    assert!(marker.join("program").exists(), "the held, finished copy was deleted: {:?}", finished.lines);
+    assert!(version.join("partial").exists(), "the install in place was written over: {:?}", finished.lines);
+    // The store-root marker stays, so a later pass decides once the install in place has finished or failed.
+    assert!(has_unfinished_removal(&fixture.root), "the marker was settled while a copy is still aside: {:?}", finished.lines);
+    assert!(
+        finished.lines.iter().any(|line| return line.contains("has not finished")),
+        "{:?}",
+        finished.lines
+    );
+}
+
+/// What:
+/// A root whose removals were all deferred still gets the marker the next install reads.
+/// Why:
+/// The marker is what makes an install that installs nothing run the pass,
+/// and only a move wrote it, so a pass that moved nothing left no trace and the store kept what it should reclaim.
+#[test]
+fn writes_the_marker_for_a_root_whose_removals_were_all_deferred() {
+    let fixture = Fixture::new();
+    let run: TrimRun = TrimRun {
+        bounds: TrimBounds { size_bound_bytes: 0, age_floor: Duration::ZERO, work_limit: Duration::ZERO },
+        started: Instant::now(),
+        roots: vec![fixture.root.clone()],
+    };
+    let plan: TrimPlan = plan_trim(&fixture.candidates(), &run.bounds, SystemTime::now(), &|_found| return None);
+
+    let outcome: TrimOutcome = apply_trim(&plan, &run);
+
+    assert_eq!(outcome.removed, 0, "{:?}", outcome.lines);
+    assert!(outcome.unfinished.contains(&fixture.root), "{:?}", outcome.lines);
+    assert!(has_unfinished_removal(&fixture.root), "the next install would not run the pass: {:?}", outcome.lines);
+    assert!(fixture.root.join("node/26.11.0/program").exists());
+}
+
+//endregion the entry a removal holds, an unfinished name, and a deferred marker
 
 //region replaying a real store's listing
 

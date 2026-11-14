@@ -203,6 +203,34 @@ pub struct VersionDirectory {
     pub bytes: u64,
     /// When the version directory was last written.
     pub written: SystemTime,
+    /// The device and inode number of the version directory,
+    /// when the platform reports them:
+    /// what tells this entry from one an install puts at the same name later.
+    pub inode: Option<(u64, u64)>,
+}
+
+/// What:
+/// The device and inode number `metadata` reports,
+/// or `None` on a platform that reports none.
+/// Why:
+/// An inode number names one directory for as long as it exists,
+/// and an install that replaces a version by an atomic rename puts a directory with another inode at that name,
+/// so the pair is how a removal knows it holds the entry it judged and not a newer one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function inodeOf(metadata: Stats): [number, number] | undefined
+/// ```
+#[cfg(unix)]
+pub fn inode_of(metadata: &fs::Metadata) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    return Some((metadata.dev(), metadata.ino()));
+}
+
+/// The device and inode number `metadata` reports (none, on a platform that reports none).
+#[cfg(not(unix))]
+pub fn inode_of(_metadata: &fs::Metadata) -> Option<(u64, u64)> {
+    return None;
 }
 
 /// A download an earlier layout left directly under the store's `downloads` directory.
@@ -334,7 +362,8 @@ pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>) -> V
                 }
             };
             measured.insert(key, SizeRecord { written_ns: recorded_ns, bytes });
-            found.push(VersionDirectory { tool: tool.clone(), version, directory, downloads, bytes, written });
+            let inode: Option<(u64, u64)> = inode_of(&metadata);
+            found.push(VersionDirectory { tool: tool.clone(), version, directory, downloads, bytes, written, inode });
         }
     }
     write_size_records(toolchain_root, &measured);

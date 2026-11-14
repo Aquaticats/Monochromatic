@@ -53,7 +53,8 @@ use serde_json::Value;
 use crate::cleanup_report::format_size;
 
 /// Imports `CURRENT_LINK_NAME` from `super::cargo_installs`.
-use super::cargo_installs::CURRENT_LINK_NAME;
+use super::archive_staging::has_complete_marker;
+use super::cargo_installs::{CURRENT_LINK_NAME, recorded_version};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `Route` from `super::model`.
@@ -67,8 +68,8 @@ use super::scope::{EnvMap, ScopeKind, global_scope};
 use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_reason};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
-    RemovalMarker, VersionDirectory, downloads_of, install_directory_name, leftover_downloads, removal_markers,
-    tombstone_of, tree_size, version_directories,
+    RemovalMarker, VersionDirectory, downloads_of, inode_of, install_directory_name, leftover_downloads,
+    removal_markers, tombstone_of, tree_size, version_directories,
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
@@ -371,6 +372,9 @@ pub struct TrimCandidate {
     pub bytes: u64,
     /// When it was last written.
     pub written: SystemTime,
+    /// The device and inode number of the version directory when it was judged,
+    /// when the platform reports them.
+    pub inode: Option<(u64, u64)>,
     /// Whether this is a download file and not a version directory.
     pub leftover: bool,
 }
@@ -401,6 +405,7 @@ pub fn candidates_of(roots: &[PathBuf], tools: &BTreeSet<String>) -> Vec<TrimCan
                 downloads: None,
                 bytes: leftover.bytes,
                 written: leftover.written,
+                inode: None,
                 leftover: true,
             });
         }
@@ -419,6 +424,7 @@ fn candidate_of_version(root: &Path, version: VersionDirectory) -> TrimCandidate
         downloads: version.downloads,
         bytes: version.bytes,
         written: version.written,
+        inode: version.inode,
         leftover: false,
     };
 }
@@ -694,12 +700,12 @@ pub fn has_unfinished_removal(root: &Path) -> bool {
 }
 
 /// What a removal moved out of the way before anything was deleted.
-struct MovedAside {
+pub(crate) struct MovedAside {
     /// The marker holding the version directory.
-    version_marker: PathBuf,
+    pub(crate) version_marker: PathBuf,
     /// The marker holding the downloads directory,
     /// when the removal moved one aside.
-    downloads_marker: Option<PathBuf>,
+    pub(crate) downloads_marker: Option<PathBuf>,
 }
 
 /// Where a version's own trees stand.
@@ -788,33 +794,77 @@ fn current_names(root: &Path, tool: &str, version: &str) -> bool {
 }
 
 /// What:
-/// Moves one version's downloads and then the version itself out of their names,
-/// which is the atomic step that condemns them,
-/// and returns what it moved,
-/// or `None` when the version is gone already.
+/// How `metadata` differs from the entry `candidate` was judged as,
+/// or `None` when it is that entry.
 /// Why:
-/// A reader then sees the version or its removal marker and never a half version,
-/// and a kill at any later point leaves markers the next run finishes.
+/// A pass looks at a version, decides, and acts later,
+/// and an install can replace the directory in between;
+/// the entry an install put there is not the one that was judged and must not be removed.
+/// The inode number tells one directory from another at the same name,
+/// and the write time tells an install that wrote in place.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function moveAside(candidate: TrimCandidate): MovedAside | undefined  // throws on a refusal
+/// function judgedEntryDifference(metadata: Stats, candidate: TrimCandidate): string | undefined
 /// ```
-fn move_aside(candidate: &TrimCandidate) -> Result<Option<MovedAside>, String> {
+fn judged_entry_difference(metadata: &fs::Metadata, candidate: &TrimCandidate) -> Option<&'static str> {
+    // What: the inode number is compared first.
+    // Why: a replaced directory answers both questions, and the inode says which of the two happened.
+    match (candidate.inode, inode_of(metadata)) {
+        (Some(judged), Some(found)) if judged != found => return Some(NOT_THE_JUDGED_ENTRY),
+        // A platform that reports no inode number is answered by the write time alone.
+        _ => {}
+    }
+    if metadata.modified().ok() != Some(candidate.written) {
+        return Some("another run wrote it while the cleanup ran");
+    }
+    return None;
+}
+
+/// What:
+/// The refusal for an entry that is not the one a pass judged.
+const NOT_THE_JUDGED_ENTRY: &str =
+    "another run installed this version while the cleanup ran, so the entry found there is not the one judged";
+
+/// What:
+/// The first half of a removal:
+/// reads the version's own entry and refuses unless it is the one the pass judged.
+/// Why:
+/// It is the cheap early answer, and it is a separate step from the move
+/// so a control can hold the order between them without a race of threads:
+/// whatever an install does between this step and the next is caught by the second look, inside the move.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function judged_entry_still_there(candidate: TrimCandidate): boolean | undefined  // undefined: gone
+/// ```
+pub(crate) fn judged_entry_still_there(candidate: &TrimCandidate) -> Result<Option<()>, String> {
     let metadata: fs::Metadata = match fs::symlink_metadata(&candidate.directory) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(format!("it cannot be read: {error}")),
     };
-    if metadata.modified().ok() != Some(candidate.written) {
-        return Err("another run wrote it while the cleanup ran".to_string());
+    if let Some(difference) = judged_entry_difference(&metadata, candidate) {
+        return Err(difference.to_string());
     }
-    // What: the tool's `current` link is read again here, at the moment of the removal.
-    // Why: the pass read every link before it planned, and another command can repoint one in between;
-    // a version the link names now must not be moved aside.
-    if current_names(&candidate.root, &candidate.tool, &candidate.version) {
-        return Err("the tool's current link names it".to_string());
-    }
+    return Ok(Some(()));
+}
+
+/// What:
+/// The second half of a removal:
+/// moves the version's downloads and then the version itself out of their names,
+/// and puts both back unless the entry under the marker is the one the pass judged.
+/// Why:
+/// The marker is a name only this program writes,
+/// so the entry standing under it after the rename is exactly what the removal holds,
+/// and its inode and write time say whether it is the judged entry or one an install put there meanwhile.
+/// A different entry goes back at once, so a fresh install is never what a removal deletes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function move_judged_entry(candidate: TrimCandidate): MovedAside | undefined  // throws on a refusal
+/// ```
+pub(crate) fn move_judged_entry(candidate: &TrimCandidate) -> Result<Option<MovedAside>, String> {
     // What: the marker is written before the first rename.
     // Why: a run killed inside `remove_dir_all` leaves the marker, and the next install finishes the removal.
     let _ = fs::write(unfinished_marker(&candidate.root), b"");
@@ -842,7 +892,45 @@ fn move_aside(candidate: &TrimCandidate) -> Result<Option<MovedAside>, String> {
         }
         return Err(format!("it cannot be moved aside: {error}"));
     }
+    // What: the entry the removal now holds is compared with the one that was judged.
+    // Why: an install that replaced the version between the look and this rename is holding a finished copy under
+    // the marker now, and deleting it would discard the install.
+    match fs::symlink_metadata(&version_marker) {
+        Ok(held) if judged_entry_difference(&held, candidate).is_none() => {}
+        Ok(held) => {
+            let aside: MovedAside = MovedAside { version_marker: version_marker.clone(), downloads_marker };
+            let difference: &str = judged_entry_difference(&held, candidate).unwrap_or(NOT_THE_JUDGED_ENTRY);
+            let reason: String = match put_back(candidate, &aside) {
+                PutBack::Back | PutBack::NameTaken | PutBack::NameUnfinished => difference.to_string(),
+                PutBack::Failed(problem) => format!("{difference}; {problem}"),
+            };
+            return Err(reason);
+        }
+        // The marker is gone already: another run finished the removal this pass was making.
+        Err(_) => return Ok(None),
+    }
     return Ok(Some(MovedAside { version_marker, downloads_marker }));
+}
+
+/// What:
+/// Moves one version out of its name,
+/// in the two steps a control can hold apart:
+/// the look that refuses an entry that is not the one judged,
+/// then the move that refuses one an install put there between the look and itself.
+/// Why:
+/// A reader then sees the version or its removal marker and never a half version,
+/// a kill at any later point leaves markers the next run finishes,
+/// and the entry a removal deletes is always the one a pass judged.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function moveAside(candidate: TrimCandidate): MovedAside | undefined  // throws on a refusal
+/// ```
+fn move_aside(candidate: &TrimCandidate) -> Result<Option<MovedAside>, String> {
+    if judged_entry_still_there(candidate)?.is_none() {
+        return Ok(None);
+    }
+    return move_judged_entry(candidate);
 }
 
 /// What putting a version back under its name ended in.
@@ -852,9 +940,36 @@ enum PutBack {
     /// The name holds another copy,
     /// so this copy is deleted instead of restored.
     NameTaken,
+    /// The name holds an install that has not finished,
+    /// so neither copy may be touched by this pass.
+    NameUnfinished,
     /// Neither worked,
     /// and the marker stays.
     Failed(String),
+}
+
+/// What:
+/// Whether the copy of `tool`'s version at `directory` is a finished install.
+/// Why:
+/// A held, finished copy may be deleted only in favour of a copy that finished.
+/// A route that installs in place leaves a half-written directory under the version's name,
+/// and deleting the good copy for it would leave the only working one gone.
+/// An archive install writes its completion marker last and a `cargo binstall` crate writes its record last;
+/// a route that leaves neither is never read as finished here,
+/// so its copy stays aside rather than being deleted for a name this pass cannot judge.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function finished_copy_at(tool: string, directory: string): boolean
+/// ```
+fn finished_copy_at(tool: &str, directory: &Path) -> bool {
+    if has_complete_marker(directory) {
+        return true;
+    }
+    if let Some(crate_name) = tool.strip_prefix("cargo/") {
+        return recorded_version(directory, crate_name).is_some();
+    }
+    return false;
 }
 
 /// What:
@@ -873,6 +988,7 @@ enum PutBack {
 /// ```
 fn put_back(candidate: &TrimCandidate, moved: &MovedAside) -> PutBack {
     return restore_or_delete(
+        &candidate.tool,
         &moved.version_marker,
         &candidate.directory,
         moved.downloads_marker.as_deref(),
@@ -893,12 +1009,19 @@ fn put_back(candidate: &TrimCandidate, moved: &MovedAside) -> PutBack {
 /// function restoreOrDelete(versionMarker: string, versionDirectory: string, downloadsMarker?: string, downloadsDirectory?: string): PutBack
 /// ```
 fn restore_or_delete(
+    tool: &str,
     version_marker: &Path,
     version_directory: &Path,
     downloads_marker: Option<&Path>,
     downloads_directory: Option<&Path>,
 ) -> PutBack {
     if fs::symlink_metadata(version_directory).is_ok() {
+        // What: a name taken by an install that has not finished keeps the held copy aside.
+        // Why: deleting the held, finished copy for a half-written one loses the only working copy,
+        // and putting the held copy back would write over the install in flight.
+        if !finished_copy_at(tool, version_directory) {
+            return PutBack::NameUnfinished;
+        }
         return match remove_trees(version_marker, downloads_marker) {
             None => PutBack::NameTaken,
             Some(failure) => PutBack::Failed(failure),
@@ -1057,6 +1180,13 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                             removed_line(&candidate)
                         ));
                     }
+                    PutBack::NameUnfinished => {
+                        outcome.unfinished.insert(candidate.root.clone());
+                        lines[index] = Some(kept_line(
+                            &candidate,
+                            &format!("{why}; the version's name holds an install that has not finished, so the held copy stays aside"),
+                        ));
+                    }
                     PutBack::Failed(failure) => {
                         outcome.unfinished.insert(candidate.root.clone());
                         lines[index] = Some(kept_line(&candidate, &format!("{why}; {failure}")));
@@ -1075,6 +1205,12 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                 },
             }
         }
+    }
+    // What: a root whose removals were all deferred gets the marker too.
+    // Why: the marker is what makes the next install run the pass, and only the move wrote it before, so a pass
+    // that moved nothing left no trace and the cleanup waited for an install that happened to install something.
+    for root in &outcome.unfinished {
+        let _ = fs::write(unfinished_marker(root), b"");
     }
     for line in lines.into_iter().flatten() {
         outcome.lines.push(line);
@@ -1218,6 +1354,14 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
                     format_size(bytes)
                 ));
             }
+            Restored::NameUnfinished => {
+                outcome.unfinished.insert(marker.root.clone());
+                outcome.lines.push(format!(
+                    "mpm-shadow: kept {}: {candidate_reason}; the version's name holds an install that has not \
+                     finished, so the held copy stays aside",
+                    marker.version_marker.display()
+                ));
+            }
             Restored::NameTaken => outcome.lines.push(format!(
                 "mpm-shadow: removed {} ({}) and finished a removal an earlier run started, and a newer copy holds \
                  its name",
@@ -1312,6 +1456,9 @@ enum Restored {
     /// The name holds another copy,
     /// so the marker is deleted instead.
     NameTaken,
+    /// The name holds an install that has not finished,
+    /// so the marker stays.
+    NameUnfinished,
     /// Neither worked.
     Failed(String),
 }
@@ -1320,6 +1467,7 @@ enum Restored {
 /// or deletes them when the name is taken again.
 fn restore_marker(marker: &RemovalMarker) -> Restored {
     return match restore_or_delete(
+        &marker.tool,
         &marker.version_marker,
         &marker.version_directory,
         marker.downloads_marker.as_deref(),
@@ -1327,6 +1475,7 @@ fn restore_marker(marker: &RemovalMarker) -> Restored {
     ) {
         PutBack::Back => Restored::Back,
         PutBack::NameTaken => Restored::NameTaken,
+        PutBack::NameUnfinished => Restored::NameUnfinished,
         PutBack::Failed(failure) => Restored::Failed(failure),
     };
 }
