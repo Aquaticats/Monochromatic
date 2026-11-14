@@ -520,6 +520,75 @@ fn an_unidentified_holder_keeps_a_pid_file_from_naming_the_number_as_absent() {
     );
 }
 
+/// A scan that could not look at processes of another account and of this one,
+/// with the holders it did find.
+/// Why:
+///  A host that runs containers and system services beside the agents has hundreds of descriptor directories the kernel
+///  refuses,
+///  and both the count and each reason are what the wrapper says about them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // { holders: [{ pid: 55, command: 'git' }], partial: ['PID of another account 4103389: ...', 'PID 0: ...'] }
+/// withUnreadableProcesses([{ pid: 55, command: 'git' }])
+/// ```
+fn with_unreadable_processes(holders: Vec<Holder>) -> HolderEvidence {
+    let mut reasons: Vec<String> = vec![String::from("PID of another account 4103389: Permission denied (os error 13)")];
+    for number in 0..200 {
+        reasons.push(format!("PID {number}: Permission denied (os error 13)"));
+    }
+    // The scan's own cut names no process, so it is the one reason the count must not count.
+    reasons.push(String::from("stopped at the time bound after 400 of 1200 processes"));
+    return HolderEvidence {
+        method: "proc-fd",
+        holders,
+        partial: reasons,
+        unresolvable: Vec::new(),
+    };
+}
+
+/// What:
+///  Processes the scan could not look at leave a holder it did see proven alive,
+///  leave a number this table does not have read as that,
+///  and leave a lock with no proof of its owner unproven.
+/// Why:
+///  The two binary controls of a held `index.lock` met an owner nothing proved alive,
+///  on a host with hundreds of refused descriptor directories,
+///  and a reader of that message could take the processes the scan could not look at for the reason:
+///  a process of another account cannot write into a file of this account's repository,
+///  which is why a removal tolerates that reason
+///  (`OTHER_ACCOUNTS_PROCESS_REASON`),
+///  while a holder the scan sees is a holder whatever it could not see.
+///  Which of the three verdicts stands is the whole of what these reasons do to a merge:
+///  none of them moves it from what the scan and the PID file proved.
+#[test]
+fn processes_the_scan_could_not_look_at_leave_each_verdict_as_it_was() {
+    let holder: Holder = Holder {
+        pid: 55,
+        command: Some(String::from("git")),
+    };
+    let live: Evidence = evidence_with(PidFile::Owner(42, start_missing(42)), Some(with_unreadable_processes(vec![holder])));
+    assert_eq!(
+        classify_index_lock(&live),
+        Verdict::ProvenAlive {
+            pid: 55,
+            by_descriptor: true,
+            command: Some(String::from("git")),
+        },
+        "a holder the scan saw is the holder, and the processes it could not look at say nothing against that"
+    );
+    assert!(blocker_words(&live).contains("proven by an open descriptor"), "{}", blocker_words(&live));
+    let gone: Evidence = evidence_with(PidFile::Owner(42, start_missing(42)), Some(with_unreadable_processes(Vec::new())));
+    assert_eq!(classify_index_lock(&gone), Verdict::Dead(42), "a number this table does not have is read as that whatever was refused");
+    let unproven: Evidence = evidence_with(PidFile::Absent, Some(with_unreadable_processes(Vec::new())));
+    assert_eq!(classify_index_lock(&unproven), Verdict::EvidenceFree, "a lock no proof names an owner for is evidence-free");
+    let words: String = blocker_words(&unproven);
+    assert!(words.contains("an owner nothing proves alive"), "{words}");
+    assert!(words.contains("201 processes could not be looked at"), "the count is the count of processes the scan could not look at, not of its reasons: {words}");
+    assert!(words.contains("PID of another account 4103389"), "the first of them is named: {words}");
+    assert!(words.contains("stopped at the time bound after 400 of 1200 processes"), "the scan's own cut is said for itself: {words}");
+}
+
 /// How long evidence that must not wait may take to answer in a control.
 const PATIENCE: std::time::Duration = std::time::Duration::from_secs(20);
 
