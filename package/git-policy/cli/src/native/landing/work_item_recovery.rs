@@ -224,7 +224,8 @@ pub(crate) fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, exp
 }
 
 /// What:
-///  Who a recovery tells about the items it gives up on.
+///  Who a recovery tells about the items it gives up on,
+///  and what it takes back once the record is where nothing reads it again.
 ///  A `trait` is a named set of methods that different types can each supply,
 /// like a TypeScript `interface`.
 /// Why:
@@ -234,16 +235,25 @@ pub(crate) fn requeue_with(work_dir: &Path, now: &ClaimTime, max_tries: u32, exp
 /// The answer says whether the person was told:
 /// a
 ///  push is not settled while its notice could not be written.
+///  A word kept for a later telling outlives the words themselves,
+///  because a pass killed between the notice and the move is told again by the next one;
+///  it is taken back only here, after the record is in `failed`,
+///  so a kill at that instruction costs one file nothing reads.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// interface GivenUpNotice { tell(givenUp: WorkItem): boolean }
+/// interface GivenUpNotice { tell(givenUp: WorkItem): boolean; settled(givenUp: WorkItem): void }
 /// ```
 pub(crate) trait GivenUpNotice {
     /// Tell the person about `given_up`,
     /// before the record moves to `failed`,
     /// and answer whether the words are where a command will show them.
     fn tell(&self, given_up: &WorkItem) -> bool;
+
+    /// Take back whatever was kept only for that telling,
+    /// after `given_up` reached `failed` and no later pass will tell again.
+    ///  Most notices keep nothing, so the nothing here is the whole answer for them.
+    fn settled(&self, _given_up: &WorkItem) {}
 }
 
 /// The step of a recovery that tells nobody about the items it gives up,
@@ -254,6 +264,16 @@ impl GivenUpNotice for NoNotice {
     fn tell(&self, _given_up: &WorkItem) -> bool {
         return true;
     }
+}
+
+// A control's own kill, set for the pass that runs on this thread: the pass writes the person's words and then stops,
+//  which is the state a process killed at that instruction leaves. The window between the words and the move to `failed`
+//  is the one a notice must survive, and no control can kill the process exactly there; a pass that returns instead of
+//  moving leaves the same files, because nothing after that line runs. Only a control build has it.
+#[cfg(test)]
+thread_local! {
+    /// Whether this thread's recovery stops after the words, which no release build can do.
+    pub(crate) static KILLED_AFTER_THE_WORDS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// `requeue_with` with the step told about each item it gives up,
@@ -340,6 +360,11 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
             if destination == FAILED && !tell.tell(&item) {
                 return None;
             }
+            #[cfg(test)]
+            if destination == FAILED && KILLED_AFTER_THE_WORDS.with(std::cell::Cell::get) {
+                // The control's kill: the words are written and this pass stops here, which is what a killed process leaves.
+                return None;
+            }
             (destination, (destination == FAILED).then_some(item))
         }
         // The record never changes once it is pending,
@@ -349,5 +374,11 @@ fn recover(work_dir: &Path, state: &str, name: &str, now: &ClaimTime, max_tries:
         // which a handler would run and settle under the wrong id.
         _ => (FAILED, None),
     };
-    return std::fs::rename(owned.as_path(), state_directory(work_dir, target).join(id)).is_ok().then_some(given_up);
+    let moved: bool = std::fs::rename(owned.as_path(), state_directory(work_dir, target).join(id)).is_ok();
+    // The record is where nothing reads it again, so whatever a notice kept for a later telling is owed no longer. A kill
+    //  between the move and this line leaves one small file that nothing reads, which is what a kill at any instruction costs.
+    if moved && let Some(given_up_item) = given_up.as_ref() {
+        tell.settled(given_up_item);
+    }
+    return moved.then_some(given_up);
 }

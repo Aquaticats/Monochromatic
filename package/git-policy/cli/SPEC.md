@@ -3475,7 +3475,8 @@ The same look runs for a worktree that is no subvolume,
 before the removal is handed to Git,
 and again in the commit service immediately before it removes a worktree it was handed,
 because Git's own removal is the route that would delete through a mount point.
-`look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume, which the
+`look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume,
+which the
 registration's own proof still uses.
 
 The proof of cleanliness a removal makes is the stat proof every removal makes,
@@ -3494,7 +3495,8 @@ not locked,
 no conversion's copy lies beside it,
 the worktree root and its registration are held open and are still the objects that were proven,
 and it is clean or the person forced it.
-The clean proof stays Git's own, exactly as the decision of 2026-11-12T13:04:14 requires:
+The clean proof stays Git's own,
+exactly as the decision of 2026-11-12T13:04:14 requires:
 an unforced removal deletes no untracked file and no modified tracked file,
 and a foreign volume that Git lists as untracked (one no ignore rule covers) is such an entry,
 so it keeps a typed unforced removal from happening.
@@ -3502,8 +3504,12 @@ That removal then refuses with one report that says what the command itself did,
 names each volume,
 gives the reason Git refuses,
 and words the way on by what the tree in front of it is:
-`git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
-stands, and, for a tree whose entries are all present, clearing or moving what Git would delete.
+`git worktree remove --force`,
+which removes every other entry of the tree and leaves the volume exactly as it
+stands,
+and,
+for a tree whose entries are all present,
+clearing or moving what Git would delete.
 The status a removal reads is one of three,
 and the report says which of them it read:
 Git names nothing at all,
@@ -3528,7 +3534,8 @@ and no worktree is ever removed on a cleanliness that was not proven.
 The tree is never handed to Git to get Git's own sentence,
 because Git's removal is what would delete through the mount;
 the report says so instead of pretending to be Git's words.
-A forced removal is served without the clean proof, as it always was.
+A forced removal is served without the clean proof,
+as it always was.
 
 With that proof in hand the removal empties the tree around the volumes:
 one pass over the tree,
@@ -3547,7 +3554,8 @@ The mode of a kept directory is given back after the pass,
 and the directories the pass widened to empty are those it deletes,
 so what is left stands with the modes and owners it had.
 The pass judges and empties one opened object and never a name twice:
-it opens the entry as a handle that follows nothing, crosses no mount and needs no permission on it,
+it opens the entry as a handle that follows nothing,
+crosses no mount and needs no permission on it,
 asks that handle what kind of directory it is,
 gives the owner access through that same handle,
 and only then opens the name again for reading,
@@ -3559,19 +3567,24 @@ and a volume renamed over a directory in the moment between the two lookups is l
 emptied.
 The look that decides the removal (`look_for_boundaries`) resolves each name once and asks the device of the very
 descriptor it then reads.
-Nothing in the pass renames, unmounts, moves or deletes a volume;
+Nothing in the pass renames,
+unmounts,
+moves or deletes a volume;
 the only names it touches are those of the worktree's own entries.
 
 A removal that was killed inside that pass leaves the worktree's own entries deleted,
 the volumes standing and the registration kept,
 and the next unforced command would meet a worktree Git reports as changed.
-The pass therefore writes, before its first deletion,
+The pass therefore writes,
+before its first deletion,
 a record under `monochromatic-git-policy-cli/around-removals-begun/<registration id>` naming the registration's
-identity, the worktree root's identity and the path the removal was given
+identity,
+the worktree root's identity and the path the removal was given
 (`src/native/worktree/worktree_removal_around_begun.rs`).
 A later unforced removal of that same worktree,
 whose registration and root are those two identities,
-reads the record, asks Git whether anything is reported about the tree but the entries a pass removed
+reads the record,
+asks Git whether anything is reported about the tree but the entries a pass removed
 (leaving out what stands inside the volumes it leaves,
 because the pass often deletes the ignore rule that hid one),
 and finishes the removal when nothing else stands there.
@@ -3591,17 +3604,21 @@ which is where the log of what a removal deletes joins it
 When the pass ends the removal looks again through the descriptor it holds:
 a volume that went away while the pass ran leaves a tree that is now empty,
 and the root goes as any other removal takes it,
-which is one `rmdir` under the held parent, or the destroy where the caller takes that route.
+which is one `rmdir` under the held parent,
+or the destroy where the caller takes that route.
 A tree that still holds one is finished without the destroy:
 the registration is emptied and removed through the descriptors the removal holds,
 one of its `worktrees` directory last,
 and the worktree's subvolume (or its plain directory) stays,
 holding nothing but the volumes and the directories that lead to them.
 The outcome is neither `removed` nor `refused`:
-it is `RemovedAround`, which carries every volume that was left,
+it is `RemovedAround`,
+which carries every volume that was left,
 and `src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs` words it.
 A removal that stopped halfway is `Incomplete` with its own words:
-files it removed are gone, the worktree is still registered, and the report says which of the two happened.
+files it removed are gone,
+the worktree is still registered,
+and the report says which of the two happened.
 A pass that found the volume gone when it ended is reported as its own ending:
 the worktree's entries went one by one in this command,
 the empty root went with one `rmdir`,
@@ -3609,7 +3626,10 @@ and nothing was handed to the commit service,
 so no delete waits behind the command,
 and the line says that instead of the destroy's words.
 A pass that emptied the tree but could not remove the registration is reported in the around route's own words:
-the worktree was emptied around what was left, the path still stands with it, Git still lists the worktree, and
+the worktree was emptied around what was left,
+the path still stands with it,
+Git still lists the worktree,
+and
 `git worktree prune` or another run of the same removal finishes it.
 
 The person's own `git worktree remove` prints that report on standard error and exits 0,
@@ -3627,7 +3647,8 @@ and a file in that directory that is not a record is neither shown nor moved.
 
 What frees the path is said in every one of those reports:
 the person moves each volume out of the directory it stands in;
-a mount point is released with `umount`, which keeps what is mounted there;
+a mount point is released with `umount`,
+which keeps what is mounted there;
 a subvolume that is another repository's worktree is removed with `git worktree remove` in that repository,
 which keeps its branch;
 and the directories that are then empty are removed from the deepest one up with `rmdir`,
@@ -4875,16 +4896,65 @@ of which the two that rewrite link layouts in place are the service's work whene
   copies another checkout still links;
   both are accepted consequences.
   The success line keeps mpm-shadow's own summary of what was installed.
+  The install writes a launcher and its record for each bin the worktree's own lock declares and touches no other name,
+  so a record for a name that lock declares nowhere is a copy of an earlier release's layout:
+  this repository's own checkout holds `cli-git-native.launch`,
+  left by the rename of 0.6.0,
+  and a copy of it reached every new worktree.
+  Such a record is removed together with the launcher beside it,
+  and the count that says whether the install did its work covers only the records the lock declares.
+  The removal proves the bytes it deletes:
+  a record is taken aside only when it is the object the pass judged (device,
+  inode,
+  size and moment,
+  looked at before the take and again after it),
+  so a record another command wrote at that name is never the one taken;
+  the record in the pass's hand is then renamed to a name only that pass writes,
+  read again against the lock as it is now,
+  and put back when another command declared its name meanwhile or the bytes name this worktree's own lock;
+  and the launcher goes only when it is the object the pass read beside the record,
+  because `mpm-shadow` places a launcher with a rename and an install that wrote its own is another object.
+  A person's `toolchain:update` and install landing between the classification and the removal therefore keeps
+  the record and launcher it wrote,
+  and a repair that deleted them would discard what that command had just made.
+  A pass killed between taking a record aside and removing or putting it back leaves it under a name nothing reads,
+  and the next pass reads it:
+  it is put back by a name taken only when it is free,
+  or,
+  when a record stands at that name by then,
+  it is kept where it lies and one line in the worktree's own Git directory names the file and the command that puts
+  it back.
+  Nothing set aside is ever discarded unread,
+  because what a killed pass left may be the record an install had just written,
+  and a launcher with no record beside it runs no tool.
+  A record's `lockFile` is compared with the worktree's own lock by the object the two names resolve to and not by
+  their spelling:
+  a link to the worktree,
+  a path that walks into a directory and back out of it,
+  and a bind mount of the same folder all name one file,
+  and only the object's identity tells that from a copy of another checkout's lock.
+  On 2026-11-13 that copy made every new worktree report
+  "toolchain:
+  1 launcher records still name another lock file" on every try,
+  which no install can change,
+  so the record was retried and given up on with everything relinked.
+  A lock the repair cannot read leaves every record counted,
+  which keeps the check as strict as it was before the names were read at all.
+  The lock is read the way the record beside it is:
+  only a plain file is opened,
+  without following a link,
+  and only `SMALL_FILE_LIMIT` bytes of it are read (1 MiB,
+  sixteen times this repository's 63,625-byte lock),
+  so a named pipe at that name holds neither the add's thread nor a job of the service's pool,
+  and no file decides how much memory a command reads.
   The add writes this tool in the same `relink` record,
   so the install is the service's work when a service answers and the add's own when none does.
   A failed install,
   a timeout or a missing `mpm-shadow` never fails the add:
   the line names the reason and
   `mise run toolchain:install`.
-  A service that fails the install leaves the record failed,
-  and its journal names the worktree and the reason.
-  The worktree keeps the copied launchers until the install runs,
-  which is what the add itself left between the copy and the install.
+  The worktree keeps the copied launchers until the repair runs,
+  which is what the add itself left between the copy and the repair.
 - The `pnpm` the repair starts is the first one on the person's `PATH`,
   which in this repository is the pnpm-shadow.
   The owner decided this on 2026-11-03:
@@ -4919,6 +4989,81 @@ of which the two that rewrite link layouts in place are the service's work whene
   The record's object name is a digest of the worktree's path and the moment the add asked,
   so a worktree removed and added again at the same path never takes an earlier record's answer,
   whether that record settled or failed there.
+
+A relink whose tool fails is tried again rather than given up on after one try:
+two installers can meet in one worktree's `node_modules`,
+and pnpm answers that with a failure that passes when it runs alone.
+The record's own count of tries bounds the retries (`MAX_TRIES`,
+`src/native/landing/work_item_recovery.rs`),
+and the round that ran the tool keeps the reason it gave in a file of its own,
+`<git dir>/monochromatic-git-policy-cli/relink-failures/<record id>`
+(`src/native/repair/package_repair_relink_failure.rs`),
+replaced by the next try's reason.
+A record whose tries run out is given up on by the recovery,
+which never saw the tool's answer,
+so it writes the person's notice from the kept reason:
+the notice names the worktree,
+says how many times the record allows a try,
+quotes what the last try failed with,
+names the command the record's tool finishes the job with,
+and says that something only the person can change has to come first,
+because the wrapper ran exactly that command.
+The number is the record's bound and never the count it reached:
+that count rises when a pass killed after the words is recovered again,
+and the words a second telling writes must say what the first said.
+A record with no kept reason does not claim that a tool never ran or that the service stopped,
+because either may have happened and no file tells them apart:
+its notice says no answer was kept and points at the commit service's journal,
+which is where the rest of what happened is.
+The notice is written in the relinked worktree's own Git directory,
+where a command run there reads it,
+when this repository proves that directory is the worktree the record is about:
+the worktree's `.git` pointer names a registration under the common directory's `worktrees`,
+and that registration's `gitdir` and `commondir` back-links name this worktree and this repository.
+The pointer is read as every other `.git` reader of the crate reads one,
+only when it is a plain file and never past `GIT_FILE_LIMIT` (64 KiB):
+a pointer is one line,
+and a 2 GiB file at that name was read whole into the service's memory before this
+(523 MB peak,
+the rest in swap),
+while a pipe put there between a look and a read held the pass for ever.
+A registration made after the record was queued is another worktree at the same path,
+and the administrative directory is named after the path,
+so the record's own `created` decides:
+words about an earlier worktree are never left where a later one's commands would read them.
+Where that proof cannot be made,
+or the directory refuses the words
+(a read-only administrative directory,
+a parent that cannot be made),
+the words go to the directory the record was drained from,
+which a command in the worktree whose add wrote the record reads,
+and which is writable whenever the recovery can move records at all.
+That fallback is the one the recovery needs:
+it settles nothing while the person cannot be told,
+so a directory that refuses the words may not hold the record in `recovering` for ever.
+The words never make a Git directory that is not there:
+a directory made again for them is one no command in that checkout reads,
+and Git refuses that worktree (`fatal: gitfile does not point to a valid repository`).
+It is published over any words an earlier telling of the same record left,
+rather than create-new,
+because the recovery tells a record again when a pass was killed between the words and the move to `failed`,
+and it settles nothing while the person cannot be told.
+That second telling writes the same bytes and settles the record:
+the promise that a kill after the notice is survived by telling again,
+which `src/native/landing/work_item_recovery.rs` states,
+holds only while the reason is still there to quote.
+The reason is therefore taken back after the record is in `failed` (`GivenUpNotice::settled`),
+and not when the words are written:
+a landing killed between that move and the take-back leaves one reason file nothing reads,
+which is the whole cost of the order.
+A command shows a notice once and removes it,
+and a notice written again after a command took the first is the same line repeated rather than a different one.
+A relink written in the Git directory of the worktree whose command added the new one was shown by the next command there,
+about a worktree that command had never touched:
+on 2026-11-13 one commit in the main checkout printed eight of them for eight other worktrees.
+A worktree that is gone has no Git directory to write in,
+and the notice is left in the directory the record was drained from,
+which is also where a command in the adding worktree reads it.
 
 What the service proves before it relinks:
 the record's payload and its repository field must name one directory,
