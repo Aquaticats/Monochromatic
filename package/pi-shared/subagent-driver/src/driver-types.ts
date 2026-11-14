@@ -336,6 +336,14 @@ export type RunSummary = {
   readonly feedProblem?: string;
 
   /**
+   The inbox messages Pi never took, by the name each was published under: one it refused while it rested, one it refused while it
+   worked and the run ended before it rested again, or one the run ended before it could hand over. Every one of them is also kept
+   on disk under a dot name; this field is what a reader of the summary alone sees, so whoever sent the message learns it was not
+   read. Absent when Pi took every message the inbox held.
+   */
+  readonly inboxNotTaken?: readonly string[];
+
+  /**
    What went wrong in the driver itself, when `endReason` is `driver-failed`.
    */
   readonly driverError?: string;
@@ -530,6 +538,11 @@ export type RecordOfPiRun = {
    summary carries beside the end reason.
    */
   readonly noteWorkProblem: (failure: string,) => void;
+
+  /**
+   Notes one inbox message Pi never took, by the name it was published under, so the feed and the summary name the same messages.
+   */
+  readonly noteMessageNotTaken: (name: string,) => void;
 
   /**
    Why the feed is incomplete, when writing it failed. A run whose feed failed did not end clean.

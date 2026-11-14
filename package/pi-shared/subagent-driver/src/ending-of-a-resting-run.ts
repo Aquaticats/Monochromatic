@@ -59,16 +59,22 @@ export async function endingOfARestingRun({
     return 'still-running';
   }
   /**
-   Whether Pi still rests: the read above awaited, and Pi may have begun a turn in that window, as a steer delivered earlier fires
-   after the settle that opened it. Both endings below turn on a Pi at rest.
+   Whether Pi still rests with no model error standing: the read above awaited, and Pi may have begun a turn in that window, as a
+   steer delivered earlier fires after the settle that opened it, and such a turn may have settled on a model error before the read
+   returned. Both endings below turn on a Pi at rest with no error the loop still owes an attempt.
 
-   Only the rest is read again, never the silence the watch decided on: a read that fails writes its own line to the feed, and that
-   writing restarts the silence, so a run whose work cannot be read would never end while it kept failing. Its agent did finish its
-   turn, which is what the silence was there to see.
+   Only the rest and the error are read again, never the silence the watch decided on: a read that fails writes its own line to the
+   feed, and that writing restarts the silence, so a run whose work cannot be read would never end while it kept failing. Its agent
+   did finish its turn, which is what the silence was there to see.
    */
   const stillRests = !watch.record
     .isRunning();
-  if (!stillRests) {
+  /**
+   The error Pi settled on, when the turn the read saw ended in one and nothing after it recovered.
+   */
+  const failure = watch.record
+    .unrecoveredModelError();
+  if ((!stillRests) || failure.failed) {
     return 'still-running';
   }
   /**

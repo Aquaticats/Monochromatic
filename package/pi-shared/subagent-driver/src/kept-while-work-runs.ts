@@ -13,8 +13,8 @@ import { FEED_PREVIEW_CHARACTERS, } from './driver-constants.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import {
   dispositionOf,
+  messageToPiCameTo,
   outcomeTextOf,
-  refusedByPi,
   takenByPi,
 } from './what-pi-did-with-a-message.ts';
 import type { WatchRequest, } from './watch-request.ts';
@@ -79,6 +79,10 @@ export type WorkAsked =
    The work ended, so the agent was sent back to read it and the run goes on.
    */
     | 'resumed'
+  /**
+   The work ended, and the message that sends the agent back met a Pi that had begun a turn, so it goes again once Pi rests.
+   */
+    | 'held'
   /**
    The work ended and Pi refused the message that sends the agent back, so the run cannot go on.
    */
@@ -160,6 +164,18 @@ export async function askAboutItsWork({
    What Pi said it did with the message.
    */
   const disposition = dispositionOf(answer,);
+  /**
+   Whether Pi was working when it answered the message.
+   */
+  const piWorks = watch.record
+    .isRunning();
+  /**
+   What the wake came to, read from the state Pi was left in.
+   */
+  const cameTo = messageToPiCameTo({
+    answer,
+    piWorks,
+  },);
   watch.record
     .note({
       kind: 'wake',
@@ -172,9 +188,24 @@ export async function askAboutItsWork({
         length: FEED_PREVIEW_CHARACTERS.inboxMessage,
       },),
     },);
+  if (cameTo.ending === 'at-work') {
+    // Pi began a turn as the wake arrived, so it refused a prompt handed to it at work. That is no answer about the wake: the work
+    // it names is kept and the wake goes again once Pi rests, within the run's deadline.
+    return 'held';
+  }
+  /**
+   The error Pi settled on, when the turn that ran while the wake was going ended in one.
+   */
+  const failure = watch.record
+    .unrecoveredModelError();
+  if ((cameTo.ending === 'refused') && failure.failed) {
+    // The run ends on that error, and the loop owes it an attempt: the wake waits for Pi to rest again rather than ending the run
+    // on a refusal given while a turn was opening.
+    return 'held';
+  }
   delete waited.work;
   // A message Pi refused woke nobody, so nothing is owed a reply and the run cannot go on: the agent was never told its work ended.
-  if (refusedByPi(answer,)) {
+  if (cameTo.ending === 'refused') {
     return 'refused';
   }
   // A message Pi took into a turn is answered by that turn, and the run stays up until its reply settles. A message Pi handled

@@ -1006,6 +1006,8 @@ the launcher that builds the session's environment asks it, once, before it make
   `piStartFailures` holds every start that ended before its Pi took the prompt,
   each with its exit, the pause that followed it and the last lines Pi printed,
   `piStartStoppedBy` names the bound that stopped the starts when none of them took the prompt,
+  `inboxNotTaken` names every inbox message Pi never took,
+  by the name it was published under,
   and `retries` and `rateLimitErrors` count what the driver retried and what the run met of the failures the
   coordinator measures apart.
 - `stderr.log`:
@@ -1021,9 +1023,15 @@ the launcher that builds the session's environment asks it, once, before it make
   Pi gets it as a steer while it works and as a new prompt while it rests.
   An entry must be an ordinary file:
   a named pipe is set aside instead of waited on.
-  A message Pi refused stays as `.failed-<name>`,
+  A message Pi refused while it rested stays as `.failed-<name>`,
   and a later message of the same name that is also refused gets `.failed-<name>.<n>`,
   so no kept message replaces another.
+  A message Pi refuses because it has begun a turn is not a refusal of the message:
+  it is held under its claim and goes again once Pi rests,
+  ahead of the inbox,
+  within the run's deadline.
+  A message the run ends before Pi takes it is kept as `.failed-<name>` too,
+  and named in the summary's `inboxNotTaken`.
   While a message is being delivered it is held under a dot name of its own,
   so a newer message published under the same name is neither deleted nor kept in its place.
 - `stop`:
@@ -1225,6 +1233,18 @@ and a prompt Pi refuses because it had begun a turn is no ask at all:
 the feed notes the race under `problem`,
 the summary counts no ask,
 and the run goes on with the turn the agent had started.
+That is one rule for every message the driver sends Pi,
+not one for the ask alone:
+a refusal Pi gives while it works is no answer about the message,
+because Pi refuses every prompt handed to it at work and takes the same one once it rests.
+The wake that sends an agent back to work it left is held and sent again once Pi rests,
+a message from the inbox waits for that rest instead of being kept as failed,
+the attempt after a model error is not counted and goes again once Pi rests,
+and the steer or prompt a message arrives as is chosen again on the look that sends it.
+Every send reads what came of it from the state Pi was left in,
+and an ending after an await is decided on a state read after that await:
+the read of work a run left running is followed by a second look at rest and at the model error,
+so a turn that began, or settled on an error, during that read is neither ended nor left unanswered.
 The asks never make a run wait without end:
 the run's own wall clock still bounds every wait for their answers,
 and a wait the wall clock or Pi's leaving ended keeps that ending,

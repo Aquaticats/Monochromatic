@@ -229,6 +229,11 @@ export function startRecordOfPiRun({
     asks: number;
 
     /**
+     The inbox messages Pi never took, by the name each was published under, in the order they were first noted.
+     */
+    notTaken: string[];
+
+    /**
      Whether Pi took the run's first prompt, which is where work may begin.
      */
     tookPrompt: boolean;
@@ -238,6 +243,7 @@ export function startRecordOfPiRun({
     answers: 0,
     rateLimitErrors: 0,
     asks: 0,
+    notTaken: [],
     tookPrompt: false,
   };
 
@@ -357,6 +363,17 @@ export function startRecordOfPiRun({
         failure,
       },);
     },
+    noteMessageNotTaken: function noteMessageNotTaken(name,) {
+      // A message tried again and refused again is one message, so the summary names it once.
+      if (state.notTaken.includes(name,)) {
+        return;
+      }
+      state.notTaken.push(name,);
+      note({
+        kind: 'inbox-not-taken',
+        file: name,
+      },);
+    },
     observe: function observe(observation,) {
       activity.at = now();
       observed.observe(observation,);
@@ -399,6 +416,7 @@ export function startRecordOfPiRun({
         ...feedProblemOf(feed,),
         ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),
         ...(state.workProblem === undefined ? {} : { workProblem: state.workProblem, }),
+        ...((state.notTaken.length === 0) ? {} : { inboxNotTaken: state.notTaken, }),
         ...compactionProblemOf(observed,),
       };
     },

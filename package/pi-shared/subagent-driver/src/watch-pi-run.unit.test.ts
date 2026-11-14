@@ -1787,13 +1787,14 @@ await describe({
           deadline: Date.now() + HOLD_MILLISECONDS,
           workLeftRunning: async () => [],
         },);
-        expect(endReason,).toBe('wall-clock',);
+        // The message is kept aside and the run goes on as it did before: what is new is that its name is in the summary.
+        expect(endReason,).toBe('idle',);
         expect((await readdir(run.inbox,)),).toContain(`.failed-${MESSAGE_NAME}`,);
         /**
          What the summary says about the message Pi never took.
          */
         const summary = run.record.summarize({
-          endReason: 'wall-clock',
+          endReason: 'idle',
           piExit: {},
           piHasExited: true,
           sessionStats: null,

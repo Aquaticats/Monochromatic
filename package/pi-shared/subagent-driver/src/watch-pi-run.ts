@@ -4,22 +4,13 @@
  @module
  */
 
-import { randomUUID, } from 'node:crypto';
-import {
-  link,
-  readdir,
-  rename,
-  unlink,
-} from 'node:fs/promises';
-import { join, } from 'node:path';
+import { readdir, } from 'node:fs/promises';
 import { setTimeout as wait, } from 'node:timers/promises';
 import {
-  FEED_PREVIEW_CHARACTERS,
   POLL_MILLISECONDS,
   STOP_FILE_NAME,
 } from './driver-constants.ts';
 import type {
-  CommandAnswer,
   EndReason,
   RunProgress,
 } from './driver-types.ts';
@@ -27,322 +18,17 @@ import {
   answerModelError,
   type RetryWaiting,
 } from './answer-a-model-error.ts';
-import { preview, } from './previews-of-pi-messages.ts';
-import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import type { WorkWaitedFor, } from './kept-while-work-runs.ts';
 import { endingOfARestingRun, } from './ending-of-a-resting-run.ts';
+import {
+  deliverHeldMessage,
+  deliverReadyMessage,
+  type HeldMessage,
+  keepMessagesNotTaken,
+  readyMessages,
+} from './messages-from-the-inbox.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { mayEndIdle, } from './when-a-run-may-end.ts';
-
-/**
- The code the operating system gave a failure, when it gave one.
-
- @param error - what was caught
-
- @returns the code, or nothing when the failure carries none
- */
-function codeOf(error: unknown,): string {
-  if (((typeof error) !== 'object') || (error === null)
-    || (!('code' in error))) {
-    return '';
-  }
-  return ((typeof error.code) === 'string') ? error.code : '';
-}
-
-/**
- Publishes a kept failure under one name, without ever replacing a file already there: a link fails when its name is taken, so
- the caller tries the next number.
-
- @param claim - where the message now is
-
- @param target - the name this attempt would keep it under
-
- @returns what this attempt achieved, so the caller knows whether to try another name
- */
-async function publishFailure({
-  claim,
-  target,
-}: {
-  readonly claim: string;
-  readonly target: string
-},): Promise<'published' | 'name-taken' | 'kept-by-rename'> {
-  try {
-    await link(
-      claim,
-      target,
-    );
-    await unlink(claim,);
-    return 'published';
-  }
-  catch (error) {
-    /**
-     What the operating system said about this name.
-     */
-    const code = codeOf(error,);
-    if (code === 'EEXIST') {
-      return 'name-taken';
-    }
-    if ((code === 'EPERM') || (code === 'EACCES')) {
-      // A folder cannot be linked, and holding one of Pi's messages is not at stake in it.
-      await rename(
-        claim,
-        target,
-      );
-      return 'kept-by-rename';
-    }
-    throw error;
-  }
-}
-
-/**
- Claims one inbox entry by renaming it, so that a producer publishing a newer message under the same name cannot be deleted or
- kept in its place. The claim's own name starts with a dot, so no later look at the inbox takes it for a message.
-
- @param watch - watch request
-
- @param name - message's name
-
- @returns where the message now is
- */
-async function claimMessage({
-  watch,
-  name,
-}: {
-  readonly watch: WatchRequest;
-  readonly name: string
-},): Promise<string> {
-  /**
-   Where the claim goes, under a name of its own that does not grow with the message's own, so any name a producer may publish
-   stays claimable.
-   */
-  const claimed = join(
-    watch.inbox,
-    `.claimed-${randomUUID()}`,
-  );
-  await rename(
-    join(
-      watch.inbox,
-      name,
-    ),
-    claimed,
-  );
-  return claimed;
-}
-
-/**
- Keeps a message that did not reach Pi, so it stays readable and is never sent again. Publication never replaces an earlier
- kept failure: a link fails when its name is taken, so the next number is tried instead.
-
- @param watch - watch request
-
- @param name - message's name
-
- @param claim - where the message now is
- */
-async function keepFailure({
-  watch,
-  name,
-  claim,
-}: {
-  readonly watch: WatchRequest;
-  readonly name: string;
-  readonly claim: string
-},): Promise<void> {
-  /**
-   The most numbered names to try before giving up: there are always fewer kept failures than names in the inbox.
-   */
-  const attempts = (await readdir(watch.inbox,)).length + 2;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    /**
-     The name this attempt would keep the failure under.
-     */
-    const target = join(
-      watch.inbox,
-      (attempt === 1) ? `.failed-${name}` : `.failed-${name}.${String(attempt,)}`,
-    );
-    /**
-     What this attempt achieved.
-     */
-    // oxlint-disable-next-line eslint/no-await-in-loop -- one name after another until one is free, and a kept failure must never replace another; see doc/lint/sequential-awaits.md
-    const outcome = await publishFailure({
-      claim,
-      target,
-    },);
-    if ((outcome === 'published') || (outcome === 'kept-by-rename')) {
-      return;
-    }
-  }
-  throw new Error(`every name for a kept failure of ${name} is taken`,);
-}
-
-/**
- Delivers one claimed inbox message. The claim goes once Pi has it; a refused or unanswered one is kept under a dot name, which
- the watch skips, so it is neither lost nor sent again.
-
- @param watch - watch request
-
- @param name - message's name
-
- @param claim - where the message now is
- */
-async function deliverMessage({
-  watch,
-  name,
-  claim,
-}: {
-  readonly watch: WatchRequest;
-  readonly name: string;
-  readonly claim: string
-},): Promise<void> {
-  /**
-   The message, which must be an ordinary file: a named pipe would wait for a writer.
-   */
-  const text = await readOrdinaryFile(claim,);
-  /**
-   How the message reaches Pi: a steer while it works, a new prompt while it rests.
-   */
-  const sentAs = watch.record
-    .isRunning() ? 'steer' : 'prompt';
-  /**
-   Pi's answer, waited for within the run's own deadline.
-   */
-  const answer = await watch.connection
-    .send({
-      command: {
-        type: sentAs,
-        message: text,
-      },
-      deadline: watch.deadline,
-    },);
-  if (takenByPi(answer,)) {
-    try {
-      await unlink(claim,);
-    }
-    catch (error) {
-      watch.record
-        .note({
-          kind: 'problem',
-          problem: `Pi took ${name}, but its file could not be removed: ${String(error,)}`,
-        },);
-    }
-  }
-  else {
-    await keepFailure({
-      watch,
-      name,
-      claim,
-    },);
-  }
-  watch.record
-    .note({
-      kind: 'inbox',
-      file: name,
-      sentAs,
-      success: takenByPi(answer,),
-      error: outcomeTextOf(answer,),
-      preview: preview({
-        value: text,
-        length: FEED_PREVIEW_CHARACTERS.inboxMessage,
-      },),
-    },);
-}
-
-/**
- Tells whether Pi took the message.
-
- @param answer - how waiting for Pi's answer ended
-
- @returns whether Pi answered that it took it
- */
-function takenByPi(answer: CommandAnswer,): boolean {
-  if (answer.ending !== 'answered') {
-    return false;
-  }
-  /**
-   Pi's own record, which is what an answered wait carries.
-   */
-  const { record } = answer;
-  return record.success === true;
-}
-
-/**
- What the feed says of a message: Pi's own word for a refusal, or the bound that ended the wait.
-
- @param answer - how waiting for Pi's answer ended
-
- @returns the text, or nothing when nothing failed
- */
-function outcomeTextOf(answer: CommandAnswer,): unknown {
-  if (answer.ending !== 'answered') {
-    return answer.problem;
-  }
-  /**
-   Pi's own record, which is what an answered wait carries.
-   */
-  const { record } = answer;
-  return record.error ?? null;
-}
-
-/**
- Delivers one inbox entry, or keeps it aside when it cannot be read, such as a folder dropped there by mistake.
-
- @param watch - watch request
-
- @param name - entry's name
- */
-async function deliverOrSetAside({
-  watch,
-  name,
-}: {
-  readonly watch: WatchRequest;
-  readonly name: string
-},): Promise<void> {
-  try {
-    /**
-     Where the entry moved to when it was claimed.
-     */
-    const claim = await claimMessage({
-      watch,
-      name,
-    },);
-    try {
-      await deliverMessage({
-        watch,
-        name,
-        claim,
-      },);
-    }
-    catch (error) {
-      watch.record
-        .note({
-          kind: 'problem',
-          problem: `could not deliver ${name}: ${String(error,)}`,
-        },);
-      try {
-        await keepFailure({
-          watch,
-          name,
-          claim,
-        },);
-      }
-      catch (keepError) {
-        // The message stays where the claim put it, under a dot name, so it is neither lost nor sent again.
-        watch.record
-          .note({
-            kind: 'problem',
-            problem: `could not keep ${name}: ${String(keepError,)}`,
-          },);
-      }
-    }
-  }
-  catch (error) {
-    watch.record
-      .note({
-        kind: 'problem',
-        problem: `could not take ${name}: ${String(error,)}`,
-      },);
-  }
-}
 
 /**
  Looks once at every limit that could end a run.
@@ -380,23 +66,12 @@ async function progressAgainstLimits(
 }
 
 /**
- Lists the messages ready to read. A name starting with a dot is still being written, is being delivered, or was refused.
-
- @param inbox - inbox folder
-
- @returns message file names, in order
- */
-async function readyMessages(inbox: string,): Promise<readonly string[]> {
-  return (await readdir(inbox,)).filter(function isReady(name,) {
-    return !name.startsWith('.',);
-  },)
-    .toSorted();
-}
-
-/**
  Checks the limits and delivers the next inbox message, on every tick, until something ends the run. One message per tick keeps
  them in order, each after Pi has answered the one before. A message is waited for only as long as the run has left, so a
  stalled answer cannot keep the stop file or the wall clock from being seen.
+
+ A message Pi refused because it had begun a turn is held and sent again once Pi rests, ahead of the inbox, so no message is
+ dropped by a race. A message the run ends before Pi takes is kept aside and named in the summary.
 
  @param watch - watch request
 
@@ -408,6 +83,43 @@ async function readyMessages(inbox: string,): Promise<readonly string[]> {
  ```
  */
 export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> {
+  /**
+   The inbox messages claimed and not yet taken: Pi refused one because it had begun a turn, so the same message goes again once
+   Pi rests, within the run's deadline.
+   */
+  const held: HeldMessage[] = [];
+  try {
+    return await watchWhileItGoesOn({
+      watch,
+      held,
+    },);
+  }
+  finally {
+    // A message the run ended before Pi took it is kept under its own name and named in the summary, so whoever sent it learns it
+    // was not read.
+    await keepMessagesNotTaken({
+      watch,
+      held,
+    },);
+  }
+}
+
+/**
+ Watches one run until something ends it, holding the messages Pi was not ready to take.
+
+ @param watch - watch request
+
+ @param held - where a message Pi refused at work is held, which this fills and empties
+
+ @returns why the run ended
+ */
+async function watchWhileItGoesOn({
+  watch,
+  held,
+}: {
+  readonly watch: WatchRequest;
+  readonly held: HeldMessage[]
+},): Promise<EndReason> {
   /**
    Where the watch stands with the model error it last answered, so one error is answered by one attempt.
    */
@@ -451,35 +163,60 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
     if (afterModelError !== 'still-running') {
       return afterModelError;
     }
-    /**
-     The next message to deliver, if any. An inbox message waits out a retry that is about to go, so a prompt meant for a resting
-     Pi cannot start a run the retry prompt then lands in the middle of.
-     */
-    const [nextMessage,] = (retry.owed === undefined) ? await readyMessages(watch.inbox,) : [];
-    if (nextMessage !== undefined) {
-      await deliverOrSetAside({
-        watch,
-        name: nextMessage,
-      },);
-    }
-    // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
-    else if ((retry.owed === undefined)
-      && (mayEndIdle({
-        watch,
-        ...(waited.wokenAtSettle === undefined ? {} : { wokenAtSettle: waited.wokenAtSettle, }),
-      },))) {
-      /**
-       What the run came to: the work it left running, then what its last answer said. Both steps await inside, so the decision
-       that the run may end is taken again on the state they leave, and a turn Pi began in that window keeps the run up.
-       */
-      const ending = await endingOfARestingRun({
-        watch,
-        waited,
-      },);
-      if (ending === 'still-running') {
-        continue;
+    // A message the run still owes is delivered before the inbox, and out of turn only when Pi rests: a message it refused while
+    // Pi worked is no answer about the message, so it waits for the rest it needs rather than being dropped or reordered.
+    if (retry.owed === undefined) {
+      const [heldMessage,] = held;
+      if (heldMessage !== undefined) {
+        if (!watch.record
+          .isRunning()) {
+          const delivered = await deliverHeldMessage({
+            watch,
+            held: heldMessage,
+          },);
+          if (delivered.ending !== 'at-work') {
+            held.shift();
+          }
+        }
       }
-      return ending;
+      else {
+        /**
+         The next message in the inbox, which waits out a retry that is about to go: a prompt meant for a resting Pi must not
+         start a run the retry prompt then lands in the middle of.
+         */
+        const [nextMessage,] = await readyMessages(watch.inbox,);
+        if (nextMessage !== undefined) {
+          /**
+           What became of the message this look took.
+           */
+          const delivered = await deliverReadyMessage({
+            watch,
+            name: nextMessage,
+          },);
+          if ((delivered !== 'could-not-take') && (delivered.ending === 'at-work')) {
+            held.push(delivered.held,);
+          }
+        }
+        // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on. A ready
+        // message keeps the run up whether or not it could be taken: it is still the inbox's, and it is not this look's to end.
+        else if (mayEndIdle({
+          watch,
+          ...(waited.wokenAtSettle === undefined ? {} : { wokenAtSettle: waited.wokenAtSettle, }),
+        },)) {
+          /**
+           What the run came to: the work it left running, then what its last answer said. Both steps await inside, so the decision
+           that the run may end is taken again on the state they leave, and a turn Pi began in that window keeps the run up.
+           */
+          const ending = await endingOfARestingRun({
+            watch,
+            waited,
+          },);
+          if (ending === 'still-running') {
+            continue;
+          }
+          return ending;
+        }
+      }
     }
   }
   /* oxlint-enable eslint/no-await-in-loop */

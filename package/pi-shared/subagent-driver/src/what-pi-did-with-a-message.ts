@@ -106,3 +106,53 @@ export function outcomeTextOf(answer: CommandAnswer,): unknown {
   const { record, } = answer;
   return record.error ?? null;
 }
+
+/**
+ What a message the driver sent Pi came to, read from the state Pi was left in after it was sent.
+
+ `taken` is Pi's word that it has the message; `at-work` is a refusal Pi gave while it was working, which is no answer about the
+ message at all, because Pi refuses every prompt handed to it at work and takes the same message once it rests; `refused` is
+ Pi's own refusal while it rested; and `unanswered` is the driver's bound running out, or Pi leaving, before any answer.
+
+ Every send the driver makes reads this, so an at-work refusal is never an ending and never a loss: it is the same rule for the
+ ask of an agent whose answer said nothing, the wake that sends an agent back to work it left, a message from the inbox, and the
+ prompt of an attempt after a model error.
+ */
+export type MessageToPi =
+  | { readonly ending: 'taken' }
+  | { readonly ending: 'at-work' }
+  | { readonly ending: 'refused' }
+  | { readonly ending: 'unanswered'; readonly problem: string };
+
+/**
+ Reads what a message the driver sent Pi came to.
+
+ @param answer - how waiting for Pi's answer ended
+
+ @param piWorks - whether Pi was working when the answer was read, which is the state a refusal is judged by
+
+ @returns what the message came to
+
+ @example
+ ```ts
+ const cameTo = messageToPiCameTo({ answer: { ending: 'answered', record: { success: false } }, piWorks: true },);
+ ```
+ */
+export function messageToPiCameTo({
+  answer,
+  piWorks,
+}: {
+  readonly answer: CommandAnswer;
+  readonly piWorks: boolean
+},): MessageToPi {
+  if (answer.ending !== 'answered') {
+    return {
+      ending: 'unanswered',
+      problem: answer.problem,
+    };
+  }
+  if (takenByPi(answer,)) {
+    return { ending: 'taken', };
+  }
+  return piWorks ? { ending: 'at-work', } : { ending: 'refused', };
+}

@@ -20,8 +20,8 @@ import { preview, } from './previews-of-pi-messages.ts';
 import type { WorkWaitedFor, } from './kept-while-work-runs.ts';
 import {
   dispositionOf,
+  messageToPiCameTo,
   outcomeTextOf,
-  refusedByPi,
   takenByPi,
 } from './what-pi-did-with-a-message.ts';
 import type { WatchRequest, } from './watch-request.ts';
@@ -150,13 +150,20 @@ export async function askAnAgentWhoseAnswerWasEmpty({
    */
   const disposition = dispositionOf(answer,);
   /**
-   Whether Pi began a turn while the message was going, which is the one thing the driver cannot see before it sends. A prompt
-   handed to a working Pi is refused, and a refusal earned by the agent's own turn is no ask: the agent was never told its answer
-   said nothing, and ending the run on it would stop that turn. The look after this one reads what the turn produces.
+   Whether Pi began a turn while the message was going, which is the one thing the driver cannot see before it sends.
    */
-  const beganWorking = watch.record
+  const piWorks = watch.record
     .isRunning();
-  if (refusedByPi(answer,) && beganWorking) {
+  /**
+   What the message came to, read from the state Pi was left in. A prompt handed to a working Pi is refused, and that refusal is no
+   ask: the agent was never told its answer said nothing, and ending the run on it would stop that turn. The look after this one
+   reads what the turn produces, and the ask goes again once Pi rests.
+   */
+  const cameTo = messageToPiCameTo({
+    answer,
+    piWorks,
+  },);
+  if (cameTo.ending === 'at-work') {
     watch.record
       .note({
         kind: 'problem',
@@ -167,6 +174,15 @@ export async function askAnAgentWhoseAnswerWasEmpty({
           },)
         }`,
       },);
+    return 'still-running';
+  }
+  /**
+   The error Pi settled on, when a turn that ran while the ask was going ended in one and nothing after it recovered.
+   */
+  const failure = watch.record
+    .unrecoveredModelError();
+  if (failure.failed) {
+    // The run ends on that error, and the loop owes it an attempt, so nothing of this ask decides an ending.
     return 'still-running';
   }
   watch.record
@@ -193,7 +209,7 @@ export async function askAnAgentWhoseAnswerWasEmpty({
   if (answer.ending === 'pi-exited') {
     return 'pi-exited';
   }
-  if (refusedByPi(answer,)) {
+  if (cameTo.ending === 'refused') {
     return 'refused';
   }
   return 'asked';

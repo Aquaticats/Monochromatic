@@ -17,7 +17,7 @@ import {
 } from './deadline.ts';
 import {
   dispositionOf,
-  refusedByPi,
+  messageToPiCameTo,
 } from './what-pi-did-with-a-message.ts';
 import {
   continuationPromptOf,
@@ -110,6 +110,28 @@ async function answerWithAnotherAttempt(
       },
       deadline: watch.deadline,
     },);
+  /**
+   Whether Pi was working when it answered the attempt.
+   */
+  const piWorks = watch.record
+    .isRunning();
+  /**
+   What the prompt came to, read from the state Pi was left in. An attempt Pi refused while it worked is no attempt at the error:
+   the prompt goes again once Pi rests, and the watch reads the error afresh on the look after this one.
+   */
+  const cameTo = messageToPiCameTo({
+    answer,
+    piWorks,
+  },);
+  if (cameTo.ending === 'at-work') {
+    noteRetryAnswer({
+      answer,
+      record: watch.record,
+    },);
+    // The attempt is neither counted nor spent, and no settle is owed: the wait the error was scheduled with still stands, and the
+    // prompt goes again once Pi rests.
+    return 'still-running';
+  }
   // The attempt is counted here rather than when it was scheduled: a wait the wall clock, the stop file or Pi's exit cuts short
   // leaves a model error standing with no attempt behind it, and the summary must not name an attempt nobody made.
   watch.record
@@ -145,7 +167,7 @@ async function answerWithAnotherAttempt(
   /**
    Whether Pi refused the prompt itself, or the driver's own silence bound ended the wait.
    */
-  if ((answer.ending === 'silence') || (refusedByPi(answer,))) {
+  if ((answer.ending === 'silence') || (cameTo.ending === 'refused')) {
     // Pi refused nothing when the driver's own bound ended the wait, which the run's deadline may be what brought on.
     if (millisecondsLeftUntil(watch.deadline,) === 0) {
       return 'wall-clock';
