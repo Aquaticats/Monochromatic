@@ -58,6 +58,37 @@ export const COMMAND_ANSWER_MILLISECONDS = 30_000;
 export const START_UP_ANSWER_MILLISECONDS = 120_000;
 
 /**
+ How many times the driver starts Pi in one run before it ends the run on a prompt Pi never took.
+
+ Of the 1,936 finished runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-14, 18 ended with Pi exiting before the prompt took the
+ run: 14 of them on an extension that could not be loaded, each start ending in 2,096 to 20,491 ms, and four on Pi's own retry of a
+ model-store lock another process held, each start spending 127,176 to 247,556 ms. Most of those attempts were a condition that was
+ passing while it was watched, so two more starts ride it out; a fourth would add the cost of a whole Pi without covering anything
+ the three did not.
+ */
+export const START_ATTEMPTS: number = 3;
+
+/**
+ Milliseconds the driver waits before it starts Pi again, after a start ended before it took the prompt.
+
+ The pause leaves a condition that passes on its own the time to pass: a Pi the driver has just ended releasing a lock, another
+ agent replacing a file Pi reads as it starts. It stays far below what a failing start itself costs (the runs above took seconds,
+ and one of them minutes), so two pauses add 20 seconds to such a run rather than spending its wall clock. It is a bound rather
+ than a measurement: Pi spends the time a failed start takes, not the driver.
+ */
+export const START_PAUSE_MILLISECONDS: number = 10_000;
+
+/**
+ Longest the driver's whole sequence of starts may take, counted from the first start.
+
+ One start-up answer is allowed {@link START_UP_ANSWER_MILLISECONDS}, so a condition that passes by itself clears inside the time
+ one start gets. A start that already spent that bound ended on a condition standing: Pi's own model-store retry spent 127,176 to
+ 247,556 ms in the runs above and would spend as much again on every start, so such a start is not made again and the summary says
+ what stood instead of a reader waiting three of them out.
+ */
+export const START_SEQUENCE_MILLISECONDS: number = START_UP_ANSWER_MILLISECONDS;
+
+/**
  Longest wait for Pi to leave after its input closes and again after each signal, and for its output to end once it has gone.
  Pi left 19 milliseconds after its input closed in a real run on 2026-11-08 (`doc/agent/drive-pi-as-a-coding-subagent.md`).
  */
