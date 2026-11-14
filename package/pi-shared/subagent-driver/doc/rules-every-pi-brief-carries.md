@@ -204,22 +204,29 @@ The main checkout (the repository path without `.claude/worktrees`) is read-only
 an edit left there blocks merges for everyone,
 and a build or test run there does not test the run's code.
 
-That read-only rule is not only written here: the unit the run runs in is started with the main checkout mounted read-only,
-and everything under it except the folders a run must write is refused by the operating system.
-A write, a rename or a delete a run makes there ends at once with `Read-only file system`,
+That read-only rule is not only written here:
+the unit a run runs in is started with the main checkout mounted read-only,
+and everything under it is refused by the operating system,
+except the folders a run must write.
+A write a run makes there ends at once with `Read-only file system`,
+and a rename or a delete ends the same way,
 and the agent sees that message and the path it named.
 A command that was only meant to read a path a brief named writes nothing,
 and a brief that names a main-checkout path to read does not let the same path be written.
 
-What stays writable, so the work still gets done:
+What stays writable,
+so the work still gets done:
 
 - the run's own worktree;
-- the Git directories its commits, fetches and pushes write:
-the worktree's own Git directory and the one every worktree of the repository shares;
-- the checkout's `.cache`, which this repository's tools install their launchers and guards into;
-- the run's own folder, and its scratch under `${HOME}/temp/agent`.
+- the Git directories its commits and its pushes write:
+  the worktree's own Git directory and the one every worktree of the repository shares;
+- the checkout's `.cache`,
+  which this repository's tools install their launchers and guards into;
+- the run's own folder,
+  and its scratch under `${HOME}/temp/agent`.
 
-A run started with `--branch=none`, which works in the checkout itself rather than in a worktree,
+A run started with `--branch=none`,
+which works in the checkout itself rather than in a worktree,
 gets no writable worktree:
 it can read the checkout and run its tools,
 and it cannot change a file of it.

@@ -327,18 +327,23 @@ The unit's `RuntimeMaxSec` is the run's wall clock plus what the driver needs to
 which is the only bound that reaches a driver stuck in a file system call.
 
 The unit is started with the checkout read-only:
-the checkout's own path is a `ReadOnlyPaths=`, and a `ReadWritePaths=` carves out of it the run's worktree,
-the Git directory its commits write and the one every worktree shares,
+the checkout's own path is a `ReadOnlyPaths=`,
+and a `ReadWritePaths=` carves the run's worktree out of it,
+its Git directory,
+the Git directory every worktree shares,
 the checkout's `.cache`,
 and the run's folder.
 A write a run makes anywhere else under the checkout is refused by the operating system with `Read-only file system`,
 which is what a run's agent sees when it tries.
-The folders are read from the worktree Git made and from the record of it a linked worktree carries,
+The folders are read from the checkout and from the record of it a linked worktree carries,
 so a checkout whose Git directory lives elsewhere keeps working;
-the one path that may be absent, the checkout's `.cache`, carries systemd's `-` prefix,
+the one path that may be absent,
+the checkout's `.cache`,
+carries systemd's `-` prefix,
 because a missing `ReadWritePaths=` path stops the unit from starting.
 A run started with `--branch=none` works in the checkout itself and so gets no writable worktree:
-it can read the checkout and run its tools there, and it cannot change a file of it.
+it can read the checkout and run its tools there,
+and it cannot change a file of it.
 
 On 2026-11-14 two runs wrote into the main checkout:
 one wrote twenty new files and four edits there over fifty minutes while its own worktree was empty,
