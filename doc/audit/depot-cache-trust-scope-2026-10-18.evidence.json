@@ -1549,7 +1549,19 @@
     "sha256": "cab47536cdfa53aa741420880ea2a89000c3490f443ec9e577ee28a83279a1fa",
     "uncompressedBytes": 8056646,
     "uncompressedSha256": "d0c4d5ed6d1e6990c741eba25ece582a623195644f8cb8e6eb67a87f0f517932",
-    "records": 86
+    "records": 86,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 77833ff47edd8ce593611a5e4cc017d6a3e51607:doc/audit/depot-cache-trust-scope-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "cacheModeQualification": {
     "workflowExplicitCacheMode": null,

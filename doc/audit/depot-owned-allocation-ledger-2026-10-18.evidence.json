@@ -58,49 +58,145 @@
       "path": "doc/audit/depot-native-orchestration-2026-10-18.evidence.json",
       "bytes": 107578,
       "sha256": "6ca4b3da50cca5c5cb663d62e99c60316092401fa940fd9b08356f948dca4d9e",
-      "archiveRecord": "inputs/doc/audit/depot-native-orchestration-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-native-orchestration-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 108005,
+          "sha256": "bb53134abe3de1e73bff6d193cd289ecd588dab4e7bfcfd4f369a3dc63a63609",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-physical-test-shards-2026-10-18.evidence.json",
       "bytes": 274465,
       "sha256": "8f60677242795919c87c4df463e59867ff3259c3b73bc36b7bfdf531ec9558c0",
-      "archiveRecord": "inputs/doc/audit/depot-physical-test-shards-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-physical-test-shards-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 274892,
+          "sha256": "5f9f65beaa5cff6f9168b65eeaa5be264421aaf7beb962d32163766b6286b895",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-runtime-pr-2026-10-18.evidence.json",
       "bytes": 68505,
       "sha256": "77c81b7a905aea61dd169168be35fd285668d7368c22bf176f171a102d95fb57",
-      "archiveRecord": "inputs/doc/audit/depot-runtime-pr-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-runtime-pr-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 68922,
+          "sha256": "f83d259ba04991ee85f35f745a44bd334a8c3a9b5155809e32ea1a1ea5ebaf61",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-service-containers-2026-10-18.evidence.json",
       "bytes": 109619,
       "sha256": "263c908bbac51e083607a34fe45f98a1e484b5b748ad89ca59430d27390e7dd2",
-      "archiveRecord": "inputs/doc/audit/depot-service-containers-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-service-containers-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 110044,
+          "sha256": "210ce0072ea3002995286a70b8698c9980e68c9ea3d4ff072ab1fbed0acbc1a3",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-container-prerequisites-2026-10-18.evidence.json",
       "bytes": 10110,
       "sha256": "2f815850559c5b6bb51179197ce29b014869fcd762b527e73a8cf05a3e140d32",
-      "archiveRecord": "inputs/doc/audit/depot-container-prerequisites-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-container-prerequisites-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 10539,
+          "sha256": "43677fad1c083fef19bf4898db3cd589a08837e485a4f5d3d8ec5d06b83ef564",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-process-timeouts-2026-10-18.evidence.json",
       "bytes": 40121,
       "sha256": "f4235d4ee6c3cbc440d4644d61004f9e731dca279dcc3a8150f8e9fdd76f62b5",
-      "archiveRecord": "inputs/doc/audit/depot-process-timeouts-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-process-timeouts-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 40544,
+          "sha256": "3d78ae950b2d7adb510f6c8073c92ecb391d52a23dfca30ebd256540a97beb8a",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-job-policy-history-2026-10-18.evidence.json",
       "bytes": 122264,
       "sha256": "86ba8e4e6c037d9d3b46ab2b13865719631506dc7156b44d969c95cee45d1f50",
-      "archiveRecord": "inputs/doc/audit/depot-job-policy-history-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-job-policy-history-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 122689,
+          "sha256": "05b11e6edaa5d3da5fe1b236344db62440f7c4ece7be84a265200f576164ce08",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-mvm-kvm-2026-10-18.evidence.json",
       "bytes": 699540,
       "sha256": "27e7ce1448eb866b75cafd47514e39fd3772fd45f75c7847ba6c69f35062fedc",
-      "archiveRecord": "inputs/doc/audit/depot-mvm-kvm-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-mvm-kvm-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 699954,
+          "sha256": "4986a34d9495ae2a5e2e683faf9ebf2efdaf311a7d062be5ba134b1cd9a79b18",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-github-kvm-documentation-contradiction-2026-10-18.evidence.json",
@@ -112,7 +208,19 @@
       "path": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json",
       "bytes": 211336,
       "sha256": "5fd82136c26b007aba1dc7c7484d9bb974ac84bf568738e649a3b09a923fd72b",
-      "archiveRecord": "inputs/doc/audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 211899,
+          "sha256": "3e893e454d53a281e38953c6f01526b56752f6e964bf736c3f97efdd319c5ab8",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-sdk-custom-runtime-2026-10-18.evidence.json",
@@ -130,37 +238,109 @@
       "path": "doc/audit/depot-tests-identity-adapter-2026-10-18.evidence.json",
       "bytes": 40888,
       "sha256": "d797f2e82d4a411f04ca850b4c0d90c6ae6bc122a7937d98d26cbd7a25acd605",
-      "archiveRecord": "inputs/doc/audit/depot-tests-identity-adapter-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-tests-identity-adapter-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 41316,
+          "sha256": "8cf06c4f281b4eb41b99e52dce1e7286ac1befea6bc2cde51c8e7cd4e6dd6f25",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-arm64-functional-2026-10-18.evidence.json",
       "bytes": 32677,
       "sha256": "3518b6fe8b26c0e9232088728c4e69b451880d6c256e9c13d1b17970dfa379cf",
-      "archiveRecord": "inputs/doc/audit/depot-arm64-functional-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-arm64-functional-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 33633,
+          "sha256": "c0747548bc03b065fb1a64a6952ca2e8a1ba93db14bd4ad8c10a975ba5864839",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
       "bytes": 2136385,
       "sha256": "953c19261abc6502610dd3bb5388eb2bc9282e5e6b095d0028e926fd3c3a7d85",
-      "archiveRecord": "inputs/doc/audit/depot-reuse-strategy-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 2144758,
+          "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
       "bytes": 13526147,
       "sha256": "2029eca3c85114de70598297f7e8d2d263ca9e84e497012f60c981a72ed03ff1",
-      "archiveRecord": "inputs/doc/audit/depot-rust-coverage-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 13527538,
+          "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-included-allowance-2026-10-18.evidence.json",
       "bytes": 7644,
       "sha256": "73eea6bc8ad717e76d1e6f158328a29ed6f056b06ae4b0ffd3a0ae6314a931be",
-      "archiveRecord": "inputs/doc/audit/depot-included-allowance-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-included-allowance-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 14395,
+          "sha256": "bb4be154810ad9fcc27fa72c6a6b99e47ed0153d388df32a329b66571533aaaa",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-combined-product-pricing-2026-10-18.evidence.json",
       "bytes": 8964,
       "sha256": "933fa5192300d380bd01ba456709de4406ce2af7733579a937f4ff6e59d29b1d",
-      "archiveRecord": "inputs/doc/audit/depot-combined-product-pricing-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-combined-product-pricing-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 9745,
+          "sha256": "c6f6898b75dcbdfaefaffa397587601fe123073b7dfb36ffa5df08a5e8bda7c0",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/planning/depot-complete-coverage-budget-ledger.json",
@@ -176,7 +356,19 @@
       "bytes": 52304,
       "sha256": "9ca21658e97fdfb38d3dbc0021ad9b1e6e9b7ee7bf716730f7aa0f2c84acdc5e",
       "capturedAt": "2026-10-18T14:47:19.719983+00:00",
-      "archiveRecord": "inputs/doc/audit/depot-mvm-guest-files-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-mvm-guest-files-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 52727,
+          "sha256": "73d328aa201d0173b384c09783db1f24c06d9af92845783b78a2d65f4d3c663a",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "home-relative:temp/agent/depot-complete-coverage-20261018/owned-github-budget.json",
@@ -18615,7 +18807,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/4/value"
+          "pointer": "/records/4/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -18626,7 +18830,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -18689,7 +18905,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/5/value"
+          "pointer": "/records/5/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -18700,7 +18928,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -18763,7 +19003,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/6/value"
+          "pointer": "/records/6/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -18774,7 +19026,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -18837,7 +19101,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/7/value"
+          "pointer": "/records/7/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -18848,7 +19124,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -18911,7 +19199,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/11/value"
+          "pointer": "/records/11/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -18922,7 +19222,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -18985,7 +19297,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/12/value"
+          "pointer": "/records/12/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -18996,7 +19320,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19059,7 +19395,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/18/value"
+          "pointer": "/records/18/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19070,7 +19418,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19133,7 +19493,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/24/value"
+          "pointer": "/records/24/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19144,7 +19516,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19207,7 +19591,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/25/value"
+          "pointer": "/records/25/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19218,7 +19614,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19281,7 +19689,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/26/value"
+          "pointer": "/records/26/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19292,7 +19712,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19355,7 +19787,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/27/value"
+          "pointer": "/records/27/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19366,7 +19810,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19429,7 +19885,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/28/value"
+          "pointer": "/records/28/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19440,7 +19908,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19503,7 +19983,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/30/value"
+          "pointer": "/records/30/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19514,7 +20006,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19577,7 +20081,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/31/value"
+          "pointer": "/records/31/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19588,7 +20104,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19651,7 +20179,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/32/value"
+          "pointer": "/records/32/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19662,7 +20202,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19725,7 +20277,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/33/value"
+          "pointer": "/records/33/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19736,7 +20300,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19799,7 +20375,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/45/value"
+          "pointer": "/records/45/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19810,7 +20398,19 @@
         "explicitRequestedPlatforms": null,
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19873,7 +20473,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/48/value"
+          "pointer": "/records/48/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19886,7 +20498,19 @@
         ],
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -19949,7 +20573,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/49/value"
+          "pointer": "/records/49/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -19962,7 +20598,19 @@
         ],
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -20025,7 +20673,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/50/value"
+          "pointer": "/records/50/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -20038,7 +20698,19 @@
         ],
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -20101,7 +20773,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/51/value"
+          "pointer": "/records/51/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -20114,7 +20798,19 @@
         ],
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -20177,7 +20873,19 @@
         },
         {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/52/value"
+          "pointer": "/records/52/value",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       ],
       "requestedResources": {
@@ -20190,7 +20898,19 @@
         ],
         "hardwareSource": {
           "source": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
-          "pointer": "/records/0/value/project"
+          "pointer": "/records/0/value/project",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 16d4af7a756729fdbeb440825883f84f62d1c0b3:doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.cited-records.json",
+              "note": null
+            }
+          ]
         }
       },
       "intervals": {
@@ -21007,7 +21727,19 @@
     "sha256": "17ddab66fd96b7fc0b6267405b3cf13ffe669262a2909025265190263130b1fa",
     "uncompressedBytes": 53857223,
     "uncompressedSha256": "cc53e01cd9599571654b2f3efb8370f17ce1f6c82712b048ffeec0dde0138ad8",
-    "records": 411
+    "records": 411,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 9341e215df4df5a1462d9a39fa0462a357a4c779:doc/audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "independentGuestReview": {
     "status": "passed_original_bytes_crc_member_source_command_and_payload_hash_joins",
@@ -21091,8 +21823,32 @@
           "bytes": 18768,
           "sha256": "e5d29d600540f529c333ec3bb0bf259dde04d2b1fd76af16428d58c03142a2a2",
           "uncompressedBytes": 83941,
-          "uncompressedSha256": "e11cd5460d277b1ec056d27673c6c0d0cbd60afc505153d6cf19629d12be9517"
-        }
+          "uncompressedSha256": "e11cd5460d277b1ec056d27673c6c0d0cbd60afc505153d6cf19629d12be9517",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show ba8e7e6ce3d68c72ba298efeeb80724fd144ad55:doc/audit/depot-native-buildkit-job-auth-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": "The pair this entry records, 18768 bytes and SHA-256 e5d29d600540f529c333ec3bb0bf259dde04d2b1fd76af16428d58c03142a2a2, is an earlier version of the same path, held by commit c1cef256ba096dca3879b4d9f04e633b0fe7b4a2; the version tracked last is 128260 bytes and SHA-256 73c1e95822919d9029144fd6892ecb5a9273f244db3ea39be634eac7e7c4b8a3, printed by historyCommand."
+            }
+          ]
+        },
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 83382,
+            "sha256": "1b71729330c1adae5a5a2e5a7530efd7c0dbfe57a534f425d747de55eaa70e3e",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredAdmissionKey": "admission:native-buildkit-auth",
       "addedToBaselineRowsOrTotals": false

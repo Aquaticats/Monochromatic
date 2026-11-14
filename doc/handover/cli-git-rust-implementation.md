@@ -1198,6 +1198,79 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The tracked archives are out of `main`; what one record says is kept goes back to the author (2026-11-14T09:04:01-05:00)
+
+Not final and not approved:
+what the coordinating session merged and queued,
+and what one review reports of itself.
+
+- **The archives' answer** (`091397b096`) was checked by its reviewer in its own session,
+  ended 08:58:57
+  (`~/temp/agent/change-reviews/doc-tracked-archives-are-removed-and-history-holds-each/review.md`).
+  By its report,
+  each point seen by a run of its own:
+  all six points of the first review are answered;
+  the kept members are 160 and the tree and the record agree;
+  nine ignore patterns hold in 117 cases;
+  the change and `main` touched no file in common;
+  a scan of 23,869 tracked files by content finds no archive but three `.jar` files.
+- Merged as `635539ca67` at 09:04:01,
+  which ends the hold on that branch.
+  Measured by this session after the merge:
+  `git ls-files` names no file ending in an archive extension but those three `.jar` files,
+  which `.gitignore` allows by name with the owner's override beside them.
+- **Left open by the reviewer, measured and not decided**:
+  one research record says the harness,
+  the check scripts,
+  the baked inputs and every raw record of both rounds are in its evidence archive;
+  of that archive's 240 files 160 are kept as plain text and 80 are in history alone,
+  none of the `scripts/` folder's 35 among the kept.
+- **Decided by the owner at about 09:05**,
+  through the question tool,
+  after this session had adopted the same from the record:
+  "Keep as plain text (Recommended)".
+  What that sentence names is kept as plain text
+  ("Owner decisions in force", "Answers on the owner's return").
+  The author is resumed in its own session
+  (`~/temp/agent/pi-runs/tracked-archives-what-the-research-record-says-is-kept-is-kept-as-plain-text-prompt.md`),
+  told to list and not silently keep or drop a file that is not text or is large,
+  and to look once at the other removed archives for the same shape.
+
+##### mpm-shadow's Clippy fix passed its review and goes into an integration with issue 6300; the journal after `0.6.1-alpha.27` is clean (2026-11-14T08:59:29-05:00)
+
+Not final and not approved:
+what the coordinating session measured and queued,
+and what one review reports of itself.
+
+- **The journal after the install of `0.6.1-alpha.27`**,
+  from 08:50:00 to 08:57:00:
+  266 lines,
+  no manager-wide reload,
+  no start that failed at its EXEC step,
+  no service at its start limit,
+  and one service said `0.6.1-alpha.27` at its start.
+- **mpm-shadow's Clippy fix** (`682b1072df`):
+  its review ended at 08:54:28 with no defect
+  (`~/temp/agent/change-reviews/mpm-shadow-cli-clippy-passes-under-the-nightly-of-2026-11-14/review.md`).
+  By its report it ran the package's Clippy task (exit 0 under `nightly-2026-11-14`),
+  the package's tests (731 of 731)
+  and a probe of its own that the two forms of the membership test agree in eighteen cases.
+- **Measured by this session**:
+  `git log <tip>..main -- package/mpm-shadow` is empty for that tip and for issue 6300's (`01c60626b8`),
+  so `main` holds nothing of that package that either lacks.
+  Both have passed their reviews and neither was checked against the other,
+  so they are one integration,
+  queued first
+  (`~/temp/agent/pi-runs/mpm-shadow-integration-of-issue-6300-and-the-clippy-fix-prompt.md`).
+  When it reports fit:
+  merge,
+  a release of mpm-shadow through the package's `release` task,
+  then `toolchain:update`.
+- Going at 08:59:29:
+  nine Pi runs,
+  with the cap at twenty-four.
+  The queue held 71 entries.
+
 ##### No run started for four hours and forty minutes: a queue entry that fails every start; thirty-one runs read; `0.6.1-alpha.26` and `0.6.1-alpha.27` are installed (2026-11-14T08:50:39-05:00)
 
 Not final and not approved:
@@ -25841,6 +25914,20 @@ the owner picked the first option of each.
   the commit is not made and the words say why and what to change.
   The wrapper does not fall back to real Git;
   `SPEC.md`'s rule that the service is the only writer stands.
+- **The files of a removed archive that a document says are kept**
+  (asked separately,
+  answered by 09:05:56-05:00,
+  after the archives' removal reached `main` as `635539ca67`):
+  "Keep as plain text (Recommended)".
+  One research record says its harness,
+  check scripts,
+  baked inputs and every raw record are in its evidence archive;
+  eighty of that archive's 240 files were in history alone.
+  The files the sentence covers are extracted beside the 160 already kept;
+  any that is not text or is large is listed,
+  and neither silently kept nor silently dropped;
+  each is checked against the archive in history by digest.
+  The three `.jar` files stay tracked by the owner's earlier override in `.gitignore`.
 
 ## Working rules for this effort
 

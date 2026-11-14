@@ -1,0 +1,11 @@
+# The prototype's work image with Bun replaced by the current release, so upstream's suite is run on the Bun this
+# repository uses and not on an old one. The earlier image carried bun@1.3.0, a version nobody chose for a reason.
+#
+#   podman build --tag localhost/optique-prototype-work-current-bun:2026-11-13 --file Containerfile.work-current-bun .
+
+FROM localhost/optique-prototype-work:2026-11-13
+
+# 1.4.4 is the Bun that this repository's toolchain.lock.json records on 2026-11-13 (its request is "latest").
+RUN npm install --global --allow-scripts=bun bun@1.4.4 \
+ && npm cache clean --force \
+ && bun --version
