@@ -46,6 +46,12 @@ pub(crate) fn the_service_never_took(result: &Result<Submitted, ClientFailure>) 
         ClientFailure::StillWithService { .. }
             // The service refused the request before it queued it.
             | ClientFailure::Refused
+            // The request never reached the service as one line: it took no part of it,
+            // or not the whole of it in time,
+            // so the service has no line to act on and no tree to read.
+            | ClientFailure::ServiceNotReading { .. }
+            // Nothing answered at the service's address, so the request was never sent.
+            | ClientFailure::NothingAnswered { .. }
             // No service was reached at all, so nothing was written and nothing can be running.
             | ClientFailure::DidNotStart
             | ClientFailure::NoActivation(_)

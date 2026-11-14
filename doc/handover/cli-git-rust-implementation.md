@@ -685,6 +685,434 @@ The script now says "asked for" and points at the command's own output, and it h
 (`write-a-brief-for-a-review` and a run on the reviewer's provider and model).
 The second review of the start gate, over `8f9b026bdc...5643dde10d` (six files), was started that way at 12:56:03.
 
+#### The owner is away for six to ten hours from 2026-11-13T18:48:09-05:00
+
+The owner,
+in the terminal at about 18:47:
+"I'm going to be away for 6 to 10h.
+You keep working."
+
+What that means for the coordinating session until the owner writes again,
+by the rules that already stand:
+
+- The queue goes on:
+  each run that ends is read and routed
+  (a review for an author's answer,
+  the findings back to the author,
+  a pass for a branch whose review found nothing),
+  and each pass that reports fit is merged into `main`,
+  released,
+  installed and sample-committed,
+  in the order they finish.
+  Publishing alpha releases of the wrapper stands authorized from earlier in the effort.
+- Nothing is asked through the question tool while nobody is there to answer.
+  A choice that a recorded decision settles is adopted,
+  written under "Adopted while the owner was away" in the section it belongs to,
+  and is open to veto.
+  A choice no record and no measurement settles is not made:
+  the work that needs it waits,
+  everything else goes on,
+  and the question is kept in the list at the end of this section for the owner's return.
+- Nothing destructive beyond what the owner already ordered
+  (the deletion of the two old toolchains' build folders,
+  going since 18:30:32),
+  nothing sent outside this repository other than its own issues and releases,
+  and no change to the pools:
+  about twenty-five agents stays the most.
+- The units this depends on and when each ends by itself:
+  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-32-20261113T1712`
+  (started 17:12:16 for eight hours,
+  so it is started again by 01:12 on 2026-11-14),
+  and the waiter of the moment
+  (eight hours from its start,
+  started again each time it reports).
+
+Questions kept for the owner's return:
+
+- Two folders owned by root stand in what is left of `/var/mnt/encrypted/cargo-build/toolchain/nightly-2026-11-11`
+  (`3d/ff5cdb8b411452/debug/build/wg-quicker-exempt/test-scratch/wg-quicker-sweep-real-1626078`
+  and `b6/f40fb50bf1a32c/debug/build/wg-quicker-exempt/test-scratch/wg-quicker-watch-stop-397956`,
+  12 KiB in all).
+  This account can neither open nor remove them.
+  Removing them takes the owner's `sudo`;
+  whether a test of `wg-quicker-exempt` may leave root-owned files in a build folder at all is a question for that package.
+
+##### The deletion ended at 18:49:59
+
+- Both folders,
+  512 shards,
+  in 19 minutes and 27 seconds from 18:30:32.
+  The folder of 2026-11-10 is gone;
+  of 2026-11-11 two shards stand with the two root-owned folders named under "Questions kept".
+- Free on the build volume: 1,439 GiB when it began,
+  2,299 GiB when it ended.
+- Readings it took before each shard:
+  six of the build volume over five seconds
+  (9,650 ms,
+  15,201 ms,
+  12,186 ms,
+  7,881 ms,
+  9,018 ms and 6,104 ms),
+  never two in a row,
+  so it never stopped itself;
+  the home drive's slowest was 98 ms.
+- Six shards held test fixtures without permissions that a first removal could not enter;
+  opening their permissions and removing again took four of them,
+  and the two with root-owned folders stayed.
+- The brief of the cargo-shadow cleanup run,
+  which had not started,
+  now carries these measurements:
+  deleting is quick here where a read-only walk was not,
+  and a cleaner has to report an entry it cannot remove and go on.
+- The hour that judges the level of agents started at 18:51
+  (unit `disk-ceiling-probe-level-32-the-hour-that-judges-20261113T1851`).
+
+##### `0.6.1-alpha.19` is installed (2026-11-13T18:53:05-05:00)
+
+Not final and not approved:
+read by the coordinating session from the output of `native:release:wait` and `native:install`.
+
+- The release run of pass 21 ended with success and `monochromatic-git-policy-cli-v0.6.1-alpha.19` is published
+  with its archives for both Linux targets.
+- `native:install -- 0.6.1-alpha.19` began at 18:52:53 and committed the lock.
+  The sample commit took 1,208 ms and landed at the first attempt;
+  its timing line names `0.6.1-alpha.19` as the release that answered,
+  after seeing `0.6.1-alpha.18` and one update round,
+  with 739 ms waiting for the answer and 218 ms of preparation.
+  The service journal held no line from the sample commit's start onward.
+- So the jam fix is in the installed wrapper:
+  a commit whose service answers nothing ends within its bound and says why,
+  where it waited without end before.
+  Not shown on this machine by the installed release:
+  the jam itself has not come up since,
+  so the bound is shown by the pass's controls and not by a real stall here.
+- The next version is `0.6.1-alpha.20`,
+  for whichever of passes 22,
+  23 and 24 reports fit first.
+
+##### The removal-goes-around answer passed its second review and is pass 25 (2026-11-13T18:55:47-05:00)
+
+Not final and not approved:
+the coordinating session's reading of the review,
+which ended at 18:49:22.
+
+- The review of `50d55b0b8d`
+  (`~/temp/agent/change-reviews/git-policy-cli-removal-goes-around-answers-after-its-first-review/review.md`)
+  found no defect that discards a person's data,
+  fails a commit or a merge,
+  lands a removal twice
+  or waits without a bound.
+  It built the crate at that commit and ran 32 focused controls,
+  all passing,
+  and probed that `rmdir` of an empty subvolume root succeeds on this host.
+- It reports one finding,
+  found by reading and not reproduced:
+  when the volume a removal goes around is removed by somebody else during the pass,
+  the command prints the notice of a subvolume destroyed in one step with files the service deletes later,
+  where the root went by `rmdir`,
+  the files were already gone and nothing is queued.
+  Weighed:
+  the removal is right and only the words are false,
+  so it does not hold the branch back;
+  it earns a fix because a message naming a deletion still to come sends its reader looking for one.
+- One candidate the review dismissed it also calls a real gap:
+  a renamed subvolume that nothing deletes,
+  when the inline destroy in `hand_over_with` fails after the service has settled the record.
+  It loses nothing and waits on nothing,
+  and it holds room on the volume whose filling ended twenty runs on 2026-11-12.
+  The author is asked whether the sequence can happen as the code stands
+  and whether the lines are the change's own or older;
+  a run of its own follows from that answer.
+- Routed:
+  integration pass 25 for `0.6.1-alpha.23`,
+  pinned to `50d55b0b8d`,
+  queued at the head
+  (`~/temp/agent/pi-runs/integration-pass-25-for-alpha-23-prompt.md`);
+  the author,
+  resumed with its session,
+  on the finding and the two questions
+  (`~/temp/agent/pi-runs/removal-goes-around-answers-its-second-review-of-2026-11-13-prompt.md`),
+  queued behind the two cleanup runs.
+  What the author commits comes after the pinned commit and gets a review and a pass of its own.
+- The scratch folder `~/temp/agent` measured 321 GiB at 18:55
+  (`du`, one level deep):
+  `change-reviews` 66 GiB,
+  `pkgrepair-repair-off-the-path` 65 GiB,
+  `sonnet-audits` 45 GiB,
+  three run scratch folders of 28 GiB each,
+  `kimi-trials` 17 GiB,
+  `module-test-logs` 11 GiB.
+
+#### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
+
+Not final and not approved:
+written by the coordinating session from the pass's report and its own commands' output.
+
+- **Pass 21** reported at 18:39:44 that its branch is fit to be released for what a pass owns
+  (`~/temp/agent/integration-pass-21-for-alpha-19-scratch/keep/report.md`).
+  All three branches merged in the brief's order with nothing left out
+  (the jam fix,
+  the file mode through a merge,
+  the kept references pruned by size and age);
+  build,
+  both test compiles and Clippy pass;
+  the 62 controls the three branches add pass by name at both tips,
+  and the 76 of the area the third merge resolved pass as a whole.
+  Its measurements through the wrapper built from its tip:
+  a commit of one changed file added 27 ms to 54 ms over real Git's 6 ms to 7 ms;
+  a commit whose service was stopped ended after 10.0 s with exit status 1 and words that say the request was never sent,
+  and nothing landed after the service went on;
+  a merge's file and index modes equal real Git's under umask 022 and 077;
+  a pruning pass removed the five references its own listing named.
+  It did not run the container gate,
+  which is the release's own step.
+- Merged into `main` as `d0cf587eac`.
+  `main..82150d9003` held the commits of the three branches and nothing else.
+- `native:release -- 0.6.1-alpha.18 0.6.1-alpha.19` dispatched `crate-release.yml` run 43529356499;
+  `native:release:wait` is going in unit `gpc-release-wait-0-6-1-alpha-19`.
+  Then: `native:install -- 0.6.1-alpha.19` and a sample commit.
+- **The pass's open question, settled by a probe and not by a choice.**
+  Under umask 077 the wrapper's merge left a person's edited executable file at mode 755,
+  where real Git's stash,
+  merge and stash pop left it at 700,
+  and the pass asked whether the wrapper should narrow it.
+  The comparison was with stash and pop;
+  plain `git merge` (Git 2.56.0) with the same edit standing,
+  which Git allows when the merge does not touch that path,
+  exits 0 and leaves the file at mode 755 with the same inode
+  (`keep/probe-what-plain-git-merge-does-to-an-edited-file-the-merge-does-not-touch-under-umask-077.ts` beside the report).
+  So the wrapper does what real Git's merge does,
+  the specification's sentence about a file a carry writes does not reach a file nothing wrote,
+  and nothing changes.
+- **Connects without a bound, read on `main` after the merge**:
+  the status command and the retire request now connect through `connect_within`.
+  Two are left in shipped code:
+  `service_warm_request.rs:107`,
+  whose run is going,
+  and the binding probe at `service_server_socket_binding.rs:151`,
+  which is with the no-manager branch's author among the findings of the 6293 review.
+  No further run is needed for them.
+- **The deletion** had removed the whole folder of 2026-11-10 and 96 shards of 2026-11-11 by 18:45:11,
+  with no slow reading;
+  the build volume had 2,044 GiB free
+  (1,439 GiB when it began).
+
+#### Issue 6300: `mpm-shadow install` takes a tool, with the owner's three answers; two reviews with defects go back to their authors (2026-11-13T18:39:31-05:00)
+
+Not final and not approved:
+written by the coordinating session from the issue,
+the owner's answers and the reviews' own text.
+
+##### Issue 6300
+
+The owner sent the issue's address at about 18:35 and nothing else.
+The issue is mpm-shadow's,
+which the owner made this session's on 2026-11-13 at 15:26,
+so it was taken as work to do.
+It records the owner's direction:
+no separate `add` verb;
+the existing `install` (alias `i`) accepts a tool,
+as `pnpm i -g <package>` does.
+
+Three points the issue leaves open were asked through the question tool,
+each with its options ranked:
+
+- What the argument names
+  (a request or an existing id,
+  a request alone,
+  an existing id alone):
+  "Request or existing id (Recommended)".
+  `mpm i -g cargo:fastmod` adds and installs a new tool from a request with a route prefix;
+  `mpm i -g tokei` installs the entry the plan already holds under that id;
+  a bare name that is neither is refused and never guessed;
+  several tools in one command are allowed.
+- Whether it works without `--global`
+  (both scopes,
+  or global alone):
+  "Both scopes (Recommended)".
+  Without `--global` it writes this repository's plan and lock,
+  keeping every comment and the file's layout.
+- Where the how-to lives
+  (the READMEs,
+  or a runbook):
+  "READMEs (Recommended)".
+  The command and the entry shapes in `package/mpm-shadow/cli/README.md`;
+  the four `toolchain:*:global` tasks beside the local ones in the root README's section "Tool inventory and drift".
+
+`install` with no argument keeps its meaning.
+Left to the run to settle and report:
+which routes a prefix can select,
+how a new tool's binaries are found,
+how the JSONC plan is written without losing a comment,
+and what a kill between the plan's write and the lock's leaves.
+
+The run is queued at the head:
+`issue-6300-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan`,
+branch `feat/mpm-shadow-cli-install-takes-a-tool-and-adds-it-to-the-plan`,
+brief `~/temp/agent/pi-runs/issue-6300-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan-prompt.md`.
+The issue carries a comment with the three answers and the label `ready-for-agent`.
+It meets the cleanup run of the same package in what an install does.
+
+##### Two reviews
+
+- **Commit forms that real Git refuses** (`a757ab0894`):
+  its first review reproduced three defects through the built wrapper.
+  The question the wrapper asks Git is not always a dry run:
+  `--dry-run` is put before the first `--`,
+  also where that `--` is the value of `-m`,
+  so `git commit -m -- -i` with a staged file named `-i` makes a commit with the subject `--dry-run`,
+  outside the service,
+  while the wrapper says Git could not be started.
+  The caller's `-C` is applied twice,
+  so with a nested repository that commit lands in a repository the command never named.
+  And a pathless `-o --fixup=amend:` that Git accepts is refused.
+  All go back to the author
+  (`~/temp/agent/pi-runs/commit-forms-answers-its-review-of-2026-11-13-prompt.md`),
+  queued.
+- **The index lock** (`675771e759`):
+  its third review found nothing that removes a live holder's lock,
+  and reproduced three defects that leave a lock standing.
+  The record a forwarded command writes of itself has two spaces where the reader expects one,
+  so the branch's own case,
+  a killed forwarded Git,
+  is never repaired,
+  and those records are never swept;
+  a named pipe at a lock's PID-file name holds every command;
+  the sweep removes the only record of a lock the walk did not visit.
+  It also measured that on this machine's btrfs volume Git creates the lock and its PID file with equal birth times,
+  which the branch treats as unproven,
+  so the pass clears no lock that is not empty here.
+  All four go back to the author,
+  the last as work and not as a choice:
+  a proof that holds with equal births,
+  or the sequence that shows none can
+  (`~/temp/agent/pi-runs/index-lock-answers-its-third-review-of-2026-11-13-prompt.md`),
+  queued.
+  The review's run ended `driver-failed` with its review written,
+  the eleventh such ending of the day (issue 6299).
+
+##### The deletion, at 18:38:31
+
+176 of the first folder's 256 shards are gone with no slow reading,
+and the build volume has 1,763 GiB free
+(1,439 GiB when it began).
+
+#### Old toolchains' build folders hold the build volume; the owner: delete two by hand, and each tool cleans up after itself; three more reviews routed (2026-11-13T18:33:32-05:00)
+
+Not final and not approved:
+written by the coordinating session from its own measurements and the runs' reports.
+
+##### What takes the build volume
+
+- The walk of the shared cargo build folder
+  (`btrfs filesystem du --summarize`,
+  started 17:12:25,
+  stopped by hand at 18:24:20 once it had printed the toolchain folders)
+  gives,
+  as logical bytes that nothing else holds
+  (the volume is compressed,
+  so less on disk):
+  `toolchain/nightly-2026-11-10` 1,090 GiB,
+  `toolchain/nightly-2026-11-11` 885 GiB,
+  `toolchain/nightly-2026-11-12` 583 GiB,
+  `toolchain/nightly-2026-11-13` 107 GiB.
+  Its output is
+  `~/temp/agent/build-volume-growth-measured-by-folder-2026-11-13/keep/blocks-each-toolchain-folder-and-each-shard-of-the-cargo-build-folder-holds-alone-2026-11-13T1713.txt`.
+- Of the 23 runs going at 18:27,
+  none worked in a worktree that pins the toolchain of 2026-11-10 or 2026-11-11,
+  three in one that pins 2026-11-12,
+  twenty in one that pins 2026-11-13
+  (`keep/going-runs-by-the-toolchain-their-worktree-pins-2026-11-13T1827.txt` in that folder).
+- Free on the build volume:
+  1,488 GiB at 17:11:42 and 1,443 GiB at 18:25:44,
+  45 GiB in 74 minutes.
+
+##### The owner's answers
+
+- Asked at about 18:28 whether the folders of 2026-11-10 and 2026-11-11 may be deleted
+  (both watched,
+  the older alone,
+  or wait for the new drive):
+  "Delete both, watched.
+  and make our mpm-shadow auto cleanup old toolchains by size + last modified time."
+- Asked which of the two tools should own that cleanup
+  (the session offered mpm-shadow or cargo-shadow's cleaner as alternatives,
+  which they are not):
+  "What? Shouldn't it be both?
+  mpm-shadow cleans up after itself,
+  cargo-shadow also cleans up after itself."
+- So each tool removes,
+  by itself,
+  what it itself made,
+  chosen by size and last-modified time:
+  mpm-shadow the old versions it installed,
+  cargo-shadow the build folders of old toolchains.
+
+##### The deletion by hand
+
+- Unit `delete-build-folders-of-nightly-2026-11-10-and-11-20261113T1832`,
+  from 18:30:32,
+  at the lowest disk weight:
+  one shard at a time,
+  a write-and-sync reading of both drives before each shard
+  (recorded in the search's readings file with a `during` field),
+  and it ends itself at two readings in a row over five seconds.
+  Script and log:
+  `~/temp/agent/build-volume-growth-measured-by-folder-2026-11-13/delete-the-build-folders-of-two-old-toolchains-shard-by-shard-and-stop-on-a-slow-drive.ts`
+  and `keep/deletion-of-the-build-folders-of-nightly-2026-11-10-and-11.log`.
+- Each folder was looked at first:
+  a plain directory,
+  256 shards,
+  nothing else in it,
+  no process of this account with its working folder inside.
+- By 18:33:15 it had removed 48 shards of the first folder with no slow reading,
+  and free room had gone from 1,439 GiB to 1,508 GiB.
+  One shard held a test fixture without permissions,
+  which the script opens and removes on its second try.
+- The probe of level thirty-two that had started when the walk ended was stopped at 18:30,
+  because its readings would fall in the deletion.
+  The hour that judges the level starts when the deletion has ended.
+
+##### The two cleanup runs
+
+Both queued at the head at 18:33,
+each a fresh run from `main`,
+each told to measure first and to delete nothing from this machine's real folders:
+
+- `mpm-shadow-removes-by-itself-the-old-versions-it-installed-by-size-and-last-modified-time`,
+  branch `feat/mpm-shadow-cli-removes-by-itself-the-old-versions-it-installed-by-size-and-last-modified-time`;
+- `cargo-shadow-removes-by-itself-the-build-folders-of-old-toolchains-by-size-and-last-modified-time`,
+  branch `feat/cargo-shadow-cli-removes-by-itself-the-build-folders-of-old-toolchains-by-size-and-last-modified-time`.
+  Its first step is to say why the cleaner that exists removed nothing of those folders.
+
+##### Three reviews routed
+
+- **Removal refuses a busy worktree** (`01d26607ce`):
+  its second review reproduced that a removal a person asks for takes a nested registered worktree's uncommitted edit to a tracked file,
+  with nothing of it in the deletions log,
+  and that one landed sweep examines and hands over the same worktree twice;
+  by reading,
+  that the kept-retry record is replaced by a remove and a write with a gap between them.
+  All three go back to the author:
+  the first as a refusal with an opt-out,
+  by the project's standing answer for a command that would discard a person's work
+  (`~/temp/agent/pi-runs/removal-refuses-answers-its-second-review-of-2026-11-13-prompt.md`).
+- **Push of a branch that is not checked out** (`b0c133f42b`):
+  every scenario its second review ran passed;
+  one race found,
+  shown with Git's own commands in the wrapper's order:
+  a `git switch` in the worktree whose branch is being moved,
+  between the check and the write of the branch,
+  leaves the merge's content staged on the branch switched to.
+  Back to the author
+  (`~/temp/agent/pi-runs/push-of-a-branch-answers-its-second-review-of-2026-11-13-prompt.md`).
+- **Removal goes around a subvolume**:
+  its author answered at 18:20:05
+  (tip `50d55b0b8d`);
+  the review of that answer,
+  over `main...50d55b0b8d`,
+  is queued.
+
 #### `0.6.1-alpha.18` installed; the owner keeps one author pool; sixteen stranded branches of 2026-11-11 and 12 are queued; two reviews go back to their authors (2026-11-13T18:06:17-05:00)
 
 Not final and not approved:

@@ -274,8 +274,14 @@ pub async fn clear_awaiting<W: std::io::Write + ?Sized>(
             Some((mode, oid)) => IndexWrite::Entry(String::from(mode), String::from(oid)),
             None => IndexWrite::Remove,
         };
+        // The clear puts the branch's own bytes back where Git's own update is about to write the merge's entry, so the file
+        //  is created exactly as Git creates it and the system's umask and the directory's default ACL decide its mode.
         let worktree: FileWrite = match old_object {
-            Some(oid) => FileWrite::Bytes(file_form_awaiting(context, root, entry.path.as_slice(), oid).await.map_err(CarryFailure::Failed)?, change.old_mode.clone()),
+            Some(oid) => FileWrite::Bytes {
+                bytes: file_form_awaiting(context, root, entry.path.as_slice(), oid).await.map_err(CarryFailure::Failed)?,
+                mode: change.old_mode.clone(),
+                the_persons_bits: None,
+            },
             None => FileWrite::Remove,
         };
         steps.push(Step { path: entry.path.clone(), index, worktree, judged: judged_of(&state, identity), keep_the_planned_bytes: false });
@@ -380,7 +386,7 @@ pub async fn carry_awaiting<W: std::io::Write + ?Sized>(
         //  (`merge_isolation_carry_landed.rs`).
         let keep_the_planned_bytes: bool = worktree_is_ours
             && crate::merge_isolation_carry_landed::the_write_is_unproven(landed, entry.path.as_slice(), &state, merged_object)
-            && matches!(&worktree, FileWrite::Bytes(_, _));
+            && matches!(&worktree, FileWrite::Bytes { .. });
         let current: Option<(String, String)> = index_entry_awaiting(context, root, entry.path.as_slice()).await.map_err(CarryFailure::Failed)?;
         let captured_entry: Option<(&str, &str)> = entry.index.as_ref().map(index_pair);
         let merged_entry: Option<(&str, &str)> = new_entry_of(change);
@@ -497,8 +503,14 @@ pub async fn restore_awaiting<W: std::io::Write + ?Sized>(
             Some(staged) => IndexWrite::Entry(staged.mode.clone(), staged.oid.clone()),
             None => IndexWrite::Remove,
         };
+        // The merge did not land, so nothing of Git's stands where the person's own entry goes back, and the entry keeps
+        //  every permission bit it had when the capture read it.
         let worktree: FileWrite = match entry.worktree.as_ref() {
-            Some(file) => FileWrite::Bytes(raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?, file.mode.clone()),
+            Some(file) => FileWrite::Bytes {
+                bytes: raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?,
+                mode: file.mode.clone(),
+                the_persons_bits: file.permissions,
+            },
             None => FileWrite::Remove,
         };
         let put_back: Step = Step {

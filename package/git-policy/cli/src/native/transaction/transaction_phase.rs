@@ -1,5 +1,7 @@
 //! What:
-//!  Test-only phase markers of the isolated merge and of a commit headed for the service,
+//!  Test-only phase markers of the isolated merge,
+//! of a commit headed for the service and of the
+//!  pruning of the references the wrapper keeps commits on,
 //! for crash and interleaving suites.
 //!  An explicit environment variable arms one marker:
 //!  `CLI_GIT_TEST_ONLY_PHASE_SIGNAL=<phase>:kill` ends the process with `SIGKILL` at the phase,
@@ -95,6 +97,13 @@ pub enum Phase {
     /// repeatable,
     /// numbered by occurrence.
     ServicePrepared,
+    /// A pass over the kept references has listed them and removed none yet;
+    /// repeatable,
+    /// numbered by occurrence.
+    /// Why:
+    ///   What a pass does with a reference another command writes is a matter of order,
+    ///  so a control has to act at the one instant between the listing and the removals.
+    KeptReferencesListed,
     /// The service answered that this attempt did not land the commit,
     /// and the command has not yet read the private index of that attempt to capture its change for the rebuild;
     /// repeatable,
@@ -107,7 +116,7 @@ pub enum Phase {
 
 /// Every phase in the order a command reaches them,
 /// which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 12] = [
+pub const TRANSACTION_TEST_PHASES: [Phase; 13] = [
     Phase::MergeCarried,
     Phase::MergeIntent,
     Phase::MergeClearIndex,
@@ -120,6 +129,7 @@ pub const TRANSACTION_TEST_PHASES: [Phase; 12] = [
     Phase::ServiceStaged,
     Phase::ServicePrepared,
     Phase::ServiceSentBack,
+    Phase::KeptReferencesListed,
 ];
 
 /// Phase names in the order a command reaches them.
@@ -147,6 +157,7 @@ impl Phase {
             Phase::ServiceStaged => return "service-staged",
             Phase::ServicePrepared => return "service-prepared",
             Phase::ServiceSentBack => return "service-sent-back",
+            Phase::KeptReferencesListed => return "kept-references-listed",
         }
     }
 }
