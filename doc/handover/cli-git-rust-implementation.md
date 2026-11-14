@@ -772,6 +772,13 @@ Questions kept for the owner's return:
     a service that is alive but stopped (a debugger, a starved acceptor) reads as recovering,
     and the command ends after up to two minutes;
     is a shorter bound wanted with the same words?
+  - mpm-shadow's cleanup of old versions, its fourth answer (tip `b416f1e2b0`, added 2026-11-14T16:23-05:00):
+    a held good copy kept aside while its name holds an unfinished install waits for that install to finish or fail;
+    is it deleted after a stated time,
+    or left with a marker a person can see?
+    And on Windows,
+    where no inode is read,
+    is the write time alone enough to say an entry is the one judged?
   - mpm-shadow's cleanup of old versions (tip `542b881860`, added 2026-11-14T14:48-05:00):
     a `current` link can dangle until the next sync repairs it;
     no store-wide lock is adopted to close that window,
@@ -1255,6 +1262,100 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### mpm-shadow's cleanup is answered a fourth time and goes to review (2026-11-14T16:23:00-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked,
+and what it read and queued.
+
+- **mpm-shadow removes by itself the old versions it installed** (tip `b416f1e2b0`, ended 16:18:40):
+  the author reports the fourth review answered:
+  the trim compares what it holds after the move aside with what it judged before it deletes,
+  and a held copy stays aside while the version's name holds an install that has not finished;
+  the review's script now shows 300 of 300 fresh copies kept where 188 were deleted;
+  837 tests passing and the type check clean after two merges of `main`,
+  neither of which brought a file of the package.
+  Cost against the commit before:
+  with nothing to remove a median ratio of 0.87 (0.81 to 0.95),
+  with 63 removals 1.03 (0.88 to 1.09),
+  inside each arm's own spread.
+  Its questions go to the kept list:
+  a held copy kept aside for an unfinished name waits for that install to finish or fail,
+  so is it deleted after a stated time or left with a marker a person can see;
+  and is the write time alone enough on Windows.
+  Review queued (range `main...b416f1e2b0`, six code files).
+- Read at 16:22:48:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+- The queue held 68 entries at 16:23:00.
+
+##### The first Pi start with the merged lock shim is working; the no-service-manager review finds six and issue 6293's finds a delivered push called failed, both back; three more launchers had outlived their runs (2026-11-14T16:18:47-05:00)
+
+Not final and not approved:
+what two reviews report of themselves,
+and what the coordinating session measured,
+stopped and queued.
+
+- **The first start since the lock shim's merge**:
+  the filling unit started the failure-variant test's reviewer at 16:11:37;
+  at 16:17 its unit was active and its feed held 43 lines.
+  The user journal holds no `ELOCKED` and no `rmdir` line since 16:09:08.
+  One start is one observation;
+  each later round reads the journal for those words again.
+- **The commit service that needs no service manager** (`b896c60d97`),
+  fourth review:
+  the start,
+  takeover,
+  spawn and waits are sound.
+  Six things,
+  four reproduced with the built binary:
+  `service stop` reports "nothing to stop" for a service that is alive and does not greet,
+  while the wrapper's own failure texts name that command as the remedy;
+  the writer of the `.git-dir` note was orphaned when provisioning was deleted,
+  so a service's first start never checks for a worktree that is gone and a later `git worktree add` at that path gets a second service;
+  the `~/.run` fallback is half made;
+  the sweep acts on a stale survey and retired the live service of a worktree made again;
+  the check of the socket path's length went with provisioning,
+  so a long runtime directory fails a commit with a remedy that cannot work,
+  which meets pass 42 in `main` head on;
+  and,
+  by reading,
+  a Git path that is not UTF-8 is recorded lossily.
+  The author is resumed,
+  asked first for the list of everything the deleted provisioning did and where each thing is now
+  (`~/temp/agent/pi-runs/commit-service-needs-no-service-manager-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- **Issue 6293** (`963ff67934`),
+  fifth review:
+  one reproduced by running the real reading function on real Git's output:
+  a push that delivers to an upstream branch of another name is read by the local branch's reference,
+  so it is called not pushed,
+  its retry plan is ended,
+  and the notice says the commit is saved in this repository when it has arrived.
+  One by reading:
+  the claim of the pid note is a look,
+  a write and a read back,
+  so two services can believe they hold one instance.
+  The author is resumed
+  (`~/temp/agent/pi-runs/issue-6293-answers-its-fifth-review-of-2026-11-14-prompt.md`).
+  Both briefs name the four tests of `main` that fail in files these branches change,
+  which other agents have as their tasks.
+- **Three launchers had outlived their runs** and were stopped at 16:18:47
+  before any of them could refuse a start:
+  issue 6293's of 11:19
+  (its run ended 15:09;
+  its resume had just been queued),
+  the lock shim author's of 14:41
+  and the lock shim reviewer's of 15:47.
+  A script beside the queue scripts lists them and stops exactly those
+  (`list-the-launchers-still-active-whose-run-is-not-going.ts`,
+  with `--stop-those-that-outlived-a-run`);
+  it runs each round until the driver's own fix is in.
+  The launcher stamps are UTC.
+- **The review of the killed-Git lock's answer** ended on the rate limit at 16:07:54 and was put back and started again at 16:08:18.
+- Neither resumed session is named by the credential scan.
+  The queue held 67 entries at 16:18:47.
 
 ##### The lock shim passes its third review and waits for the owner's word on its merge; the watch note's ceiling passes and pass 46 carries it; the queue filling loses an entry between two records, back to its author (2026-11-14T16:08:15-05:00)
 
