@@ -1230,6 +1230,12 @@ and what one author reports of itself.
   stands in no tracked file and equals no value read;
   its shape is being read from the Claude Code transcripts,
   the Pi sessions holding none.
+  Read at 10:53:13:
+  all eighteen stand in one Claude Code transcript that began 2026-09-15,
+  and the string is three hyphenated lowercase words followed by ten digits and six letters.
+  That reads like a made-up stand-in,
+  and this session cannot tell whether a deployed pnpr server uses it;
+  it is in the list for the owner to recognise.
 - **The masking run** was going at 10:49:45.
 - **mpm-shadow's cleanup** (tip `3a96da6dbf`, ended 10:44:30):
   the author reports the review's three findings answered with controls,
