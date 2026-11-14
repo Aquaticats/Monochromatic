@@ -1184,6 +1184,109 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Three authors answered, the add-never-skips answer has four reproduced defects, and the queue is longer than at 21:00 (2026-11-13T22:53:57-05:00)
+
+Not final and not approved:
+read by the coordinating session from one review file and three runs' last messages,
+nothing here rerun by it.
+
+- **Discarding commands**
+  (run `discarding-commands-are-refused-with-an-opt-out-where-they-would-destroy-a-file-4`,
+  ended 22:47:34,
+  tip `1edafc6c7d`,
+  `main` merged twice):
+  the author saw all ten losses of its second review on the old build and answered each,
+  with real Git measured for every rule the fixes rest on
+  (an empty pathspec file,
+  C-quoting,
+  the last `--source`,
+  one force deleting a bare repository).
+  Each control quoted failing without its fix.
+  Its whole binary suite:
+  1,163 of 1,180,
+  the seventeen red ones in families whose files equal `main`'s.
+  Its third review is queued at the head
+  (`review-git-policy-cli-discarding-commands-answers-after-its-second-review`,
+  range `main...1edafc6c7d`).
+- **The push of a branch that is not checked out**
+  (run `push-of-a-branch-that-is-not-checked-out-is-handled-as-that-branch-4`,
+  ended 22:47:41,
+  tip `6c39c3719a`,
+  level with `main`):
+  the review's reproduction showed a switch in the instant before the branch moves carrying the merge's content onto the other branch.
+  After the reference moves,
+  the move now looks at what the checkout shows and puts back,
+  path by path,
+  what it wrote and no person changed;
+  no lock.
+  Two controls,
+  one of them in another session's worktree,
+  each failing without the look.
+  Cost:
+  about 17 ms for a move in this repository,
+  3.7 ms in a fixture of two worktrees.
+  Its review is queued at the head
+  (`review-git-policy-cli-push-of-a-branch-not-checked-out-answers-after-its-second-review`,
+  range `main...6c39c3719a`).
+  It noticed that the landed sweep's notice says another worktree's branch "is now on" the merged branch,
+  which reads as if that worktree's `HEAD` had moved.
+  Open,
+  no run.
+- **Add never skips, fifth review**
+  (`~/temp/agent/change-reviews/git-policy-cli-add-never-skips-answers-after-its-fourth-review/review.md`,
+  ended 22:48:23,
+  on `c69516c715`):
+  the rollback window and the bounded reads are sound,
+  and four defects are reproduced,
+  all weighed as standing.
+  The placement deletes a person's own lock when that is what stood at the lock as the filling began,
+  and a kill or a restore that cannot write then leaves it nowhere,
+  against the two sentences the last answer put into `SPEC.md`.
+  A lock over the new read limit of 1 MiB is treated as absent and the add's restore deletes the tracked file.
+  The check for the wrapper's exclude line trims a leading space and a trailing tab that Git keeps,
+  so the trash can be staged.
+  Two fillings of one workspace delete each other's resolution mirror.
+  Back to the author
+  (`add-never-skips-answers-its-fifth-review-of-2026-11-13-prompt.md`,
+  queued).
+  This is the fifth review of this branch,
+  and each found something new in what the answer before it added;
+  the brief says so and asks the author to read its own diff as that reviewer would before writing.
+- **The driver's unit test of the silence after a compaction**
+  (run `driver-unit-test-of-the-silence-after-a-compaction-passes-in-its-suite-as-it-does-alone-1`,
+  ended 22:50:29,
+  tip `e816c1dc7b`,
+  one test file):
+  the test decided its outcome by ten milliseconds of real time between two timers armed one after the other;
+  measured by hand,
+  a stall of 9 ms between them fails it with the recorded assertion.
+  The test now holds a clock of its own and moves it by hand.
+  A change to a test file alone,
+  so its review has a hand-written brief
+  (`~/temp/agent/change-reviews/pi-shared-subagent-driver-unit-test-of-the-silence-after-a-compaction-holds-its-own-clock/brief.md`,
+  queued at the head),
+  which lets the reviewer plant one break at a time.
+  It read its worktree's package links,
+  as the note about the relink asked:
+  none names another checkout.
+  It saw two other tests of the driver fail in the suite and pass alone
+  (a run's wall clock of three seconds has to hold a stand-in's start);
+  a fresh run is queued
+  (`driver-two-unit-tests-of-a-run-that-ends-at-its-wall-clock-pass-in-their-suite-as-they-do-alone`).
+- **The queue**:
+  46 entries at 22:53,
+  where it held about 40 at 21:00,
+  though some twenty-five runs ended in between.
+  Each ended run is answered with one to three new entries
+  (a review,
+  an author's answer,
+  a run for a defect seen on the way),
+  and the author pool the owner keeps at twenty is full throughout.
+  Reviews drain within the hour on their own pool;
+  authors' entries far from the head,
+  the sixteen stranded continuations among them,
+  have not moved since they were queued.
+
 ##### The removal-around answer passed its third review and is pass 30; cargo-shadow's cleanup of old toolchains is written (2026-11-13T22:46:59-05:00)
 
 Not final and not approved:
