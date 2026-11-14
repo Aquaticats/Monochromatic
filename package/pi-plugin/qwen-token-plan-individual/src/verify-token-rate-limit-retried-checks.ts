@@ -252,6 +252,17 @@ export function checksOf({
         === 0,
       line: 'the unchanged run\'s feed carries no auto_retry_start line',
     },
+    // A feed that already holds every other answer is what a run that never
+    // ends also prints, so the run has to have ended by itself as well.
+    {
+      ok: (!runs.unchanged
+        .timedOut) && (runs.unchanged
+          .exitCode
+          !== undefined),
+      line: `the unchanged run ended by itself: exited ${String(runs.unchanged
+        .exitCode,)} (timed out: ${String(runs.unchanged
+          .timedOut,)})`,
+    },
     {
       ok: unchangedMessages.length === 1,
       line: `the unchanged run settled on ${String(unchangedMessages.length,)} assistant message(s)`,

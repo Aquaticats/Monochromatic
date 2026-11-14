@@ -6,10 +6,6 @@
  @module
  */
 
-import {
-  spawn,
-  type ChildProcess,
-} from 'node:child_process';
 import type { Dirent, } from 'node:fs';
 import {
   mkdir,
@@ -20,8 +16,8 @@ import {
 import {
   join,
 } from 'node:path';
-import { once, } from 'node:events';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
+import { runBoundedChild, } from './verify-token-rate-limit-retried-bounded-child.ts';
 
 //region Constants
 
@@ -30,11 +26,6 @@ import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
  holding it.
  */
 const RUN_TIMEOUT_MILLISECONDS = 120_000;
-
-/**
- Text an abort shows up as, which is how a run reaches its bound.
- */
-const ABORT_ERROR_NAME = 'AbortError';
 
 //endregion Constants
 
@@ -389,49 +380,12 @@ export async function sessionTextsUnder({
 //region Running pi
 
 /**
- Wait for one child to end, reporting a kill at the run's bound as such.
-
- @param child - child the run started
-
- @returns the exit status when the child ended by itself, or that it was killed
-
- @example
- ```typescript
- const ending = await endingOf({ child });
- ```
- */
-async function endingOf({
-  child,
-}: {
-  readonly child: ChildProcess;
-},): Promise<{
-  readonly exitCode?: number;
-  readonly timedOut: boolean;
-}> {
-  try {
-    await once(
-      child,
-      'exit',
-    );
-    /**
-     Exit status the child reported, which it leaves absent when a signal
-     ended it.
-     */
-    const {exitCode} = child;
-    return {
-      ...(exitCode === null ? {} : { exitCode, }),
-      timedOut: false,
-    };
-  } catch (error) {
-    return {
-      timedOut: (Error.isError(error,))
-        && (error.name === ABORT_ERROR_NAME),
-    };
-  }
-}
-
-/**
  Run pi once against the stand-in, keeping its feed and its error output.
+
+ The run is bounded like every child this harness starts:
+ a pi that outlives its bound is signalled again and then killed,
+ and the result says it reached the bound,
+ so a run that never ends fails the proof instead of holding it.
 
  @param request - the run's folder, files, bundle, home and prompt
 
@@ -471,11 +425,11 @@ export async function runPi(request: PiRunRequest,): Promise<PiRun> {
     { recursive: true, },
   );
   /**
-   Child process for this run.
+   What the bounded run left behind.
    */
-  const child = spawn(
-    process.execPath,
-    [
+  const child = await runBoundedChild({
+    file: process.execPath,
+    args: [
       piCli,
       '--mode',
       'json',
@@ -493,77 +447,40 @@ export async function runPi(request: PiRunRequest,): Promise<PiRun> {
       '--print',
       prompt,
     ],
-    {
-      cwd,
-      // Standard input is refused rather than piped: pi reads a piped standard
-      // input as the prompt, and a pipe nobody closes would hold the run open.
-      stdio: [
-        'ignore',
-        'pipe',
-        'pipe',
-      ] as const,
-      env: {
-        PATH: process.env
-          .PATH
-          ?? '',
-        HOME: home,
-        PI_CODING_AGENT_DIR: agentDir,
-        PI_OFFLINE: '1',
-        PI_TELEMETRY: '0',
-        PI_SKIP_VERSION_CHECK: '1',
-      },
-      signal: AbortSignal.timeout(RUN_TIMEOUT_MILLISECONDS,),
+    cwd,
+    env: {
+      PATH: process.env
+        .PATH
+        ?? '',
+      HOME: home,
+      PI_CODING_AGENT_DIR: agentDir,
+      PI_OFFLINE: '1',
+      PI_TELEMETRY: '0',
+      PI_SKIP_VERSION_CHECK: '1',
     },
-  );
-  /**
-   Standard output the run prints, in order.
-   */
-  const stdoutChunks: Buffer[] = [];
-  /**
-   Standard error the run prints, in order.
-   */
-  const stderrChunks: Buffer[] = [];
-  child.stdout
-    .on(
-    'data',
-    function collectStdout(chunk: Buffer,) {
-      stdoutChunks.push(chunk,);
-    },
-    );
-  child.stderr
-    .on(
-    'data',
-    function collectStderr(chunk: Buffer,) {
-      stderrChunks.push(chunk,);
-    },
-    );
-  /**
-   How the child ended.
-   */
-  const ending = await endingOf({ child, },);
+    boundMilliseconds: RUN_TIMEOUT_MILLISECONDS,
+  },);
   await writeFile(
     join(
       root,
       'runs',
       `${name}-stderr.log`,
     ),
-    Buffer.concat(stderrChunks,)
-      .toString('utf8',),
+    child.stderr,
     'utf8',
   );
   /**
    Session events the run printed.
    */
   const parsed = await parseFeed({
-    stdout: Buffer.concat(stdoutChunks,)
-      .toString('utf8',),
+    stdout: child.stdout,
     root,
     name,
   },);
   return {
     events: parsed.events,
-    ...(ending.exitCode === undefined ? {} : { exitCode: ending.exitCode, }),
-    timedOut: ending.timedOut,
+    ...(child.exitCode === undefined ? {} : { exitCode: child.exitCode, }),
+    timedOut: child.timedOut,
   };
 }
 

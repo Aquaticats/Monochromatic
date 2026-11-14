@@ -11,6 +11,11 @@
  The proof therefore compares this package's own dispatch, and it assumes the
  packages beside it are the same in both runs.
 
+ Every command here runs under a bound of its own
+ (`verify-token-rate-limit-retried-bounded-command.ts`),
+ so a `git` waiting on another agent's lock or a hung bundler fails this build
+ instead of holding the proof.
+
  @module
  */
 
@@ -22,27 +27,9 @@ import {
   dirname,
   join,
 } from 'node:path';
-import {
-  promisify,
-} from 'node:util';
-import { execFile, } from 'node:child_process';
+import { runBoundedCommand, } from './verify-token-rate-limit-retried-bounded-command.ts';
 
 //region Constants
-
-/**
- Node's own promisify adapter, typed through its documented namespace:
- the generic `promisify(execFile)` form trips `strict-void-return`
- (`doc/troubleshooting/oxlint-promisify-void-return.md`).
- */
-const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ =
-  promisify;
-
-/**
- Command runner both git and the bundler are called through.
- */
-const RUN_COMMAND = promisifyExecFile(execFile,);
-
-//endregion Constants
 
 //region Types
 
@@ -146,9 +133,9 @@ async function unchangedCommitOf({
   /**
    Commit that first carried the marker into the package's provider dispatch.
    */
-  const introducedIn = (await RUN_COMMAND(
-    'git',
-    [
+  const introducedIn = (await runBoundedCommand({
+    file: 'git',
+    args: [
       'log',
       '--reverse',
       '--format=%H',
@@ -157,8 +144,8 @@ async function unchangedCommitOf({
       '--',
       `${packagePath}/src/provider.ts`,
     ],
-    { cwd: repository, },
-  )).stdout
+    cwd: repository,
+  },)).stdout
     .split('\n',)
     .find(function firstLine(line,) {
       return line.length > 0;
@@ -221,32 +208,32 @@ export async function unchangedBundleOf(request: UnchangedBundleRequest,): Promi
     root,
     'unchanged-package.tar',
   );
-  await RUN_COMMAND(
-    'mkdir',
-    [
+  await runBoundedCommand({
+    file: 'mkdir',
+    args: [
       '--parents',
       source,
     ],
-  );
-  await RUN_COMMAND(
-    'git',
-    [
+  },);
+  await runBoundedCommand({
+    file: 'git',
+    args: [
       'archive',
       '--format=tar',
       `--output=${archivePath}`,
       commit,
       packagePath,
     ],
-    { cwd: repository, },
-  );
-  await RUN_COMMAND(
-    'tar',
-    [
+    cwd: repository,
+  },);
+  await runBoundedCommand({
+    file: 'tar',
+    args: [
       '--extract',
       `--file=${archivePath}`,
       `--directory=${source}`,
     ],
-  );
+  },);
   /**
    Directory the unchanged bundle is built in.
    */
@@ -258,9 +245,9 @@ export async function unchangedBundleOf(request: UnchangedBundleRequest,): Promi
   // the package and the repository root already hold:
   // its own peers and workspace packages, and the tsconfig chain the root
   // hoists.
-  await RUN_COMMAND(
-    'ln',
-    [
+  await runBoundedCommand({
+    file: 'ln',
+    args: [
       '--symbolic',
       join(
         repository,
@@ -272,10 +259,10 @@ export async function unchangedBundleOf(request: UnchangedBundleRequest,): Promi
         'node_modules',
       ),
     ],
-  );
-  await RUN_COMMAND(
-    'ln',
-    [
+  },);
+  await runBoundedCommand({
+    file: 'ln',
+    args: [
       '--symbolic',
       join(
         repository,
@@ -286,17 +273,17 @@ export async function unchangedBundleOf(request: UnchangedBundleRequest,): Promi
         'node_modules',
       ),
     ],
-  );
-  await RUN_COMMAND(
-    'rolldown',
-    [
+  },);
+  await runBoundedCommand({
+    file: 'rolldown',
+    args: [
       '--configLoader',
       'native',
       '--config',
       'rolldown.node.config.ts',
     ],
-    { cwd: packageDirectory, },
-  );
+    cwd: packageDirectory,
+  },);
   /**
    Path of the bundle the copy built.
    */

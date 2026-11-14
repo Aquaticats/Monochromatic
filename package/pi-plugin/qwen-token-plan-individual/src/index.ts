@@ -61,6 +61,30 @@ export {
   QWEN_TOKEN_PLAN_TOKEN_RATE_LIMIT_STATUS,
 } from './passing-token-rate-limit.ts';
 export { streamWithPassingTokenRateLimitRetried, } from './stream-with-passing-token-rate-limit-retried.ts';
+/**
+ The bound the proof's bundle builder puts on every command it runs.
+ Exported for the package's own tests, which read the built entry; no
+ extension loads it.
+ @internal
+ */
+export {
+  BUILDER_COMMAND_TIMEOUT_MILLISECONDS,
+  runBoundedCommand,
+  type BoundedCommandRequest,
+  type BoundedCommandResult,
+} from './verify-token-rate-limit-retried-bounded-command.ts';
+/**
+ The bound the proof's pi runs get, and the ending a child that outlives it is
+ given.
+ Exported for the package's own tests, which read the built entry; no extension
+ loads it.
+ @internal
+ */
+export {
+  runBoundedChild,
+  type BoundedChildRequest,
+  type BoundedChildResult,
+} from './verify-token-rate-limit-retried-bounded-child.ts';
 export {
   QWEN_TOKEN_PLAN_COST_RATE_ZERO,
   QWEN_TOKEN_PLAN_INDIVIDUAL_BASE_URL,
