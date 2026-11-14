@@ -277,18 +277,16 @@ await describe({
                */
               const names = await namesIn(folder.queueFile,);
               /**
-               Where the first pass stands.
-               */
-              const passAt = names.findIndex(function isAPass(name,) {
-                return name.startsWith('integration-pass-',);
-              },);
-              /**
                Where the review stands.
                */
               const reviewAt = names.findIndex(function isTheReview(name,) {
                 return name.startsWith('review-',);
               },);
-              if ((reviewAt !== (-1)) && (reviewAt < passAt)) {
+              // Any pass standing after the review is a violation, not only the first one: an earlier version of the review's own
+              // script compared against the first pass alone and under-counted.
+              if ((reviewAt !== (-1)) && names.some(function isAPassAfterIt(name, at,) {
+                return (at > reviewAt) && name.startsWith('integration-pass-',);
+              },)) {
                 reviewsAhead.push([...names,],);
               }
               expect(names,).toContain('review-x',);
