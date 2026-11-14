@@ -507,6 +507,20 @@ pub fn create_shadow_repository_carrying(
 }
 
 /// What:
+///  The failure of a test-only phase marker reached between a commit's question of the handed tree and its first write.
+/// Why:
+///   The marker variable decides a command's whole life when it is malformed (`transaction_phase.rs`),
+///  and a command that cannot reach its marker says so in the words a commit reports failures with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function phaseMarkerFailure(error: Error): GitFailure; // new GitFailure(`...`)
+/// ```
+fn phase_marker_failure(error: crate::transaction_phase::PhaseMarkerError) -> GitFailure {
+    return GitFailure(format!("the handed shadow's test-only phase marker could not be reached: {error}"));
+}
+
+/// What:
 ///  The shadow one commit was given,
 ///  and the finished one the service drew ahead of it when that is where it came from.
 /// Why:
@@ -631,9 +645,33 @@ pub fn take_or_create_shadow(
     if let Some(drawn) = asked {
         match refusal(&template, drawn.as_path()) {
             Ok(None) => {
-                let handed = crate::shadow_drawn::HandedShadow::hold(drawn.clone());
-                carry_the_commit_parts(context, cwd, capture, drawn.as_path(), transaction_directory, carry_conclusion, clock)?;
-                return Ok(ShadowTree { path: drawn, handed: Some(handed) });
+                // What: A control may hold the command at this instant, between its question of the handed tree and its first write
+                //       into it (`transaction_phase.rs`, `Phase::ShadowHanded`).
+                // Why:  A tree that goes here decides whether the commit lands in it or in a tree of its own, and no other
+                //       instant of a commit can be held at that point. Nothing arms this marker in a run.
+                crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::ShadowHanded).map_err(phase_marker_failure)?;
+                let held = crate::shadow_drawn::HandedShadow::hold(drawn.clone());
+                // What: The tree was this commit's from the answer, and a tree that goes before this write is not a failure.
+                // Why:  The tree is the wrapper's own cache, so nothing about losing it is the person's, and a commit may not end
+                //       with a nonzero status for what another process in the repository did (`SPEC.md`, "Merges and commits
+                //       never fail"). Nothing has been sent to the service yet, and what was written went into a tree this
+                //       command abandons, so the commit takes the pool's member or makes its own tree exactly as it would
+                //       have without the answer.
+                match carry_the_commit_parts(context, cwd, capture, drawn.as_path(), transaction_directory, carry_conclusion, clock) {
+                    Ok(()) => return Ok(ShadowTree { path: drawn, handed: Some(held) }),
+                    Err(error) => {
+                        // A failure whose tree is still there is the repository's or the volume's, and it is the commit's to report.
+                        if crate::shadow_drawn::drawn_tree_is_still_there(drawn.as_path()) {
+                            return Err(error);
+                        }
+                        crate::diagnostic_log::debug(
+                            "shadowDrawn",
+                            format!("the drawn shadow {} went before this commit wrote into it: {error}", drawn.display()).as_str(),
+                        );
+                    }
+                }
+                // The tree stops being this commit's here, and what is left of it goes beside the command (`HandedShadow`).
+                drop(held);
             }
             Ok(Some(reason)) => crate::diagnostic_log::debug(
                 "shadowDrawn",

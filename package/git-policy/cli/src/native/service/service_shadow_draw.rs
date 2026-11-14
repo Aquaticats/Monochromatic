@@ -27,9 +27,6 @@
 /// One thread per draw,
 /// which the system may refuse.
 use crate::scoped_start::{refused_thread_sentence, spawn_named};
-/// The call that marks a tree as used now,
-/// which is the only thing that tells the sweep a drawn tree is somebody's.
-use crate::scratch_location::renew;
 /// What a commit request names.
 use crate::service_protocol::CommitRequest;
 /// The facts a creation is made from,
@@ -38,6 +35,10 @@ use crate::shadow_create::ShadowTemplate;
 use crate::shadow_drawn::{DRAWN_LIMIT, draw, sweep_drawn};
 /// Where the pool holds what a draw moves out of it, and what a fill makes when it holds nothing.
 use crate::shadow_pool::{members, pool_root_for};
+/// The renewal that keeps a stocked tree from aging out while it waits,
+/// and the pace a holding command renews at.
+use crate::service_scratch_renewal::ScratchRenewal;
+use crate::scratch_location::SCRATCH_REFRESH_EVERY;
 /// The service's own log.
 use crate::transaction_git::{GitContext, GitFailure};
 use std::path::PathBuf;
@@ -63,6 +64,9 @@ static DRAWING: AtomicBool = AtomicBool::new(false);
 ///  The list is the whole of the service's own record of what it drew,
 ///  so a stock a restart forgets is drawn again and the trees it dropped are left to the sweep by their age,
 ///  which the draw marked with the moment it drew them.
+///  A tree it still holds is marked by the renewal that travels with the entry,
+///  so a stocked tree never reaches the age a sweep takes one at,
+///  and the answer itself reads nothing but memory.
 ///  The lock it is read under guards nothing on disk and dies with the process,
 ///  so it is never a lock a commit can be left waiting on.
 ///
@@ -73,8 +77,38 @@ static DRAWING: AtomicBool = AtomicBool::new(false);
 #[derive(Debug, Default)]
 pub struct DrawnShadows {
     /// The trees nobody has asked for yet,
-    /// in the order they were drawn.
-    ready: Mutex<Vec<PathBuf>>,
+    /// in the order they were drawn,
+    /// each with the renewal that keeps it from aging out while it waits here.
+    ready: Mutex<Vec<Waiting>>,
+}
+
+/// What:
+///  One tree the service drew and nobody has asked for yet:
+///  where it is,
+///  and the renewal that keeps a sweep from taking it while it waits.
+/// Why:
+///   A drawn tree is standing state until a commit takes it,
+///  as a pool member is until a commit claims one:
+///  the service drew it ahead precisely so that it stands there while it waits,
+///  so its age must not be what decides it goes.
+///  The renewal beats on a thread of its own,
+///  the first beat at once and then at the pace a holding command uses,
+///  which is half the age a sweep takes a tree at,
+///  so no sweep ever finds a stocked tree old enough to take (`shadow_drawn.rs`, `nothing_holds`).
+///  It stops when the entry leaves the stock, and with the service:
+///  a service that is gone renews nothing, and the sweep collects the tree a bound later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Waiting = { path: string; renewal: ScratchRenewal };
+/// ```
+#[derive(Debug)]
+struct Waiting {
+    /// Where the tree is.
+    path: PathBuf,
+    /// The renewal that keeps it from aging out while it waits,
+    /// which stops when this value goes.
+    _renewal: ScratchRenewal,
 }
 
 impl DrawnShadows {
@@ -94,18 +128,24 @@ impl DrawnShadows {
     }
 
     /// What:
-    ///  Records a tree the draw made, for the next commit that asks.
+    ///  Records a tree the draw made, for the next commit that asks,
+    ///  with the renewal that keeps it from aging out while it waits.
     /// Why:
     ///   Only the draw and the answers touch the list,
     ///  and a poisoned lock is still a list of paths.
+    ///  The renewal beats at the pace a holding command uses (`SCRATCH_REFRESH_EVERY`),
+    ///  the first beat at once,
+    ///  so a stocked tree is never half-way to the age a sweep takes one at.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// stock.note(tree)
     /// ```
     pub fn note_ready(&self, tree: PathBuf) {
+        // The renewal is started before the entry is listed, so no answer can name a tree that nothing marks.
+        let renewal: ScratchRenewal = ScratchRenewal::start(tree.as_path(), SCRATCH_REFRESH_EVERY);
         let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        ready.push(tree);
+        ready.push(Waiting { path: tree, _renewal: renewal });
     }
 
     /// What:
@@ -116,28 +156,48 @@ impl DrawnShadows {
     ///  so two commits that ask at the same moment never get the same tree:
     ///  the second one is told the stock is empty and takes the pool's member or the creation,
     ///  which is the path it knows.
-    ///  The answer marks the tree it hands over as used now,
-    ///  because a drawn tree carries the pool member's modification time out of the one `rename` that drew it:
-    ///  a tree drawn from a member older than the sweep's bound is otherwise one the next sweep removes,
-    ///  before the commit holding it renews anything.
-    ///  The mark is made outside the lock,
-    ///  because the lock guards the list and never a volume.
+    ///  The answer reads memory and nothing else:
+    ///  a query of the volume here would wait on the volume the drawn tree lives on,
+    ///  which is the wait the draw-ahead exists to take off a commit
+    ///  (`service_server_connection_handling.rs`, `answer_the_shadow_question`).
+    ///  The renewal that kept the tree fresh while it waited stops with this answer,
+    ///  and the commit's own renewal takes over from the moment it holds the tree
+    ///  (`shadow_drawn.rs`, `HandedShadow`).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// const tree = stock.handOut(); // the tree, or undefined
     /// ```
     pub fn hand_out(&self) -> Option<PathBuf> {
-        let taken: Option<PathBuf> = {
+        let taken: Option<Waiting> = {
             let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
             ready.pop()
         };
-        // A tree marked as used now is one no sweep reaches until the commit that holds it has renewed it
-        //  (`shadow_drawn.rs`, `nothing_holds`).
-        if let Some(tree) = taken.as_ref() {
-            renew(tree.as_path());
-        }
-        return taken;
+        return taken.map(|waiting| { return waiting.path });
+    }
+
+    /// What:
+    ///  Drops the stocked trees that are not there any more,
+    ///  and answers how many it dropped.
+    /// Why:
+    ///   The stock is memory only, so nothing tells it that a tree went:
+    ///  a person,
+    ///  another program,
+    ///  or a removed worktree can take one out of the drawn folder.
+    ///  A tree that is not there is no tree a commit can be handed,
+    ///  and a stock that counted one would draw nothing in its place (`start`),
+    ///  so the question is asked at every landing,
+    ///  on the landing's own thread and never on an answer's.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// stock.dropWhatIsGone() // how many entries went
+    /// ```
+    pub fn drop_what_is_gone(&self) -> usize {
+        let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let counted: usize = ready.len();
+        ready.retain(|waiting| { return std::fs::symlink_metadata(waiting.path.as_path()).is_ok(); });
+        return counted - ready.len();
     }
 
     /// How many trees the stock holds now.
@@ -163,6 +223,10 @@ impl DrawnShadows {
 /// start({ context, request, stock }) // void
 /// ```
 pub fn start(context: &GitContext, request: &CommitRequest, stock: &Arc<DrawnShadows>) {
+    // What: A tree the stock counted that is not there is no tree to hand a commit, and no reason to skip the draw.
+    // Why:  The stock is memory only and the drawn folder is on the volume, where any command of the repository may collect
+    //       a tree nothing marked; the landing's own thread asks here, so an answer that comes later reads memory alone.
+    let _gone: usize = stock.drop_what_is_gone();
     if stock.ready() >= DRAWN_LIMIT {
         return;
     }

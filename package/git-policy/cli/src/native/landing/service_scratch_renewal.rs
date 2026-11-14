@@ -12,6 +12,11 @@
 //! with no lock and no record of the process,
 //! and the renewal stops the moment the value that started it goes,
 //! however the command ends.
+//! The first renewal is at once and never after a whole span:
+//! a tree is somebody's from the moment it is held,
+//! and a tree that arrived already old (a drawn tree carries the age of the pool member it was drawn from,
+//! a stocked one the age of the moment it was drawn) would otherwise be at the sweep's age for a whole span
+//! before its holder marked it once.
 //! `SCRATCH_REFRESH_EVERY` is a twenty-fourth of the stale age,
 //! so a sweep that runs at any moment finds a live tree at most an hour old.
 //!
@@ -57,11 +62,15 @@ pub struct ScratchRenewal {
 
 impl ScratchRenewal {
     /// What:
-    ///  Starts renewing `path` every `every`.
+    ///  Starts renewing `path` every `every`,
+    ///  the first renewal at once.
     /// Why:
     ///   A caller that cannot start a thread keeps the tree without a renewal,
     ///  which is what the wrapper did for its whole life until now;
     ///  the tree then ages out as an unrenewed one does.
+    ///  The first beat is made before the waiting and not after it,
+    ///  because a tree that arrived already old is a tree a sweep may take while its holder waits out the first span:
+    ///  the mark is the whole of what says the tree is somebody's.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -71,8 +80,13 @@ impl ScratchRenewal {
         let (stop, waited): (Sender<()>, Receiver<()>) = channel();
         let renewed: PathBuf = path.to_path_buf();
         let started = std::thread::Builder::new().name(String::from("scratch-renewal")).spawn(move || {
-            while let Err(std::sync::mpsc::RecvTimeoutError::Timeout) = waited.recv_timeout(every) {
+            loop {
                 renew(renewed.as_path());
+                match waited.recv_timeout(every) {
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                    // The value that started this renewal went, or the channel did: either way this command is done with the tree.
+                    Ok(()) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                }
             }
         });
         if let Err(error) = started {

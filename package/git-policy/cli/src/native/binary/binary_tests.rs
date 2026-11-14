@@ -772,6 +772,11 @@ mod service_scratch;
 #[path = "binary_shadow_pool_tests.rs"]
 mod shadow_pool;
 
+/// A commit handed a finished shadow that goes under it:
+/// after its own question of the tree, and after its last write into it.
+#[path = "binary_shadow_drawn_tests.rs"]
+mod shadow_drawn;
+
 /// A pooled shadow member the commit refuses:
 /// nothing on the terminal,
 /// and the refusal named in the commit's own timing record.

@@ -13,7 +13,7 @@ use crate::service_shadow_draw::DrawnShadows;
 use crate::shadow_create::{ShadowTemplate, create_shadow_template, may_be_handed_a_tree};
 use crate::shadow_pool::{fill, members, pool_root};
 use crate::shadow_pool_member::refusal;
-use crate::test_support::{fixture, git, git_context, remove, repository};
+use crate::test_support::{fixture, git, git_context, remove, repository, wait_until};
 /// The stand-in service of one control,
 /// and the protocol lines it answers.
 use crate::service_protocol::{ServiceMessage, encode_service};
@@ -252,6 +252,76 @@ fn a_tree_handed_to_a_commit_is_not_swept_for_the_age_it_carried_out_of_the_pool
     assert!(taken.handed.is_some(), "and the commit holds it, so its renewal keeps it");
     assert!(handed.join("packed-refs").exists(), "the commit's own ref store is written in that tree");
     assert!(handed.join("HEAD").exists(), "and its HEAD names the branch it commits to");
+    remove(root.as_path());
+}
+
+/// What:
+///  A tree a command holds is marked as used from the moment it holds it,
+///  not an hour later.
+/// Why:
+///  A tree arrives with somebody else's last mark on it:
+///  a drawn tree carries the moment it was drawn and then the stock's renewals,
+///  and a tree can reach a holder close to the age a sweep takes one at.
+///  The first renewal is therefore made at once,
+///  so a sweep that runs in the hour after a holder takes a tree cannot find it old
+///  (`service_scratch_renewal.rs`).
+#[test]
+fn a_held_tree_is_marked_as_used_from_the_moment_it_is_held() {
+    let root: PathBuf = fixture("shadow-drawn-held-marked");
+    let tree: PathBuf = root.join("drawn-held-old");
+    std::fs::create_dir(tree.as_path()).expect("a tree to hold");
+    age(tree.as_path(), nothing_holds_after() + Duration::from_secs(60));
+    let _held: HandedShadow = HandedShadow::hold(tree.clone());
+    assert!(
+        wait_until(&|| return !nothing_holds(tree.as_path(), SystemTime::now())),
+        "a tree is marked as used from the moment a command holds it"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A shadow that cannot be written for a reason of its own is the commit's to report:
+///  the old tree or the pool is not tried again in its place.
+/// Why:
+///  The commit falls back only when the tree it was handed went,
+///  because that is a loss of the wrapper's own cache and nothing the person did;
+///  a tree that is still there and cannot be written is a failure of the volume or of the repository,
+///  and a commit that hid it would build a tree it cannot trust either.
+#[test]
+fn a_handed_tree_that_cannot_be_written_is_the_commits_to_report() {
+    let root: PathBuf = fixture("shadow-drawn-cannot-write");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let context: GitContext = git_context();
+    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
+    // The pool's only member is the tree the draw makes, so no member stands in for the one that cannot be written.
+    let _member: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
+    let drawn: PathBuf = draw(&context, &template).expect("a draw").expect("a drawn tree");
+    // A tree every read of the claim's question may take and no write: the ref store of this commit cannot be written into it.
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(drawn.as_path(), std::fs::Permissions::from_mode(0o555)).expect("a tree no write reaches");
+    }
+    assert_eq!(refusal(&template, drawn.as_path()).expect("a check"), None, "the tree is one the commit's question accepts");
+    let socket: PathBuf = a_stand_in_a_drawn_tree("cannot-write", drawn.as_path());
+    let scratch: PathBuf = root.join("scratch");
+    std::fs::create_dir(scratch.as_path()).expect("the commit's scratch tree");
+    let shadow: PathBuf = scratch.join("shadow");
+    let mut clock: BuildPartClock = BuildPartClock::begin("test");
+    let taken: Result<crate::shadow_create::ShadowTree, crate::transaction_git::GitFailure> = crate::shadow_create::take_or_create_shadow(
+        &context,
+        repo.as_path(),
+        &capture,
+        shadow.as_path(),
+        scratch.as_path(),
+        false,
+        &mut clock,
+        &crate::service_server_socket_binding::Bind::Path(socket),
+    );
+    let Err(reported) = taken else { panic!("a tree that cannot be written must be reported, not replaced") };
+    assert!(reported.0.contains("packed-refs"), "the failure names the write that failed: {}", reported.0);
+    assert!(std::fs::symlink_metadata(drawn.as_path()).is_ok(), "the tree that could not be written is still there for the person to look at");
     remove(root.as_path());
 }
 

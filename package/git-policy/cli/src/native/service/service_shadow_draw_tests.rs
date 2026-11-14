@@ -1,15 +1,19 @@
 //! Controls for the service's stock of drawn shadows:
 //!  a tree leaves the stock with the answer that takes it,
-//!  and the draw beside the landing loop fills the stock out of the pool.
+//!  a stocked tree is kept fresh so no sweep takes it,
+//!  a stock that counts a tree that is gone draws another,
+//!  and the answer reads memory alone, never the volume.
 //! The answer's own path, and that it never waits behind a landing,
 //! is controlled where a connection is (`service_server_connection_handling_tests.rs`).
 
 use super::*;
 use crate::capture_invocation::{InvocationCapture, capture_invocation_base, capture_invocation_layout};
+use crate::ref_name::RefName;
 use crate::shadow_create::ShadowTemplate;
-use crate::shadow_drawn::drawn_root_for;
+use crate::shadow_drawn::{drawn_members, drawn_root_for};
 use crate::shadow_pool::{fill, members, pool_root_for};
-use crate::test_support::{fixture, git, git_context, repository, remove};
+use crate::shadow_pool_member::refusal;
+use crate::test_support::{fixture, git, git_context, repository, remove, wait_until};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -26,25 +30,143 @@ fn age_tree(path: &Path, back: Duration) {
     std::fs::File::open(path).expect("open").set_modified(SystemTime::now() - back).expect("set modification time");
 }
 
+/// Whether a tree is younger than the age a sweep takes one at.
+fn younger_than_the_sweep_takes_it(path: &Path) -> bool {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else { return false };
+    let Ok(modified) = metadata.modified() else { return false };
+    let Ok(age) = SystemTime::now().duration_since(modified) else { return false };
+    return age < crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER;
+}
+
+/// A request naming the worktree a template was made from,
+/// which is what the landing beside a draw names.
+fn a_request_naming(template: &ShadowTemplate) -> crate::service_protocol::CommitRequest {
+    return crate::service_protocol::CommitRequest {
+        id: String::from("a-request"),
+        repository: template.common_dir.parent().unwrap_or(Path::new("/nowhere")).to_path_buf(),
+        common_dir: template.common_dir.clone(),
+        git_dir: template.git_dir.clone(),
+        reference: RefName::from_text("refs/heads/main"),
+        base: String::new(),
+        changes: Vec::new(),
+        message: String::from("a commit\n"),
+        author: None,
+        committer: String::from("Fixture <fixture@example.invalid> 1793535889 +0000"),
+        amend: false,
+        tree: None,
+        commit: None,
+        cleanup: None,
+        index: template.git_dir.join("index"),
+        scratch: template.git_dir.join("monochromatic-git-policy-cli-service-a-0"),
+        shadow: None,
+        captured: 0,
+        holder: String::new(),
+    };
+}
+
 /// What:
-///  A tree leaves the stock marked as used now.
+///  A tree that stands in the stock while the repository is idle is marked as used while it waits,
+///  so no sweep takes it and the commit it was drawn for is handed a tree that is there.
 /// Why:
-///  A drawn tree carries the pool member's modification time out of the one `rename` that drew it,
-///  and the commit's own renewal beats for the first time an hour after it holds the tree,
-///  so an answer that marked nothing would hand a commit a tree the next sweep of the repository removes,
-///  before that commit writes anything into it (`shadow_drawn.rs`, `nothing_holds`).
+///  A drawn tree is standing state until a commit takes it, as a pool member is until one claims it;
+///  the stock is memory only, so its entry has to keep the tree fresh in the only language the sweep speaks.
+///  Without that, a repository idle longer than the bound leaves a tree the next sweep removes,
+///  and the stock still counts it: the landing draws nothing in its place and the commit is answered a path that is gone.
 #[test]
-fn a_tree_leaves_the_stock_marked_as_used_now() {
-    let root: PathBuf = fixture("shadow-draw-marked");
-    let first: PathBuf = a_tree(root.as_path(), "drawn-00000000000000000000000000000002");
-    // The tree stood in the drawn folder as long as a member older than the sweep's bound would have.
-    age_tree(first.as_path(), crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
-    let aged: SystemTime = std::fs::symlink_metadata(first.as_path()).expect("metadata").modified().expect("a time");
+fn a_stocked_tree_is_kept_fresh_so_no_sweep_takes_it() {
+    let root: PathBuf = fixture("shadow-draw-stocked-fresh");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+    git(repo.as_path(), &["add", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
+    let context: GitContext = git_context();
+    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
+    let _member: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
+    let drawn: PathBuf = crate::shadow_drawn::draw(&context, &template).expect("a draw").expect("a drawn tree");
     let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
-    stock.note_ready(first.clone());
-    let handed: PathBuf = stock.hand_out().expect("the tree is handed out");
-    let marked: SystemTime = std::fs::symlink_metadata(handed.as_path()).expect("metadata").modified().expect("a time");
-    assert!(marked > aged, "the answer marked the tree it handed over as used now");
+    stock.note_ready(drawn.clone());
+    // The repository stood idle longer than a sweep takes a tree at, with the tree waiting in the stock.
+    age_tree(drawn.as_path(), crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
+    assert!(wait_until(&|| return younger_than_the_sweep_takes_it(drawn.as_path())), "a stocked tree is marked as used while it waits");
+    let swept: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn(template.common_dir.as_path(), SystemTime::now());
+    assert!(swept.is_empty(), "a stocked tree must not be removed by the sweep: {swept:?}");
+    let handed: PathBuf = stock.hand_out().expect("the stock answers with the tree it kept");
+    assert_eq!(handed, drawn, "and the tree it answers with is the one that was kept");
+    assert!(handed.exists(), "which is still there for the commit");
+    assert_eq!(refusal(&template, handed.as_path()).expect("a check"), None, "and is still what a claim accepts");
+    remove(root.as_path());
+}
+
+/// What:
+///  A stock that counts a tree the drawn folder no longer holds draws another one,
+///  so the commit the landing drew for is not answered a path that is gone.
+/// Why:
+///  The stock is memory only and the drawn folder is on the volume, where another program can take a tree;
+///  a landing that counted a gone tree would leave the stock as it is and answer the next commit with nothing there.
+#[test]
+fn a_stock_that_counts_a_tree_that_is_gone_draws_another() {
+    let root: PathBuf = fixture("shadow-draw-stock-gone");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+    git(repo.as_path(), &["add", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
+    let context: GitContext = git_context();
+    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
+    // The draw this control waits for moves a pool member, so the fill makes one.
+    let _member: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
+    let folder: PathBuf = drawn_root_for(template.common_dir.as_path(), template.git_dir.as_path());
+    let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
+    // A tree the service counted and the drawn folder no longer holds, as another program's removal leaves it.
+    let gone: PathBuf = a_tree(folder.as_path(), "drawn-00000000000000000000000000000007");
+    stock.note_ready(gone.clone());
+    std::fs::remove_dir_all(gone.as_path()).expect("the counted tree goes");
+    // The landing that follows asks for the next commit's tree.
+    start(&context, &a_request_naming(&template), &stock);
+    assert!(
+        wait_until(&|| return !drawn_members(folder.as_path()).is_empty()),
+        "a stock that counts a tree that is gone must draw another one"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit's question is answered from memory alone,
+///  even when the tree the stock holds answers no open at all.
+/// Why:
+///  The answer is written on the connection's own task,
+///  and a call on the volume there is the wait the draw-ahead exists to take off a commit
+///  (`service_server_connection_handling.rs`,
+///  `answer_the_shadow_question`).
+///  A named pipe is the one entry whose plain open waits for a writer that may never come,
+///  so an answer that touched the tree would never be written.
+#[test]
+fn the_answer_reads_memory_and_never_touches_the_tree() {
+    let root: PathBuf = fixture("shadow-draw-answer-memory");
+    let tree: PathBuf = root.join("drawn-00000000000000000000000000000003");
+    {
+        // The bytes of a pathname, for the C interface.
+        use std::os::unix::ffi::OsStrExt as _;
+        let named: std::ffi::CString = std::ffi::CString::new(tree.as_os_str().as_bytes()).expect("a fixture path holds no NUL byte");
+        // SAFETY: the string is NUL-terminated and outlives the call, and the name is a fresh path in the fixture.
+        let made: libc::c_int = unsafe { libc::mkfifo(named.as_ptr(), 0o600) };
+        assert_eq!(made, 0, "make a named pipe at {}: {}", tree.display(), std::io::Error::last_os_error());
+    }
+    let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
+    stock.note_ready(tree.clone());
+    // The answer is taken on a thread of its own, so an answer that never comes fails this control instead of holding it.
+    let (sent, heard): (std::sync::mpsc::Sender<Option<PathBuf>>, std::sync::mpsc::Receiver<Option<PathBuf>>) = std::sync::mpsc::channel();
+    let asked: Arc<DrawnShadows> = Arc::clone(&stock);
+    let _answering = std::thread::spawn(move || {
+        let _sent: std::result::Result<(), std::sync::mpsc::SendError<Option<PathBuf>>> = sent.send(asked.hand_out());
+    });
+    let answered: Option<PathBuf> = heard.recv_timeout(Duration::from_secs(30)).expect("the answer to a commit's question must not wait on the volume");
+    assert_eq!(answered, Some(tree.clone()), "the stock answers with the tree it holds, from memory");
+    // Release the renewal that waited in its own open, so the tree of this control outlives nothing.
+    let _released = std::fs::OpenOptions::new().write(true).open(tree.as_path());
     remove(root.as_path());
 }
 

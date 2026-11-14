@@ -17,7 +17,9 @@
 //!  A tree in use is a fresh drawn tree and an abandoned one is a stale one,
 //!  which is the rule a commit's scratch tree already has (`service_scratch_abandonment.rs`):
 //!  the command that holds a tree renews it while it lives,
-//!  so no lock is written and none can be left held.
+//!  the service renews a tree while it waits in its stock,
+//!  so no lock is written and none can be left held,
+//!  and no tree anybody needs is ever at the age the sweep takes one at.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -239,6 +241,26 @@ fn note_refusal(drawn: &Path, reason: &str) {
 }
 
 /// What:
+///  Whether the tree the service handed this commit is still there for it to write into.
+/// Why:
+///   A commit that loses the tree it was handed between the question it asks of it and the first write into it
+///  is not a failure of the commit:
+///  the tree is the wrapper's own cache,
+///  and the commit takes the pool's member or makes its own instead
+///  (`SPEC.md`,
+///  "Merges and commits never fail").
+///  The question is asked only after a write failed,
+///  so the path of a commit that works pays nothing for it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stillThere = (tree) => lstatSync(tree, { throwIfNoEntry: false })?.isDirectory() ?? false;
+/// ```
+pub fn drawn_tree_is_still_there(tree: &Path) -> bool {
+    return std::fs::symlink_metadata(tree).is_ok_and(|metadata| { return metadata.is_dir(); });
+}
+
+/// What:
 ///  Removes every drawn tree of every worktree that nothing has renewed,
 ///  and a worktree's folder once nothing is in it.
 /// Why:
@@ -250,14 +272,13 @@ fn note_refusal(drawn: &Path, reason: &str) {
 ///  The age is the scratch tree's own (`SCRATCH_TREE_ABANDONED_AFTER`),
 ///  because a drawn tree is held exactly as long as the tree a commit would have made in its scratch:
 ///  a commit that runs for two hours is the bound both rules are written against.
-///  The tree is marked as used when it is drawn and again when it is handed out
-///  (`draw`,
-///  `service_shadow_draw.rs`,
-///  `hand_out`),
-///  and the command that holds it renews it every `SCRATCH_REFRESH_EVERY`,
-///  which is half this bound:
-///  so a tree that is somebody's is never this old,
-///  and a tree that stopped being anybody's goes a bound after its last mark.
+///  The tree is marked as used when it is drawn,
+///  every `SCRATCH_REFRESH_EVERY` by the renewal that travels with the stock entry while it waits
+///  (`service_shadow_draw.rs`,
+///  `note_ready`),
+///  and every `SCRATCH_REFRESH_EVERY` by the command that holds it once it is handed over (`HandedShadow`).
+///  Both marks are the half of this bound, so a tree is never more than half-way to it while anybody holds it,
+///  and a tree nothing holds goes a bound after its last mark.
 ///  Nothing else reaches a drawn tree:
 ///  no sweep of the repository scratch directory,
 ///  and no pool removal.
@@ -329,8 +350,9 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
 ///  Whether a drawn tree has gone longer than any commit holds one without being renewed.
 /// Why:
 ///   This is the whole of the question a tree in use is told from an abandoned one by:
-///  a tree is marked as used when it is drawn and when it is handed out,
-///  a command renews what it holds,
+///  a tree is marked as used when it is drawn,
+///  while it waits in the service's stock,
+///  and while the command that was handed it runs,
 ///  and a command that stopped renews nothing,
 ///  so the answer needs no lock,
 ///  no process and no record.
@@ -372,6 +394,9 @@ fn nothing_holds_after() -> Duration {
 ///  and a killed client cannot be asked:
 ///  the renewal is what says a command still runs,
 ///  with no lock and no record of a process (`service_scratch_renewal.rs`).
+///  The renewal beats at once and then every `SCRATCH_REFRESH_EVERY`,
+///  so the tree is marked as used from the moment this value holds it,
+///  which is why the answer itself makes no call on the volume.
 ///  A commit that is answered as not landed, or whose request the service never took,
 ///  removes the tree itself in the background,
 ///  as it removes a scratch tree the service handed back,
@@ -399,11 +424,15 @@ pub struct HandedShadow {
 impl HandedShadow {
     /// What:
     ///  Takes hold of a tree the service handed out,
-    ///  and starts renewing it.
+    ///  and starts renewing it,
+    ///  the first renewal at once.
     /// Why:
     ///   The renewal ends with this value however the command ends,
     ///  and a process killed at any instruction stops renewing at that moment,
     ///  which is the whole of what the sweep needs to tell a live tree from an abandoned one.
+    ///  The first beat is at once, so the tree is marked as used from this call and not from an hour later:
+    ///  a tree that was drawn and waited in the stock arrives with the stock's last mark on it,
+    ///  and the service makes no call on the volume when it answers.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts

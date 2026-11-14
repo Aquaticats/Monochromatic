@@ -112,11 +112,18 @@ pub enum Phase {
     ///   A tree the service removes under that read is the one race of the retry,
     /// so a control needs the instant between the answer and the read.
     ServiceSentBack,
+    /// A commit was handed a finished shadow, its own question of that tree named nothing to refuse,
+    /// and it has not yet written into it.
+    /// Why:
+    ///   A tree that goes between the question and the first write decides whether the commit lands in it or in a tree
+    ///  of its own, and nothing else in a commit can be held at that instant (`shadow_create.rs`,
+    ///  `take_or_create_shadow`).
+    ShadowHanded,
 }
 
 /// Every phase in the order a command reaches them,
 /// which the refusal message lists.
-pub const TRANSACTION_TEST_PHASES: [Phase; 13] = [
+pub const TRANSACTION_TEST_PHASES: [Phase; 14] = [
     Phase::MergeCarried,
     Phase::MergeIntent,
     Phase::MergeClearIndex,
@@ -127,6 +134,7 @@ pub const TRANSACTION_TEST_PHASES: [Phase; 13] = [
     Phase::MergeCarryFile,
     Phase::MergeCarriedBack,
     Phase::ServiceStaged,
+    Phase::ShadowHanded,
     Phase::ServicePrepared,
     Phase::ServiceSentBack,
     Phase::KeptReferencesListed,
@@ -155,6 +163,7 @@ impl Phase {
             Phase::MergeCarriedBack => return "merge-carried-back",
             Phase::MergeApplied => return "merge-applied",
             Phase::ServiceStaged => return "service-staged",
+            Phase::ShadowHanded => return "shadow-handed",
             Phase::ServicePrepared => return "service-prepared",
             Phase::ServiceSentBack => return "service-sent-back",
             Phase::KeptReferencesListed => return "kept-references-listed",
