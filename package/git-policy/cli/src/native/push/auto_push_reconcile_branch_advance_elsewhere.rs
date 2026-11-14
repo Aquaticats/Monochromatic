@@ -26,8 +26,8 @@ use crate::auto_push_single_flight::{
 use crate::auto_push_dirty_paths::{diff_paths, listed, overlapping_paths, status_paths};
 /// The here-path's move, the answers a move gives, and the words of a refusal.
 use crate::auto_push_reconcile_branch_advance::{
-    Advanced, BRANCH_MOVED, SHIPPED_MOVE, advance_local_branch_awaiting, advice_to_move, fast_forward_recorded,
-    status_differs,
+    Advanced, BRANCH_MOVED, Checkout, Moved, SHIPPED_MOVE, advance_local_branch_awaiting, advice_to_move,
+    fast_forward_recorded, status_differs,
 };
 /// Which worktree holds the branch, whether it is this one, and how to run Git in it.
 use crate::auto_push_reconcile_branch_worktree::{git_at, is_this_worktree, live_holder_awaiting};
@@ -116,12 +116,15 @@ async fn advance_in_another_worktree(
             });
         }
     }
-    if let Err(reason) = fast_forward_recorded(there, branch_ref, local, merge_oid, &SHIPPED_MOVE).await? {
-        return Ok(Advanced::Not {
-            reason,
-            advice: advice_to_move(merge_oid, where_to.as_str()),
-        });
-    }
+    let checkout: Checkout = match fast_forward_recorded(there, branch_ref, local, merge_oid, &SHIPPED_MOVE).await? {
+        Ok(checkout) => checkout,
+        Err(reason) => {
+            return Ok(Advanced::Not {
+                reason,
+                advice: advice_to_move(merge_oid, where_to.as_str()),
+            });
+        }
+    };
     if kept {
         // That worktree's uncommitted work must read exactly as it did; the move is done, so a difference is reported.
         let after = run_query_awaiting(there, &status_arguments).await?;
@@ -132,10 +135,32 @@ async fn advance_in_another_worktree(
             );
         }
     }
-    return Ok(Advanced::Elsewhere {
-        worktree: place.to_path_buf(),
-        kept,
-    });
+    return Ok(answered_about(place, checkout, kept));
+}
+
+/// What:
+///  The report's answer for a move made in another worktree,
+/// from what became of that worktree's checkout.
+/// Why:
+///   A switch of that session's can land between the write of its files and the write of the branch,
+/// and then the worktree shows the branch it chose rather than the merge:
+///  the report says which, and whether anything of the merge is still there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = answeredAbout(place, checkout, kept);
+/// ```
+fn answered_about(place: &Path, checkout: Checkout, kept: bool) -> Advanced {
+    return match checkout {
+        Checkout::Followed => Advanced::Elsewhere { worktree: place.to_path_buf(), kept },
+        Checkout::WentTo { shows } => Advanced::WorktreeWentTo { worktree: place.to_path_buf(), shows },
+        Checkout::Holding { shows, paths, reason } => Advanced::WorktreeHolding {
+            worktree: place.to_path_buf(),
+            shows,
+            paths,
+            reason,
+        },
+    };
 }
 
 /// What:
@@ -182,7 +207,8 @@ pub(crate) async fn advance_pushed_branch_awaiting(
     };
     if is_this_worktree(git, place.as_path()).await? {
         return match advance_local_branch_awaiting(git, branch_ref, local, merge_oid).await? {
-            Ok(kept) => Ok(Advanced::Here { kept }),
+            Ok(Moved { checkout: Checkout::Followed, kept }) => Ok(Advanced::Here { kept }),
+            Ok(Moved { checkout, kept }) => Ok(answered_about(place.as_path(), checkout, kept)),
             Err(reason) => Ok(Advanced::Not {
                 reason,
                 advice: advice_to_move(merge_oid, "in this worktree"),

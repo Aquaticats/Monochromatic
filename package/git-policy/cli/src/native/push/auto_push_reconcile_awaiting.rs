@@ -128,6 +128,46 @@ fn followed_sentence(advanced: &Advanced, branch: &str) -> String {
             debug(TAG, &format!("{branch} was not fast-forwarded: {reason}"));
             format!("and {branch} is not at it: {reason}; {advice}")
         }
+        Advanced::WorktreeWentTo { worktree, shows } => {
+            let there: String = shows_here(shows);
+            format!(
+                "and {branch} is now at it; the worktree at {} checked {there} out while the branch moved, so that worktree shows {there} and nothing of the merge",
+                worktree.display()
+            )
+        }
+        Advanced::WorktreeHolding { worktree, shows, paths, reason } => {
+            let there: String = shows_here(shows);
+            if paths.is_empty() {
+                format!(
+                    "and {branch} is now at it; the worktree at {} could not be put right: {reason}",
+                    worktree.display()
+                )
+            } else {
+                format!(
+                    "and {branch} is now at it; the worktree at {}, which shows {there}, still holds the merge's changes to {} ({reason}), so a commit there would publish them",
+                    worktree.display(),
+                    crate::auto_push_dirty_paths::listed(paths)
+                )
+            }
+        }
+    };
+}
+
+/// What:
+///  The words for the branch a checkout shows,
+/// or for a detached commit.
+/// Why:
+///   A worktree can show a commit rather than a branch,
+/// and the report must not print nothing where a name belongs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const showsHere = (shows?: string) => shows === undefined ? 'a detached commit' : shows.replace(/^refs\/heads\//, '');
+/// ```
+fn shows_here(shows: &Option<String>) -> String {
+    return match shows {
+        Some(named) => named.strip_prefix("refs/heads/").unwrap_or(named).to_owned(),
+        None => String::from("a detached commit"),
     };
 }
 

@@ -35,6 +35,24 @@ use crate::random_id::random_uuid;
 use crate::transaction_git::GitContext;
 use crate::transaction_owner::current_transaction_owner;
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
+/// What a move's checkout came to, and the step that makes a checkout agree with its own branch.
+pub(crate) use crate::auto_push_reconcile_branch_checkout::Checkout;
+use crate::auto_push_reconcile_branch_checkout::{bring_the_checkout_to_its_branch_awaiting, the_checkout_after_the_move_awaiting};
+
+/// What:
+///  What a move of the branch came to.
+/// Why:
+///   The caller words one report line,
+/// and it needs both facts a move settles:
+/// what became of the checkout it wrote,
+///  and whether the person's uncommitted work was left exactly as it was.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct Moved {
+    /// What became of the checkout the move wrote.
+    pub(crate) checkout: Checkout,
+    /// Whether uncommitted work of the person's was left as it was.
+    pub(crate) kept: bool,
+}
 /// What:
 ///  Whether the status read after a fast-forward differs from the one read before it.
 ///  `&[u8]` borrows Git's output.
@@ -69,14 +87,15 @@ pub(crate) fn status_differs(before: &[u8], after: &[u8]) -> bool {
 /// ```
 pub(crate) trait BranchMove: Send + Sync {
     /// Bring the checkout and the named branch to the merge,
-    /// and answer why not when Git refused it.
+    /// answer why not when Git refused it,
+    /// and answer what became of the checkout when it did not.
     fn move_branch<'a>(
         &'a self,
         git: &'a PushGit,
         branch_ref: &'a str,
         local: &'a str,
         merge_oid: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<Result<(), String>, SingleFlightError>> + Send + 'a>>;
+    ) -> Pin<Box<dyn Future<Output = Result<Result<Checkout, String>, SingleFlightError>> + Send + 'a>>;
 }
 
 /// The step the shipped reconcile moves with.
@@ -89,7 +108,7 @@ impl BranchMove for MoveTheNamedBranch {
         branch_ref: &'a str,
         local: &'a str,
         merge_oid: &'a str,
-    ) -> Pin<Box<dyn Future<Output = Result<Result<(), String>, SingleFlightError>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = Result<Result<Checkout, String>, SingleFlightError>> + Send + 'a>> {
         return move_the_named_branch(git, branch_ref, local, merge_oid);
     }
 }
@@ -161,30 +180,10 @@ fn play_between_look_and_write() {
 }
 
 /// What:
-///  The tree `revision` names,
-/// or nothing when it names none.
-/// Why:
-///   Putting the merge's files back must name the tree of the commit the checkout shows,
-/// not a branch tip that
-///  may hold the merge already,
-/// and a revision that names no commit is said rather than guessed at.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const tree = await git.revParseQuiet(`${revision}^{tree}`); return tree === undefined ? undefined : tree.trim();
-/// ```
-async fn tree_of(git: &PushGit, revision: &str) -> Result<Option<String>, SingleFlightError> {
-    let asked = run_query_awaiting(git, &argv(&["rev-parse", "--verify", format!("{revision}^{{tree}}").as_str()])).await?;
-    if asked.code != Some(0) {
-        return Ok(None);
-    }
-    return Ok(Some(String::from_utf8_lossy(&asked.stdout).trim().to_owned()));
-}
-
-/// What:
 ///  Bring this worktree's index and files to the merge,
 /// then move the branch this command checked,
-/// and only that branch.
+/// and only that branch,
+/// and answer what became of the checkout.
 /// Why:
 ///   `git merge --ff-only <merge>` moves the branch `HEAD` names at the instant it runs,
 /// so an ordinary `git switch` that finishes in the window between the check of the branch and the merge
@@ -193,21 +192,27 @@ async fn tree_of(git: &PushGit, revision: &str) -> Result<Option<String>, Single
 /// the two-way update of the index and the worktree,
 /// which is what Git's own fast-forward of a checkout does,
 /// leaves the worktree holding the merge's files while the branch still holds the old tip,
-/// and a `git switch` over that refuses;
-/// the branch then moves by compare-and-swap against the tip this command checked,
+/// and the branch moves by compare-and-swap against the tip this command checked,
 /// so a branch that moved meanwhile is refused instead of overwritten.
-///   The checkout is written only while this worktree still shows the branch that was checked:
-/// a `git switch` that
-///  finished first leaves another branch's files alone and the branch below moves without it,
-/// and one that finished inside the
-///  write gets its files put back,
+///   The checkout is written only while this worktree still shows the branch that was checked,
+/// and a switch that landed inside the write has the merge's paths put back onto the branch it shows,
+///  which is what `auto_push_reconcile_branch_checkout.rs` asks and writes,
 /// because the commit a worktree shows is not this command's to rewrite.
+///   A switch can also land in the instant between the last look at the checkout and the write of the reference,
+/// and a switch onto a branch whose tree matches the old tip on the merge's paths does not refuse:
+/// it carries the merge's content over as a staged change,
+///  (a review of commit `b0c133f42b`, its finding:
+/// the comment here said such a switch refuses, and it does not).
+/// So the checkout is looked at once more after the reference moved,
+/// and the tree of the branch it shows is written over the paths this move wrote:
+///  the merge's for the pushed branch, and that branch's own content for any other.
+/// The answer says which of those it found.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await git.readTreeUpdateIndex(['-u','-m',local,mergeOid]); await git.updateRef(['-m',message,branchRef,mergeOid,local]);
+/// await git.readTreeUpdateIndex(['-u','-m',local,mergeOid]); await git.updateRef(['-m',message,branchRef,mergeOid,local]); await theCheckoutAfterTheMove();
 /// ```
-pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, local: &'a str, merge_oid: &'a str) -> Pin<Box<dyn Future<Output = Result<Result<(), String>, SingleFlightError>> + Send + 'a>> {
+pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, local: &'a str, merge_oid: &'a str) -> Pin<Box<dyn Future<Output = Result<Result<Checkout, String>, SingleFlightError>> + Send + 'a>> {
     return Box::pin(async move {
         // The branch tip must be the merge's ancestor: `read-tree` moves between any two trees, and `update-ref` moves a branch
         //  to any commit, so this is the check `--ff-only` made for the move.
@@ -235,39 +240,35 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
             }
             // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
             record_streams(&["read-tree", "-u", "-m", local, merge_oid], &checked_out.stdout, &checked_out.stderr);
-            // The question again, after the write: a `git switch` that landed inside it was given the merge's files, and they go
-            //  back before the branch moves below. They go back to the tree this fast-forward started from, never to the checkout's
-            //  whole tree: `read-tree -u -m` changes only the paths where the merge and that tree differ, which are exactly the paths
-            //  this command wrote, so a staged edit of the person's on any other path is left alone.
+            // What: a switch that landed inside the write is given the merge's files, and they go back onto the branch it shows.
+            // Why: the reference has not moved yet, so a refusal here leaves the branch where it was and the checkout as the switch
+            //      left it, and the report says the branch is not at the merge.
             if !still_on_the_branch(git, branch_ref, local).await? {
-                let merged: Option<String> = tree_of(git, merge_oid).await?;
-                let shown_here: Option<String> = tree_of(git, "HEAD").await?;
-                if merged.is_some() && merged == shown_here {
-                    // The checkout already shows the merge's tree: nothing of this fast-forward is in it.
-                    debug(TAG, "the branch checked out here already holds the merge's tree, so the fast-forward has nothing to put back");
-                } else {
-                    let put_back = run_query_awaiting(git, &argv(&["read-tree", "-u", "-m", merge_oid, local])).await?;
-                    if put_back.code != Some(0) {
+                match bring_the_checkout_to_its_branch_awaiting(git, local, merge_oid).await? {
+                    Ok(None) => {}
+                    Ok(Some(paths)) => {
                         return Ok(Err(format!(
-                            "another command checked out another branch while this fast-forward wrote its files, and putting them back failed: {}",
-                            refusal_of(&put_back.stderr)
+                            "another command checked out another branch while this fast-forward wrote its files, and the merge's changes to {} are still in that checkout and were left as they are",
+                            listed(&paths)
                         )));
                     }
-                    record_streams(&["read-tree", "-u", "-m", merge_oid, local], &put_back.stdout, &put_back.stderr);
-                    warn(
-                        TAG,
-                        "another command checked out another branch while the fast-forward wrote its files; the merge's own paths were put back to the tree it started from and only the branch moved",
-                    );
+                    Err(reason) => return Ok(Err(reason)),
                 }
             }
         }
+        #[cfg(test)]
+        crate::auto_push_reconcile_branch_checkout::play_before_the_branch_moves();
         let message: String = format!("merge: fast-forward {branch_ref} to the published reconcile merge");
         let moved = run_query_awaiting(git, &argv(&["update-ref", "-m", message.as_str(), branch_ref, merge_oid, local])).await?;
         if moved.code != Some(0) {
             return Ok(Err(refusal_of(&moved.stderr)));
         }
         record_streams(&["update-ref", branch_ref, merge_oid, local], &moved.stdout, &moved.stderr);
-        return Ok(Ok(()));
+        // What: the checkout is looked at once more, now that the branch is at the merge, and made to agree with its own branch.
+        // Why: a switch can land in the instant between the last look and this write, and it carries the merge's content onto the
+        //      branch it goes to instead of refusing (a review of commit `b0c133f42b`, its finding). No lock is taken: the
+        //      reference's compare-and-swap has decided who moves the branch, and Git's index lock serialises the write below.
+        return Ok(Ok(the_checkout_after_the_move_awaiting(git, branch_ref, local, merge_oid).await?));
     });
 }
 
@@ -295,7 +296,7 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
 /// ```ts
 /// const refusal = await fastForwardRecorded({ git, branchRef, local, mergeOid }); // undefined when it moved
 /// ```
-pub(crate) async fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str, move_branch: &dyn BranchMove) -> Result<Result<(), String>, SingleFlightError> {
+pub(crate) async fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str, move_branch: &dyn BranchMove) -> Result<Result<Checkout, String>, SingleFlightError> {
     let git_dir: Option<PathBuf> = {
         let named = run_query_awaiting(git, &argv(&["rev-parse", "--absolute-git-dir"])).await?;
         // Git prints the directory's bytes and ends them with one line break that belongs to no path, so the record is
@@ -307,16 +308,16 @@ pub(crate) async fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local
     if let Some(dir) = git_dir.as_deref() {
         recorded = record_merge_intent(dir, git, branch_ref, local, merge_oid);
     }
-    let moved: Result<(), String> = move_branch.move_branch(git, branch_ref, local, merge_oid).await?;
+    let moved: Result<Checkout, String> = move_branch.move_branch(git, branch_ref, local, merge_oid).await?;
     let Some((record, intent)) = recorded else {
         // Without a record the fast-forward runs as it always did, and Git's refusal is the reason.
         return Ok(moved);
     };
-    if moved.is_ok() {
+    if let Ok(checkout) = &moved {
         if let Err(error) = remove_merge_intent(record.as_path()) {
             debug(TAG, &format!("the merge record could not be removed: {error}"));
         }
-        return Ok(Ok(()));
+        return Ok(Ok(checkout.clone()));
     }
     let refusal: String = moved.err().unwrap_or_default();
     let place: RecoveryPlace = RecoveryPlace {
@@ -328,7 +329,9 @@ pub(crate) async fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local
     // The settle reads Git, so it is the awaited face: a task can start no child through the synchronous one,
     //  which registers its step's pipes by entering the runtime.
     return Ok(match settle_failed_merge_awaiting(&place, record.as_path(), &intent, &mut std::io::stderr()).await {
-        Ok(MergeRecoveryAction::Completed) => Ok(()),
+        // The recovery finished the merge it was recorded for, and it installs the merge's tree together with the person's
+        //  work, so the checkout shows the branch it is on.
+        Ok(MergeRecoveryAction::Completed) => Ok(Checkout::Followed),
         Ok(_) => Err(refusal),
         Err(error) => Err(format!("{refusal} ({})", error.error.0)),
     });
@@ -388,7 +391,7 @@ pub(crate) fn advance_local_branch(
     branch_ref: &str,
     local: &str,
     merge_oid: &str,
-) -> Result<Result<bool, String>, SingleFlightError> {
+) -> Result<Result<Moved, String>, SingleFlightError> {
     return match crate::lazy_runtime::run_on_runtime(advance_local_branch_awaiting(git, branch_ref, local, merge_oid)) {
         Ok(moved) => moved,
         Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
@@ -414,7 +417,7 @@ pub(crate) async fn advance_local_branch_awaiting(
     branch_ref: &str,
     local: &str,
     merge_oid: &str,
-) -> Result<Result<bool, String>, SingleFlightError> {
+) -> Result<Result<Moved, String>, SingleFlightError> {
     return advance_local_branch_moving(git, branch_ref, local, merge_oid, &SHIPPED_MOVE).await;
 }
 
@@ -426,7 +429,7 @@ pub(crate) async fn advance_local_branch_moving(
     local: &str,
     merge_oid: &str,
     move_branch: &dyn BranchMove,
-) -> Result<Result<bool, String>, SingleFlightError> {
+) -> Result<Result<Moved, String>, SingleFlightError> {
     let checked_out = run_query_awaiting(git, &argv(&["symbolic-ref", "--quiet", "HEAD"])).await?;
     if checked_out.code != Some(0) {
         return Ok(Err(String::from("HEAD is detached")));
@@ -472,10 +475,11 @@ pub(crate) async fn advance_local_branch_moving(
             )));
         }
     }
-    if let Err(reason) = fast_forward_recorded(git, branch_ref, local, merge_oid, move_branch).await? {
-        return Ok(Err(reason));
-    }
-    if kept {
+    let checkout: Checkout = match fast_forward_recorded(git, branch_ref, local, merge_oid, move_branch).await? {
+        Ok(checkout) => checkout,
+        Err(reason) => return Ok(Err(reason)),
+    };
+    if kept && checkout == Checkout::Followed {
         // The uncommitted work must read exactly as it did; the move is already done, so a difference is reported.
         let after = run_query_awaiting(git, &status_arguments).await?;
         if status_differs(&status.stdout, &after.stdout) {
@@ -485,7 +489,7 @@ pub(crate) async fn advance_local_branch_moving(
             );
         }
     }
-    return Ok(Ok(kept));
+    return Ok(Ok(Moved { checkout, kept }));
 }
 
 /// What:
@@ -528,6 +532,26 @@ pub(crate) enum Advanced {
         reason: String,
         /// What moves it there once nothing is in the way.
         advice: String,
+    },
+    /// The branch is at the merge, and the worktree that had it checked out checked another branch out while the move ran,
+    /// so that worktree shows that branch and holds nothing of the merge.
+    WorktreeWentTo {
+        /// The worktree that had the branch checked out.
+        worktree: PathBuf,
+        /// The branch, or the detached commit, that worktree shows instead.
+        shows: Option<String>,
+    },
+    /// The same, and something of the merge is still in that worktree.
+    WorktreeHolding {
+        /// The worktree that had the branch checked out.
+        worktree: PathBuf,
+        /// The branch, or the detached commit, that worktree shows.
+        shows: Option<String>,
+        /// The paths of the merge that are still there,
+        /// empty when the checkout could not be read.
+        paths: Vec<Vec<u8>>,
+        /// Why they are still there.
+        reason: String,
     },
 }
 

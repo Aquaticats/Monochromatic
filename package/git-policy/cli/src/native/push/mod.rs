@@ -183,6 +183,10 @@ pub mod auto_push_reconcile_merge_commit;
 /// and the answers a move gives the report.
 pub mod auto_push_reconcile_branch_advance;
 
+/// What became of the worktree's checkout a move wrote,
+/// and the step that makes a checkout agree with the branch it shows.
+pub mod auto_push_reconcile_branch_checkout;
+
 /// Which worktree holds the branch a push sent,
 /// whether it is this one,
 /// and a Git context that runs in it.
