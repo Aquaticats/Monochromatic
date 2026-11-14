@@ -56,6 +56,15 @@ const PATHS: [&[&str]; 6] = [
     &["--pathspec-from-file=paths.txt", "--pathspec-file-nul"],
 ];
 
+/// The command lines whose `--` is an option's value rather than the separator,
+///  which is the shape that once made the question a real commit.
+const SEPARATORS_AS_VALUES: [&[&str]; 4] = [
+    &["-m", "--", "-i"],
+    &["-m", "--", "--", "a.txt"],
+    &["-F", "--", "-i"],
+    &["--pathspec-from-file", "--", "-a"],
+];
+
 /// One generated command line:
 /// the person's options,
 /// after `commit`.
@@ -76,6 +85,11 @@ fn every_line() -> Vec<Vec<String>> {
                 lines.push(line);
             }
         }
+    }
+    // A `--` that is an option's value is the separator to nothing but a reading that skips values, and a question that
+    //  placed its own option before that token made a commit instead of asking one.
+    for separator_as_value in SEPARATORS_AS_VALUES {
+        lines.push(separator_as_value.iter().map(|token| { return (*token).to_owned(); }).collect());
     }
     return lines;
 }
