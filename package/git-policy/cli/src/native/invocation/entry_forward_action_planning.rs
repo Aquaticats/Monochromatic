@@ -29,6 +29,7 @@ use crate::policy_checks::ShippedChecks;
 use crate::repository_facts::{GitFacts, RepositoryFacts};
 use crate::worktree_add_plan::{AddPlan, add_is_quiet, copy_start_directory, parse_add_plan, parse_copy_destination, start_directory};
 use crate::worktree_remove_plan::{RemovePlan, parse_remove_plan};
+use crate::worktree_removal_typed_git_work::TypedRemoval;
 use crate::worktree_copy_forward::{CopyFacts, copy_applies_with};
 /// What:
 ///  `OsString` is owned operating-system text of raw OS bytes (sibling `String`
@@ -78,7 +79,8 @@ pub(crate) fn forward_action(
     let command: ResolvedCommand = resolve_forwarded_command(&context, environment, arguments.as_slice());
     // An alias value may carry its own `-c` options, and Git applies those after any option put before the alias word,
     //  so the real Git gets the expansion the wrapper already resolved: the hooks-off options then follow the alias's own.
-    let forwarded_arguments: Vec<OsString> = match command.route {
+    // `mut` because this program writes one word of it below, where the answer names one worktree.
+    let mut forwarded_arguments: Vec<OsString> = match command.route {
         Route::Alias => command.arguments.clone(),
         Route::Direct | Route::ShellAlias | Route::Unresolved => arguments,
     };
@@ -87,9 +89,19 @@ pub(crate) fn forward_action(
     // any route added later all pass this point, and only a forced removal or the guard's own opt-out stands the
     // question down (`worktree_removal_typed_git_work.rs`). Without this, a flag that skips another step skipped the
     // guard with it (a review of `bab700404d`, finding 1).
-    if let Some(refusal) = crate::worktree_removal_typed_git_work::refusal_for_a_typed_removal(&command, removal_escaped, checks) {
-        return Action::Exit { code: REJECTED_EXIT_CODE, stdout: String::new(), stderr: refusal };
-    }
+    // The answer that names one worktree also writes that worktree's own path where the operand stood, so the worktree
+    // this program judged and the worktree real Git removes are one path rather than two resolutions that ought to
+    // agree (a review of `e615fb599b`, finding 1).
+    let picked: Option<PathBuf> = match crate::worktree_removal_typed_git_work::typed_removal(&command, removal_escaped, checks) {
+        TypedRemoval::Refused(words) => return Action::Exit { code: REJECTED_EXIT_CODE, stdout: String::new(), stderr: words },
+        TypedRemoval::AsWritten { picked } => picked,
+        TypedRemoval::Of { operand_at, target } => {
+            if forwarded_arguments.len() == command.arguments.len() {
+                forwarded_arguments[operand_at] = target.as_os_str().to_os_string();
+            }
+            Some(target)
+        }
+    };
     let writes_index: bool = is_index_writer(&command);
     if !writes_index && copy_bypassed {
         return Action::Forward {
@@ -128,7 +140,7 @@ pub(crate) fn forward_action(
     let quiet: bool = creates && add_is_quiet(command.arguments.as_slice(), command.subcommand_index);
     let destination: Option<PathBuf> = if creates { plan_copy_destination(&command) } else { None };
     let remove_plan: Option<RemovePlan> = if command.word() == b"worktree" {
-        plan_worktree_remove(&command, common_directory(&location.identity))
+        plan_worktree_remove(&command, common_directory(&location.identity), picked.as_deref())
     } else {
         None
     };
@@ -234,12 +246,12 @@ fn plan_copy_destination(command: &ResolvedCommand) -> Option<PathBuf> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planWorktreeRemove(command: ResolvedCommand, commonDir?: string): RemovePlan | undefined;
+/// function planWorktreeRemove(command: ResolvedCommand, commonDir?: string, picked?: string): RemovePlan | undefined;
 /// ```
-fn plan_worktree_remove(command: &ResolvedCommand, common_dir: Option<&Path>) -> Option<RemovePlan> {
+fn plan_worktree_remove(command: &ResolvedCommand, common_dir: Option<&Path>, picked: Option<&Path>) -> Option<RemovePlan> {
     let current: PathBuf = std::env::current_dir().ok()?;
     let start: PathBuf = start_directory(&command.arguments[..command.subcommand_index], current.as_path())?;
-    return parse_remove_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path(), common_dir);
+    return parse_remove_plan(command.arguments.as_slice(), command.subcommand_index, start.as_path(), common_dir, picked);
 }
 
 /// What:

@@ -13,7 +13,7 @@ fn the_plan_names_one_directory_and_no_option() {
     std::fs::create_dir(root.join("wt")).expect("directory");
     let canonical: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
     for values in [vec!["worktree", "remove", "wt"], vec!["worktree", "remove", "--", "wt"], vec!["worktree", "remove", "./wt/"]] {
-        let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None);
+        let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None, None);
         assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from(values[values.len() - 1]), force: false }), "{values:?}");
     }
     for values in [
@@ -23,7 +23,7 @@ fn the_plan_names_one_directory_and_no_option() {
         vec!["worktree", "add", "wt"],
         vec!["worktree", "prune"],
     ] {
-        assert_eq!(parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None), None, "{values:?}");
+        assert_eq!(parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None, None), None, "{values:?}");
     }
     remove(root.as_path());
 }
@@ -57,12 +57,12 @@ fn a_forced_removal_names_the_directory_and_the_force() {
         vec!["worktree", "remove", "-ff", "wt"],
         vec!["worktree", "remove", "--forc", "wt"],
     ] {
-        let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None);
+        let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None, None);
         assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from("wt"), force: true }), "{values:?}");
     }
     // An option Git does not know, and a switch with no directory, name no removal: Git answers those with its usage.
     for values in [vec!["worktree", "remove", "-fq", "wt"], vec!["worktree", "remove", "-f"]] {
-        assert_eq!(parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None), None, "{values:?}");
+        assert_eq!(parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None, None), None, "{values:?}");
     }
     remove(root.as_path());
 }
@@ -75,10 +75,10 @@ fn a_forced_removal_names_the_directory_and_the_force() {
 fn an_empty_operand_names_no_directory() {
     let root: PathBuf = fixture("remove-plan-empty");
     for values in [vec!["worktree", "remove", ""], vec!["worktree", "remove", "--", ""]] {
-        assert_eq!(parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None), None, "{values:?}");
+        assert_eq!(parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None, None), None, "{values:?}");
     }
     // The current directory spelled out is a name, and Git removes it.
-    let plan = parse_remove_plan(os_arguments(&["worktree", "remove", "."]).as_slice(), 0, root.as_path(), None);
+    let plan = parse_remove_plan(os_arguments(&["worktree", "remove", "."]).as_slice(), 0, root.as_path(), None, None);
     assert_eq!(plan.map(|found| { return found.target; }), Some(std::fs::canonicalize(root.as_path()).expect("canonical")));
     remove(root.as_path());
 }
@@ -104,23 +104,23 @@ fn a_name_git_picks_by_its_last_component_names_the_registered_worktree() {
         (vec!["worktree", "remove", "topic"], "topic"),
         (vec!["worktree", "remove", "--", "topic"], "topic"),
     ] {
-        let plan = parse_remove_plan(os_arguments(arguments.as_slice()).as_slice(), 0, repo.as_path(), Some(common.as_path()));
+        let plan = parse_remove_plan(os_arguments(arguments.as_slice()).as_slice(), 0, repo.as_path(), Some(common.as_path()), None);
         assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from(typed), force: false }), "{arguments:?}");
     }
     assert_eq!(
-        parse_remove_plan(os_arguments(&["worktree", "remove", "TOPIC"]).as_slice(), 0, repo.as_path(), Some(common.as_path())),
+        parse_remove_plan(os_arguments(&["worktree", "remove", "TOPIC"]).as_slice(), 0, repo.as_path(), Some(common.as_path()), None),
         None,
         "Git's byte comparison picks no worktree for a name that differs only by case, and no directory stands at it"
     );
     assert_eq!(
-        parse_remove_plan(os_arguments(&["worktree", "remove", "absent"]).as_slice(), 0, repo.as_path(), Some(common.as_path())),
+        parse_remove_plan(os_arguments(&["worktree", "remove", "absent"]).as_slice(), 0, repo.as_path(), Some(common.as_path()), None),
         None,
         "no registration ends in that name and no directory stands at it"
     );
     // The force the person typed reaches a name the registrations picked too, because the plan carries it whichever way it read
     // the directory.
     assert_eq!(
-        parse_remove_plan(os_arguments(&["worktree", "remove", "-f", "topic"]).as_slice(), 0, repo.as_path(), Some(common.as_path())),
+        parse_remove_plan(os_arguments(&["worktree", "remove", "-f", "topic"]).as_slice(), 0, repo.as_path(), Some(common.as_path()), None),
         Some(RemovePlan { target: canonical.clone(), operand: OsString::from("topic"), force: true }),
         "a forced removal of a worktree the registrations picked"
     );
@@ -129,9 +129,36 @@ fn a_name_git_picks_by_its_last_component_names_the_registered_worktree() {
     std::fs::create_dir_all(other.as_path()).expect("second worktree");
     std::fs::write(common.join("worktrees/other/gitdir"), format!("{}/.git\n", other.display())).expect("gitdir");
     assert_eq!(
-        parse_remove_plan(os_arguments(&["worktree", "remove", "topic"]).as_slice(), 0, repo.as_path(), Some(common.as_path())),
+        parse_remove_plan(os_arguments(&["worktree", "remove", "topic"]).as_slice(), 0, repo.as_path(), Some(common.as_path()), None),
         None,
         "Git's suffix match is unique or nothing, and no directory here stands at the name"
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A plan given the worktree Git's own answer names is that worktree,
+///  whatever the plan's own resolving would have said.
+/// Why:
+///  The ladder destroys the plan's target before Git is ever started,
+///  so a target read another way could destroy a worktree the guard never judged:
+///  the plan names the guard's answer instead, and what was judged and what is destroyed are one path
+///  (a review of `e615fb599b`, finding 1).
+#[test]
+fn the_plan_names_the_worktree_the_guard_read() {
+    let root: PathBuf = fixture("remove-plan-picked");
+    let repo: PathBuf = root.join("repo");
+    std::fs::create_dir_all(repo.as_path()).expect("repository");
+    let judged: PathBuf = std::fs::canonicalize(repo.as_path()).expect("canonical");
+    // A name the plan cannot resolve on its own: no registration ends in it, and no directory stands at it.
+    let plan = parse_remove_plan(os_arguments(&["worktree", "remove", "case-differing-name"]).as_slice(), 0, repo.as_path(), None, Some(judged.as_path()));
+    assert_eq!(
+        plan,
+        Some(RemovePlan { target: judged.clone(), operand: OsString::from("case-differing-name"), force: false }),
+        "the plan names the worktree the guard read"
+    );
+    // A forced removal carries the same answer, because the ladder serves that form too.
+    let forced = parse_remove_plan(os_arguments(&["worktree", "remove", "--force", "whatever"]).as_slice(), 0, repo.as_path(), None, Some(judged.as_path()));
+    assert_eq!(forced, Some(RemovePlan { target: judged, operand: OsString::from("whatever"), force: true }), "and so does a forced one");
     remove(root.as_path());
 }

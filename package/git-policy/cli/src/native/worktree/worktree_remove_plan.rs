@@ -126,6 +126,9 @@ pub(crate) enum RemovalShape {
     Served {
         /// The directory as the person typed it.
         operand: OsString,
+        /// Where that directory stands among the words Git receives,
+        /// so the caller can hand Git the worktree's own path in its place.
+        operand_at: usize,
         /// Whether Git's force is on for this removal.
         force: bool,
     },
@@ -197,7 +200,7 @@ pub(crate) fn removal_shape(arguments: &[OsString], subcommand_index: usize) -> 
     if operand.is_empty() {
         return RemovalShape::NotARemoval;
     }
-    return RemovalShape::Served { operand: operand.clone(), force };
+    return RemovalShape::Served { operand: operand.clone(), operand_at: arguments.len() - rest.len(), force };
 }
 
 /// What:
@@ -216,7 +219,7 @@ pub(crate) fn removal_shape(arguments: &[OsString], subcommand_index: usize) -> 
 /// ```
 pub(crate) fn operand_and_force(arguments: &[OsString], subcommand_index: usize) -> Option<(OsString, bool)> {
     return match removal_shape(arguments, subcommand_index) {
-        RemovalShape::Served { operand, force } => Some((operand, force)),
+        RemovalShape::Served { operand, force, .. } => Some((operand, force)),
         RemovalShape::NotARemoval | RemovalShape::Unprovable(_) => None,
     };
 }
@@ -233,13 +236,22 @@ pub(crate) fn operand_and_force(arguments: &[OsString], subcommand_index: usize)
 /// `common_dir` is the invoking repository's common Git directory,
 /// where Git's list of worktree paths lives;
 /// without it only the path form is read.
+/// `picked` is the worktree Git's own answer names, where the guard a typed removal meets read it:
+/// the plan then names that worktree and resolves nothing of its own,
+/// so the worktree the ladder destroys is the one that was judged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function parseRemovePlan(args: string[], subcommandIndex: number, start: string, commonDir?: string): RemovePlan | undefined;
+/// function parseRemovePlan(args: string[], subcommandIndex: number, start: string, commonDir?: string, picked?: string): RemovePlan | undefined;
 /// ```
-pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start: &Path, common_dir: Option<&Path>) -> Option<RemovePlan> {
+pub fn parse_remove_plan(arguments: &[OsString], subcommand_index: usize, start: &Path, common_dir: Option<&Path>, picked: Option<&Path>) -> Option<RemovePlan> {
     let (operand, force): (OsString, bool) = operand_and_force(arguments, subcommand_index)?;
+    // The worktree Git's own answer names, where the guard read it: the ladder then destroys that worktree and no other,
+    // which is what makes the worktree judged and the worktree removed one thing rather than two resolutions agreeing
+    // (a review of `e615fb599b`, finding 1).
+    if let Some(known) = picked {
+        return Some(RemovePlan { target: known.to_path_buf(), operand, force });
+    }
     // Git matches the typed name against the registered paths first, and a name that matches one of them names that worktree.
     if let Some(common) = common_dir
         && let Some(target) = crate::worktree_remove_registry::path_git_picks_for_operand(common, operand.as_os_str())

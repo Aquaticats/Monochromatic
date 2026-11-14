@@ -138,6 +138,10 @@ pub mod worktree_remove_notices;
 pub mod worktree_remove_around;
 pub mod worktree_remove_hand_over;
 
+/// The path Git itself resolves a worktree's name to,
+/// and the comparison it makes between two paths.
+pub mod worktree_path_as_git_resolves_it;
+
 pub mod worktree_remove_registry;
 
 /// The record of a worktree a removal kept,
