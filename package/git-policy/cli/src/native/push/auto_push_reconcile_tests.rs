@@ -3154,13 +3154,8 @@ fn a_switch_in_the_instant_before_the_branch_moves_leaves_the_other_branch_clean
     ))
     .expect("git");
     drop(_played);
-    assert_eq!(
-        moved,
-        Ok(went_to("refs/heads/topic")),
-        "the report says the checkout shows the branch the switch chose"
-    );
-    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target, "the branch followed its merge");
-    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the switch chose did not move");
+    // What: the checkout is read first, because the merge's content staged there is the harm this control exists for.
+    // Why: an answer that says the checkout went elsewhere while its files hold the merge would pass a looser control.
     assert_eq!(
         text_of(&s.local, &["status", "--porcelain=v1"]),
         "",
@@ -3170,6 +3165,13 @@ fn a_switch_in_the_instant_before_the_branch_moves_leaves_the_other_branch_clean
         std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"),
         "base\n",
         "the checkout shows its own branch's file"
+    );
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target, "the branch followed its merge");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "the branch the switch chose did not move");
+    assert_eq!(
+        moved,
+        Ok(went_to("refs/heads/topic")),
+        "the report says the checkout shows the branch the switch chose"
     );
     // What: a commit on that branch records nothing of the merge.
     // Why: that commit is the harm the finding describes, and a clean status one call earlier does not prove it.
@@ -3209,16 +3211,8 @@ fn a_switch_in_another_worktree_before_the_branch_moves_leaves_it_clean() {
     ))
     .expect("the move runs");
     drop(_played);
-    let Advanced::WorktreeWentTo { worktree: named, shows } = advanced else {
-        panic!("the report says which branch the worktree shows")
-    };
-    assert_eq!(named, worktree, "the report names the worktree that had the branch");
-    assert_eq!(shows.as_deref(), Some("refs/heads/side"), "and the branch it shows");
-    assert_eq!(
-        text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]),
-        s.merge,
-        "the pushed branch is at its merge"
-    );
+    // What: the worktree is read first, because the merge's content staged there is the harm this control exists for.
+    // Why: that worktree belongs to a session that did not ask for the push, and an answer alone would not show it.
     assert_eq!(
         text_of(&worktree, &["symbolic-ref", "--short", "HEAD"]),
         "side",
@@ -3230,6 +3224,16 @@ fn a_switch_in_another_worktree_before_the_branch_moves_leaves_it_clean() {
         "nothing of the merge is left in it"
     );
     assert!(!worktree.join("remote.txt").exists(), "the file the merge added is not on that branch");
+    assert_eq!(
+        text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]),
+        s.merge,
+        "the pushed branch is at its merge"
+    );
+    let Advanced::WorktreeWentTo { worktree: named, shows } = advanced else {
+        panic!("the report says which branch the worktree shows")
+    };
+    assert_eq!(named, worktree, "the report names the worktree that had the branch");
+    assert_eq!(shows.as_deref(), Some("refs/heads/side"), "and the branch it shows");
     // What: a commit on that branch records nothing of the merge.
     // Why: that commit is the harm the finding describes, made worse by the worktree not being the push's own.
     git(&worktree, &["commit", "--quiet", "--allow-empty", "-m", "on side"]);
