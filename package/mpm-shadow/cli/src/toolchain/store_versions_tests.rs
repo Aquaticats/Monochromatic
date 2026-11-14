@@ -24,7 +24,7 @@ use std::time::{Duration, SystemTime};
 /// Imports the module under test.
 use crate::toolchain::store_versions::{
     DOWNLOADS_DIRECTORY_NAME, SIZE_RECORDS_FILE_NAME, TOMBSTONE_PREFIX, install_directory_name, leftover_downloads,
-    read_size_records, tombstone_of, tombstones, tree_size, version_directories,
+    read_size_records, removal_markers, tombstone_of, tree_size, version_directories,
 };
 use crate::toolchain::model::Route;
 use crate::test_scratch::scratch;
@@ -159,7 +159,13 @@ fn a_version_being_removed_is_a_marker_and_not_a_version() {
 
     assert!(versions_of(&root, &["node"]).is_empty());
     assert!(marker.file_name().unwrap().to_string_lossy().starts_with(TOMBSTONE_PREFIX));
-    assert_eq!(tombstones(&root, &["node".to_string()].into_iter().collect()), vec![marker]);
+    // The marker is found from the store itself, so no list of tool names has to be right for it to be found.
+    let markers = removal_markers(&root);
+    assert_eq!(markers.len(), 1, "{markers:?}");
+    assert_eq!(markers[0].version_marker, marker);
+    assert_eq!(markers[0].version, "26.12.0");
+    assert_eq!(markers[0].version_directory, version);
+    assert_eq!(markers[0].tool, "node");
 }
 
 /// A removal marker in a tool's downloads directory is found too,
@@ -173,7 +179,11 @@ fn finds_a_removal_marker_beside_the_downloads() {
     let marker: PathBuf = tombstone_of(&downloads);
     fs::rename(&downloads, &marker).expect("move the downloads aside");
 
-    assert_eq!(tombstones(&root, &["node".to_string()].into_iter().collect()), vec![marker]);
+    let markers = removal_markers(&root);
+    assert_eq!(markers.len(), 1, "{markers:?}");
+    assert_eq!(markers[0].downloads_marker, Some(marker));
+    assert_eq!(markers[0].downloads_directory, Some(downloads.clone()));
+    assert_eq!(markers[0].version_directory, root.join("node").join("26.12.0"));
 }
 
 /// A version's size is recorded once,

@@ -409,31 +409,167 @@ pub fn tombstone_of(directory: &Path) -> PathBuf {
 }
 
 /// What:
-/// Every remove-in-progress directory a cut-short removal left,
-/// in the tools' directories and in their downloads directories.
+/// One removal an earlier run started and did not finish:
+/// the version it moved out of its name,
+/// where that version belongs,
+/// and the downloads it moved aside with it.
 /// Why:
-/// The next run finishes them,
-/// and until it does they are the store's own record that a version is partly gone.
+/// The next run needs all of that to finish the removal or to undo it,
+/// and it must be readable from the store alone:
+/// a lock that cannot be read may leave the set of tool names empty,
+/// which must not look like "no removal is pending".
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function tombstones(root: string, tools: ReadonlySet<string>): string[]
+/// type RemovalMarker = { root: string; tool: string; version: string; versionMarker: string;
+///   versionDirectory: string; downloadsMarker?: string; downloadsDirectory?: string };
 /// ```
-pub fn tombstones(toolchain_root: &Path, tools: &BTreeSet<String>) -> Vec<PathBuf> {
-    let mut found: Vec<PathBuf> = Vec::new();
-    for tool in tools {
-        for parent in [toolchain_root.join(tool), toolchain_root.join(DOWNLOADS_DIRECTORY_NAME).join(tool)] {
-            let Ok(entries) = fs::read_dir(&parent) else {
-                continue;
-            };
-            for entry in entries.flatten() {
-                let name: String = entry.file_name().to_string_lossy().to_string();
-                if name.starts_with(TOMBSTONE_PREFIX) {
-                    found.push(entry.path());
-                }
-            }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RemovalMarker {
+    /// The store root the marker stands in.
+    pub root: PathBuf,
+    /// The tool's directory name in the store (`node`,
+    /// `cargo/apple-codesign`),
+    /// or empty when the marker sits in a place that names no tool.
+    pub tool: String,
+    /// The version,
+    /// taken from the marker's own name.
+    pub version: String,
+    /// The marker holding the version directory.
+    pub version_marker: PathBuf,
+    /// The name the version directory takes back when the removal is undone.
+    pub version_directory: PathBuf,
+    /// The marker holding the downloads of that version,
+    /// when the removal moved some aside.
+    pub downloads_marker: Option<PathBuf>,
+    /// The name the downloads directory takes back.
+    pub downloads_directory: Option<PathBuf>,
+}
+
+/// The names of the plain directories directly under `directory`,
+/// hidden ones left out.
+fn subdirectory_names(directory: &Path) -> Vec<String> {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = Vec::new();
+    for entry in entries.flatten() {
+        let name: String = entry.file_name().to_string_lossy().to_string();
+        if name.starts_with('.') {
+            continue;
         }
+        if entry.file_type().map(|kind| return kind.is_dir()).unwrap_or(false) {
+            names.push(name);
+        }
+    }
+    names.sort();
+    return names;
+}
+
+/// The removal markers directly inside `directory`,
+/// each with the version its name carries.
+fn markers_in(directory: &Path) -> Vec<(String, PathBuf)> {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    let mut found: Vec<(String, PathBuf)> = Vec::new();
+    for entry in entries.flatten() {
+        let name: String = entry.file_name().to_string_lossy().to_string();
+        let Some(version) = name.strip_prefix(TOMBSTONE_PREFIX) else {
+            continue;
+        };
+        found.push((version.to_string(), entry.path()));
     }
     found.sort();
     return found;
+}
+
+/// What:
+/// Every tool directory of the store at `toolchain_root` whose children can be versions:
+/// the top-level ones and the crates under `cargo`.
+/// Why:
+/// The removal markers are found by looking at the store,
+/// so a lock that cannot be read never hides one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function toolDirectoriesOfStore(root: string): string[]
+/// ```
+pub fn tool_directories_of_store(toolchain_root: &Path) -> Vec<String> {
+    let mut tools: Vec<String> = Vec::new();
+    for name in subdirectory_names(toolchain_root) {
+        if name == DOWNLOADS_DIRECTORY_NAME {
+            continue;
+        }
+        if name == CARGO_NAMESPACE {
+            for crate_name in subdirectory_names(&toolchain_root.join(CARGO_NAMESPACE)) {
+                tools.push(format!("{CARGO_NAMESPACE}/{crate_name}"));
+            }
+            continue;
+        }
+        tools.push(name);
+    }
+    return tools;
+}
+
+/// What:
+/// Every removal an earlier run started and did not finish,
+/// found by walking the store's own directories.
+/// Why:
+/// This is what the next run finishes or undoes,
+/// and it answers whether the store holds a half-removed version regardless of the locks:
+/// a lock that cannot be read empties the set of tool names,
+/// which must not read as "nothing is pending".
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function removalMarkers(root: string): RemovalMarker[]
+/// ```
+pub fn removal_markers(toolchain_root: &Path) -> Vec<RemovalMarker> {
+    let downloads_root: PathBuf = toolchain_root.join(DOWNLOADS_DIRECTORY_NAME);
+    let mut found: BTreeMap<(String, String), RemovalMarker> = BTreeMap::new();
+    for tool in tool_directories_of_store(toolchain_root) {
+        for (version, version_marker) in markers_in(&toolchain_root.join(&tool)) {
+            let downloads_marker: PathBuf = downloads_root.join(&tool).join(format!("{TOMBSTONE_PREFIX}{version}"));
+            let markers_tool: String = tool.clone();
+            let has_downloads: bool = fs::symlink_metadata(&downloads_marker).is_ok();
+            found.insert(
+                (tool.clone(), version.clone()),
+                RemovalMarker {
+                    root: toolchain_root.to_path_buf(),
+                    version_directory: toolchain_root.join(&tool).join(&version),
+                    version_marker,
+                    downloads_marker: if has_downloads { Some(downloads_marker) } else { None },
+                    downloads_directory: if has_downloads {
+                        Some(downloads_root.join(&tool).join(&version))
+                    } else {
+                        None
+                    },
+                    tool: markers_tool,
+                    version,
+                },
+            );
+        }
+    }
+    // What: a downloads marker with no version marker beside it is filled in here.
+    // Why: a kill between the two renames leaves only the downloads moved aside, and the next run must take the
+    // version's name back from the marker's own name.
+    for tool in subdirectory_names(&downloads_root) {
+        for (version, downloads_marker) in markers_in(&downloads_root.join(&tool)) {
+            let entry: &mut RemovalMarker = found.entry((tool.clone(), version.clone())).or_insert_with(|| {
+                return RemovalMarker {
+                    root: toolchain_root.to_path_buf(),
+                    version_directory: toolchain_root.join(&tool).join(&version),
+                    version_marker: toolchain_root.join(&tool).join(format!("{TOMBSTONE_PREFIX}{version}")),
+                    downloads_marker: None,
+                    downloads_directory: Some(downloads_root.join(&tool).join(&version)),
+                    tool: tool.clone(),
+                    version: version.clone(),
+                };
+            });
+            entry.downloads_marker = Some(downloads_marker);
+            entry.downloads_directory = Some(downloads_root.join(&tool).join(&version));
+        }
+    }
+    return found.into_values().collect();
 }

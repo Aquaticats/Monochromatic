@@ -67,8 +67,8 @@ use super::scope::{EnvMap, ScopeKind, global_scope};
 use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_reason};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
-    VersionDirectory, install_directory_name, leftover_downloads, tombstone_of, tombstones, tree_size,
-    version_directories,
+    RemovalMarker, VersionDirectory, install_directory_name, leftover_downloads, removal_markers, tombstone_of,
+    tree_size, version_directories,
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
@@ -540,14 +540,30 @@ pub fn plan_trim(
     return TrimPlan { total_bytes, over_bound: true, steps };
 }
 
-/// The bounds and the clock one pass runs with.
-#[derive(Clone, Copy, Debug)]
+/// The bounds, the clock and the store roots one pass runs with.
+#[derive(Clone, Debug)]
 pub struct TrimRun {
     /// The bounds in force.
     pub bounds: TrimBounds,
     /// When the pass started,
     /// which the work limit is measured from.
     pub started: Instant,
+    /// The store roots this pass trims,
+    /// and the only ones it asks the process table about.
+    pub roots: Vec<PathBuf>,
+}
+
+/// The methods of `TrimRun`.
+impl TrimRun {
+    /// The moment this pass's work limit runs out.
+    pub fn deadline(&self) -> Instant {
+        return self.started + self.bounds.work_limit;
+    }
+
+    /// What the process table says now about the roots this pass trims.
+    pub fn look(&self) -> StoreHolders {
+        return holders_of(&self.roots, self.deadline());
+    }
 }
 
 /// What one pass did.
@@ -561,7 +577,7 @@ pub struct TrimOutcome {
     /// The space they gave back, in bytes.
     pub removed_bytes: u64,
     /// The store roots where a removal is still pending,
-    /// because the pass ran out of its time limit.
+    /// because the pass ran out of its time limit or could not finish one.
     pub unfinished: BTreeSet<PathBuf>,
 }
 
@@ -593,73 +609,29 @@ pub fn has_unfinished_removal(root: &Path) -> bool {
     return fs::symlink_metadata(unfinished_marker(root)).is_ok();
 }
 
-/// What:
-/// Removes what the plan decided,
-/// for at most the work limit,
-/// and reports one line per version.
-/// Why:
-/// A rename out of the version's name comes first,
-/// so a reader sees the version or its removal marker and never a half version,
-/// and a kill at any later point leaves the marker for the next run to finish.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function applyTrim(plan: TrimPlan, run: TrimRun): TrimOutcome
-/// ```
-pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
-    let mut outcome: TrimOutcome = TrimOutcome::default();
-    let mut deferred: usize = 0;
-    for step in &plan.steps {
-        match step {
-            TrimStep::Keep(candidate, reason) => outcome.lines.push(kept_line(candidate, reason)),
-            TrimStep::Remove(candidate) => {
-                if run.started.elapsed() >= run.bounds.work_limit {
-                    deferred += 1;
-                    outcome.unfinished.insert(candidate.root.clone());
-                    continue;
-                }
-                match remove_one(candidate) {
-                    Ok(Some(bytes)) => {
-                        outcome.removed += 1;
-                        outcome.removed_bytes = outcome.removed_bytes.saturating_add(bytes);
-                        outcome.lines.push(removed_line(candidate));
-                    }
-                    // The version is gone already: another run removed it, and there is nothing to say.
-                    Ok(None) => {}
-                    Err(reason) => outcome.lines.push(kept_line(candidate, &reason)),
-                }
-            }
-        }
-    }
-    if deferred > 0 {
-        outcome.lines.push(format!(
-            "mpm-shadow: the cleanup used its {} limit and left {deferred} version(s) for the next install",
-            format_age(SystemTime::now(), SystemTime::now() - run.bounds.work_limit)
-        ));
-    }
-    return outcome;
+/// What a removal moved out of the way before anything was deleted.
+struct MovedAside {
+    /// The marker holding the version directory.
+    version_marker: PathBuf,
+    /// The marker holding the downloads directory,
+    /// when the removal moved one aside.
+    downloads_marker: Option<PathBuf>,
 }
 
 /// What:
-/// Removes one candidate and returns the space it gave back,
-/// or `None` when it was already gone.
+/// Moves one version's downloads and then the version itself out of their names,
+/// which is the atomic step that condemns them,
+/// and returns what it moved,
+/// or `None` when the version is gone already.
 /// Why:
-/// The version directory's write time is read again before anything moves:
-/// a version another run wrote after the scan is not the one that was judged,
-/// and it stays.
+/// A reader then sees the version or its removal marker and never a half version,
+/// and a kill at any later point leaves markers the next run finishes.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function removeOne(candidate: TrimCandidate): number | undefined  // throws on a refusal
+/// function moveAside(candidate: TrimCandidate): MovedAside | undefined  // throws on a refusal
 /// ```
-fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
-    if candidate.leftover {
-        return match fs::remove_file(&candidate.directory) {
-            Ok(()) => Ok(Some(candidate.bytes)),
-            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-            Err(error) => Err(format!("it cannot be removed: {error}")),
-        };
-    }
+fn move_aside(candidate: &TrimCandidate) -> Result<Option<MovedAside>, String> {
     let metadata: fs::Metadata = match fs::symlink_metadata(&candidate.directory) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
@@ -674,7 +646,7 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
     // What: the downloads are moved out of their name first, then the version.
     // Why: a kill between the two leaves the version whole and a downloads marker the next run finishes, never a
     // version that is gone while its downloads still sit under a version's name.
-    let moved_downloads: Option<PathBuf> = match &candidate.downloads {
+    let downloads_marker: Option<PathBuf> = match &candidate.downloads {
         Some(downloads) => {
             let marker: PathBuf = tombstone_of(downloads);
             match fs::rename(downloads, &marker) {
@@ -688,18 +660,56 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
     let version_marker: PathBuf = tombstone_of(&candidate.directory);
     if let Err(error) = fs::rename(&candidate.directory, &version_marker) {
         // The version stays, so its downloads go back to the name they had.
-        if let Some(marker) = &moved_downloads
+        if let Some(marker) = &downloads_marker
             && let Some(downloads) = &candidate.downloads
         {
             let _ = fs::rename(marker, downloads);
         }
         return Err(format!("it cannot be moved aside: {error}"));
     }
-    for marker in [Some(version_marker), moved_downloads].into_iter().flatten() {
-        match fs::remove_dir_all(&marker) {
+    return Ok(Some(MovedAside { version_marker, downloads_marker }));
+}
+
+/// What:
+/// Puts a moved-aside version and its downloads back under their names.
+/// Why:
+/// A version that turns out to be in use is not removed,
+/// and its name is the only thing it lost.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function undoMoved(candidate: TrimCandidate, moved: MovedAside): string | undefined  // the failure, if any
+/// ```
+fn undo_moved(candidate: &TrimCandidate, moved: &MovedAside) -> Option<String> {
+    let mut failure: Option<String> = None;
+    if let Err(error) = fs::rename(&moved.version_marker, &candidate.directory) {
+        failure = Some(format!("{} could not be put back: {error}", candidate.directory.display()));
+    }
+    if let (Some(marker), Some(downloads)) = (&moved.downloads_marker, &candidate.downloads)
+        && let Err(error) = fs::rename(marker, downloads)
+        && failure.is_none()
+    {
+        failure = Some(format!("{} could not be put back: {error}", downloads.display()));
+    }
+    return failure;
+}
+
+/// What:
+/// Deletes what a removal moved aside.
+/// Why:
+/// This is the only step that gives the space back,
+/// and it runs after the process table was asked about the moved version.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function deleteMoved(candidate: TrimCandidate, moved: MovedAside): string | undefined  // the failure, if any
+/// ```
+fn delete_moved(candidate: &TrimCandidate, moved: &MovedAside) -> Option<String> {
+    for marker in [Some(&moved.version_marker), moved.downloads_marker.as_ref()].into_iter().flatten() {
+        match fs::remove_dir_all(marker) {
             Ok(()) => {}
             Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => return Err(format!("{} is left half removed: {error}", marker.display())),
+            Err(error) => return Some(format!("{} is left half removed: {error}", marker.display())),
         }
     }
     if let Some(downloads) = &candidate.downloads
@@ -708,59 +718,127 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
         // Best effort: a tool's downloads directory goes once its last version's archives are gone.
         let _ = fs::remove_dir(tool_downloads);
     }
-    return Ok(Some(candidate.bytes));
+    return None;
 }
 
 /// What:
-/// Finishes every removal an earlier run started and returns one line per removal finished.
+/// Removes one download file an earlier layout left.
 /// Why:
-/// The version is named by its removal marker until it is gone,
-/// so finishing it is the only way the space comes back,
-/// and a run that is killed again leaves the marker for the next run.
+/// Such a file is not a version:
+/// unlinking it is one atomic step, so there is nothing to move aside and nothing to finish.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function finish_removals(roots: string[], tools: ReadonlySet<string>, run: TrimRun): [string[], Set<string>]
+/// function removeLeftover(candidate: TrimCandidate): boolean  // false when it was gone already
 /// ```
-pub fn finish_removals(
-    roots: &[PathBuf],
-    tools: &BTreeSet<String>,
-    run: &TrimRun,
-) -> (Vec<String>, BTreeSet<PathBuf>) {
-    let mut lines: Vec<String> = Vec::new();
-    let mut unfinished: BTreeSet<PathBuf> = BTreeSet::new();
-    for root in roots {
-        for marker in tombstones(root, tools) {
-            if run.started.elapsed() >= run.bounds.work_limit {
-                unfinished.insert(root.clone());
-                break;
-            }
-            let bytes: u64 = tree_size(&marker);
-            match fs::remove_dir_all(&marker) {
-                Ok(()) => lines.push(format!(
-                    "mpm-shadow: removed {} ({}) and finished a removal an earlier run started",
-                    marker.display(),
-                    format_size(bytes)
-                )),
-                Err(error) if error.kind() == ErrorKind::NotFound => {}
-                Err(error) => {
-                    unfinished.insert(root.clone());
-                    lines.push(format!("mpm-shadow: kept {}: it is still being removed: {error}", marker.display()));
+fn remove_leftover(candidate: &TrimCandidate) -> Result<bool, String> {
+    return match fs::remove_file(&candidate.directory) {
+        Ok(()) => Ok(true),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(format!("it cannot be removed: {error}")),
+    };
+}
+
+/// What:
+/// Removes what the plan decided,
+/// for at most the work limit,
+/// and reports one line per version.
+/// Why:
+/// Every version is moved out of its name first,
+/// and the process table is asked once the whole batch is moved,
+/// because nothing can start using a version once it is renamed:
+/// that one look is the moment the removals become final,
+/// and a version something holds goes back under its name and stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function applyTrim(plan: TrimPlan, run: TrimRun): TrimOutcome
+/// ```
+pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
+    let mut outcome: TrimOutcome = TrimOutcome::default();
+    let mut lines: Vec<Option<String>> = vec![None; plan.steps.len()];
+    let mut moved: Vec<(usize, TrimCandidate, MovedAside)> = Vec::new();
+    let mut deferred: usize = 0;
+    for (index, step) in plan.steps.iter().enumerate() {
+        match step {
+            TrimStep::Keep(candidate, reason) => lines[index] = Some(kept_line(candidate, reason)),
+            TrimStep::Remove(candidate) => {
+                if run.started.elapsed() >= run.bounds.work_limit {
+                    deferred += 1;
+                    outcome.unfinished.insert(candidate.root.clone());
+                    continue;
+                }
+                if candidate.leftover {
+                    match remove_leftover(candidate) {
+                        Ok(true) => {
+                            outcome.removed += 1;
+                            outcome.removed_bytes = outcome.removed_bytes.saturating_add(candidate.bytes);
+                            lines[index] = Some(removed_line(candidate));
+                        }
+                        // The file is gone already: another run removed it, and there is nothing to say.
+                        Ok(false) => {}
+                        Err(reason) => lines[index] = Some(kept_line(candidate, &reason)),
+                    }
+                    continue;
+                }
+                match move_aside(candidate) {
+                    Ok(Some(aside)) => moved.push((index, candidate.clone(), aside)),
+                    Ok(None) => {}
+                    Err(reason) => lines[index] = Some(kept_line(candidate, &reason)),
                 }
             }
         }
     }
-    return (lines, unfinished);
+    if !moved.is_empty() {
+        let holders: StoreHolders = run.look();
+        for (index, candidate, aside) in moved {
+            let reason: Option<String> = match &holders.incomplete {
+                Some(failed) => Some(format!("the process table could not be read: {failed}")),
+                None => match held_reason(&holders, &aside.version_marker)
+                    .or_else(|| return held_reason(&holders, &candidate.directory))
+                {
+                    Some(held) => Some(format!("it is in use: {held}")),
+                    None => opaque_reason(&holders, &candidate.tool).map(|found| return format!("it may be in use: {found}")),
+                },
+            };
+            match reason {
+                Some(why) => match undo_moved(&candidate, &aside) {
+                    None => lines[index] = Some(kept_line(&candidate, &why)),
+                    Some(failure) => {
+                        outcome.unfinished.insert(candidate.root.clone());
+                        lines[index] = Some(kept_line(&candidate, &format!("{why}; {failure}")));
+                    }
+                },
+                None => match delete_moved(&candidate, &aside) {
+                    None => {
+                        outcome.removed += 1;
+                        outcome.removed_bytes = outcome.removed_bytes.saturating_add(candidate.bytes);
+                        lines[index] = Some(removed_line(&candidate));
+                    }
+                    Some(failure) => {
+                        outcome.unfinished.insert(candidate.root.clone());
+                        lines[index] = Some(kept_line(&candidate, &failure));
+                    }
+                },
+            }
+        }
+    }
+    for line in lines.into_iter().flatten() {
+        outcome.lines.push(line);
+    }
+    if deferred > 0 {
+        outcome.lines.push(format!(
+            "mpm-shadow: the cleanup used its {} limit and left {deferred} version(s) for the next install",
+            format_age(SystemTime::now(), SystemTime::now() - run.bounds.work_limit)
+        ));
+    }
+    return outcome;
 }
 
 /// The line for a version that stays,
 /// with the reason it stays.
 fn kept_line(candidate: &TrimCandidate, reason: &str) -> String {
-    return format!(
-        "mpm-shadow: kept {} ({}): {reason}",
-        candidate.directory.display(),
-        format_size(candidate.bytes)
-    );
+    return format!("mpm-shadow: kept {} ({}): {reason}", candidate.directory.display(), format_size(candidate.bytes));
 }
 
 /// The line for a version this pass removed.
@@ -773,19 +851,183 @@ fn removed_line(candidate: &TrimCandidate) -> String {
     );
 }
 
+/// The lines and the work finishing the removals of earlier runs leaves.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct FinishOutcome {
+    /// One line per removal finished, undone or left pending.
+    pub lines: Vec<String>,
+    /// The store roots where a removal is still pending.
+    pub unfinished: BTreeSet<PathBuf>,
+    /// The versions put back under their names,
+    /// each with the reason it was in use,
+    /// so this pass's own plan leaves them alone.
+    pub put_back: BTreeMap<PathBuf, String>,
+}
+
 /// What:
-/// Removes the marker of every root with nothing left to remove.
+/// Finishes every removal an earlier run started,
+/// or puts a version back when something is using it,
+/// with one look at the process table for the whole batch.
 /// Why:
-/// The marker is what makes the next install run the pass,
-/// so it must go as soon as the removals are complete.
+/// Such a version is already condemned,
+/// so finishing it needs no lock and no plan,
+/// and the marker that brings the next install here goes only once the store holds no marker at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function settle_markers(roots: string[], tools: ReadonlySet<string>, unfinished: Set<string>): void
+/// export function finishRemovals(run: TrimRun): FinishOutcome
 /// ```
-pub fn settle_markers(roots: &[PathBuf], tools: &BTreeSet<String>, unfinished: &BTreeSet<PathBuf>) {
+pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
+    let mut outcome: FinishOutcome = FinishOutcome::default();
+    let mut markers: Vec<RemovalMarker> = Vec::new();
+    for root in &run.roots {
+        markers.extend(removal_markers(root));
+    }
+    if markers.is_empty() {
+        return outcome;
+    }
+    let holders: StoreHolders = run.look();
+    for marker in markers {
+        if run.started.elapsed() >= run.bounds.work_limit {
+            outcome.unfinished.insert(marker.root.clone());
+            break;
+        }
+        let version_present: bool = fs::symlink_metadata(&marker.version_marker).is_ok();
+        if !version_present {
+            // Only the downloads were moved aside: the version's own removal finished, or never started.
+            outcome.lines.push(finish_downloads_line(&marker));
+            continue;
+        }
+        let bytes: u64 = removal_marker_size(&marker);
+        let reason: Option<String> = match &holders.incomplete {
+            Some(failed) => Some(format!("the process table could not be read: {failed}")),
+            None => match held_reason(&holders, &marker.version_marker)
+                .or_else(|| return held_reason(&holders, &marker.version_directory))
+            {
+                Some(held) => Some(format!("it is in use: {held}")),
+                None => opaque_reason(&holders, &marker.tool).map(|found| return format!("it may be in use: {found}")),
+            },
+        };
+        let candidate_reason: String = match reason {
+            Some(why) => why,
+            None => {
+                match remove_marker(&marker) {
+                    None => outcome.lines.push(format!(
+                        "mpm-shadow: removed {} ({}) and finished a removal an earlier run started",
+                        marker.version_directory.display(),
+                        format_size(bytes)
+                    )),
+                    Some(failure) => {
+                        outcome.unfinished.insert(marker.root.clone());
+                        outcome.lines.push(format!(
+                            "mpm-shadow: kept {}: it is still being removed: {failure}",
+                            marker.version_directory.display()
+                        ));
+                    }
+                }
+                continue;
+            }
+        };
+        match restore_marker(&marker) {
+            None => {
+                outcome.put_back.insert(marker.version_directory.clone(), candidate_reason.clone());
+                outcome.lines.push(format!(
+                    "mpm-shadow: kept {} ({}): {candidate_reason}; the removal an earlier run started is undone",
+                    marker.version_directory.display(),
+                    format_size(bytes)
+                ));
+            }
+            Some(failure) => {
+                outcome.unfinished.insert(marker.root.clone());
+                outcome.lines.push(format!(
+                    "mpm-shadow: kept {}: {candidate_reason}; it is still being removed: {failure}",
+                    marker.version_directory.display()
+                ));
+            }
+        }
+    }
+    return outcome;
+}
+
+/// The space a removal marker holds,
+/// the version and the downloads counted together.
+fn removal_marker_size(marker: &RemovalMarker) -> u64 {
+    let mut bytes: u64 = tree_size(&marker.version_marker);
+    if let Some(downloads) = &marker.downloads_marker {
+        bytes = bytes.saturating_add(tree_size(downloads));
+    }
+    return bytes;
+}
+
+/// The line for a marker whose version is gone and whose downloads were left aside.
+fn finish_downloads_line(marker: &RemovalMarker) -> String {
+    let Some(downloads) = &marker.downloads_marker else {
+        return format!("mpm-shadow: nothing to remove under {}", marker.version_marker.display());
+    };
+    let bytes: u64 = tree_size(downloads);
+    return match remove_dir_or_file(downloads) {
+        None => format!(
+            "mpm-shadow: removed {} ({}) and finished a removal an earlier run started",
+            downloads.display(),
+            format_size(bytes)
+        ),
+        Some(failure) => format!("mpm-shadow: kept {}: it is still being removed: {failure}", downloads.display()),
+    };
+}
+
+/// Deletes a directory or a file,
+/// whichever the path is.
+fn remove_dir_or_file(path: &Path) -> Option<String> {
+    let is_directory: bool = fs::symlink_metadata(path).map(|metadata| return metadata.is_dir()).unwrap_or(false);
+    let result: std::io::Result<()> = if is_directory { fs::remove_dir_all(path) } else { fs::remove_file(path) };
+    return match result {
+        Ok(()) => None,
+        Err(error) if error.kind() == ErrorKind::NotFound => None,
+        Err(error) => Some(error.to_string()),
+    };
+}
+
+/// Deletes what one removal marker holds.
+fn remove_marker(marker: &RemovalMarker) -> Option<String> {
+    if let Some(failure) = remove_dir_or_file(&marker.version_marker) {
+        return Some(format!("{} is left half removed: {failure}", marker.version_marker.display()));
+    }
+    if let Some(downloads) = &marker.downloads_marker
+        && let Some(failure) = remove_dir_or_file(downloads)
+    {
+        return Some(format!("{} is left half removed: {failure}", downloads.display()));
+    }
+    return None;
+}
+
+/// Puts a removal marker's version and downloads back under their names.
+fn restore_marker(marker: &RemovalMarker) -> Option<String> {
+    if let Err(error) = fs::rename(&marker.version_marker, &marker.version_directory) {
+        return Some(format!("{} could not be put back: {error}", marker.version_directory.display()));
+    }
+    if let (Some(downloads_marker), Some(downloads_directory)) = (&marker.downloads_marker, &marker.downloads_directory)
+        && let Err(error) = fs::rename(downloads_marker, downloads_directory)
+    {
+        return Some(format!("{} could not be put back: {error}", downloads_directory.display()));
+    }
+    return None;
+}
+
+/// What:
+/// Removes the marker of every root whose store holds no removal in progress.
+/// Why:
+/// The marker is what makes the next install run the pass,
+/// so it must go as soon as the removals are complete,
+/// and it must stay while any removal marker stands,
+/// which is read from the store itself and not from a list of locks.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function settle_markers(roots: string[], unfinished: Set<string>): void
+/// ```
+pub fn settle_markers(roots: &[PathBuf], unfinished: &BTreeSet<PathBuf>) {
     for root in roots {
-        if unfinished.contains(root) || !tombstones(root, tools).is_empty() {
+        if unfinished.contains(root) || !removal_markers(root).is_empty() {
             continue;
         }
         let _ = fs::remove_file(unfinished_marker(root));
@@ -846,7 +1088,11 @@ fn protection_of(
     holders: &StoreHolders,
     installed: &BTreeSet<(String, String)>,
     current_links: &BTreeMap<(PathBuf, String), String>,
+    put_back: &BTreeMap<PathBuf, String>,
 ) -> Option<String> {
+    if let Some(reason) = put_back.get(&candidate.directory) {
+        return Some(reason.clone());
+    }
     if installed.contains(&(candidate.tool.clone(), candidate.version.clone())) {
         return Some("this install put it there".to_string());
     }
@@ -885,10 +1131,7 @@ fn current_links(roots: &[PathBuf], tools: &BTreeSet<String>) -> BTreeMap<(PathB
             let Ok(target) = fs::read_link(&link) else {
                 continue;
             };
-            let name: String = target
-                .file_name()
-                .map(|name| return name.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let name: String = target.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
             if !name.is_empty() {
                 links.insert((root.clone(), tool.clone()), name);
             }
@@ -904,6 +1147,8 @@ fn current_links(roots: &[PathBuf], tools: &BTreeSet<String>) -> BTreeMap<(PathB
 /// This is the one place the cleanup happens,
 /// so no command has to be remembered,
 /// and a sync that installed nothing runs it only when an earlier removal is unfinished.
+/// The removals an earlier run left half done are settled first and without the locks,
+/// because such a version is condemned already.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -919,20 +1164,21 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
         return;
     }
     let bounds: TrimBounds = TrimBounds::from_env(ctx.env);
-    let run: TrimRun = TrimRun { bounds, started: Instant::now() };
+    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: roots.clone() };
+    let mut lines: Vec<String> = Vec::new();
+    let mut unfinished: BTreeSet<PathBuf> = BTreeSet::new();
+    // What: the removals an earlier run started are finished or undone before anything else is judged.
+    // Why: their marker is the only record that a version's space is not back, and a lock that cannot be read must
+    // not make the store look empty of pending removals.
+    let finished: FinishOutcome = finish_removals(&run);
+    lines.extend(finished.lines);
+    unfinished.extend(finished.unfinished);
     let (lock_files, lock_problem) = visible_locks(ctx);
     let named: NamedVersions = match lock_problem {
         Some(reason) => NamedVersions { by_tool: BTreeMap::new(), unreadable: Some(reason) },
         None => read_named_versions(&lock_files),
     };
     let tools: BTreeSet<String> = named.tool_directories();
-    let mut lines: Vec<String> = Vec::new();
-    let mut unfinished: BTreeSet<PathBuf> = BTreeSet::new();
-    if !tools.is_empty() {
-        let (finished, still_pending) = finish_removals(&roots, &tools, &run);
-        lines.extend(finished);
-        unfinished.extend(still_pending);
-    }
     if let Some(reason) = &named.unreadable {
         // What: a lock that cannot be read keeps every version.
         // Why: it might name any of them, so the pass cannot tell an old version from one in use.
@@ -940,7 +1186,7 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
             "mpm-shadow: removed no toolchain version: {reason}; every version is kept until the locks can be read"
         ));
     } else if !tools.is_empty() {
-        let holders: StoreHolders = holders_of(&roots, run.started + bounds.work_limit);
+        let holders: StoreHolders = run.look();
         let installed_set: BTreeSet<(String, String)> = installed.iter().cloned().collect();
         let links: BTreeMap<(PathBuf, String), String> = current_links(&roots, &tools);
         let candidates: Vec<TrimCandidate> = candidates_of(&roots, &tools);
@@ -951,14 +1197,14 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
             if let Some(reason) = &unread {
                 return Some(format!("the process table could not be read: {reason}"));
             }
-            return protection_of(candidate, &named, &holders, &installed_set, &links);
+            return protection_of(candidate, &named, &holders, &installed_set, &links, &finished.put_back);
         };
         let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &protection);
         let outcome: TrimOutcome = apply_trim(&plan, &run);
         lines.extend(outcome.lines);
         unfinished.extend(outcome.unfinished);
     }
-    settle_markers(&roots, &tools, &unfinished);
+    settle_markers(&roots, &unfinished);
     for line in lines {
         eprintln!("{line}");
     }

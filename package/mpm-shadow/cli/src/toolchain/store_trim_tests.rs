@@ -25,6 +25,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
 /// Imports the module under test.
+use crate::toolchain::store_path_holders::{StoreHolders, held_reason};
 use crate::toolchain::store_trim::{
     DEFAULT_SIZE_BOUND_BYTES, TrimBounds, TrimCandidate, TrimPlan, TrimRun, TrimStep, apply_trim, candidates_of,
     DEFAULT_AGE_FLOOR_SECONDS, TrimOutcome, finish_removals, format_age, has_unfinished_removal, parse_duration,
@@ -298,6 +299,7 @@ impl Fixture {
                 work_limit: Duration::from_secs(60),
             },
             started: Instant::now(),
+            roots: vec![self.root.clone()],
         };
     }
 }
@@ -390,13 +392,15 @@ fn finishes_a_removal_cut_short() {
     assert_eq!(files_before, 1);
     let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
 
-    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    assert!(!tools.is_empty());
+    let finished = finish_removals(&fixture.run());
+    let lines: Vec<String> = finished.lines;
 
-    assert!(unfinished.is_empty(), "{unfinished:?}");
+    assert!(finished.unfinished.is_empty(), "{:?}", finished.unfinished);
     assert!(!marker.exists(), "the marker is still there");
     assert!(!version.exists());
     assert_eq!(lines.len(), 1, "{lines:?}");
-    assert!(lines[0].contains(&format!("{TOMBSTONE_PREFIX}26.11.0")), "{lines:?}");
+    assert!(lines[0].contains(&format!("/node/26.11.0 (")), "the line names the version's own path: {lines:?}");
     assert!(lines[0].contains("finished a removal an earlier run started"), "{lines:?}");
 }
 
@@ -405,11 +409,10 @@ fn finishes_a_removal_cut_short() {
 #[test]
 fn settles_the_marker_of_an_unfinished_removal() {
     let fixture = Fixture::new();
-    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
     fs::write(unfinished_marker(&fixture.root), b"").expect("write the marker");
     assert!(has_unfinished_removal(&fixture.root));
 
-    settle_markers(std::slice::from_ref(&fixture.root), &tools, &BTreeSet::new());
+    settle_markers(std::slice::from_ref(&fixture.root), &BTreeSet::new());
 
     assert!(!has_unfinished_removal(&fixture.root));
 }
@@ -419,11 +422,10 @@ fn settles_the_marker_of_an_unfinished_removal() {
 #[test]
 fn keeps_the_marker_while_a_removal_is_pending() {
     let fixture = Fixture::new();
-    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
     fs::write(unfinished_marker(&fixture.root), b"").expect("write the marker");
     let pending: BTreeSet<PathBuf> = [fixture.root.clone()].into_iter().collect();
 
-    settle_markers(std::slice::from_ref(&fixture.root), &tools, &pending);
+    settle_markers(std::slice::from_ref(&fixture.root), &pending);
 
     assert!(has_unfinished_removal(&fixture.root));
 }
@@ -475,6 +477,96 @@ fn removes_the_downloads_of_the_version_it_removes() {
 }
 
 //endregion the removal
+
+//region the removals an earlier run left, and a process that starts mid-pass
+
+/// What:
+/// A removal an earlier run cut short is finished even when the worktrees' locks cannot be read.
+/// Why:
+/// The version is condemned already, and the marker is the only record that its space is not back:
+/// a pass that cannot see any tool name must still find the marker in the store and finish it,
+/// or the marker goes and the space is never taken back.
+#[test]
+fn finishes_a_removal_cut_short_even_when_the_worktrees_cannot_be_listed() {
+    let (_directory, scope, env) = crate::toolchain::fixtures::sample_scope_on_disk();
+    let store: PathBuf = scope.toolchain_root.clone();
+    let tool: PathBuf = store.join("t");
+    let version_marker: PathBuf = tool.join(format!("{TOMBSTONE_PREFIX}1.0.0"));
+    fs::create_dir_all(&version_marker).expect("make the removal marker");
+    fs::write(version_marker.join("program"), vec![b'a'; 1000]).expect("write the version's file");
+    fs::write(unfinished_marker(&store), b"").expect("write the unfinished-removal marker");
+    // The fault this control exists for: the listing of worktrees fails, so no lock name is known.
+    let runner = crate::toolchain::fakes::FakeRunner::new();
+    runner.answer("git -C", "", 128);
+    let host = crate::toolchain::context::Host::current();
+    let context = crate::toolchain::context::Context {
+        scope: &scope,
+        env: &env,
+        runner: &runner,
+        http: &crate::toolchain::http::NoNetwork,
+        host: &host,
+        tools: &[],
+    };
+
+    crate::toolchain::store_trim::trim_after_install(&context, &[]);
+
+    assert!(!version_marker.exists(), "the removal an earlier run started was not finished");
+    assert!(!store.join("t/1.0.0").exists(), "the version came back although nothing holds it");
+    assert!(!has_unfinished_removal(&store), "the marker outlived the removal it stood for");
+    // A later install that installs nothing must find nothing left to do, and the store must stay settled.
+    crate::toolchain::store_trim::trim_after_install(&context, &[]);
+    assert!(!has_unfinished_removal(&store));
+    assert!(crate::toolchain::store_versions::removal_markers(&store).is_empty());
+}
+
+/// What:
+/// A version a process starts using after the pass's look at the process table and before its removal stays,
+/// and it comes back under its own name.
+/// Why:
+/// The version is moved out of its name before anything is deleted, and the process table is asked again once it
+/// is: nothing can start using a version after its rename, so that second look is the moment the removal becomes
+/// final, and a version something holds is put back.
+#[test]
+fn keeps_a_version_a_process_starts_in_between_the_look_and_the_removal() {
+    let fixture = Fixture::new();
+    let run: TrimRun = fixture.run();
+    let victim: PathBuf = fixture.root.join("node/26.11.0");
+    // What: the pass's own first look, taken before any candidate is judged.
+    // Why: this is the seam the defect lives in, so the control drives the production function and then starts the
+    // process exactly between the look and the removal.
+    let first_look: StoreHolders = run.look();
+    assert!(held_reason(&first_look, &victim).is_none(), "the fixture must be unused when the look is taken");
+    let plan: TrimPlan = plan_trim(&fixture.candidates(), &run.bounds, SystemTime::now(), &|found| {
+        return held_reason(&first_look, &found.directory).map(|held| return format!("it is in use: {held}"));
+    });
+    let planned: Vec<String> = removed_by(&plan);
+    assert!(planned.contains(&"node-26.11.0".to_string()), "the victim must be planned for removal: {planned:?}");
+
+    let mut child = std::process::Command::new("sleep")
+        .arg("60")
+        .current_dir(&victim)
+        .spawn()
+        .expect("start a process working inside the version");
+
+    let outcome: TrimOutcome = apply_trim(&plan, &run);
+
+    // What: the version is back under its own name and the line says why.
+    // Why: a kept version that stays a removal marker is not the same store state, and a dangling cwd is the harm
+    // this control is about.
+    assert!(victim.join("program").exists(), "the version a process started in was removed: {:?}", outcome.lines);
+    let cwd: PathBuf = fs::read_link(format!("/proc/{}/cwd", child.id())).expect("read the child's working directory");
+    assert!(!cwd.to_string_lossy().contains("(deleted)"), "the child's working directory was deleted: {}", cwd.display());
+    assert!(
+        outcome.lines.iter().any(|line| return line.contains("node/26.11.0") && line.contains("it is in use")),
+        "{:?}",
+        outcome.lines
+    );
+    assert_eq!(outcome.removed, 3, "{:?}", outcome.lines);
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+//endregion the removals an earlier run left, and a process that starts mid-pass
 
 //region replaying a real store's listing
 
@@ -637,7 +729,7 @@ fn replays_a_real_store_listing() {
         }
     }
     lines.push(format!("planned removal: {} MiB", planned_removal / MIB));
-    let outcome: TrimOutcome = apply_trim(&plan, &TrimRun { bounds, started: Instant::now() });
+    let outcome: TrimOutcome = apply_trim(&plan, &TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone() });
     lines.push(format!(
         "removed from the replayed store: {} version(s), {} MiB",
         outcome.removed,
