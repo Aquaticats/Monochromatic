@@ -275,7 +275,7 @@ fn a_process_group_of_this_controls_own(name: &str) -> std::process::Child {
     unsafe {
         command.pre_exec(|| {
             libc::setsid();
-            Ok(())
+            return Ok(());
         });
     }
     return command.spawn().unwrap_or_else(|error| { panic!("{name} could not be started: {error}") });
