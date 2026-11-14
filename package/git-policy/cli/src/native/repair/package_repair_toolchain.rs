@@ -308,9 +308,13 @@ fn remove_what_no_install_rewrites(destination: &Path, copies: &[CopyOfAnEarlier
     }
     sweep_what_a_kill_left(destination);
     let own: ThisWorktreesLock = ThisWorktreesLock::of(destination);
+    // The lock as it stands after the classification, read once for the whole removal: a name it declares now is one an
+    //  install has just taken on, and a record the pass holds for it may not go. Reading it once per record would read
+    //  the whole lock a thousand times in a worktree carrying a thousand copies.
+    let declared_now: Option<HashSet<String>> = declared_launcher_names(destination);
     for copy in copies {
         let Some(aside) = take_aside(copy.record.as_path()) else { continue };
-        if !still_a_copy_of_an_earlier_layout(destination, aside.as_path(), copy.name.as_deref(), &own) {
+        if !still_a_copy_of_an_earlier_layout(aside.as_path(), copy.name.as_deref(), &own, declared_now.as_ref()) {
             // Another command declared this name or wrote its own record there: the bytes are not a copy any more,
             //  and a name that holds a newer file keeps it.
             put_back(aside.as_path(), copy.record.as_path());
@@ -395,9 +399,9 @@ fn put_back(aside: &Path, record: &Path) {
 /// What:
 ///  Whether the record this pass took aside still says it is a copy no install rewrites:
 ///  it names a lock other than this worktree's,
-///  and the worktree's lock, read now, declares no launcher of its name.
+///  and the worktree's lock, as the removal read it, declares no launcher of its name.
 /// Why:
-///   The lock and the record are read again here because they may have changed since the classification,
+///   The record is read again here because it may have changed since the classification,
 ///   and a record an install has just written for a name the lock declares is not this pass's to remove.
 ///   A lock that cannot be read keeps the rule the classification used: every record counts as one an install answers,
 ///  so a copy is still a copy.
@@ -406,13 +410,13 @@ fn put_back(aside: &Path, record: &Path) {
 /// ```ts
 /// const stillACopy = (destination, aside, name, own) => own.namesAnotherLock(aside) === true && (name === undefined || !(declaredLauncherNames(destination)?.has(name) ?? false));
 /// ```
-fn still_a_copy_of_an_earlier_layout(destination: &Path, aside: &Path, name: Option<&str>, own: &ThisWorktreesLock) -> bool {
+fn still_a_copy_of_an_earlier_layout(aside: &Path, name: Option<&str>, own: &ThisWorktreesLock, declared_now: Option<&HashSet<String>>) -> bool {
     match own.names_another_lock(aside) {
         Some(true) => {}
         Some(false) | None => return false,
     }
     let Some(launcher) = name else { return true };
-    return match declared_launcher_names(destination) {
+    return match declared_now {
         Some(declared) => !declared.contains(launcher),
         None => true,
     };
