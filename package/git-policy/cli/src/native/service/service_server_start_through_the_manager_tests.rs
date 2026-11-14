@@ -104,6 +104,37 @@ fn a_probe_that_does_not_answer_in_time_is_no_manager() {
 }
 
 /// What:
+///  A probe child the kernel does not let go is never waited for:
+///  the probe answers at its bound plus the stop's grace,
+///  and the child is left to the thread that collects it when the kernel releases it.
+/// Why:
+///  The fourth review of issue 6293 (finding 2):
+/// the probe killed its child and then waited for it with no bound of its own,
+/// so a probe child in an uninterruptible call held the start path of a commit for as long as the kernel took.
+/// No control on this host can hold a process in such a call (measured attempts under finding 1's report),
+/// so the kill is what this control refuses:
+///  a child that is not ended by its signal is the same state from this wait's side,
+/// and it ends by itself once the control lets it.
+#[test]
+fn a_probe_child_the_kernel_does_not_let_go_is_left_to_a_reaper() {
+    let root: PathBuf = folder("unreapable");
+    std::fs::create_dir_all(root.join("held").as_path()).expect("folder");
+    // Six seconds: past the bound and the grace with room to see the difference, and short enough for the reaper to collect it here.
+    let programme: PathBuf = stand_in(root.join("held").as_path(), 0, "6");
+    let manager: ManagerStart = ManagerStart { program: programme };
+    crate::child_waited_for_within_a_ceiling::a_control_refuses_the_next_kill();
+    let began: std::time::Instant = std::time::Instant::now();
+    let answered: bool = manager.probe();
+    let waited: Duration = began.elapsed();
+    assert!(!answered, "a manager whose probe could not be ended has not answered");
+    assert!(waited >= PROBE_WAIT, "the probe waited for its bound: {waited:?}");
+    assert!(
+        waited < PROBE_WAIT + REAP_WAIT + Duration::from_secs(1),
+        "and no longer than the stop's grace past it: {waited:?}"
+    );
+}
+
+/// What:
 ///  The start through the manager is `systemd-run --user --scope -- <program> <the service's own words>`.
 /// Why:
 ///  `--scope` is what makes the run a cgroup of its own with the caller's environment (identical to the base's), and the

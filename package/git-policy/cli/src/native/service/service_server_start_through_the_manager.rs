@@ -51,6 +51,19 @@ use std::time::Duration;
 ///  and nothing on any later one.
 pub const PROBE_WAIT: Duration = Duration::from_secs(2);
 
+/// The longest the probe waits for the child it ended to be reaped,
+/// after `PROBE_WAIT` has ended the wait for its answer.
+/// Why:
+///   The probe's child is `/bin/true`, so a child the stop does not end at once is one the kernel is holding in a call it has not
+///  returned from,
+/// and waiting for it is a wait on the kernel with no bound at all
+/// (the fourth review of issue 6293, finding 2:
+/// the kill was followed by a `wait()` that had none).
+/// A tenth of a second is ten times the look that finds a child that has ended,
+/// and a child still there then is handed to the thread that collects it when the kernel lets go,
+/// so a first commit in a worktree pays `PROBE_WAIT` and at most this.
+pub const REAP_WAIT: Duration = Duration::from_millis(100);
+
 /// The extra a start through the manager is given past the base's own start wait,
 /// after which the scope is ended and the base's start is used instead.
 /// Why:
@@ -101,7 +114,9 @@ impl ManagerStart {
     /// and a refusal, a missing manager, a bus that is not there or a busy manager all answer the same way, in time.
     /// The probe is not detached, unlike a start:
     /// it is a child of this command for the length of one `true`,
-    /// so its own exit status is what answers, and a probe still running at the bound is ended and reaped by number.
+    /// so its own exit status is what answers, and a probe still running at the bound is asked to go and given `REAP_WAIT` to be
+    ///  reaped in;
+    /// a child the kernel holds past that is left to the reaper rather than waited for.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -113,20 +128,8 @@ impl ManagerStart {
         // What: The probe's own start rides out a system that refuses a process for a moment, as every other start here does.
         // Why:  A refusal proves nothing about the manager: the probe then answers false and the base's start runs, but a start
         //       the system refused once is a start the next attempt lands (`start_retry.rs`).
-        let Ok(mut child) = crate::start_retry::RetryStart::spawn_retrying(&mut command) else { return false };
-        let deadline: std::time::Instant = std::time::Instant::now() + PROBE_WAIT;
-        loop {
-            match child.try_wait() {
-                Ok(Some(status)) => return status.success(),
-                Ok(None) if std::time::Instant::now() >= deadline => {
-                    let _ended = child.kill();
-                    let _reaped = child.wait();
-                    return false;
-                }
-                Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-                Err(_unreadable) => return false,
-            }
-        }
+        let Ok(child) = crate::start_retry::RetryStart::spawn_retrying(&mut command) else { return false };
+        return answer_within(child, PROBE_WAIT);
     }
 
     /// What:
@@ -154,6 +157,48 @@ impl ManagerStart {
         arguments.extend(server.arguments());
         let detached: Detached = Detached { program: self.program.clone(), arguments, log: server.log() };
         return spawn(&detached);
+    }
+}
+
+/// What:
+///  The probe's answer,
+///  and the end of a probe child that was still there at its bound.
+/// Why:
+///   The answer is the child's own exit status,
+///  which is what makes the manager's own refusal and a missing manager the same answer.
+/// A child still there at the bound is asked to go,
+///  and given `REAP_WAIT` to be reaped in;
+/// a child the kernel holds past that cannot be ended by any signal here,
+///  so it is handed to the thread that collects it when the kernel lets go,
+/// and neither this call nor the commit waits for it
+///  (the fourth review of issue 6293, finding 2).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// answerWithin(child, PROBE_WAIT) // true when the child ended well within it
+/// ```
+fn answer_within(mut child: std::process::Child, bound: Duration) -> bool {
+    let began: std::time::Instant = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return status.success(),
+            Err(_unreadable) => return false,
+            Ok(None) if began.elapsed() >= bound => break,
+            Ok(None) => std::thread::sleep(crate::child_waited_for_within_a_ceiling::LOOK_INTERVAL),
+        }
+    }
+    let _asked: std::io::Result<()> = crate::child_waited_for_within_a_ceiling::kill(&mut child);
+    let grace: std::time::Instant = std::time::Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(_ended)) => return false,
+            Err(_unreadable) => return false,
+            Ok(None) if grace.elapsed() >= REAP_WAIT => {
+                crate::stuck_children_reaped_when_the_kernel_lets_go::reap_soon(child);
+                return false;
+            }
+            Ok(None) => std::thread::sleep(crate::child_waited_for_within_a_ceiling::LOOK_INTERVAL),
+        }
     }
 }
 
