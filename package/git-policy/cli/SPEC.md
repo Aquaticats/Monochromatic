@@ -18824,15 +18824,26 @@ and the record's `dirty` field says whether that query found an entry.
 A `drop` or `clear` runs where the repository holds no entry,
 because then it deletes nothing.
 A `skip-worktree` edit is read as uncommitted work for the forms that write over it,
-measured on this host with native Git 2.56.0:
+measured on this host with native Git 2.56.0 on 2026-11-14:
 `checkout <tree> -- <path>` and `restore --source <tree> -- <path>` replace the file the mark names,
+and so does a forced `rm` that carries `--sparse`
+(`git rm -f --sparse s.txt` exits 0 and the edited `s.txt` is gone),
 while `reset --hard`,
 `checkout --force`,
-`read-tree --reset -u` and a bare `checkout -- <path>` keep it (the last refuses the path itself).
-The scope `DirtyScope::TrackedAndSkipWorktreeEdits` is asked by exactly those two readings,
+`read-tree --reset -u`,
+`checkout-index -f`,
+`stash` and a bare `checkout -- <path>` keep it (the last refuses the path itself),
+and a plain `git rm -f s.txt` is Git's own refusal of a path outside the sparse definition.
+The scope `DirtyScope::TrackedAndSkipWorktreeEdits` is asked by exactly those readings,
 and a form that answers the question itself keeps the mark out of it:
 `--ignore-skip-worktree-bits` tells Git to ignore the mark,
-so Git writes that file by the person's own instruction and the guard does not refuse it.
+so Git writes that file by the person's own instruction and the guard does not refuse it,
+and `git rm --cached` removes the index entry and leaves the worktree file, so it asks the plain
+question.
+An `assume-unchanged` edit is read in every forced form's question,
+because Git writes that file whatever the mark says
+(`rm -f`, `reset --hard`, `checkout -- <path>`, `checkout -f`, `checkout-index -f -a` and
+`read-tree --reset -u` all replace or delete it, measured in the same place).
 A `checkout` or `switch` that changes any file is also forwarded with `--no-overwrite-ignore`,
 directly after the subcommand,
 so Git itself refuses a switch that would replace an ignored file the target tree tracks,
@@ -18863,9 +18874,24 @@ read with `git ls-tree -r -z --name-only <revision>`,
 `HEAD` when the form names no tree.
 Three more readings complete the table,
 each measured on this host with native Git 2.56.0:
-a forced `git mv` writes its destination and, when that destination is a directory Git moves into,
-the name each source takes inside it
-(`git mv --force a.txt b.txt` over an untracked `b.txt` replaces it at exit 0);
+a forced `git mv` writes what Git writes for its shape
+(`command/command_written_paths.rs`, resolved in `repo_read/repository_facts_written_paths.rs`):
+a destination that is an existing directory is moved *into*, so the written path is each source's
+name inside it and the directory itself is never written
+(`git mv -f a.txt b` with an untracked `b/` holding `b/keep.txt` creates `b/a.txt` and leaves the rest
+alone, exit 0),
+and a destination that is not one is renamed onto
+(`git mv -f a.txt dest.txt` replaces an untracked `dest.txt`, exit 0);
+the shapes Git refuses write nothing here and are answered by Git's own refusal:
+several sources onto a non-directory (`fatal: destination 'dest.txt' is not a directory`),
+a trailing slash on a destination that is not there (`destination directory does not exist`),
+a directory source onto an existing file (`destination already exists`),
+a source whose name inside the destination is an existing directory (`fatal: Cannot overwrite`),
+and a directory into itself.
+Each shape was measured on this host with native Git 2.56.0 on 2026-11-14,
+and the twelve rows are the control `every_shape_of_a_forced_move_is_read_the_way_git_writes_it`.
+A reading that named the destination itself as written over refused the safe `git mv -f a.txt b`
+with a sentence that was untrue about what Git would do;
 a forced `git checkout-index` writes the index's paths it names,
 or all of them with `-a`/`--all`,
 each below the directory `--prefix` names when it names one

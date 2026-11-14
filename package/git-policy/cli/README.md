@@ -2560,10 +2560,14 @@ The rule is:
   and names the file instead.
   Nothing is lost when nothing would be replaced,
   and a person who means it can still write `git checkout --overwrite-ignore <branch>`.
-- A forced `git mv` and a forced `git checkout-index` write paths no other word of the command names,
-  the destination and the index's paths under `--prefix`:
-   an untracked file there is refused the same way,
-   and the refusal names it.
+- A forced `git mv` writes what Git writes for its shape: a destination that is a directory is moved
+  into (`git mv -f a.txt b` creates `b/a.txt` and leaves `b/` alone, so it runs), and a destination
+  that is not one is renamed onto, where an untracked file is refused with its name.
+  The shapes Git refuses (several sources onto a file, a trailing slash on a missing directory, a
+  directory onto an existing file, a source onto a directory of its name, a directory into itself)
+  write nothing here and are answered by Git's own refusal.
+  A forced `git checkout-index` writes the index's paths it names, below the directory `--prefix`
+  names, and an untracked file there is refused the same way.
   A command that reads its pathspecs from a file
   (`--pathspec-from-file <file>` or `--pathspec-from-file=<file>`,
   with `--pathspec-file-nul` deciding the separator) is read from that file,
@@ -2602,6 +2606,8 @@ The rule is:
   A word that is a path or a revision keeps the bytes it was typed as, so a prefix or a
   `--source` that is not text still names the file Git writes.
   An option written twice keeps the last value, as Git does.
+  An edit hidden by `skip-worktree` is read for the forms that write over it, `git rm -f --sparse`
+  among them, and an edit hidden by `assume-unchanged` is read in every forced form's question.
   An interactive clean that would offer a bare Git repository is stopped instead of capped: one
   force keeps a folder with a `.git` entry and deletes a bare repository, so the cap cannot keep it.
   A `!` shell alias whose own words run an interactive clean is stopped the same way, because the
