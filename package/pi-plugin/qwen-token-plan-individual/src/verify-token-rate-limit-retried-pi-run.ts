@@ -10,8 +10,11 @@ import {
   spawn,
   type ChildProcess,
 } from 'node:child_process';
+import type { Dirent, } from 'node:fs';
 import {
   mkdir,
+  readFile,
+  readdir,
   writeFile,
 } from 'node:fs/promises';
 import {
@@ -310,6 +313,77 @@ export function retryWaitsOf({
     },);
 }
 
+/**
+ The session files one run left behind, read whole.
+
+ A session is where pi stores the messages it built,
+ which is what a reader of a run inspects afterwards.
+
+ @param folder - folder to search, which must exist;
+ start at the run's throwaway home
+
+ @throws when the folder cannot be read, since the caller starts at a folder it
+ created itself
+
+ @returns every session file's text, in the order the files were found
+
+ @example
+ ```typescript
+ const sessions = await sessionTextsUnder({ folder: home });
+ ```
+ */
+export async function sessionTextsUnder({
+  folder,
+}: {
+  readonly folder: string;
+},): Promise<string[]> {
+  /**
+   Entries in the folder being read,
+   which the caller starts at a folder the run itself created.
+   */
+  const names = await readdir(
+    folder,
+    { withFileTypes: true, },
+  );
+  /**
+   Texts of the session files found directly in this folder.
+   */
+  const here = await Promise.all(names
+    .filter(function isSessionFile(entry,) {
+      return entry.isFile()
+        && entry.name
+          .endsWith('.jsonl',);
+    },)
+    .map(function textOf(entry,) {
+      return readFile(
+        join(
+          folder,
+          entry.name,
+        ),
+        'utf8',
+      );
+    },),);
+  /**
+   Texts of the sessions found in the folders below this one.
+   */
+  const below = await Promise.all(names
+    .filter(function isFolder(entry,) {
+      return entry.isDirectory();
+    },)
+    .map(function textsOf(entry,) {
+      return sessionTextsUnder({
+        folder: join(
+          folder,
+          entry.name,
+        ),
+      },);
+    },),);
+  return [
+    ...here,
+    ...below.flat(),
+  ];
+}
+
 //endregion Reading a feed
 
 //region Running pi
@@ -406,7 +480,6 @@ export async function runPi(request: PiRunRequest,): Promise<PiRun> {
       '--mode',
       'json',
       '--offline',
-      '--no-session',
       '--no-extensions',
       '--extension',
       extension,

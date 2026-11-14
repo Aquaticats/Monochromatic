@@ -124,9 +124,8 @@ Both `stream` and `streamSimple` forward every event as the provider's own
  which is where a run's `stderr.log` keeps it.
 
 What matches is narrow on purpose,
- so a plan that is really spent,
- a bill that is overdue and a credential that is refused still end a run at
- once:
+ so every answer the provider documents as spent,
+ overdue or unauthenticated ends a run at once:
 
 - the error text has to start with `429: `,
  which is where pi writes the status it received;
@@ -138,6 +137,19 @@ What matches is narrow on purpose,
  so the provider's own trailing details still fit and
  `Free allocated quota exceeded.` never does.
 
+The second documented message,
+`You exceeded your current quota, please check your plan and billing details.`,
+is also OpenAI's answer for a spent balance,
+and this is the one answer here that costs a budget instead of a decision:
+if this provider ever sends those words for a plan that is really spent,
+the run is retried for the whole of pi's budget
+(eight waits,
+about three minutes at this machine's settings)
+and then still ends `model-error` on it.
+No recorded answer on 2026-11-13 carried it,
+and the provider's page gives it under the TPS/TPM cause,
+which is why it is read as the passing limit.
+
 Everything else passes through exactly as pi received it.
 The answers that look alike and stay final:
 
@@ -147,7 +159,7 @@ The answers that look alike and stay final:
  keeps it apart from `Allocated quota exceeded, ...`;
 - `PrepaidBillOverdue` and `PostpaidBillOverdue` are unsettled bills;
 - `AllocationQuota.FreeTierOnly` is a spent free tier,
-  sent as a `403`;
+  which the provider's page lists under its `403` answers;
 - a body that is not JSON,
  a body cut short,
   and any status other than `429`

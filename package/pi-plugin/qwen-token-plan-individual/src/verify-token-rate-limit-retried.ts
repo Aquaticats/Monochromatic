@@ -39,7 +39,10 @@ import {
 import { fileURLToPath, } from 'node:url';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import { piCliPath, } from './disposable-host.ts';
-import { runPi, } from './verify-token-rate-limit-retried-pi-run.ts';
+import {
+  runPi,
+  sessionTextsUnder,
+} from './verify-token-rate-limit-retried-pi-run.ts';
 import { checksOf, } from './verify-token-rate-limit-retried-checks.ts';
 import {
   startStandIn,
@@ -360,6 +363,11 @@ async function proveRetriedByPi(): Promise<string[]> {
     prompt: PROMPT,
   },);
   /**
+   Sessions the retried run stored, which is where a reader of a run looks
+   afterwards.
+   */
+  const sessions = await sessionTextsUnder({ folder: retriedHome.home, },);
+  /**
    Every check the proof makes.
    */
   const checks = checksOf({
@@ -367,6 +375,7 @@ async function proveRetriedByPi(): Promise<string[]> {
       retried,
       unchanged,
       chatRequests: standIn.chatRequests(),
+      storedSessions: sessions,
     },
   },);
   /**

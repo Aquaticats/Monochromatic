@@ -6,12 +6,18 @@
  The package's source is copied out of that commit through `git archive` and
  built with this checkout's toolchain;
  the copy borrows the dependency trees the package and the repository root
- already hold.
+ already hold,
+ so every workspace package it imports resolves to this checkout's source.
+ The proof therefore compares this package's own dispatch, and it assumes the
+ packages beside it are the same in both runs.
 
  @module
  */
 
-import { stat, } from 'node:fs/promises';
+import {
+  readFile,
+  stat,
+} from 'node:fs/promises';
 import {
   dirname,
   join,
@@ -291,13 +297,31 @@ export async function unchangedBundleOf(request: UnchangedBundleRequest,): Promi
     ],
     { cwd: packageDirectory, },
   );
-  return join(
+  /**
+   Path of the bundle the copy built.
+   */
+  const bundle = join(
     packageDirectory,
     'dist',
     'final',
     'node',
     'index.mjs',
   );
+  /**
+   Built bundle, read so the price is known before a run loads it.
+   */
+  const built = await readFile(
+    bundle,
+    'utf8',
+  );
+  // A marker that already reached the commit this copy came from would make
+  // the "unchanged" run another run of this translation,
+  // and the proof would pass for a reason it does not claim.
+  if (built.includes(translationMarker,))
+    throw new Error(
+      `the bundle built from ${commit} already carries "${translationMarker}", so it is not the package before this translation`,
+    );
+  return bundle;
 }
 
 //endregion Building the bundle

@@ -21,9 +21,15 @@ const RETRIED_ERROR_MESSAGE_START = '429: token rate limit reached';
 
 /**
  Words the provider's own answer carries, which the unchanged run must still
- end on.
+ end on and the stored session must keep.
  */
 const PROVIDER_ANSWER_WORDS = 'insufficient_quota';
+
+/**
+ Diagnostic type this package writes onto the message it retries,
+ which a reader of a stored session finds the provider's answer under.
+ */
+const DIAGNOSTIC_TYPE = 'qwen-token-plan-individual.passing-token-rate-limit';
 
 /**
  Reply the stand-in gives every chat completion after the run's first.
@@ -64,6 +70,10 @@ export type ProofRuns = {
    How many chat completions the stand-in answered over both runs.
    */
   readonly chatRequests: number;
+  /**
+   Texts of the sessions the retried run stored.
+   */
+  readonly storedSessions: readonly string[];
 };
 
 //endregion Types
@@ -198,6 +208,18 @@ export function checksOf({
   return [
     // The retried run: pi announced its own retry, and the run ended on the
     // reply.
+    {
+      ok: runs.storedSessions
+        .some(function keepsTheProviderAnswer(session,) {
+          return session.includes(DIAGNOSTIC_TYPE,)
+            && session.includes(PROVIDER_ANSWER_WORDS,);
+        },),
+      line: `the retried run stored ${String(runs.storedSessions
+        .length,)} session file(s), and ${runs.storedSessions
+          .some(function keepsTheProviderAnswer(session,) {
+        return session.includes(DIAGNOSTIC_TYPE,);
+      },) ? 'one carries' : 'none carries'} this package's diagnostic with the provider's own answer`,
+    },
     {
       ok: (runs.retried
         .exitCode
