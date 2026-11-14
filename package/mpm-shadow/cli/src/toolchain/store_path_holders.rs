@@ -268,17 +268,31 @@ pub fn holders_of(_store_roots: &[PathBuf], _deadline: Instant) -> StoreHolders 
 /// Why:
 /// One sentence names the hold and a process,
 /// so a person can look at what kept the version (or end it).
+/// The process table spells a program's path with every symbolic link resolved,
+/// and a store root spelled through `$HOME` need not be that spelling
+/// (on this machine `/home` is a link to `/var/home`),
+/// so the directory is compared both as it was given and as it resolves;
+/// without the second spelling a store under a linked home would match no holder at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// export function heldReason(holders: StoreHolders, versionDirectory: string): string | undefined
 /// ```
 pub fn held_reason(holders: &StoreHolders, version_directory: &Path) -> Option<String> {
+    // What: the directory's own spelling, and the one every link in it resolved, when it resolves.
+    // Why: a holder's path comes from the kernel, which resolves links, and the caller's path comes from `$HOME`.
+    let physical: Option<PathBuf> = std::fs::canonicalize(version_directory).ok();
+    let is_below = |path: &Path| -> bool {
+        if path.starts_with(version_directory) {
+            return true;
+        }
+        return physical.as_ref().is_some_and(|spelling| return path.starts_with(spelling));
+    };
     for held in &holders.held {
-        if !held.path.starts_with(version_directory) {
+        if !is_below(&held.path) {
             continue;
         }
-        let others: usize = holders.held.iter().filter(|other| return other.path.starts_with(version_directory)).count();
+        let others: usize = holders.held.iter().filter(|other| return is_below(&other.path)).count();
         let more: String = if others > 1 { format!(" and {} more process(es)", others - 1) } else { String::new() };
         return Some(format!("pid {} {} {}{more}", held.pid, held.kind.words(), held.path.display()));
     }

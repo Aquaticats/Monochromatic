@@ -807,7 +807,7 @@ pub fn settle_markers(roots: &[PathBuf], tools: &BTreeSet<String>, unfinished: &
 /// ```ts
 /// export function visibleLocks(ctx: Context): { files: string[]; unreadable?: string }
 /// ```
-fn visible_locks(ctx: &Context) -> (Vec<PathBuf>, Option<String>) {
+pub(super) fn visible_locks(ctx: &Context) -> (Vec<PathBuf>, Option<String>) {
     let mut files: Vec<PathBuf> = vec![ctx.scope.lock_file.clone()];
     let mut unreadable: Option<String> = None;
     if ctx.scope.kind == ScopeKind::Repo {
@@ -829,7 +829,12 @@ fn visible_locks(ctx: &Context) -> (Vec<PathBuf>, Option<String>) {
 /// which reads every worktree's lock,
 /// and only the machine-global store from the global scope,
 /// which cannot see the worktrees' locks.
-fn roots_to_trim(ctx: &Context) -> Vec<PathBuf> {
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function rootsToTrim(ctx: Context): string[]
+/// ```
+pub(super) fn roots_to_trim(ctx: &Context) -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = match ctx.scope.kind {
         ScopeKind::Repo => vec![ctx.scope.toolchain_root.clone(), ctx.scope.other_toolchain_root.clone()],
         ScopeKind::Global => vec![ctx.scope.toolchain_root.clone()],

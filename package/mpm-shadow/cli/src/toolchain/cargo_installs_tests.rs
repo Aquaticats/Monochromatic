@@ -19,6 +19,7 @@ use super::model::{OsFamily, Route};
 use super::observe::{format_status, observe_all};
 use super::scope::{Scope, repo_scope};
 use super::status_cmd::run_status;
+use super::store_keeps::InstallKeeps;
 use super::sync::sync_tools;
 
 /// The repository-published tool of the sample lock.
@@ -287,7 +288,8 @@ fn pointing_current_at_the_newest_and_removing_the_older_ones_keep_the_longer_al
     }
     let pointed = super::cargo_installs::point_current_at_newest(&root, PUBLISHED_CRATE).expect("pointed");
     assert_eq!(pointed.as_deref(), Some(LATER_ALPHA));
-    let removed = super::cargo_installs::remove_older_than_newest(&root, PUBLISHED_CRATE).expect("removed");
+    let keeps: InstallKeeps = InstallKeeps::of(&rig.context());
+    let removed = super::cargo_installs::remove_older_than_newest(&root, PUBLISHED_CRATE, &keeps, LATER_ALPHA).expect("removed");
     assert_eq!(removed, vec![version_directory(&root, PUBLISHED_CRATE, EARLIER_ALPHA)]);
     assert!(version_directory(&root, PUBLISHED_CRATE, LATER_ALPHA).exists());
 }

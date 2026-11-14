@@ -33,7 +33,7 @@ use crate::version::compare_versions;
 /// Imports what this module uses from `super::across_roots`.
 use super::across_roots::{WinningCopy, winning_copy};
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{current_link, finished_versions_of, is_repository_published, version_directory};
+use super::cargo_installs::{current_link, finished_versions_of, is_repository_published, running_version, version_directory};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports what this module uses from `super::layout`.
@@ -48,8 +48,10 @@ use super::util::find_tool;
 use super::old_copies::Repoint;
 /// Imports what this module uses from `super::old_copy_places`.
 use super::old_copy_places::{Places, links_to_copy, places_of};
-/// Imports `current_link_of` and `is_published_archive` from `super::published_archive`.
-use super::published_archive::{current_link_of, is_published_archive};
+/// Imports `running_version_archive` from `super::published_archive`.
+use super::published_archive::{current_link_of, is_published_archive, running_version_archive};
+/// Imports the keeps every removal asks from `super::store_keeps`.
+use super::store_keeps::InstallKeeps;
 
 /// One older version of a tool in a root that does not hold the newest copy.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -61,6 +63,20 @@ pub struct LoserCopy {
     /// Each declared bin that exists in the version,
     /// with its file.
     pub bins: Vec<(String, PathBuf)>,
+}
+
+/// One older version of a tool in a root that this run keeps,
+/// and why it stays.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct KeptCopy {
+    /// The version.
+    pub version: String,
+    /// The version's directory in the root.
+    pub directory: PathBuf,
+    /// Why nothing may remove it:
+    /// the lock that names it,
+    /// or the process that uses it.
+    pub reason: String,
 }
 
 /// What the cleanup decided for the older managed copies of one tool in one root.
@@ -75,9 +91,13 @@ pub struct LoserPlan {
     /// The newest version,
     /// the one that runs.
     pub winner_version: String,
-    /// The older versions,
+    /// The older versions this run removes,
     /// newest first.
     pub copies: Vec<LoserCopy>,
+    /// The older versions this run keeps,
+    /// newest first,
+    /// each with the lock or the process that keeps it.
+    pub kept_copies: Vec<KeptCopy>,
     /// The links to move,
     /// sorted.
     pub repoints: Vec<Repoint>,
@@ -145,7 +165,15 @@ fn current_in(root: &Path, tool: &LockedTool) -> Option<PathBuf> {
 }
 
 /// Why the older copies stay before any link is looked at,
-/// or `None`.
+/// or `None` when they may go once their links moved.
+/// The `copies` here are the ones this plan would remove:
+/// a version a lock names is not one of them,
+/// so a failure that only endangers a version nobody would remove keeps nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function preconditionReason(ctx: Context, tool: LockedTool, copies: LoserCopy[], failed: [string, string][]): string | undefined
+/// ```
 fn precondition_reason(ctx: &Context, tool: &LockedTool, copies: &[LoserCopy], failed: &[(String, String)]) -> Option<String> {
     for (id, _) in failed {
         if *id == tool.declaration.id {
@@ -166,15 +194,26 @@ fn precondition_reason(ctx: &Context, tool: &LockedTool, copies: &[LoserCopy], f
 /// The plan for the older copies of one tool in one root:
 /// the links that resolve to them,
 /// each with the newest copy's file of the same bin as its target.
+/// `kept_copies` are the older versions a lock names or a process uses,
+/// which this plan does not remove and does not move a link away from.
 /// Why:
 /// Reads only.
 /// A root that is not the running scope's keeps its older copies while some place could not be searched.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function planRoot(ctx: Context, tool: LockedTool, winner: WinningCopy, root: string, places: Places): LoserPlan
+/// function planRoot(ctx: Context, tool: LockedTool, winner: WinningCopy, root: string, copies: LoserCopy[], keptCopies: KeptCopy[], failed: [string, string][], places: Places): LoserPlan
 /// ```
-fn plan_root(ctx: &Context, tool: &LockedTool, winner: &WinningCopy, root: PathBuf, copies: Vec<LoserCopy>, failed: &[(String, String)], places: &Places) -> LoserPlan {
+fn plan_root(
+    ctx: &Context,
+    tool: &LockedTool,
+    winner: &WinningCopy,
+    root: PathBuf,
+    copies: Vec<LoserCopy>,
+    kept_copies: Vec<KeptCopy>,
+    failed: &[(String, String)],
+    places: &Places,
+) -> LoserPlan {
     let mut repoints: Vec<Repoint> = Vec::new();
     let mut unreadable: Vec<PathBuf> = Vec::new();
     for copy in &copies {
@@ -214,6 +253,7 @@ fn plan_root(ctx: &Context, tool: &LockedTool, winner: &WinningCopy, root: PathB
         winner_root: winner.root.clone(),
         winner_version: winner.version.clone(),
         copies,
+        kept_copies,
         repoints,
         kept,
         forward,
@@ -257,11 +297,150 @@ pub fn emptied_by(ctx: &Context, plan: &LoserPlan) -> bool {
 }
 
 /// What:
+/// The copies of one root this run removes,
+/// and the ones no removal may take away.
+/// Why:
+/// A version a running process of this user uses outranks the newest-only rule,
+/// so it is not part of what the plan removes;
+/// the links that resolve to it also stay where they are,
+/// because the version they reach is still there.
+/// A version that only a lock names is removed here,
+/// by the owner's decision that this repository's tools are one set across both roots:
+/// a tree whose lock pins an older version runs the newer one and is warned,
+/// and the scope keeps no older copy of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function partitionKept(ctx: Context, copies: LoserCopy[]): [LoserCopy[], KeptCopy[]]
+/// ```
+fn partition_kept(ctx: &Context, copies: Vec<LoserCopy>) -> (Vec<LoserCopy>, Vec<KeptCopy>) {
+    // What: the locks and the process table are read once for every copy of this tool in this root.
+    // Why: one read judges all of them by the same state, and the read costs about a second.
+    let keeps: InstallKeeps = InstallKeeps::of(ctx);
+    let mut removable: Vec<LoserCopy> = Vec::new();
+    let mut kept: Vec<KeptCopy> = Vec::new();
+    for copy in copies {
+        match keeps.in_use_reason(&copy.directory) {
+            Some(reason) => kept.push(KeptCopy { version: copy.version, directory: copy.directory, reason }),
+            None => removable.push(copy),
+        }
+    }
+    return (removable, kept);
+}
+
+/// What:
+/// What this run does to the loser root's `current` link once its removals are done.
+/// Why:
+/// The link names the newest finished version of that root,
+/// which may be one of the versions this run removes,
+/// and a root that keeps an older version must not be left with a link that points at nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CurrentAfterRemoval =
+///   | { kind: 'leave' }
+///   | { kind: 'point'; link: string; version: string }
+///   | { kind: 'forward'; link: string; target: string }
+///   | { kind: 'remove'; link: string };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CurrentAfterRemoval {
+    /// The link does not name a version this run removes, so it is left as it is.
+    Leave,
+    /// The link names a version this run removes, and this version of the same root stays.
+    Point(PathBuf, String),
+    /// The root keeps no finished version, so its link forwards to the winner's `current`.
+    Forward(PathBuf, PathBuf),
+    /// The root keeps no finished version and there is nothing to forward to, so its link goes.
+    Remove(PathBuf),
+}
+
+/// What:
+/// The newest finished version of the plan's tool that stays in the plan's root,
+/// or `None` when every finished one there is removed.
+/// Why:
+/// It is what the root's `current` has to name after the removals,
+/// and a root that keeps a version a lock names keeps a working link to it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function newestSurvivor(ctx: Context, plan: LoserPlan): string | undefined
+/// ```
+fn newest_survivor(ctx: &Context, plan: &LoserPlan) -> Option<String> {
+    let tool: &LockedTool = find_tool(ctx.tools, &plan.tool_id)?;
+    // What: `finished_versions_of` answers newest first, so the first one that is not removed is the newest survivor.
+    // Why: the link has to name the newest version that stays, the way an install writes it.
+    for version in finished_versions_of(&plan.root, tool) {
+        let going: bool = plan.copies.iter().any(|copy| return copy.version == version);
+        if !going {
+            return Some(version);
+        }
+    }
+    return None;
+}
+
+/// What:
+/// The version the root's `current` link names,
+/// whichever route installed the tool.
+/// Why:
+/// The plan is about one tool of one root,
+/// and an archive tool's link is not the crate link,
+/// so the read follows the route the tool's declaration names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runningVersionOf(root: string, tool: LockedTool): string | undefined
+/// ```
+fn running_version_of(root: &Path, tool: &LockedTool) -> Option<String> {
+    if is_published_archive(tool) {
+        return running_version_archive(root, &tool.declaration.id);
+    }
+    return running_version(root, &package_name(tool));
+}
+
+/// What:
+/// What this run does to the loser root's `current` link,
+/// asked when the plan is applied so a version another run installed meanwhile is seen.
+/// Why:
+/// The link may name a version this run removes while the root keeps an older one,
+/// and the two answers that matter are the version that stays and the forward to the winner.
+/// A link that names nothing this run removes stays as it is:
+/// it may be another run's newer install, and that run owns its link.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function currentAfterRemoval(ctx: Context, plan: LoserPlan): CurrentAfterRemoval
+/// ```
+pub fn current_after_removal(ctx: &Context, plan: &LoserPlan) -> CurrentAfterRemoval {
+    let Some(tool) = find_tool(ctx.tools, &plan.tool_id) else {
+        return CurrentAfterRemoval::Leave;
+    };
+    let Some(link) = current_in(&plan.root, tool) else {
+        return CurrentAfterRemoval::Leave;
+    };
+    let Some(named) = running_version_of(&plan.root, tool) else {
+        return CurrentAfterRemoval::Leave;
+    };
+    let going: bool = plan.copies.iter().any(|copy| return copy.version == named);
+    if !going {
+        return CurrentAfterRemoval::Leave;
+    }
+    if let Some(survivor) = newest_survivor(ctx, plan) {
+        return CurrentAfterRemoval::Point(link, survivor);
+    }
+    if let Some((forward_link, target)) = &plan.forward {
+        return CurrentAfterRemoval::Forward(forward_link.clone(), target.clone());
+    }
+    return CurrentAfterRemoval::Remove(link);
+}
+
+/// What:
 /// The plans for every tool of `ctx.tools` that has older finished copies in a root other than the winner's.
 /// `failed` is what the install of this run reported as failed.
 /// Why:
 /// The places are searched only when some tool has an older copy,
-/// so an ordinary run asks git nothing.
+/// so an ordinary run asks git nothing,
+/// and the locks and the process table are read only when a copy would otherwise be removed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -284,8 +463,11 @@ pub fn plan_losers(ctx: &Context, failed: &[(String, String)], places: &mut Opti
             if copies.is_empty() {
                 continue;
             }
+            // What: the versions a lock names or a process uses are set aside before any link is looked at.
+            // Why: their links still resolve, so nothing about them dangles, and the plan must not count them as removed.
+            let (removable, kept_copies) = partition_kept(ctx, copies);
             let searched: &Places = places_of(places, ctx.scope, ctx.env, ctx.runner);
-            plans.push(plan_root(ctx, tool, &winner, root, copies, failed, searched));
+            plans.push(plan_root(ctx, tool, &winner, root, removable, kept_copies, failed, searched));
         }
     }
     return plans;

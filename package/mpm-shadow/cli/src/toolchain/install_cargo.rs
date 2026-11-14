@@ -21,7 +21,9 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Imports what this module uses from `super::cargo_installs`.
-use super::cargo_installs::{is_repository_published, point_current_at_newest, remove_older_than_newest, version_directory};
+use super::cargo_installs::{
+    is_repository_published, point_current_at_newest, remove_older_than_newest, version_directory, version_names,
+};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `no_archive_failure` from `super::binstall_no_archive`.
@@ -38,6 +40,8 @@ use super::model::{LockedTool, Origin};
 use super::observe::package_name;
 /// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest};
+/// Imports the keeps every removal asks from `super::store_keeps`.
+use super::store_keeps::InstallKeeps;
 
 /// What:
 /// Installs one crate with `cargo binstall --root <version directory>` into the crate's own version-keyed cargo
@@ -52,7 +56,7 @@ use super::runner::{RunOutcome, RunRequest};
 /// and the install fails with a message naming what to do when none fits;
 /// only a third-party crate may fall back to compiling or to the third-party quick-install host.
 /// For a repository-published crate it then points `current` at the newest installed version and deletes every
-/// older one.
+/// older one that no lock names and no process of this user runs.
 /// Why:
 /// `--root` (unlike `--install-path`) also covers the build-from-source fallback:
 /// cargo-binstall 1.26.1 passes `--root` on to `cargo install`,
@@ -107,7 +111,16 @@ pub fn install_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Result<(), To
     }
     if repository_crate {
         point_current_at_newest(&ctx.scope.toolchain_root, &crate_name)?;
-        remove_older_than_newest(&ctx.scope.toolchain_root, &crate_name)?;
+        // What: the keeps are read only when the crate's directory holds a version besides the one this run wrote.
+        // Why: reading every worktree's lock and the process table costs about a second,
+        // and a first install of the crate has nothing older to judge.
+        let older: bool = version_names(&ctx.scope.toolchain_root, &crate_name).iter().any(|name| return name != &tool.version);
+        if older {
+            // What: the locks and the process table are read here, before anything goes.
+            // Why: a version another worktree's lock pins, or a service runs, outranks the newest-only rule.
+            let keeps: InstallKeeps = InstallKeeps::of(ctx);
+            remove_older_than_newest(&ctx.scope.toolchain_root, &crate_name, &keeps, &tool.version)?;
+        }
     }
     return Ok(());
 }

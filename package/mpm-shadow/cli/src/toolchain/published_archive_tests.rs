@@ -30,6 +30,8 @@ use super::published_archive::{
 use super::runner::RunRequest;
 use super::scope::{Scope, ScopeKind, repo_scope};
 use super::status_cmd::run_status;
+use super::store_keeps::InstallKeeps;
+use super::store_keeps_tests::StandIn;
 use super::sync::sync_tools;
 
 /// The tool id.
@@ -233,6 +235,67 @@ fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_d
     assert_eq!(fs::read_link(rig.scope.exposure_dir.join(BIN)).expect("a link"), launcher);
     let through_current = fs::canonicalize(current_link_of(&root, ID).expect("a plain name").join("release-folder").join(BIN)).expect("current resolves");
     assert!(through_current.to_string_lossy().ends_with("0.2.1/release-folder/mpm-shadow-release"), "{}", through_current.display());
+}
+
+/// What:
+/// An install of a newer release leaves the version another worktree's lock names,
+/// and still removes the version nothing names and nothing runs.
+/// Why:
+/// The newest-only rule took the lock-named version away,
+/// so the worktree that pins it installed it again on its next sync,
+/// and the next tree that installed the newer one removed it again (seen on this machine on 2026-11-13).
+#[test]
+fn installing_a_newer_release_keeps_the_version_another_worktree_lock_names_and_removes_the_one_nothing_names() {
+    let rig = Rig::new();
+    serve_releases(&rig, &["0.2.2"]);
+    let root = rig.scope.toolchain_root.clone();
+    // Two finished older versions: another worktree's lock names 0.2.0, and nothing names 0.2.1.
+    finish_archive(&root, "0.2.0");
+    finish_archive(&root, "0.2.1");
+    let other = second_tree(&rig);
+    fs::write(&other.lock_file, named_lock("0.2.0")).expect("write the other tree's lock");
+    rig.runner.answer(
+        "git -C",
+        &format!("worktree {}\nHEAD a\n\nworktree {}\nHEAD b\n\n", rig.scope.root.display(), other.root.display()),
+        0,
+    );
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.2")), None);
+    assert_eq!(report.installed, vec![ID.to_string()], "{report:?}");
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    assert!(tool_dir.join("0.2.0").is_dir(), "the version the other worktree's lock names stays");
+    assert!(!tool_dir.join("0.2.1").exists(), "the version nothing names and nothing runs is still removed");
+    assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.2"), "the newest finished version runs");
+}
+
+/// What:
+/// An install of a newer release leaves the version a process of this account runs,
+/// and still removes the version nothing names and nothing runs.
+/// Why:
+/// The newest-only rule unlinked versions 38 processes of this account were executing (measured 2026-11-13),
+/// and a service whose program went away cannot start again until an install puts it back.
+#[test]
+fn installing_a_newer_release_keeps_the_version_a_process_of_this_account_runs() {
+    let rig = Rig::new();
+    serve_releases(&rig, &["0.2.2"]);
+    let root = rig.scope.toolchain_root.clone();
+    // Two finished older versions: a process of this account runs 0.2.0, and nothing runs or names 0.2.1.
+    let older_program: PathBuf = finish_archive(&root, "0.2.0");
+    finish_archive(&root, "0.2.1");
+    let stand_in: StandIn = StandIn::started_from(&older_program);
+    // Control: the rule itself names this process, so the survival below is this keep and not another one.
+    let keeps: InstallKeeps = InstallKeeps::of(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.2")));
+    let reason: String = keeps
+        .keep_reason(ID, "0.2.0", &tool_directory(&root, ID).expect("a plain name").join("0.2.0"))
+        .expect("a process of this account runs it");
+    assert!(reason.contains(&format!("pid {}", stand_in.pid())), "the rule names the process: {reason}");
+
+    let report = sync_tools(&context_of(&rig, &rig.scope, &lock_at(&rig, "0.2.2")), None);
+    assert_eq!(report.installed, vec![ID.to_string()], "{report:?}");
+    let tool_dir: PathBuf = tool_directory(&root, ID).expect("a plain name");
+    assert!(tool_dir.join("0.2.0").is_dir(), "the version this account runs stays");
+    assert!(!tool_dir.join("0.2.1").exists(), "the version nothing names and nothing runs is still removed");
+    stand_in.stop();
 }
 
 /// What:
@@ -683,7 +746,8 @@ fn the_newest_archive_and_the_removal_of_older_ones_read_a_longer_alpha_number_a
         finish_archive(&root, version);
     }
     assert_eq!(newest_installed_archive(&root, ID, BIN).as_deref(), Some(LATER_ALPHA));
-    let removed = super::published_archive::remove_older_archives(&root, ID, BIN).expect("removed");
+    let keeps: InstallKeeps = InstallKeeps::of(&rig.context());
+    let removed = super::published_archive::remove_older_archives(&root, ID, BIN, &keeps, LATER_ALPHA).expect("removed");
     assert_eq!(removed.len(), 1, "{removed:?}");
     assert!(removed[0].ends_with(EARLIER_ALPHA), "{removed:?}");
 }

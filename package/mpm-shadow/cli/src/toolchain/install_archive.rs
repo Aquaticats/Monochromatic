@@ -44,7 +44,11 @@ use super::util::ends_with_any;
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports what this module uses from `super::published_archive`.
-use super::published_archive::{first_bin_of_tool, is_published_archive, point_current_at_newest_archive, remove_older_archives};
+use super::published_archive::{
+    first_bin_of_tool, is_published_archive, point_current_at_newest_archive, remove_older_archives, version_names,
+};
+/// Imports the keeps every removal asks from `super::store_keeps`.
+use super::store_keeps::InstallKeeps;
 
 /// What:
 /// The last path segment of a URL (query and fragment removed) made safe as a file name:
@@ -185,9 +189,10 @@ fn gunzip_to(source: &Path, target: &Path) -> Result<(), ToolchainError> {
 /// What:
 /// Installs one archive-route tool,
 /// and for a tool this repository publishes points its `current` link at the newest finished version
-/// and deletes every older one.
+/// and deletes every older one that no lock names and no process of this user runs.
 /// Why:
-/// Older repository-published tools are never kept once a newer one is installed,
+/// Older repository-published tools are not kept once a newer one is installed,
+/// except a version another tree's lock pins or a running program uses,
 /// and every tree's exposed link goes through `current`.
 ///
 /// In TS you'd write (pseudocode):
@@ -199,7 +204,18 @@ pub fn install_archive(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchain
     if is_published_archive(tool) {
         let first_bin: &str = first_bin_of_tool(tool);
         point_current_at_newest_archive(&ctx.scope.toolchain_root, &tool.declaration.id, first_bin)?;
-        remove_older_archives(&ctx.scope.toolchain_root, &tool.declaration.id, first_bin)?;
+        // What: the keeps are read only when the tool's directory holds a version besides the one this run wrote.
+        // Why: reading every worktree's lock and the process table costs about a second,
+        // and the first install of a tool has nothing older to judge.
+        let older: bool = version_names(&ctx.scope.toolchain_root, &tool.declaration.id)
+            .iter()
+            .any(|name| return name != &tool.version);
+        if older {
+            // What: the locks and the process table are read here, before anything goes.
+            // Why: a version another worktree's lock pins, or a service runs, outranks the newest-only rule.
+            let keeps: InstallKeeps = InstallKeeps::of(ctx);
+            remove_older_archives(&ctx.scope.toolchain_root, &tool.declaration.id, first_bin, &keeps, &tool.version)?;
+        }
     }
     return Ok(());
 }

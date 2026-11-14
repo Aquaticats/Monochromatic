@@ -6,17 +6,74 @@
 
 use crate::constants::OWN_CRATE_PREFIX;
 
+/// Imports `fs` from `std`.
+use std::fs;
+
+/// Imports `cargo_installs`' readers and the same-version removal.
 use super::cargo_installs::{is_repository_published, version_directory};
+/// Imports `Rig` from `super::fakes`.
 use super::fakes::Rig;
+/// Imports the fakes that install a crate the way cargo does.
+use super::fakes_cargo::{fake_binstall, finish_install};
+/// Imports `binstall_no_archive`'s refusal text.
 use super::binstall_no_archive::COMPILE_DISABLED_TEXT;
+/// Imports `ErrorKind` from `super::error`.
 use super::error::ErrorKind;
+/// Imports `install_tool` from `super::install`.
 use super::install::install_tool;
+/// Imports `second_tree` from the release-archive tests,
+/// so a lock of another worktree is a real second tree of the same home.
+use super::published_archive_tests::second_tree;
+/// Imports the keeps every removal asks from `super::store_keeps`.
+use super::store_keeps::InstallKeeps;
+/// Imports the started program a holder test needs.
+use super::store_keeps_tests::StandIn;
 
 /// The sample lock's repository-published crate.
 const PUBLISHED: &str = "cargo:monochromatic-mpm-shadow";
 
 /// The sample lock's third-party crate.
 const THIRD_PARTY: &str = "cargo:fd-find";
+
+/// What:
+/// The crate the removal controls install:
+/// a repository-published name no process on any machine calls itself.
+/// Why:
+/// The keep rule also keeps every version of a tool whose store directory name matches the name of a process the kernel
+/// hides,
+/// and this machine runs such a process for the git wrapper,
+/// so a fixture about the git wrapper would answer "kept" before the rule was written.
+const FIXTURE_CRATE: &str = "monochromatic-store-keeps-fixture";
+
+/// The older version another worktree's lock names.
+const EARLIER: &str = "0.4.4";
+
+/// The older version nothing names and nothing runs.
+const UNNAMED: &str = "0.4.5";
+
+/// The version this install brings,
+/// newer than both.
+const NEWEST: &str = "0.4.6";
+
+/// The lock text of a worktree that pins `version` of the fixture crate.
+fn lock_naming(version: &str) -> String {
+    return format!(
+        "{{\"tools\":{{\"cargo:{FIXTURE_CRATE}\":{{\"request\":\"cargo:{FIXTURE_CRATE}@latest\",\"route\":\"cargo-binstall\",\"version\":\"{version}\",\"bins\":[\"mpm-shadow\"],\"packageId\":\"{FIXTURE_CRATE}\"}}}}}}"
+    );
+}
+
+/// A rig whose fixture crate is installed at `version`,
+/// with cargo's own record inside the version directory.
+fn install_finished(rig: &Rig, version: &str) {
+    finish_install(&version_directory(&rig.scope.toolchain_root, FIXTURE_CRATE, version), FIXTURE_CRATE, version, &["mpm-shadow"]);
+}
+
+/// The tool of the sample lock renamed to install the fixture crate at `version`.
+fn fixture_tool(rig: &Rig, version: &str) -> super::model::LockedTool {
+    let mut tool = tool_installing(rig, PUBLISHED, FIXTURE_CRATE);
+    tool.version = version.to_string();
+    return tool;
+}
 
 /// The two arguments that switch cargo-binstall's build-from-source fallback and its third-party prebuilt-binary host
 /// (quick-install) off,
@@ -198,3 +255,62 @@ fn a_third_party_crate_keeps_the_generic_failure_even_when_compiling_was_disable
         format!("cargo binstall failed for {THIRD_PARTY}: {}", MISSING_PROGRAM_OUTPUT.trim())
     );
 }
+
+//region what the removal of an older version keeps
+
+/// What:
+/// An install of a newer version of a repository-published crate leaves the version another worktree's lock names,
+/// and still removes the version nothing names and nothing runs.
+/// Why:
+/// The newest-only rule took the lock-named version away,
+/// so the worktree that pins it installed it again on its next sync,
+/// and the next tree that installed the newer one removed it again (seen on this machine on 2026-11-13).
+#[test]
+fn installing_a_newer_version_keeps_the_version_another_worktree_lock_names_and_removes_the_one_nothing_names() {
+    let rig = Rig::new();
+    rig.runner.on("cargo binstall", fake_binstall(&["mpm-shadow"]));
+    install_finished(&rig, EARLIER);
+    install_finished(&rig, UNNAMED);
+    let other = second_tree(&rig);
+    fs::write(&other.lock_file, lock_naming(EARLIER)).expect("write the other tree's lock");
+    rig.runner.answer(
+        "git -C",
+        &format!("worktree {}\nHEAD a\n\nworktree {}\nHEAD b\n\n", rig.scope.root.display(), other.root.display()),
+        0,
+    );
+
+    install_tool(&rig.context(), &fixture_tool(&rig, NEWEST)).expect("installed");
+    let root = rig.scope.toolchain_root.clone();
+    assert!(version_directory(&root, FIXTURE_CRATE, EARLIER).is_dir(), "the version the other worktree's lock names stays");
+    assert!(!version_directory(&root, FIXTURE_CRATE, UNNAMED).exists(), "the version nothing names and nothing runs is still removed");
+    assert!(version_directory(&root, FIXTURE_CRATE, NEWEST).is_dir(), "the version this install wrote stays");
+}
+
+/// What:
+/// An install of a newer version of a repository-published crate leaves the version a process of this account runs,
+/// and still removes the version nothing names and nothing runs.
+/// Why:
+/// The newest-only rule unlinked versions 38 processes of this account were executing (measured 2026-11-13),
+/// and a service whose program went away cannot start again until an install puts it back.
+#[test]
+fn installing_a_newer_version_keeps_the_version_a_process_of_this_account_runs() {
+    let rig = Rig::new();
+    rig.runner.on("cargo binstall", fake_binstall(&["mpm-shadow"]));
+    install_finished(&rig, EARLIER);
+    install_finished(&rig, UNNAMED);
+    let root = rig.scope.toolchain_root.clone();
+    let stand_in: StandIn = StandIn::started_from(&version_directory(&root, FIXTURE_CRATE, EARLIER).join("bin").join("mpm-shadow"));
+    // Control: the rule itself names this process, so the survival below is this keep and not another one.
+    let keeps: InstallKeeps = InstallKeeps::of(&rig.context());
+    let reason: String = keeps
+        .keep_reason(&format!("cargo/{FIXTURE_CRATE}"), EARLIER, &version_directory(&root, FIXTURE_CRATE, EARLIER))
+        .expect("a process of this account runs it");
+    assert!(reason.contains(&format!("pid {}", stand_in.pid())), "the rule names the process: {reason}");
+
+    install_tool(&rig.context(), &fixture_tool(&rig, NEWEST)).expect("installed");
+    assert!(version_directory(&root, FIXTURE_CRATE, EARLIER).is_dir(), "the version this account runs stays");
+    assert!(!version_directory(&root, FIXTURE_CRATE, UNNAMED).exists(), "the version nothing names and nothing runs is still removed");
+    stand_in.stop();
+}
+
+//endregion

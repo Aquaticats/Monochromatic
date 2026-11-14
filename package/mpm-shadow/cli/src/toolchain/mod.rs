@@ -187,6 +187,11 @@ pub mod store_path_holders;
 /// and the install hook that runs it.
 pub mod store_trim;
 
+/// The versions no removal may take away:
+/// one a lock names,
+/// and one a running process of this user uses.
+pub mod store_keeps;
+
 /// The newest-only install layout of the archive-route tools this repository publishes.
 pub mod published_archive;
 
@@ -419,6 +424,10 @@ mod store_path_holders_tests;
 /// The unit tests of the size- and age-bounded cleanup of old versions.
 #[cfg(all(test, unix))]
 mod store_trim_tests;
+
+/// The unit tests of the keeps every removal asks.
+#[cfg(all(test, unix))]
+mod store_keeps_tests;
 
 /// The unit tests of the names that become directory names.
 #[cfg(test)]

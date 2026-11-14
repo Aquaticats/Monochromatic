@@ -28,6 +28,8 @@ use super::published_archive::{current_link_of, point_current_at_newest_archive}
 use super::published_archive_tests::{BIN as ARCHIVE_BIN, ID as ARCHIVE_ID, finish_archive, release_tool};
 use super::scope::{Scope, ScopeKind, global_scope};
 use super::status_cmd::run_status;
+use super::store_keeps::InstallKeeps;
+use super::store_keeps_tests::StandIn;
 use super::sync::{FrozenReason, LockPolicy, run_sync_with};
 
 /// The plan entry of the git wrapper.
@@ -369,6 +371,74 @@ fn the_scopes_own_older_copy_goes_when_the_other_root_holds_a_newer_one() {
     assert!(report.warnings.iter().any(|warning| return warning.contains("locked at 0.4.4")), "{report:?}");
     let launcher = fs::read_link(duo.rig.scope.exposure_dir.join(GIT_BIN)).expect("a link");
     assert_eq!(launcher_record(&launcher).real, duo.copy_in(&duo.global_root()), "the launcher runs the newer copy");
+}
+
+/// What:
+/// An older managed copy in the root that does not hold the winner stays while a process of this account runs it,
+/// and the copy nothing runs still goes.
+/// Why:
+/// The newest-only rule across both roots unlinked versions 38 processes of this account were executing
+/// (measured 2026-11-13),
+/// and a service whose program went away cannot start again until an install puts it back;
+/// the store must still shrink for what nothing needs.
+#[test]
+fn an_older_copy_in_the_other_root_that_a_process_runs_stays_and_the_one_nothing_runs_goes() {
+    let duo = Duo::new();
+    let lock: Lock = duo.lock_repository("0.4.5");
+    duo.install_under(&duo.repository_root(), "0.4.5");
+    duo.install_under(&duo.global_root(), "0.4.3");
+    duo.install_under(&duo.global_root(), "0.4.4");
+    duo.list_own_worktree();
+    let run_by_a_process: PathBuf = version_directory(&duo.global_root(), GIT_CRATE, "0.4.4").join("bin").join(GIT_BIN);
+    let stand_in: StandIn = StandIn::started_from(&run_by_a_process);
+    // Control: the rule itself names this process, so the survival below is this keep and not another one.
+    let keeps: InstallKeeps = InstallKeeps::of(&duo.context(&duo.rig.scope, &lock));
+    let reason: String = keeps
+        .in_use_reason(&version_directory(&duo.global_root(), GIT_CRATE, "0.4.4"))
+        .expect("a process of this account runs it");
+    assert!(reason.contains(&format!("pid {}", stand_in.pid())), "the rule names the process: {reason}");
+
+    let report = duo.install_repository();
+    assert!(report.failed.is_empty(), "{report:?}");
+    assert!(version_directory(&duo.global_root(), GIT_CRATE, "0.4.4").is_dir(), "the version a process runs stays");
+    assert!(!version_directory(&duo.global_root(), GIT_CRATE, "0.4.3").exists(), "the version nothing runs is still removed");
+    assert!(
+        report.warnings.iter().any(|warning| return warning.contains("older managed copy") && warning.contains("0.4.4")),
+        "the report says which version stayed and why: {report:?}"
+    );
+    stand_in.stop();
+}
+
+/// What:
+/// The loser root's `current` link names the newest version of that root,
+/// and when that version is one this run removes while a version that stays is still there,
+/// the link ends on the version that stays instead of dangling.
+/// Why:
+/// A launcher record or a link through that `current` has to keep resolving,
+/// and the forward to the winner is only for a root that keeps no finished version at all.
+#[test]
+fn the_loser_roots_current_names_the_version_that_stays_when_the_one_it_named_goes() {
+    let duo = Duo::new();
+    duo.lock_repository("0.4.5");
+    duo.install_under(&duo.repository_root(), "0.4.5");
+    duo.install_under(&duo.global_root(), "0.4.4");
+    duo.install_under(&duo.global_root(), "0.4.5");
+    // A run killed between the completion marker and the link leaves `current` naming the older version.
+    let global_current: PathBuf = current_link(&duo.global_root(), GIT_CRATE);
+    fs::remove_file(&global_current).expect("drop the link");
+    make_link(&global_current, Path::new("0.4.4"));
+    duo.list_own_worktree();
+
+    let report = duo.install_repository();
+    assert!(report.failed.is_empty(), "{report:?}");
+    assert!(!version_directory(&duo.global_root(), GIT_CRATE, "0.4.4").exists(), "the version it named is removed");
+    assert!(version_directory(&duo.global_root(), GIT_CRATE, "0.4.5").is_dir(), "the version equal to the winner in that root stays");
+    assert_eq!(fs::read_link(&global_current).expect("still a link"), PathBuf::from("0.4.5"), "the link names the version that stays");
+    assert!(
+        report.old_copies.iter().any(|line| return line.contains("now names 0.4.5")),
+        "the report says the link moved: {:?}",
+        report.old_copies
+    );
 }
 
 #[test]

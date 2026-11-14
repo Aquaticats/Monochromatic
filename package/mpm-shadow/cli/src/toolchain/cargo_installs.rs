@@ -49,6 +49,8 @@ use super::layout::{applies_to_family, install_dir_name, tool_install_dir};
 use super::model::{LockedTool, OsFamily, Route};
 /// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
+/// Imports the keeps every removal asks from `super::store_keeps`.
+use super::store_keeps::InstallKeeps;
 /// Imports what this module uses from `super::published_archive`.
 use super::published_archive::{
     first_bin_of_tool, is_finished, is_published_archive, newest_installed_archive, point_current_at_newest_archive,
@@ -362,24 +364,48 @@ pub fn point_current_at(
 
 /// What:
 /// Deletes every version directory of the crate that is older than the newest finished one,
+/// except the ones `keeps` protects,
 /// and returns the paths deleted.
 /// Why:
-/// A repository-published tool is never kept in an older version once a newer one is installed.
+/// A repository-published crate is not kept in an older version once a newer one is installed,
+/// but the newest-only rule does not outrank a version that is in use:
+/// another worktree's lock may pin it,
+/// and a launcher or a service may be running it,
+/// so taking it away leaves that tree to install it again
+/// and that service unable to start until someone does.
+/// The version this install wrote is kept whatever the newest finished one is,
+/// because a concurrent install of a newer version must not turn this run's own install into an older one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function removeOlderThanNewest(root: string, crate: string): string[]
+/// export function removeOlderThanNewest(root: string, crate: string, keeps: InstallKeeps, installedVersion: string): string[]
 /// ```
-pub fn remove_older_than_newest(toolchain_root: &Path, crate_name: &str) -> Result<Vec<PathBuf>, ToolchainError> {
+pub fn remove_older_than_newest(
+    toolchain_root: &Path,
+    crate_name: &str,
+    keeps: &InstallKeeps,
+    installed_version: &str,
+) -> Result<Vec<PathBuf>, ToolchainError> {
     let Some(newest) = newest_installed(toolchain_root, crate_name) else {
         return Ok(Vec::new());
     };
+    // What: the directory name a lock row for this crate becomes, which is what `keeps` was read by.
+    // Why: the keep rule names a version by the tool's store directory and the version, never by a full path.
+    let tool_store_name: String = format!("{CARGO_NAMESPACE}/{}", install_dir_name(crate_name));
     let mut removed: Vec<PathBuf> = Vec::new();
     for name in version_names(toolchain_root, crate_name) {
         if compare_versions(&name, &newest) != Ordering::Less {
             continue;
         }
+        if name == installed_version {
+            // This install's own version stays, even when another run installed a newer one meanwhile.
+            continue;
+        }
         let directory: PathBuf = version_directory(toolchain_root, crate_name, &name);
+        if keeps.keep_reason(&tool_store_name, &name, &directory).is_some() {
+            // A lock names it or a process of this user runs it: the newest-only rule stops here.
+            continue;
+        }
         if let Err(error) = fs::remove_dir_all(&directory) {
             return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
         }

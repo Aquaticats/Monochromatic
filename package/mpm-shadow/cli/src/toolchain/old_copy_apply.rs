@@ -23,6 +23,13 @@
 //! export function previewLines(plans: OldCopyPlans): string[]
 //! ```
 
+/// Imports `fs` from `std`.
+use std::fs;
+/// Imports `ErrorKind` from `std::io`.
+use std::io::ErrorKind;
+/// Imports `Path` from `std::path`.
+use std::path::Path;
+
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `atomic_symlink` from `super::install_support`.
@@ -32,7 +39,7 @@ use super::layout::is_executable;
 /// Imports what this module uses from `super::old_copies`.
 use super::old_copies::{OldCopyPlan, OldCopyPlans, Repoint, plan_old_copies};
 /// Imports what this module uses from `super::managed_losers`.
-use super::managed_losers::{LoserPlan, emptied_by};
+use super::managed_losers::{CurrentAfterRemoval, KeptCopy, LoserPlan, current_after_removal};
 /// Imports what this module uses from `super::old_copy_remove`.
 use super::old_copy_remove::{remove_copy, remove_version};
 /// Imports `links_to_copy` from `super::old_copy_places`.
@@ -143,16 +150,41 @@ fn loser_kept_warning(plan: &LoserPlan, reason: &str) -> String {
 }
 
 /// What:
-/// Applies the plan for the older managed copies of one tool in one root:
-/// moves the links that resolve to them,
-/// removes the versions when nothing that could be seen still resolves to one,
-/// and leaves the emptied root's `current` forwarding to the winner's.
+/// The warning for one older managed version that stays because a lock names it or a process uses it.
 /// Why:
-/// The forwarding link is why a launcher record or a link that names the emptied root's `current` keeps running the winner.
+/// The line names the version and the lock or process,
+/// so a person can see why the newest-only rule stopped and what would have to move for it to go.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function applyLoser(plans: OldCopyPlans, plan: LoserPlan, outcome: OldCopyOutcome): void
+/// function loserCopyKeptWarning(plan: LoserPlan, kept: KeptCopy): string
+/// ```
+fn loser_copy_kept_warning(plan: &LoserPlan, kept: &KeptCopy) -> String {
+    return format!(
+        "older managed copy {} of {} in {} is kept ({} in {} runs): {}",
+        kept.directory.display(),
+        plan.tool_id,
+        plan.root.display(),
+        plan.winner_version,
+        plan.winner_root.display(),
+        kept.reason
+    );
+}
+
+/// What:
+/// Applies the plan for the older managed copies of one tool in one root:
+/// moves the links that resolve to them,
+/// removes the versions when nothing that could be seen still resolves to one,
+/// settles the root's `current` link,
+/// and leaves the emptied root's `current` forwarding to the winner's.
+/// Why:
+/// The forwarding link is why a launcher record or a link that names the emptied root's `current` keeps running the winner,
+/// and a root that keeps a version a lock names must end with a link that names that version rather than one this run
+/// removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function applyLoser(ctx: Context, plans: OldCopyPlans, plan: LoserPlan, outcome: OldCopyOutcome): void
 /// ```
 fn apply_loser(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &mut OldCopyOutcome) {
     for link in &plan.repoints {
@@ -161,6 +193,9 @@ fn apply_loser(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &
     if let Some(reason) = &plan.kept {
         outcome.warnings.push(loser_kept_warning(plan, reason));
         return;
+    }
+    for kept in &plan.kept_copies {
+        outcome.warnings.push(loser_copy_kept_warning(plan, kept));
     }
     for copy in &plan.copies {
         for (_, file) in &copy.bins {
@@ -171,16 +206,24 @@ fn apply_loser(ctx: &Context, plans: &OldCopyPlans, plan: &LoserPlan, outcome: &
             }
         }
     }
-    // The forward comes first, so no launcher or link that names this root's `current` ever sees it dangle,
-    // and only while every finished version left in the root is one that goes: a newer version another tree just
-    // installed here owns its `current`.
-    if let Some((link, target)) = &plan.forward
-        && emptied_by(ctx, plan)
-    {
-        match atomic_symlink(link, target) {
+    // What: the `current` link is settled before any version goes, so no launcher or link that names it ever sees it dangle,
+    // and only when it names a version this run removes.
+    // Why: a link naming a version that stays, or one another tree just installed here, belongs to that version.
+    match current_after_removal(ctx, plan) {
+        CurrentAfterRemoval::Leave => {}
+        CurrentAfterRemoval::Point(link, version) => match atomic_symlink(&link, Path::new(&version)) {
+            Ok(()) => outcome.lines.push(format!("{} now names {version}", link.display())),
+            Err(error) => outcome.failed.push((loser_label(plan), format!("cannot point {} at {version}: {error}", link.display()))),
+        },
+        CurrentAfterRemoval::Forward(link, target) => match atomic_symlink(&link, &target) {
             Ok(()) => outcome.lines.push(format!("{} now forwards to {}", link.display(), target.display())),
             Err(error) => outcome.failed.push((loser_label(plan), format!("cannot forward {}: {error}", link.display()))),
-        }
+        },
+        CurrentAfterRemoval::Remove(link) => match fs::remove_file(&link) {
+            Ok(()) => outcome.lines.push(format!("removed {}, which named a version this run removed", link.display())),
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => outcome.failed.push((loser_label(plan), format!("cannot remove {}: {error}", link.display()))),
+        },
     }
     for copy in &plan.copies {
         match remove_version(plan, &copy.directory, &copy.version) {
@@ -273,22 +316,39 @@ pub fn preview_lines(plans: &OldCopyPlans) -> Vec<String> {
             versions.push(copy.version.clone());
         }
         let moves: String = format!("re-point {} link(s)", plan.repoints.len());
-        match &plan.kept {
-            Some(reason) => lines.push(format!(
+        if let Some(reason) = &plan.kept {
+            lines.push(format!(
                 "older managed copy of {} in {} ({}) stays: {reason}; `install` would {moves}",
                 plan.tool_id,
                 plan.root.display(),
                 versions.join(", ")
-            )),
-            None => lines.push(format!(
-                "older managed copy of {} in {} ({}) would be removed by `install` after it did: {moves}; {} in {} runs",
+            ));
+            continue;
+        }
+        // What: a version a lock names or a process uses gets its own line, with that reason.
+        // Why: the newest-only rule stops at each such version separately,
+        // and one line per version is what a person can check against a lock they hold.
+        for kept in &plan.kept_copies {
+            lines.push(format!(
+                "older managed copy {} of {} in {} stays: {}",
+                kept.directory.display(),
                 plan.tool_id,
                 plan.root.display(),
-                versions.join(", "),
-                plan.winner_version,
-                plan.winner_root.display()
-            )),
+                kept.reason
+            ));
         }
+        if versions.is_empty() {
+            // Nothing is removed from this root, so there is no removal to announce.
+            continue;
+        }
+        lines.push(format!(
+            "older managed copy of {} in {} ({}) would be removed by `install` after it did: {moves}; {} in {} runs",
+            plan.tool_id,
+            plan.root.display(),
+            versions.join(", "),
+            plan.winner_version,
+            plan.winner_root.display()
+        ));
     }
     return lines;
 }

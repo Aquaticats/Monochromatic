@@ -57,13 +57,15 @@ use super::error::ToolchainError;
 /// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
 /// Imports what this module uses from `super::layout`.
-use super::layout::{find_bin_under, tool_directory, tool_downloads_dir, tool_install_dir};
+use super::layout::{find_bin_under, install_dir_name, tool_directory, tool_downloads_dir, tool_install_dir};
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, Request, Route};
 /// Imports `PresentVersion` from `super::prune_cargo`.
 use super::prune_cargo::PresentVersion;
 /// Imports the name checks from `super::segment`.
 use super::segment::{check_bin_name, check_tool_id, check_version};
+/// Imports the keeps every removal asks from `super::store_keeps`.
+use super::store_keeps::InstallKeeps;
 /// Imports `file_name_text` from `super::util`.
 use super::util::file_name_text;
 
@@ -260,24 +262,49 @@ pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Resul
 /// What:
 /// Deletes every version directory of the tool that is older than the newest finished one,
 /// with the archives downloaded for them,
+/// except the ones `keeps` protects,
 /// and returns the version directories deleted.
 /// Why:
-/// A repository-published tool is never kept in an older version once a newer one is installed.
+/// A repository-published tool is never kept in an older version once a newer one is installed,
+/// but the newest-only rule does not outrank a version that is in use:
+/// a worktree's lock may pin it,
+/// a service may be running it,
+/// and taking it away leaves that tree to install it again
+/// and that service unable to start until someone does.
+/// The version this install wrote is kept whatever the newest finished one is,
+/// because a concurrent install of a newer version must not turn this run's own install into an older one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function removeOlderArchives(root: string, id: string, firstBin: string): string[]
+/// export function removeOlderArchives(root: string, id: string, firstBin: string, keeps: InstallKeeps, installedVersion: string): string[]
 /// ```
-pub fn remove_older_archives(toolchain_root: &Path, id: &str, first_bin: &str) -> Result<Vec<PathBuf>, ToolchainError> {
+pub fn remove_older_archives(
+    toolchain_root: &Path,
+    id: &str,
+    first_bin: &str,
+    keeps: &InstallKeeps,
+    installed_version: &str,
+) -> Result<Vec<PathBuf>, ToolchainError> {
     let Some(newest) = newest_installed_archive(toolchain_root, id, first_bin) else {
         return Ok(Vec::new());
     };
+    // What: the directory name a lock row for this tool becomes, which is what `keeps` was read by.
+    // Why: the keep rule names a version by the tool's store directory and the version, never by a full path.
+    let tool_store_name: String = install_dir_name(id);
     let mut removed: Vec<PathBuf> = Vec::new();
     for name in version_names(toolchain_root, id) {
         if compare_versions(&name, &newest) != Ordering::Less {
             continue;
         }
+        if name == installed_version {
+            // This install's own version stays, even when another run installed a newer one meanwhile.
+            continue;
+        }
         let directory: PathBuf = tool_install_dir(toolchain_root, id, &name)?;
+        if keeps.keep_reason(&tool_store_name, &name, &directory).is_some() {
+            // A lock names it or a process of this user runs it: the newest-only rule stops here.
+            continue;
+        }
         if let Err(error) = fs::remove_dir_all(&directory) {
             return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
         }

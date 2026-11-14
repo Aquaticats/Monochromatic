@@ -33,6 +33,9 @@ use std::fs;
 use std::io::ErrorKind;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
+/// Imports `Duration` and `Instant` from `std::time`,
+/// which bound the read of the process table.
+use std::time::{Duration, Instant};
 
 /// Imports `ArgMatches` from `clap`.
 use clap::ArgMatches;
@@ -62,6 +65,55 @@ use super::worktrees::worktree_lock_files;
 use super::runner::{ProcessRunner, Runner};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, ScopeKind, resolve_scope};
+/// Imports what this module uses from `super::store_path_holders`,
+/// which answers whether a running process uses a version.
+use super::store_path_holders::{StoreHolders, held_reason, holders_of};
+/// Imports `DEFAULT_WORK_LIMIT_MILLIS` from `super::store_trim`,
+/// the bound the cleanup already gives a read of the process table.
+use super::store_trim::DEFAULT_WORK_LIMIT_MILLIS;
+
+/// What:
+/// The process table read for one prune,
+/// or the refusal that keeps every version when it could not be read.
+/// Why:
+/// `prune --toolchain` deletes versions,
+/// and a version a running service executes is not one to delete:
+/// the process survives the unlink,
+/// but the next start of that service names a path that is gone.
+/// A read that cannot be completed proves nothing about any version,
+/// so the command refuses rather than delete some of them,
+/// as it already does for a lock it cannot read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function holdersOrRefusal(root: string): StoreHolders  // throws
+/// ```
+fn holders_or_refusal(root: &Path) -> Result<StoreHolders, ToolchainError> {
+    // What: one bound for the scan, the same the cleanup gives its own read of the process table.
+    // Why: a prune is a command a person waits for, and a machine under load must not hold it for minutes.
+    let holders: StoreHolders = holders_of(std::slice::from_ref(&root.to_path_buf()), Instant::now() + Duration::from_millis(DEFAULT_WORK_LIMIT_MILLIS));
+    if let Some(reason) = &holders.incomplete {
+        return Err(ToolchainError::failure(format!(
+            "{reason}; nothing was deleted, because a version a process runs must not be removed"
+        )));
+    }
+    return Ok(holders);
+}
+
+/// What:
+/// Why `version_directory` stays because a running process of this user uses it,
+/// or `None` when no process does.
+/// Why the sentence is one line:
+/// a person reads why the command left a version nobody else needs,
+/// and the process it names is what to end or wait for.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runningReason(holders: StoreHolders, versionDirectory: string): string | undefined
+/// ```
+fn running_reason(holders: &StoreHolders, version_directory: &Path) -> Option<String> {
+    return held_reason(holders, version_directory).map(|reason| return format!("it is in use: {reason}"));
+}
 
 /// One version directory found on disk.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -257,6 +309,7 @@ fn prune_archives(
     scope: &Scope,
     named: &BTreeMap<String, NamedArchive>,
     dry_run: bool,
+    holders: &StoreHolders,
     removed: &mut Vec<PathBuf>,
 ) -> Result<(), ToolchainError> {
     let present = present_archive_versions(&scope.toolchain_root, named);
@@ -272,6 +325,11 @@ fn prune_archives(
     for (id, version) in plan_archive_prune(&present) {
         let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version)
             .map_err(|error| return after_removing(error, removed))?;
+        // What: a version a running process of this user uses is not judged, whatever the locks say.
+        // Why: the process would keep running from the unlinked file, and its next start would find nothing there.
+        if running_reason(holders, &directory).is_some() {
+            continue;
+        }
         if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
             return Err(partly_removed(&directory, &error, removed));
         }
@@ -393,6 +451,10 @@ pub fn prune_toolchain(
         lock_files.extend(worktree_lock_files(runner, &scope.root)?);
     }
     let (named, named_archive_tools) = named_by_all(&lock_files, extra_locks)?;
+    // What: the process table is read after the locks and before anything is judged.
+    // Why: a lock can be read again by the next command, but a process that is running now is the one the deletion
+    // breaks, and a read that fails refuses the command instead of deleting a version a process may run.
+    let holders: StoreHolders = holders_or_refusal(&scope.toolchain_root)?;
     // What: the deletions this run will make, with the versions the other toolchain root forwards to left out.
     // Why: the link decision below has to know which versions really stay, and that forward is one way one stays.
     let mut planned: Vec<(String, String, PathBuf)> = Vec::new();
@@ -400,6 +462,11 @@ pub fn prune_toolchain(
         let directory: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(&crate_name).join(&version);
         // A version the other toolchain root's `current` forwards to is the one that root runs: never pruned from here.
         if other_root_forwards_to(&current_link(&scope.other_toolchain_root, &crate_name), &directory) {
+            continue;
+        }
+        // What: a version a running process of this user uses is not judged, whatever its lock row says.
+        // Why: the process keeps running from the unlinked file, and its next start finds a path that is gone.
+        if running_reason(&holders, &directory).is_some() {
             continue;
         }
         planned.push((crate_name, version, directory));
@@ -483,7 +550,7 @@ pub fn prune_toolchain(
             }
         }
     }
-    prune_archives(scope, &named_archive_tools, dry_run, &mut removed)?;
+    prune_archives(scope, &named_archive_tools, dry_run, &holders, &mut removed)?;
     return Ok(removed);
 }
 

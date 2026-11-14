@@ -59,8 +59,9 @@ use super::lock::Lock;
 use super::model::{LockedTool, Route};
 /// Imports what this module uses from `super::observe`.
 use super::observe::{compared_with_lock, observe_tool, satisfies_lock};
-/// Imports `install_directory_name` from `super::store_versions`.
-use super::store_versions::install_directory_name;
+/// Imports `tool_directory_name` from `super::store_keeps`,
+/// which names a version's directory the way the cleanup and the removals do.
+use super::store_keeps::tool_directory_name;
 /// Imports `trim_after_install` from `super::store_trim`.
 use super::store_trim::trim_after_install;
 /// Imports `retire_after_install` from `super::sync_old_copies`.
@@ -264,7 +265,7 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
         match install_tool(ctx, tool) {
             Ok(()) => {
                 report.installed.push(tool.declaration.id.clone());
-                if let Some(directory_name) = install_directory_name(tool.declaration.route, &tool.declaration.id) {
+                if let Some(directory_name) = tool_directory_name(tool) {
                     installed_versions.push((directory_name, tool.version.clone()));
                 }
             }
