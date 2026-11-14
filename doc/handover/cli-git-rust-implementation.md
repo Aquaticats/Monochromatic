@@ -1239,6 +1239,87 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 30 is in `main` and `0.6.1-alpha.25` is dispatched; the renamed subvolume and the archives' answer go to review (2026-11-14T02:25:40-05:00)
+
+Not final and not approved:
+what the coordinating session merged and queued,
+from three last messages kept under
+`~/temp/agent/last-messages-of-the-runs-that-ended-2026-11-14T0218-to-0223/keep/`.
+
+- **Pass 30**
+  (`integrate/git-policy-cli-pass-30-removal-around-a-volume-says-what-it-did-and-removes-a-clean-worktree-in-the-racy-second`,
+  tip `f375f95972`,
+  report `~/temp/agent/pi-integration-pass-30-for-the-removal-around-a-volume-answers-scratch/keep/report.md`)
+  reported fit at 02:18:36.
+  It merged the reviewed `82e4f12f6e` with no conflict and no repair commit,
+  and `main` thirteen times after it,
+  pass 28 and the alpha.24 bump among them.
+  At its tip:
+  build,
+  both test compiles and Clippy pass;
+  36 library controls,
+  the two emptied-around controls by name and 11 binary controls pass;
+  through its build on btrfs fixtures,
+  a clean worktree holding a foreign subvolume is removed around it in the same second it was added
+  (alpha.22 refused that scene),
+  the volume's bytes are unchanged,
+  and the emptied-around ending prints its own words where the installed alpha.23 printed the destroy notice four times of four.
+  A commit of one file adds 32 to 36 ms over real Git
+  (ratios 5.6 to 6.9,
+  three rounds alternating,
+  a debug build).
+- **Its branch was not on the remote**:
+  `git fetch` of it answered "couldn't find remote ref".
+  It is the defect already queued
+  (a merge on a branch with no upstream is never pushed):
+  a pass makes only merges.
+  The tip was in this repository's own object store,
+  so it was checked and merged from there:
+  it holds `1d6ee5e105`,
+  and `git log f375f95972..main` names no commit under `package/git-policy/`,
+  `toolchain.lock.json` or `Cargo.lock`.
+  Merged at 02:24:00 as `37d1c10b45`.
+  The other passes' branches are as likely unpushed;
+  each tip is checked for locally when its pass reports.
+- **Release `0.6.1-alpha.25`** dispatched at once,
+  run 43570940280;
+  its waiter is going.
+  The six passes still going were told at 02:24:41
+  (`~/temp/agent/notes-to-send/note-for-the-passes-still-going-that-main-holds-pass-30-2026-11-14T0225.md`),
+  with what pass 30 met from the dependency-lock update:
+  an offline build that failed until one `cargo fetch --locked` brought `zruntime 0.2.3`.
+- **Noticed by pass 30, not its task**:
+  a volume that goes away after the pass has listed it stops the removal with exit 2,
+  a reason that names a path no longer there and advice to "fix what the reason names",
+  where running the same command again finishes it and nothing is lost.
+  No run has it yet.
+- **A renamed subvolume is never left with nothing to delete it**
+  (`fix/git-policy-cli-renamed-subvolume-of-a-removed-worktree-is-never-left-with-nothing-to-delete-it`,
+  tip `8950df3253`,
+  ended 02:18:35):
+  the author found four orders that leave a `cli-git-deleting-<id>` directory with no reader,
+  showed one red on `main`,
+  and added a record per renamed subvolume that is written before anything moves and forgotten only when the directory is proven gone;
+  a later command queues the delete again,
+  wakes the service,
+  or prints one line with the command to remove it.
+  Fourteen new controls;
+  cost one `openat` of 9 µs per forwarded command.
+  Review queued
+  (range `main...8950df3253`).
+- **The archives, the answer**
+  (tip `091397b096`,
+  ended 02:22:35):
+  all six points of the review answered by the author's account,
+  the kept members now 160,
+  the reviewer's own checks rerun
+  (their remaining problems are two constants of the earlier commit and one false positive,
+  by its reading).
+  The hold stands until that is checked:
+  the reviewer is resumed in its own session to check the answer at `091397b096` with its own scripts
+  (`go-on-with-the-review-of-the-tracked-archives-and-check-the-answer-at-091397b096-prompt.md`).
+- The queue held 65 entries at 02:25:40.
+
 ##### Two authors' work goes to review: issue 6300's answer and the lock of a killed Git where births are equal (2026-11-14T02:16:26-05:00)
 
 Not final and not approved:
