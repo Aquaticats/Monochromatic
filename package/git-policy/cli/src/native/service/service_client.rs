@@ -453,7 +453,21 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         // so sending it again costs nothing that was not already spent.
         breaks += 1;
         if breaks > RECONNECTS {
-            return Err(if last_break_was_silence { ClientFailure::ServiceSilent } else { ClientFailure::MayNotHaveLanded });
+            if !last_break_was_silence {
+                return Err(ClientFailure::MayNotHaveLanded);
+            }
+            // What:
+            //  A service that went silent on every try is asked to drop the request before this command gives up.
+            // Why:
+            //  Giving up without asking left the person with "the service may still land it"
+            //  (`2026-11-12`, a commit in the main checkout, thirteen minutes of silence),
+            //  while the service dropped the same request as one whose client was gone.
+            //  The ask is answered by the service's own connection thread from its journal, never by the landing thread
+            //  (`service_server_connection_handling.rs`, `withdraw_early`),
+            //  so it is answered while a landing or a housekeeping item runs:
+            //  the two ends are then that the commit is on the branch, or that it will not land and the command may be run
+            //  again.
+            return withdraw(config, request.id.as_str(), last_blocker.take(), answer_deadline, WhyWithdrawn::ServiceGone);
         }
         if last_break_was_silence {
             let _written = writeln!(notices, "{}", silent_notice(config.heartbeat_silence));

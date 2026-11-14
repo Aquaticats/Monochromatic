@@ -6909,6 +6909,25 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   16.6 ms at the 99th percentile and 18.2 ms at the slowest of 50 runs on 2026-11-12,
   so ten seconds is 550 times the slowest of them,
   and it is the wait a command already grants a service's own start (`START_WAIT`).
+- The silence that ends a commit:
+  a send of the request that meets silence is sent again with the same identity,
+  `RECONNECTS` times (`service_client_settings_and_watches.rs`).
+  When the last of those meets silence too, the command does not give up with a claim about a commit it cannot see:
+  it asks the service to drop the request (`withdraw`,
+  `service_client.rs`),
+  which the service's connection thread answers from its journal without the landing thread,
+  and the command ends with one of two sentences:
+  the commit is on the branch, or the service confirmed that it will not land,
+  so the changes are as they were and running the commit again is safe.
+  Only a service that answers neither the request nor its withdrawal leaves `ServiceGoneUnconfirmed`,
+  which names the one command that decides and says the request may still land when the service answers again.
+  Before this, the command gave up with "the service may still land it" and the service then dropped the request
+  as one whose client was gone (`2026-11-12`,
+  `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+- `TRASH_ITEM_CEILING` 120 seconds:
+  the longest one trash item may run before it leaves its remaining entries to the next round.
+  It is half of the claim lease,
+  so a trash a round leaves is taken up when its claim runs out and one item costs a round at most one lease.
 - `START_CEILING` 60 seconds:
   a start the service manager reports as under way (58 times the slowest observed start,
   1.04 s).
@@ -7855,13 +7874,23 @@ now inside these bounds:
   a beat written after its note waited 27 to 32 s in the record of 2026-11-10
   (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`),
   and the client gave up on a commit that had landed.
-  A trash's entry removals take every place of that pool but one (`places_a_round_may_take`,
-  `foundation/blocking_jobs_within_the_budget.rs`),
-  so the steps that answer a client run beside a round:
+  Slow work takes every place of that pool but `SLOW_WORK_RESERVE`
+  (`places_a_round_may_take` and the reserve in `foundation/blocking_jobs_within_the_budget.rs`),
+  which is two places and not one:
+  a place is not a lane,
+  and the ask that says whose a commit's request is and the step that reads a landing's own state are two asks that
+  a person's commit needs at the same time.
+  Every job of the pool that can run for more than a moment takes a place of that bound,
+  the three nobody waits for included (a landing's background sync,
+  the rules precompile and the removal of a released scratch tree),
+  so a place held is a thread held and the reserve is threads.
+  The steps that answer a client run beside slow work:
   the check of which instance a commit belongs to,
   a
   withdrawal's decision,
   and that note.
+  A request whose look at the instance gives no answer within `LANDING_STATE_CEILING` is answered `unavailable`,
+  never left silent.
   The connection keeps that read (`StuckNotice`,
   `service_server_connection_handling.rs`):
   the beat behind a slow read waits for the same read and the words it answers with are written then,
@@ -7870,6 +7899,13 @@ now inside these bounds:
   (`open_regular_file`,
   `service_busy.rs`):
   a named pipe at a record's name is answered instead of waited on.
+  Every kind of item a round may start has a bound of its own,
+  and a round ends within its slice plus one item's bound:
+  a trash stops between waves of entries at `TRASH_ITEM_CEILING` (two minutes,
+  `wait_ceilings.rs`),
+  leaves the entries the manifest still names for the next round,
+  and keeps the identity its record proves the trash directory by,
+  so a bound stops what an item has not started and never what it has.
   One round of the after-commit work starts housekeeping (upkeep,
   prewarm,
   subvolume deletes and trashes) for at most
@@ -7890,6 +7926,8 @@ now inside these bounds:
   (`landing/service_work_storage_awaited.rs`).
   An item a round has started is never interrupted,
   because a removal stopped halfway would need a resume the trash does not keep;
+  a trash that has run past its own ceiling stops between two waves and is retried when its claim runs out,
+  which is the resume it now keeps;
   the bound decides what a round starts,
   and the first housekeeping item a round finds starts whatever its slice has spent,
   so a round cannot leave every item to a later round that would spend its slice the same way.

@@ -42,12 +42,13 @@ use crate::work_item::WorkItem;
 use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_manifest::TrashManifest;
 use crate::parallel_budget::HostResources;
-use crate::worktree_trash_entries::{EntryRemoval, remove_entries, remove_entries_awaiting};
+use crate::worktree_trash_entries::{EntryRemoval, entries_a_wave_may_remove, remove_entries, remove_these_entries_awaiting};
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::fs::File;
 use std::sync::Arc;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "worktreeTrashDispose";
@@ -518,6 +519,32 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
 }
 
 /// What:
+///  What emptying a trash came to,
+/// awaited by the service's round.
+/// Why:
+///   The three ends a person's trash can have are not two:
+/// it is gone (`Emptied`),
+/// something in it is not the snapshot's or could not be removed (`Kept`),
+/// and the bound of the item ran out with entries still to remove, which the next round goes on with
+/// (`LeftForALaterRound`).
+/// A bound that could only report the last two as one failure would leave a trash of a removed worktree where nothing ever
+///  looked at it again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type EmptiedTrash = 'emptied' | { kept: reason } | { leftForALaterRound: reason };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum EmptiedTrash {
+    /// The trash directory is gone.
+    Emptied,
+    /// Something in the trash stays, with the reason it gives.
+    Kept(TrashLeft),
+    /// The item's bound ran out with entries still to remove, and they are left for a later round.
+    LeftForALaterRound(TrashLeft),
+}
+
+/// What:
 ///  `delete_trash` on the process's runtime:
 /// the lookups and the last removal run as jobs of the blocking pool,
 ///  and the entries are removed by the awaited ordered runner's own jobs.
@@ -535,26 +562,49 @@ pub fn delete_trash(repository: &Path, git_dir: &Path, manifest: &TrashManifest)
 /// ```ts
 /// async function deleteTrashAwaiting({ repository, gitDir, manifest }): Promise<void>; // rejects with the reason
 /// ```
-pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: &TrashManifest) -> Result<(), TrashLeft> {
+pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: &TrashManifest, ceiling: Duration) -> EmptiedTrash {
     let opened: ATrashToOpen = ATrashToOpen { repository: repository.to_path_buf(), git_dir: git_dir.to_path_buf(), manifest: manifest.clone() };
     let opened_trash: Option<HeldTrash> = match run_a_slow_job_or_in_turn(opened, prepare_trash_removal).await {
         Ok(Ok(held)) => held,
         // A directory that is not the recorded one is left alone with its reason, and nothing was removed.
-        Ok(Err(reason)) => return Err(TrashLeft::kept(reason)),
+        Ok(Err(reason)) => return EmptiedTrash::Kept(TrashLeft::kept(reason)),
         // Nothing was opened and nothing was removed, and the reason the system gave is why.
-        Err(refused) => return Err(TrashLeft::kept(format!("the directories of the trash {} could not be examined ({refused})", manifest.name))),
+        Err(refused) => return EmptiedTrash::Kept(TrashLeft::kept(format!("the directories of the trash {} could not be examined ({refused})", manifest.name))),
     };
-    let Some(held) = opened_trash else { return Ok(()) };
-    let left: Vec<String> = remove_entries_awaiting(&entry_removal_of(TheRemovalOfTrashEntries { inside: held.inside.clone(), trash: Arc::clone(&held.trash), manifest: manifest.clone() })).await;
-    if !left.is_empty() {
-        // An entry that stayed is either not the recorded object or one whose removal failed, and the line cannot tell
-        //  them apart, so what the trash holds is not shown to be the snapshot's own.
-        return Err(TrashLeft::kept(left.join("; ")));
+    let Some(held) = opened_trash else { return EmptiedTrash::Emptied };
+    let request: EntryRemoval = entry_removal_of(TheRemovalOfTrashEntries { inside: held.inside.clone(), trash: Arc::clone(&held.trash), manifest: manifest.clone() });
+    // What the ceiling can stop is what has not started: the entries are handed over one wave at a time, and a wave that has
+    //  begun is finished and accounted for. A trash of a removed worktree is hundreds of thousands of entries
+    //  (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`), so an item that took every entry it found was the one item a
+    //  round spent fifty times its budget on (`2026-11-12`, the main checkout's service).
+    let began: Instant = Instant::now();
+    let wave: usize = entries_a_wave_may_remove(&request.host);
+    let mut done: usize = 0;
+    let mut left_behind: Vec<String> = Vec::new();
+    while done < manifest.entries.len() {
+        if began.elapsed() >= ceiling {
+            // The entries this wave would have named are left where they are, and the manifest still names them: the trash
+            //  directory keeps its recorded identity, so the next round finds it and goes on from here.
+            return EmptiedTrash::LeftForALaterRound(TrashLeft::kept(format!(
+                "{} of its {} entries were removed within {ceiling:?}, and the rest are left for a later round",
+                done,
+                manifest.entries.len()
+            )));
+        }
+        let names: Vec<usize> = (done..manifest.entries.len().min(done + wave)).collect();
+        done += names.len();
+        left_behind.extend(remove_these_entries_awaiting(&request, names.as_slice()).await);
+        if !left_behind.is_empty() {
+            // An entry that stayed is either not the recorded object or one whose removal failed, and the line cannot tell
+            //  them apart, so what the trash holds is not shown to be the snapshot's own.
+            return EmptiedTrash::Kept(TrashLeft::kept(left_behind.join("; ")));
+        }
     }
     return match run_a_slow_job_or_in_turn(held, settle_trash_removal).await {
-        Ok(outcome) => outcome,
+        Ok(Ok(())) => EmptiedTrash::Emptied,
+        Ok(Err(left)) => EmptiedTrash::Kept(left),
         // The entries are gone and the directory above them stays, which the words say.
-        Err(refused) => Err(TrashLeft::kept(format!("the trash directory {} stays ({refused})", manifest.name))),
+        Err(refused) => EmptiedTrash::Kept(TrashLeft::kept(format!("the trash directory {} stays ({refused})", manifest.name))),
     };
 }
 

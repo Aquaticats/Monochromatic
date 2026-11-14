@@ -22874,3 +22874,31 @@ Rules not in `AGENTS.md` (each recorded at the time shown in the former handover
   never on a process name.
 - Queue items are written here the same turn they are deferred (rule QWD);
   finish an item by moving its facts out and deleting it.
+
+#### A landing has places of its own; every budget is a bound (2026-11-13T20:00:43-05:00)
+
+- The service's bound on blocking jobs now keeps `SLOW_WORK_RESERVE` (two) places free of slow work instead of one,
+  and `places_a_round_may_take` is that same figure.
+  A place is not a lane:
+  the ask that says whose a commit's request is and the step that reads a landing's own state are two asks a commit needs.
+- The three jobs of the pool that nobody waits for and that took a thread without a place ask for a place of slow work:
+  a landing's background sync, the rules precompile, and the removal of a released scratch tree.
+  A place held is therefore a thread held, and the reserve is threads.
+- A trash item has a bound of its own (`TRASH_ITEM_CEILING`, two minutes) and stops between waves of entries,
+  leaving the entries the manifest still names to the next round.
+  A round's `HOUSEKEEPING_OF_ONE_ROUND` bounded only what a round started, which is why one round of 2026-11-12 spent
+  `2450757 ms` of its `30000 ms`.
+- A commit whose sends all met silence asks the service to drop the request before it gives up, so the command ends with
+  "the commit is on the branch" or "it will not land, running it again is safe" and never with "the service may still land".
+- Controls: `two_asks_of_the_work_a_person_waits_for_run_while_slow_work_holds_every_place_it_may` (fails with one place
+  kept free), `a_commit_lands_while_every_kind_of_work_is_held` (through the built wrapper; on the tree before the change the
+  measurement never reached the prewarm's clone within 180 s), and
+  `a_wave_removes_the_entries_it_names_and_leaves_the_rest_for_the_next_one`.
+- Measured on this host, 2026-11-13, the same round: real Git [5, 5, 4] ms, the wrapper's commit with the service idle
+  [55, 42, 40] ms, and with two prewarm clones, a landing's sync, a scratch tree's removal and a push all held open
+  [51, 41, 48] ms.
+  So holding every kind of work added nothing the run's own spread can see, and the wrapper added 35 to 51 ms over real Git.
+- The details of the incident and its analysis are in
+  `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`
+  ("Thirteen minutes for one commit, 2026-11-12"),
+  and the description of what the service does is in `SPEC.md` ("The resident commit service").

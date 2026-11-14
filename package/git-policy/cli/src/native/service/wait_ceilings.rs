@@ -1018,6 +1018,49 @@ pub const SERVICE_GONE_AFTER_A_STOP: Duration = Duration::from_secs(2);
 /// so a commit whose write is a normal one lands before this wait is over and says nothing of it.
 pub const WAITING_NOTICE_AFTER: Duration = Duration::from_secs(10);
 
+/// The longest the service's round may go on emptying one trash:
+/// two minutes,
+/// which is half of the claim lease,
+/// so a trash a round leaves goes on with the next look that finds it and one item costs a round at most one lease.
+/// Why it is a bound at all:
+///  a round's housekeeping slice bounds only what a round *starts*
+/// (`housekeeping_of_one_round.rs`),
+/// and the main checkout's service spent `2450757 ms` of its `30000 ms` on housekeeping in one round on `2026-11-12`
+/// while a commit waited thirteen minutes for its answer
+/// (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+/// The bound stops what an item has not started: the entries of a trash are removed a wave at a time
+/// (`worktree_trash_dispose.rs`),
+/// the trash directory keeps the identity the record proves it by,
+/// and the next round removes what is left.
+/// A round now ends within its slice plus one item's bound plus one wave of a trash's entries.
+/// Unmeasured as a duration:
+/// the number is the claim lease's half,
+/// because the lease is what a record left by a round waits for before another round may take it.
+pub const TRASH_ITEM_CEILING: Duration = Duration::from_secs(120);
+
+/// The environment variable that sets one trash item's bound in whole seconds,
+/// so a control reaches the bound in a moment instead of waiting it out.
+/// Why:
+///  A control that checks what a round does with an item that cannot finish has to see the bound end the item,
+/// and waiting two minutes for each arm is a measurement of the machine and not of the bound.
+pub const TRASH_ITEM_CEILING_VARIABLE: &str = "CLI_GIT_TRASH_ITEM_SECONDS";
+
+/// One trash item's bound:
+/// the setting when it holds a positive number of seconds,
+/// `TRASH_ITEM_CEILING` otherwise.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// trashItemCeiling() // Duration
+/// ```
+pub fn trash_item_ceiling() -> Duration {
+    let named: Option<u64> = std::env::var(TRASH_ITEM_CEILING_VARIABLE).ok().and_then(|text| { return text.trim().parse::<u64>().ok(); });
+    return match named {
+        Some(seconds) if seconds > 0 => Duration::from_secs(seconds),
+        _ => TRASH_ITEM_CEILING,
+    };
+}
+
 /// The environment variable that sets how long a commit waits before the wrapper says where it stands,
 /// in whole
 ///  seconds.
