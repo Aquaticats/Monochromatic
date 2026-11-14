@@ -1100,6 +1100,75 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The journal tests' review finds coverage lost; the rate-limit retry is written (2026-11-13T19:49:14-05:00)
+
+Not final and not approved:
+the coordinating session's reading of two runs that ended at 19:41:32 and 19:44:14.
+
+- **Two tests of the journal's start** (`e05bcd57b2`).
+  The review
+  (`~/temp/agent/change-reviews/git-policy-cli-two-tests-of-the-journal-restored-at-start-state-what-a-plan-read-from-a-pipe-does/review.md`)
+  planted seven breaks,
+  one at a time,
+  in its own worktree.
+  The author's reading of the cause is right,
+  and four breaks the tests name are caught.
+  Two defects of the change:
+  the tests it replaced were the only ones that reached the start read's ceiling and its fallback,
+  so a fallback that keeps neither directory,
+  or a start read with no ceiling at all,
+  now passes every test of the package;
+  and the rewritten pipe test passes only when the whole start read ends inside 100 ms,
+  so a read made 150 ms slow fails it with the behaviour intact.
+  It also confirms the third test red at that commit.
+- Weighed:
+  both earn a fix.
+  The first is the project's own requirement left with no test;
+  the second is a test that fails on this machine's ordinary slowness.
+- Routed:
+  the author is resumed on both and on the third test,
+  because all three need one thing,
+  a journal read held by the test's own hand through the package's fault points
+  (`~/temp/agent/pi-runs/journal-start-tests-answer-their-review-of-2026-11-13-prompt.md`).
+  The fresh run queued at 19:13 for the third test alone is taken out of the queue before it started,
+  and its brief deleted,
+  its content being in the author's brief:
+  two agents would each have built a way to hold the same read.
+- From that review,
+  read and not tested:
+  the commit service reads a watch note with `std::fs::read`
+  (`package/git-policy/cli/src/native/landing/service_claim_watch.rs:171`),
+  which waits without a bound on a name that is a pipe,
+  where the record of a retry plan is refused at once.
+  A fresh run is queued
+  (`~/temp/agent/pi-runs/watch-note-of-the-commit-service-is-read-the-way-every-record-is-read-and-never-waits-on-a-pipe-prompt.md`).
+- **The reviewer's rate limit, retried by Pi itself** (issue 6297).
+  The run ended with six commits on
+  `fix/pi-plugin-qwen-token-plan-individual-token-rate-limit-answer-is-retried-by-pi-itself`
+  (report in `~/temp/agent/qwen-plan-token-rate-limit-answer-is-retried-by-pi-itself-scratch/keep/report.md`).
+  The provider's plugin recognises this provider's passing token-rate limit
+  (status 429, a JSON body, the code `insufficient_quota`, the documented words at the start of the message)
+  and hands Pi an error text Pi's own retry takes,
+  with the provider's words kept in a diagnostics entry and on standard error.
+  A proof with Pi 1.5.2 against a stand-in on the loopback:
+  with the change the run retries once and ends on the reply;
+  without it the run ends on the first answer.
+  Seven guards each shown to fail.
+- What it cannot claim,
+  in its own words:
+  no recorded answer of a spent paid plan exists,
+  so that a spent plan still ends at once rests on the provider's page;
+  and one documented message is both this provider's rate limit and another vendor's spent-balance wording,
+  so a spent plan answered with it would be retried for Pi's whole budget,
+  about three minutes at this machine's settings,
+  and then end as before.
+- Routed:
+  its review is queued at the head
+  (source `package/pi-plugin/qwen-token-plan-individual/src`).
+  To take effect after a merge it needs `mise run //package/pi-plugin/qwen-token-plan-individual:build` in the main checkout,
+  because Pi loads that checkout's built bundle.
+  Whether it is merged while the owner is away is decided when its review is read.
+
 ##### Changes to the coordinating session's own tools (2026-11-13T19:45:38-05:00)
 
 - The queue starter (`start-the-next-entry-of-the-resume-queue.ts`) wrote back the list it had read at its start,
