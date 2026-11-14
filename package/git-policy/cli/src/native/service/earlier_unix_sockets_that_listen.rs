@@ -88,10 +88,23 @@ enum PathColumnMatch<'a> {
 /// holdsThePathColumn({ exactly: [name] }, path)
 /// ```
 fn holds_the_path_column(wanted: PathColumnMatch<'_>, path: &[u8]) -> bool {
-    return match wanted {
-        PathColumnMatch::EndsWith(endings) => endings.iter().any(|ending| { return path.ends_with(ending.as_slice()); }),
-        PathColumnMatch::Exactly(names) => names.iter().any(|name| { return path == name.as_slice(); }),
-    };
+    match wanted {
+        PathColumnMatch::EndsWith(endings) => {
+            for ending in endings {
+                if path.ends_with(ending.as_slice()) {
+                    return true;
+                }
+            }
+        }
+        PathColumnMatch::Exactly(names) => {
+            for name in names {
+                if path == name.as_slice() {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 /// What:
@@ -154,10 +167,16 @@ fn listening_sockets_where(proc_root: &Path, wanted: PathColumnMatch<'_>) -> Lis
     let Ok(table) = std::fs::read(proc_root.join("net").join("unix")) else {
         return ListeningSockets::Unreadable;
     };
-    for line in table.split(|byte| { return *byte == b'\n'; }) {
-        if is_listening_socket_matching(line, wanted) {
-            return ListeningSockets::Listens;
+    let mut from: usize = 0;
+    let mut at: usize = 0;
+    while at <= table.len() {
+        if at == table.len() || table[at] == b'\n' {
+            if is_listening_socket_matching(&table[from..at], wanted) {
+                return ListeningSockets::Listens;
+            }
+            from = at.saturating_add(1);
         }
+        at += 1;
     }
     return ListeningSockets::None;
 }

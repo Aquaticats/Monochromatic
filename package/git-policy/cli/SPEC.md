@@ -13401,38 +13401,47 @@ and its address is made from the runtime directory (`XDG_RUNTIME_DIR`) and the i
   One socket address carries 107 bytes of name (`sun_path` less the zero that ends the name),
   so this form serves a runtime directory of at most 39 bytes,
   which is every session whose runtime directory is the one its login gave it.
-  The socket unit names it with `%t`, the manager's own runtime directory,
+  The socket unit names it with `%t`,
+  the manager's own runtime directory,
   and nothing about this form changed.
 - A runtime directory whose socket path does not fit is listened at under a Linux abstract name:
-  `@monochromatic-git-policy-cli/<user id>/<sixteen hexadecimal digits of the digest of the directory's real path>/<instance>`.
-  In pieces: the service's own name, the account, sixteen digits of the digest of the runtime directory's real path,
+  `@monochromatic-git-policy-cli/<user id>/<digest digits>/<instance>`,
+  where the digest is sixteen hexadecimal digits of the runtime directory's real path.
+  In pieces:
+  the service's own name,
+  the account,
+  the digest,
   and the instance.
   The socket unit names it with `ListenStream=@…/%i`,
   a client computes the same name for itself,
   and both reach it whatever working directory they run in.
-  Measured against systemd 262 in a container: the unit is accepted,
+  Measured against systemd 262 in a container:
+  the unit is accepted,
   the manager binds the name,
   and the `Listen` property of the socket unit answers `@` and the name,
   as systemd prints an abstract address (`sockaddr_pretty` in `src/basic/socket-util.c`).
   A name leaves nothing behind when its process dies,
   so a killed service leaves no address to clear away.
   Two other ways of naming a long address each lost:
-  an address relative to a held-open directory (`/proc/self/fd/<n>/<name>`) reaches a socket only from the process that
-  holds the descriptor, so a socket unit cannot name it;
-  and a name relative to a working directory reaches it only from the directory the two processes share, which the
-  manager's own working directory is not.
-- The name is an abstract address and has no permission bits, and what stands in for the directory's mode is the
-  kernel's own word about who took a connection (`SO_PEERCRED`):
+  an address relative to a held-open directory (`/proc/self/fd/<n>/<name>`) reaches a socket only from the process
+  that holds the descriptor,
+  so a socket unit cannot name it;
+  and a name relative to a working directory reaches it only from the directory the two processes share,
+  which the manager's own working directory is not.
+- The name is an abstract address and has no permission bits,
+  and what stands in for the directory's mode is the kernel's own word about who took a connection (`SO_PEERCRED`):
   the service reads it before it says a word to any client,
   and a client refuses a connection another account's process took (`ClientFailure::OtherAccount`).
-  The name carries the user id, so two accounts never bind one name;
+  The name carries the user id,
+  so two accounts never bind one name;
   the name carries the digest of the directory's real path and never of its spelling,
   so two spellings of one runtime directory are one service and two runtime directories are two,
   exactly as two socket files are.
 - A system whose unix sockets have no abstract namespace has only the path form,
   and a runtime directory that leaves no room for it is refused before anything is waited for,
-  with the length named, the longest runtime directory that works, and the setting that decides it
-  (`ClientFailure::SocketPathTooLong`).
+  with the length named,
+  the longest runtime directory that works,
+  and the setting that decides it (`ClientFailure::SocketPathTooLong`).
 
 ### Machines with no way to reach the service
 
