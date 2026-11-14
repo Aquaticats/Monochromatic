@@ -1,21 +1,22 @@
-//! Controls for a client's greeting and beats while the journal of the after-commit work gives no answer:
+//! Controls for a client's greeting, beats and landing while the journal of the after-commit work gives no answer:
 //! the acceptor starts before the plan of the pushes waiting for a new try and the repositories an earlier
 //!  service was woken for are read,
 //! and those two are read on a thread of their own,
-//! so a journal that stopped answering delays a push and never a commit's client.
+//! so a journal that gave no answer delays a push and never a commit's client,
+//! and the service writes the journal it kept where the next start reads it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const stalled = stallThePlanWithAFifo(); expect(await greetingOf(service)).toBeDefined();
+//! const [reached, letGo] = holdThePoint(THE_READ_AT_A_START); expect(await greetingOf(service)).toBeDefined();
 //! ```
 
 use super::*;
 use crate::service_client_listen_and_ask_to_retire::read_message;
 use crate::service_land::LandContext;
+use crate::service_journal_restored_at_start::THE_READ_AT_A_START;
 use crate::service_protocol::{ALLOWED_MODES, Change, ClientMessage, CommitRequest, HEARTBEAT_EVERY, ServiceMessage, encode_client};
 use crate::test_support::{git_text, repository};
 use std::io::{BufReader, Write};
-use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::net::UnixStream;
 use std::time::{Duration, Instant};
 
@@ -26,13 +27,12 @@ use std::time::{Duration, Instant};
 const PATIENCE: Duration = Duration::from_secs(60);
 
 /// How long the service reads the journal for in this control:
-/// long enough that a read of a pipe with no writer never ends inside it,
-/// and longer than two beats,
+/// longer than two beats,
 /// so a client that waits for its commit is shown to be beaten while the read has not returned.
+/// Why:
+///   The read is held by this control,
+/// so the ceiling passing is certain and no speed of this machine decides the beat.
 const SHORT_CEILING: Duration = Duration::from_millis(2_500);
-
-/// The name of the pipe that stands where a plan file of the journal would be.
-const STALLED_PLAN: &str = "a-push-waiting-for-a-new-try.plan";
 
 /// The commit the client asks for.
 const MESSAGE: &str = "waited";
@@ -85,6 +85,12 @@ impl World {
         settings.journal_restore_ceiling = SHORT_CEILING;
         return settings;
     }
+
+    /// The directory the after-commit work keeps the repositories it was woken for,
+    /// which is the journal's own.
+    fn notes(&self) -> PathBuf {
+        return self.journal.join(WATCH_DIRECTORY);
+    }
 }
 
 impl Drop for World {
@@ -123,52 +129,9 @@ fn a_request(world: &World, id: &str) -> CommitRequest {
     };
 }
 
-/// What:
-///  Stand a pipe with no writer where the journal's plan of the pushes waiting for a new try keeps its files.
-/// Why:
-///  A read of a pipe's other end waits in the kernel until a writer opens it,
-/// which is the one way to make a read of a plan file hold a thread with no end
-///  (`push_retry_store.rs`,
-/// `load`),
-/// and finding 3 of the review of `b3d00b3be4` is a service whose landing thread sat in that read
-/// while its clients read the silence as a service that stopped.
-fn stall_the_plan(journal: &Path) -> PathBuf {
-    let directory: PathBuf = journal.join(PLAN_DIRECTORY);
-    std::fs::create_dir_all(directory.as_path()).expect("the plan's directory");
-    let path: PathBuf = directory.join(STALLED_PLAN);
-    let text: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).expect("a path without a zero byte");
-    // SAFETY: `mkfifo` reads the path it is given and writes only the file it makes; the mode is the one a control's own
-    //  directory takes.
-    let made: libc::c_int = unsafe { libc::mkfifo(text.as_ptr(), 0o600) };
-    assert_eq!(made, 0, "the pipe must stand where a plan file would be: {}", std::io::Error::last_os_error());
-    return path;
-}
-
-/// What:
-///  Open the pipe for writing and close it again,
-/// which ends the read the service left behind when its ceiling passed.
-/// Why:
-///  That read is abandoned,
-/// never cancelled (`work_awaited_within_a_ceiling.rs`),
-/// so the thread that holds it ends only when a writer appears;
-/// a control that left it would keep one thread of the test binary,
-/// and no more.
-/// The open does not wait for a reader:
-///  a pipe with no reader is reported instead,
-/// and the control tries again until `PATIENCE`.
-fn release_the_pipe(path: &Path) {
-    let began: Instant = Instant::now();
-    while began.elapsed() < PATIENCE {
-        match std::fs::OpenOptions::new().write(true).custom_flags(libc::O_NONBLOCK).open(path) {
-            // The reader is there, and closing this end ends its read.
-            Ok(mut writer) => {
-                let _written = writer.write_all(b"");
-                return;
-            }
-            // No reader yet: ask again until the patience is over.
-            Err(_not_yet) => std::thread::sleep(Duration::from_millis(10)),
-        }
-    }
+/// Whether the after-commit work wrote a note in the journal the start kept.
+fn a_note_was_written(notes: &Path) -> bool {
+    return std::fs::read_dir(notes).is_ok_and(|mut listed| { return listed.next().is_some(); });
 }
 
 /// Reads the greeting of the service on `reader`,
@@ -179,7 +142,8 @@ fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
 
 /// What:
 ///  A client that connects while the journal's plan cannot be read is greeted and beaten,
-/// and the commit it sends is landed once the journal's ceiling passed.
+/// and the commit it sends is landed once the journal's ceiling passed,
+/// and the service writes the note of the repository it drains into the journal the fallback kept.
 /// Why:
 ///  The greeting and the beat are the proof of life a client's wait rests on,
 /// and a service that reads the journal of its after-commit work before it accepts a connection answers no one
@@ -188,16 +152,28 @@ fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
 /// The acceptor starts first and the plan is read on a thread of its own,
 /// so the greeting,
 /// the beats and the landing all happen while that read has not returned.
+/// The read is held at its own fault point,
+/// so "while that read has not returned" is a state of the code and not a duration,
+/// and the beat is shown while it waits rather than because this machine is slow.
+///  The note the after-commit work leaves is the fallback's own promise kept:
+/// the start that gave no answer kept the journal's directory,
+/// so this service writes there and the next start looks at it
+/// (`SPEC.md`,
+/// "the plan's directory and the watch's directory are kept either way").
 #[test]
 fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer() {
     let world: World = world("restore-stalled");
-    let stalled: PathBuf = stall_the_plan(world.journal.as_path());
+    // The journal's read answers only when this control lets it go.
+    let (reached, let_go) = crate::service_fault::hooks::hold_the_point(THE_READ_AT_A_START);
     let listener: UnixListener = UnixListener::bind(world.socket()).expect("bind");
     let context: LandContext = world.context();
     let settings: ServeSettings = world.settings();
     let serving = std::thread::spawn(move || {
         serve(listener, &context, &settings);
     });
+    // The read it holds can only be reached after the acceptor started, so this says the service is up and its journal is not read.
+    let reached_the_read: Option<bool> = crate::test_support::finished_within_at(PATIENCE, move || { return reached.blocking_recv().is_ok(); });
+    assert_eq!(reached_the_read, Some(true), "the service reaches the read of its journal, which it holds here");
     let stream: UnixStream = UnixStream::connect(world.socket()).expect("the service listens");
     let _timeout = stream.set_read_timeout(Some(HEARTBEAT_EVERY * 3));
     let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a second handle on the connection"));
@@ -217,11 +193,18 @@ fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer
         }
     }
     assert!(landed.is_some(), "the commit of a client that waited is landed once the journal's ceiling passed");
-    assert!(beats >= 1, "a service whose journal gave no answer still proves it lives, once a second");
+    assert!(beats >= 1, "a service whose journal gave no answer still proves it lives, once a second, before a commit lands");
+    // What a client sends once its commit is landed: the repository whose work items are now to be run.
+    let mut work: String = encode_client(&ClientMessage::Work { git_dir: world.repo.join(".git"), review_key: None });
+    work.push('\n');
+    (&stream).write_all(work.as_bytes()).expect("the client announces the work its commit left");
+    let _written: bool = crate::test_support::wait_until(&|| { return a_note_was_written(world.notes().as_path()); });
+    let kept: Vec<PathBuf> = ClaimWatch::restored(world.notes().as_path(), None).directories();
+    assert_eq!(kept, vec![world.repo.join(".git")], "the repository the service drained is written in the journal the start kept, so the next start looks at it");
     // The service is told to retire on a connection of its own, so its thread ends here rather than at its idle exit.
     retire(world.socket().as_path());
     let joined: bool = join_within(serving);
-    release_the_pipe(stalled.as_path());
+    let _let_go = let_go.send(());
     assert!(joined, "the service ends when it is told to retire, so a read that gave no answer did not hold it");
 }
 
