@@ -1,0 +1,53 @@
+{
+  "image": "localhost/optique-measure:2026-11-12",
+  "imageId": "e41ee2dfe04c1cc48cd5ecf0d9f6709a1b12b00e950f4c967b79c9b14dc4505c",
+  "startedAt": "2026-11-12T14:46:01.424Z",
+  "finishedAt": "2026-11-12T15:05:51.455Z",
+  "rounds": 7,
+  "warmup": 2,
+  "timed": 7,
+  "containerLimits": [
+    "--rm",
+    "--cpus",
+    "2",
+    "--memory",
+    "4g",
+    "--pids-limit",
+    "512",
+    "--blkio-weight",
+    "10"
+  ],
+  "experiments": [
+    {
+      "name": "behavior",
+      "script": "scripts/behavior-all.ts",
+      "arguments": []
+    },
+    {
+      "name": "profiles",
+      "script": "scripts/profile-run.ts",
+      "arguments": []
+    },
+    {
+      "name": "spread",
+      "script": "scripts/run-all.ts",
+      "arguments": [
+        "--mode=spread",
+        "--rounds=6",
+        "--reps=8",
+        "--warmup=2",
+        "--timed=7"
+      ]
+    },
+    {
+      "name": "runs",
+      "script": "scripts/run-all.ts",
+      "arguments": [
+        "--mode=matrix",
+        "--rounds=7",
+        "--warmup=2",
+        "--timed=7"
+      ]
+    }
+  ]
+}

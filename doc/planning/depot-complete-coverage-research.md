@@ -556,7 +556,7 @@ and command logs accompany the APKs for the parent's headful device consumer.
 
 The corrected run `1jxc80q7q7` finished successfully at workflow `8256d8bb9d`,
 still checking out the identical frozen application source.
-Its [retained receipts and actual JUnit case index][android-receipts]
+Its retained receipts and actual JUnit case index (`depot-complete-coverage-android-receipts.json.gz`)
 are 96,498 compressed bytes,
 with SHA-256 `b517d9c2ff726f96c1afedc8c5bbb5ed2a389125ccc41913a1c3292bcf7d85e1`.
 The downloaded ZIP matches the provider's 68,983,121-byte metadata.
@@ -565,6 +565,8 @@ the local archive digest and all captured APK,
 native payload,
 JUnit,
 and command-log hashes are retained and checked.
+`depot-complete-coverage-android-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The pair passed signature,
 ZIP,
@@ -597,7 +599,7 @@ with zero skipped cases,
 failures,
 or errors.
 The case-identity multiset matches the first run.
-The [task-level execution proof][android-jvm-execution]
+The task-level execution proof (`depot-complete-coverage-android-junit-execution.json.gz`)
 retains both complete Gradle logs,
 every task outcome,
 and each XML report's timestamp and hash.
@@ -609,7 +611,7 @@ Tracked source remained unchanged.
 The byte comparison is narrower:
 the 4 AndroidX payloads match between builds,
 while the 6 engine/Turso payloads differ.
-The [section-level comparison and original-source controls][android-reproducibility]
+The section-level comparison and original-source controls (`depot-complete-coverage-android-reproducibility.json.gz`)
 show matching `.text` bytes for all 8 inspected 64-bit libraries.
 Each differing engine/Turso library contains the corresponding build's clock timestamp in `.rodata`;
 the isolated unchanged `turso_core` build script reproduces deterministic output with `SOURCE_DATE_EPOCH`.
@@ -617,6 +619,10 @@ Symbol-table and string-table differences are retained separately.
 The [timestamp diagnosis][android-timestamp-diagnosis] describes the verified seed control
 and the absence of a complete normalized native or APK rebuild comparison.
 Source identity is not being promoted into a whole-artifact bit-reproducibility claim.
+`depot-complete-coverage-android-junit-execution.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+`depot-complete-coverage-android-reproducibility.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The parent consumed the exact second-run pair on a private headful API 37,
 `x86_64` device using emulator `37.2.12` and host GPU rendering.
@@ -641,9 +647,6 @@ separate from successful APK assembly and host-JVM tests.
 The newer main checkout's 3 additional instrumentation classes are outside the frozen cohort.
 
 [android-page-sizes]: https://developer.android.com/guide/practices/page-sizes
-[android-receipts]: depot-complete-coverage-android-receipts.json.gz
-[android-jvm-execution]: depot-complete-coverage-android-junit-execution.json.gz
-[android-reproducibility]: depot-complete-coverage-android-reproducibility.json.gz
 [android-timestamp-diagnosis]: ../troubleshooting/turso-android-native-build-timestamps.md
 [android-device-consumer]: ../audit/depot-android-consumer-2026-10-18.evidence.json
 
@@ -1028,6 +1031,8 @@ The failed boundaries are:
 The original ZIP and source-bound logs are recorded in
 `depot-complete-coverage-typescript-fuzz-receipts.json.gz`.
 No gate was waived or refrozen.
+`depot-complete-coverage-typescript-fuzz-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The finite deepmerge/compiler consumer,
 TOML Go conformance,
@@ -1166,6 +1171,8 @@ original archive member hashes,
 native topology controls,
 and parsed browser cases are retained in
 `depot-complete-coverage-artifact-browser-receipts.json.gz`.
+`depot-complete-coverage-artifact-browser-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The active E2E and finite TypeScript owners now have terminal receipts in their dedicated sections.
 The research coverage lane retains these separate independently verifiable queue items:
@@ -1238,11 +1245,13 @@ parsed E2E reports,
 compiler-generated cases,
 mutation report,
 and cleanup receipt are retained in
-[`depot-complete-coverage-finite-owner-receipts.json.gz`](depot-complete-coverage-finite-owner-receipts.json.gz).
+`depot-complete-coverage-finite-owner-receipts.json.gz`.
 Its 391550 bytes have SHA-256 `e93b3f330656a5f7c7c7c629d915cc70e0dda8a1bfdc8fb6ad826556bba264c7`.
 The desktop prerequisite,
 packed-install,
 and semantic-manifest queue items remain independently owned.
+`depot-complete-coverage-finite-owner-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Desktop producer and remaining finite controls
 
@@ -1555,7 +1564,7 @@ not an additional Depot allocation.
 Raw packed logs also retain a logger file-sink verification diagnostic;
 the functional checks do not claim complete logger coverage.
 
-The [sealed packed receipts](../audit/depot-complete-coverage-packed-consumer-receipts.json.gz)
+The sealed packed receipts (`../audit/depot-complete-coverage-packed-consumer-receipts.json.gz`)
 retain the 26 exact producer archives,
 plans,
 run boundaries,
@@ -1568,6 +1577,8 @@ Git identities,
 materialized source hashes,
 packed archive hashes,
 and installed resolution paths remain separate.
+`depot-complete-coverage-packed-consumer-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The original campaign now has 42 completed owned job rows,
 USD1.488 GitHub rounded-minute proxies,
@@ -1717,7 +1728,7 @@ The explicit nextest scheduler adapter adds only
 preserving default build/test concurrency and retaining original/adapted hashes.
 Actual compiler host and emitted binary architecture are checked before native-consumer credit.
 
-The [sealed host admission evidence](../audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz)
+The sealed host admission evidence (`../audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz`)
 retains exact plans,
 workflow bytes,
 tool prerequisites,
@@ -1727,6 +1738,8 @@ Evidence bytes:
 `26778`;
 SHA-256:
 `f5755e11392506471c3461675c86b9bef97099f64eb841c0f296270beb8bebdd`.
+`depot-current-host-controls-admission-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ### Bounded host bootstrap correction before dispatch
 
@@ -1791,12 +1804,14 @@ The ledger has 48 completed owned rows and USD4.7280 committed and reserved
 under the original USD5 guard;
 the USD6 fallback is unused.
 The separately admitted Depot OS profile remains unallocated with USD1.92 reserved under its USD2 guard.
-The immutable first-handoff evidence is [`depot-current-host-first-handoff-2026-10-18.evidence.json.gz`](../audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz),
+The immutable first-handoff evidence is `depot-current-host-first-handoff-2026-10-18.evidence.json.gz`,
 121319 bytes,
 SHA-256 `c7d97ade72711bc3386591871419757f97f05afb5055f03b8e671dfeadd1cf85`.
 The finite queue still owns matched Depot Mac/Windows execution,
 the per-package semantic assertion manifest,
 and the desktop screenshot publication audit.
+`depot-current-host-first-handoff-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Desktop publication boundary and source assertion identities
 
@@ -1860,15 +1875,21 @@ with actual CPU/memory observation still unmeasured for that handoff.
 The original sealed handoff is preserved;
 the corrected row projection is in the desktop receipt.
 
-- [`depot-complete-coverage-desktop-receipts.json.gz`](../audit/depot-complete-coverage-desktop-receipts.json.gz):
+- `depot-complete-coverage-desktop-receipts.json.gz`:
   22756 bytes,
   SHA-256 `8b9be6f1b2cfb29540226d0a8c4b520d867d8d6a24b0eddda516198b26b26885`.
-- [`depot-complete-coverage-external-generation-receipts.json.gz`](../audit/depot-complete-coverage-external-generation-receipts.json.gz):
+- `depot-complete-coverage-external-generation-receipts.json.gz`:
   1910 bytes,
   SHA-256 `899467f33d5eccfb01a1f053db71c773bf4406db86887131698ab59193f67c6b`.
-- [`depot-complete-coverage-source-feature-assertions.json.gz`](../audit/depot-complete-coverage-source-feature-assertions.json.gz):
+- `depot-complete-coverage-source-feature-assertions.json.gz`:
   3341685 bytes,
   SHA-256 `11e25bc960076fd330bb923c3bd0aa586b52ec47824c7633198d1a9bd7910204`.
+  `depot-complete-coverage-desktop-receipts.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `depot-complete-coverage-external-generation-receipts.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `depot-complete-coverage-source-feature-assertions.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The remaining finite factual queue is independently owned:
 
@@ -2114,7 +2135,7 @@ with a thirty-minute job cap and twenty-seven-minute inner deadline.
 At most two globally coordinated cloud jobs may overlap.
 No material allocation existed at this admission checkpoint.
 
-The [public GNU terminal evidence][gnu-terminal-owner] closes the corrected parser activation boundary:
+The public GNU terminal evidence (`../audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz`) closes the corrected parser activation boundary:
 1,494 unique binary/case identities ran,
 with 1,492 passed,
 two failed and one summary-only skip.
@@ -2126,6 +2147,8 @@ The original source assertions remain unchanged.
 Job `117747819418` ran from `18:00:26Z` to `18:10:52Z`,
 a 626-second provider interval,
 with nominal standard-public compute USD0 and unmeasured artifact/storage charges.
+`depot-current-host-gnu-owner-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 A separate matched Depot-Windows GNU proposal remains queued for Parent source review.
 It may request one four-CPU/sixteen-GB job for twenty minutes,
@@ -2139,7 +2162,6 @@ No matched Depot GNU allocation is admitted by this executable material-owner re
 
 [material-parent-admission]: ../audit/depot-material-owner-parent-admission-2026-10-18.evidence.json
 [material-executable-admission]: ../audit/depot-material-owner-executable-admission-2026-10-18.evidence.json
-[gnu-terminal-owner]: ../audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz
 
 ## Material-owner dispatch checkpoint and matched GNU queue
 
