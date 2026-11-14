@@ -1202,6 +1202,347 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The warm request passed its review and is pass 31; the reload fix's review ran nothing and goes on; mpm-shadow's cleanup has two defects (2026-11-13T23:44:17-05:00)
+
+Not final and not approved:
+read by the coordinating session from three review files,
+nothing rerun by it.
+
+- **Warm request of a commit**
+  (`~/temp/agent/change-reviews/git-policy-cli-warm-request-of-a-commit-connects-within-a-bound-answers-after-its-review/review.md`,
+  ended 23:41:19,
+  on `f09d836d55`):
+  no defect.
+  Four files read whole with the code they call;
+  the six unit controls run through the package's task and passing,
+  the ceiling on the look and the bound on the connection among them at 0.267 s each.
+  It did not run the two binary controls the branch adds
+  (its fixtures' socket paths were too long until it used a short alias for `HOME`).
+  Pass 31 is queued at the head
+  (`integration-pass-31-with-the-warm-request-that-gives-up-its-look-at-a-ceiling-prompt.md`),
+  told to run those two.
+- **The reload fix (issue 6286)**
+  (`~/temp/agent/change-reviews/git-policy-cli-reload-fix-answers-the-instance-that-fails-its-start-at-an-upgrade/review.md`,
+  ended 23:41:51,
+  on `05edb83219`):
+  "final,
+  reading-only.
+  No runs were started",
+  no defect by reading,
+  two close candidates weighed and set aside.
+  Its reasons for running nothing:
+  a cold build,
+  a disposable `HOME` hiding the toolchain,
+  and socket paths too long under its scratch folder.
+  By the record of 12:26:24 a review that ran nothing is started again.
+  It goes on in its own session,
+  so its reading is kept
+  (`go-on-with-the-review-of-the-reload-fix-that-ran-nothing-prompt.md`,
+  queued second),
+  told how three other reviews of this package got past each of the three today,
+  and what to run:
+  the controls of the touched modules,
+  one planted break against the control of the unload's window,
+  and its two candidates as runs.
+  The branch stays out of a pass until then.
+- **mpm-shadow removes the old versions it installed**
+  (`~/temp/agent/change-reviews/mpm-shadow-cli-removes-by-itself-the-old-versions-it-installed-by-size-and-last-modified-time/review.md`,
+  ended 23:38:00,
+  on `e4c7243bbe`):
+  trimming across roots,
+  a pinned version being installed at once,
+  links and tombstones are safe,
+  and the pass cannot fail an install.
+  Two defects,
+  both reproduced by calling the shipped function,
+  both weighed as standing.
+  A pass that cannot read the worktrees' locks skips finishing a removal that was cut short and then deletes the marker for it,
+  so the half-removed version is never finished.
+  And the process table is read once before the removals,
+  so a process that starts in an old version after that loses the version under it
+  (shown with the work limit raised to hold the window open).
+  Back to the author in its own session
+  (`mpm-shadow-removal-of-old-versions-answers-its-review-of-e4c7243bbe-prompt.md`,
+  queued at position 5).
+  The review also notes that the pass puts `git worktree list` on every installing sync through a runner that waits without a bound;
+  that is the queued run for a program an install started.
+- The queue held 52 entries at 23:44:17.
+  It held 46 at 22:53.
+
+##### The rate-limit plugin's author bounded the proof's harness (2026-11-13T23:38:08-05:00)
+
+Not final and not approved:
+read by the coordinating session from the run's last message.
+
+- Run `qwen-plan-token-rate-limit-answer-is-retried-by-pi-itself-2`,
+  ended 23:33:26,
+  tip `0e62c1df44`,
+  `main` merged.
+  The review's three reproductions shown first,
+  and one measurement of its own that sharpened the first finding:
+  a `timeout` with the default `SIGTERM` never settled against a command that traps that signal,
+  where `SIGKILL` ended it at 304 ms.
+  Every command the proof's builder runs now has a bound of 60 s and is ended with `SIGKILL`;
+  a run past its bound gets its own signal,
+  a second `SIGTERM` after two seconds,
+  `SIGKILL` after two more,
+  and its pipes are let go.
+  Three controls,
+  each failing without its fix.
+  The proof on the merged tree:
+  ten checks,
+  exit 0,
+  10.1 s.
+  The three product files the first review passed are untouched.
+- Its review is queued at the head
+  (`review-pi-plugin-qwen-token-plan-individual-token-rate-limit-proof-is-bounded-answers-after-its-review`,
+  range `main...0e62c1df44`).
+- Unchanged:
+  merging it and building it in the main checkout is kept for the owner,
+  since it changes every Pi run on that provider,
+  other sessions' too.
+
+##### The push of a branch that is not checked out: three defects, one of them a loss its last answer brought in; the driver's test: one gap (2026-11-13T23:34:15-05:00)
+
+Not final and not approved:
+read by the coordinating session from two review files,
+nothing rerun by it.
+
+- **The push of a branch that is not checked out, third review**
+  (`~/temp/agent/change-reviews/git-policy-cli-push-of-a-branch-not-checked-out-answers-after-its-second-review/review.md`,
+  its second run ended 23:32:38 after the rate limit ended the first,
+  on `6c39c3719a`):
+  no wait without a bound,
+  three candidates dismissed with probes,
+  three defects reproduced with the built wrapper,
+  all weighed as standing.
+  The repair after the move,
+  which the last answer added,
+  overwrites an edit a person stages to a file the merge wrote,
+  in the window after the reference moved:
+  a staged edit made then looks the same to it as content a switch carried over,
+  and before that answer the edit survived.
+  A move of a reference no worktree holds,
+  raced by `git worktree add` of that branch,
+  reports the branch "is not at it" when it is,
+  gives advice that prints "Already up to date.",
+  and leaves a checkout whose next commit reverses the published merge.
+  An explicit push whose merge landed on the remote but was reported failed exits with the first rejection
+  and never says the merge is published.
+  Back to the author in its own session
+  (`push-of-a-branch-answers-its-third-review-of-2026-11-13-prompt.md`,
+  queued at position 6).
+- **The driver's unit test of the silence after a compaction**
+  (`~/temp/agent/change-reviews/pi-shared-subagent-driver-unit-test-of-the-silence-after-a-compaction-holds-its-own-clock/review.md`,
+  ended 23:28:52,
+  on `e816c1dc7b`):
+  the reviewer planted four breaks in the code,
+  one at a time.
+  The test catches the bound not started afresh and the bound running through a compaction;
+  a real stall of 50 ms no longer changes its result;
+  the clock does not outlive its test;
+  the author's reading that the code is right holds.
+  One gap:
+  a resume that settles the wait through `setImmediate`,
+  which the clock does not hold,
+  passes the test,
+  where the test before the change failed;
+  another test of the package still fails under that plant.
+  The reviewer ran a one-line assertion both ways.
+  Weighed as worth its one line;
+  back to the author
+  (`driver-unit-test-of-the-silence-after-a-compaction-answers-its-review-of-e816c1dc7b-prompt.md`,
+  queued at position 12).
+
+##### The removal-refuses review found Git work a removal still destroys; the archives are all removed and go to review (2026-11-13T23:29:22-05:00)
+
+Not final and not approved:
+read by the coordinating session from one review file and one run's last message,
+nothing rerun by it.
+
+- **A typed removal refuses a busy worktree, third review**
+  (`~/temp/agent/change-reviews/git-policy-cli-removal-refuses-a-busy-worktree-answers-after-its-review-of-01d26607ce/review.md`,
+  ended 23:23:05,
+  on `d34ecbc2ac`):
+  the refusal itself works in its controls,
+  and three findings are reproduced with the built wrapper,
+  each measured against the record's sentence that Git work is never destroyed by a removal.
+  A nested worktree's edit hidden by `assume-unchanged` or `skip-worktree` is not seen by the new refusal,
+  which reads the status,
+  so a typed removal deletes it and the log names nothing:
+  the change's own.
+  The deletions log leaves out a detached nested worktree and its files,
+  because its reader drops registrations whose `HEAD` names no branch:
+  the change's own.
+  The landed sweep and the commit service remove a worktree holding a detached nested worktree with an edited tracked file,
+  through the same reader:
+  in `main` before this change,
+  and inside the task of the landed-removal author,
+  whose run is going.
+  All three weighed as standing.
+  The first two and the false sentence in the new file go back to the author in its own session
+  (`removal-refuses-answers-its-third-review-of-2026-11-13-prompt.md`,
+  queued at position 6),
+  told to write no second guard for the automatic routes.
+  The third went at 23:29 as a note with the two reproduction scripts to
+  `landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit-4`.
+  The two branches still land together or in that order.
+- **Archives**
+  (run `tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text-and-archive-formats-are-ignored-2`,
+  ended 23:26:06,
+  tip `0ef01cf14e`,
+  `main` merged at `63b55a57d0` with no conflict):
+  the four that stood are removed as adopted at 21:20.
+  For the two whose records disagreed,
+  every version in history was hashed and both recorded pairs are real earlier versions,
+  now noted beside each record with the commit that holds them.
+  The self-recording one carries a note that its pair cannot be current.
+  The kept file the guard refused is trimmed to the two records documents cite,
+  and the secret scanner reports nothing on it.
+  136 archives removed in all,
+  none of the named formats tracked,
+  three Java archives left;
+  all 136 print from history and match by digest,
+  by its own check.
+  Against `main` the branch adds 164 files,
+  deletes 136 and modifies 115
+  (counted at 23:29).
+  Its review has a hand-written brief
+  (`~/temp/agent/change-reviews/doc-tracked-archives-are-removed-and-history-holds-each/brief.md`),
+  queued at the head;
+  the merge follows a review with no defect.
+  Its open questions,
+  none of them blocking the review:
+  an eighth note field with a `null` pair for the self-recording file;
+  a formatting defect in one evidence file that `main` has too;
+  `doc/handover/depot-trial-grilling.md` carries `merge=union`,
+  so its note wants a look at the merge.
+- Seen in that run's merge of `main`:
+  the wrapper named three other worktrees it left in place,
+  the landed sweep's behaviour recorded at 23:10.
+- The queue held 49 entries at 23:29:22.
+
+##### The reload fix's author found what fails a start at an upgrade; the discarding commands' third review has two defects (2026-11-13T23:22:53-05:00)
+
+Not final and not approved:
+read by the coordinating session from one run's last message and one review file;
+the journal count is its own.
+
+- **The reload fix (issue 6286)**
+  (run `reload-fix-brought-onto-main-where-a-program-link-already-is-5`,
+  ended 23:17:27,
+  tip `05edb83219`,
+  `main` merged):
+  the cause of the instance that fails its start at an upgrade is named from its measurements.
+  The unit's `ExecStart` names a link that still exists;
+  the link's target was inside the `0.6.1-alpha.19` release directory,
+  which the store no longer held.
+  By its reading the step that takes it away is `mise run toolchain:install`,
+  which keeps the release it installs and removes the one it replaces;
+  the first command of the new release is where the failure shows.
+  A command of the new release in that worktree repairs it at the price of a second;
+  a connection from anything else leaves the two units failed until such a command comes,
+  which is the 97 s the main checkout showed.
+  What it changed:
+  every provisioning points the path the earlier releases named at the running program;
+  a service retired before it accepted any commit has its own socket stopped alone,
+  so a client of another release chasing it costs one start and leaves no failed unit;
+  the unload stops the socket with `stop_alone`,
+  so a service started between the look and the stop is never cut.
+  Its proof,
+  in a container with a manager of its own:
+  the released alpha.20 leaves two units failed and a commit with status 1;
+  its build leaves none and every commit lands.
+  Its review is queued at the head
+  (`review-git-policy-cli-reload-fix-answers-the-instance-that-fails-its-start-at-an-upgrade`,
+  range `main...05edb83219`).
+  It names what it cannot close:
+  the window between an install and the first command of the new release,
+  which only the installer can close by keeping a version that a lock or a process names.
+  That is the mpm-shadow run queued at 23:10;
+  it now stands at position 3 with this finding in its brief.
+  Left by it:
+  `doc/planning/git-wrapper-reload-remedy.md` is outside its package and uncorrected.
+- **Discarding commands, third review**
+  (`~/temp/agent/change-reviews/git-policy-cli-discarding-commands-answers-after-its-second-review/review.md`,
+  ended 23:20:50,
+  on `1edafc6c7d`):
+  the core protections hold in its controls,
+  the nested-repository save is safe against a kill and a race,
+  every wait is bounded.
+  Two defects,
+  both reproduced,
+  both weighed as standing.
+  This change refuses a safe `git mv -f a.txt b` into an untracked directory with a sentence that is untrue
+  (real Git moves into `b/` and loses nothing).
+  And `git rm -f --sparse` deletes an edit that `skip-worktree` hides:
+  there before this change,
+  and the same guard this change taught to read hidden edits for two other commands.
+  Back to the author in its own session
+  (`discarding-commands-answers-its-third-review-of-2026-11-13-prompt.md`,
+  queued at position 6).
+- **The journal after the install of alpha.23**,
+  23:14:00 to 23:21:00,
+  310 lines:
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at its start limit;
+  three services said alpha.23 at their start.
+  The main checkout's link was repaired by the install's own sample commit,
+  so this count says nothing about a worktree no command has yet run in.
+- The review that the rate limit ended at 23:15:51 was put back by the filling unit at 23:17:59 and is going again.
+- The queue held 49 entries at 23:22:53.
+
+##### The warm request's author answered; a review ended on the rate limit (2026-11-13T23:17:55-05:00)
+
+Not final and not approved:
+read by the coordinating session from one run's last message and one unfinished review file.
+
+- **Warm request of a commit**
+  (run `warm-request-of-a-commit-connects-to-its-service-within-a-bound-2`,
+  ended 23:12:42,
+  tip `f09d836d55`,
+  `main` merged at alpha.22):
+  the review's reproduction shown first
+  (the look at the processes gave no answer in 30 s where one process's command line cannot be read).
+  The look now runs on a thread of its own and is given up at 250 ms,
+  the same ceiling as the connection;
+  no answer counts as no service,
+  and the command publishes the rules itself.
+  The value's measurement stands beside it
+  (25 looks,
+  12.3 ms median,
+  18.7 ms slowest).
+  The review's second finding
+  (a service killed between the look and the connection)
+  is answered as one that cannot be closed and loses nothing:
+  the connection starts the successor,
+  shown by a control;
+  the promise in the file,
+  `SPEC.md` and the README is corrected to what the client does.
+  Cost,
+  two builds alternating in one fixture:
+  one millisecond between medians.
+  Its review is queued at the head
+  (`review-git-policy-cli-warm-request-of-a-commit-connects-within-a-bound-answers-after-its-review`,
+  range `main...f09d836d55`).
+- **The review of the push of a branch that is not checked out**
+  (run `review-git-policy-cli-push-of-a-branch-not-checked-out-answers-after-its-second-review-1`)
+  ended at 23:15:51 on the provider's rate limit after 78 turns,
+  its review file still the first draft of 23:02
+  (five candidates,
+  none confirmed)
+  and a reproduction folder named for a staged edit destroyed by the repair after the move.
+  The filling unit puts such a review back at the head to go on in its own session;
+  whether it did is read at the next pass.
+- **The journal after the install of alpha.23**,
+  23:14:00 to 23:17:55,
+  231 lines:
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at its start limit;
+  two services said alpha.23 at their start.
+
 ##### 0.6.1-alpha.23 is published and installed (2026-11-13T23:14:59-05:00)
 
 Not final and not approved;
