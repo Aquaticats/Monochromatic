@@ -71,7 +71,7 @@
 use crate::held_commit_record::{Held, list};
 use crate::held_commit_words::{locks_named, removal};
 use crate::plain_file::{SMALL_FILE_LIMIT, read_plain_file};
-use crate::service_land_git_steps_and_import_stream::keep_on_a_side_ref_only_if_free;
+use crate::service_land_side_reference_write::keep_on_a_side_ref;
 use crate::service_scratch_ref_of_a_dropped_batch::{RefValue, kept_ref, rescue_ref, scratch_ref, value_of};
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
@@ -178,6 +178,29 @@ fn names_this_commit(git: &GitContext, common_dir: &Path, name: &str, commit: &s
 }
 
 /// What:
+///  Record the worktree a held commit was kept for,
+/// beside the reference that keeps it.
+/// Why:
+///   The reference outlives the worktree,
+/// and the pruning's line about a pruned commit names
+///  the worktree and batch it came from:
+///  this is the one moment both are known together
+///  (`kept_reference_record.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordARemovalsKeptReference(commonDir, name, held.new, held.repository, Date.now());
+/// ```
+fn remember_the_worktree(common_dir: &Path, name: &str, held: &Held) {
+    remember_the_commit_of_a_worktree(common_dir, name, held.new.as_str(), held.repository.as_path());
+}
+
+/// `remember_the_worktree` for a commit and a worktree a caller holds apart from the record.
+fn remember_the_commit_of_a_worktree(common_dir: &Path, name: &str, commit: &str, worktree: &Path) {
+    crate::kept_reference_record::record_a_removals_kept_reference(common_dir, name, commit, worktree, crate::kept_reference_pass_answers::now_ms());
+}
+
+/// What:
 ///  Why a kept reference was not written,
 ///  as the person reads it.
 /// Why:
@@ -207,7 +230,7 @@ fn taken_words(git: &GitContext, common_dir: &Path, held: &Held, name: &str, ref
 ///  and it must not be replaced when it already names another commit:
 ///  that would forget the commit it was made for.
 ///  A create-only write answers the same question for a name another command writes at the same moment
-///  (`keep_on_a_side_ref_only_if_free`).
+///  (`keep_on_a_side_ref`).
 ///  The write that failed is read again before the name beside it is tried,
 ///  so a reference another command had just written for this same commit is not written twice.
 ///  A name that holds another batch's commit keeps nothing of this one,
@@ -230,7 +253,8 @@ fn keep_one(git: &GitContext, held: &Held, common_dir: &Path) -> Keeping {
     if names_this_commit(git, common_dir, name.as_str(), held.new.as_str()) {
         return Keeping::Nothing;
     }
-    let Some(words) = keep_on_a_side_ref_only_if_free(git, common_dir, name.as_str(), held.new.as_str()) else {
+    let Some(words) = keep_on_a_side_ref(git, common_dir, name.as_str(), held.new.as_str()) else {
+        remember_the_worktree(common_dir, name.as_str(), held);
         return Keeping::Kept(words_of_a_commit_kept(held, name.as_str()));
     };
     // The write failed, but another command may have written this very commit between the question and it.
@@ -242,7 +266,8 @@ fn keep_one(git: &GitContext, held: &Held, common_dir: &Path) -> Keeping {
     if names_this_commit(git, common_dir, rescue.as_str(), held.new.as_str()) {
         return Keeping::Nothing;
     }
-    let Some(also_refused) = keep_on_a_side_ref_only_if_free(git, common_dir, rescue.as_str(), held.new.as_str()) else {
+    let Some(also_refused) = keep_on_a_side_ref(git, common_dir, rescue.as_str(), held.new.as_str()) else {
+        remember_the_worktree(common_dir, rescue.as_str(), held);
         return Keeping::Kept(words_of_a_commit_kept_beside(held, name.as_str(), rescue.as_str(), taken.as_str()));
     };
     if names_this_commit(git, common_dir, rescue.as_str(), held.new.as_str()) {
@@ -418,8 +443,20 @@ fn keep_the_commit_of_an_unreadable_record(git: &GitContext, common_dir: &Path, 
                 format!("its batch's own reference `{scratch}` names no commit this command can read").as_str(),
             ));
         }
+        // A symbolic reference names another reference, not an object, and the command that moves the one it leads to takes this
+        //  commit with it: nothing is proven kept here, so no name is kept and the worktree stays.
+        RefValue::Symbolic(target) => {
+            return UnreadableKeeping::Refused(words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
+                record,
+                worktree.as_path(),
+                format!(
+                    "its batch's own reference `{scratch}` is a symbolic reference to `{target}`, which another command can move, so it names no commit this command can prove kept"
+                )
+                .as_str(),
+            ));
+        }
     };
-    return match keep_this_commit(git, common_dir, seq, commit.as_str()) {
+    return match keep_this_commit(git, common_dir, seq, commit.as_str(), worktree.as_path()) {
         Some(name) => UnreadableKeeping::Kept(words_of_a_commit_kept_from_an_unreadable_record(record, scratch.as_str(), commit.as_str(), name.as_str())),
         None => UnreadableKeeping::Refused(words_of_a_commit_nothing_keeps_behind_an_unreadable_record(
             record,
@@ -448,12 +485,13 @@ fn keep_the_commit_of_an_unreadable_record(git: &GitContext, common_dir: &Path, 
 /// ```ts
 /// keepThisCommit(git, commonDir, seq, commit) // the name it is kept at, or undefined
 /// ```
-fn keep_this_commit(git: &GitContext, common_dir: &Path, seq: u64, commit: &str) -> Option<String> {
+fn keep_this_commit(git: &GitContext, common_dir: &Path, seq: u64, commit: &str, worktree: &Path) -> Option<String> {
     for name in [kept_ref(seq), rescue_ref(seq)] {
         if matches!(value_of(git, common_dir, name.as_str()), RefValue::Names(named) if named == commit) {
             return Some(name);
         }
-        if keep_on_a_side_ref_only_if_free(git, common_dir, name.as_str(), commit).is_none() {
+        if keep_on_a_side_ref(git, common_dir, name.as_str(), commit).is_none() {
+            remember_the_commit_of_a_worktree(common_dir, name.as_str(), commit, worktree);
             return Some(name);
         }
         if matches!(value_of(git, common_dir, name.as_str()), RefValue::Names(named) if named == commit) {

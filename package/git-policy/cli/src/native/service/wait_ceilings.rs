@@ -478,6 +478,56 @@ pub const SERVICE_HOLD_CEILING: Duration = Duration::from_secs(10 * 60);
 ///  (journal `landing_ms` 119,836 ms) with the same margin of five.
 pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
 
+/// The longest one connection to the commit service is waited for before the client gives it up.
+///  Why:
+///   A connect to a local socket is a kernel step that returns at once,
+/// so the only thing it waits for is room in the socket's queue
+/// of connections nothing has accepted yet.
+/// A queue that is full is a service that has accepted nothing for a long time,
+/// and a blocking connect into it
+///  waits until the service accepts, which for a stopped service is never:
+/// measured on this host on 2026-11-12,
+/// a blocking connect into a listening socket whose queue of one was full
+///  was still waiting after 2,000 ms,
+/// though the two connections before it went in at once.
+///  Measured on this host,
+/// 2026-11-12,
+/// 2,000 connects to a socket whose listener accepts:
+/// 15 us at the median,
+/// 156 us at the 99th percentile and 62.6 ms at the slowest.
+/// Five seconds is 80 times the slowest of those,
+/// and it is `HEARTBEAT_SILENCE`,
+/// the time a service that is working may say nothing:
+/// a socket that has taken no connection for that long is one nothing accepts on.
+pub const CONNECT_CEILING: Duration = Duration::from_secs(5);
+
+/// How long the write of a request may take no byte at all before the service is taken for one that stopped reading.
+///  Why:
+///   A request line is at most `MAX_LINE_BYTES`, one mebibyte,
+/// and it can only be written by a service that reads:
+/// measured on this host on 2026-11-12,
+/// the send buffer of a local stream socket holds 212,992 bytes and one socket's two buffers took
+///  233,152 bytes with nothing reading,
+/// so a request of one mebibyte waits in the kernel for the other end to read it.
+/// A service that reads takes bytes in a few microseconds,
+/// so a write that puts no byte anywhere for this
+///  long is a service that stopped reading,
+/// and it is five beats of a service that is working.
+pub const REQUEST_WRITE_SILENCE: Duration = crate::service_protocol::HEARTBEAT_SILENCE;
+
+/// The longest the whole request of a commit is written into its connection.
+///  Measured on this host,
+/// 2026-11-12:
+/// one mebibyte written into a socket whose reader drains it took 0.4 ms at the median,
+/// 16.6 ms at the 99th
+///  percentile and 18.2 ms at the slowest of 50 runs.
+/// Ten seconds is 550 times the slowest of them,
+/// and it is the wait a command already grants a service's own
+///  start (`START_WAIT`):
+/// a request that is not in by then is one the person should not wait for any longer,
+/// however steadily the service takes it.
+pub const REQUEST_WRITE_CEILING: Duration = Duration::from_secs(10);
+
 /// The longest a connected push may show no progress before it is ended and left to the service's retry plan.
 ///  Unmeasured,
 /// labelled as the other quiet windows are:
@@ -617,6 +667,37 @@ pub const PREPARATION_READ_CEILING: Duration = LANDING_STATE_CEILING;
 /// under the owner's 5,000 ms bound on what a command may add (2026-11-09).
 pub const REPAIR_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(2);
 
+/// The longest the notice of a repair tool's wait may take to reach the person's stream.
+///  Why:
+///  The line is written by the loop that reads the quiet window and `REPAIR_TOOL_CEILING`,
+/// and a stream whose reader has stopped
+///  draining waits in the kernel until it resumes.
+/// A write still waiting here held that loop,
+/// so neither bound ever fired:
+/// the tool the repair owns
+///  was never stopped,
+/// its process group kept running,
+/// and an add ended with a signal left it behind
+/// (2026-11-12,
+/// a full pipe on standard error whose reader stalled,
+/// reproduced through `git worktree add`).
+/// The line is advisory beside the tool's own
+///  result,
+/// so it is abandoned and logged,
+/// and the loop goes on reading the bounds that end the tool.
+///  The value is
+/// `WARNING_WRITE_CEILING`'s:
+/// a line of 1 KiB took 0.006 ms at the median and 3.6 ms at the slowest of 200 writes to a
+///  stream whose reader drains it (this host,
+/// 2026-11-09),
+/// and that bound leaves the owner's 5,000 ms commit slack untouched,
+/// so one measured pace of one kind of line serves both.
+///  The descriptor is written without Rust's shared standard-error lock
+/// (`standard_error_descriptor.rs`),
+/// so a
+///  write this run abandons holds nothing the run's next line waits for.
+pub const REPAIR_NOTICE_WRITE_CEILING: Duration = WARNING_WRITE_CEILING;
+
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,
 /// `cargo metadata`,
 /// `cargo clean`,
@@ -647,6 +728,12 @@ pub const REPAIR_TOOL_NOTICE_AFTER: Duration = Duration::from_secs(2);
 /// the finding names the tool
 ///  and the command to run,
 /// and the worktree keeps the files Git wrote.
+///  That promise holds because the tool is held before its own `exec` until the run lets it go
+/// (`start_within`):
+/// a start this bound ends has run nothing of the tool,
+/// and the one child that was already let go and then did not
+///  come up is stopped and named as stopped,
+/// because what it wrote stands.
 pub const REPAIR_TOOL_START_CEILING: Duration = START_CEILING;
 
 /// The longest one package-manager tool of a worktree repair (`pnpm install`,
@@ -867,11 +954,25 @@ pub const LOOKING_FOR_A_LANDED_COMMIT: Duration = Duration::from_secs(10);
 /// so the record must outlive every client that can still be inside those two steps.
 /// A client's whole wait for an answer ends at `ANSWER_CEILING`,
 /// counted from its first send and longer than any batch takes to land,
-/// and it looks for `LOOKING_FOR_A_LANDED_COMMIT` after that;
-/// the `SHORT_EXTRA_WAIT` inside the ceiling is what a client inside a stuck write waits on top of it.
+/// and every resend of that wait happens inside it,
+/// because a reconnect restarts neither bound;
+/// the `SHORT_EXTRA_WAIT` inside the ceiling is what a client inside a stuck write waits on top of it;
+/// a request the ceiling withdrew is then answered from the same record,
+/// which names whether it landed,
+/// and that answer may take `WITHDRAW_CEILING`;
+/// and it looks for `LOOKING_FOR_A_LANDED_COMMIT` after that.
 /// A record older than the sum cannot be read by any client of it,
-/// and the cleanup that removes a removed worktree's journal may then take it.
-pub const A_FINISHED_RECORD_IS_READ: Duration = ANSWER_CEILING.saturating_add(SHORT_EXTRA_WAIT).saturating_add(LOOKING_FOR_A_LANDED_COMMIT);
+/// so the cleanup that removes a removed worktree's journal may take it,
+/// and a running service may forget the identity it names (`prune_done`,
+/// `service_journal.rs`).
+/// Each of the four is a bound of its own with its measurement beside it above;
+/// this is their sum because one command reaches them one after another.
+/// The age is counted from the reading the record carries,
+/// which is taken when the batch's intent is written,
+/// after the client sent its request and before its record is published,
+/// so the age a record has is never longer than the wait its client has been inside.
+pub const A_FINISHED_RECORD_IS_READ: Duration =
+    ANSWER_CEILING.saturating_add(SHORT_EXTRA_WAIT).saturating_add(WITHDRAW_CEILING).saturating_add(LOOKING_FOR_A_LANDED_COMMIT);
 
 /// How long a command that stopped an instance's service waits for the manager to report its processes gone
 /// before it leaves the instance's journal to a later sweep.

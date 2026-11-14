@@ -227,6 +227,15 @@ WDQ:
 Intended behavior that could confuse gets documented where its users meet it,
  so they are not confused.
 
+HLD:
+ A precaution that makes work wait (a hold,
+ a freeze,
+ a serial order,
+ a stopped run) names the recorded failure it prevents;
+ none on record:
+ read the source,
+ then drop it or file the defect.
+
 IRW:
  Independent review means a reviewer from another model vendor than the author,
  or the user.
@@ -345,6 +354,12 @@ QNB:
  model or provider outcomes):
  measure run-to-run spread on unchanged input first;
  smaller differences are noise.
+
+TVC:
+ Report a timing only as a ratio to a control arm run interleaved in the same round,
+ with its range;
+ an absolute time is context,
+ never a finding.
 
 ASK:
  Non-measurable facts:
@@ -600,6 +615,12 @@ NHX:
  any sense of hurry lowers its work.
 Briefs ask for the best result.
 
+A1T:
+ One agent gets one thing:
+ a brief holds a single task,
+ and a different task goes to a fresh agent,
+ never into a running or resumed one.
+
 ## Before running a command
 
 ### Command execution conventions
@@ -681,6 +702,22 @@ XTD:
  quota,
  slow disk).
 Use `${HOME}/temp/agent` or the build directory.
+
+1SF:
+ Each run or subagent gets one scratch folder of its own;
+ its starter deletes that folder when it ends,
+ keeping only its `keep/` subfolder of reports,
+ logs and measurements.
+
+SFN:
+ Name each scratch folder for what it holds and when,
+ so a stranger needs no context:
+ `wrapper-commit-timing-against-real-git-2026-11-13`,
+ never `pkgrepair` or `ff-carry`.
+
+SZR:
+ Every coordinator pass reports the measured size of `${HOME}/temp/agent` and its largest folders to the user,
+ so growth is seen before a drive fills.
 
 CLN:
  Investigating package source:
@@ -828,6 +865,12 @@ RBT:
  scratch,
  or caches surviving one.
 
+MXA:
+ Before starting a Pi run or subagent,
+ count every agent going on the machine,
+ all sessions;
+ start none past the cap in `doc/handover/agents-at-once-on-this-machine.md`.
+
 FHU:
  Real jobs may use almost the whole host:
  size `CPUQuota` near `nproc` minus a few threads,
@@ -855,7 +898,8 @@ FDL:
  which turns `-prune` into a no-op.
 
 RLW:
- `rm` commands as issued never contain environment variables (`$HOME`, `${DIR}`):
+ `rm` commands as issued never contain environment variables (`$HOME`,
+ `${DIR}`):
  write every path literally,
  because an unset or empty variable widens what gets deleted.
 
@@ -939,7 +983,7 @@ AUT:
  never expanding scope or acting on adjacent undecided choices.
 
 VR2:
- Request with one clear reading:
+ Request or answer with one clear reading:
  act.
 Readings differing in what to do:
  confirm first.
@@ -980,9 +1024,10 @@ NMJ:
  and autofix runs have corrupted it.
 
 PIN:
- Pin tool versions only with a comment explaining why;
- never pin tools this repository publishes,
- since `toolchain.lock.json` records them.
+ Pin tool versions only with a comment explaining why,
+ never tools this repository publishes;
+ test on current releases only:
+ an older one's failures are no defect.
 
 SPG:
  Automation that spawns agent sessions needs explicit recursion guards (env var flag,
@@ -1445,6 +1490,17 @@ SBS:
  and consumers together.
 
 ## Before declaring work complete
+
+### Who declares completion
+
+SGO:
+ Only the owner declares work complete,
+ final or approved.
+An agent must mark its docs and reports incomplete,
+ unapproved or non-final,
+ stating what was done and checked,
+ by whom,
+ and what is open.
 
 ### Package completeness
 

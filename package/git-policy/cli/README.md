@@ -416,9 +416,13 @@ Read-only commands,
   and the push
    says the upload "made no progress for N seconds and was stopped" instead of waiting for an answer that never comes;
   a program whose connection to the server is open is waited for while it works,
-  and one that keeps it open with nothing moving for the connected window (150 seconds)
-   is stopped,
-  with `git lfs push --all <remote>` named as its way forward.
+  and one that keeps it open for the connected window (150 seconds) while the connection carries fewer
+   bytes than the minimum rate (`CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
+  1024 bytes in that window,
+  about 7 bytes per second) is stopped,
+  with `git lfs push --all <remote>` and a smaller floor as its ways forward.
+  A connection that only moves a byte now and then is what the floor exists for:
+  it is judged as a connection that moved nothing (see "The least traffic that counts as progress" in the SPEC).
   The plan's own Git questions are bounded the same
    way,
   so a Git that never answers is stopped and named.
@@ -692,6 +696,14 @@ Read-only commands,
   and is named
    on one line.
   A file that cannot be copied at all fails the copy with its own path in the message.
+  A record of that copy that a crash left empty or cut short is not a reason to stop a command:
+  the command that meets it moves it aside into the journal root's `unreadable` folder,
+  never over another record and never deleting one,
+  writes a stage claim again where the records beside it name the stage folder so the copies that settle it still
+  run,
+  and goes on,
+  with one line naming what may stand on disk because of it.
+  Nothing you made is removed on the strength of a record that cannot be read.
   A worktree whose own ignored-state copy is still running is no source:
   a second add run from it creates its worktree,
   writes one line saying that the worktree received no ignored state and why,
@@ -980,14 +992,17 @@ Read-only commands,
      and returns;
      that service deletes the
    subvolume in its own time,
-   normally within a second,
+   in the next round the service runs for that repository,
      so a busy volume's btrfs transaction or cleaner does not hold your
-   command.
+   command,
+     and a volume no add is copying to is not the next round's wait either.
      The path you named is gone the moment the command returns;
      the files are gone when the service has run.
      A
-   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory means the
-   service did not delete it yet:
+   directory named `cli-git-deleting-<16 hexadecimal digits>` that stays in a worktrees' parent directory,
+   or in the repository's
+   `<common Git directory>/monochromatic-git-policy-cli` (a snapshot a removal took out of a worktree's pool),
+   means the service did not delete it yet:
      while a record for it is still queued,
      the next command of that repository wakes the service that reads the
    record,
@@ -1151,6 +1166,16 @@ When a `git merge` run through this wrapper lands a branch on the branch the mer
    and a volume it did not make refuses the removal while every file of the worktree is still there;
 - Git would remove that worktree without `--force`:
    no tracked file is modified or staged there and no untracked file exists.
+
+A worktree that fails one of those is kept and the report says why.
+A nested worktree of this repository inside it is named with the branch it is on,
+or with the fact that it is on a detached `HEAD`,
+and with the `git worktree remove <inner>` that keeps what its `HEAD` names and refuses while anything there is
+ uncommitted.
+A subvolume or a mount point that is no worktree of this repository is named with what it is,
+with the move or the unmount that keep every file of it first,
+and with a `btrfs subvolume delete` last and for what it destroys,
+ because a subvolume there may be another repository's worktree.
 
 On btrfs the removal destroys the worktree's subvolume in one call,
  which is what gives the shared blocks back;
@@ -2051,9 +2076,13 @@ and
  name it:
 its content is not part of the tree.
  Move it out,
-delete it with `btrfs subvolume delete`,
-or unmount it,
-then run the deletion again.
+which keeps every file of it,
+or unmount a mount point,
+which keeps its contents,
+then run the deletion again;
+`btrfs subvolume delete` comes after those and is named for what it does,
+because it destroys everything inside that subvolume,
+which the deletion that refused cannot see.
 A nested subvolume or a mount point that appears after that first look is refused where the deletion meets it,
 with the same reason and the same ways forward;
 the entries the deletion had already removed from that directory stay removed,
@@ -2265,7 +2294,16 @@ the two tools that rewrite link layouts in place are the commit service's work w
    then `cargo clean --offline --package <member>` runs for every member
    (a `Cargo.lock` the clean would rewrite is put back as checked out,
   so the worktree is not dirty).
-  The add's clean runs in a worktree you may already be working in,
+  Where the copy carried the worktree's own build state inside the worktree,
+   the add moves that state aside in one rename before it returns and the commit service cleans it,
+   so a build you start at once finds no build directory and compiles everything itself:
+   correct,
+  and slower than a build that waits for the service's clean.
+   The worktree's own crates never come back from the repair as fresh artifacts with another checkout's paths.
+  The clean that still runs inside the add,
+  which is the case only where the copied state cannot be
+   moved aside,
+  runs in a worktree you may already be working in,
    and nothing read afterwards can tell Cargo's own rewrite of the lock from a newer one of yours,
    so the bytes standing there when the clean ends are kept whole under the repository's Git directory,
    in `monochromatic-git-policy-cli-displaced-locks`,
@@ -3182,12 +3220,32 @@ Now the merge runs and the person's work is carried across it:
 - A binary file,
   a symbolic link,
   a mode the pass cannot take,
-  a mode the person set at a path the merge deletes,
   a file the merge deletes and a file the person deleted each keep the person's own side whole and are named;
   the merge's version is in the merge commit.
   A path written again while the merge ran is left alone and named,
   and the naming is true:
   nothing was written to it before the check that found it changed.
+- What the merge writes ends at the mode Git writes:
+  the entry Git records for that path decides whether the file is executable,
+  and the file system decides the rest from the process's umask and the directory's default ACL,
+  exactly as Git's own checkout of the same entry does.
+  A permission bit Git does not record,
+  like the `0600` of a `chmod 0600` on a tracked `0644` file,
+  follows the same rule,
+  so a merge that changes such a file writes Git's mode over it
+  (owner's decision of 2026-11-12T12:26:24-05:00,
+  "As real Git,
+  both cases";
+  `SPEC.md`,
+  "Merges and commits never fail").
+  The one place your own bits are written for a file you did not stage is a path the merge deletes while your file stays,
+  which is a deletion against an edit you made:
+  nothing of the merge's stands there,
+  so your entry goes back with every bit the capture read.
+  A mode you staged is your work as your staged bytes are,
+  because `git add` writes the executable bit into the index:
+  it stays staged over the merge's object,
+  and at a path the merge deletes the entry and the file it names come back.
 - A merge killed after it cleared those paths puts the captured bytes back
   when it turns out the merge never landed,
   and carries them when it did.
@@ -3602,6 +3660,36 @@ the rules:
 `SPEC.md`,
 "Word-level second merge pass".
 
+### A commit made without the reference that would have protected it
+
+A commit is written to the object store before any reference names it,
+and `refs/worktree/cli-git-service/<batch>` is what keeps its objects out of a
+`git gc --prune=now` until the branch write names them.
+Real Git needs no such reference:
+one `git commit` writes the objects and moves the branch itself.
+When the write of that reference cannot be proven
+(Git refuses it,
+or the wait for it ended before it did),
+the commit is made as real Git makes it and the command exits `0`,
+with one line on standard error that says the commit was made,
+naming the reference that was not written and Git's own words for why,
+and saying what names the commit now:
+the branch,
+for a commit that landed,
+or that the branch has not moved yet and will name it when the lock in its way goes,
+for a commit that is held.
+A batch whose commits `fast-import` builds lands this way only when its own import wrote the marks
+the landing reads,
+when that import exited rather than being ended by a signal,
+and when its first commit stands on the base the attempt found:
+the marks an earlier attempt left are removed before the next import starts,
+because a killed import leaves the earlier file as it was,
+and a batch built on another base would carry the branch past a commit another command landed.
+Nothing changes for a commit whose reference the write proved.
+`SPEC.md`,
+"What names a commit between its objects and its branch",
+measures the window this leaves open.
+
 ### A commit held behind a reference lock
 
 The owner,
@@ -3647,6 +3735,96 @@ and the per-worktree reference with it,
 so a held commit there is kept on `refs/cli-git/kept/<batch>` before Git runs,
 and the command says then that the branch stays where it is,
 because no command in a removed worktree can move it.
+
+#### A kept reference is pruned by age and by size
+
+A reference under `refs/cli-git/kept/` is removed by the wrapper itself once it is worth nothing,
+because nothing else would ever remove it and the objects it holds would pin space for ever
+(owner,
+2026-11-12:
+"Keep the reference,
+auto prune by size and age").
+
+Three rules decide one,
+in this order.
+A kept commit that a branch,
+a remote-tracking reference or a tag has since reached
+holds nothing any more,
+so its reference goes at the next pass,
+however young it is.
+A reference older than **thirty days** goes,
+because a person who was going to recover that commit has had the time.
+And while the objects reachable only through kept references weigh more than **64 MiB**,
+the oldest references go first,
+one at a time,
+until the rest is under the limit;
+a reference younger than **one hour** is never pruned for its size,
+so a commit kept a moment ago is not the price of a burst of removals.
+The three values are `KEPT_REFERENCE_MAX_AGE`,
+`KEPT_REFERENCE_MAX_BYTES` and `KEPT_REFERENCE_FLOOR`
+in `src/native/kept_references/kept_reference_limits.rs`,
+with the measurement each rests on,
+and a run can change any of them with
+`CLI_GIT_KEPT_REFERENCE_MAX_AGE_SECONDS`,
+`CLI_GIT_KEPT_REFERENCE_MAX_BYTES` and
+`CLI_GIT_KEPT_REFERENCE_FLOOR_SECONDS`.
+
+The pass runs in the commit service after a landed commit,
+in the same record that runs `git maintenance run --auto`,
+so no command a person types waits for it,
+and it runs once per repository per round.
+It takes no lock:
+every removal is `git update-ref -d <ref> <old value>`,
+so a reference another command wrote after the pass listed it,
+or one another pass removed,
+is left alone,
+and two passes that run at once leave what one of them leaves.
+
+Before a reference whose commit no branch reaches goes,
+the wrapper writes one line to `<common Git directory>/monochromatic-git-policy-cli-kept-references.jsonl`
+with the time,
+the reference,
+the commit,
+the batch,
+the worktree the commit was built in,
+its age and the reason.
+Nothing else remembers that commit afterwards,
+so that line is what a person reads to find out what went.
+A reference kept by a worktree removal carries the worktree's path in a record beside it,
+in `<common Git directory>/monochromatic-git-policy-cli/kept-references/`;
+one an earlier release wrote has no record,
+and the first pass that lists it dates it,
+so it is never pruned before it has been listed for the whole age limit.
+
+`git monochromatic-git-policy-cli kept-references` lists every kept reference with its commit,
+its age,
+the worktree and batch it came from,
+and what the next pass will do with it,
+and `git monochromatic-git-policy-cli kept-references --prune` runs one pass now.
+The listing is the pass with the removals left out,
+so what it says the next pass takes is what that pass takes:
+
+```console
+$ git monochromatic-git-policy-cli kept-references
+2 kept references hold objects only they reach, 269 bytes on disk.
+The limits are 30 days of age and 67108864 bytes, and a reference younger than 1 hour is never pruned for its size.
+refs/cli-git/kept/1794071191963906
+  commit bdd6fb5ee5a069fef60341f71964d749214889e7
+  kept 2026-11-13T18:37:31.628Z (0 minutes ago), batch 1794071191963906
+  worktree not recorded
+  the next pass keeps it: it is younger than the age limit of 30 days
+refs/cli-git/kept/1794071191963907
+  commit 7d860c1a0db74eb012793f1c12983f2142578e69
+  kept 2026-11-13T18:37:31.628Z (0 minutes ago), batch 1794071191963907
+  worktree not recorded
+  the next pass keeps it: it is younger than the age limit of 30 days
+The next pass prunes nothing, so the objects only kept references reach stay at 269 bytes.
+```
+
+On this repository on 2026-11-12 the five kept references it held
+cost 7,573 bytes of objects on disk,
+and the reading is in
+`doc/troubleshooting/cli-git-kept-references-are-pruned-by-size-and-age.md`.
 
 The first command that finds the lock gone moves the branch,
 by one compare-and-swap from the value the batch was prepared on.
@@ -3759,7 +3937,7 @@ none is waited out or retried on the moved head yet:
   that the commit cannot land twice,
   and that this command goes on by itself,
   so the person reading it is asked to do nothing;
-  a service that does not answer then ends the command with "The commit service stopped answering".
+  a service that greets nothing on the connection made again ends the command with "The commit service stopped answering".
    That silence is measured against a service that beats once a second while it works,
   and the beats never wait for the
    background work the same service does:
@@ -3780,6 +3958,42 @@ none is waited out or retried on the moved head yet:
    waiting command with no word for up to 32 s,
    and a commit that had landed was reported as not known
    (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
+- Every step between a commit and that service is bounded:
+  the connection at `CONNECT_CEILING` (5 seconds),
+  the write of the request at `REQUEST_WRITE_SILENCE` (5 seconds without a byte taken,
+  because the wait is on what the service reads and not on a clock) and `REQUEST_WRITE_CEILING` (10 seconds for the whole
+  request),
+  the greeting at the start wait the command was given,
+  and the answer at `HEARTBEAT_SILENCE` and `ANSWER_CEILING`
+  (`service/wait_ceilings.rs` has the measurement beside each).
+  A request is a JSON object and a framing newline,
+  and the service takes it only when the whole line arrived:
+  a line that ends with the connection instead of its newline is refused and never queued.
+  So a commit is called "not made, and it cannot land later" only when no attempt of it put one whole line on the wire;
+  after an attempt that did, the same give-up is reported as a result that is not known,
+  and the commit's staged work and scratch tree stay where they are.
+  A commit whose whole request did reach the service is never described as one a waking service cannot land:
+  that message says the service may still make it and names `git log -1`.
+- A commit whose service stopped says four things,
+  whether it stopped before it answered,
+  after the request reached it,
+  or while it was reading the request:
+  what did not answer and for how long,
+  whether the commit was made,
+  that your staged changes and working files are as they were,
+  and the three steps that end it.
+  Those steps are, in this order:
+  `git monochromatic-git-policy-cli service status`,
+  which says whether this worktree's service answers and names the unit that serves it;
+  a restart of that one unit (`systemctl --user restart` and the name the status printed),
+  because a service that is running and answers nothing has stopped inside itself and no start brings it back;
+  and the same commit again,
+  which is safe because the request of the failed one is dropped rather than landed.
+  The steps name this worktree's own unit,
+  never the `@*` pattern of every service of the account,
+  because restarting them all stops the commits of every other worktree.
+  A service that wakes after the command ended makes no commit:
+  the request it still holds is dropped, because the command on that connection is gone.
 - The branch keeps changing:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with
@@ -4432,10 +4646,17 @@ fractional or non-numeric value is ignored.
   A run whose connection to the remote is open (the push,
   the fetch that follows a refused push,
   and the Git LFS upload)
-   is waiting for the remote and is ended only when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW` (150
+   is waiting for the remote and is ended when it shows no sign of work for `CONNECTED_PUSH_QUIET_WINDOW` (150
    seconds,
-   unmeasured);
+   unmeasured),
+   or when the connection carried fewer than `CLI_GIT_PUSH_MINIMUM_RATE_BYTES` in that window,
+   which is what a server that keeps the connection alive with keepalive packets alone does
+   (over a URL those bytes are the socket's,
+  and over a path they are the pipe's);
   the service's retry plan keeps the push and tries it again.
+  A connection that carries a byte now and then therefore no longer holds a push for ever,
+  and the stop says how many bytes it carried,
+  because "nothing moved" would not be true there.
   The owner's answer of 2026-11-03,
   "Bound it,
   keep retrying (Recommended)",
@@ -4474,6 +4695,28 @@ fractional or non-numeric value is ignored.
    and `git push` can be run by hand.
   Git's own read-only queries before the push are ended by the same stall window when they show no sign of work;
    a query that works is never ended for being slow.
+- `CLI_GIT_PUSH_MINIMUM_RATE_BYTES`,
+   default `1024`.
+  The least traffic the push's connection to the remote must carry in one window and still count as progress:
+  the connected window (150 seconds) while a connection is open,
+   which is about 7 bytes per second,
+   and the stall window (30 seconds) for a remote that is a path,
+   where the keepalive arrives on the pipe,
+   which is about 34 bytes per second.
+  Bytes below it are not progress,
+  so a connection that only sends keepalive packets,
+   or a server that drips its answer a byte at a time,
+   is judged as a silent one and ended at the connected window rather than kept alive for ever.
+  The window is the connected one and is not a setting;
+  this number is,
+  and a smaller one lets a slower line through
+   (Git's own keepalive is at most five bytes per second,
+   and the slowest line this default lets through moves 1024 bytes in the window).
+  A zero,
+  negative,
+  fractional or non-numeric value is no setting at all,
+  so a typo cannot remove the rule.
+  See "The least traffic that counts as progress" in the SPEC for the measurement.
 - `CLI_GIT_PUSH_RETRY_SECONDS`,
    default `10`.
   The pause before the commit service tries a stopped or failed auto-push again on its own.
@@ -4974,13 +5217,27 @@ Two requirements bound the latency the wrapper adds,
 and `native:perf` enforces both:
 
 - A forwarded real Git command gains strictly less than `2,000 ms` (`SPEC.md`).
-- Every commit made through the wrapper must not take `5,000 ms` or more longer than the same commit made with native Git
+- Every commit made through the wrapper adds at most the larger of `5,000 ms` and twice native Git's own time for the same
+  commit
   (each commit,
-  not a percentile of them).
+  not a percentile of them):
+  a commit real Git takes 50 ms to make may gain five seconds,
+  and one it takes 30 s to make under disk pressure may gain 60 s.
+  The owner changed the rule on 2026-11-12:
+  "Change the 5s rule to max(5s, double what native git takes)",
+  read as the extra over real Git.
+  A wrapper time alone says nothing under it,
+  so every wrapper commit is measured beside a native Git commit of the same change set,
+  alternating with it,
+  in the same repository and under the same conditions.
+  The `native:perf` judge still fails a commit whose paired delta reaches `5,000 ms`,
+  which is stricter than this requirement for any commit whose real Git time is over 2.5 s;
+  its judge is to be changed to this rule.
 
 No wrapped command is required to finish within a fixed time,
 and there is no 5-second bound on wrapped commands.
-The owner's words (2026-11-01):
+The owner's words (2026-11-01),
+which the rule above replaced as the measure of a commit:
 
 > " 5-second bound on wrapped commands" - there is never a 5s bound on wrapped commands.
 > The measure is always just commits vs native git should not take 5s longer.
@@ -6986,9 +7243,36 @@ Guard tests keep it so:
   a worktree that Git's own `gc` prunes is not seen by the wrapper,
   so its
   records are lost with it.
-- The service keeps the records of its newest 1024 finished batches in its journal and removes older ones when it starts;
-  a request is answered as already landed only while its own client retries it,
-  which is minutes at most.
+- The service keeps a finished batch's record while a client of it may still send its request again,
+  and keeps the newest 1024 records whatever their age;
+  a record is removed only when it is both older than `A_FINISHED_RECORD_IS_READ` and beyond that count,
+  and the removal runs when a service starts.
+  A client's whole life is `ANSWER_CEILING` plus `SHORT_EXTRA_WAIT` plus `WITHDRAW_CEILING` plus
+  `LOOKING_FOR_A_LANDED_COMMIT`,
+  which is 30 minutes 17 seconds,
+  so a request sent again inside that time is answered as already landed
+  however many other landings pushed its record past the count,
+  and one sent again later is answered as already landed while fewer than 1024 batches have landed since it.
+  Limit:
+  a client that was stalled past that time is recognised only while the repository landed fewer than 1024
+  batches in the meantime.
+  Limit:
+  a request replayed by a later command from a recording of an earlier one obeys no ceiling of this wrapper,
+  so its record is the only thing that keeps it from landing twice,
+  and that record is kept only by the two conditions above.
+  Limit:
+  a service that keeps landing keeps every record it writes until its next start,
+  so its journal grows by the batches it lands while it runs,
+  and the first commits after that start wait for it to read every record it kept.
+  Limit:
+  two services of one worktree at the same time each remember what landed before they started,
+  so a request one of them landed and a client sends again to the other is landed twice;
+  one service per worktree is what keeps that from happening.
+  Limit:
+  a service of an earlier release,
+  started on the same journal,
+  removes the oldest records by count alone,
+  so a change of release may drop a record this release would keep.
 - The service exits after three hours with nothing to do (Bazel's server has the same default);
   the next commit starts it
   again.
@@ -6997,8 +7281,12 @@ Guard tests keep it so:
   reaches the current one;
   if it does not exit,
   the commit says so and names `systemctl --user restart cli-git.service`.
-- `git monochromatic-git-policy-cli service status` says whether the service answers;
+- `git monochromatic-git-policy-cli service status` says whether the service of this worktree answers,
+  and names the unit that serves it;
   it is a diagnostic only.
+  It waits `HAND_OVER_GREETING_WAIT` (2 seconds) for that service's greeting,
+  so a service that is running and has stopped inside itself reads as one that took the connection and said nothing,
+  and not as one that answers.
 - When the service cannot be set up (no session bus,
   no user service manager),
   the commit stops with a plain message that
@@ -7251,16 +7539,19 @@ all durations in whole milliseconds taken from the monotonic clock:
   They were added for the reading in
   `doc/planning/cli-git-commit-latency-under-many-agents.md`.
 - `prepareParts` splits the preparation by the stretch of work it was in,
-  as `{"layout": {"ms": 12, "calls": 1}, ...}`:
+  as `{"layout": {"ms": 12, "calls": 1, "childrenMs": 480}, ...}`:
   the seams are one line each in `src/native/landing/service_prepare.rs`,
-  each figure is the time that stretch spent without a Git child
+  `ms` is the time that stretch spent without a Git child
   (the steps are listed apart in `steps`),
+  `childrenMs` is the time of the Git steps that began inside it,
+  clipped to its end,
+  so a stretch a child dominated states that child's time rather than nothing,
   a name marked again by a retry is added together with `calls` saying how many stretches make the sum,
   and `preparePartsDropped` counts the stretches beyond the sixty-four the record lists.
   It is what lets a reading name the in-process work a slow `prepareMs` holds.
 - `buildParts` is the same shape for the build phase:
-  `{"branch": {"ms": 1, "calls": 1}, "shadow skeleton": {"ms": 3, "calls": 1}, ...}`,
-  with a name for every stretch that held no Git child.
+  `{"branch": {"ms": 1, "calls": 1, "childrenMs": 0}, "shadow skeleton": {"ms": 3, "calls": 1, "childrenMs": 0}, ...}`,
+  with a name for every stretch and the time of the Git children that began inside it.
   The shadow repository's creation is the one this was added for:
   it is in-process filesystem work,
   so `steps` never named it and a build of 63 444 ms whose longest step was 65 ms explained itself with no figure

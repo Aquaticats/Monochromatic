@@ -684,3 +684,316 @@ fn a_start_that_gives_no_answer_ends_the_run_at_its_bound_and_stops_the_child_it
     assert!(!ran.exists(), "the tool ran in the worktree after the run said it did not start");
     remove(&root);
 }
+
+/// What:
+///  A start that gives no answer never lets the tool run.
+/// Why:
+///  The run that gives up on a start tells the person that nothing of the tool ran and names the command to run by hand
+///  (`wait_ceilings.rs`, `REPAIR_TOOL_START_CEILING`).
+///  A tool that runs anyway has already opened, truncated or replaced its files in the new worktree by the time any kill
+///  reaches it, and a kill after its first write cannot restore a truncated lockfile or a half-written install.
+///  The fixture's first action is that write, which is the moment the promise is broken.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdBeforeExec(4_000); const run = await runToolReapingStartedWithin(tool, command, limits, 300, reap);
+/// expect(run.end).toMatchObject({ kind: 'failed' }); await expect(ran).not.toExist();
+/// ```
+#[test]
+fn a_start_that_gives_no_answer_never_lets_the_tool_run() {
+    let root: PathBuf = fixture("runs-start-never-runs");
+    let program: PathBuf = root.join("tool");
+    let ran: PathBuf = root.join("ran");
+    executable(program.as_path(), format!("#!/bin/sh\n: > '{}'\nexec sleep {SLOW_SECONDS}\n", ran.display()).as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    crate::package_repair_start::HOLD_BEFORE_EXEC.with(|seam| seam.set(Some(HELD_BEFORE_EXEC)));
+    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: BRIEF, ceiling: SHORT_CEILING }, BRIEF_START, &reap_within_stop_grace))
+        .expect("the runtime runs the tool");
+    crate::package_repair_start::HOLD_BEFORE_EXEC.with(|seam| seam.set(None));
+    let ToolEnd::Failed(text) = &run.end else { panic!("a start that gave no answer is a failure of the start, not {:?}", run.end) };
+    assert!(text.contains("could not start"), "the reason says the tool never started here: {text}");
+    // The child that waited at the gate is this process's own, so the control sees it leave before it reads the worktree:
+    // a tool that ran would have run before the child was gone, and nothing it wrote could be undone afterwards.
+    let waited: Vec<i32> = children_of_this_process();
+    assert!(!waited.is_empty(), "the control's own child waited at the gate when the run answered");
+    for pid in waited {
+        assert!(is_gone_soon(pid), "the child {pid} outlived the answer that nothing of it ran");
+    }
+    assert!(!ran.exists(), "the tool ran in the worktree after the run said nothing of it ran");
+    remove(&root);
+}
+
+/// How long the control below holds the child once the run has let it go:
+/// well past the start bound and well inside this control's own deadline.
+const HELD_AFTER_THE_LET_GO: Duration = Duration::from_secs(4);
+
+/// The number a fixture wrote to `path`, once it is there:
+/// a control's own look at a process it started.
+fn read_a_pid_within(path: &Path) -> i32 {
+    let waiting_since: Instant = Instant::now();
+    while waiting_since.elapsed() < Duration::from_secs(5) {
+        if let Ok(text) = std::fs::read_to_string(path)
+            && let Ok(number) = text.trim().parse::<i32>()
+        {
+            return number;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    panic!("the fixture never wrote a process number to {}", path.display());
+}
+
+/// What:
+///  A child the run never took is stopped with the whole group it leads,
+///  not only with its leader.
+/// Why:
+///  A start hands its child to a wait that may stop waiting:
+/// the ceiling,
+/// a cancelled add,
+///  a failed hand-over.
+///  Whatever way that value is dropped,
+/// the group must end,
+/// because pnpm and Cargo start helpers that open and rewrite
+///  files of the new worktree themselves.
+///  The fixture starts a helper of its own,
+/// so the control sees the group end and not only its leader.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = spawn(tool, { detached: true }); drop(notYetTaken(child));
+/// expect(await bothGone([leader, helper])).toBe(true);
+/// ```
+#[test]
+fn a_child_the_run_never_took_is_stopped_with_the_group_it_leads() {
+    let root: PathBuf = fixture("stops-a-child-never-taken");
+    let program: PathBuf = root.join("tool");
+    let helper: PathBuf = root.join("helper.pid");
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\nsleep {SLOW_SECONDS} &\nprintf '%s\\n' \"$!\" > '{}'\nexec sleep {SLOW_SECONDS}\n", helper.display()).as_bytes(),
+    );
+    let mut command: Command = Command::new(program.as_path());
+    command.current_dir(&root).stdin(Stdio::null());
+    std::os::unix::process::CommandExt::process_group(&mut command, 0);
+    let started: Child = command.spawn().expect("the fixture starts");
+    let leader: i32 = i32::try_from(started.id()).expect("a child number");
+    let kept: crate::package_repair_start::AChildNotYetTaken = crate::package_repair_start::AChildNotYetTaken::new(started);
+    let helper_pid: i32 = read_a_pid_within(helper.as_path());
+    drop(kept);
+    assert!(is_gone_soon(leader), "the child {leader} the run never took outlived the value that owned it");
+    assert!(is_gone_soon(helper_pid), "the helper {helper_pid} of the child {leader} outlived the stop of its group");
+    remove(&root);
+}
+
+/// What:
+///  A child the run let go and whose own start then gave no answer is stopped,
+///  and the answer says it was stopped instead of promising that nothing ran.
+/// Why:
+///  The one thing a start cannot promise after it lets the child go is that nothing of the tool ran,
+/// because the tool
+///  owns its own `exec` from that moment:
+/// it can be slow in the kernel,
+/// and it can write before any stop lands.
+///  A stop is still what ends it,
+/// and the person must be told which of the two happened,
+///  or a partial install and a truncated lockfile stay unexplained.
+///  The seam holds the child after it was let go,
+/// which is the only place a control can make its own `exec` take time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdAfterTheLetGo(4_000); const run = await runToolReapingStartedWithin(tool, command, limits, 300, reap);
+/// expect(run.end.reason).not.toContain('nothing of it ran'); expect(run.end.reason).toContain('was stopped');
+/// ```
+#[test]
+fn a_child_that_was_let_go_and_did_not_come_up_is_stopped_and_said_to_be_stopped() {
+    let root: PathBuf = fixture("runs-let-go-without-an-answer");
+    let program: PathBuf = root.join("tool");
+    let ran: PathBuf = root.join("ran");
+    executable(program.as_path(), format!("#!/bin/sh\n: > '{}'\nexec sleep {SLOW_SECONDS}\n", ran.display()).as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    crate::package_repair_start::HOLD_AFTER_THE_LET_GO.with(|seam| seam.set(Some(HELD_AFTER_THE_LET_GO)));
+    let began: Instant = Instant::now();
+    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: BRIEF, ceiling: SHORT_CEILING }, BRIEF_START, &reap_within_stop_grace))
+        .expect("the runtime runs the tool");
+    let waited: Duration = began.elapsed();
+    crate::package_repair_start::HOLD_AFTER_THE_LET_GO.with(|seam| seam.set(None));
+    assert!(waited < HELD_AFTER_THE_LET_GO, "the run waited {waited:?} for a start it bounds at {BRIEF_START:?}");
+    let ToolEnd::Failed(text) = &run.end else { panic!("a start whose own `exec` did not answer is a failure of the start, not {:?}", run.end) };
+    assert!(text.contains("could not start"), "the reason says the tool never started here: {text}");
+    assert!(text.contains("let go") && text.contains("stopped"), "the reason says the child was stopped after it was let go: {text}");
+    assert!(!text.contains("nothing of it ran"), "the reason promises that nothing ran about a child it let go: {text}");
+    for pid in children_of_this_process() {
+        assert!(is_gone_soon(pid), "the child {pid} that was let go outlived the stop of the start");
+    }
+    assert!(!ran.exists(), "the child that was held after it was let go never reached the tool's own exec");
+    remove(&root);
+}
+
+/// The bound the audit of 0.6.1-alpha.12 used to reach a start's timeout while its blocking job still ran.
+const AUDIT_START_BOUND: Duration = Duration::from_millis(50);
+
+/// The delay the audit of 0.6.1-alpha.12 put between a successful start and the end of its job.
+const AUDIT_HOLD_AFTER_THE_START: Duration = Duration::from_millis(250);
+
+/// Whether the kernel has released this number:
+/// a child that was collected leaves no entry, while a zombie still has one.
+fn is_collected_soon(pid: i32) -> bool {
+    let waiting_since: Instant = Instant::now();
+    let listed: PathBuf = PathBuf::from(format!("/proc/{pid}/stat"));
+    while listed.exists() {
+        if waiting_since.elapsed() > Duration::from_secs(10) {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    return true;
+}
+
+/// What:
+///  A start that hands its child over after the bound leaves nothing running,
+///  is collected,
+///  and its answer never promises that nothing ran while the tool could have.
+/// Why:
+///  The audit of 0.6.1-alpha.12 (`kimi-audit-alpha-12-package-repair-on-add-and-commit`) put a delay between a
+///  successful start and the end of the blocking job,
+/// with the 50 ms start bound the controls reach:
+/// the answer then said that nothing of the tool ran,
+///  and the tool wrote its marker a second later with no owner.
+///  Whoever gives up on a start still owns whatever that start produces,
+/// so the child is held behind the gate until the run
+///  decides,
+/// the job's value owns the child whenever the run stops waiting for it,
+/// and the one answer that cannot promise the tool never
+///  ran says it was stopped instead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdAfterTheStart(250); const run = await runToolReapingStartedWithin(tool, command, limits, 50, reap);
+/// expect(run.end.reason).not.toContain('nothing of it ran'); expect(await collected(child)).toBe(true); await sleep(1_200);
+/// expect(await exists(marker)).toBe(false);
+/// ```
+#[test]
+fn a_child_handed_over_after_the_bound_is_stopped_collected_and_never_promised_unrun() {
+    let root: PathBuf = fixture("runs-audit-hand-over-after-the-bound");
+    let program: PathBuf = root.join("tool");
+    let marker: PathBuf = root.join("survived");
+    let recorded: PathBuf = root.join("pid");
+    // The audit's fixture: the tool records its own number and writes a marker a second after it starts.
+    executable(
+        program.as_path(),
+        format!("#!/bin/sh\nprintf '%s\\n' \"$$\" > '{}'\nsleep 1\n: > '{}'\nexec sleep {SLOW_SECONDS}\n", recorded.display(), marker.display()).as_bytes(),
+    );
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    crate::package_repair_start::HOLD_AFTER_THE_START.with(|seam| seam.set(Some(AUDIT_HOLD_AFTER_THE_START)));
+    let run: ToolRun = run_on_runtime(run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: ROOMY }, AUDIT_START_BOUND, &reap_within_stop_grace))
+        .expect("the runtime runs the tool");
+    crate::package_repair_start::HOLD_AFTER_THE_START.with(|seam| seam.set(None));
+    let ToolEnd::Failed(text) = &run.end else { panic!("a start that gave no answer is a failure of the start, not {:?}", run.end) };
+    assert!(text.contains("could not start"), "the reason says the tool never started here: {text}");
+    assert!(!text.contains("nothing of it ran"), "the answer promises that nothing ran about a child it let go: {text}");
+    let pid: i32 = read_a_pid_within(recorded.as_path());
+    assert!(is_collected_soon(pid), "the child {pid} the start handed over was left running or uncollected");
+    // The marker is what the tool writes a second after it starts, which is long after the answer: a child that was
+    // stopped never reaches it, and one that was left running does.
+    std::thread::sleep(Duration::from_millis(1_200));
+    assert!(!marker.exists(), "the tool wrote after the start was answered, so the child was left running");
+    remove(&root);
+}
+
+/// What:
+///  The longest this control lets the tool run:
+///  past the notice bound,
+///  so the notice is written while the tool still runs,
+///  and short enough to wait out.
+const NOTICE_CONTROL_CEILING: Duration = Duration::from_secs(3);
+
+/// How long the control waits for a run that must end at its ceiling:
+/// the notice bound,
+/// the ceiling,
+/// and room for a loaded host.
+const NOTICE_CONTROL_BOUND: Duration = Duration::from_secs(30);
+
+/// Descriptor 2 as it was before a control put a pipe on it,
+/// and the putting back that happens whether or not the control's own assertions are reached.
+/// Why:
+///  A control that leaves a full pipe on descriptor 2 makes its own failure message wait in the kernel,
+/// so the descriptor goes back before any assertion runs,
+/// and a panic on the way still puts it back.
+struct StandardErrorPutBack {
+    saved: libc::c_int,
+}
+
+impl StandardErrorPutBack {
+    /// Put descriptor 2 back now,
+    /// so a failing control's message reaches the stream the test run reads.
+    fn put_back(self) {
+        drop(self);
+    }
+}
+
+impl Drop for StandardErrorPutBack {
+    fn drop(&mut self) {
+        if self.saved >= 0 {
+            // SAFETY: `self.saved` is the duplicate of descriptor 2 this control made, and nothing else closes it.
+            unsafe {
+                libc::dup2(self.saved, 2);
+                libc::close(self.saved);
+                self.saved = -1;
+            }
+        }
+    }
+}
+
+/// What:
+///  A standard error whose reader stopped draining does not hold the loop that ends the tool.
+/// Why:
+///  The line that says what a repair tool waits for is written by the loop that reads the quiet window and
+/// `REPAIR_TOOL_CEILING`,
+/// and `std::io::stderr()` is a blocking write:
+/// a reader that stopped draining held the loop inside the kernel,
+/// so neither bound ever fired and the tool the repair owns was never stopped.
+/// The line is advisory beside the tool's own result,
+/// so its write is abandoned at a bound of its own
+/// (`wait_ceilings.rs`,
+/// `REPAIR_NOTICE_WRITE_CEILING`).
+/// Descriptor 2 is a full pipe for this control,
+/// which nextest runs in a process of its own (`landing/work_item_tests.rs`,
+/// `a_failing_standard_error_does_not_stop_the_queue`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pipe = fullPipeOnDescriptor2(); const run = within(30_000, runTool(slow, command, { window: 60_000, ceiling: 3_000 }));
+/// restoreDescriptor2(pipe); expect(run.end).toEqual({ kind: 'ceiling', afterMs: 3_000 });
+/// ```
+#[test]
+fn a_standard_error_whose_reader_stopped_draining_does_not_hold_the_tool_past_its_ceiling() {
+    let root: PathBuf = fixture("runs-a-full-standard-error");
+    let program: PathBuf = root.join("tool");
+    executable(program.as_path(), format!("#!/bin/sh\nsleep {SLOW_SECONDS}\n").as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    // A pipe nothing drains, filled to its own capacity: the next write waits in the kernel.
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0, "a pipe for standard error");
+    let (unread, writer): (libc::c_int, libc::c_int) = (ends[0], ends[1]);
+    let capacity: usize = usize::try_from(unsafe { libc::fcntl(writer, libc::F_GETPIPE_SZ) }).expect("the pipe's own capacity");
+    let filler: Vec<u8> = vec![b'x'; capacity];
+    let filled: isize = unsafe { libc::write(writer, filler.as_ptr().cast(), capacity) };
+    assert_eq!(filled, isize::try_from(capacity).expect("the pipe's capacity as an isize"), "the pipe is full");
+    let saved: libc::c_int = unsafe { libc::dup(2) };
+    assert!(saved >= 0, "descriptor 2 is open");
+    let put_back: StandardErrorPutBack = StandardErrorPutBack { saved };
+    assert!(unsafe { libc::dup2(writer, 2) } >= 0, "descriptor 2 is the pipe");
+    unsafe { libc::close(writer) };
+    let _unread: std::fs::File = unsafe { <std::fs::File as std::os::fd::FromRawFd>::from_raw_fd(unread) };
+    let (sender, answers): (std::sync::mpsc::Sender<ToolRun>, std::sync::mpsc::Receiver<ToolRun>) = std::sync::mpsc::channel::<ToolRun>();
+    std::thread::spawn(move || {
+        let _sent = sender.send(run_tool(program.as_path(), &command, ToolLimits { window: GENEROUS, ceiling: NOTICE_CONTROL_CEILING }));
+    });
+    let answered: Result<ToolRun, std::sync::mpsc::RecvTimeoutError> = answers.recv_timeout(NOTICE_CONTROL_BOUND);
+    put_back.put_back();
+    let run: ToolRun = answered.expect("the write of the notice held the loop, so the run never reached its ceiling");
+    assert_eq!(run.end, ToolEnd::CeilingReached(NOTICE_CONTROL_CEILING), "the ceiling still ends the tool");
+    let said: Vec<String> = notices_said().into_iter().filter(|line| return line.contains(root.display().to_string().as_str())).collect();
+    assert_eq!(said.len(), 1, "the notice of the wait was made, and one only: {said:?}");
+    remove(&root);
+}
