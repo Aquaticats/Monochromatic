@@ -1263,6 +1263,161 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 38 is in `main` and `0.6.1-alpha.33` is dispatched; pass 44 reported fit and goes on to hold the new `main`; the brief writer's second answer goes to review (2026-11-14T16:54:04-05:00)
+
+Not final and not approved:
+what two passes and one author report of themselves,
+and what the coordinating session measured,
+merged and queued.
+
+- **Pass 38** (tip `8531394151`:
+  commit forms Git refuses,
+  the watch note read as every record is read,
+  the renamed subvolume)
+  reported fit at 16:49:32:
+  the three branches in at the commits named,
+  `main` held,
+  build,
+  both test compiles and Clippy clean,
+  both guard modules passing,
+  all 91 controls the three branches add passing at eight CPUs and at four.
+  The whole of both test targets,
+  run once,
+  failed in fifteen places,
+  each on the gate's list of 28.
+  It answers where the three removal changes meet
+  (the routes are exclusive;
+  the clean proof by content decides only a worktree that holds a volume the removal goes around),
+  and names two things:
+  a hand-over whose wake reaches no service leaves a queued delete that only a later commit in that repository runs;
+  and the installed wrapper's backup push did not run for several of its merges because no commit service started,
+  one plain commit being refused twice until a service was started at the worktree's own address,
+  which `main` records for its author since `31141ee4f8`.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `5970462b51` at 16:52:54,
+  and `0.6.1-alpha.33` was dispatched at 16:53:04
+  (run 43645143086).
+  Passes 41,
+  45,
+  46 and 47,
+  going,
+  were told.
+  The wait,
+  the install,
+  the sample commit and the start of the gate run as one background command.
+  The fuzz sidecar's type check on `main` at `5970462b51`:
+  exit 0 at 16:53:54.
+  The next wrapper release is `0.6.1-alpha.34`.
+- **Pass 44** (tip `003a0702cf`:
+  the merge that ends saved and the commit that says what stopped it)
+  reported fit at 16:47:56 for its two branches:
+  build,
+  compiles and Clippy clean,
+  every control of either branch passing at the tip and at four CPUs,
+  both guards passing.
+  Its whole-suite run
+  (library 7,826 of 7,831 passed;
+  `native_binary` 1,181 of 1,192)
+  failed in sixteen places:
+  fifteen of the gate's 28
+  (thirteen of the 28 pass at its tip)
+  and one outside them,
+  `worktree_copying::worktree_copy_stage_snapshot_origin::tests::a_snapshot_made_before_the_record_is_not_proved`,
+  in a module neither branch touches,
+  run once.
+  After pass 38's merge its tip lacks 29 commits of `main` under the wrapper and the locks,
+  so it is resumed first to merge `main`,
+  run its checks again and run that one test by name alone
+  (`~/temp/agent/pi-runs/integration-pass-44-goes-on-after-main-took-pass-38-prompt.md`).
+- **The brief writer for a change to tests alone** (tip `30ccacc4ef`, ended 16:50:14):
+  the author reports the two findings answered,
+  with a test against real Git made by `git fast-import`,
+  and names one limit:
+  the runner decodes Git's output as UTF-8,
+  so a file name that is not valid UTF-8 is not byte-exact even with `-z`.
+  Review queued (range `main...30ccacc4ef`, seven code files).
+- Read at 16:52:21:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  `/var/home` held 498 G free at 72% used at 16:54:04;
+  runs that ended in this hour measured `~/temp/agent` at 290 GiB by `btrfs filesystem du`
+  (83 GiB exclusive)
+  and at 306 to 331 GiB by `du`,
+  the largest folders `change-reviews` 94 to 96 GiB,
+  `pkgrepair-repair-off-the-path` 65 GiB,
+  `sonnet-audits` 45 GiB and two going passes' scratch at 27 GiB each;
+  the scratch of the passes that have ended holds 1 to 22 MiB each.
+
+##### Four reviews each find a way a wanted thing is lost or a lock is kept; all four go back with the question of what each step proves (2026-11-14T16:48:27-05:00)
+
+Not final and not approved:
+what four reviews report of themselves,
+and what the coordinating session queued.
+
+- **The landed removal's guard** (`e615fb599b`),
+  fourth review,
+  one reproduced with controls,
+  an edit destroyed:
+  under `core.ignorecase=true` an operand with a redundant `./`,
+  or a prefix that is a symbolic link,
+  and a last component differing in case is resolved by Git and not by the guard,
+  whose resolving answers "unknown" when `canonicalize` fails and then stands down.
+  It is the third review in a row to find an operand Git resolves and the guard does not.
+  The author is resumed and asked to change which way the guard fails:
+  a removal goes to real Git only when the guard resolved and judged the worktree,
+  or showed by asking Git that nothing will be removed;
+  otherwise it is refused
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- **The lock a killed Git left** (`5327cbbfa4`),
+  fourth review:
+  the common case works,
+  a kill at the instant of the pin among it.
+  One with its consequence reproduced:
+  a record that pins the right inode and names a dead process,
+  which a gap between two looks in `write` can make,
+  shadows the right record,
+  since the reader takes the first record for an inode;
+  the lock is then kept and the next `git merge` ends with status 1 and `File exists`.
+  One by reading:
+  two sweeps at once defeat the retry that writes a killed Git's record.
+  The author is resumed,
+  asked for a table of the record's life in the specification
+  (`~/temp/agent/pi-runs/lock-a-killed-git-left-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- **mpm-shadow's stale launchers** (`eb37545001`),
+  fifth review:
+  the last commit's own diff is sound.
+  Four things:
+  an install beside this one that declares the name and keeps the launcher's inode loses its launcher and record;
+  the reconcile of postinstall links decides from the lock it loaded;
+  the retirement deletes the temporary file of a live install's link in progress,
+  so that install ends with status 1;
+  and,
+  reproduced with no concurrency,
+  an unrecorded link folder outside `.cache` is not seen,
+  so the launcher is retired from under its link.
+  The author is resumed with a rule of ownership offered as this session's suggestion
+  (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-answers-its-fifth-review-of-2026-11-14-prompt.md`).
+- **mpm-shadow removes by itself the old versions it installed** (`b416f1e2b0`),
+  fifth review,
+  one reproduced by driving the crate's functions:
+  after the last change a tombstone can hold a fresh finished copy,
+  and the next run's finish of earlier removals deletes every tombstone with no look at the lock or the finished marker,
+  so a finished install that a lock names is deleted.
+  The author is resumed,
+  asked what each deleting step proves about the bytes it deletes
+  (`~/temp/agent/pi-runs/mpm-shadow-removal-of-old-versions-answers-its-fifth-review-of-2026-11-14-prompt.md`).
+- What the four have in common,
+  as this session reads them:
+  each branch has been mended instance by instance through four or five reviews,
+  and each review found the next instance of one shape,
+  an act taken on something the code did not prove at the instant it acted.
+  Each brief of this round asks for that proof to be stated once for every step,
+  before the fix.
+- None of the four resumed sessions is named by the credential scan;
+  no launcher had outlived a run.
+  Two reviewers wrote that a second opinion they sought was refused by the provider's rate limit.
+  The queue held 67 entries at 16:48:27.
+
 ##### The failure-variant test passes and pass 47 carries it; the read-only main checkout is answered and goes to review; a Pi run's stray file in the main checkout is removed (2026-11-14T16:36:52-05:00)
 
 Not final and not approved:
