@@ -27,6 +27,7 @@ use crate::worktree_removal_goes_around_a_foreign_volume::around_incomplete_repo
 use crate::worktree_removal_interrupted_destroy::forget_destroy;
 use crate::subvolume_remove_walk::Boundary;
 use crate::worktree_removal_around_begun::WhichRemoval;
+use crate::worktree_removal_only_deletions::Reported;
 use crate::worktree_removal_goes_around_a_foreign_volume::{stopped_around_report, volumes_below};
 use crate::worktree_remove::{Held, RemoveOutcome, RemoveRequest, TAG, finish};
 use crate::worktree_remove_registry::Registration;
@@ -48,7 +49,7 @@ use std::path::Path;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const { resuming, onlyDeletions } = continuationOf({ request, target, registration, foreign, begun });
+/// const { resuming, reported } = continuationOf({ request, target, registration, foreign, begun });
 /// ```
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Continuation {
@@ -56,9 +57,10 @@ pub(crate) struct Continuation {
     pub(crate) begun: bool,
     /// Whether this command finishes the removal an earlier one began.
     pub(crate) resuming: bool,
-    /// Whether nothing but the entries that pass removed stands between the tree and Git's own clean view,
+    /// What Git reports about the tree,
+    /// leaving out what stands inside the volumes this removal keeps,
     /// which the refusal's words need.
-    pub(crate) only_deletions: bool,
+    pub(crate) reported: Reported,
 }
 
 /// What:
@@ -79,11 +81,14 @@ pub(crate) fn continuation_of(request: &RemoveRequest<'_>, target: &Path, regist
     if !crate::worktree_removal_around_begun::around_begun_by(request.common_dir, which) {
         return Continuation::default();
     }
-    let only_deletions: bool = only_deletions_beside(request, target, registration, foreign);
-    if only_deletions {
+    let reported: Reported = reported_beside(request, target, registration, foreign);
+    // Only entries missing from the tree are the shape a pass leaves. A tree Git reports nothing in was not half emptied by
+    // anything, and a tree holding a change of the person's is not this program's to finish.
+    let resuming: bool = reported == Reported::OnlyDeletions;
+    if resuming {
         debug(TAG, format!("a removal of {} began in an earlier command and was cut short; this one finishes it", target.display()).as_str());
     }
-    return Continuation { begun: true, resuming: only_deletions, only_deletions };
+    return Continuation { begun: true, resuming, reported };
 }
 
 /// What:
@@ -106,22 +111,23 @@ pub(crate) fn continuation_of(request: &RemoveRequest<'_>, target: &Path, regist
 /// ```
 pub(crate) fn refusal_beside_a_volume(request: &RemoveRequest<'_>, target: &Path, registration: &Registration, foreign: &[Boundary], continuation: Continuation, reason: &str) -> RemoveOutcome {
     let begun: bool = continuation.begun;
-    let only_deletions: bool = match begun {
-        true => continuation.only_deletions,
-        false => only_deletions_beside(request, target, registration, foreign),
+    let reported: Reported = match begun {
+        true => continuation.reported,
+        false => reported_beside(request, target, registration, foreign),
     };
     let report: String = crate::worktree_removal_goes_around_a_foreign_volume::refused_beside_a_volume_report(
         target,
         request.plan.operand.to_string_lossy().as_ref(),
         foreign,
-        crate::worktree_removal_goes_around_a_foreign_volume::BesideAVolume { reason, begun, only_deletions },
+        crate::worktree_removal_goes_around_a_foreign_volume::BesideAVolume { reason, begun, reported },
     );
     warn(TAG, report.as_str());
     return RemoveOutcome::Refused(report);
 }
 
 /// What:
-///  Whether nothing but the entries an earlier pass removed stands between this tree and Git's own clean view.
+///  What Git reports about this tree,
+///  leaving out what stands inside the volumes the removal keeps.
 /// Why:
 ///   The volumes a removal leaves are left out of the question,
 /// because the pass deletes the ignore rule that often hid one
@@ -133,13 +139,13 @@ pub(crate) fn refusal_beside_a_volume(request: &RemoveRequest<'_>, target: &Path
 /// ```ts
 /// const onlyDeletions = onlyDeletionsBeside({ request, target, registration, foreign });
 /// ```
-pub(crate) fn only_deletions_beside(request: &RemoveRequest<'_>, target: &Path, registration: &Registration, foreign: &[Boundary]) -> bool {
+pub(crate) fn reported_beside(request: &RemoveRequest<'_>, target: &Path, registration: &Registration, foreign: &[Boundary]) -> Reported {
     let seen: Vec<Boundary> = match foreign.is_empty() {
         true => volumes_below(target),
         false => foreign.to_vec(),
     };
     let volumes: Vec<&Path> = seen.iter().map(|one| return one.path.as_path()).collect();
-    return crate::worktree_removal_only_deletions::only_deletions_outside(request.context, target, registration.admin.as_path(), volumes.as_slice());
+    return crate::worktree_removal_only_deletions::reported_outside(request.context, target, registration.admin.as_path(), volumes.as_slice());
 }
 
 /// What:
@@ -183,6 +189,8 @@ pub(crate) fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: 
         warn(TAG, report.as_str());
         return RemoveOutcome::Incomplete(report);
     }
+    #[cfg(test)]
+    crate::subvolume_remove_listing_test_support::after_the_around_pass(target);
     // What is left is looked at again through the descriptor this removal holds: a volume that went away while the pass ran
     // leaves a tree that is now empty, and the root then goes with it.
     let left: Vec<Boundary> = look_for_boundaries(&held.target, target).found;
@@ -196,6 +204,10 @@ pub(crate) fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: 
         if outcome == RemoveOutcome::Removed {
             forget_destroy(request.common_dir, registration.id.as_os_str());
             crate::worktree_removal_around_begun::forget_around_begun(request.common_dir, registration.id.as_os_str());
+            // The files went one by one in this command and the empty root went with one `rmdir`, so the ending is the around
+            // route's and not the destroy's: nothing was destroyed in one step and nothing waits for the commit service.
+            debug(TAG, format!("the volume of {} went away while the pass ran, so the emptied root went with one rmdir", target.display()).as_str());
+            return RemoveOutcome::RemovedAroundNothingLeft;
         }
         return finished_around(outcome, target, registration, &[], request);
     }

@@ -373,6 +373,9 @@ a median inside the range of the merge's package over itself (0.95 to 1.09).
 The records of the second measurement are in
 `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`,
 folder `pull-request-1121-on-node-and-bun-2026-11-13`.
+`optique-typo-suggestion-overhead-upstream-record.evidence.zip` left the tree on 2026-11-13.
+Its cited records are in `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence/`.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Verified workarounds
 

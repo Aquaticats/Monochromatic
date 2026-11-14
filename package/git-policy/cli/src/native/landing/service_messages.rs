@@ -44,6 +44,12 @@ pub(crate) use crate::service_messages_of_a_wait_for_the_service::{it_had_said, 
 /// It was `journalctl --user --unit …` while a unit started the service.
 pub const LOG_COMMAND: &str = "ls -1 \"$XDG_RUNTIME_DIR/monochromatic-git-policy-cli\"";
 
+/// The name of the link the commit service's unit starts its program from,
+/// which the failure for another release names when that link is what could not be pointed
+/// (`service_instance.rs`,
+/// `PROGRAM_LINK`).
+pub use crate::service_instance::PROGRAM_LINK;
+
 /// The command that turns on user services for an account that is not logged in (Linux with systemd).
 pub const LINGER_COMMAND: &str = "loginctl enable-linger";
 
@@ -145,7 +151,9 @@ pub enum ClientFailure {
     /// The installed service speaks no protocol this wrapper speaks,
     /// after a replacement attempt.
     NoCommonVersion,
-    /// A service started from another release of the wrapper is still running after it was asked to exit.
+    /// A service started from another release of the wrapper is still running after it was asked to retire and its unit was
+    /// restarted,
+    /// so the units start a program that is not the release this command runs.
     OtherRelease,
     /// The repository has no room left.
     RepositoryFull(String),

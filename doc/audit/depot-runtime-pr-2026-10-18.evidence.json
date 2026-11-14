@@ -1638,7 +1638,19 @@
     "bytes": 5262,
     "sha256": "fa455b4dd47abbfa7dce33d590a6ee1b0edf9d9d3657d35a829c0c6a1a062c1c",
     "count": 11,
-    "format": "gzip JSON containing the original ZIP bytes as base64; per-ZIP hashes are independently reproducible"
+    "format": "gzip JSON containing the original ZIP bytes as base64; per-ZIP hashes are independently reproducible",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show e2dc6e8413ad4dca242bf6713d82df9690c98688:doc/audit/depot-runtime-pr-2026-10-18.archives.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "boundaries": [
     "Gate-fixture controls are not application test-suite acceptance.",

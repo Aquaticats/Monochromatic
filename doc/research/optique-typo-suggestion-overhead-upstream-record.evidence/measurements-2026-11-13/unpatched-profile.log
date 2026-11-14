@@ -1,0 +1,37 @@
+{"script":"token-scaling","runtime":"node","runtimeVersion":"26.13.1","library":"file:///work/arms/before/dist/primitives.js","counts":[16000,32000],"results":[{"tokens":16000,"parsedTokens":16000,"runs":3,"medianMs":6687.413,"minMs":6512.14,"maxMs":6725.541,"nsPerToken":417963.297},{"tokens":32000,"parsedTokens":32000,"runs":3,"medianMs":29163.979,"minMs":28380.344,"maxMs":30087.161,"nsPerToken":911374.355}],"fitExponent":2.125,"growthLastToFirst":4.361}
+== unpatched 16000,32000
+{
+  "profile": "unpatched-16000-32000.cpuprofile",
+  "wallMs": 107648.23,
+  "parseMs": 100427.54,
+  "sampleCount": 101523,
+  "parseSamples": 94723,
+  "samplingUs": 1060.2
+}
+
+self time per file, in ms of parse time
+  93212.74	92.8%	input-trace.js
+  4852.48	4.8%	modifiers.js
+  1214.29	1.2%	primitives.js
+  491.47	0.5%	short-option.js
+  291.17	0.3%	constructs.js
+  90.93	0.1%	dependency-runtime.js
+  86.50	0.1%	failure.js
+  76.34	0.1%	execution-context.js
+  33.85	0.0%	annotation-state.js
+  28.71	0.0%	passthrough.js
+  15.91	0.0%	mode-dispatch.js
+  15.23	0.0%	annotations.js
+  7.30	0.0%	dependency.js
+  4.22	0.0%	message.js
+  3.17	0.0%	(v8)
+
+self time per function, in ms of parse time (top 8)
+  93139.07	92.7%	input-trace.js#set:31
+  4516.89	4.5%	modifiers.js#parseSync:1264
+  1129.89	1.1%	primitives.js#:1275
+  276.32	0.3%	modifiers.js#:1461
+  155.41	0.2%	constructs.js#parseSync:2757
+  133.11	0.1%	short-option.js#forkOptionScope:166
+  103.57	0.1%	short-option.js#withOptionScopeChild:50
+  93.11	0.1%	short-option.js#withParserOptionScope:153

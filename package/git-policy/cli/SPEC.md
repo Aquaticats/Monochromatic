@@ -3478,6 +3478,16 @@ because Git's own removal is the route that would delete through a mount point.
 `look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume, which the
 registration's own proof still uses.
 
+The proof of cleanliness a removal makes is the stat proof every removal makes,
+and a refusal beside a volume is proven again by the files themselves:
+`check_clean_by_content` settles by reading a file every entry its stat data cannot vouch for
+(the state a worktree is in the moment it was added,
+where a whole-second modification time is not older than the index's and Git's own racy rule says the stat
+data proves nothing either way)
+and makes the untracked scan the ordinary proof makes,
+so a tree refused only because its stat fields prove nothing yet is proven clean and removed around the volume,
+and a tree that proof cannot settle is refused while nothing of it is deleted.
+
 A removal that found such a volume proves what every removal proves before it deletes anything:
 the worktree is registered,
 not locked,
@@ -3494,12 +3504,27 @@ gives the reason Git refuses,
 and words the way on by what the tree in front of it is:
 `git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
 stands, and, for a tree whose entries are all present, clearing or moving what Git would delete.
-A tree whose only trouble is entries missing from it is the shape a pass of this program leaves,
-and the report says which of the two it read:
-a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it,
-and without such a record the report names `--force`,
+The status a removal reads is one of three,
+and the report says which of them it read:
+Git names nothing at all,
+Git names entries and every one is missing from the tree,
+or Git names something else.
+An empty report is no report of deletions,
+so a clean tree is never worded as one a pass half emptied.
+A tree whose entries are missing is the shape a pass of this program leaves,
+and a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it;
+without such a record the report names `--force`,
 says that moving a volume out cannot finish a tree whose tracked entries are gone,
 and never claims that nothing was removed.
+A tree Git names nothing in,
+and which the proof of cleanliness cannot settle,
+is refused in its own words:
+the report says that Git reports no change in the worktree at all,
+gives the reason the proof refused,
+says that this is no state a pass of this program left,
+and names `--force` as what goes around the volume now.
+A tree whose entries are only missing may be finished by the same unforced command once that record proves it,
+and no worktree is ever removed on a cleanliness that was not proven.
 The tree is never handed to Git to get Git's own sentence,
 because Git's removal is what would delete through the mount;
 the report says so instead of pretending to be Git's words.
@@ -6450,8 +6475,15 @@ The client sends `warm` only after `merge`,
 `switch`,
 `rebase` or `reset` exits 0 and the digest of the rules text
 it would load changed,
-only to a service of that worktree that already runs (found by its start arguments),
-and never starts a process.
+only to a service of that worktree that already runs (found by its start arguments,
+read within `WARM_SCAN_CEILING` and only among the processes of this user),
+and it writes no unit,
+asks no manager for a start,
+and starts no process.
+A service killed between that look and the connection is started by the connection itself:
+the socket unit keeps listening,
+which is what socket activation is for,
+and no check before a connection is one with it.
 The client keeps compiling on a cache miss.
 `src/native/policy/policy_forbidden_strings.rs` decides whether that miss writes the shared cache
 (`CachePublisher`,
@@ -6482,6 +6514,13 @@ also leaves the artifact for the next command that publishes,
 so such a machine compiles the rules once per command:
 correct,
 and slower than a cache it cannot fill.
+A request that is not made is not sent either:
+its look at the processes is made within `WARM_SCAN_CEILING` and its connection within `WARM_REQUEST_CONNECT_CEILING`
+(`src/native/service/wait_ceilings.rs`),
+so a process stuck in the kernel and a service whose queue of unaccepted connections is full each cost the command
+that ceiling and no more,
+and the command publishes the artifact itself,
+as it does when no service runs.
 The artifact's publication (`package/forbidden-strings/cli/src/runtime_cache/publish.rs`)
 writes a private temporary and renames it over the artifact,
 syncing neither the file nor its directory:
@@ -8044,7 +8083,8 @@ now inside these bounds:
   A line is read in chunks under the bound the connection carries,
   because one `read_line` restarts the operating system's read timeout with every chunk a service sends,
   so a service that dribbles bytes and never ends its line held a client inside one call for ever.
-- A request is a JSON object and a framing newline, and the service takes it only when the whole line arrived.
+- A request is a JSON object and a framing newline,
+  and the service takes it only when the whole line arrived.
   A line that ends with the connection instead of its newline is not decoded,
   not queued,
   and refused in the service's log
@@ -8053,13 +8093,15 @@ now inside these bounds:
   and neither carries the proof alone:
   the client's chunked write can leave every byte of the object and only the newline unsent,
   and the service used to decode that at end of stream and land it
-  (the review of this change, finding 1).
+  (the review of this change,
+  finding 1).
 - The client says the service never took a request only when it never put one whole request line on the wire.
   A give-up on the write ends with `ClientFailure::ServiceNotReading`,
   which says the commit was not made and cannot land later
   (`landing/service_messages_of_a_service_that_stopped.rs`),
   only when no attempt of this command delivered a whole line;
-  after an attempt that did, a give-up ends with the "not known" failure,
+  after an attempt that did,
+  a give-up ends with the "not known" failure,
   whose commit's scratch tree stays with the service's claim on it.
   The failure that says the branch holds no commit of this command's yet does not say a waking service drops it:
   the landing's client-gone check races the connection writer's heartbeat,
@@ -19483,7 +19525,8 @@ The bound holds for each commit,
 not for a percentile of them.
 It is the owner's change of 2026-11-12,
 "The five-second rule is changed":
-"Change the 5s rule to max(5s, double what native git takes)",
+"Change the 5s rule to max(5s,
+double what native git takes)",
 read as the extra over real Git.
 The requirements it replaces were the flat 5,000 ms,
 which is what the owner set on 2026-11-01:
