@@ -25,7 +25,8 @@
 use std::fs::{self, File, OpenOptions};
 /// Imports what this module uses from `std::path`.
 use std::path::Path;
-/// Imports `Duration`, `Instant` from `std::time`.
+/// Imports `Duration`,
+/// `Instant` from `std::time`.
 use std::time::{Duration, Instant};
 
 /// Imports `ToolchainError` from `super::error`.
@@ -99,10 +100,13 @@ pub fn read_revisions(scope: &Scope) -> Result<Revisions, ToolchainError> {
 /// Why:
 /// Nothing may wait forever,
 /// so a holder that is stopped or hung must not stop another command in that checkout.
-/// A whole `install` on this machine takes about a second (measured in this run's scope: the review's probe pruned a
-/// store of 400 versions in 0.62 s, and the work the lock covers is one atomic file write),
+/// A whole `install` on this machine takes about a second (measured in this run's scope:
+/// the review's probe pruned a
+/// store of 400 versions in 0.62 s,
+/// and the work the lock covers is one atomic file write),
 /// so a lock held for five seconds is held by a command that is not finishing;
-/// the holder's own run is what to wait for, and a person can run the command again.
+/// the holder's own run is what to wait for,
+/// and a person can run the command again.
 /// The caller loses nothing by refusing:
 /// the lock is not written and nothing else has been changed.
 pub const GUARD_WAIT: Duration = Duration::from_secs(5);
@@ -261,7 +265,9 @@ pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(
 /// so a plan kept readable by its owner alone would come back readable by everyone.
 /// The mode is asked for at the temporary's creation and put on it before its first byte,
 /// so neither the file that holds the plan's content nor the file a kill leaves behind is wider than the plan
-/// (`util::write_atomically_with_mode`, "what a kill leaves, step by step").
+/// (`util::write_atomically_with_mode`,
+/// "what a kill leaves,
+/// step by step").
 /// A target that does not exist yet keeps the mode a new file gets,
 /// and a target whose mode cannot be read is a failure rather than a silent widening.
 ///

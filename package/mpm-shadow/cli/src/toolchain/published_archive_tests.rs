@@ -765,17 +765,21 @@ fn the_archive_prune_rule_keeps_the_longer_alpha_number() {
 /// How many files the slow version of the release-archive control holds.
 /// Why:
 /// Deleting costs about 30 microseconds per file on this machine's store volume
-/// (`doc/toolchain-version-cleanup.md`, "The measurement it was sized from"),
+/// (`doc/toolchain-version-cleanup.md`,
+/// "The measurement it was sized from"),
 /// so this many files make the first deletion last long enough for the control's second actor to act inside it.
 const SLOW_ARCHIVE_VERSION_FILES: usize = 6_000;
 
 /// What:
 /// A release-archive version another command removed between the listing that judged it and the removal itself is a
-/// finished cleanup: the removal ends well and does not claim to have deleted it.
+/// finished cleanup:
+/// the removal ends well and does not claim to have deleted it.
 /// Why:
 /// The renewal of this repository's own archive tools is the same newest-only rule as the crate one,
 /// and the review of 2026-11-14 found the same two-line pattern at both removal sites
-/// (`published_archive.rs`, `remove_older_archives`): two commands sharing one store root reach the same version.
+/// (`published_archive.rs`,
+/// `remove_older_archives`):
+/// two commands sharing one store root reach the same version.
 #[test]
 fn a_superseded_archive_version_another_run_removed_first_is_a_finished_cleanup() {
     let rig = Rig::new();

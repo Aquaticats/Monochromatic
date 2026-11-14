@@ -93,7 +93,8 @@ fn the_fake_records_requests_answers_by_prefix_and_defaults_to_success() {
 
 /// What:
 /// A program that leaves one of its own children holding its output does not hold the runner:
-/// the text it printed is what the runner reports, and it reports it at once.
+/// the text it printed is what the runner reports,
+/// and it reports it at once.
 /// Why:
 /// `Command::output` reads both pipes to their end,
 /// and a pipe stays open while any process of the program's own tree holds it,
@@ -110,7 +111,9 @@ fn a_program_that_leaves_a_child_holding_its_output_does_not_hold_the_runner() {
 }
 
 /// What:
-/// A program that outlives its bound is stopped, and the outcome names it, the bound and what it had printed.
+/// A program that outlives its bound is stopped,
+/// and the outcome names it,
+/// the bound and what it had printed.
 /// Why:
 /// Nothing may wait forever:
 /// a program that hangs on a network read or on a lock of its own ends the command instead of holding it,

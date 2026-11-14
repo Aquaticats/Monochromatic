@@ -164,7 +164,9 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
 }
 
 /// A crate directory goes only when it is empty:
-/// whatever another run left in it, which the scan does not count as a version, is not carried away
+/// whatever another run left in it,
+/// which the scan does not count as a version,
+/// is not carried away
 /// with the directory.
 #[test]
 fn a_crate_directory_that_holds_something_the_scan_does_not_count_stays() {
@@ -215,7 +217,8 @@ fn a_partly_removed_version_directory_says_part_of_it_may_be_gone() {
     assert!(!error.message.contains("nothing was deleted"), "a partial removal is not nothing: {error}");
 }
 
-/// A crate no lock names loses every version, so its `current` link goes before them:
+/// A crate no lock names loses every version,
+/// so its `current` link goes before them:
 /// a run killed in between leaves no link rather than one naming a version that is deleted.
 #[test]
 fn a_crate_no_lock_names_loses_its_current_link_before_its_versions() {
@@ -371,8 +374,10 @@ fn the_link_already_naming_a_newer_finished_version_is_not_moved_back() {
     assert_eq!(fs::read_link(&link).expect("a link"), PathBuf::from("1.1.0"), "the newer install keeps the link");
 }
 
-/// When the version the plan keeps has been retired by another command, the link is settled rather than left:
-/// a link naming a version this run deletes must not survive the link pass, even though the guard above
+/// When the version the plan keeps has been retired by another command,
+/// the link is settled rather than left:
+/// a link naming a version this run deletes must not survive the link pass,
+/// even though the guard above
 /// refused to point it at the vanished version.
 #[test]
 fn the_link_is_settled_when_the_version_the_plan_keeps_has_vanished() {
@@ -441,7 +446,8 @@ fn a_repointing_failure_after_another_link_says_what_was_removed() {
     assert!(!error.message.contains("nothing was deleted"), "a link was removed: {error}");
 }
 
-/// A link this run already removed is not nothing: a failure on the next crate says what went,
+/// A link this run already removed is not nothing:
+/// a failure on the next crate says what went,
 /// the way the recursive removals do.
 #[test]
 fn a_link_removal_failure_after_another_link_says_what_was_removed() {
@@ -503,7 +509,8 @@ fn the_link_removal_leaves_a_current_that_names_a_version_installed_meanwhile() 
     assert!(fs::metadata(&link).is_ok(), "and it resolves");
 }
 
-/// Sets a directory's mode, so a read of it can be made to fail.
+/// Sets a directory's mode,
+/// so a read of it can be made to fail.
 fn set_mode(path: &std::path::Path, mode: u32) {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("chmod");
@@ -525,7 +532,8 @@ fn a_crate_directory_the_scan_cannot_read_is_an_error_and_not_an_empty_crate() {
     assert!(error.message.contains(&crate_dir.display().to_string()), "the message names the directory: {error}");
 }
 
-/// A refusal carries what the run has already removed; with nothing removed it says so instead,
+/// A refusal carries what the run has already removed;
+/// with nothing removed it says so instead,
 /// so a failure after a deletion never claims that nothing was deleted.
 #[test]
 fn a_refusal_after_a_removal_names_what_went_and_never_claims_nothing_was_deleted() {
@@ -638,12 +646,15 @@ fn an_explicit_lock_file_that_does_not_exist_refuses_the_prune_and_deletes_nothi
 
 /// What:
 /// A version another command removed between the listing that judged it and the removal itself is a finished cleanup:
-/// the prune ends well, says nothing about a partial removal, and does not claim to have deleted it.
+/// the prune ends well,
+/// says nothing about a partial removal,
+/// and does not claim to have deleted it.
 /// Why:
 /// Every worktree shares one store root and the removals take no lock,
 /// so two `prune --toolchain` runs reach the same version directory;
 /// the review of 2026-11-14 ran two `mpm-shadow prune --toolchain --global` at once in five rounds,
-/// and one of them exited 1 with "No such file or directory (os error 2); part of it may be gone" in every round,
+/// and one of them exited 1 with "No such file or directory (os error 2);
+/// part of it may be gone" in every round,
 /// though the store was exactly in the state it set out to reach.
 #[test]
 fn a_version_another_run_removed_before_the_deletion_is_a_finished_cleanup() {

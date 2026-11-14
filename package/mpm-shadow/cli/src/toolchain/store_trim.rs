@@ -10,7 +10,9 @@
 //! mpm-shadow installs one directory per version and removed nothing but this repository's own tools,
 //! so on 2026-11-13 the two stores held 55.4 GiB,
 //! 42 GiB of it versions no lock named
-//! (a 3.1 GiB video-card build of llama.cpp, ten times over, and 4.5 GiB of downloads an earlier layout left).
+//! (a 3.1 GiB video-card build of llama.cpp,
+//! ten times over,
+//! and 4.5 GiB of downloads an earlier layout left).
 //! The owner's answer that day:
 //! "make our mpm-shadow auto cleanup old toolchains by size + last modified time".
 //!
@@ -102,7 +104,8 @@ const SECONDS_PER_DAY: u64 = 24 * SECONDS_PER_HOUR;
 /// 24 GiB.
 /// Why:
 /// Sized from the measurement this run made of this machine's stores
-/// (`doc/toolchain-version-cleanup.md`, "The measurement it was sized from"):
+/// (`doc/toolchain-version-cleanup.md`,
+/// "The measurement it was sized from"):
 /// the versions a visible lock names weighed 11.3 GiB across both roots,
 /// so about twice that leaves room for the version an install brings and for several updates in flight,
 /// and it would have removed 31.4 GiB of the 55.4 GiB the stores held on 2026-11-13.
@@ -117,7 +120,8 @@ pub const DEFAULT_SIZE_BOUND_BYTES: u64 = 24 * BYTES_PER_GIB;
 /// How recently a version must have been written to be kept whatever else is true:
 /// one hour.
 /// Why:
-/// A proposal, and the only bound here no measurement settles:
+/// A proposal,
+/// and the only bound here no measurement settles:
 /// an install writes its lock row before the version it installs,
 /// so a version a lock names is protected by that lock,
 /// and this floor exists only for a copy a person or another tool made by hand,
@@ -136,7 +140,9 @@ pub const DEFAULT_AGE_FLOOR_SECONDS: u64 = 60 * 60;
 /// Measured on this machine's store volume (2026-11-13,
 /// `keep/deletion-cost-home-volume.txt` of the run that added this):
 /// deleting a version costs about 30 microseconds per file
-/// (4743 files in 145 ms, 8820 in 260 ms, and 1180 files of 3.2 GiB in 62 ms),
+/// (4743 files in 145 ms,
+/// 8820 in 260 ms,
+/// and 1180 files of 3.2 GiB in 62 ms),
 /// so two seconds removes about 66 000 files,
 /// more than the largest version either store holds (19 521 files) and less than a fifth of the 43.2 GiB over the
 /// bound that day.
@@ -197,7 +203,13 @@ impl TrimBounds {
 }
 
 /// What:
-/// A byte count written as a number with an optional `KiB`, `MiB`, `GiB`, `TiB` (or `K`, `M`, `G`, `T`) suffix.
+/// A byte count written as a number with an optional `KiB`,
+/// `MiB`,
+/// `GiB`,
+/// `TiB` (or `K`,
+/// `M`,
+/// `G`,
+/// `T`) suffix.
 /// Why:
 /// The bound is set by a person typing an environment variable,
 /// and `32GiB` is what a person reads back out of the report.
@@ -227,7 +239,9 @@ pub fn parse_size(text: &str) -> Option<u64> {
 }
 
 /// What:
-/// A span written as a number of seconds with an optional `s`, `m`, `h` or `d` suffix,
+/// A span written as a number of seconds with an optional `s`,
+/// `m`,
+/// `h` or `d` suffix,
 /// or as a number of milliseconds with an `ms` suffix.
 /// Why:
 /// The age floor and the work limit are set the same way the size bound is.
@@ -253,7 +267,9 @@ pub fn parse_duration(text: &str) -> Option<Duration> {
 }
 
 /// What:
-/// A span in the words a person reads (`41 h`, `3 d`, `12 min`).
+/// A span in the words a person reads (`41 h`,
+/// `3 d`,
+/// `12 min`).
 /// Why:
 /// The lines say when a version was last written,
 /// and hours or days are what a reader compares.
@@ -288,11 +304,13 @@ pub struct TrimCandidate {
     /// The version,
     /// empty for a leftover download.
     pub version: String,
-    /// The path the lines name: the version directory or the leftover file.
+    /// The path the lines name:
+    /// the version directory or the leftover file.
     pub directory: PathBuf,
     /// The directory holding the archives downloaded for this version.
     pub downloads: Option<PathBuf>,
-    /// The space removing it gives back, in bytes.
+    /// The space removing it gives back,
+    /// in bytes.
     pub bytes: u64,
     /// When it was last written.
     pub written: SystemTime,
@@ -301,7 +319,8 @@ pub struct TrimCandidate {
 }
 
 /// What:
-/// Everything one pass may remove, in the order it is judged:
+/// Everything one pass may remove,
+/// in the order it is judged:
 /// oldest write first.
 /// Why:
 /// The rule removes the versions written longest ago first,
@@ -376,7 +395,9 @@ fn compare_oldest_first(left: &TrimCandidate, right: &TrimCandidate) -> std::cmp
 /// ```
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct NamedVersions {
-    /// Tool directory name, then version, then the lock file that names it.
+    /// Tool directory name,
+    /// then version,
+    /// then the lock file that names it.
     pub by_tool: BTreeMap<String, BTreeMap<String, String>>,
     /// Why a lock could not be read,
     /// so no version may be removed.
@@ -474,7 +495,8 @@ impl NamedVersions {
 pub enum TrimStep {
     /// Remove this version.
     Remove(TrimCandidate),
-    /// Keep it, and say why.
+    /// Keep it,
+    /// and say why.
     Keep(TrimCandidate, String),
 }
 
@@ -485,7 +507,8 @@ pub struct TrimPlan {
     pub total_bytes: u64,
     /// Whether the stores keep more than the bounds allow.
     pub over_bound: bool,
-    /// The candidates judged, oldest write first.
+    /// The candidates judged,
+    /// oldest write first.
     pub steps: Vec<TrimStep>,
 }
 
@@ -495,7 +518,8 @@ pub struct TrimPlan {
 /// otherwise the versions written longest ago are removed until they do,
 /// and each one that stays says why.
 /// Why:
-/// This is the whole decision, kept free of the file system,
+/// This is the whole decision,
+/// kept free of the file system,
 /// so the tests feed it plain lists and the reasons in force are the caller's.
 /// A version written inside the age floor,
 /// a version a lock names,
@@ -561,7 +585,8 @@ pub struct TrimOutcome {
     pub lines: Vec<String>,
     /// How many versions were removed.
     pub removed: usize,
-    /// The space they gave back, in bytes.
+    /// The space they gave back,
+    /// in bytes.
     pub removed_bytes: u64,
     /// The store roots where a removal is still pending,
     /// because the pass ran out of its time limit.
@@ -746,7 +771,8 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
 struct JudgedVersion {
     /// When the version directory was last written.
     written: Option<SystemTime>,
-    /// The file system and inode naming the entry, on Unix.
+    /// The file system and inode naming the entry,
+    /// on Unix.
     #[cfg(unix)]
     naming: (u64, u64),
 }

@@ -25,14 +25,16 @@ use super::error::ToolchainError;
 use super::runner::{RunOutcome, RunRequest, Runner};
 
 /// What:
-/// The longest the worktree list may run: ten seconds.
+/// The longest the worktree list may run:
+/// ten seconds.
 /// Why:
 /// The list is one read of the repository's metadata,
 /// but a listed worktree on a hung file system or a git waiting on a lock of its own makes it wait for ever,
 /// and the install reads it before every newest-only removal.
 /// Measured on this repository's main checkout on 2026-11-14,
 /// 170 listed worktrees:
-/// 0.02 s, 0.03 s and 0.02 s for three runs,
+/// 0.02 s,
+/// 0.03 s and 0.02 s for three runs,
 /// so ten seconds is three hundred times the slowest one,
 /// and a list that takes longer than that is not answering at all.
 const WORKTREE_LIST_BOUND: Duration = Duration::from_secs(10);

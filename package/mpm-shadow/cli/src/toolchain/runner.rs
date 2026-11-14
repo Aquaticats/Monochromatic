@@ -34,7 +34,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 /// Imports what this module uses from `std::process`.
 use std::process::{Command, Stdio};
-/// Imports `Duration`, `Instant` from `std::time`.
+/// Imports `Duration`,
+/// `Instant` from `std::time`.
 use std::time::{Duration, Instant};
 
 /// Imports `manager_native_bin_dirs` from `super::layout`.
@@ -59,7 +60,8 @@ fn texts(arguments: &[&str]) -> Vec<String> {
 /// so a program that hangs on a network read or on a lock of its own ends instead of holding the install:
 /// the review of 2026-11-14 found `cargo binstall` waiting on a read with no timeout,
 /// and the answer has to be a bound on every start rather than on the one that hung.
-/// An hour is the agent's choice, open to the owner's veto:
+/// An hour is the agent's choice,
+/// open to the owner's veto:
 /// the longest a real install takes here is a third-party crate compiled from source
 /// (the store held a 3.1 GiB `llama.cpp` build on 2026-11-13,
 /// and a release build of this package's own 8 000-line crate took 18 s in this run's scope),
@@ -228,7 +230,8 @@ pub struct ProcessRunner;
 /// The bytes must reach the caller before the stream ends:
 /// a program can exit while one of its own children still holds the pipe,
 /// and then the stream never ends.
-/// A reader still waiting when the runner gives up on it is left behind rather than joined, for the same reason.
+/// A reader still waiting when the runner gives up on it is left behind rather than joined,
+/// for the same reason.
 fn collect(source: Option<impl std::io::Read + Send + 'static>, stdout: bool, sender: std::sync::mpsc::Sender<(bool, Option<Vec<u8>>)>) {
     let Some(mut stream) = source else {
         let _sent = sender.send((stdout, None));

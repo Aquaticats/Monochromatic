@@ -13,9 +13,11 @@
 //! the command refuses to delete anything when a listed worktree's lock cannot be read,
 //! because an unreadable lock might name a version that is about to be deleted,
 //! and a file given with `--lock` names versions or refuses the command:
-//! it may not be absent, since a file that said what to keep cannot be read as keeping nothing.
+//! it may not be absent,
+//! since a file that said what to keep cannot be read as keeping nothing.
 //! A crate directory the scan cannot read refuses the command too:
-//! reading it as empty would remove the whole directory, including a version a lock names.
+//! reading it as empty would remove the whole directory,
+//! including a version a lock names.
 //! A version a running process of this user uses is never pruned,
 //! and a process table the command cannot read refuses it with nothing deleted (`store_keeps.rs`).
 //!
@@ -355,9 +357,11 @@ fn prune_archives(
 /// The prune deletes the versions no lock names,
 /// and the scan it runs after those deletions decides whether a crate directory still holds one.
 /// A directory this walk cannot read must therefore be reported and not left out:
-/// left out, it reads as "this crate holds nothing" and the whole crate directory goes,
+/// left out,
+/// it reads as "this crate holds nothing" and the whole crate directory goes,
 /// including a version a lock names.
-/// A crate directory that is gone holds nothing, so its absence is not a failed read.
+/// A crate directory that is gone holds nothing,
+/// so its absence is not a failed read.
 pub(super) fn present_versions(toolchain_root: &Path) -> Result<BTreeMap<String, Vec<PresentVersion>>, ToolchainError> {
     let mut present: BTreeMap<String, Vec<PresentVersion>> = BTreeMap::new();
     let crates_dir: PathBuf = toolchain_root.join(CARGO_NAMESPACE);
@@ -400,7 +404,8 @@ fn cannot_walk(directory: &Path, error: &std::io::Error) -> ToolchainError {
 }
 
 /// What:
-/// `error`, restated with what this run has already removed from the tree.
+/// `error`,
+/// restated with what this run has already removed from the tree.
 /// Why:
 /// The report is the only place a person learns what a failed run deleted,
 /// so a failure after a removal must name what is gone and never say that nothing was deleted.
@@ -413,7 +418,8 @@ pub(super) fn after_removing(error: ToolchainError, removed: &[PathBuf]) -> Tool
 }
 
 /// What:
-/// The failure of a recursive removal, which may already have unlinked part of the tree,
+/// The failure of a recursive removal,
+/// which may already have unlinked part of the tree,
 /// with what else this run removed.
 /// Why:
 /// `remove_dir_all` unlinks what it can before it stops,
@@ -428,7 +434,8 @@ fn partly_removed(directory: &Path, error: &std::io::Error, removed: &[PathBuf])
     return ToolchainError::failure(message);
 }
 
-/// The removed directories as one list of paths, for a report.
+/// The removed directories as one list of paths,
+/// for a report.
 fn paths_named(removed: &[PathBuf]) -> String {
     return removed.iter().map(|path| return path.display().to_string()).collect::<Vec<String>>().join(", ");
 }
@@ -573,7 +580,9 @@ pub fn prune_toolchain(
 }
 
 /// What:
-/// Whether this run keeps `candidate`, a version of `crate_name`, from `removals`.
+/// Whether this run keeps `candidate`,
+/// a version of `crate_name`,
+/// from `removals`.
 /// Why:
 /// The link decision counts only the versions that stay,
 /// and a removal carries the crate it belongs to.
@@ -584,9 +593,11 @@ fn stays(crate_name: &str, candidate: &PresentVersion, removals: &[(String, Stri
 }
 
 /// What:
-/// The newest finished version of `kept`, or `None` when none of them finished.
+/// The newest finished version of `kept`,
+/// or `None` when none of them finished.
 /// Why:
-/// Only a finished version can be what `current` names: an unfinished one is still being written.
+/// Only a finished version can be what `current` names:
+/// an unfinished one is still being written.
 fn newest_finished(kept: &[&PresentVersion]) -> Option<String> {
     let mut newest: Option<&str> = None;
     for candidate in kept {
@@ -608,12 +619,18 @@ fn newest_finished(kept: &[&PresentVersion]) -> Option<String> {
 /// Removes a crate's `current` link when it names a version this run deletes or one that is already gone,
 /// and records the link in `unlinked`.
 /// Why:
-/// When no version of the crate remains, the link would name a directory this run deletes;
+/// When no version of the crate remains,
+/// the link would name a directory this run deletes;
 /// removing it first leaves a run killed at any later point with no link rather than a dangling one.
 /// A link that names a version which still exists and is not one of the deletions belongs to another
-/// command's install, so it is left alone. The check is one `read_link` and one `metadata`: no lock, no wait,
+/// command's install,
+/// so it is left alone.
+/// The check is one `read_link` and one `metadata`:
+/// no lock,
+/// no wait,
 /// and the instant between the check and the unlink is the one window left.
-/// This pass runs before any version directory is removed, so `unlinked` is everything the run has deleted
+/// This pass runs before any version directory is removed,
+/// so `unlinked` is everything the run has deleted
 /// when a later crate's link cannot be removed.
 fn remove_current_link(
     toolchain_root: &Path,
@@ -650,8 +667,10 @@ fn remove_current_link(
 /// Removes a crate directory when it is empty.
 /// Why:
 /// `remove_dir_all` would carry away a version another run installed after the scan that decided this crate
-/// holds none, and that version may be one a lock names.
-/// A directory that is no longer empty is another run's work, so it stays and this is not a failure.
+/// holds none,
+/// and that version may be one a lock names.
+/// A directory that is no longer empty is another run's work,
+/// so it stays and this is not a failure.
 fn remove_crate_directory(crate_dir: &Path) -> Result<(), ToolchainError> {
     return match fs::remove_dir(crate_dir) {
         Ok(()) => Ok(()),

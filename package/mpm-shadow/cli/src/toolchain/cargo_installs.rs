@@ -318,15 +318,19 @@ pub fn point_current_at_newest(toolchain_root: &Path, crate_name: &str) -> Resul
 }
 
 /// What:
-/// Points `current` at `version`, unless it already names it,
+/// Points `current` at `version`,
+/// unless it already names it,
 /// and reports whether the link names `version` afterwards.
 /// `deleted_here` names the versions the caller is about to delete.
 /// Why:
 /// Every tree's exposed link goes through `current`,
-/// and a caller that knows which version survives (the prune, for one) must be able to name it,
+/// and a caller that knows which version survives (the prune,
+/// for one) must be able to name it,
 /// rather than have the newest installed version chosen for it.
-/// `false` tells that caller the link was left naming something else, so it can settle the link itself.
-/// A link naming a version in `deleted_here` is never preserved: that version is going away,
+/// `false` tells that caller the link was left naming something else,
+/// so it can settle the link itself.
+/// A link naming a version in `deleted_here` is never preserved:
+/// that version is going away,
 /// and the link has to end on a version that stays.
 ///
 /// In TS you'd write (pseudocode):

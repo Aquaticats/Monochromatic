@@ -323,7 +323,8 @@ fn installing_a_newer_version_keeps_the_version_a_process_of_this_account_runs()
 /// How many files the slow version of the concurrency control holds.
 /// Why:
 /// Deleting costs about 30 microseconds per file on this machine's store volume
-/// (`doc/toolchain-version-cleanup.md`, "The measurement it was sized from"),
+/// (`doc/toolchain-version-cleanup.md`,
+/// "The measurement it was sized from"),
 /// so this many files take about a fifth of a second:
 /// long enough for the control's second actor to remove the version it wants removed,
 /// and short enough to keep the test quick.
@@ -331,12 +332,14 @@ const SLOW_VERSION_FILES: usize = 6_000;
 
 /// What:
 /// A superseded version another command removed between the listing that judged it and the removal itself is a
-/// finished cleanup: the installation ends well and does not report the version as a failure.
+/// finished cleanup:
+/// the installation ends well and does not report the version as a failure.
 /// Why:
 /// The two worktrees of one repository share one toolchain root and the newest-only removal takes no lock,
 /// so two installs of the same newer version reach the same older version directory.
 /// The review of 2026-11-14 raced four calls against one store in five rounds and had two or three of them fail with
-/// "cannot remove the superseded ...: No such file or directory" in every round,
+/// "cannot remove the superseded ...:
+/// No such file or directory" in every round,
 /// which made a finished cleanup read as a failed install.
 #[test]
 fn a_superseded_version_another_run_removed_first_is_a_finished_cleanup() {

@@ -74,11 +74,13 @@ pub mod install_bin;
 pub mod install_cargo;
 
 /// What an `install` argument names:
-/// an id the plan holds, or a request to add to the plan,
+/// an id the plan holds,
+/// or a request to add to the plan,
 /// with its route and its binaries.
 pub mod install_argument;
 
-/// Appending entries to the plan's text with its comments, trailing commas and order kept.
+/// Appending entries to the plan's text with its comments,
+/// trailing commas and order kept.
 pub mod plan_insert;
 
 /// Where `cargo-binstall` tools live,
