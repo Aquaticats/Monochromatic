@@ -1255,9 +1255,12 @@ and what the coordinating session queued.
   resumed third
   (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-answers-its-review-of-2026-11-14-prompt.md`).
 - Going at 09:22:56:
-  seventeen Pi runs with the cap at twenty-four,
-  and no slow reading of the home drive since the cap was raised
-  (the probe has not ended).
+  seventeen Pi runs with the cap at twenty-four.
+  The probe at twenty-four has not ended:
+  one of its twenty-nine readings to 09:22:48 was slow,
+  7,754 ms at 08:55:36 with eight agents going and no snapshot service running
+  (an earlier wording of this line said there was none;
+  it was written before the readings were read).
   The queue held 63 entries.
 
 ##### The tracked archives are out of `main`; what one record says is kept goes back to the author (2026-11-14T09:04:01-05:00)
