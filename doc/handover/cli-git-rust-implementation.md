@@ -1198,6 +1198,27 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landed removal's guard is switched off by another flag, reproduced; back to its author (2026-11-14T10:13:49-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+having built the wrapper and driven it,
+and what the coordinating session queued.
+
+- **The landed removal's guard under the opt-out** (`bab700404d`):
+  two reproduced with controls.
+  With `--no-worktree-copy` a typed `git worktree remove` is forwarded plainly to real Git and the guard never runs,
+  so a hidden edit and a commit held only by a detached `HEAD` are destroyed with status 0,
+  where the plain removal keeps both;
+  the guard's own contract names `--force` and the policy opt-out as the only two things that stand it down.
+  And the refusal prints its way out with the path unquoted,
+  so for a path with a space the printed command ends with status 129 and removes nothing.
+  The author is resumed second in the queue
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-review-of-2026-11-14-prompt.md`).
+- The main checkout still listed 24 entries under `package/pi-shared` at 10:13:49:
+  the run that wrote there has taken both notes and has not yet moved its work.
+- The queue held 57 entries.
+
 ##### A Pi run wrote its work into the main checkout for fifty minutes; two reviewed changes are in `main`; a test fix goes to review (2026-11-14T10:11:48-05:00)
 
 Not final and not approved:
