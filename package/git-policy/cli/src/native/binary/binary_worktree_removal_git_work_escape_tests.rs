@@ -499,19 +499,19 @@ fn a_suffix_two_worktrees_share_is_guarded_on_the_worktree_git_picks() {
     remove(&scene.fixture);
 
     // The commit only a detached HEAD names, by the same shared suffix.
-    let scene: SharedSuffix = a_repository_whose_worktrees_share_a_suffix("removal-ambiguous-stranded");
-    std::fs::write(scene.inside.join("more.txt"), "more work\n").expect("a file in the worktree");
-    run_direct(&scene.fixture, scene.inside.as_path(), &["checkout", "--quiet", "--detach"]);
-    run_direct(&scene.fixture, scene.inside.as_path(), &["add", "more.txt"]);
-    run_direct(&scene.fixture, scene.inside.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
-    let named: std::process::Output = git(&scene.fixture, scene.inside.as_path(), &["rev-parse", "HEAD"]);
+    let stranded: SharedSuffix = a_repository_whose_worktrees_share_a_suffix("removal-ambiguous-stranded");
+    std::fs::write(stranded.inside.join("more.txt"), "more work\n").expect("a file in the worktree");
+    run_direct(&stranded.fixture, stranded.inside.as_path(), &["checkout", "--quiet", "--detach"]);
+    run_direct(&stranded.fixture, stranded.inside.as_path(), &["add", "more.txt"]);
+    run_direct(&stranded.fixture, stranded.inside.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+    let named: std::process::Output = git(&stranded.fixture, stranded.inside.as_path(), &["rev-parse", "HEAD"]);
     let commit: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
-    let refused: Observed = run_wrapped(&scene.fixture, scene.repo.as_path(), &["worktree", "remove", "proj/task"]);
-    let said: String = stderr_of(&refused);
-    assert_eq!(refused.code, Some(1), "the shared suffix is refused on the stranded commit too: {said}");
-    assert!(said.contains(&commit[..12]), "and names the commit: {said}");
-    assert!(scene.inside.exists(), "nothing was removed");
-    remove(&scene.fixture);
+    let stranded_refusal: Observed = run_wrapped(&stranded.fixture, stranded.repo.as_path(), &["worktree", "remove", "proj/task"]);
+    let stranded_words: String = stderr_of(&stranded_refusal);
+    assert_eq!(stranded_refusal.code, Some(1), "the shared suffix is refused on the stranded commit too: {stranded_words}");
+    assert!(stranded_words.contains(&commit[..12]), "and names the commit: {stranded_words}");
+    assert!(stranded.inside.exists(), "nothing was removed");
+    remove(&stranded.fixture);
 }
 
 /// What:

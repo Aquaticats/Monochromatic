@@ -234,8 +234,7 @@ fn unprovable_operand_refusal(command: &ResolvedCommand, reason: &str) -> String
     // The words Git will read after `remove`: the operand a person typed, or nothing when the words name no directory.
     let operand: String = command.arguments[command.subcommand_index + 2..]
         .iter()
-        .filter(|word| return word.as_encoded_bytes() != b"--")
-        .last()
+        .rfind(|word| return word.as_encoded_bytes() != b"--")
         .map(|word| return word.to_string_lossy().into_owned())
         .unwrap_or_default();
     let quoted: String = crate::shell_quote::shell_quote(operand.as_bytes());
