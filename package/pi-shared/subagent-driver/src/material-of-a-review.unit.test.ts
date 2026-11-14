@@ -12,10 +12,12 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   type CommandOutput,
+  type ReviewMaterial,
   ReviewGitError,
   codeFilesAmong,
   materialOfAReview,
   rangeOfABranch,
+  testsAndFixturesAmong,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -123,6 +125,105 @@ function aNotePath(): string {
 }
 
 /**
+ A test file of the code under review.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const test = aTestFilePath();
+ ```
+ */
+function aTestFilePath(): string {
+  return `${aSourceFolder()}/gate_tests.rs`;
+}
+
+/**
+ A fixture the tests use, which is not shipped code.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const fixture = aFixturePath();
+ ```
+ */
+function aFixturePath(): string {
+  return `${aSourceFolder()}/stand-in-git.ts`;
+}
+
+/**
+ A source file whose language a review does not read: the shim package's own `.cjs` implementation.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const source = aSourceFileNoReviewReads();
+ ```
+ */
+function aSourceFileNoReviewReads(): string {
+  return `${aSourceFolder()}/index.cjs`;
+}
+
+/**
+ The type file beside that source, which a review does not read either.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const types = aTypeFileNoReviewReads();
+ ```
+ */
+function aTypeFileNoReviewReads(): string {
+  return `${aSourceFolder()}/index.d.cts`;
+}
+
+/**
+ The files a review of code gives its reviewer, refusing a material the test did not expect to be about tests or nothing.
+
+ @param material - what the reading answered
+
+ @returns the files to read
+
+ @throws Error when the change answered as something other than code
+
+ @example
+ ```ts
+ const files = codeFilesOf(material);
+ ```
+ */
+function codeFilesOf(material: ReviewMaterial,): readonly string[] {
+  if (material.kind !== 'code-and-build-decisions') {
+    throw new Error(`a change of code answered as ${material.kind}`,);
+  }
+  return material.files;
+}
+
+/**
+ The files a review of a change to tests alone gives its reviewer, refusing a material the test did not expect to be a change to
+ tests.
+
+ @param material - what the reading answered
+
+ @returns the tests and fixtures to read
+
+ @throws Error when the change answered as something other than tests
+
+ @example
+ ```ts
+ const files = testsFilesOf(material);
+ ```
+ */
+function testsFilesOf(material: ReviewMaterial,): readonly string[] {
+  if (material.kind !== 'tests-and-fixtures') {
+    throw new Error(`a change of tests answered as ${material.kind}`,);
+  }
+  return material.files;
+}
+
+/**
  A stand-in git whose change touches exactly the paths given, which the reviewed commit still holds.
 
  @param paths - the paths the change touched, each from the top of the checkout
@@ -198,6 +299,7 @@ await describe({
                 'package/a/src/stand-in-git.ts',
                 'package/a/test_support/fixture.rs',
                 'package/a/test_support/Cargo.toml',
+                'package/a/tests/shim.rs',
                 'package/a/src/notes.md',
               ],
             },),).toEqual(['package/a/src/gate.rs',],);
@@ -246,6 +348,55 @@ await describe({
       ],
     },),
     describe({
+      name: testsAndFixturesAmong.name,
+      children: [
+        it({
+          name: 'keeps the tests and fixtures a review of code leaves out, and leaves out the code and the note those tests are about',
+          fn: async () => {
+            expect(testsAndFixturesAmong({
+              paths: [
+                `${aSourceFolder()}/gate.rs`,
+                aTestFilePath(),
+                `${aSourceFolder()}/gate.unit.test.ts`,
+                aFixturePath(),
+                `${aSourceFolder()}/test_support/fixture.rs`,
+                `${aSourceFolder()}/tests/shim.rs`,
+                aManifestPath(),
+                aNotePath(),
+              ],
+            },),).toEqual([
+              aTestFilePath(),
+              `${aSourceFolder()}/gate.unit.test.ts`,
+              aFixturePath(),
+              `${aSourceFolder()}/test_support/fixture.rs`,
+              `${aSourceFolder()}/tests/shim.rs`,
+            ],);
+          },
+        },),
+        it({
+          name: 'keeps a file under a tests folder whatever its extension, because a cargo integration test is written like the code it tests and its name says nothing',
+          fn: async () => {
+            expect(testsAndFixturesAmong({
+              paths: [
+                `${aSourceFolder()}/tests/shim.rs`,
+                `tests/whole-checkout.rs`,
+                `${aSourceFolder()}/contest.rs`,
+              ],
+            },),).toEqual([
+              `${aSourceFolder()}/tests/shim.rs`,
+              'tests/whole-checkout.rs',
+            ],);
+          },
+        },),
+        it({
+          name: 'leaves a source file whose language a review does not read out of both lists, so a change of one is never named as something to read',
+          fn: async () => {
+            expect(testsAndFixturesAmong({ paths: [aSourceFileNoReviewReads(), aTypeFileNoReviewReads(),], },),).toEqual([],);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: materialOfAReview.name,
       children: [
         it({
@@ -289,7 +440,8 @@ await describe({
               commit: aCommit(),
             },);
             expect(material.diff,).toContain(aSourceFolder(),);
-            expect(material.files,).toEqual([`${aSourceFolder()}/gate.rs`,],);
+            expect(material.kind,).toBe('code-and-build-decisions',);
+            expect(codeFilesOf(material,),).toEqual([`${aSourceFolder()}/gate.rs`,],);
             expect(asked,).toContainEqual([
               'diff',
               ranges[0],
@@ -345,53 +497,125 @@ await describe({
           },
         },),
         it({
-          name: 'answers no file for a change that touches only tests under the source folder, which is what makes a review of it not start',
+          name: 'answers a change of one test file as a change to tests alone, naming that test, so a review of it starts instead of being refused',
           fn: async () => {
             /**
              A git whose change is one test file.
              */
             async function git({ words, }: { readonly words: readonly string[] }): Promise<CommandOutput> {
               return answered((words[0] === 'ls-tree')
-                ? `${aSourceFolder()}/gate_tests.rs`
+                ? aTestFilePath()
                 : (words[1] === '--name-only')
-                  ? `${aSourceFolder()}/gate_tests.rs`
+                  ? aTestFilePath()
                   : 'a diff of a test');
             }
-            expect((await materialOfAReview({
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
               git,
               checkoutFolder: '/repo',
               ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
               source: aSourceFolder(),
               commit: aCommit(),
-            },)).files,).toEqual([],);
+            },);
+            expect(material.kind,).toBe('tests-and-fixtures',);
+            expect(testsFilesOf(material,),).toEqual([aTestFilePath(),],);
+          },
+        },),
+        it({
+          name: 'names a changed fixture with the changed test beside it, because a fixture is what the tests under it run',
+          fn: async () => {
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git: gitTouching({ paths: [aTestFilePath(), aFixturePath(),], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },);
+            expect(testsFilesOf(material,),).toEqual([aTestFilePath(), aFixturePath(),],);
+          },
+        },),
+        it({
+          name: 'reads a change of code and a test as the code alone, so a range that holds code is reviewed as it was',
+          fn: async () => {
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git: gitTouching({ paths: [`${aSourceFolder()}/gate.rs`, aTestFilePath(),], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },);
+            expect(material.kind,).toBe('code-and-build-decisions',);
+            expect(codeFilesOf(material,),).toEqual([`${aSourceFolder()}/gate.rs`,],);
+          },
+        },),
+        it({
+          name: 'answers nothing for a change of a source file whose language a review does not read beside its test, because a review of the test alone would leave that source unread',
+          fn: async () => {
+            expect((await materialOfAReview({
+              git: gitTouching({
+                paths: [aSourceFileNoReviewReads(), aTypeFileNoReviewReads(), `${aSourceFolder()}/index.unit.test.ts`,],
+              },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },)).kind,).toBe('nothing-a-review-reads',);
+          },
+        },),
+        it({
+          name: 'answers nothing for a range that changes nothing under the source folder, so no review is started for it',
+          fn: async () => {
+            expect((await materialOfAReview({
+              git: gitTouching({ paths: [], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },)).kind,).toBe('nothing-a-review-reads',);
           },
         },),
         it({
           name: 'keeps a manifest a change touched beside a note, because a reviewer can say what a changed profile, feature, dependency or task does, so the change is reviewed instead of answered as nothing to review',
           fn: async () => {
-            expect((await materialOfAReview({
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
               git: gitTouching({ paths: [aManifestPath(), aNotePath(),], },),
               checkoutFolder: '/repo',
               ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
               source: aSourceFolder(),
               commit: aCommit(),
-            },)).files,).toEqual([aManifestPath(),],);
+            },);
+            expect(codeFilesOf(material,),).toEqual([aManifestPath(),],);
           },
         },),
         it({
           name: 'keeps a manifest a change touched beside the lockfile a tool writes, and no lockfile with it, because nobody reads a lockfile whole',
           fn: async () => {
-            expect((await materialOfAReview({
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
               git: gitTouching({ paths: [aManifestPath(), `${aSourceFolder()}/Cargo.lock`,], },),
               checkoutFolder: '/repo',
               ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
               source: aSourceFolder(),
               commit: aCommit(),
-            },)).files,).toEqual([aManifestPath(),],);
+            },);
+            expect(codeFilesOf(material,),).toEqual([aManifestPath(),],);
           },
         },),
         it({
-          name: 'answers no file for a change that touches only notes and tests under the source folder, which is what makes a review of it not start',
+          name: 'answers nothing for a change of a note beside a test, because the change is not tests and fixtures alone and the note is not something a review reads',
           fn: async () => {
             expect((await materialOfAReview({
               git: gitTouching({ paths: [aNotePath(), `${aSourceFolder()}/gate.unit.test.ts`,], },),
@@ -399,7 +623,33 @@ await describe({
               ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
               source: aSourceFolder(),
               commit: aCommit(),
-            },)).files,).toEqual([],);
+            },)).kind,).toBe('nothing-a-review-reads',);
+          },
+        },),
+        it({
+          name: 'leaves out a changed test the reviewed commit no longer holds, so a review is not given a file it cannot read',
+          fn: async () => {
+            /**
+             A git whose range touched two tests, of which the commit holds one.
+             */
+            async function git({ words, }: { readonly words: readonly string[] }): Promise<CommandOutput> {
+              return answered((words[0] === 'ls-tree')
+                ? `${aSourceFolder()}/gate.unit.test.ts`
+                : (words[1] === '--name-only')
+                  ? `${aSourceFolder()}/gate.unit.test.ts\n${aTestFilePath()}`
+                  : 'a diff of two tests');
+            }
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git,
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },);
+            expect(testsFilesOf(material,),).toEqual([`${aSourceFolder()}/gate.unit.test.ts`,],);
           },
         },),
       ],

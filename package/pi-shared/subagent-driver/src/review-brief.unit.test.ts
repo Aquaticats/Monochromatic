@@ -17,8 +17,10 @@ import {
   NO_SYNTHETIC_HOST_LOAD,
   REVIEW_BRIEF_PLACEHOLDERS,
   TemplatePlaceholderError,
+  briefOfAChangeToTests,
   briefOfAReview,
   placeholdersIn,
+  placeholdersInTheBriefOfAChangeToTests,
   placeholdersInTheReviewBrief,
   reviewBriefValues,
 } from '../dist/final/node/index.mjs';
@@ -77,6 +79,23 @@ function aSourceFolder(): string {
  */
 function aReviewedFile(): string {
   return `${aSourceFolder()}/gate.rs`;
+}
+
+/**
+ The changed tests and fixtures a review of a change to tests alone reads.
+
+ @returns their paths, from the top of the checkout
+
+ @example
+ ```ts
+ const files = theChangedTests();
+ ```
+ */
+function theChangedTests(): readonly string[] {
+  return [
+    `${aSourceFolder()}/gate_tests.rs`,
+    `${aSourceFolder()}/stand-in-git.ts`,
+  ];
 }
 
 /**
@@ -167,6 +186,23 @@ function aBrief(): string {
   return briefOfAReview(aBriefRequest(),);
 }
 
+/**
+ The brief of a change to tests alone this file's expectations are about.
+
+ @returns the brief's text
+
+ @example
+ ```ts
+ const brief = aBriefOfAChangeToTests();
+ ```
+ */
+function aBriefOfAChangeToTests(): string {
+  return briefOfAChangeToTests({
+    ...aBriefRequest(),
+    files: theChangedTests(),
+  },);
+}
+
 await describe({
   name: '',
   children: [
@@ -185,6 +221,13 @@ await describe({
               reviewBriefValues(aBriefRequest(),),
             );
             expect(filledNames,).toEqual([...REVIEW_BRIEF_PLACEHOLDERS,],);
+          },
+        },),
+        it({
+          name: 'are the same in the brief of a change to tests alone, so the two briefs can never want a value the other fills',
+          fn: async () => {
+            expect([...placeholdersInTheBriefOfAChangeToTests(),],)
+              .toEqual([...REVIEW_BRIEF_PLACEHOLDERS,],);
           },
         },),
       ],
@@ -243,6 +286,74 @@ await describe({
           name: 'refuses a request whose values leave a placeholder unfilled',
           fn: async () => {
             expect(() => briefOfAReview({
+              ...aBriefRequest(),
+              reviewsFolder: `${aReviewsFolder()}/@FOCUS@`,
+            },),).toThrow(TemplatePlaceholderError,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: briefOfAChangeToTests.name,
+      children: [
+        it({
+          name: 'fills every placeholder, so no reviewer reads one as its task',
+          fn: async () => {
+            expect(placeholdersIn({ template: aBriefOfAChangeToTests(), },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'names the rules file first, quotes the ban on synthetic host load, and keeps the folders whose answers are another reviewer\'s out',
+          fn: async () => {
+            expect(aBriefOfAChangeToTests().startsWith(`Read \`${aRulesFile()}\` first and follow it.`,),).toBe(true,);
+            expect(aBriefOfAChangeToTests(),).toContain(NO_SYNTHETIC_HOST_LOAD,);
+            expect(aBriefOfAChangeToTests(),).toContain('this machine\'s session bus',);
+            expect(aBriefOfAChangeToTests(),).toContain('/var/home/user/temp/agent/kimi-reviews',);
+            expect(aBriefOfAChangeToTests(),).toContain(`\`${aReviewsFolder()}\` outside your own review folder`,);
+          },
+        },),
+        it({
+          name: 'says in plain words that the change is to tests, reads every changed test and fixture in full, and names the commit',
+          fn: async () => {
+            expect(aBriefOfAChangeToTests(),)
+              .toContain(`Review a change to the tests under \`${aSourceFolder()}\`.`,);
+            expect(aBriefOfAChangeToTests(),).toContain('the change is to them alone',);
+            expect(aBriefOfAChangeToTests(),).toContain(aCommit(),);
+            for (const file of theChangedTests()) {
+              expect(aBriefOfAChangeToTests(),).toContain(`- \`${file}\``,);
+            }
+          },
+        },),
+        it({
+          name: 'asks for a break planted under each changed test, that test run by name, and whether it fails, because a test that still passes with the break in is a finding',
+          fn: async () => {
+            expect(aBriefOfAChangeToTests(),).toContain('For each changed test above, plant a break under it',);
+            expect(aBriefOfAChangeToTests(),).toContain('in a copy of the code it tests or in the value it expects',);
+            expect(aBriefOfAChangeToTests(),).toContain('run that test by name, and say whether it fails',);
+            expect(aBriefOfAChangeToTests(),).toContain('a test that still passes with the break in is a finding',);
+            expect(aBriefOfAChangeToTests(),).toContain('Say what you read and what you ran',);
+          },
+        },),
+        it({
+          name: 'asks for the review file as soon as the reading is done, marked not final, and lists only concrete defects',
+          fn: async () => {
+            expect(aBriefOfAChangeToTests(),).toContain('marked at its top as not final',);
+            expect(aBriefOfAChangeToTests(),).toContain('write your review file before anything else you do at the end',);
+            expect(aBriefOfAChangeToTests(),).toContain('Leave out style, naming, and anything you cannot state as a sequence and a wrong result',);
+            expect(aBriefOfAChangeToTests(),).toContain(join(aReviewsFolder(), aReview(), 'review.md',),);
+          },
+        },),
+        it({
+          name: 'leaves the planted-break demand out of a change of code, whose reviewer judges the code as the change itself',
+          fn: async () => {
+            expect(aBrief(),).not.toContain('plant a break',);
+            expect(aBrief(),).toContain(`Review a change under \`${aSourceFolder()}\`.`,);
+          },
+        },),
+        it({
+          name: 'refuses a request whose values leave a placeholder unfilled',
+          fn: async () => {
+            expect(() => briefOfAChangeToTests({
               ...aBriefRequest(),
               reviewsFolder: `${aReviewsFolder()}/@FOCUS@`,
             },),).toThrow(TemplatePlaceholderError,);

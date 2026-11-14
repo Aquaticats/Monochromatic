@@ -16,6 +16,7 @@ export {
   outputOfGit,
   rangeOfABranch,
   readingIn,
+  testsAndFixturesAmong,
 } from './material-of-a-review.ts';
 export {
   CHANGE_DIFF_FILE_NAME,
@@ -52,9 +53,12 @@ export {
 export {
   FOCUS_OF_A_CHANGE_REVIEW,
   REVIEW_BRIEF_PLACEHOLDERS,
+  briefOfAChangeToTests,
   briefOfAReview,
+  placeholdersInTheBriefOfAChangeToTests,
   placeholdersInTheReviewBrief,
   reviewBriefValues,
+  subjectOfAChangeToTests,
   subjectOfAReview,
 } from './review-brief.ts';
 export {

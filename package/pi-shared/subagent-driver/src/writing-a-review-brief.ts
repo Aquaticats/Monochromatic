@@ -4,7 +4,8 @@
 
  A change that leaves nothing to read under the source folder writes nothing and answers one line, because a reviewer given no
  file reports nothing, which reads as a clean review although nothing was reviewed. What a change leaves to read is the code
- under that folder and the files that decide how that code is built, checked or run.
+ under that folder and the files that decide how that code is built, checked or run, and where it changes nothing but tests and
+ fixtures, those files, whose brief asks the reviewer to plant a break under each changed test and say whether it fails.
 
  @module
  */
@@ -20,7 +21,10 @@ import {
   type ReviewReading,
   materialOfAReview,
 } from './material-of-a-review.ts';
-import { briefOfAReview, } from './review-brief.ts';
+import {
+  briefOfAChangeToTests,
+  briefOfAReview,
+} from './review-brief.ts';
 import {
   briefFileOfAReview,
   diffFileOfAReview,
@@ -95,9 +99,7 @@ export async function writeReviewBrief({
     source,
     commit,
   },);
-  if (material.files
-    .length
-    === 0) {
+  if (material.kind === 'nothing-a-review-reads') {
     return {
       written: false,
       line: `nothing to review under ${source} in ${ranges.join(' and ',)}`,
@@ -142,16 +144,27 @@ export async function writeReviewBrief({
   );
   await writeFile(
     briefFile,
-    briefOfAReview({
-      review,
-      commit,
-      source,
-      files: material.files,
-      focus,
-      reviewsFolder,
-      runsFolder,
-      rulesFile,
-    },),
+    (material.kind === 'tests-and-fixtures')
+      ? briefOfAChangeToTests({
+        review,
+        commit,
+        source,
+        files: material.files,
+        focus,
+        reviewsFolder,
+        runsFolder,
+        rulesFile,
+      },)
+      : briefOfAReview({
+        review,
+        commit,
+        source,
+        files: material.files,
+        focus,
+        reviewsFolder,
+        runsFolder,
+        rulesFile,
+      },),
     'utf8',
   );
   // What the review read is kept beside its files: a branch moves on as soon as anyone commits to it, and a fix that answers

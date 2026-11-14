@@ -549,7 +549,7 @@ and `--rules-file`,
 which defaults to this package's `doc/rules-every-pi-brief-carries.md` in the checkout.
 
 It writes the diff of the ranges under the source folder,
-the brief that names the code files among them,
+the brief that names the files the reviewer reads,
 an empty `reproductions/` folder,
 and `what-the-review-read.json`,
 which records the commit, the ranges and the source folder a fix that answers this review starts from,
@@ -560,6 +560,9 @@ and prints one line:
 review-rewrite-the-gate: 12 files to read, brief at <reviews>/rewrite-the-gate/brief.md; its worktree starts at abc1234. Its folder is <reviews>/rewrite-the-gate
 ```
 
+What the reviewer reads depends on what the ranges changed under the source folder.
+
+A range that holds code or a build decision is reviewed as the change itself.
 The files are the `.rs` and `.ts` code the ranges touched,
 and the manifests and tool configurations that decide how that code is built,
 checked or run,
@@ -572,13 +575,33 @@ and `Containerfile`,
 without their tests and test stand-ins,
 without a lockfile or another file a tool writes and nobody reads whole,
 and without a file the reviewed commit does not hold.
-A change that leaves none of those under the source folder,
-which is a change of notes and tests alone,
+
+A range whose change is tests and fixtures alone has no code to judge,
+so the reviewer reads those files instead:
+every changed `_tests.rs` and `.test.ts` file,
+every changed file under a `tests/` folder,
+and every changed fixture the tests use,
+which is a file under `test_support` or named with a `stand-in-` prefix.
+The brief says in plain words that the change is to tests,
+and asks for the one thing a reviewer can show about a test:
+for each changed test,
+a break planted under it,
+in a copy of the code it tests or in the value it expects,
+the test run by name,
+and whether it fails.
+A test that still passes with the break in is a finding.
+
+A change that leaves neither under the source folder,
+which is a change of notes alone,
+of a lockfile,
+or of a language no review reads such as a `.cjs` file,
 writes nothing,
 prints `nothing to review under <source> in <ranges>`,
 and exits `1`:
 a reviewer given no file reports nothing,
 which reads as a clean review although nothing was reviewed.
+A change of a `.cjs` source and its test is answered so too:
+a review of the test alone would leave the change itself unread.
 
 ### `start-reviews-of-finished-branches`
 

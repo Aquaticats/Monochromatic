@@ -2,9 +2,14 @@
  What a review of a change reads: the range that names what changed, the diff of it under the reviewed source folder, and the
  files a reviewer is given.
 
- A reviewer given no file reports nothing, which reads as a clean review although it reviewed nothing, so a change that leaves
+ A reviewer given no file reports nothing, which reads as a clean review although it reviewed nothing, so a range that leaves
  nothing to read under the source folder is answered as nothing to review rather than started. A manifest or a configuration
  that decides how the code beside it is built, checked or run is something to read, so a change of one is reviewed.
+
+ A range whose change is tests and fixtures alone leaves no code to judge, and a reviewer given nothing for it would report
+ nothing, so those files are read too, as a change to tests: the brief asks the reviewer to plant a break under each changed test
+ and say whether it fails. Where the change's own code is written in a language a review does not read, as a `.cjs` file is, the
+ range is still answered as nothing to review, because a review of its tests alone would leave the change itself unread.
 
  @module
  */
@@ -45,6 +50,14 @@ const TEST_FIXTURE_PATH_PARTS: readonly string[] = [
   'test_support',
   'stand-in-',
 ];
+
+/**
+ The folder names whose files are tests whatever their extension: cargo puts a package's integration tests under `tests/`, and
+ such a test is written like the code it tests, so no suffix of its tells it from shipped code.
+ */
+const TEST_FOLDER_NAMES: ReadonlySet<string> = new Set<string>([
+  'tests',
+]);
 
 /**
  The names of the files a review reads although no extension of theirs says they are code: the manifests and tool
@@ -144,18 +157,48 @@ export class ReviewGitError extends Error {
 
 /**
  What a review of a change reads.
+
+ A change of code or of a build decision is read as `code-and-build-decisions`, and a change of tests and fixtures alone as
+ `tests-and-fixtures`, whose reviewer is asked to plant a break under each changed test. A range that changes nothing a review
+ reads is `nothing-a-review-reads`.
  */
 export type ReviewMaterial = {
   /**
    The diff of every range under the source folder, joined in the order the ranges were given.
    */
   readonly diff: string;
+} & (
+  | {
+    /**
+     The change holds code or a build decision, which a reviewer judges as the change itself.
+     */
+    readonly kind: 'code-and-build-decisions';
 
-  /**
-   The files the reviewer is given, each a path from the top of the checkout, in the order git named them.
-   */
-  readonly files: readonly string[];
-};
+    /**
+     The files the reviewer is given, each a path from the top of the checkout, in the order git named them: the code and the
+     build decisions among what the ranges touched, without the tests and fixtures beside them.
+     */
+    readonly files: readonly string[];
+  }
+    | {
+      /**
+       The change is tests and fixtures alone, so the tests themselves are what a reviewer can show something about.
+       */
+      readonly kind: 'tests-and-fixtures';
+
+      /**
+       The tests and fixtures the reviewer is given, each a path from the top of the checkout, in the order git named them: every
+       file the ranges touched under the source folder, which are tests and fixtures and nothing else.
+       */
+      readonly files: readonly string[];
+    }
+    | {
+      /**
+       The ranges changed nothing under the source folder that a review reads, so there is no review to start.
+       */
+      readonly kind: 'nothing-a-review-reads';
+    }
+);
 
 /**
  Asks git one question in the checkout and answers with what it printed.
@@ -412,6 +455,35 @@ function isABuildDecisionAReviewerReads(path: string,): boolean {
 }
 
 /**
+ Says whether a path sits in a folder of tests, whose files are tests whatever their extension.
+
+ @param path - a path from the top of the checkout
+
+ @returns whether a folder above the file is named for tests
+
+ @example
+ ```ts
+ const isATest = isInATestFolder('package/cargo-shadow/cli/tests/shim.rs',);
+ ```
+ */
+function isInATestFolder(path: string,): boolean {
+  /**
+   Every segment of the path.
+   */
+  const segments = path.split('/',);
+  /**
+   The path's folders, which are every segment before the file's own name.
+   */
+  const folders = segments.slice(
+    0,
+    -1,
+  );
+  return folders.some(function isATestFolder(folder,) {
+    return TEST_FOLDER_NAMES.has(folder,);
+  },);
+}
+
+/**
  Says whether a path is one of the files a review leaves out beside the change: the tests that check it, which a reviewer cannot
  judge as the change itself, and the fixtures and stand-in programs they use.
 
@@ -430,7 +502,8 @@ function isATestOrAFixture(path: string,): boolean {
   },)
     || TEST_FIXTURE_PATH_PARTS.some(function isAFixture(part,) {
       return path.includes(part,);
-    },);
+    },)
+    || isInATestFolder(path,);
 }
 
 /**
@@ -454,8 +527,28 @@ export function codeFilesAmong({ paths, }: { readonly paths: readonly string[] }
 }
 
 /**
- Reads what a review of one change reads: the diff of every range under the source folder, and the code files and build
- decisions among what those ranges touched that the reviewed commit still holds.
+ Filters the paths a change touched down to the tests that check it and the fixtures those tests use, which a review of code
+ leaves out and a review of a change to tests alone reads.
+
+ @param paths - the paths a change touched under the source folder
+
+ @returns the tests and fixtures among them, in the order given
+
+ @example
+ ```ts
+ const tests = testsAndFixturesAmong({ paths: ['src/gate.rs', 'src/gate_tests.rs', 'src/stand-in-git.ts'], },);
+ ```
+ */
+export function testsAndFixturesAmong({ paths, }: { readonly paths: readonly string[] },): readonly string[] {
+  return paths.filter(function isATestOrAFixturePath(path,) {
+    return isATestOrAFixture(path,);
+  },);
+}
+
+/**
+ Reads what a review of one change reads: the diff of every range under the source folder, and the files a reviewer is given,
+ which are the code files and build decisions the reviewed commit holds, the tests and fixtures it holds when the change is tests
+ and fixtures alone, or none.
 
  @param git - how one git question is run
 
@@ -467,7 +560,7 @@ export function codeFilesAmong({ paths, }: { readonly paths: readonly string[] }
 
  @param commit - the commit under review, whose tree says which files a reviewer can read
 
- @returns the diff and the files to read
+ @returns the diff and what kind of change it is, with the files to read
 
  @throws ReviewGitError when git did not answer with a success
 
@@ -546,11 +639,40 @@ export async function materialOfAReview({
     .filter(function isPath(line,) {
       return line !== '';
     },),);
-  return {
-    diff: diffs.join('\n',),
-    files: codeFilesAmong({ paths: touched, },)
-      .filter(function isHeldByTheCommit(path,) {
-        return held.has(path,);
-      },),
-  };
+  /**
+   The touched paths the reviewed commit holds.
+   */
+  const readable = touched.filter(function isHeldByTheCommit(path,) {
+    return held.has(path,);
+  },);
+  /**
+   The code and build decisions among them, which a reviewer reads whenever the change leaves any.
+   */
+  const files = codeFilesAmong({ paths: readable, },);
+  /**
+   The diff of every range, in the order the ranges were given.
+   */
+  const diff = diffs.join('\n',);
+  if (files.length > 0) {
+    return {
+      diff,
+      kind: 'code-and-build-decisions',
+      files,
+    };
+  }
+  /**
+   The tests and fixtures among them, which are read only when they are the whole change: a file a review reads no part of, a
+   `.cjs` source or a note, leaves the change itself unread, and a review of its tests alone would say nothing about it.
+   */
+  const testsAndFixtures = testsAndFixturesAmong({ paths: readable, },);
+  return ((testsAndFixtures.length > 0) && (testsAndFixtures.length === readable.length))
+    ? {
+      diff,
+      kind: 'tests-and-fixtures',
+      files: testsAndFixtures,
+    }
+    : {
+      diff,
+      kind: 'nothing-a-review-reads',
+    };
 }
