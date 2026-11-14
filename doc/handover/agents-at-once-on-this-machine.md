@@ -130,7 +130,9 @@ no load is made for the search.
 Levels go four,
 then double until one fails,
 then halve the gap between the last that held and the one that failed.
-The search is done again after the new drive is in (expected 2026-11-15).
+The search is done again after the new drive is in
+(expected 2026-11-17;
+the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-11-15).
 
 ## Readings
 
