@@ -42,7 +42,7 @@ use crate::guarded_forwarded_command::GuardedForwarded;
 /// The named facts a record of an exemption carries.
 use crate::discard_audit_facts::AuditFact;
 /// The record of every decision.
-use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies, record_audit_with_facts};
+use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_facts};
 /// The limits of the folder of saved copies of conflicted files.
 use crate::discarded_prune::Limits;
 /// The conflicted files a `checkout` or `restore` would replace,
@@ -82,7 +82,7 @@ use crate::rule_shared_remote_messages::shared_remote_settings_message;
 use crate::rule_worktree_dirty::index_file_is_absent;
 /// The one place a form is let through,
 /// which keeps a clean's nested repositories first.
-use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form, now_milliseconds};
+use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form};
 /// The common Git directory,
 ///  for naming the file every worktree shares.
 use crate::worktree_identity::common_directory;
