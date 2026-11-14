@@ -762,6 +762,15 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - The commit service that needs no service manager (tip `b896c60d97`, added 2026-11-14T15:02-05:00):
+    a service that is alive but stopped (a debugger, a starved acceptor) reads as recovering,
+    and the command ends after up to two minutes;
+    is a shorter bound wanted with the same words?
+  - mpm-shadow's cleanup of old versions (tip `542b881860`, added 2026-11-14T14:48-05:00):
+    a `current` link can dangle until the next sync repairs it;
+    no store-wide lock is adopted to close that window,
+    by the project's rule on concurrency,
+    open to veto.
   - A Pi run that cannot write into the main checkout (tip `ca137eb2bf`, added 2026-11-14T13:59-05:00):
     is a review's unit also held to a read-only worktree,
     which needs every package's build folder listed as writable so that a review can still build and test?
@@ -1240,6 +1249,77 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### `0.6.1-alpha.31` is installed and its first minutes are clean; tests' services write into the real user journal, a fresh run is queued; three wrapper answers go to review (2026-11-14T15:02:14-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+what three authors report of themselves,
+which it has not checked,
+and what it queued.
+
+- **`0.6.1-alpha.31`** (pass 43):
+  published at 14:48:15,
+  installed here from 14:48:36 to 14:48:46,
+  sample commit 1,562 ms,
+  `--version` answering `0.6.1-alpha.31`.
+  The user journal from 14:48:30 until 14:54:30:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit;
+  the installed program said `0.6.1-alpha.31` at five starts in its own units.
+  The next wrapper release is `0.6.1-alpha.32`.
+- **Tests' services write into the real user journal.**
+  The same six minutes hold twelve more lines of a service saying its release at start
+  (`0.6.1-alpha.30` nine times,
+  `0.0.1-before`,
+  `0.6.1-alpha.99` and `0.6.1-alpha.31` once each),
+  every one from a debug build in the worktree of one of two authors
+  (issue 6293's and the no-service-manager's),
+  run in that agent's transient scope;
+  the line of `0.6.1-alpha.23` at 13:42:28 was the first seen.
+  They are fixtures,
+  not this machine's services,
+  and they show that a test's service reaches a record every session shares,
+  against the project's rule that verification which changes state uses disposable fixtures.
+  A script that tells the two apart is kept beside the counting one
+  (`~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/group-the-services-that-said-their-release-at-start-by-program-and-unit.ts`,
+  run once on that window),
+  and a fresh run is queued fourth
+  (`~/temp/agent/pi-runs/service-a-test-starts-writes-no-line-into-the-user-journal-of-the-machine-prompt.md`).
+- **The commit service that needs no service manager** (tip `b896c60d97`, ended 14:56:16):
+  the author reports the third review answered,
+  with no measurable cost
+  (a later commit at a ratio of 1.025,
+  range 0.983 to 1.089,
+  inside that arm's spread)
+  and 72 tests of the changed modules passing at four CPUs.
+  It changed a guard of `main` to expect the command the message names,
+  and made the test support hold one point for each hold where it held one in all.
+  Its question is added to the kept list:
+  a service that is alive but stopped now reads as recovering,
+  and the command ends after up to two minutes.
+  Review queued first (range `main...b896c60d97`, 71 code files).
+- **The discarding commands** (tip `697dca1425`, ended 14:56:58):
+  the author reports the six findings of the fourth review answered at their cause,
+  five of the review's scripts no longer reproducing and the sixth saving the bare repository whole;
+  66 tests of the changed modules and 78 binary controls passing.
+  Left alone and named:
+  an unforced `git rm --sparse` is still unguarded,
+  and `checkout-index -f --stdin` is read as the whole index (a refusal too many,
+  no loss).
+  Review queued second (range `main...697dca1425`, 33 code files).
+- **The package state of a new worktree** (tip `51217078af`, ended 14:59:39):
+  the author reports the third review answered,
+  the review's three harness modes passing,
+  and names two mistakes of its own:
+  a commit message bash ate part of
+  (not amended;
+  a corrective commit comment posted),
+  and a `git restore --worktree` of its own that threw away an uncommitted fix,
+  so one commit carried documents and tests alone until the next carried the code.
+  Review queued third (range `main...51217078af`, nine code files).
+- The queue held 60 entries at 15:02:14.
 
 ##### mpm-shadow's cleanup of old versions is answered a third time and goes to review (2026-11-14T14:48:42-05:00)
 
