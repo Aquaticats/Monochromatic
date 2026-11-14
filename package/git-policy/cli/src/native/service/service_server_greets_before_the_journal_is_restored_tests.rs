@@ -195,9 +195,7 @@ fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer
     assert!(landed.is_some(), "the commit of a client that waited is landed once the journal's ceiling passed");
     assert!(beats >= 1, "a service whose journal gave no answer still proves it lives, once a second, before a commit lands");
     // What a client sends once its commit is landed: the repository whose work items are now to be run.
-    let mut work: String = encode_client(&ClientMessage::Work { git_dir: world.repo.join(".git"), review_key: None });
-    work.push('\n');
-    (&stream).write_all(work.as_bytes()).expect("the client announces the work its commit left");
+    wake_the_work(world.socket().as_path(), world.repo.join(".git").as_path());
     let _written: bool = crate::test_support::wait_until(&|| { return a_note_was_written(world.notes().as_path()); });
     let kept: Vec<PathBuf> = ClaimWatch::restored(world.notes().as_path(), None).directories();
     assert_eq!(kept, vec![world.repo.join(".git")], "the repository the service drained is written in the journal the start kept, so the next start looks at it");
@@ -206,6 +204,23 @@ fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer
     let joined: bool = join_within(serving);
     let _let_go = let_go.send(());
     assert!(joined, "the service ends when it is told to retire, so a read that gave no answer did not hold it");
+}
+
+/// Tells the service at `socket` that work items were written for `git_dir`,
+/// which is what wakes the after-commit work.
+/// Why:
+///  The service serves one line per connection and closes it once the line is read,
+/// so a wake is a connection of its own, as the wrapper's is
+/// (`service_client.rs`,
+/// `wake`).
+fn wake_the_work(socket: &Path, git_dir: &Path) {
+    let stream: UnixStream = UnixStream::connect(socket).expect("the service listens");
+    let _timeout = stream.set_read_timeout(Some(HEARTBEAT_EVERY * 5));
+    let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a second handle on the connection"));
+    let _greeted: bool = greeted(&mut reader);
+    let mut line: String = encode_client(&ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: None });
+    line.push('\n');
+    (&stream).write_all(line.as_bytes()).expect("the client announces the work its commit left");
 }
 
 /// Tells the service at `socket` to retire,
