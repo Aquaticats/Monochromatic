@@ -1564,7 +1564,7 @@ not an additional Depot allocation.
 Raw packed logs also retain a logger file-sink verification diagnostic;
 the functional checks do not claim complete logger coverage.
 
-The [sealed packed receipts](../audit/depot-complete-coverage-packed-consumer-receipts.json.gz)
+The sealed packed receipts (`../audit/depot-complete-coverage-packed-consumer-receipts.json.gz`)
 retain the 26 exact producer archives,
 plans,
 run boundaries,
@@ -1577,6 +1577,8 @@ Git identities,
 materialized source hashes,
 packed archive hashes,
 and installed resolution paths remain separate.
+`depot-complete-coverage-packed-consumer-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The original campaign now has 42 completed owned job rows,
 USD1.488 GitHub rounded-minute proxies,
@@ -1726,7 +1728,7 @@ The explicit nextest scheduler adapter adds only
 preserving default build/test concurrency and retaining original/adapted hashes.
 Actual compiler host and emitted binary architecture are checked before native-consumer credit.
 
-The [sealed host admission evidence](../audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz)
+The sealed host admission evidence (`../audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz`)
 retains exact plans,
 workflow bytes,
 tool prerequisites,
@@ -1736,6 +1738,8 @@ Evidence bytes:
 `26778`;
 SHA-256:
 `f5755e11392506471c3461675c86b9bef97099f64eb841c0f296270beb8bebdd`.
+`depot-current-host-controls-admission-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ### Bounded host bootstrap correction before dispatch
 
@@ -1800,12 +1804,14 @@ The ledger has 48 completed owned rows and USD4.7280 committed and reserved
 under the original USD5 guard;
 the USD6 fallback is unused.
 The separately admitted Depot OS profile remains unallocated with USD1.92 reserved under its USD2 guard.
-The immutable first-handoff evidence is [`depot-current-host-first-handoff-2026-10-18.evidence.json.gz`](../audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz),
+The immutable first-handoff evidence is `depot-current-host-first-handoff-2026-10-18.evidence.json.gz`,
 121319 bytes,
 SHA-256 `c7d97ade72711bc3386591871419757f97f05afb5055f03b8e671dfeadd1cf85`.
 The finite queue still owns matched Depot Mac/Windows execution,
 the per-package semantic assertion manifest,
 and the desktop screenshot publication audit.
+`depot-current-host-first-handoff-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Desktop publication boundary and source assertion identities
 
@@ -1869,15 +1875,21 @@ with actual CPU/memory observation still unmeasured for that handoff.
 The original sealed handoff is preserved;
 the corrected row projection is in the desktop receipt.
 
-- [`depot-complete-coverage-desktop-receipts.json.gz`](../audit/depot-complete-coverage-desktop-receipts.json.gz):
+- `depot-complete-coverage-desktop-receipts.json.gz`:
   22756 bytes,
   SHA-256 `8b9be6f1b2cfb29540226d0a8c4b520d867d8d6a24b0eddda516198b26b26885`.
-- [`depot-complete-coverage-external-generation-receipts.json.gz`](../audit/depot-complete-coverage-external-generation-receipts.json.gz):
+- `depot-complete-coverage-external-generation-receipts.json.gz`:
   1910 bytes,
   SHA-256 `899467f33d5eccfb01a1f053db71c773bf4406db86887131698ab59193f67c6b`.
-- [`depot-complete-coverage-source-feature-assertions.json.gz`](../audit/depot-complete-coverage-source-feature-assertions.json.gz):
+- `depot-complete-coverage-source-feature-assertions.json.gz`:
   3341685 bytes,
   SHA-256 `11e25bc960076fd330bb923c3bd0aa586b52ec47824c7633198d1a9bd7910204`.
+  `depot-complete-coverage-desktop-receipts.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `depot-complete-coverage-external-generation-receipts.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `depot-complete-coverage-source-feature-assertions.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The remaining finite factual queue is independently owned:
 
@@ -2123,7 +2135,7 @@ with a thirty-minute job cap and twenty-seven-minute inner deadline.
 At most two globally coordinated cloud jobs may overlap.
 No material allocation existed at this admission checkpoint.
 
-The [public GNU terminal evidence][gnu-terminal-owner] closes the corrected parser activation boundary:
+The public GNU terminal evidence (`../audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz`) closes the corrected parser activation boundary:
 1,494 unique binary/case identities ran,
 with 1,492 passed,
 two failed and one summary-only skip.
@@ -2135,6 +2147,8 @@ The original source assertions remain unchanged.
 Job `117747819418` ran from `18:00:26Z` to `18:10:52Z`,
 a 626-second provider interval,
 with nominal standard-public compute USD0 and unmeasured artifact/storage charges.
+`depot-current-host-gnu-owner-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 A separate matched Depot-Windows GNU proposal remains queued for Parent source review.
 It may request one four-CPU/sixteen-GB job for twenty minutes,
@@ -2148,7 +2162,6 @@ No matched Depot GNU allocation is admitted by this executable material-owner re
 
 [material-parent-admission]: ../audit/depot-material-owner-parent-admission-2026-10-18.evidence.json
 [material-executable-admission]: ../audit/depot-material-owner-executable-admission-2026-10-18.evidence.json
-[gnu-terminal-owner]: ../audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz
 
 ## Material-owner dispatch checkpoint and matched GNU queue
 

@@ -33606,7 +33606,18 @@
           "sha256": "e3b1023242fb838e30ad22ce1aa0c593f412401be141901594af34c484177bce",
           "readerLog": "{\"event\":\"native-report-read\",\"path\":\"/home/runner/work/Monochromatic/Monochromatic/source/mutation-report.json\",\"readAt\":\"2026-10-17T06:57:38.617Z\",\"mtimeMs\":1792220258591.1794,\"bytes\":9107224,\"sha256\":\"e3b1023242fb838e30ad22ce1aa0c593f412401be141901594af34c484177bce\",\"node\":\"v26.10.0\"}\n"
         },
-        "compressedEvidencePath": "doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz"
+        "compressedEvidencePath": "doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null
+          }
+        ]
       },
       "terminal": {
         "runId": "p6vm5s00w6",
@@ -129029,7 +129040,18 @@
           "shardCount": 9037,
           "infraErrorCount": 9037,
           "packagePath": "package/module/toml-edit",
-          "allIdentitiesAndFullErrorsRetained": true
+          "allIdentitiesAndFullErrorsRetained": true,
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null
+            }
+          ]
         },
         "reconciliation": {
           "distinctMutantIdentities": 3062,
@@ -275271,7 +275293,18 @@
             "runtimeBounds": "Source run argv declares2g/2CPUs/512PIDs/1800s. No live source container was captured by the periodic snapshots."
           }
         }
-      }
+      },
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "preCommonBindingRoute": {
       "branch": "trial/depot-toml-continuation-20261017",
@@ -279302,7 +279335,18 @@
         },
         "driver": {
           "path": "control-toml-mutation-evidence.ts",
-          "text": "import { strict as assert } from 'node:assert';\nimport { readFileSync, writeFileSync } from 'node:fs';\nimport { gunzipSync } from 'node:zlib';\nimport { createHash } from 'node:crypto';\nimport { join } from 'node:path';\nimport { homedir } from 'node:os';\nimport { reconcileMutationEvidence } from './verify-toml-mutation-evidence.ts';\n\nconst read = path => JSON.parse(readFileSync(path, 'utf8'));\nconst main = join(homedir(), 'Monochromatic');\nconst old = JSON.parse(gunzipSync(readFileSync(join(main, 'doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz'))));\nconst audit = read(join(main, 'doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json'));\nconst tests = audit.continuation.development.terminal.reconciliation.selectedTestFiles;\n\nfunction load({ runId, attemptId }) {\n  const root = 'collected-' + runId;\n  const index = read(join(root, 'artifact-index.native-accounting.json'));\n  const artifact = index.artifacts.find(row => !attemptId || row.attempt_id === attemptId);\n  const directory = join(root, artifact.extraction);\n  const bounded = read(join(directory, 'toml-bounded-package.module.toml-edit.test.mutation-results.json'));\n  return { bounded, directory, files: bounded.shardEvidence.map(row => ({ path: row.path, expectedBytes: row.bytes, expectedSha256: row.sha256, bytes: readFileSync(join(directory, 'toml-mutation-shards', row.path)) })) };\n}\n\nfunction rejection({ name, action }) {\n  let diagnostic;\n  try { action(); }\n  catch (error) { diagnostic = String(error); }\n  assert(diagnostic, 'Negative evidence fixture was accepted: ' + name);\n  return { name, diagnostic };\n}\n\nconst pilot = load({ runId: 'vlrxjltfkq' });\nconst pilotNative = read(join(pilot.directory, pilot.bounded.nativeReports[0].artifactPath));\nconst pilotExpected = { ...old, mutants: old.mutants.filter(row => row.id === '9cd1056a095eaea1') };\nconst pilotInput = { native: pilotNative, expected: pilotExpected, files: pilot.files, expectedTests: tests, sourceCalls: pilot.bounded.sourcePodmanCalls };\nconst pilotResult = reconcileMutationEvidence(pilotInput);\nassert.equal(pilotResult.sourceMutationCompleted, true);\nassert.equal(pilotResult.compilationTerminalIdentities, 1);\nassert.equal(pilotResult.sourceReportedTestRunnerTerminals, 0);\nassert.equal(pilotResult.physicalAttemptMappingAvailable, true);\nconst legacy = load({ runId: 'p6vm5s00w6', attemptId: 'q3xbl70q20' });\nconst legacyResult = reconcileMutationEvidence({ native: old, expected: old, files: legacy.files, expectedTests: tests });\nassert.equal(legacyResult.selectedIdentities, 3062);\nassert.equal(legacyResult.manifestAttempts, 9037);\nassert.equal(legacyResult.assignments, 18338);\nassert.equal(legacyResult.sourceMutationCompleted, false);\nassert.equal(legacyResult.infrastructureIdentities, 3062);\nassert.equal(legacyResult.sourceReportedTestRunnerTerminals, 0);\nconst wrongNative = structuredClone(pilotNative);\nwrongNative.mutants[0].id = '0000000000000000';\nconst duplicateNative = structuredClone(pilotNative);\nduplicateNative.mutants.push(duplicateNative.mutants[0]);\nconst changedManifest = { ...pilot.files[0] };\nconst contents = JSON.parse(changedManifest.bytes.toString());\ncontents.mutants[0].id = '0000000000000000';\nchangedManifest.bytes = Buffer.from(JSON.stringify(contents));\nchangedManifest.expectedBytes = changedManifest.bytes.length;\nchangedManifest.expectedSha256 = createHash('sha256').update(changedManifest.bytes).digest('hex');\nconst negatives = [\n  rejection({ name: 'wrong native identity', action: () => reconcileMutationEvidence({ ...pilotInput, native: wrongNative }) }),\n  rejection({ name: 'duplicate native identity', action: () => reconcileMutationEvidence({ ...pilotInput, native: duplicateNative }) }),\n  rejection({ name: 'unknown manifest identity with matching byte receipt', action: () => reconcileMutationEvidence({ ...pilotInput, files: [changedManifest, ...pilot.files.slice(1)] }) }),\n  rejection({ name: 'censored selected test file', action: () => reconcileMutationEvidence({ ...pilotInput, expectedTests: tests.slice(1) }) }),\n];\nconst report = { observedAt: new Date().toISOString(), realPilot: { selected: pilotResult.selectedIdentities, compilerTerminals: pilotResult.compilationTerminalIdentities, sourceReportedTestRunnerTerminals: pilotResult.sourceReportedTestRunnerTerminals, completeSelectedPilot: pilotResult.sourceMutationCompleted, physicalMapping: pilotResult.physicalAttemptMappingAvailable }, realHistoricalFailure: { selected: legacyResult.selectedIdentities, attempts: legacyResult.manifestAttempts, assignments: legacyResult.assignments, infra: legacyResult.infrastructureIdentities, sourceCompleted: legacyResult.sourceMutationCompleted }, negatives, verifierSha256: createHash('sha256').update(readFileSync('verify-toml-mutation-evidence.ts')).digest('hex') };\nwriteFileSync('toml-mutation-evidence-controls.json', JSON.stringify(report, null, 2) + '\\n');\nconsole.log(JSON.stringify(report));\n"
+          "text": "import { strict as assert } from 'node:assert';\nimport { readFileSync, writeFileSync } from 'node:fs';\nimport { gunzipSync } from 'node:zlib';\nimport { createHash } from 'node:crypto';\nimport { join } from 'node:path';\nimport { homedir } from 'node:os';\nimport { reconcileMutationEvidence } from './verify-toml-mutation-evidence.ts';\n\nconst read = path => JSON.parse(readFileSync(path, 'utf8'));\nconst main = join(homedir(), 'Monochromatic');\nconst old = JSON.parse(gunzipSync(readFileSync(join(main, 'doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz'))));\nconst audit = read(join(main, 'doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json'));\nconst tests = audit.continuation.development.terminal.reconciliation.selectedTestFiles;\n\nfunction load({ runId, attemptId }) {\n  const root = 'collected-' + runId;\n  const index = read(join(root, 'artifact-index.native-accounting.json'));\n  const artifact = index.artifacts.find(row => !attemptId || row.attempt_id === attemptId);\n  const directory = join(root, artifact.extraction);\n  const bounded = read(join(directory, 'toml-bounded-package.module.toml-edit.test.mutation-results.json'));\n  return { bounded, directory, files: bounded.shardEvidence.map(row => ({ path: row.path, expectedBytes: row.bytes, expectedSha256: row.sha256, bytes: readFileSync(join(directory, 'toml-mutation-shards', row.path)) })) };\n}\n\nfunction rejection({ name, action }) {\n  let diagnostic;\n  try { action(); }\n  catch (error) { diagnostic = String(error); }\n  assert(diagnostic, 'Negative evidence fixture was accepted: ' + name);\n  return { name, diagnostic };\n}\n\nconst pilot = load({ runId: 'vlrxjltfkq' });\nconst pilotNative = read(join(pilot.directory, pilot.bounded.nativeReports[0].artifactPath));\nconst pilotExpected = { ...old, mutants: old.mutants.filter(row => row.id === '9cd1056a095eaea1') };\nconst pilotInput = { native: pilotNative, expected: pilotExpected, files: pilot.files, expectedTests: tests, sourceCalls: pilot.bounded.sourcePodmanCalls };\nconst pilotResult = reconcileMutationEvidence(pilotInput);\nassert.equal(pilotResult.sourceMutationCompleted, true);\nassert.equal(pilotResult.compilationTerminalIdentities, 1);\nassert.equal(pilotResult.sourceReportedTestRunnerTerminals, 0);\nassert.equal(pilotResult.physicalAttemptMappingAvailable, true);\nconst legacy = load({ runId: 'p6vm5s00w6', attemptId: 'q3xbl70q20' });\nconst legacyResult = reconcileMutationEvidence({ native: old, expected: old, files: legacy.files, expectedTests: tests });\nassert.equal(legacyResult.selectedIdentities, 3062);\nassert.equal(legacyResult.manifestAttempts, 9037);\nassert.equal(legacyResult.assignments, 18338);\nassert.equal(legacyResult.sourceMutationCompleted, false);\nassert.equal(legacyResult.infrastructureIdentities, 3062);\nassert.equal(legacyResult.sourceReportedTestRunnerTerminals, 0);\nconst wrongNative = structuredClone(pilotNative);\nwrongNative.mutants[0].id = '0000000000000000';\nconst duplicateNative = structuredClone(pilotNative);\nduplicateNative.mutants.push(duplicateNative.mutants[0]);\nconst changedManifest = { ...pilot.files[0] };\nconst contents = JSON.parse(changedManifest.bytes.toString());\ncontents.mutants[0].id = '0000000000000000';\nchangedManifest.bytes = Buffer.from(JSON.stringify(contents));\nchangedManifest.expectedBytes = changedManifest.bytes.length;\nchangedManifest.expectedSha256 = createHash('sha256').update(changedManifest.bytes).digest('hex');\nconst negatives = [\n  rejection({ name: 'wrong native identity', action: () => reconcileMutationEvidence({ ...pilotInput, native: wrongNative }) }),\n  rejection({ name: 'duplicate native identity', action: () => reconcileMutationEvidence({ ...pilotInput, native: duplicateNative }) }),\n  rejection({ name: 'unknown manifest identity with matching byte receipt', action: () => reconcileMutationEvidence({ ...pilotInput, files: [changedManifest, ...pilot.files.slice(1)] }) }),\n  rejection({ name: 'censored selected test file', action: () => reconcileMutationEvidence({ ...pilotInput, expectedTests: tests.slice(1) }) }),\n];\nconst report = { observedAt: new Date().toISOString(), realPilot: { selected: pilotResult.selectedIdentities, compilerTerminals: pilotResult.compilationTerminalIdentities, sourceReportedTestRunnerTerminals: pilotResult.sourceReportedTestRunnerTerminals, completeSelectedPilot: pilotResult.sourceMutationCompleted, physicalMapping: pilotResult.physicalAttemptMappingAvailable }, realHistoricalFailure: { selected: legacyResult.selectedIdentities, attempts: legacyResult.manifestAttempts, assignments: legacyResult.assignments, infra: legacyResult.infrastructureIdentities, sourceCompleted: legacyResult.sourceMutationCompleted }, negatives, verifierSha256: createHash('sha256').update(readFileSync('verify-toml-mutation-evidence.ts')).digest('hex') };\nwriteFileSync('toml-mutation-evidence-controls.json', JSON.stringify(report, null, 2) + '\\n');\nconsole.log(JSON.stringify(report));\n",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null
+            }
+          ]
         },
         "sourceSchema": [
           {
@@ -279385,7 +279429,18 @@
           },
           "driver": {
             "path": "control-toml-mutation-evidence.ts",
-            "text": "import { strict as assert } from 'node:assert';\nimport { readFileSync, writeFileSync } from 'node:fs';\nimport { gunzipSync } from 'node:zlib';\nimport { createHash } from 'node:crypto';\nimport { join } from 'node:path';\nimport { homedir } from 'node:os';\nimport { reconcileMutationEvidence } from './verify-toml-mutation-evidence.ts';\n\nconst read = path => JSON.parse(readFileSync(path, 'utf8'));\nconst main = join(homedir(), 'Monochromatic');\nconst old = JSON.parse(gunzipSync(readFileSync(join(main, 'doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz'))));\nconst audit = read(join(main, 'doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json'));\nconst tests = audit.continuation.development.terminal.reconciliation.selectedTestFiles;\n\nfunction load({ runId, attemptId }) {\n  const root = 'collected-' + runId;\n  const index = read(join(root, 'artifact-index.native-accounting.json'));\n  const artifact = index.artifacts.find(row => !attemptId || row.attempt_id === attemptId);\n  const directory = join(root, artifact.extraction);\n  const bounded = read(join(directory, 'toml-bounded-package.module.toml-edit.test.mutation-results.json'));\n  return { bounded, directory, files: bounded.shardEvidence.map(row => ({ path: row.path, expectedBytes: row.bytes, expectedSha256: row.sha256, bytes: readFileSync(join(directory, 'toml-mutation-shards', row.path)) })) };\n}\n\nfunction rejection({ name, action }) {\n  let diagnostic;\n  try { action(); }\n  catch (error) { diagnostic = String(error); }\n  assert(diagnostic, 'Negative evidence fixture was accepted: ' + name);\n  return { name, diagnostic };\n}\n\nconst pilot = load({ runId: 'vlrxjltfkq' });\nconst pilotNative = read(join(pilot.directory, pilot.bounded.nativeReports[0].artifactPath));\nconst pilotExpected = { ...old, mutants: old.mutants.filter(row => row.id === '9cd1056a095eaea1') };\nconst pilotInput = { native: pilotNative, expected: pilotExpected, files: pilot.files, expectedTests: tests, sourceCalls: pilot.bounded.sourcePodmanCalls };\nconst pilotResult = reconcileMutationEvidence(pilotInput);\nassert.equal(pilotResult.sourceMutationCompleted, true);\nassert.equal(pilotResult.compilationTerminalIdentities, 1);\nassert.equal(pilotResult.assertionTerminalIdentities, 0);\nassert.equal(pilotResult.physicalAttemptMappingAvailable, true);\nconst legacy = load({ runId: 'p6vm5s00w6', attemptId: 'q3xbl70q20' });\nconst legacyResult = reconcileMutationEvidence({ native: old, expected: old, files: legacy.files, expectedTests: tests });\nassert.equal(legacyResult.selectedIdentities, 3062);\nassert.equal(legacyResult.manifestAttempts, 9037);\nassert.equal(legacyResult.assignments, 18338);\nassert.equal(legacyResult.sourceMutationCompleted, false);\nassert.equal(legacyResult.infrastructureIdentities, 3062);\nassert.equal(legacyResult.assertionTerminalIdentities, 0);\nconst wrongNative = structuredClone(pilotNative);\nwrongNative.mutants[0].id = '0000000000000000';\nconst duplicateNative = structuredClone(pilotNative);\nduplicateNative.mutants.push(duplicateNative.mutants[0]);\nconst changedManifest = { ...pilot.files[0] };\nconst contents = JSON.parse(changedManifest.bytes.toString());\ncontents.mutants[0].id = '0000000000000000';\nchangedManifest.bytes = Buffer.from(JSON.stringify(contents));\nchangedManifest.expectedBytes = changedManifest.bytes.length;\nchangedManifest.expectedSha256 = createHash('sha256').update(changedManifest.bytes).digest('hex');\nconst negatives = [\n  rejection({ name: 'wrong native identity', action: () => reconcileMutationEvidence({ ...pilotInput, native: wrongNative }) }),\n  rejection({ name: 'duplicate native identity', action: () => reconcileMutationEvidence({ ...pilotInput, native: duplicateNative }) }),\n  rejection({ name: 'unknown manifest identity with matching byte receipt', action: () => reconcileMutationEvidence({ ...pilotInput, files: [changedManifest, ...pilot.files.slice(1)] }) }),\n  rejection({ name: 'censored selected test file', action: () => reconcileMutationEvidence({ ...pilotInput, expectedTests: tests.slice(1) }) }),\n];\nconst report = { observedAt: new Date().toISOString(), realPilot: { selected: pilotResult.selectedIdentities, compilerTerminals: pilotResult.compilationTerminalIdentities, assertionTerminals: pilotResult.assertionTerminalIdentities, completeSelectedPilot: pilotResult.sourceMutationCompleted, physicalMapping: pilotResult.physicalAttemptMappingAvailable }, realHistoricalFailure: { selected: legacyResult.selectedIdentities, attempts: legacyResult.manifestAttempts, assignments: legacyResult.assignments, infra: legacyResult.infrastructureIdentities, sourceCompleted: legacyResult.sourceMutationCompleted }, negatives, verifierSha256: createHash('sha256').update(readFileSync('verify-toml-mutation-evidence.ts')).digest('hex') };\nwriteFileSync('toml-mutation-evidence-controls.json', JSON.stringify(report, null, 2) + '\\n');\nconsole.log(JSON.stringify(report));\n"
+            "text": "import { strict as assert } from 'node:assert';\nimport { readFileSync, writeFileSync } from 'node:fs';\nimport { gunzipSync } from 'node:zlib';\nimport { createHash } from 'node:crypto';\nimport { join } from 'node:path';\nimport { homedir } from 'node:os';\nimport { reconcileMutationEvidence } from './verify-toml-mutation-evidence.ts';\n\nconst read = path => JSON.parse(readFileSync(path, 'utf8'));\nconst main = join(homedir(), 'Monochromatic');\nconst old = JSON.parse(gunzipSync(readFileSync(join(main, 'doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz'))));\nconst audit = read(join(main, 'doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json'));\nconst tests = audit.continuation.development.terminal.reconciliation.selectedTestFiles;\n\nfunction load({ runId, attemptId }) {\n  const root = 'collected-' + runId;\n  const index = read(join(root, 'artifact-index.native-accounting.json'));\n  const artifact = index.artifacts.find(row => !attemptId || row.attempt_id === attemptId);\n  const directory = join(root, artifact.extraction);\n  const bounded = read(join(directory, 'toml-bounded-package.module.toml-edit.test.mutation-results.json'));\n  return { bounded, directory, files: bounded.shardEvidence.map(row => ({ path: row.path, expectedBytes: row.bytes, expectedSha256: row.sha256, bytes: readFileSync(join(directory, 'toml-mutation-shards', row.path)) })) };\n}\n\nfunction rejection({ name, action }) {\n  let diagnostic;\n  try { action(); }\n  catch (error) { diagnostic = String(error); }\n  assert(diagnostic, 'Negative evidence fixture was accepted: ' + name);\n  return { name, diagnostic };\n}\n\nconst pilot = load({ runId: 'vlrxjltfkq' });\nconst pilotNative = read(join(pilot.directory, pilot.bounded.nativeReports[0].artifactPath));\nconst pilotExpected = { ...old, mutants: old.mutants.filter(row => row.id === '9cd1056a095eaea1') };\nconst pilotInput = { native: pilotNative, expected: pilotExpected, files: pilot.files, expectedTests: tests, sourceCalls: pilot.bounded.sourcePodmanCalls };\nconst pilotResult = reconcileMutationEvidence(pilotInput);\nassert.equal(pilotResult.sourceMutationCompleted, true);\nassert.equal(pilotResult.compilationTerminalIdentities, 1);\nassert.equal(pilotResult.assertionTerminalIdentities, 0);\nassert.equal(pilotResult.physicalAttemptMappingAvailable, true);\nconst legacy = load({ runId: 'p6vm5s00w6', attemptId: 'q3xbl70q20' });\nconst legacyResult = reconcileMutationEvidence({ native: old, expected: old, files: legacy.files, expectedTests: tests });\nassert.equal(legacyResult.selectedIdentities, 3062);\nassert.equal(legacyResult.manifestAttempts, 9037);\nassert.equal(legacyResult.assignments, 18338);\nassert.equal(legacyResult.sourceMutationCompleted, false);\nassert.equal(legacyResult.infrastructureIdentities, 3062);\nassert.equal(legacyResult.assertionTerminalIdentities, 0);\nconst wrongNative = structuredClone(pilotNative);\nwrongNative.mutants[0].id = '0000000000000000';\nconst duplicateNative = structuredClone(pilotNative);\nduplicateNative.mutants.push(duplicateNative.mutants[0]);\nconst changedManifest = { ...pilot.files[0] };\nconst contents = JSON.parse(changedManifest.bytes.toString());\ncontents.mutants[0].id = '0000000000000000';\nchangedManifest.bytes = Buffer.from(JSON.stringify(contents));\nchangedManifest.expectedBytes = changedManifest.bytes.length;\nchangedManifest.expectedSha256 = createHash('sha256').update(changedManifest.bytes).digest('hex');\nconst negatives = [\n  rejection({ name: 'wrong native identity', action: () => reconcileMutationEvidence({ ...pilotInput, native: wrongNative }) }),\n  rejection({ name: 'duplicate native identity', action: () => reconcileMutationEvidence({ ...pilotInput, native: duplicateNative }) }),\n  rejection({ name: 'unknown manifest identity with matching byte receipt', action: () => reconcileMutationEvidence({ ...pilotInput, files: [changedManifest, ...pilot.files.slice(1)] }) }),\n  rejection({ name: 'censored selected test file', action: () => reconcileMutationEvidence({ ...pilotInput, expectedTests: tests.slice(1) }) }),\n];\nconst report = { observedAt: new Date().toISOString(), realPilot: { selected: pilotResult.selectedIdentities, compilerTerminals: pilotResult.compilationTerminalIdentities, assertionTerminals: pilotResult.assertionTerminalIdentities, completeSelectedPilot: pilotResult.sourceMutationCompleted, physicalMapping: pilotResult.physicalAttemptMappingAvailable }, realHistoricalFailure: { selected: legacyResult.selectedIdentities, attempts: legacyResult.manifestAttempts, assignments: legacyResult.assignments, infra: legacyResult.infrastructureIdentities, sourceCompleted: legacyResult.sourceMutationCompleted }, negatives, verifierSha256: createHash('sha256').update(readFileSync('verify-toml-mutation-evidence.ts')).digest('hex') };\nwriteFileSync('toml-mutation-evidence-controls.json', JSON.stringify(report, null, 2) + '\\n');\nconsole.log(JSON.stringify(report));\n",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null
+              }
+            ]
           },
           "sourceSchema": [
             {
@@ -291154,7 +291209,18 @@
           "path": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
           "bytes": 12057855,
           "sha256": "31e45cf2ad99de72d9253c70e1057f050f985c617c1d69a2ee3402f5ec1fa5e3",
-          "members": 2337
+          "members": 2337,
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md"
+            }
+          ]
         },
         "durableReconciliation": {
           "path": "doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz",
@@ -291163,7 +291229,18 @@
           "uncompressedBytes": 12603753,
           "uncompressedSha256": "7473bb92dd3d5487be231132e5f2de5dd10729210d8d9f5f613145db80be54ea",
           "selectedIdentities": 3062,
-          "creationScope": "Immutable snapshot created before independent classifier control finished. The source status labels remain unchanged; current classifier/emitter evidence is retained in mutationRunnerSpawnControl.resolvedDependencyRepeat.terminal."
+          "creationScope": "Immutable snapshot created before independent classifier control finished. The source status labels remain unchanged; current classifier/emitter evidence is retained in mutationRunnerSpawnControl.resolvedDependencyRepeat.terminal.",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null
+            }
+          ]
         },
         "reconciliation": {
           "selectedIdentities": 3062,
@@ -371894,7 +371971,18 @@
       "number": 1118,
       "state": "OPEN",
       "title": "Mutation method lookup emits inherited Object functions as replacement text",
-      "url": "https://github.com/Aquaticats/Monochromatic/issues/1118"
+      "url": "https://github.com/Aquaticats/Monochromatic/issues/1118",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "body": "## Observed failure\n\nThe unchanged source TOML mutation task completes with exit zero,\ngreen baseline and one source-terminal compileError mutant,\nbut the trial job fails an independent metadata observer.\nNo mutant assertion execution or full-campaign pass is claimed.\n\nThis repeated in run mj128hqwv0,\nworkflow t8wq69b56g,\njob h4c49btlhq,\nattempt 3wnf82gzb8,\nsource 525d2e09f8168a3bdd7e513e26d4c80b363123e5,\nharness 0f8ad795aa92d3beb83e3bfa4e4aa54f1bea06f8.\nThe earlier bounded run 0j8zhbn9n0 retained the same null-status assertion without underlying operation details.\n\n## Exact observer receipt\n\nThe command was container-bin/podman ps --all --filter label=io.monochromatic.toml-attempt=7185dde1-5802-43c2-b296-e257b9f313cf --format json,\nworking in the immutable source checkout.\n\nIt ran from 2026-10-17T07:25:23.786Z to 2026-10-17T07:25:31.793Z,\nobserved 8006.465648000001 milliseconds against an 8000-millisecond budget,\nand returned null status,\nSIGKILL,\nETIMEDOUT,\nerrno -110.\nStdout was three bytes ([] plus newline); stderr was zero bytes.\nThe wrapper assertion was null !== 0.\n\nThe generated Node container adapter forwards synchronously to sudo --non-interactive and the resolved actual Podman executable,\nthen propagates returned status after conditional cleanup.\nAn empty list on stdout does not establish wrapper or underlying Podman completion.\nPodman,\nsudo and Node lifecycle ownership remains unresolved; no database-lock or upstream lifecycle cause is claimed.\nSeven other list operations and the final event query returned zero.\nSource cleanup guards passed.\n\n## Immutable evidence\n\nArtifact 01a148c0-c29e-7644-a0ec-f546f5caf3e8 has 46389 bytes,\nSHA-256 3e12339c854c28f69ef9ecdc29e03b2f1f0efe2959ad66bfd23347e1d75df2bb.\nAll 20 members are individually verified.\nExact operation JSONL,\nsource-native report,\nshard identities,\nbefore/after source proof,\nlogs and cleanup are retained in doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json,\ncommit 7555eb5a89.\nProvider interval 165116 milliseconds at 16x64 remains failed usage.\n\n## Trial recovery and acceptance\n\nThe authorized metadata-only trial uses a 60000-millisecond bound,\nan observer-only copied forwarder with before/after sudo lifecycle receipts,\nand complete metadata durations.\nThe source consumer keeps the proven d098532a container adapter byte-for-byte and unchanged source arguments.\nDisposable controls prove forwarding,\ntimeout rejection,\nand detection after removing the timeout guard.\nActual bounded repeat vlrxjltfkq is dispatched at 316e1a8a309e71e456a741eb63e5ff3b94b75646.\n\nAcceptance requires actual source completion,\nall metadata operation receipts,\nexplicit forwarded results,\nsource correlation and scoped cleanup,\nwhile preserving original failures and timeout rejection.\nNo application source change is included.\nFull mutation completion remains separate.\n\n## Duplicate search\n\nAll-state current-repository searches covered TOML metadata,\npodman ETIMEDOUT,\nand mutation observer.\nIssue #1113 is the separate outer job timeout that lost active mutation evidence and censored an independent gate.\nIssue #1114 concerns immutable input guards,\n#1070 concerns the source logger sink timeout/SIGKILL,\nand #1116/#1117 concern other container prerequisites.\nNo matching metadata-observer deadline incident was found.\n",
@@ -372258,7 +372346,18 @@
       "number": 1118,
       "state": "OPEN",
       "title": "Mutation method lookup emits inherited Object functions as replacement text",
-      "url": "https://github.com/Aquaticats/Monochromatic/issues/1118"
+      "url": "https://github.com/Aquaticats/Monochromatic/issues/1118",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   },
   "metadataObserverIssue": {
@@ -372720,7 +372819,18 @@
             "path": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
             "bytes": 12057855,
             "sha256": "31e45cf2ad99de72d9253c70e1057f050f985c617c1d69a2ee3402f5ec1fa5e3",
-            "members": 2337
+            "members": 2337,
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md"
+              }
+            ]
           },
           {
             "path": "doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz",
@@ -372728,7 +372838,18 @@
             "sha256": "7bbdb669aec26a41aec88713f77ad39311cc5777caa112d06099c8eaea279c39",
             "uncompressedBytes": 12603753,
             "uncompressedSha256": "7473bb92dd3d5487be231132e5f2de5dd10729210d8d9f5f613145db80be54ea",
-            "selectedIdentities": 3062
+            "selectedIdentities": 3062,
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null
+              }
+            ]
           }
         ],
         "selectedIdentities": 3062,
@@ -380250,7 +380371,18 @@
           "path": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
           "bytes": 100312,
           "sha256": "88073f4fd7a6e22b0c268e63d70eca7e89b01448174917b712adc34a98bcac12",
-          "members": 31
+          "members": 31,
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 5d3d964bf514a741fc664fd5401340082a908e7c:doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md"
+            }
+          ]
         },
         "sourceIssueState": "Published and re-fetched OPEN with needs-triage. No source fix."
       },
@@ -380285,7 +380417,18 @@
         "number": 1142,
         "state": "OPEN",
         "title": "Mutation runner classifies a failed Node spawn as a killed mutant",
-        "url": "https://github.com/Aquaticats/Monochromatic/issues/1142"
+        "url": "https://github.com/Aquaticats/Monochromatic/issues/1142",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 5d3d964bf514a741fc664fd5401340082a908e7c:doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md"
+          }
+        ]
       },
       "duplicateSearch": [
         {
@@ -380331,7 +380474,18 @@
         ]
       },
       "evidenceCommit": "5d3d964bf5",
-      "sourceFix": false
+      "sourceFix": false,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 5d3d964bf514a741fc664fd5401340082a908e7c:doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": "doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md"
+        }
+      ]
     },
     "agentInstructionProposal": {
       "target": "AGENTS.md QIV",
@@ -382057,7 +382211,27 @@
           "number": 1113,
           "state": "CLOSED",
           "title": "TOML CI timeout loses active mutation evidence and censors an independent gate",
-          "url": "https://github.com/Aquaticats/Monochromatic/issues/1113"
+          "url": "https://github.com/Aquaticats/Monochromatic/issues/1113",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": "doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md"
+            },
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null
+            }
+          ]
         },
         "closureCommentUrl": "https://github.com/Aquaticats/Monochromatic/issues/1113#issuecomment-6232394931",
         "closureBodyVerified": true,

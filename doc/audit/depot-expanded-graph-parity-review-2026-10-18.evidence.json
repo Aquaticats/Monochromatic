@@ -5443,6 +5443,17 @@
     "path": "doc/audit/depot-expanded-graph-parity-review-2026-10-18.sources.json.gz",
     "bytes": 154233,
     "sha256": "117d2c7103877917eecc037f73ce013766b5f778b56324540de2f34f31aeaaca",
-    "records": 20
+    "records": 20,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 088d45e80e2d29548541813f23821e8d16fa1290:doc/audit/depot-expanded-graph-parity-review-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   }
 }

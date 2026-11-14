@@ -1932,7 +1932,18 @@
     "path": "depot-job-policy-history-2026-10-18.archives.json.gz",
     "bytes": 5899,
     "sha256": "c96e692b6dacebaffac76c045c46286fbd49b92262b91b7395dd0bec1597ac6c",
-    "originalZipCount": 8
+    "originalZipCount": 8,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 8b358eaa515d03e99f26e4b765592d3fbfbf0244:doc/audit/depot-job-policy-history-2026-10-18.archives.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "admission": {
     "source": "f446852c42d4a382ba7931e6730a17cb3d8308e0",

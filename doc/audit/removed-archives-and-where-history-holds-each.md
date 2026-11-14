@@ -94,6 +94,15 @@ its note sits on the nearest enclosing entry this repository wrote.
 These are the sites where that happened,
 listed so the reader can find the note:
 
+- `doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json`,
+  field `/continuation/pilotRecovery/issueComment` names `doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz`;
+  the note is on `/continuation/pilotRecovery`.
+- `doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json`,
+  field `/historicalIndependentCoverage/closureIssue/receipt/issue/comments/0` names `doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip`;
+  the note is on `/historicalIndependentCoverage/closureIssue/receipt/issue`.
+- `doc/audit/depot-toml-reconciliation-2026-10-17.evidence.json`,
+  field `/historicalIndependentCoverage/closureIssue/receipt/issue/comments/0` names `doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz`;
+  the note is on `/historicalIndependentCoverage/closureIssue/receipt/issue`.
 
 ## Planning records, `doc/planning/depot-*`
 
@@ -446,9 +455,347 @@ listed so the reader can find the note:
   last changed in commit `b1b7669f03151c1f7417452987d4850923469eeb`,
   printed by `git show b1b7669f03151c1f7417452987d4850923469eeb:doc/audit/firefox-esr-disk-responsiveness.sources.json.gz`.
 
+## Audit records, `doc/audit/depot-*`
+
+66 archives left the tree in this family.
+
+- `doc/audit/depot-arm64-functional-2026-10-18.sources.json.gz`:
+  86403 bytes,
+  SHA-256 `003e3155561cea4636cb927d1709e5e157fa27fa0995e49083632266558390d5`,
+  last changed in commit `20abb5fa5b96353b646a2d25e0c8eca13c6ab49d`,
+  printed by `git show 20abb5fa5b96353b646a2d25e0c8eca13c6ab49d:doc/audit/depot-arm64-functional-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz`:
+  8210 bytes,
+  SHA-256 `f92c3eb1f7e87bd59c393faa0df7a1f9e42f762bb287cbdb8697154b0c690f6d`,
+  last changed in commit `1b28fb2da949ced0d57fdcaf19d47d5f07b20390`,
+  printed by `git show 1b28fb2da949ced0d57fdcaf19d47d5f07b20390:doc/audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz`.
+- `doc/audit/depot-cache-trust-scope-2026-10-18.sources.json.gz`:
+  1641463 bytes,
+  SHA-256 `cab47536cdfa53aa741420880ea2a89000c3490f443ec9e577ee28a83279a1fa`,
+  last changed in commit `77833ff47edd8ce593611a5e4cc017d6a3e51607`,
+  printed by `git show 77833ff47edd8ce593611a5e4cc017d6a3e51607:doc/audit/depot-cache-trust-scope-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-complete-coverage-desktop-receipts.json.gz`:
+  22756 bytes,
+  SHA-256 `8b9be6f1b2cfb29540226d0a8c4b520d867d8d6a24b0eddda516198b26b26885`,
+  last changed in commit `ab400e8cb74148a62eb567ccf1c2ebee850a1582`,
+  printed by `git show ab400e8cb74148a62eb567ccf1c2ebee850a1582:doc/audit/depot-complete-coverage-desktop-receipts.json.gz`.
+- `doc/audit/depot-complete-coverage-external-generation-receipts.json.gz`:
+  1910 bytes,
+  SHA-256 `899467f33d5eccfb01a1f053db71c773bf4406db86887131698ab59193f67c6b`,
+  last changed in commit `ab400e8cb74148a62eb567ccf1c2ebee850a1582`,
+  printed by `git show ab400e8cb74148a62eb567ccf1c2ebee850a1582:doc/audit/depot-complete-coverage-external-generation-receipts.json.gz`.
+- `doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz`:
+  1701669 bytes,
+  SHA-256 `3a050fdd4e1dc025c0cff57efd77f056504b7fada677e25158f6b50b233a467b`,
+  last changed in commit `898fd6ab03be33c0e478115671cf82f71fbf46c3`,
+  printed by `git show 898fd6ab03be33c0e478115671cf82f71fbf46c3:doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz`.
+- `doc/audit/depot-complete-coverage-source-feature-assertions.json.gz`:
+  3341685 bytes,
+  SHA-256 `11e25bc960076fd330bb923c3bd0aa586b52ec47824c7633198d1a9bd7910204`,
+  last changed in commit `ab400e8cb74148a62eb567ccf1c2ebee850a1582`,
+  printed by `git show ab400e8cb74148a62eb567ccf1c2ebee850a1582:doc/audit/depot-complete-coverage-source-feature-assertions.json.gz`.
+- `doc/audit/depot-container-prerequisites-2026-10-18.sources.json.gz`:
+  15117 bytes,
+  SHA-256 `f713b99f1f6842cdf206ca2f447af351d6d05ff2ba638633c7a90f7ebadf8a76`,
+  last changed in commit `922faafef162af0f153f1b83e1d761b210651f1a`,
+  printed by `git show 922faafef162af0f153f1b83e1d761b210651f1a:doc/audit/depot-container-prerequisites-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-current-baseline-build-2026-10-18.log.gz`:
+  19469 bytes,
+  SHA-256 `a8aefe633a69a43eafb37147bd3cb0923dc2d7154a07816f1cfb2231fe289796`,
+  last changed in commit `ac99991c648e7f703369ffb5acc7207ea020ff30`,
+  printed by `git show ac99991c648e7f703369ffb5acc7207ea020ff30:doc/audit/depot-current-baseline-build-2026-10-18.log.gz`.
+- `doc/audit/depot-current-baseline-ci-39197594870-2026-10-18.log.gz`:
+  194192 bytes,
+  SHA-256 `c85527ec93557fa0d07411b49be56161b26965fa3966986c7b77bb6d51ef4049`,
+  last changed in commit `331cc20126d9e529d3f4b49c4828d21a5b6912c5`,
+  printed by `git show 331cc20126d9e529d3f4b49c4828d21a5b6912c5:doc/audit/depot-current-baseline-ci-39197594870-2026-10-18.log.gz`.
+- `doc/audit/depot-current-baseline-static-2026-10-18.log.gz`:
+  822925 bytes,
+  SHA-256 `790bf4d6ac1e97256ab5b03e61a4196fb0d6db2f571c56f1d83674015939e192`,
+  last changed in commit `f9c7bd60825ae51fcf511cd0384dc26f2af8a06f`,
+  printed by `git show f9c7bd60825ae51fcf511cd0384dc26f2af8a06f:doc/audit/depot-current-baseline-static-2026-10-18.log.gz`.
+- `doc/audit/depot-current-baseline-unit-2026-10-18.log.gz`:
+  160177 bytes,
+  SHA-256 `0cd3ee73d1d1cc46ecb388ff9402643efd8a79fc9c87eb5bbebefef799848823`,
+  last changed in commit `ac99991c648e7f703369ffb5acc7207ea020ff30`,
+  printed by `git show ac99991c648e7f703369ffb5acc7207ea020ff30:doc/audit/depot-current-baseline-unit-2026-10-18.log.gz`.
+- `doc/audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz`:
+  25554 bytes,
+  SHA-256 `c25fc9c62a39f31922736e61ba53fe71217c96e0c77497a613543962331a5ef3`,
+  last changed in commit `046596174a061c31e4e2b8e8aaf7eca6565384a8`,
+  printed by `git show 046596174a061c31e4e2b8e8aaf7eca6565384a8:doc/audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz`.
+- `doc/audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz`:
+  121319 bytes,
+  SHA-256 `c7d97ade72711bc3386591871419757f97f05afb5055f03b8e671dfeadd1cf85`,
+  last changed in commit `1a562991f6d24f8284b931c7913fb3c30c5f3467`,
+  printed by `git show 1a562991f6d24f8284b931c7913fb3c30c5f3467:doc/audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz`.
+- `doc/audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz`:
+  2046665 bytes,
+  SHA-256 `19e672e8a099c63b4a070e4619f7c6bea8b844629d80a91cb5f8f88b4c7c2372`,
+  last changed in commit `208b7da9a5532a2c4b136cc285f4e165a9696911`,
+  printed by `git show 208b7da9a5532a2c4b136cc285f4e165a9696911:doc/audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz`.
+- `doc/audit/depot-current-host-owner-comparison-2026-10-18.evidence.json.gz`:
+  14207447 bytes,
+  SHA-256 `c11ce61387c8675f99c303cad6093d444a13bc7c42adf24eb77f2bdd1f1677b7`,
+  last changed in commit `c7d1c45a007d773dbd491bd9228611095286bfcc`,
+  printed by `git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-comparison-2026-10-18.evidence.json.gz`.
+- `doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz`:
+  14201235 bytes,
+  SHA-256 `d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35`,
+  last changed in commit `c7d1c45a007d773dbd491bd9228611095286bfcc`,
+  printed by `git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz`.
+- `doc/audit/depot-expanded-graph-conditional-waiting-value-2026-10-18.sources.json.gz`:
+  5704 bytes,
+  SHA-256 `254a0f69763e8cccfe6bd0f4d2785e757c8d4fde48e02edf232715a11876c5e5`,
+  last changed in commit `655373399364dbfc4d3a6fcb9f2e35b99d8248a0`,
+  printed by `git show 655373399364dbfc4d3a6fcb9f2e35b99d8248a0:doc/audit/depot-expanded-graph-conditional-waiting-value-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-expanded-graph-github-repetition-2026-10-18.sources.json.gz`:
+  154139 bytes,
+  SHA-256 `f3fb9967cba82508ccf37968ea772c97e2363d39a61df7d2d69ee66d9b9e0a9b`,
+  last changed in commit `05d02428a0a0322ab4267a7d522c593317541699`,
+  printed by `git show 05d02428a0a0322ab4267a7d522c593317541699:doc/audit/depot-expanded-graph-github-repetition-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz`:
+  173906 bytes,
+  SHA-256 `86b8686ea7e3496cdc9246fa2947b51968350f5031cff535e97ccceb36fb8ac9`,
+  last changed in commit `f53c920cb24157db59873d3b24aaf51a493d6e32`,
+  printed by `git show f53c920cb24157db59873d3b24aaf51a493d6e32:doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-expanded-graph-native-parity-review-2026-10-18.sources.json.gz`:
+  118332 bytes,
+  SHA-256 `63ce6da88139b3b1941f38f015e630d6d4c91f38c07a96fc49fa3b001959c7cd`,
+  last changed in commit `e0790e738da7e1c33e49fa200e9fc5105d11503a`,
+  printed by `git show e0790e738da7e1c33e49fa200e9fc5105d11503a:doc/audit/depot-expanded-graph-native-parity-review-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-expanded-graph-parity-review-2026-10-18.sources.json.gz`:
+  154233 bytes,
+  SHA-256 `117d2c7103877917eecc037f73ce013766b5f778b56324540de2f34f31aeaaca`,
+  last changed in commit `088d45e80e2d29548541813f23821e8d16fa1290`,
+  printed by `git show 088d45e80e2d29548541813f23821e8d16fa1290:doc/audit/depot-expanded-graph-parity-review-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.sources.json.gz`:
+  18551 bytes,
+  SHA-256 `122ef60af29ddb193445fead9080bac530ab5cb18879690c1b471154d05ce97c`,
+  last changed in commit `5edbdadcc278cb95484aa1d4033495317513c75c`,
+  printed by `git show 5edbdadcc278cb95484aa1d4033495317513c75c:doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-expanded-graph-preflight-2026-10-18.sources.json.gz`:
+  1096903 bytes,
+  SHA-256 `4f173723e155cff0ae91c7c3c794c9ceeed930603f2960bb03b94cc87a233d01`,
+  last changed in commit `eec08fd2264de03236d1953ec2cce7fa5841fff8`,
+  printed by `git show eec08fd2264de03236d1953ec2cce7fa5841fff8:doc/audit/depot-expanded-graph-preflight-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-expanded-graph-setup-failure-2026-10-18.sources.json.gz`:
+  2184 bytes,
+  SHA-256 `caf8e72e975d2bba895c4e734f617d16ea3c2de4b6b13d06d633d987e4a06f01`,
+  last changed in commit `eabb44a5e6ac03320cbbb488ed643c2d995e2877`,
+  printed by `git show eabb44a5e6ac03320cbbb488ed643c2d995e2877:doc/audit/depot-expanded-graph-setup-failure-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-fast-subset-baseline-39199930641-2026-10-18.log.gz`:
+  100237 bytes,
+  SHA-256 `75f5c277894782b3727b463678e0580405769f4115c05db5a5eafe993ee9a36f`,
+  last changed in commit `31b65e086e384a7fe9f1e9008d75aab2794ad9f1`,
+  printed by `git show 31b65e086e384a7fe9f1e9008d75aab2794ad9f1:doc/audit/depot-fast-subset-baseline-39199930641-2026-10-18.log.gz`.
+- `doc/audit/depot-gnu-design-terminal-2026-10-18.sources.json.gz`:
+  2082916 bytes,
+  SHA-256 `068977eea116b0c033c8a7ba286e776c38c0bf1f40ccfb26a528e818e6ed71c6`,
+  last changed in commit `8d80a5ed1d4dbcbdb6d58b281437d40a0d85b146`,
+  printed by `git show 8d80a5ed1d4dbcbdb6d58b281437d40a0d85b146:doc/audit/depot-gnu-design-terminal-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-image-list-empty-output-2026-10-18.sources.json.gz`:
+  12512 bytes,
+  SHA-256 `537a75bf0542f03cca5ea03fcdf0299f979aac67a5365d5691790c0d4a0ec617`,
+  last changed in commit `d5e3e0e9101560fc716b19b967004e00ddfb60e0`,
+  printed by `git show d5e3e0e9101560fc716b19b967004e00ddfb60e0:doc/audit/depot-image-list-empty-output-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-included-allowance-2026-10-18.sources.json.gz`:
+  112370 bytes,
+  SHA-256 `197dac272cc047780d092b6b3740c61091805a0aa7b87211cd4406ec1ba784c0`,
+  last changed in commit `1434118fe0bb7bff146caa5cf31a291f1a857c3e`,
+  printed by `git show 1434118fe0bb7bff146caa5cf31a291f1a857c3e:doc/audit/depot-included-allowance-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-job-policy-history-2026-10-18.archives.json.gz`:
+  5899 bytes,
+  SHA-256 `c96e692b6dacebaffac76c045c46286fbd49b92262b91b7395dd0bec1597ac6c`,
+  last changed in commit `8b358eaa515d03e99f26e4b765592d3fbfbf0244`,
+  printed by `git show 8b358eaa515d03e99f26e4b765592d3fbfbf0244:doc/audit/depot-job-policy-history-2026-10-18.archives.json.gz`.
+- `doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz`:
+  8976 bytes,
+  SHA-256 `c52a7c7cbbbae7719035a881194bdda8a07e1810f3743b83893cef6323095825`,
+  last changed in commit `6daf14ae5a00cc41d19bc777531cce12267ef15f`,
+  printed by `git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz`.
+- `doc/audit/depot-local-figma-authored-consumer-2026-10-18.sources.json.gz`:
+  998 bytes,
+  SHA-256 `e2eb57e29c36e4785c360132f5659260ef74d7a39d41327909852be507ed1b7c`,
+  last changed in commit `5a52544d1e65e8f29de9ce315e0698965b532c26`,
+  printed by `git show 5a52544d1e65e8f29de9ce315e0698965b532c26:doc/audit/depot-local-figma-authored-consumer-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-local-node-capture-correction-2026-10-18.sources.json.gz`:
+  9905 bytes,
+  SHA-256 `6bc7ac7872561855779aa9b126b397e662de6bb1aa8454bb6bf29157a680b5c4`,
+  last changed in commit `9412e49ee6259e4e9cacfc0b36d27660882d081c`,
+  printed by `git show 9412e49ee6259e4e9cacfc0b36d27660882d081c:doc/audit/depot-local-node-capture-correction-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-local-node-counterfactual-2026-10-18.sources.json.gz`:
+  8408 bytes,
+  SHA-256 `bf7243ebbd570e912bf84fdca493c0c5a6ffda3de40211a9abdba97edc6a482d`,
+  last changed in commit `1b29e57f37ea1a698501870026d7de1f07ebdf5d`,
+  printed by `git show 1b29e57f37ea1a698501870026d7de1f07ebdf5d:doc/audit/depot-local-node-counterfactual-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-material-owner-input-payload-identities-2026-10-18.evidence.json.gz`:
+  211223 bytes,
+  SHA-256 `6435ee9f846e5f964ef1ad408cc540adb053d8a37d95bde7264766aa7a87459e`,
+  last changed in commit `8ccda67a087a67dd64922899f6ed559bc08718be`,
+  printed by `git show 8ccda67a087a67dd64922899f6ed559bc08718be:doc/audit/depot-material-owner-input-payload-identities-2026-10-18.evidence.json.gz`.
+- `doc/audit/depot-material-owner-primary-2026-10-18.sources.json.gz`:
+  533479 bytes,
+  SHA-256 `253cca9bfa20a4bbc767bc0e09d47f659d84b7196dafe7ca8f847335bf3d3050`,
+  last changed in commit `20d75368570ee045ddff43d67aef42fd245cce4b`,
+  printed by `git show 20d75368570ee045ddff43d67aef42fd245cce4b:doc/audit/depot-material-owner-primary-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-mise-locked-affected-2026-10-18.sources.json.gz`:
+  164869 bytes,
+  SHA-256 `e49d561d5d1f2c3562c3df01db4eacd79865141ea1cf88e42b867dfb91eb4e84`,
+  last changed in commit `a9541b020cd9c7a17fd37ff8f63696ff67c59cee`,
+  printed by `git show a9541b020cd9c7a17fd37ff8f63696ff67c59cee:doc/audit/depot-mise-locked-affected-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-mvm-guest-files-2026-10-18.originals.json.gz`:
+  63665 bytes,
+  SHA-256 `6f0bf7c1ea1891b24d8702b373fc9c30b8eb885a0827e6e056cb483cac0183d9`,
+  last changed in commit `c65e3b8eeb0f1bc0e06bf555048b85635ec59202`,
+  printed by `git show c65e3b8eeb0f1bc0e06bf555048b85635ec59202:doc/audit/depot-mvm-guest-files-2026-10-18.originals.json.gz`.
+- `doc/audit/depot-mvm-kvm-2026-10-18.archives.json.gz`:
+  181117 bytes,
+  SHA-256 `9ec38d2f8c3605e9400b0960a24d29196ad012c19f89fb9ce042c4b8e8d2a38f`,
+  last changed in commit `f86e1ee1da76ae8bd4a6a08a6fd30fac238e5265`,
+  printed by `git show f86e1ee1da76ae8bd4a6a08a6fd30fac238e5265:doc/audit/depot-mvm-kvm-2026-10-18.archives.json.gz`.
+- `doc/audit/depot-native-baseline-2ls35xfpds-2026-10-19.log.gz`:
+  131149 bytes,
+  SHA-256 `6b4b5a581914ea3577a7334542048d6d0a9def769d7d93cb5dae2d2f2226fa06`,
+  last changed in commit `eedccaa1afc057e114201ff2ed8055f420088957`,
+  printed by `git show eedccaa1afc057e114201ff2ed8055f420088957:doc/audit/depot-native-baseline-2ls35xfpds-2026-10-19.log.gz`.
+- `doc/audit/depot-native-ci-document-source-review-2026-10-18.evidence.json.gz`:
+  13893 bytes,
+  SHA-256 `672193a5ca02e030240664f0812f7b612e7d02b263158b36728346a8c7a29f7e`,
+  last changed in commit `d63caec30a413e3ace1d352241059928e9482870`,
+  printed by `git show d63caec30a413e3ace1d352241059928e9482870:doc/audit/depot-native-ci-document-source-review-2026-10-18.evidence.json.gz`.
+- `doc/audit/depot-native-common-before-negative-2026-10-17.evidence.zip`:
+  60781 bytes,
+  SHA-256 `927514e26567d5ffc53d11e3bbcd03eb140bc00722652c73b07ce5b91e610463`,
+  last changed in commit `9c112c357a1f3403d50db060725ca777a285e448`,
+  printed by `git show 9c112c357a1f3403d50db060725ca777a285e448:doc/audit/depot-native-common-before-negative-2026-10-17.evidence.zip`.
+- `doc/audit/depot-native-orchestration-2026-10-18.archives.json.gz`:
+  16062 bytes,
+  SHA-256 `afab7c02d27a17c0e8ac5466fa10a6a12a270a15e77148a3bc7a1e066f99eca4`,
+  last changed in commit `afd2f8efac0b53e563aeb19e5de31b81877f435b`,
+  printed by `git show afd2f8efac0b53e563aeb19e5de31b81877f435b:doc/audit/depot-native-orchestration-2026-10-18.archives.json.gz`.
+- `doc/audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz`:
+  39722 bytes,
+  SHA-256 `9267311d49c9e029fec418aeb9d2af89ee77ddccaa947db08df60fbed80ffafc`,
+  last changed in commit `49e5c84d1b8066bc9d974742bffbff684e67179a`,
+  printed by `git show 49e5c84d1b8066bc9d974742bffbff684e67179a:doc/audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz`:
+  2342905 bytes,
+  SHA-256 `8c503d374116bb787f8eb2dd395db70654a822e887631cda94f859e471968923`,
+  last changed in commit `3adb2516b16afcddc27429024090889b7ec3d3bb`,
+  printed by `git show 3adb2516b16afcddc27429024090889b7ec3d3bb:doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-native-ssh-correction-2026-10-18.sources.json.gz`:
+  329845 bytes,
+  SHA-256 `11118675368dcfecfcba9d6f3d3cee8856e6d6c9c1709eca9f78dc00d59b806a`,
+  last changed in commit `a90cb3ef079b2ca868556b8bfc1fe72705c50af6`,
+  printed by `git show a90cb3ef079b2ca868556b8bfc1fe72705c50af6:doc/audit/depot-native-ssh-correction-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-owned-allocation-final-2026-10-18.sources.json.gz`:
+  386093 bytes,
+  SHA-256 `98d63cf22dfc333016187266983e0f1512d89b401f5c1d88859d65cb314cc813`,
+  last changed in commit `24ce11c66aeddc012458b05b10e6b940343469f4`,
+  printed by `git show 24ce11c66aeddc012458b05b10e6b940343469f4:doc/audit/depot-owned-allocation-final-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.sources.json.gz`:
+  398912 bytes,
+  SHA-256 `9a71dca1550e93b8a4cfebd18c28e53ad29347a93a1f31f6a93cddd2aa6903a5`,
+  last changed in commit `846d2c13016c642da994b952f320988d17993940`,
+  printed by `git show 846d2c13016c642da994b952f320988d17993940:doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz`:
+  8006342 bytes,
+  SHA-256 `17ddab66fd96b7fc0b6267405b3cf13ffe669262a2909025265190263130b1fa`,
+  last changed in commit `9341e215df4df5a1462d9a39fa0462a357a4c779`,
+  printed by `git show 9341e215df4df5a1462d9a39fa0462a357a4c779:doc/audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-physical-test-shards-2026-10-18.archives.json.gz`:
+  37381 bytes,
+  SHA-256 `00d0a6c49fecef1874b044527658e17a2c2ad0cce90a8cf88811d46d8ad96991`,
+  last changed in commit `b2b1aa427b624eba065acfd5b3192eb4a98307a7`,
+  printed by `git show b2b1aa427b624eba065acfd5b3192eb4a98307a7:doc/audit/depot-physical-test-shards-2026-10-18.archives.json.gz`.
+- `doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz`:
+  3883626 bytes,
+  SHA-256 `d3d907ba12236df20900f65ef7109ac2b90c9a9a1ad71a03f1ae3b1bad2ca890`,
+  last changed in commit `337b2a09e3db2be07ff84b75797544197ade066e`,
+  printed by `git show 337b2a09e3db2be07ff84b75797544197ade066e:doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz`.
+- `doc/audit/depot-process-timeouts-2026-10-18.archives.json.gz`:
+  4979 bytes,
+  SHA-256 `ae7580dcf37185b3422befd024f4f1fd7fa342e79f3c4d92c3dffafceb899d4e`,
+  last changed in commit `d43f5c400319d6f5f33b919dccc3817aaf070aa9`,
+  printed by `git show d43f5c400319d6f5f33b919dccc3817aaf070aa9:doc/audit/depot-process-timeouts-2026-10-18.archives.json.gz`.
+- `doc/audit/depot-remaining-local-unit-2026-10-18.sources.json.gz`:
+  5327 bytes,
+  SHA-256 `22cecfc123460fbc5529654a5e622e0ae6e72d93249290b0f46d0cc6c8d2504f`,
+  last changed in commit `594497b184ccb18726303e2fbabccd58c82a7422`,
+  printed by `git show 594497b184ccb18726303e2fbabccd58c82a7422:doc/audit/depot-remaining-local-unit-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz`:
+  45098 bytes,
+  SHA-256 `2e2a331991486c50af1fac361f04f99dcd964c4deb7b4b4dc599cd936b5f5609`,
+  last changed in commit `c2263298da6eb50370ee9f1da7649d86ccad3047`,
+  printed by `git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz`.
+- `doc/audit/depot-runtime-pr-2026-10-18.archives.json.gz`:
+  5262 bytes,
+  SHA-256 `fa455b4dd47abbfa7dce33d590a6ee1b0edf9d9d3657d35a829c0c6a1a062c1c`,
+  last changed in commit `e2dc6e8413ad4dca242bf6713d82df9690c98688`,
+  printed by `git show e2dc6e8413ad4dca242bf6713d82df9690c98688:doc/audit/depot-runtime-pr-2026-10-18.archives.json.gz`.
+- `doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz`:
+  538476 bytes,
+  SHA-256 `6dda590c2b8cfe131ade20f2368cc366f2ef92e294a6b380b4f9ac5c8327d1ff`,
+  last changed in commit `0c80930f4d1a714087b619644d3e19173d608a28`,
+  printed by `git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz`.
+- `doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz`:
+  11483893 bytes,
+  SHA-256 `a6ef79bb57f66ffb891ff54dba0aa2744eb435bb6735a323cd2ccecfe51f650f`,
+  last changed in commit `f4ea52b61326f9b00d7a0971b1e467aeb7c159ff`,
+  printed by `git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz`.
+  Its cited records are kept in `doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json`.
+- `doc/audit/depot-rust-legacy-owner-search-2026-10-18.sources.json.gz`:
+  14951 bytes,
+  SHA-256 `957707da9ae62aea184452d44c749ae026f5acce24b01e67aaba81467738a05e`,
+  last changed in commit `d09cf5f8d73910d88a5aac14ae50e3cfcc138505`,
+  printed by `git show d09cf5f8d73910d88a5aac14ae50e3cfcc138505:doc/audit/depot-rust-legacy-owner-search-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-semantic-package-feature-assertion-manifest-2026-10-18.json.gz`:
+  2484600 bytes,
+  SHA-256 `722162765d5f8eaa65b5beac7d7c648624cf633894ef182b0049f95f82d2592f`,
+  last changed in commit `5c28fbf04670f0c5afd9f195f4be5dbf2d1977fc`,
+  printed by `git show 5c28fbf04670f0c5afd9f195f4be5dbf2d1977fc:doc/audit/depot-semantic-package-feature-assertion-manifest-2026-10-18.json.gz`.
+- `doc/audit/depot-semgrep-invocation-2026-10-18.sources.json.gz`:
+  12731 bytes,
+  SHA-256 `7f63cb6479bccb4295cad18cfc553c6d7e9e98c69a7a27f840fd79a926d00015`,
+  last changed in commit `ed03473f9dfbe354df788f274e3c539e93be4762`,
+  printed by `git show ed03473f9dfbe354df788f274e3c539e93be4762:doc/audit/depot-semgrep-invocation-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-service-containers-2026-10-18.archives.json.gz`:
+  20148 bytes,
+  SHA-256 `1d548493228ec9950b9de34d9b70b1107734a72a600e7ee9a7ad3218fc1a6b20`,
+  last changed in commit `0a8a2979e091970f4480c38544978c19ace59f93`,
+  printed by `git show 0a8a2979e091970f4480c38544978c19ace59f93:doc/audit/depot-service-containers-2026-10-18.archives.json.gz`.
+- `doc/audit/depot-tests-identity-adapter-2026-10-18.sources.json.gz`:
+  256546 bytes,
+  SHA-256 `3b4525feba218b90c267124259fb9ad3eb8ab6701f98c38a36ff3ba2c40962bb`,
+  last changed in commit `e212b700ab7e1e80c9bee61e800da42889dd458d`,
+  printed by `git show e212b700ab7e1e80c9bee61e800da42889dd458d:doc/audit/depot-tests-identity-adapter-2026-10-18.sources.json.gz`.
+- `doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip`:
+  12057855 bytes,
+  SHA-256 `31e45cf2ad99de72d9253c70e1057f050f985c617c1d69a2ee3402f5ec1fa5e3`,
+  last changed in commit `eb5da82579aa99ab8a4486262736fd05f5b6d603`,
+  printed by `git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip`.
+  Its cited records are kept in `doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md`.
+- `doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz`:
+  710921 bytes,
+  SHA-256 `7bbdb669aec26a41aec88713f77ad39311cc5777caa112d06099c8eaea279c39`,
+  last changed in commit `eb5da82579aa99ab8a4486262736fd05f5b6d603`,
+  printed by `git show eb5da82579aa99ab8a4486262736fd05f5b6d603:doc/audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz`.
+- `doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz`:
+  296300 bytes,
+  SHA-256 `baa57122526e9d5093b6b8e18e208bd492680b45b54dc10ac2aa213fe96e8b1d`,
+  last changed in commit `893b26838e79ac5af4a204db6cfad823de4f0c9b`,
+  printed by `git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz`.
+- `doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip`:
+  100312 bytes,
+  SHA-256 `88073f4fd7a6e22b0c268e63d70eca7e89b01448174917b712adc34a98bcac12`,
+  last changed in commit `5d3d964bf514a741fc664fd5401340082a908e7c`,
+  printed by `git show 5d3d964bf514a741fc664fd5401340082a908e7c:doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip`.
+  Its cited records are kept in `doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md`.
+
 ## Records kept in the tree for a removed archive
 
-1 of the removed archives are cited for something a reader can
+4 of the removed archives are cited for something a reader can
 only check by opening the archive:
 a figure it would have to recompute,
 a member path with what it holds,
@@ -459,6 +806,33 @@ documents,
 and every other removed archive is named only as the place the raw
 material was kept,
 which this record resolves.
+
+### `doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json`
+
+The extension object the research record walks to by `run.run_id`,
+and the `selected` entry it names.
+
+Cut from `doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz` at commit `f4ea52b61326f9b00d7a0971b1e467aeb7c159ff`.
+The archive is 11483893 bytes,
+SHA-256 `a6ef79bb57f66ffb891ff54dba0aa2744eb435bb6735a323cd2ccecfe51f650f`.
+
+### `doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md`
+
+The two fixture members the audit records with `error: embedded-json-syntax`,
+as text.
+
+Cut from `doc/audit/depot-toml-full-mutation-2026-10-17.evidence.zip` at commit `eb5da82579aa99ab8a4486262736fd05f5b6d603`.
+The archive is 12057855 bytes,
+SHA-256 `31e45cf2ad99de72d9253c70e1057f050f985c617c1d69a2ee3402f5ec1fa5e3`.
+
+### `doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md`
+
+The two fixture members the audit records with `error: embedded-json-syntax`,
+as text.
+
+Cut from `doc/audit/depot-toml-spawn-control-2026-10-17.evidence.zip` at commit `5d3d964bf514a741fc664fd5401340082a908e7c`.
+The archive is 100312 bytes,
+SHA-256 `88073f4fd7a6e22b0c268e63d70eca7e89b01448174917b712adc34a98bcac12`.
 
 ### `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence/`
 
@@ -965,8 +1339,9 @@ and the digest it has in the tree second.
 
 ## Archives that stayed tracked
 
-Three archives stayed in the tree because removing them would have left a record the
-owner has to decide about.
+4 archives stayed in the tree,
+each because the removal ran into a
+record or a guard the owner has to decide about.
 Each is a question,
 not an oversight:
 
@@ -981,6 +1356,11 @@ not an oversight:
   doc/audit/depot-final-recovery-2026-10-17.evidence.json,
   records its own bytes and sha256,
   so editing that file can never leave a matching digest
+- `doc/audit/depot-buildkit-platform-campaign-2026-10-18.sources.json.gz`:
+  the forbidden-strings guard refused a kept record:
+  the depot-cargo-wrapper-boundary.json record it holds carries SCCACHE_WEBDAV_PASSWORD fixture token markers,
+  which the hashicorp-tf-password rule matches,
+  so nothing of this archive is kept and the archive stays tracked
 
 The three Java archives the owner allowlisted stay tracked as well:
 `package/intellij-plugin/islands-black/islands-black.jar`,
@@ -996,4 +1376,4 @@ and the command above each archive reads it.
 It does not claim a recorded digest that did not match the tree before this removal now
 matches:
 those pairs are as they were,
-and the two archives they concern stayed tracked.
+and the archives they concern stayed tracked.

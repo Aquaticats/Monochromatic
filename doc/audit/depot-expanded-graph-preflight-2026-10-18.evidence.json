@@ -553,6 +553,17 @@
     "sha256": "4f173723e155cff0ae91c7c3c794c9ceeed930603f2960bb03b94cc87a233d01",
     "uncompressedBytes": 4797567,
     "uncompressedSha256": "64cd4f163a412c864a9978e1a596ad8089948ffd2a5bd6553d887cca8e21bce0",
-    "records": 31
+    "records": 31,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show eec08fd2264de03236d1953ec2cce7fa5841fff8:doc/audit/depot-expanded-graph-preflight-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   }
 }

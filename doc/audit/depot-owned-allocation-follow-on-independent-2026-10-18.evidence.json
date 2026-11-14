@@ -14,7 +14,18 @@
       "sha256": "a7a144cce9c0798f5e9a578e23d153f0375772b59fd21dde61edce2beacb8ae2",
       "uncompressedBytes": 3121960,
       "records": 35
-    }
+    },
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 142562,
+        "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "baselineUnchanged": true,
   "checks": {
@@ -47,6 +58,17 @@
     "bytes": 398912,
     "sha256": "9a71dca1550e93b8a4cfebd18c28e53ad29347a93a1f31f6a93cddd2aa6903a5",
     "records": 2,
-    "nestedRetainedSourceBodies": 35
+    "nestedRetainedSourceBodies": 35,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 846d2c13016c642da994b952f320988d17993940:doc/audit/depot-owned-allocation-follow-on-independent-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   }
 }

@@ -5,7 +5,18 @@
   "admission": {
     "path": "doc/audit/depot-local-node-capture-admission-2026-10-18.evidence.json",
     "bytes": 6563,
-    "sha256": "9f7c5814b96053f1b11168139d079b499abdae187cfc5a46af8d02daf27a1139"
+    "sha256": "9f7c5814b96053f1b11168139d079b499abdae187cfc5a46af8d02daf27a1139",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 6920,
+        "sha256": "44fec10dd1a14ef383e2772f7f0f3419634c20a39b798e44fa78c16fcc90b5a2",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "preflightRejection": {
     "phase": "before container creation or runtime entry",
@@ -1062,7 +1073,18 @@
     "gzipSha256": "6bc7ac7872561855779aa9b126b397e662de6bb1aa8454bb6bf29157a680b5c4",
     "uncompressedBytes": 110813,
     "uncompressedSha256": "a022b1844ec51e59a22b59add43139f17840435ae2baa7108a6b89b161ddd35e",
-    "bodies": 24
+    "bodies": 24,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 9412e49ee6259e4e9cacfc0b36d27660882d081c:doc/audit/depot-local-node-capture-correction-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "cleanup": {
     "absent": true,

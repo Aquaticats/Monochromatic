@@ -6,7 +6,18 @@
     "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.evidence.json",
     "bytes": 140903,
     "sha256": "9b536e96fabfe522fa0921dddfa7b7da3c14730c5c9625c99b7286850425cb17",
-    "rows": 37
+    "rows": 37,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 142562,
+        "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "sourceArchive": {
     "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
@@ -20,7 +31,18 @@
     "bytes": 2761,
     "sha256": "4d8ae3af1e17999cb444a620e088d83e52b5ae084bcd457c7d59b79d7cef106e",
     "rows": 35,
-    "retainedUnmodified": true
+    "retainedUnmodified": true,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 4335,
+        "sha256": "65c90b294050705fa73110f86c82859a9634ddcbc3d2aa8d1f275ee3c40dbfab",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "checks": {
     "passed": true,
@@ -119,7 +141,18 @@
     "sourceQualifiedOwnerSeal": {
       "path": "doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
       "bytes": 14201235,
-      "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35"
+      "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   },
   "terminalOsPrivacyInspection": {

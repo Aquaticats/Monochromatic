@@ -2267,7 +2267,18 @@
     "bytes": 20148,
     "sha256": "1d548493228ec9950b9de34d9b70b1107734a72a600e7ee9a7ad3218fc1a6b20",
     "count": 10,
-    "format": "gzip JSON containing each original ZIP as base64 with independent byte count and SHA256"
+    "format": "gzip JSON containing each original ZIP as base64 with independent byte count and SHA256",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 0a8a2979e091970f4480c38544978c19ace59f93:doc/audit/depot-service-containers-2026-10-18.archives.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "boundaries": [
     "Functional controls, not provider timing benchmarks or an application-wide CI acceptance.",

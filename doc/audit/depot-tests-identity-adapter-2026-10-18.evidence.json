@@ -879,7 +879,18 @@
     "sha256": "3b4525feba218b90c267124259fb9ad3eb8ab6701f98c38a36ff3ba2c40962bb",
     "uncompressedBytes": 1843234,
     "originalEvidenceZipsIncluded": 4,
-    "input98MbArchiveBytesOmitted": true
+    "input98MbArchiveBytesOmitted": true,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show e212b700ab7e1e80c9bee61e800da42889dd458d:doc/audit/depot-tests-identity-adapter-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "limitations": [
     "Only the selected ordinary passing single-binary report shape is admitted",

@@ -300,7 +300,18 @@
     "gzipSha256": "11118675368dcfecfcba9d6f3d3cee8856e6d6c9c1709eca9f78dc00d59b806a",
     "uncompressedBytes": 1490378,
     "uncompressedSha256": "84c2e45130dd4741104c7e07f68ab31a7a73335627c281575d748cb259904546",
-    "sourceCount": 16
+    "sourceCount": 16,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show a90cb3ef079b2ca868556b8bfc1fe72705c50af6:doc/audit/depot-native-ssh-correction-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "sourceRecords": [
     {

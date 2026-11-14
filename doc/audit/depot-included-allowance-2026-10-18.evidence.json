@@ -9,7 +9,18 @@
     "path": "doc/audit/depot-included-allowance-2026-10-18.sources.json.gz",
     "bytes": 112370,
     "sha256": "197dac272cc047780d092b6b3740c61091805a0aa7b87211cd4406ec1ba784c0",
-    "uncompressedBytes": 651963
+    "uncompressedBytes": 651963,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 1434118fe0bb7bff146caa5cf31a291f1a857c3e:doc/audit/depot-included-allowance-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "liveCapture": {
     "path": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
@@ -23,13 +34,35 @@
     ],
     "featureRowCount": 48,
     "faqCount": 12,
-    "computeTabCount": 3
+    "computeTabCount": 3,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "selectors": {
     "feeCards": {
       "artifactPath": "doc/audit/depot-included-allowance-2026-10-18.sources.json.gz",
       "member": "currentPricing.plain",
-      "content": "Developer $20/month; Startup $200/month"
+      "content": "Developer $20/month; Startup $200/month",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 1434118fe0bb7bff146caa5cf31a291f1a857c3e:doc/audit/depot-included-allowance-2026-10-18.sources.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "namedEntitlements": {
       "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
@@ -43,6 +76,17 @@
         "Depot CI minutes included",
         "Cache and registry storage included",
         "Included passing test results"
+      ],
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
       ]
     },
     "planFaq": {
@@ -51,7 +95,18 @@
       "match": {
         "question": "Which plan is right for me?"
       },
-      "value": "answer"
+      "value": "answer",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "native": {
       "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
@@ -62,6 +117,17 @@
       "values": [
         "text",
         "html"
+      ],
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
       ]
     },
     "github": {
@@ -73,6 +139,17 @@
       "values": [
         "text",
         "html"
+      ],
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
       ]
     },
     "builder": {
@@ -84,6 +161,17 @@
       "values": [
         "text",
         "html"
+      ],
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
       ]
     },
     "storage": {
@@ -92,7 +180,18 @@
       "match": {
         "question": "Am I charged for build usage and storage?"
       },
-      "value": "answer"
+      "value": "answer",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "tests": {
       "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
@@ -100,7 +199,18 @@
       "match": {
         "question": "How are test results billed?"
       },
-      "value": "answer"
+      "value": "answer",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "caps": {
       "artifactPath": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
@@ -108,7 +218,18 @@
       "match": {
         "question": "Can I cap my usage so my bill doesn't run over?"
       },
-      "value": "answer"
+      "value": "answer",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   },
   "plans": {
@@ -270,7 +391,18 @@
       "pinnedRepositories": 28,
       "retrievedSourceFiles": 542,
       "supplementalRepositoryRootFiles": 142,
-      "publicDocumentationMdxFiles": 117
+      "publicDocumentationMdxFiles": 117,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 337b2a09e3db2be07ff84b75797544197ade066e:doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   }
 }

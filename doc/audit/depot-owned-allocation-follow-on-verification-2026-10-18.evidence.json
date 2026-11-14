@@ -4,7 +4,18 @@
   "ledger": {
     "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.evidence.json",
     "sha256": "cc8b0b66245b1dae2c2087985a0a1e6390ffaff19fd08106a51516db0f03eceb",
-    "sourceArchiveSha256": "61202ec3bdfe0820df91a6966e07199a9167a8aa56e3424d97d03f9043e3588c"
+    "sourceArchiveSha256": "61202ec3bdfe0820df91a6966e07199a9167a8aa56e3424d97d03f9043e3588c",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 142562,
+        "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "allocationVerification": {
     "passed": true,
@@ -38,20 +49,53 @@
       "evidenceSha256": "967abe64d26450f9754b00c387c742b1ea744f6ac8e58d7be605b240c1499956",
       "sourceArchive": "doc/audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz",
       "sourceArchiveSha256": "9267311d49c9e029fec418aeb9d2af89ee77ddccaa947db08df60fbed80ffafc",
-      "sourceBodyJoins": 20
+      "sourceBodyJoins": 20,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 49e5c84d1b8066bc9d974742bffbff684e67179a:doc/audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "evidencePath": "doc/audit/depot-rust-legacy-owner-search-2026-10-18.evidence.json",
       "evidenceSha256": "3b3d8017b4127cb3303426f42861e268c8a01705f917f252f93a557ce17a1962",
       "sourceArchive": "doc/audit/depot-rust-legacy-owner-search-2026-10-18.sources.json.gz",
       "sourceArchiveSha256": "957707da9ae62aea184452d44c749ae026f5acce24b01e67aaba81467738a05e",
-      "sourceBodyJoins": 4
+      "sourceBodyJoins": 4,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show d09cf5f8d73910d88a5aac14ae50e3cfcc138505:doc/audit/depot-rust-legacy-owner-search-2026-10-18.sources.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   ],
   "legacyInputVersions": {
     "path": "doc/audit/depot-rust-legacy-input-version-joins-2026-10-18.evidence.json",
     "sha256": "9ffac9b67aab08b3b7c503461563784934eefb8d7baf7384ba86c8af7ccf19c4",
-    "joinedInputs": 169
+    "joinedInputs": 169,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 95614,
+        "sha256": "e820d5e1ce4bfb30470c4a29131fc24c28564d6ac44ca01386b9fee4922f6173",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "nominalKnownProviderWindowListProxyTotal": {
     "usd": "0.6041",

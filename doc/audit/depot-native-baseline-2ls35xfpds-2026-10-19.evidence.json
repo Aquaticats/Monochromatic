@@ -97,5 +97,16 @@
     "This is one prepared-environment run.",
     "The failure classes are task-level dispositions, not per-test product verdicts.",
     "The unit baseline is still missing."
+  ],
+  "inTreeNow": [
+    {
+      "measuredOn": "2026-11-13",
+      "bytes": null,
+      "sha256": null,
+      "removedFromTree": true,
+      "historyCommand": "git show eedccaa1afc057e114201ff2ed8055f420088957:doc/audit/depot-native-baseline-2ls35xfpds-2026-10-19.log.gz",
+      "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+      "keptAs": null
+    }
   ]
 }

@@ -547,7 +547,18 @@
     "path": "doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.sources.json.gz",
     "bytes": 18551,
     "sha256": "122ef60af29ddb193445fead9080bac530ab5cb18879690c1b471154d05ce97c",
-    "records": 6
+    "records": 6,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 5edbdadcc278cb95484aa1d4033495317513c75c:doc/audit/depot-expanded-graph-podman-preflight-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "cloudAllocations": 0,
   "sharedToolInstalls": 0,

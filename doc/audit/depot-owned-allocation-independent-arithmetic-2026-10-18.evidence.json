@@ -14,8 +14,30 @@
       "sha256": "17ddab66fd96b7fc0b6267405b3cf13ffe669262a2909025265190263130b1fa",
       "uncompressedBytes": 53857223,
       "uncompressedSha256": "cc53e01cd9599571654b2f3efb8370f17ce1f6c82712b048ffeec0dde0138ad8",
-      "records": 411
-    }
+      "records": 411,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 9341e215df4df5a1462d9a39fa0462a357a4c779:doc/audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
+    },
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 809905,
+        "sha256": "3c7f5e39153e1e2a42b4388beb9bd483182745e0cd631c4f2b614e460f3df887",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "checks": {
     "uniqueAllocationRows": 223,

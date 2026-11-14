@@ -58,49 +58,137 @@
       "path": "doc/audit/depot-native-orchestration-2026-10-18.evidence.json",
       "bytes": 107578,
       "sha256": "6ca4b3da50cca5c5cb663d62e99c60316092401fa940fd9b08356f948dca4d9e",
-      "archiveRecord": "inputs/doc/audit/depot-native-orchestration-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-native-orchestration-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 107983,
+          "sha256": "e901b1e09963315b41c1a1d0cceb1aeaf34235ee57edc28c23b7df081c4c8cc9",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-physical-test-shards-2026-10-18.evidence.json",
       "bytes": 274465,
       "sha256": "8f60677242795919c87c4df463e59867ff3259c3b73bc36b7bfdf531ec9558c0",
-      "archiveRecord": "inputs/doc/audit/depot-physical-test-shards-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-physical-test-shards-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 274870,
+          "sha256": "70d65917b384e60b706726b7ea5cd71660783dc3d094e5d9c0494563a95c3e55",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-runtime-pr-2026-10-18.evidence.json",
       "bytes": 68505,
       "sha256": "77c81b7a905aea61dd169168be35fd285668d7368c22bf176f171a102d95fb57",
-      "archiveRecord": "inputs/doc/audit/depot-runtime-pr-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-runtime-pr-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 68900,
+          "sha256": "989dcc5262a26aa3c6bcd4516e76fd85cb925d8abe7a9f3646b32464f166dce8",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-service-containers-2026-10-18.evidence.json",
       "bytes": 109619,
       "sha256": "263c908bbac51e083607a34fe45f98a1e484b5b748ad89ca59430d27390e7dd2",
-      "archiveRecord": "inputs/doc/audit/depot-service-containers-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-service-containers-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 110022,
+          "sha256": "5d8911cf9a7c4a5a04888ca9997a10ca7dde2f6895ddfd5784c28506e2aac888",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-container-prerequisites-2026-10-18.evidence.json",
       "bytes": 10110,
       "sha256": "2f815850559c5b6bb51179197ce29b014869fcd762b527e73a8cf05a3e140d32",
-      "archiveRecord": "inputs/doc/audit/depot-container-prerequisites-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-container-prerequisites-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 10517,
+          "sha256": "1a6c743bcce2597efb652272b8205ebf18317239b39cded67fba5dcbe1d602b0",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-process-timeouts-2026-10-18.evidence.json",
       "bytes": 40121,
       "sha256": "f4235d4ee6c3cbc440d4644d61004f9e731dca279dcc3a8150f8e9fdd76f62b5",
-      "archiveRecord": "inputs/doc/audit/depot-process-timeouts-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-process-timeouts-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 40522,
+          "sha256": "6ac8d5243c5f46506451c62514d781169ae6fa3bd44a1c567be2f03e9c74a6df",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-job-policy-history-2026-10-18.evidence.json",
       "bytes": 122264,
       "sha256": "86ba8e4e6c037d9d3b46ab2b13865719631506dc7156b44d969c95cee45d1f50",
-      "archiveRecord": "inputs/doc/audit/depot-job-policy-history-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-job-policy-history-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 122667,
+          "sha256": "db958fc380e55e94b690ba44770557e18b4a9694cd0b9721a582bd5890328f2f",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-mvm-kvm-2026-10-18.evidence.json",
       "bytes": 699540,
       "sha256": "27e7ce1448eb866b75cafd47514e39fd3772fd45f75c7847ba6c69f35062fedc",
-      "archiveRecord": "inputs/doc/audit/depot-mvm-kvm-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-mvm-kvm-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 699932,
+          "sha256": "6f91d44ee6afa64fc5dc5f135db8ffba7c5fba31cdcbf1b631a214e7b1e8bf51",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-github-kvm-documentation-contradiction-2026-10-18.evidence.json",
@@ -112,7 +200,18 @@
       "path": "doc/audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json",
       "bytes": 211336,
       "sha256": "5fd82136c26b007aba1dc7c7484d9bb974ac84bf568738e649a3b09a923fd72b",
-      "archiveRecord": "inputs/doc/audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 211389,
+          "sha256": "f00090d8fb4dc6033fd825a5ff566259f733694261ae0deb1f659661e0077978",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-sdk-custom-runtime-2026-10-18.evidence.json",
@@ -130,37 +229,103 @@
       "path": "doc/audit/depot-tests-identity-adapter-2026-10-18.evidence.json",
       "bytes": 40888,
       "sha256": "d797f2e82d4a411f04ca850b4c0d90c6ae6bc122a7937d98d26cbd7a25acd605",
-      "archiveRecord": "inputs/doc/audit/depot-tests-identity-adapter-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-tests-identity-adapter-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 41294,
+          "sha256": "883df87d8adedcd2aa8b9f14eaa85bfaf83ac7d35d793f30cc3030a700f19c12",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-arm64-functional-2026-10-18.evidence.json",
       "bytes": 32677,
       "sha256": "3518b6fe8b26c0e9232088728c4e69b451880d6c256e9c13d1b17970dfa379cf",
-      "archiveRecord": "inputs/doc/audit/depot-arm64-functional-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-arm64-functional-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 33585,
+          "sha256": "df0ef21544a5c49ee9aadd69c698f47d387c0c454f1e95fabe5d11f5d863fa29",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
       "bytes": 2136385,
       "sha256": "953c19261abc6502610dd3bb5388eb2bc9282e5e6b095d0028e926fd3c3a7d85",
-      "archiveRecord": "inputs/doc/audit/depot-reuse-strategy-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 2144294,
+          "sha256": "a7b0ba98966dc7f00533036681e86a6b509b4da13cef711644248c0cec80935b",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
       "bytes": 13526147,
       "sha256": "2029eca3c85114de70598297f7e8d2d263ca9e84e497012f60c981a72ed03ff1",
-      "archiveRecord": "inputs/doc/audit/depot-rust-coverage-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 13527472,
+          "sha256": "925b5b9f7c6f116b285ad17b0121cf052aedd01011bd2f897e2d7758d87304c1",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-included-allowance-2026-10-18.evidence.json",
       "bytes": 7644,
       "sha256": "73eea6bc8ad717e76d1e6f158328a29ed6f056b06ae4b0ffd3a0ae6314a931be",
-      "archiveRecord": "inputs/doc/audit/depot-included-allowance-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-included-allowance-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 14111,
+          "sha256": "1d499a5d40dc691b29674405af6361d6e8afb3570e146f5ee0025879a6153182",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-combined-product-pricing-2026-10-18.evidence.json",
       "bytes": 8964,
       "sha256": "933fa5192300d380bd01ba456709de4406ce2af7733579a937f4ff6e59d29b1d",
-      "archiveRecord": "inputs/doc/audit/depot-combined-product-pricing-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-combined-product-pricing-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 8964,
+          "sha256": "933fa5192300d380bd01ba456709de4406ce2af7733579a937f4ff6e59d29b1d",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/planning/depot-complete-coverage-budget-ledger.json",
@@ -176,7 +341,18 @@
       "bytes": 52304,
       "sha256": "9ca21658e97fdfb38d3dbc0021ad9b1e6e9b7ee7bf716730f7aa0f2c84acdc5e",
       "capturedAt": "2026-10-18T14:47:19.719983+00:00",
-      "archiveRecord": "inputs/doc/audit/depot-mvm-guest-files-2026-10-18.evidence.json"
+      "archiveRecord": "inputs/doc/audit/depot-mvm-guest-files-2026-10-18.evidence.json",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 52705,
+          "sha256": "a35d4290318f4f7adf0a0f6897d5c1b9af40790a7d05201f2c50a4228a59cc54",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "home-relative:temp/agent/depot-complete-coverage-20261018/owned-github-budget.json",
@@ -21007,7 +21183,18 @@
     "sha256": "17ddab66fd96b7fc0b6267405b3cf13ffe669262a2909025265190263130b1fa",
     "uncompressedBytes": 53857223,
     "uncompressedSha256": "cc53e01cd9599571654b2f3efb8370f17ce1f6c82712b048ffeec0dde0138ad8",
-    "records": 411
+    "records": 411,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 9341e215df4df5a1462d9a39fa0462a357a4c779:doc/audit/depot-owned-allocation-ledger-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "independentGuestReview": {
     "status": "passed_original_bytes_crc_member_source_command_and_payload_hash_joins",

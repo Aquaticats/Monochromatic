@@ -8,7 +8,18 @@
     "sha256": "d265c963dbb0c95c70d33019f3603a3b752c0cc40b6e0846069b331ac05807ff",
     "rows": 223,
     "mutated": false,
-    "baselineIndependentReviewNotRepeated": true
+    "baselineIndependentReviewNotRepeated": true,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 809905,
+        "sha256": "3c7f5e39153e1e2a42b4388beb9bd483182745e0cd631c4f2b614e460f3df887",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "identityPolicy": "Same provider/product/run/job/attempt or project/build key grammar as frozen baseline; one row per identity, never add mirrored owner receipts",
   "arithmeticPolicy": {
@@ -3040,7 +3051,18 @@
   "appendedTerminalSources": [
     {
       "source": "doc/audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz",
-      "sha256": "c7d97ade72711bc3386591871419757f97f05afb5055f03b8e671dfeadd1cf85"
+      "sha256": "c7d97ade72711bc3386591871419757f97f05afb5055f03b8e671dfeadd1cf85",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 1a562991f6d24f8284b931c7913fb3c30c5f3467:doc/audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "source": "expanded-graph-corrected-github-completed-samples.metadata.json",
@@ -3073,7 +3095,18 @@
       "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35",
       "scope": "selected terminal Depot OS allocation rows only",
       "rowsAdded": 2,
-      "selectedArchiveRecord": "inputs/terminal-depot-os-owner-selected@c97f47141b8bcdd2"
+      "selectedArchiveRecord": "inputs/terminal-depot-os-owner-selected@c97f47141b8bcdd2",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   ],
   "desktopBoundaryHydration": {
@@ -3643,7 +3676,18 @@
     "sourceQualifiedOwnerSeal": {
       "path": "doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
       "bytes": 14201235,
-      "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35"
+      "sha256": "d29c7887cf4df674346d850db3f2186345a55cbc53bbacd98ef33c7977221a35",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show c7d1c45a007d773dbd491bd9228611095286bfcc:doc/audit/depot-current-host-owner-complete-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   },
   "terminalOsPrivacyInspection": {

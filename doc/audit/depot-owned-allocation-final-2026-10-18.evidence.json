@@ -8,7 +8,18 @@
     "sha256": "d265c963dbb0c95c70d33019f3603a3b752c0cc40b6e0846069b331ac05807ff",
     "rows": 223,
     "mutated": false,
-    "baselineIndependentReviewNotRepeated": true
+    "baselineIndependentReviewNotRepeated": true,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 809905,
+        "sha256": "3c7f5e39153e1e2a42b4388beb9bd483182745e0cd631c4f2b614e460f3df887",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "priorFollowOn": {
     "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.evidence.json",
@@ -38,7 +49,18 @@
           "sha256": "872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d",
           "uncompressedBytes": 3179766,
           "records": 41
-        }
+        },
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 142562,
+            "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null
+          }
+        ]
       },
       "baselineUnchanged": true,
       "checks": {
@@ -66,7 +88,18 @@
         "denominator": "60000000000",
         "actualAllocatedBuilderCompute": null
       }
-    }
+    },
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 142562,
+        "sha256": "65f3bdaee27043ac36697eee9a9be700f68ac8de2e148469145d5f3b8a83d614",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "rows": [
     {
@@ -3301,7 +3334,18 @@
     "bytes": 386093,
     "sha256": "98d63cf22dfc333016187266983e0f1512d89b401f5c1d88859d65cb314cc813",
     "uncompressedBytes": 3186777,
-    "records": 53
+    "records": 53,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 24ce11c66aeddc012458b05b10e6b940343469f4:doc/audit/depot-owned-allocation-final-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "newKeys": [
     "github:standard-public-github-actions:run:39156185253:job:117759776888:attempt:1",

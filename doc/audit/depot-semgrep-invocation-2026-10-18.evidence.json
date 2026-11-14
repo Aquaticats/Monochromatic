@@ -12,7 +12,18 @@
     "path": "doc/audit/depot-semgrep-invocation-2026-10-18.sources.json.gz",
     "bytes": 12731,
     "sha256": "7f63cb6479bccb4295cad18cfc553c6d7e9e98c69a7a27f840fd79a926d00015",
-    "uncompressedBytes": 85223
+    "uncompressedBytes": 85223,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show ed03473f9dfbe354df788f274e3c539e93be4762:doc/audit/depot-semgrep-invocation-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "resources": {
     "cpus": 2,

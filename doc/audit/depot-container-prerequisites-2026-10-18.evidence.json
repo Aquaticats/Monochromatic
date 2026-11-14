@@ -33,7 +33,18 @@
   "sourceArchive": {
     "path": "doc/audit/depot-container-prerequisites-2026-10-18.sources.json.gz",
     "bytes": 15117,
-    "sha256": "f713b99f1f6842cdf206ca2f447af351d6d05ff2ba638633c7a90f7ebadf8a76"
+    "sha256": "f713b99f1f6842cdf206ca2f447af351d6d05ff2ba638633c7a90f7ebadf8a76",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 922faafef162af0f153f1b83e1d761b210651f1a:doc/audit/depot-container-prerequisites-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "failures": [
     {

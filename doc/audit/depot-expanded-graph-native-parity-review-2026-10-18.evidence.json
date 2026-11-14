@@ -2728,6 +2728,17 @@
     "path": "doc/audit/depot-expanded-graph-native-parity-review-2026-10-18.sources.json.gz",
     "bytes": 118332,
     "sha256": "63ce6da88139b3b1941f38f015e630d6d4c91f38c07a96fc49fa3b001959c7cd",
-    "records": 12
+    "records": 12,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show e0790e738da7e1c33e49fa200e9fc5105d11503a:doc/audit/depot-expanded-graph-native-parity-review-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   }
 }

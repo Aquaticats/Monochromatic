@@ -92,8 +92,30 @@
         "path": "doc/audit/depot-expanded-graph-github-repetition-2026-10-18.sources.json.gz",
         "bytes": 154139,
         "sha256": "f3fb9967cba82508ccf37968ea772c97e2363d39a61df7d2d69ee66d9b9e0a9b",
-        "records": 20
-      }
+        "records": 20,
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 05d02428a0a0322ab4267a7d522c593317541699:doc/audit/depot-expanded-graph-github-repetition-2026-10-18.sources.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null
+          }
+        ]
+      },
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 15824,
+          "sha256": "8d7bfea2bb24572a8447e1f9edb39ca8fc9a0bf0575f8fa6fdfa3b82b1de039c",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-expanded-graph-native-correction-2026-10-18.evidence.json",
@@ -103,8 +125,30 @@
         "path": "doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz",
         "bytes": 173906,
         "sha256": "86b8686ea7e3496cdc9246fa2947b51968350f5031cff535e97ccceb36fb8ac9",
-        "records": 24
-      }
+        "records": 24,
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show f53c920cb24157db59873d3b24aaf51a493d6e32:doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null
+          }
+        ]
+      },
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 11234,
+          "sha256": "d8b581cfbba49d7e1f3f69868337badd6fd75b9b2af4de60ee40c738f7b18e85",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   ],
   "waitingValueCalculated": false,

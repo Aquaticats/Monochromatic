@@ -290,6 +290,17 @@
     "bytes": 164869,
     "sha256": "e49d561d5d1f2c3562c3df01db4eacd79865141ea1cf88e42b867dfb91eb4e84",
     "uncompressedBytes": 663853,
-    "records": 16
+    "records": 16,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show a9541b020cd9c7a17fd37ff8f63696ff67c59cee:doc/audit/depot-mise-locked-affected-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   }
 }

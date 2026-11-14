@@ -749,7 +749,18 @@
         "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
         "archiveSha256": "a6ef79bb57f66ffb891ff54dba0aa2744eb435bb6735a323cd2ccecfe51f650f",
         "junitSha256": "e7a213dcf3f726e062f87b6df3ad18e06e89b980db37adf56d5c2c3b82f5fb79",
-        "sameClassNameNameStatusTuples": true
+        "sameClassNameNameStatusTuples": true,
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json"
+          }
+        ]
       }
     },
     "typescript": {
@@ -1019,6 +1030,17 @@
     "sha256": "003e3155561cea4636cb927d1709e5e157fa27fa0995e49083632266558390d5",
     "uncompressedBytes": 303712,
     "originalArtifactZips": 1,
-    "immutableFixtureFiles": 4
+    "immutableFixtureFiles": 4,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 20abb5fa5b96353b646a2d25e0c8eca13c6ab49d:doc/audit/depot-arm64-functional-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   }
 }

@@ -781,7 +781,18 @@
     "uncompressedBytes": 10152113,
     "uncompressedSha256": "cd7ec34aea5547fc764686901bb694bf6f514d2e6f904a42b5666e666e670a58",
     "sourceCount": 26,
-    "previousSourceBodiesRetained": true
+    "previousSourceBodiesRetained": true,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 3adb2516b16afcddc27429024090889b7ec3d3bb:doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "sourceRecords": [
     {
@@ -1018,7 +1029,18 @@
       "uncompressedBytes": 4970095,
       "uncompressedSha256": "e5a93e73b3400d939f52b9de1b5fd41ca26fd744ac1fd4b20aeeee51c1f21ddf",
       "sourceCount": 26,
-      "previousSourceBodiesRetained": true
+      "previousSourceBodiesRetained": true,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 3adb2516b16afcddc27429024090889b7ec3d3bb:doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   }
 }

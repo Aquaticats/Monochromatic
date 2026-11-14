@@ -3643,7 +3643,18 @@
         "bytes": 161566,
         "sha256": "248f681000e8ddf553d1bf84147abd9918ca0c62c351b448b32f3271b1662748",
         "cliCaptureMatchesProviderArchive": true
-      }
+      },
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 9c112c357a1f3403d50db060725ca777a285e448:doc/audit/depot-native-common-before-negative-2026-10-17.evidence.zip",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "duplicateSearch": [
       {
@@ -3729,7 +3740,18 @@
           "header": "native-consumer-dependency-repair",
           "bytes": 9508,
           "sha256": "cf860ea8cb6f00368690c5f874d7eb5a7cf3004732374e96c43909b2ccd0e3f7",
-          "emphasisElements": 0
+          "emphasisElements": 0,
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": 8761,
+              "sha256": "1807b40023df339caf28a4949ac220db9a3d0b82c8b59209ffb463618d0e71d3",
+              "removedFromTree": false,
+              "historyCommand": null,
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null
+            }
+          ]
         },
         {
           "path": "doc/troubleshooting/depot-native-nextest-completion.md",
@@ -3755,7 +3777,18 @@
             "header": "native-consumer-dependency-repair",
             "bytes": 9551,
             "sha256": "d99d1c69ffc75014674abbc166675988910620539e933706f40d1a2feed31c2c",
-            "emphasisElements": 0
+            "emphasisElements": 0,
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 8761,
+                "sha256": "1807b40023df339caf28a4949ac220db9a3d0b82c8b59209ffb463618d0e71d3",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null
+              }
+            ]
           },
           {
             "path": "doc/troubleshooting/depot-native-nextest-completion.md",
@@ -3771,7 +3804,18 @@
           "htmlBytes": 117158,
           "htmlSha256": "b05e14e21b66f827c08cdc604c516a322c8c14fbc5f34892944642511bc6ba1b",
           "nativeParagraphAndClosureRead": true,
-          "separateArtifactOutcomeRead": true
+          "separateArtifactOutcomeRead": true,
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": 261872,
+              "sha256": "564d786084d6bf756abc68f08f247c018f155a914773a25113179b3e9550e939",
+              "removedFromTree": false,
+              "historyCommand": null,
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null
+            }
+          ]
         },
         "localVerificationCorrections": [
           {
@@ -3802,7 +3846,18 @@
       "afterSha256": "cf38ab35fe36896a6fc7d8d94267559d02fe3fa11704ef09997a37e558407eec",
       "scope": "Native guard paragraph and completed native-negative-proof queue clause only",
       "originalParagraph": "The native host workflow's complete conditions also permit source consumers after a failed common guard:\nthey use `!cancelled()` and source-identity success without requiring the common-before step.\nThis is a conclusion from the committed conditions and current documented expression semantics,\nnot an observed rejected-cohort provider run.\nThe native owner is repairing those conditions and preparing a bounded negative provider control.\nNeither finding receives final acceptance credit from a task count.\n",
-      "replacementParagraph": "\nThe native host workflow's complete conditions at `2032975cba` omitted common-before success.\nThe execution consequence at that revision remains a source/documentation inference.\nHeld trial repair `8c1eac43273b0b0d468a54affd15dc9612d7fe49` requires it for build,\nClippy,\nnextest,\nand smoke while preserving independent source-after identity.\nDevelopment run `39025557306` actually rejected the provisional native case on macOS Intel:\nall four consumers and common-after were skipped,\nand ordinary source identity passed before and after with equal recorded lock hashes.\nThe separate artifact-upload failure remains retained because rejection produced no provenance directory.\n[The guard audit](../audit/depot-common-manifest-route-guards-2026-10-17.md)\nand [original provider archive](../audit/depot-native-common-before-negative-2026-10-17.evidence.zip)\nretain full outcomes,\nusage,\nand scope.\nIssue `#1165` is closed with the exact body and closing comment re-fetched.\nThis control gives no source-consumer execution or common-bound credit.\nFinal coherent dispatch remains held.\n"
+      "replacementParagraph": "\nThe native host workflow's complete conditions at `2032975cba` omitted common-before success.\nThe execution consequence at that revision remains a source/documentation inference.\nHeld trial repair `8c1eac43273b0b0d468a54affd15dc9612d7fe49` requires it for build,\nClippy,\nnextest,\nand smoke while preserving independent source-after identity.\nDevelopment run `39025557306` actually rejected the provisional native case on macOS Intel:\nall four consumers and common-after were skipped,\nand ordinary source identity passed before and after with equal recorded lock hashes.\nThe separate artifact-upload failure remains retained because rejection produced no provenance directory.\n[The guard audit](../audit/depot-common-manifest-route-guards-2026-10-17.md)\nand [original provider archive](../audit/depot-native-common-before-negative-2026-10-17.evidence.zip)\nretain full outcomes,\nusage,\nand scope.\nIssue `#1165` is closed with the exact body and closing comment re-fetched.\nThis control gives no source-consumer execution or common-bound credit.\nFinal coherent dispatch remains held.\n",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 9c112c357a1f3403d50db060725ca777a285e448:doc/audit/depot-native-common-before-negative-2026-10-17.evidence.zip",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   }
 }

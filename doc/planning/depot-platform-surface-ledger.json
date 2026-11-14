@@ -10,7 +10,18 @@
     "pinnedRepositories": 28,
     "retrievedSourceFiles": 542,
     "supplementalRepositoryRootFiles": 142,
-    "publicDocumentationMdxFiles": 117
+    "publicDocumentationMdxFiles": 117,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 337b2a09e3db2be07ff84b75797544197ade066e:doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "indexes": {
     "llmIndexCount": 642,
@@ -16720,7 +16731,18 @@
     "source": {
       "path": "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
       "bytes": 8976,
-      "sha256": "c52a7c7cbbbae7719035a881194bdda8a07e1810f3743b83893cef6323095825"
+      "sha256": "c52a7c7cbbbae7719035a881194bdda8a07e1810f3743b83893cef6323095825",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "features": [
       {
@@ -17730,7 +17752,18 @@
     "archive": {
       "path": "doc/audit/depot-native-ci-document-source-review-2026-10-18.evidence.json.gz",
       "bytes": 13893,
-      "sha256": "672193a5ca02e030240664f0812f7b612e7d02b263158b36728346a8c7a29f7e"
+      "sha256": "672193a5ca02e030240664f0812f7b612e7d02b263158b36728346a8c7a29f7e",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show d63caec30a413e3ace1d352241059928e9482870:doc/audit/depot-native-ci-document-source-review-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "scope": "Full source bodies and applicability reviewed, not runtime qualification of all syntax/integrations"
   },
@@ -17992,7 +18025,18 @@
     "archive": {
       "path": "doc/audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz",
       "bytes": 8210,
-      "sha256": "f92c3eb1f7e87bd59c393faa0df7a1f9e42f762bb287cbdb8697154b0c690f6d"
+      "sha256": "f92c3eb1f7e87bd59c393faa0df7a1f9e42f762bb287cbdb8697154b0c690f6d",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 1b28fb2da949ced0d57fdcaf19d47d5f07b20390:doc/audit/depot-cache-integration-document-source-review-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "scope": "Full deployed source bodies reviewed; absent owner manifests do not establish absence of downloaded/configured third-party tool dependencies; runtime claims remain exact source-bound consumers"
   },
@@ -18000,13 +18044,35 @@
     "pages": 15,
     "claims": 66,
     "sourceBytes": 112543,
-    "sourceArchive": "doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz"
+    "sourceArchive": "doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 337b2a09e3db2be07ff84b75797544197ade066e:doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "githubRunnerCompleteSourceReview": {
     "pages": 11,
     "claims": 51,
     "sourceBytes": 85127,
-    "sourceArchive": "doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz"
+    "sourceArchive": "doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 337b2a09e3db2be07ff84b75797544197ade066e:doc/audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "capControlCorrection": {
     "at": "2026-10-18T15:55:44.925Z",
@@ -22027,6 +22093,17 @@
       "direct-openssh",
       "native-cli-openpty-rpc",
       "paused-tmate"
+    ],
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 3adb2516b16afcddc27429024090889b7ec3d3bb:doc/audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
     ]
   }
 }

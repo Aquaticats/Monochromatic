@@ -1951,7 +1951,18 @@
       "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
       "workflowCommit": "0ef69d6b90dcf7ba948bdaa10aa26fbbf3c7f12f",
       "conclusion": "failure",
-      "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz"
+      "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 898fd6ab03be33c0e478115671cf82f71fbf46c3:doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "profile": "packed-install-corrected",
@@ -1959,7 +1970,18 @@
       "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
       "workflowCommit": "d7447847d5d7c38e6d08164bba6f9fadd841564e",
       "conclusion": "failure",
-      "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz"
+      "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 898fd6ab03be33c0e478115671cf82f71fbf46c3:doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "profile": "packed-install-restored",
@@ -1967,7 +1989,18 @@
       "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
       "workflowCommit": "c4c0d6fa8d3714849dc952f412102902eaf4d181",
       "conclusion": "failure",
-      "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz"
+      "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 898fd6ab03be33c0e478115671cf82f71fbf46c3:doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "profile": "packed-cli-dry-run",
@@ -1975,7 +2008,18 @@
       "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
       "workflowCommit": "cf498cc94be2dbaaf4634ab862d76c46aea49520",
       "conclusion": "failure",
-      "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz"
+      "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 898fd6ab03be33c0e478115671cf82f71fbf46c3:doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "profile": "packed-cli-verified-plan",
@@ -1983,7 +2027,18 @@
       "source": "e02be6c8b8fe9efb41a7f8f1a0b311c17796588a",
       "workflowCommit": "1aab4fb2eb81e8288cea56e800a0ae15fb179dfb",
       "conclusion": "failure",
-      "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz"
+      "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 898fd6ab03be33c0e478115671cf82f71fbf46c3:doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     {
       "profile": "desktop-remaining-sessions",
@@ -2000,7 +2055,18 @@
         "containerAbsent": true,
         "overlayWritesDiscarded": true
       },
-      "evidence": "doc/audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz"
+      "evidence": "doc/audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 046596174a061c31e4e2b8e8aaf7eca6565384a8:doc/audit/depot-current-host-controls-admission-2026-10-18.evidence.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     }
   ],
   "familySummary": {
@@ -47356,13 +47422,35 @@
     "runtimeNegativeDiagnostic": "ERR_PACKAGE_PATH_NOT_EXPORTED",
     "evidence": "doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
     "evidenceSha256": "3a050fdd4e1dc025c0cff57efd77f056504b7fada677e25158f6b50b233a467b",
-    "qualification": "25 runtime imports,5 functional controls,and1 separate types-only compiler positive/negative consumer; neither whole-package branch coverage nor mutation execution claimed"
+    "qualification": "25 runtime imports,5 functional controls,and1 separate types-only compiler positive/negative consumer; neither whole-package branch coverage nor mutation execution claimed",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 898fd6ab03be33c0e478115671cf82f71fbf46c3:doc/audit/depot-complete-coverage-packed-consumer-receipts.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "desktopMetadataOnlySeal": {
     "evidence": {
       "path": "doc/audit/depot-complete-coverage-desktop-receipts.json.gz",
       "bytes": 22756,
-      "sha256": "8b9be6f1b2cfb29540226d0a8c4b520d867d8d6a24b0eddda516198b26b26885"
+      "sha256": "8b9be6f1b2cfb29540226d0a8c4b520d867d8d6a24b0eddda516198b26b26885",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show ab400e8cb74148a62eb567ccf1c2ebee850a1582:doc/audit/depot-complete-coverage-desktop-receipts.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "wideObservedPassed": 69,
     "wideAuthoredSkipped": 1,
@@ -47378,7 +47466,18 @@
     "evidence": {
       "path": "doc/audit/depot-complete-coverage-source-feature-assertions.json.gz",
       "bytes": 3341685,
-      "sha256": "11e25bc960076fd330bb923c3bd0aa586b52ec47824c7633198d1a9bd7910204"
+      "sha256": "11e25bc960076fd330bb923c3bd0aa586b52ec47824c7633198d1a9bd7910204",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show ab400e8cb74148a62eb567ccf1c2ebee850a1582:doc/audit/depot-complete-coverage-source-feature-assertions.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null
+        }
+      ]
     },
     "scriptFiles": 5878,
     "actualScriptBytes": 30611062,
@@ -47808,7 +47907,18 @@
     "summaryOnlySkipped": 1,
     "sourceEvidence": "doc/audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz",
     "matchedDepotProposalState": "terminal, same 1494 executed identities; 1493 passed and one retained source failure",
-    "matchedDepotEvidence": "doc/audit/depot-gnu-design-terminal-2026-10-18.evidence.json"
+    "matchedDepotEvidence": "doc/audit/depot-gnu-design-terminal-2026-10-18.evidence.json",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 208b7da9a5532a2c4b136cc285f4e165a9696911:doc/audit/depot-current-host-gnu-owner-2026-10-18.evidence.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "matchedDepotGnuControlProposal": {
     "path": "doc/audit/depot-matched-windows-gnu-control-proposal-2026-10-18.evidence.json",
@@ -47853,7 +47963,18 @@
     "directoryOwners": 223,
     "originalCommandReceipts": 1818,
     "originalCommandLogsRehashed": 1818,
-    "allBranchesOrFeaturesCovered": false
+    "allBranchesOrFeaturesCovered": false,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 5c28fbf04670f0c5afd9f195f4be5dbf2d1977fc:doc/audit/depot-semantic-package-feature-assertion-manifest-2026-10-18.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null
+      }
+    ]
   },
   "correctedLocalBothStreamCapture": {
     "evidence": "doc/audit/depot-local-node-capture-correction-2026-10-18.evidence.json",
