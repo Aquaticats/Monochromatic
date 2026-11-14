@@ -27,38 +27,6 @@ use std::ffi::c_int;
 use crate::signal_relay::is_process_sender;
 
 /// What:
-///  The first four fields of `siginfo_t` on every Unix system:
-/// signal number,
-/// error number,
-/// sender code,
-/// and the process that sent the signal.
-/// Why:
-///   The C struct's fields differ in name and union layout across systems;
-/// these four share one layout,
-///  and reading them through this view avoids the platform accessors.
-///  The fourth word is `si_pid` in the union the sender codes this module relays through use (`kill`,
-///  `sigqueue` and `tkill`),
-/// which is what the record needs to name the process that stopped a commit
-/// (`service_client_interrupted.rs`,
-///  `sender`).
-#[cfg(unix)]
-#[repr(C)]
-pub(crate) struct SignalHeader {
-    /// Signal number.
-    pub(crate) signal: c_int,
-    /// Error number,
-    /// unused here.
-    pub(crate) error: c_int,
-    /// Sender code,
-    /// `SI_USER` for `kill` and so on.
-    pub(crate) code: c_int,
-    /// The process that sent the signal,
-    /// in the union of the sender codes this module relays;
-    /// zero where the kernel named none.
-    pub(crate) sender: c_int,
-}
-
-/// What:
 ///  Whether the kernel attributes this report to a process,
 ///  and which process it names.
 /// Why:
@@ -66,7 +34,16 @@ pub(crate) struct SignalHeader {
 ///  so the sender has to come from the report it is handed;
 ///  this reads the report once for both answers,
 ///  and the record of a stopped commit names that process
-///  (`service_client_interrupted.rs`).
+///  (`service_client_interrupted.rs`,
+///  `sender`).
+///  The two facts are read with the platform's own accessors,
+///  never through a structure of this crate's:
+///  a hand-written view of `siginfo_t` has to guess where the union starts,
+///  and a view one word off states no sender for every stop while agreeing with any report this crate
+///  builds itself
+///  (measured on this host with a report the kernel wrote:
+///  the hand-written view read the padding and named no process,
+///  `signal_report_tests.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -77,12 +54,48 @@ pub(crate) fn read_report(info: *mut libc::siginfo_t) -> (bool, Option<i32>) {
     if info.is_null() {
         return (false, None);
     }
-    // SAFETY: with `SA_SIGINFO` the kernel passes a valid `siginfo_t`, whose first four integers are the header read here.
-    let header: SignalHeader = unsafe { std::ptr::read(info.cast::<SignalHeader>()) };
-    if !is_process_sender(header.code) {
+    // SAFETY: with `SA_SIGINFO` the kernel passes a valid `siginfo_t`; `si_code` is a plain read of it.
+    let code: c_int = unsafe { (*info).si_code };
+    if !is_process_sender(code) {
         return (false, None);
     }
-    return (true, if header.sender > 0 { Some(header.sender) } else { None });
+    return (true, sender_in_report(info));
+}
+
+/// What:
+///  The process the kernel names as a signal's sender,
+///  where it names one.
+/// Why:
+///  `si_pid` is defined for the signals a process sends (`kill`,
+/// `sigqueue`,
+/// `tkill`);
+///  a terminal's interrupt,
+/// a kernel fault signal and a timer carry no sender,
+///  and the kernel's own definition of who sent it is the only honest answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// senderInReport(info) // info ? (info.fromProcess ? info.pid : undefined) : undefined
+/// ```
+#[cfg(target_os = "linux")]
+pub(crate) fn sender_in_report(info: *mut libc::siginfo_t) -> Option<i32> {
+    if info.is_null() {
+        return None;
+    }
+    // SAFETY: the same `siginfo_t`; `si_pid` is the sender's number inside it.
+    let pid: i32 = unsafe { (*info).si_pid() };
+    if pid <= 0 {
+        return None;
+    }
+    return Some(pid);
+}
+
+/// The systems whose kernel names a signal's sender,
+/// and the systems this one is not:
+/// without the accessor the record says the signal and no sender.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn sender_in_report(_info: *mut libc::siginfo_t) -> Option<i32> {
+    return None;
 }
 
 /// The layout this file reads is controlled beside it.

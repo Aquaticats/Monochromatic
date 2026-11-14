@@ -301,3 +301,68 @@ fn a_stop_relayed_during_the_preparation_keeps_the_sender_the_kernel_named() {
     assert_eq!(stop_requested(), Some(libc::SIGTERM), "the second stop is taken too");
     assert_eq!(stop_sender(), None, "a signal no process sent names no process");
 }
+
+/// What:
+///  The stop the wait answers is one fact:
+///  the signal and the process the kernel named as its sender are taken together,
+///  so a stop that arrives while the first is being answered never renames the first one's sender.
+/// Why:
+///  A person's Ctrl-C and a tool's `SIGTERM` are the same number,
+///  and the sender is the only fact that tells them apart,
+///  so a record that pairs one stop's signal with another stop's sender names a process that did not send
+///  what ended the command (`commit_stop_reason.rs`,
+/// `client-signal`).
+///  The handler may run on any thread at any instruction,
+///  and the call site used to read the signal and then, a step later, the sender.
+///  This control puts a second stop exactly where that step was:
+///  it is the shape the call site has,
+///  and it states what the wait took.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = whatTheWaitTook(() => noteAStop(SIGINT, B)); expect(taken).toEqual([SIGTERM, A]);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_stop_that_arrives_while_the_first_is_answered_never_renames_its_sender() {
+    let _stale = crate::signal_relay_relayed_stop::take();
+    stop_requested_for_test(0, None);
+    const FIRST_SENDER: i32 = 4_242;
+    const SECOND_SENDER: i32 = 9_191;
+    // A stop from the first process arrives during the preparation, as a relayed one.
+    crate::signal_relay_relayed_stop::note(libc::SIGTERM, Some(FIRST_SENDER));
+    // The wait takes that stop, and the second process's interrupt arrives at the moment the sender used to be read.
+    let taken: Option<(i32, Option<i32>)> = what_the_wait_took(|| {
+        // The second process's interrupt, noted the way the handler notes one: the same words, in the same atomics.
+        stop_requested_for_test(libc::SIGINT, Some(SECOND_SENDER));
+    });
+    assert_eq!(
+        taken,
+        Some((libc::SIGTERM, Some(FIRST_SENDER))),
+        "the record names the stop the wait answered and the process that sent that stop"
+    );
+    // And the shape the handler writes reads back as one fact: both halves in one call.
+    stop_requested_for_test(0, None);
+    stop_requested_for_test(libc::SIGTERM, Some(FIRST_SENDER));
+    assert_eq!(stop(), Some((libc::SIGTERM, Some(FIRST_SENDER))), "a stop's signal and sender come back together");
+}
+
+/// What:
+///  The stop the wait answers, taken the way its call site takes it,
+///  with the moment between the call site's two reads given to the control.
+/// Why:
+///  The call site read the signal and then the sender,
+///  and the control has to put another thread's delivery exactly there;
+///  naming that moment is what makes the hazard reachable in a control at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const taken = whatTheWaitTook(between); // [signal, sender] as the call site read them
+/// ```
+#[cfg(unix)]
+fn what_the_wait_took(between: impl FnOnce()) -> Option<(i32, Option<i32>)> {
+    // THE CONTROL COMMIT: the shape the call site had, one read and then the other with work between.
+    let signal: i32 = stop_requested()?;
+    between();
+    return Some((signal, stop_sender()));
+}

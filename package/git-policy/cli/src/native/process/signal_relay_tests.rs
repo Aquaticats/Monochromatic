@@ -220,19 +220,17 @@ fn guard_catches_the_four_signals() {
 #[test]
 fn handler_marks_a_signal_only_for_a_process_sender() {
     let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
-    // SAFETY: a zeroed `siginfo_t` is a valid buffer; only its header fields are written below.
+    // SAFETY: a zeroed `siginfo_t` is a valid buffer; only its sender code is written below.
     let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-    let header: *mut crate::signal_report::SignalHeader = (&mut info as *mut libc::siginfo_t).cast::<crate::signal_report::SignalHeader>();
-    // SAFETY: `header` points into the live `info` buffer above.
-    unsafe { (*header).code = KERNEL_CODE };
+    // The sender code is a plain field of the report, and it is the word the gate reads.
+    info.si_code = KERNEL_CODE;
     relay_handler(libc::SIGINT, &mut info, std::ptr::null_mut());
     assert_eq!(
         PENDING[0].load(std::sync::atomic::Ordering::SeqCst),
         0,
         "a terminal sender is not marked for relay"
     );
-    // SAFETY: as above.
-    unsafe { (*header).code = SI_USER };
+    info.si_code = SI_USER;
     relay_handler(libc::SIGINT, &mut info, std::ptr::null_mut());
     assert_eq!(
         PENDING[0].load(std::sync::atomic::Ordering::SeqCst),
@@ -260,15 +258,15 @@ fn handler_marks_a_signal_only_for_a_process_sender() {
 fn a_relayed_stop_is_kept_for_the_wait_that_asks() {
     let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
     let _cleared = crate::signal_relay_relayed_stop::take();
-    // SAFETY: a zeroed `siginfo_t` is a valid buffer; only its header fields are written below.
-    let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-    let header: *mut crate::signal_report::SignalHeader = (&mut info as *mut libc::siginfo_t).cast::<crate::signal_report::SignalHeader>();
-    // SAFETY: `header` points into the live `info` buffer above.
-    unsafe {
-        (*header).code = SI_USER;
-        (*header).sender = 4_242;
-    }
-    relay_handler(libc::SIGTERM, &mut info, std::ptr::null_mut());
+    // What: The stop is delivered by the kernel to the guard's own handler, so the sender comes from a report the kernel
+    //       wrote and never from one this crate built.
+    // Why:  A report this crate builds agrees with its own reader whatever the layout, which is how a reader one word off
+    //       stayed green (`signal_report_tests.rs`, `the_kernel_puts_the_sender_where_the_report_reads_it`).
+    let guard: SignalGuard = SignalGuard::install().expect("the relay's handler installs");
+    // SAFETY: `raise` sends one signal to this thread, whose handler notes the stop and returns; no child is published.
+    let raised: libc::c_int = unsafe { libc::raise(libc::SIGTERM) };
+    assert_eq!(raised, 0, "the stop was sent");
+    let mine: i32 = i32::try_from(std::process::id()).expect("a process ID fits");
     // What: The wait of a commit reads the stop the way the command does, and names the sender in its record.
     // Why:  The relay and the wait are two steps, and a sender dropped between them is the fault this control is for.
     assert_eq!(
@@ -278,9 +276,10 @@ fn a_relayed_stop_is_kept_for_the_wait_that_asks() {
     );
     assert_eq!(
         crate::service_client_interrupted::stop_sender(),
-        Some(4_242),
+        Some(mine),
         "and the process the kernel named is the one its record states"
     );
+    drop(guard);
     assert_eq!(crate::signal_relay_relayed_stop::take(), None, "one stop is applied once");
     PENDING[1].store(0, std::sync::atomic::Ordering::SeqCst);
 }

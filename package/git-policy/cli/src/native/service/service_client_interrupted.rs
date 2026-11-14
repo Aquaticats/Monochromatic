@@ -107,7 +107,7 @@ extern "C" fn note_the_stop(signal: std::os::raw::c_int, info: *mut libc::siginf
         // ```ts
         // sender = info && info.fromProcess ? info.pid : 0;
         // ```
-        if let Some(pid) = sender_of(info) {
+        if let Some(pid) = crate::signal_report::sender_in_report(info) {
             STOP_SENDER.store(pid, Ordering::SeqCst);
         }
         // The read the wait is inside is woken here, because the kernel may deliver this signal to any thread of the process,
@@ -153,44 +153,26 @@ pub(crate) fn stop_sender() -> Option<i32> {
 }
 
 /// What:
-///  The process that sent a signal,
-///  where the kernel says which one did.
+///  The stop a waiting commit answers,
+///  as the one fact it is:
+///  the signal,
+///  and the process the kernel named as its sender.
 /// Why:
-///  `si_pid` is defined for the signals a process sends (`kill`,
-/// `sigqueue`,
-/// `tkill`);
-///  a terminal's interrupt,
-/// a kernel fault signal and a timer carry no sender,
-///  and the kernel's own definition of who sent it is the only honest answer.
+///  A signal handler may run on any thread at any instruction,
+///  and a wait that read the signal and then, a step later, the sender could pair one stop's signal with the
+///  sender of a stop that arrived between the two reads
+///  (`signal_relay_relayed_stop.rs` states the same hazard for the relay's own word).
+///  The command ends by the signal it names and its record states that sender,
+///  so the two have to be one fact read once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// senderOf(info) // info ? (info.fromProcess ? info.pid : undefined) : undefined
+/// stop() // [SIGTERM, 4242], or undefined
 /// ```
-#[cfg(target_os = "linux")]
-fn sender_of(info: *mut libc::siginfo_t) -> Option<i32> {
-    if info.is_null() {
-        return None;
-    }
-    // SAFETY: with `SA_SIGINFO` the kernel passes a valid `siginfo_t`, and reading the sender's number touches no other memory.
-    let code: std::os::raw::c_int = unsafe { (*info).si_code };
-    if !crate::signal_relay::is_process_sender(code) {
-        return None;
-    }
-    // SAFETY: the same `siginfo_t`; `si_pid` is the sender's number inside it.
-    let pid: i32 = unsafe { (*info).si_pid() };
-    if pid <= 0 {
-        return None;
-    }
-    return Some(pid);
-}
-
-/// The systems whose kernel names a signal's sender,
-/// and the systems this one is not:
-/// without the accessor the record says the signal and no sender.
-#[cfg(not(target_os = "linux"))]
-fn sender_of(_info: *mut libc::siginfo_t) -> Option<i32> {
-    return None;
+pub(crate) fn stop() -> Option<(i32, Option<i32>)> {
+    // THE CONTROL COMMIT READS THE TWO WORDS IN ORDER, which is the shape the call sites had before the fix.
+    let signal: i32 = stop_requested()?;
+    return Some((signal, stop_sender()));
 }
 
 /// What:
