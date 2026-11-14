@@ -3475,7 +3475,8 @@ The same look runs for a worktree that is no subvolume,
 before the removal is handed to Git,
 and again in the commit service immediately before it removes a worktree it was handed,
 because Git's own removal is the route that would delete through a mount point.
-`look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume, which the
+`look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume,
+which the
 registration's own proof still uses.
 
 The proof of cleanliness a removal makes is the stat proof every removal makes,
@@ -3494,7 +3495,8 @@ not locked,
 no conversion's copy lies beside it,
 the worktree root and its registration are held open and are still the objects that were proven,
 and it is clean or the person forced it.
-The clean proof stays Git's own, exactly as the decision of 2026-11-12T13:04:14 requires:
+The clean proof stays Git's own,
+exactly as the decision of 2026-11-12T13:04:14 requires:
 an unforced removal deletes no untracked file and no modified tracked file,
 and a foreign volume that Git lists as untracked (one no ignore rule covers) is such an entry,
 so it keeps a typed unforced removal from happening.
@@ -3502,8 +3504,12 @@ That removal then refuses with one report that says what the command itself did,
 names each volume,
 gives the reason Git refuses,
 and words the way on by what the tree in front of it is:
-`git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
-stands, and, for a tree whose entries are all present, clearing or moving what Git would delete.
+`git worktree remove --force`,
+which removes every other entry of the tree and leaves the volume exactly as it
+stands,
+and,
+for a tree whose entries are all present,
+clearing or moving what Git would delete.
 The status a removal reads is one of three,
 and the report says which of them it read:
 Git names nothing at all,
@@ -3528,7 +3534,8 @@ and no worktree is ever removed on a cleanliness that was not proven.
 The tree is never handed to Git to get Git's own sentence,
 because Git's removal is what would delete through the mount;
 the report says so instead of pretending to be Git's words.
-A forced removal is served without the clean proof, as it always was.
+A forced removal is served without the clean proof,
+as it always was.
 
 With that proof in hand the removal empties the tree around the volumes:
 one pass over the tree,
@@ -3547,7 +3554,8 @@ The mode of a kept directory is given back after the pass,
 and the directories the pass widened to empty are those it deletes,
 so what is left stands with the modes and owners it had.
 The pass judges and empties one opened object and never a name twice:
-it opens the entry as a handle that follows nothing, crosses no mount and needs no permission on it,
+it opens the entry as a handle that follows nothing,
+crosses no mount and needs no permission on it,
 asks that handle what kind of directory it is,
 gives the owner access through that same handle,
 and only then opens the name again for reading,
@@ -3559,19 +3567,24 @@ and a volume renamed over a directory in the moment between the two lookups is l
 emptied.
 The look that decides the removal (`look_for_boundaries`) resolves each name once and asks the device of the very
 descriptor it then reads.
-Nothing in the pass renames, unmounts, moves or deletes a volume;
+Nothing in the pass renames,
+unmounts,
+moves or deletes a volume;
 the only names it touches are those of the worktree's own entries.
 
 A removal that was killed inside that pass leaves the worktree's own entries deleted,
 the volumes standing and the registration kept,
 and the next unforced command would meet a worktree Git reports as changed.
-The pass therefore writes, before its first deletion,
+The pass therefore writes,
+before its first deletion,
 a record under `monochromatic-git-policy-cli/around-removals-begun/<registration id>` naming the registration's
-identity, the worktree root's identity and the path the removal was given
+identity,
+the worktree root's identity and the path the removal was given
 (`src/native/worktree/worktree_removal_around_begun.rs`).
 A later unforced removal of that same worktree,
 whose registration and root are those two identities,
-reads the record, asks Git whether anything is reported about the tree but the entries a pass removed
+reads the record,
+asks Git whether anything is reported about the tree but the entries a pass removed
 (leaving out what stands inside the volumes it leaves,
 because the pass often deletes the ignore rule that hid one),
 and finishes the removal when nothing else stands there.
@@ -3591,17 +3604,21 @@ which is where the log of what a removal deletes joins it
 When the pass ends the removal looks again through the descriptor it holds:
 a volume that went away while the pass ran leaves a tree that is now empty,
 and the root goes as any other removal takes it,
-which is one `rmdir` under the held parent, or the destroy where the caller takes that route.
+which is one `rmdir` under the held parent,
+or the destroy where the caller takes that route.
 A tree that still holds one is finished without the destroy:
 the registration is emptied and removed through the descriptors the removal holds,
 one of its `worktrees` directory last,
 and the worktree's subvolume (or its plain directory) stays,
 holding nothing but the volumes and the directories that lead to them.
 The outcome is neither `removed` nor `refused`:
-it is `RemovedAround`, which carries every volume that was left,
+it is `RemovedAround`,
+which carries every volume that was left,
 and `src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs` words it.
 A removal that stopped halfway is `Incomplete` with its own words:
-files it removed are gone, the worktree is still registered, and the report says which of the two happened.
+files it removed are gone,
+the worktree is still registered,
+and the report says which of the two happened.
 A pass that found the volume gone when it ended is reported as its own ending:
 the worktree's entries went one by one in this command,
 the empty root went with one `rmdir`,
@@ -3609,7 +3626,10 @@ and nothing was handed to the commit service,
 so no delete waits behind the command,
 and the line says that instead of the destroy's words.
 A pass that emptied the tree but could not remove the registration is reported in the around route's own words:
-the worktree was emptied around what was left, the path still stands with it, Git still lists the worktree, and
+the worktree was emptied around what was left,
+the path still stands with it,
+Git still lists the worktree,
+and
 `git worktree prune` or another run of the same removal finishes it.
 
 The person's own `git worktree remove` prints that report on standard error and exits 0,
@@ -3627,7 +3647,8 @@ and a file in that directory that is not a record is neither shown nor moved.
 
 What frees the path is said in every one of those reports:
 the person moves each volume out of the directory it stands in;
-a mount point is released with `umount`, which keeps what is mounted there;
+a mount point is released with `umount`,
+which keeps what is mounted there;
 a subvolume that is another repository's worktree is removed with `git worktree remove` in that repository,
 which keeps its branch;
 and the directories that are then empty are removed from the deepest one up with `rmdir`,
@@ -5391,6 +5412,35 @@ with the conflicting paths named,
 only where no resolution exists.
 The ways each of these can still exit nonzero are listed under "Merging" in `README.md`.
 
+A lock another program takes at any instant between a merge's look at the index and its last step
+is no exception to that bar.
+It ends in one of two states:
+
+- The merge lands,
+  which is what a lock a process that no longer runs left allows once it is cleared on the commit
+  service's proof of disuse,
+  and what a lock that goes while the person's own bytes are put back allows.
+- The merge is saved for a later command with the branch unmoved and the command exiting 0,
+  and where the lock that stopped Git's own update also stops the putting back of the person's own bytes,
+  the command states what the files hold,
+  which ref keeps their bytes,
+  and which command puts them back.
+
+A command that cannot keep the merge on a side reference does not fail either:
+it exits 0,
+says that the merge is not saved,
+where the person's own bytes are kept,
+and that the next git command puts them back and leaves the merge to them.
+A merge whose branch moved while it was prepared ends the same way,
+with the line saying that the branch moved and that the merge does not land.
+The line each of these prints states the state the settle read:
+the branch it found,
+what of the merge is in the index and the worktree,
+and where the person's own bytes are.
+No line of such a command says the checkout is as it was,
+or that the branch has not moved,
+when it is not.
+
 The owner on 2026-11-10:
 "Dozens of agents at once is normal operation."
 That is the load every command is built for,
@@ -6031,6 +6081,21 @@ where a name holding a pipe would hold it for ever.
 A record of a plan is read the way every record of this wrapper is read
 (`private_storage::read_regular_file`),
 so a pipe at a plan's name is answered at once and left alone rather than waited on and discarded.
+A watch note is read the same way
+(`private_storage::read_regular_file`,
+`src/native/landing/service_claim_watch.rs`),
+so a note whose name holds a pipe,
+a link or a directory is answered at once,
+said once and left where it is,
+and so is a file longer than a note can hold:
+none of those is a note this service wrote,
+so none is waited on,
+read through or removed,
+and none is read again after a pause,
+because a second read of it answers the same.
+The write a landing makes before the client is answered reads a taken name the same way,
+so a name holding one of those is passed over for the next name
+rather than holding the thread that lands and answers.
 The listing of that journal answers twice:
 the entries it names,
 and an error that ended it before it named them all,
@@ -7600,20 +7665,62 @@ on the commit path:
   and the message says so and gives
   `git log -1` and `git status`.
 - A commit the person interrupts while it waits is not made.
-  The client watches the two signals a waiting commit answers,
-  the interrupt a terminal sends and a stop's `SIGTERM`,
+  The client watches the four signals a waiting commit answers,
+  the interrupt a terminal sends,
+  a stop's `SIGTERM`,
+  the hang-up a closing terminal or `loginctl terminate-session` sends,
+  and a quit (`src/native/service/service_client_interrupted.rs`),
   notes which one came,
-  and wakes the read it is inside even when the kernel delivers the signal to another thread of the process
-  (`src/native/service/service_client_interrupted.rs`).
+  and wakes the read it is inside even when the kernel delivers the signal to another thread of the process.
+  The hang-up and the quit were not watched,
+  so their default action ended the process where it arrived
+  and a commit that was waiting left no record at all;
+  both are answered as the interrupt is,
+  and the command still ends by the one that came,
+  so a quit keeps the core file the system would make for it.
+  A hang-up or a quit the process started with ignored stays ignored,
+  and the commit is landed:
+  `nohup` shields the command it starts that way,
+  a caller that shields a commit means it to survive a closing terminal,
+  native Git lands it,
+  and replacing the caller's ignore withdrew a request the caller asked to be shielded from,
+  which is a commit that fails where real Git lands one.
+  The interrupt and the stop keep being answered whatever was in place,
+  because a shell that ignores the interrupt for a background job is no statement about a person's Ctrl-C.
+  A stop that arrives while a Git child of the preparation runs reaches the wait through the relay,
+  and it carries the process the kernel named as its sender the same way the wait's own signal does.
   It then withdraws its request exactly as a wait that reached its ceiling does,
   and the service's answer decides the ending:
   a request that landed before the signal came is reported as the commit it made,
   and the command succeeds;
   one the service gave up ends the command with the words that the commit was not made and that nothing lands later by itself,
   by the signal's own status,
-  which a shell reports as `128 + the signal`,
-  and the timing record names the signal (`client-signal`).
-  A second signal ends the command at once.
+  which a shell reports as `128 + the signal`.
+  The timing record says `client-signal` with the signal and,
+  where the kernel names the process that sent it,
+  that process's number,
+  and it is written before the command ends by the signal:
+  the raise used to happen inside the report,
+  so an interrupted commit left no record at all.
+  The sender is what tells a keyboard's interrupt from the stop a caller sends at its own bound,
+  which is the same `SIGTERM`.
+  The signal and its sender are kept as one word
+  (`src/native/process/stop_word.rs`),
+  and the wait takes them in one read:
+  a stop that arrives while the first is being answered can never rename the first one's sender,
+  which is what a record pairs when it states one stop's signal with another stop's process.
+  A second signal ends the command at once,
+  where it is,
+  and it is the second signal that ends it:
+  the command leaves no record at all,
+  because the record of the first stop is written after the withdrawal is answered and the process is gone before that,
+  and the person who sent the second signal gets what they asked for,
+  the command ending now rather than waiting out the answer it had already asked to withdraw.
+  A `SIGKILL` is caught by nobody,
+  so that command leaves no record either:
+  the next command in the worktree finds the branch where it was and everything the person staged still staged.
+  A commit that landed before the signal came stays landed and says so,
+  and the next command reads the landing from the branch.
   A kill that no process can catch is withdrawn by nobody,
   and the service's own rule about a request whose client is gone decides it:
   the request makes no commit when its connection closed before its batch landed.
@@ -14989,6 +15096,76 @@ A commit that was not built again prints no note.
 Every option the wrapper itself adds to a command line precedes the user's `--`,
 because Git reads every token after it as a path.
 A `--` that is the value of an option (`git commit -m --`) is a value and not the separator.
+A form of `git commit` that real Git refuses is refused with Git's own status and words
+(owner,
+2026-11-12:
+"Refuse as Git does (Recommended)").
+Preparation removes exactly the tokens Git validates before it commits,
+so a command whose options are such a form would otherwise reach the private `git commit`
+as an ordinary one and make a commit real Git refuses:
+`-i`/`--include` with `-o`/`--only`,
+`-i` with `-a`,
+`-a` with `--interactive` or `--patch`,
+any two of the four options Git's own compatibility check counts
+(`-i/--include`,
+`-o/--only`,
+`-a/--all`,
+`--interactive/-p/--patch`,
+with `--patch` counted as `--interactive`),
+`--fixup=reword:` with a path or with any of those four,
+`--pathspec-from-file` with pathspec arguments,
+with `-a` or with `--interactive`,
+`-a` with pathspec arguments,
+a pathless `-i` or `-o` where Git allows no empty change,
+and `--pathspec-file-nul` without `--pathspec-from-file`
+(`src/native/commit/rule_commit_region_git_refuses.rs`).
+No message is kept in the wrapper:
+the same command line is given to the installed Git with `--dry-run` added,
+which runs Git's own validation,
+rolls its index lock back and never looks for a commit,
+and the status and the bytes Git printed are handed on unchanged
+(`src/native/commit/commit_form_refusal_from_git.rs`),
+so a release that rewords a message changes nothing here.
+The question is `commit`,
+then `--dry-run`,
+then the caller's own options:
+the first token after `commit` is in option position whatever it spells,
+so no option the caller wrote can take `--dry-run` as its value,
+and no `--` the caller wrote can put it after the end of the options
+(`git commit -m -- -i` is asked as `git commit --dry-run -m -- -i`).
+The question is asked in the directory the commit's own Git runs in and with the
+`-C` tokens removed,
+so one `-C` chain moves Git once,
+and `--git-dir`,
+`--work-tree`,
+`--bare` and a `GIT_DIR` or `GIT_WORK_TREE` in the caller's environment keep the
+meaning Git gives them after that last `-C`
+(`commit_command.rs`,
+`where_the_commit_runs`).
+It is given an index of its own,
+a copy of the caller's in the repository scratch directory,
+so that a lost option could not write the caller's index or hold the lock beside it;
+the branch reference and the object store are the repository's own,
+which the option's position is what keeps,
+and a control over every generated command line records `HEAD`,
+every reference,
+the index bytes and the worktree before and after the question.
+A form whose rule stands but whose own answer from Git is that it would run the
+command is not refused:
+zero is Git's answer that the form is one it accepts,
+the dry run made no commit,
+and the transaction that follows makes the one commit the caller asked for,
+so nothing is made twice.
+The refusal comes before the transaction,
+so nothing is staged,
+no reference moves and the commit service is not reached,
+and a command Git accepts costs one comparison of the parsed region and no process.
+When real Git gives no answer,
+the sentence is the wrapper's own and it names the form and which of the three
+happened:
+Git could not be started,
+Git showed no sign of work for the bound of that step and was ended,
+or Git ended without an exit status.
 A pathspec commit during a revert or a cherry-pick,
 which Git accepts,
 behaves as real Git does,
@@ -17913,13 +18090,47 @@ which is a start that was refused or a step ended at its ceiling),
 with `step` and `status` as before,
 `engine-failure` for the wrapper's own engine failing where no step explains the stop,
 with `code` the engine failure's stable code,
+`client-failure` for a commit the command itself did not make,
+with `reason` the one word that failure goes by (`src/native/landing/service_messages.rs`,
+`failure_code`:
+`did-not-start` and `nothing-answered` for the start bound that ran out,
+`no-activation` and `could-not-start` for a service manager that could not be asked,
+`manager-did-not-answer` for an exchange with the manager that ran out of the time it was given,
+which says nothing about whether the manager is there
+(`src/native/landing/service_messages_of_a_manager_that_did_not_answer.rs`),
+`other-release` and `no-common-version` for a service of another release that would not retire,
+`still-with-service` and `withdrawal-unconfirmed` for the answer ceiling,
+`service-silent` and `may-not-have-landed` for a service that stopped,
+`refused`,
+`unavailable`,
+`index-in-use`,
+`reference-locked`,
+`step-too-slow`,
+`repository-full`,
+`repository-read-only`,
+`permission-denied`,
+`repository-frozen`,
+`branch-keeps-changing`,
+`branch-moved`,
+`branch-switched`,
+`conclusion-state-changed`,
+`content-pruned` and the rest,
+each one a literal of this crate),
+`client-signal` for a commit the person stopped while it waited,
+with `signal` and,
+where the kernel names the process that sent it,
+`sender`,
 and `unidentified` where no step,
 policy,
 transform or engine failure explains the stop,
-which is where a route that stops a commit with words of its own (the branch kept moving,
-the content was pruned,
-the service was not there) lands,
-and which is the signal the owner's rules call a defect that should log more;
+with `ruledOut` naming the routes that were looked for and were not it,
+so the record says how far the wrapper looked;
+`unidentified` is the signal the owner's rules call a defect that should log more,
+and it is no longer where a route that stops a commit in words of its own lands:
+every such route names itself,
+which is what seven stopped records of 2026-11-12 could not do while the person had already been told the cause;
+a stop by a signal is written before the command ends by that signal,
+so an interrupted commit leaves a record like any other;
 `stop` is null for a command that ended without landing and without failing,
 because nothing stopped it;
 the failing step is the note the Git runner keeps (`src/native/commit/git_step_failure.rs`),

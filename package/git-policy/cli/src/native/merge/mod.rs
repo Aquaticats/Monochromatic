@@ -250,6 +250,12 @@ pub mod merge_isolation_carry_place_write;
 /// the commit and the two-way update.
 pub mod merge_isolation_apply;
 
+/// The merge a command saves for a later one:
+/// its commit on a side ref,
+/// the record that names it,
+/// and the line the person reads.
+pub mod merge_isolation_apply_save;
+
 /// What a step of an isolated merge that stopped means for the command's ending,
 /// and what a clear that met newer bytes does about them.
 pub mod merge_isolation_apply_stops;

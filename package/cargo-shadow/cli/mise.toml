@@ -19,8 +19,133 @@ description = "Apply clippy's machine-applicable suggestions in place"
 run = "cargo clippy --fix --allow-dirty --allow-staged"
 
 [tasks.test]
-description = "cargo nextest run"
-run = "cargo nextest run --release"
+description = "cargo nextest run --release where this host can give the tests a delegated control group; where it cannot (a container, a check with no user manager) a run whose totals are of the tests that ran, naming every test it left out with the reason and the command that runs it, and reporting none of them as passed or as a failure of cargo-shadow; it runs the suite twice there, once to find those tests and once to report; the task takes no arguments (run `cargo nextest run --release <filter>` for a subset)"
+shell = "node --input-type=module-typescript -e"
+run = '''
+const { spawnSync } = await import('node:child_process')
+
+// The line a test that cannot run prints: its panic opens with this, names the test between the brackets, and says why it did not
+// run, so the answer comes from the tests themselves and no second copy of the route question can disagree with them.
+const NOT_RUN = /cargo-shadow tests: not run \[([^\]]+)\]: ([^\n]*)/
+const NOT_RUN_EVERYWHERE = /cargo-shadow tests: not run \[([^\]]+)\]: ([^\n]*)/g
+// nextest leaves the failed part out of its summary when nothing failed.
+const SUMMARY = /(\d+) tests run: (\d+) passed(?:, (\d+) failed)?, (\d+) skipped/
+// The per-test lines of a nextest run: a line that says a test passed, failed or was retried.
+const VERDICT = /^\s*(?:PASS|FAIL|LEAK|ABORT|SIGSEGV|SIGBUS|TIMEOUT|TRY \d+ (?:PASS|FAIL))\b/
+// The question is a test, so its answer is a status: 0 when a scope can be had, 100 when this host has none, anything else when the
+// question could not be asked at all (a build error, or a filter that names no test), which leaves nothing out.
+const NO_DELEGATED_CONTROL_GROUP = 100
+// A captured run of the whole suite is larger than node's one-megabyte default, and a capture that overflows it kills the child, so
+// every capture that is not streamed says how much it may hold.
+const CAPTURE = { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }
+const QUESTION = 'cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope'
+
+const text = (result) => (result.stdout ?? '') + (result.stderr ?? '')
+const nextest = (args) => spawnSync('cargo', ['nextest', 'run', '--release', ...args], CAPTURE)
+const totals = (output) => {
+  const found = SUMMARY.exec(output)
+  return found === null ? undefined : { ran: Number(found[1]), passed: Number(found[2]), failed: Number(found[3] ?? '0'), skipped: Number(found[4]) }
+}
+
+const main = () => {
+  // The question, asked alone: it is the guard every test that needs a delegated control group begins with.
+  const asked = nextest(['-E', `test(=${QUESTION})`])
+  const answer = text(asked)
+  const refuse = (why, status) => {
+    // Nothing is left out when the question itself did not answer: its own output is all there is to show.
+    process.stderr.write(answer)
+    console.error(why)
+    return status
+  }
+  if (asked.status !== 0 && asked.status !== NO_DELEGATED_CONTROL_GROUP) {
+    return refuse(`the test task could not ask this host whether it can give the tests a delegated control group (status ${asked.status}); nothing was left out`, asked.status === null ? 1 : asked.status)
+  }
+  const answered = answer.split('\n').map((line) => { return NOT_RUN.exec(line.trim()); }).find((found) => { return found !== null && found[1] === QUESTION; })
+  if (asked.status === NO_DELEGATED_CONTROL_GROUP && answered === undefined) {
+    return refuse(`the question failed (status ${asked.status}) without saying that this host cannot give it a delegated control group; nothing was left out`, asked.status)
+  }
+
+  if (asked.status === 0) {
+    // The gate as it always was: every test runs, and a test that cannot get the scope it needs fails the run.
+    return spawnSync('cargo', ['nextest', 'run', '--release', '--no-fail-fast'], { stdio: 'inherit' }).status ?? 1
+  }
+
+  // This host has none. Which tests need one cannot be known without running them, and a run that lets them into its totals counts
+  // them as passed, so the first run finds them and only its output is not reported. `cargo nextest list` knows their names but not
+  // which of them needs a scope, so there is nothing cheaper to ask.
+  console.error(`The reason, as the tests put it: ${answered[2].trim()}`)
+  console.error('Looking for the tests that cannot run here, so this run can leave them out of its totals ...')
+  const learned = nextest(['--no-fail-fast', '--failure-output=final'])
+  const learnedText = text(learned)
+  const notRun = [...new Set([...learnedText.matchAll(NOT_RUN_EVERYWHERE)].map((found) => { return found[1]; }))].sort()
+  if (notRun.length === 0) {
+    process.stderr.write(learnedText)
+    console.error(`the question said this host cannot give a delegated control group, but no test said it did not run (status ${learned.status}); nothing was left out`)
+    return learned.status === 0 || learned.status === null ? 1 : learned.status
+  }
+
+  // The report run: the same suite with those tests left out by nextest's own filter, so its total counts the tests that ran.
+  const filter = `not (${notRun.map((name) => { return `test(=${name})`; }).join(' | ')})`
+  console.error(`${notRun.length} tests will not run here, and this run's totals are of the tests that ran:`)
+  for (const name of notRun) {
+    console.error(`  ${name}`)
+  }
+  const reported = nextest(['--no-fail-fast', '--failure-output=final', '-E', filter])
+  process.stdout.write(reported.stdout ?? '')
+  process.stderr.write(reported.stderr ?? '')
+  const reportedText = text(reported)
+
+  // The accounting is checked, not assumed: a status line that names a test which did not run, or a total that counts it, ends this
+  // run red rather than reporting a pass nobody earned.
+  const problems = []
+  for (const line of reportedText.split('\n')) {
+    if (!VERDICT.test(line)) {
+      continue
+    }
+    for (const name of notRun) {
+      if (line.includes(name)) {
+        problems.push(`a status line reports a test that did not run: ${line.trim()}`)
+      }
+    }
+  }
+  const learnedTotals = totals(learnedText)
+  const reportedTotals = totals(reportedText)
+  if (learnedTotals === undefined) {
+    problems.push('the run that looked for the tests this host cannot run printed no total')
+  }
+  if (reportedTotals === undefined) {
+    problems.push('the report run printed no total')
+  }
+  if (learnedTotals !== undefined && reportedTotals !== undefined) {
+    if (reportedTotals.ran !== learnedTotals.ran - notRun.length) {
+      problems.push(`the report run counted ${reportedTotals.ran} tests as run, where the run before it ran ${learnedTotals.ran} and ${notRun.length} were left out`)
+    }
+    if (reportedTotals.ran !== reportedTotals.passed + reportedTotals.failed) {
+      problems.push(`the report run counted ${reportedTotals.ran} tests as run, and ${reportedTotals.passed} passed plus ${reportedTotals.failed} failed`)
+    }
+    if (reportedTotals.skipped !== learnedTotals.skipped + notRun.length) {
+      problems.push(`the report run counted ${reportedTotals.skipped} tests as skipped, where ${learnedTotals.skipped} were skipped before it and ${notRun.length} were left out`)
+    }
+  }
+  if (problems.length > 0) {
+    console.error(['', 'cargo-shadow tests: this run does not report, because its accounting is wrong:', ...problems.map((problem) => { return `  ${problem}`; }), ''].join('\n'))
+    return 1
+  }
+  console.error(
+    [
+      '',
+      `cargo-shadow tests: ${reportedTotals.ran} tests ran here (${reportedTotals.passed} passed, ${reportedTotals.failed} failed), and nextest counted the ${notRun.length} that did not run as skipped, not as passed.`,
+      'cargo-shadow tests: this run is a degraded run: it is no evidence for the tests named above.',
+      '',
+    ].join('\n'),
+  )
+  return reported.status === null ? 1 : reported.status
+}
+
+// The exit code is set and the script ends, never process.exit(): an exit taken while captured output is still queued loses it.
+process.exitCode = main()
+// mise appends extra task arguments to the end of this script, where they would be read as TypeScript, so this task takes no arguments.
+'''
 
 [tasks.package]
 description = "Build and verify the crates.io package tarball"
