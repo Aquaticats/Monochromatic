@@ -174,6 +174,19 @@ pub mod worktrees;
 /// The cleanup of version directories no lock names.
 pub mod prune_cargo;
 
+/// The version directories a store holds:
+/// their space on disk,
+/// when they were last written,
+/// and the removal markers a cut-short removal leaves.
+pub mod store_versions;
+
+/// Which live processes of this user hold a path under a store.
+pub mod store_path_holders;
+
+/// The size- and age-bounded cleanup of old versions,
+/// and the install hook that runs it.
+pub mod store_trim;
+
 /// The newest-only install layout of the archive-route tools this repository publishes.
 pub mod published_archive;
 
@@ -394,6 +407,18 @@ mod launcher_source_tests;
 /// The unit tests of the cleanup of unnamed cargo versions.
 #[cfg(test)]
 mod prune_cargo_tests;
+
+/// The unit tests of the store's version directories and their removal markers.
+#[cfg(all(test, unix))]
+mod store_versions_tests;
+
+/// The unit tests of the read of the process table that finds holders of a version.
+#[cfg(all(test, unix))]
+mod store_path_holders_tests;
+
+/// The unit tests of the size- and age-bounded cleanup of old versions.
+#[cfg(all(test, unix))]
+mod store_trim_tests;
 
 /// The unit tests of the names that become directory names.
 #[cfg(test)]

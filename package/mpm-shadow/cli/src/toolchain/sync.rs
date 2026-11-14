@@ -59,6 +59,10 @@ use super::lock::Lock;
 use super::model::{LockedTool, Route};
 /// Imports what this module uses from `super::observe`.
 use super::observe::{compared_with_lock, observe_tool, satisfies_lock};
+/// Imports `install_directory_name` from `super::store_versions`.
+use super::store_versions::install_directory_name;
+/// Imports `trim_after_install` from `super::store_trim`.
+use super::store_trim::trim_after_install;
 /// Imports `retire_after_install` from `super::sync_old_copies`.
 use super::sync_old_copies::retire_after_install;
 /// Imports `version_matches` from `super::parse_output`.
@@ -204,6 +208,9 @@ pub fn replacement_warning(id: &str, observed: &Option<String>, locked: &str) ->
 /// ```
 pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     let mut report: SyncReport = SyncReport::default();
+    // What: the versions this run installs, as the tool's directory name and the version.
+    // Why: the cleanup of old versions keeps those, whatever else it judges.
+    let mut installed_versions: Vec<(String, String)> = Vec::new();
     let mut entries: Vec<&LockedTool> = Vec::new();
     for tool in sync_order(ctx.tools) {
         if !applies_to_family(&tool.declaration.os, ctx.host.family) {
@@ -255,7 +262,12 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             continue;
         }
         match install_tool(ctx, tool) {
-            Ok(()) => report.installed.push(tool.declaration.id.clone()),
+            Ok(()) => {
+                report.installed.push(tool.declaration.id.clone());
+                if let Some(directory_name) = install_directory_name(tool.declaration.route, &tool.declaration.id) {
+                    installed_versions.push((directory_name, tool.version.clone()));
+                }
+            }
             Err(error) => report.failed.push((tool.declaration.id.clone(), error.message)),
         }
     }
@@ -281,6 +293,9 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     report.failed.extend(commands.failed);
     report.missing_bins = unresolvable_bins(ctx.scope, &entries);
     report.warnings.extend(older_lock_warnings(ctx.scope, ctx.tools, ctx.host.family));
+    // What: the cleanup of old versions runs last, after every install, link and exposure of this run exists.
+    // Why: it judges versions by what the locks and the process table say, and a version this run installed is kept.
+    trim_after_install(ctx, &installed_versions);
     return report;
 }
 

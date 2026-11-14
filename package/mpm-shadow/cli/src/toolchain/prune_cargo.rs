@@ -133,11 +133,15 @@ pub fn plan_prune(
     return removals;
 }
 
+/// What:
 /// The crate name a lock entry installs:
 /// `packageId`,
 /// else the origin of a `cargo:<crate>@<range>` request,
 /// else the id without its `cargo:` prefix.
-fn crate_of_entry(id: &str, entry: &Value) -> String {
+/// Why:
+/// The cleanup of old versions reads the same rows this prune does,
+/// so both name a crate the same way.
+pub(super) fn crate_of_entry(id: &str, entry: &Value) -> String {
     if let Some(package) = entry.get("packageId").and_then(Value::as_str) {
         return package.to_string();
     }
