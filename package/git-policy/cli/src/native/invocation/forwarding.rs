@@ -295,6 +295,8 @@ pub fn run_real_git_naming(
     // ```
     let mut child: std::process::Child = git_command(real_git, arguments, overlay, owner).spawn_retrying()?;
     on_started.started(child.id());
+    // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
+    crate::lock_holder_records::note_child_started(child.id());
     let status: std::process::ExitStatus = child.wait()?;
     // `Ok(...)` is the success variant carrying how the child ended.
     return Ok(outcome_of(status));
