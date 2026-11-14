@@ -73,6 +73,14 @@ pub mod install_bin;
 /// The cargo routes.
 pub mod install_cargo;
 
+/// What an `install` argument names:
+/// an id the plan holds, or a request to add to the plan,
+/// with its route and its binaries.
+pub mod install_argument;
+
+/// Appending entries to the plan's text with its comments, trailing commas and order kept.
+pub mod plan_insert;
+
 /// Where `cargo-binstall` tools live,
 /// and which version of a repository-published one runs.
 pub mod cargo_installs;
@@ -326,6 +334,14 @@ mod install_rust_android_tests;
 /// the exposure directory and the postinstall steps.
 #[cfg(test)]
 mod sync_tests;
+
+/// The unit tests of what an `install` argument names and of adding it to the plan.
+#[cfg(test)]
+mod install_argument_tests;
+
+/// The unit tests of appending entries to a plan's text.
+#[cfg(test)]
+mod plan_insert_tests;
 
 /// The unit tests of the farm link to the running `mpm-shadow`.
 #[cfg(test)]

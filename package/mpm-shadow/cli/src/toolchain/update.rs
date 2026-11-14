@@ -373,7 +373,7 @@ fn retry_after_sync(context: &Context, plan: &[Declaration], results: &mut [Reso
     let mut ids: Vec<String> = Vec::new();
     for index in &candidates {
         for prerequisite in prerequisites(plan[*index].route) {
-            if !ids.contains(&(*prerequisite).to_string()) {
+            if !ids.iter().any(|held| return held == *prerequisite) {
                 ids.push((*prerequisite).to_string());
             }
         }

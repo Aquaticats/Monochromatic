@@ -525,3 +525,82 @@ fn an_install_neither_waits_for_the_scope_lock_nor_says_anything_about_it() {
 }
 
 //endregion
+
+/// The machine-global plan and lock under a fixture's disposable home.
+fn global_config(fixture: &Fixture) -> PathBuf {
+    return fixture.directory.path().join("home").join(".config").join("monochromatic-dev").join("toolchain");
+}
+
+#[test]
+fn install_help_shows_the_tool_argument_and_the_prefixes_it_can_add() {
+    let fixture = Fixture::new();
+    let output = fixture.run(&["install", "--help"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let help = text(&output.stdout);
+    assert!(help.contains("[TOOL]..."), "the usage line shows the argument:\n{help}");
+    for prefix in ["cargo:<crate>", "npm:<package>", "go:<module>"] {
+        assert!(help.contains(prefix), "{prefix} is missing from the argument's help:\n{help}");
+    }
+    assert!(help.contains("the newest when none is given"), "{help}");
+}
+
+#[test]
+fn install_adds_nothing_for_a_bare_name_that_is_neither_an_id_nor_a_request() {
+    let fixture = Fixture::new();
+    fixture.sign_lock(&fixture.work());
+    let plan_before = fs::read_to_string(fixture.work().join(PLAN_FILE_NAME)).expect("read the plan");
+    let lock_before = fs::read_to_string(fixture.work().join(LOCK_FILE_NAME)).expect("read the lock");
+    let output = fixture.run(&["install", "fastmod"]);
+    assert_eq!(output.status.code(), Some(USAGE_EXIT_CODE), "{}", text(&output.stderr));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("\"fastmod\""), "{stderr}");
+    assert!(stderr.contains(PLAN_FILE_NAME), "the plan is named: {stderr}");
+    assert!(stderr.contains("README.md"), "the entry shapes are named: {stderr}");
+    assert_eq!(fs::read_to_string(fixture.work().join(PLAN_FILE_NAME)).expect("read the plan"), plan_before);
+    assert_eq!(fs::read_to_string(fixture.work().join(LOCK_FILE_NAME)).expect("read the lock"), lock_before);
+    assert!(!fixture.directory.path().join("home").join(".local").exists(), "nothing was installed under the home");
+}
+
+#[test]
+fn install_refuses_a_route_it_cannot_add_and_names_the_readme() {
+    let fixture = Fixture::new();
+    fixture.sign_lock(&fixture.work());
+    let plan_before = fs::read_to_string(fixture.work().join(PLAN_FILE_NAME)).expect("read the plan");
+    let output = fixture.run(&["install", "github:FiloSottile/age"]);
+    assert_eq!(output.status.code(), Some(USAGE_EXIT_CODE), "{}", text(&output.stderr));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("github:"), "{stderr}");
+    assert!(stderr.contains("README.md"), "{stderr}");
+    assert_eq!(fs::read_to_string(fixture.work().join(PLAN_FILE_NAME)).expect("read the plan"), plan_before);
+}
+
+#[test]
+fn a_frozen_lockfile_check_accepts_an_existing_id_as_an_argument_and_writes_nothing() {
+    let fixture = Fixture::new();
+    fixture.sign_lock(&fixture.work());
+    let plan_before = fs::read_to_string(fixture.work().join(PLAN_FILE_NAME)).expect("read the plan");
+    let lock_before = fs::read_to_string(fixture.work().join(LOCK_FILE_NAME)).expect("read the lock");
+    let output = fixture.run(&["i", "--lockfile-only", "--frozen-lockfile", "cargo:fd-find"]);
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    assert_eq!(fs::read_to_string(fixture.work().join(PLAN_FILE_NAME)).expect("read the plan"), plan_before);
+    assert_eq!(fs::read_to_string(fixture.work().join(LOCK_FILE_NAME)).expect("read the lock"), lock_before);
+}
+
+#[test]
+fn a_global_install_refuses_to_add_a_tool_offline_and_leaves_the_machine_files_as_they_were() {
+    let fixture = Fixture::new();
+    let config = global_config(&fixture);
+    fs::create_dir_all(&config).expect("make the config directory");
+    fs::write(config.join(PLAN_FILE_NAME), PLAN).expect("write the global plan");
+    fs::write(config.join(LOCK_FILE_NAME), OLD_LOCK).expect("write the global lock");
+    fixture.sign_lock(&config);
+    let plan_before = fs::read_to_string(config.join(PLAN_FILE_NAME)).expect("read the global plan");
+    let lock_before = fs::read_to_string(config.join(LOCK_FILE_NAME)).expect("read the global lock");
+    let output = fixture.run(&["i", "-g", "--lockfile-only", "--offline", "cargo:fastmod"]);
+    assert_eq!(output.status.code(), Some(USAGE_EXIT_CODE), "{}", text(&output.stderr));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("cargo:fastmod"), "{stderr}");
+    assert!(stderr.contains("--offline"), "the switch that refused is named: {stderr}");
+    assert_eq!(fs::read_to_string(config.join(PLAN_FILE_NAME)).expect("read the global plan"), plan_before);
+    assert_eq!(fs::read_to_string(config.join(LOCK_FILE_NAME)).expect("read the global lock"), lock_before);
+}

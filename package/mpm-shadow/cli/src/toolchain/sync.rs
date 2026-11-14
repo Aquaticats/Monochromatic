@@ -441,7 +441,32 @@ pub fn run_sync_with(
     host: &Host,
     policy: LockPolicy,
 ) -> Result<SyncReport, ToolchainError> {
-    let prepared: LockPreparation = prepare_lock(scope, env, runner, http, host, policy)?;
+    return run_sync_with_named(scope, env, runner, http, host, policy, &[]);
+}
+
+/// What:
+/// `run_sync_with` for a command line that named tools to add,
+/// whose ids are `named`.
+/// Why:
+/// `pnpm add --frozen-lockfile <package>` writes `package.json` and the lockfile all the same
+/// (measured with pnpm 12.18.0 on 2026-11-13),
+/// so a frozen run resolves the entries its own command line added;
+/// every other entry keeps the frozen refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function runSyncWithNamed(scope, env, runner, http, host, policy: LockPolicy, named: string[]): SyncReport
+/// ```
+pub fn run_sync_with_named(
+    scope: &Scope,
+    env: &EnvMap,
+    runner: &dyn Runner,
+    http: &dyn HttpGet,
+    host: &Host,
+    policy: LockPolicy,
+    named: &[String],
+) -> Result<SyncReport, ToolchainError> {
+    let prepared: LockPreparation = prepare_lock(scope, env, runner, http, host, policy, named)?;
     let (_plan, lock): (Plan, Lock) = load_agreeing(scope)?;
     let context: Context = Context { scope, env, runner, http, host, tools: &lock.tools };
     let mut report: SyncReport = sync_tools(&context, None);
@@ -474,7 +499,7 @@ pub struct LockPreparation {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function prepareLock(scope, env, runner, http, host, policy: LockPolicy): { resolved: [string, string][]; rewritten: string[] }
+/// export function prepareLock(scope, env, runner, http, host, policy: LockPolicy, named: string[]): { resolved: [string, string][]; rewritten: string[] }
 /// ```
 pub fn prepare_lock(
     scope: &Scope,
@@ -483,6 +508,7 @@ pub fn prepare_lock(
     http: &dyn HttpGet,
     host: &Host,
     policy: LockPolicy,
+    named: &[String],
 ) -> Result<LockPreparation, ToolchainError> {
     let loaded: Loaded = load(scope)?;
     let mut resolved: Vec<(String, String)> = Vec::new();
@@ -506,7 +532,17 @@ pub fn prepare_lock(
             let verdict: Disagreement = compare(&loaded.plan, parsed);
             if verdict.digest_problem.is_none() && verdict.needs_update() {
                 match policy {
-                    LockPolicy::Frozen(reason) => return Err(frozen_refusal(&verdict, reason)),
+                    LockPolicy::Frozen(reason) => {
+                        // A frozen run resolves what its own command line added and nothing else: every other id that
+                        // needs a lookup, and every difference the lock could take from the plan without one, refuses.
+                        let needed: Vec<String> = verdict.ids_needing_update();
+                        let only_named: Vec<String> = needed.iter().filter(|id| return named.contains(id)).cloned().collect();
+                        let nothing_else_differs: bool = only_named.len() == needed.len() && verdict.offline_fixable_lines().is_empty();
+                        if only_named.is_empty() || !nothing_else_differs {
+                            return Err(frozen_refusal(&verdict, reason));
+                        }
+                        resolved = resolve_before_installing(&loaded, Some(&only_named), scope, env, runner, http, host)?;
+                    }
                     LockPolicy::Resolve => {
                         let ids: Vec<String> = verdict.ids_needing_update();
                         resolved = resolve_before_installing(&loaded, Some(&ids), scope, env, runner, http, host)?;
@@ -544,7 +580,7 @@ pub fn run_lockfile_only(
     host: &Host,
     policy: LockPolicy,
 ) -> Result<LockPreparation, ToolchainError> {
-    let prepared: LockPreparation = prepare_lock(scope, env, runner, http, host, policy)?;
+    let prepared: LockPreparation = prepare_lock(scope, env, runner, http, host, policy, &[])?;
     load_agreeing(scope)?;
     return Ok(prepared);
 }
