@@ -3388,6 +3388,16 @@ because Git's own removal is the route that would delete through a mount point.
 `look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume, which the
 registration's own proof still uses.
 
+The proof of cleanliness a removal makes is the stat proof every removal makes,
+and a refusal beside a volume is proven again by the files themselves:
+`check_clean_by_content` settles by reading a file every entry its stat data cannot vouch for
+(the state a worktree is in the moment it was added,
+where a whole-second modification time is not older than the index's and Git's own racy rule says the stat
+data proves nothing either way)
+and makes the untracked scan the ordinary proof makes,
+so a tree refused only because its stat fields prove nothing yet is proven clean and removed around the volume,
+and a tree that proof cannot settle is refused while nothing of it is deleted.
+
 A removal that found such a volume proves what every removal proves before it deletes anything:
 the worktree is registered,
 not locked,
@@ -3404,12 +3414,27 @@ gives the reason Git refuses,
 and words the way on by what the tree in front of it is:
 `git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
 stands, and, for a tree whose entries are all present, clearing or moving what Git would delete.
-A tree whose only trouble is entries missing from it is the shape a pass of this program leaves,
-and the report says which of the two it read:
-a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it,
-and without such a record the report names `--force`,
+The status a removal reads is one of three,
+and the report says which of them it read:
+Git names nothing at all,
+Git names entries and every one is missing from the tree,
+or Git names something else.
+An empty report is no report of deletions,
+so a clean tree is never worded as one a pass half emptied.
+A tree whose entries are missing is the shape a pass of this program leaves,
+and a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it;
+without such a record the report names `--force`,
 says that moving a volume out cannot finish a tree whose tracked entries are gone,
 and never claims that nothing was removed.
+A tree Git names nothing in,
+and which the proof of cleanliness cannot settle,
+is refused in its own words:
+the report says that Git reports no change in the worktree at all,
+gives the reason the proof refused,
+says that this is no state a pass of this program left,
+and names `--force` as what goes around the volume now.
+A tree whose entries are only missing may be finished by the same unforced command once that record proves it,
+and no worktree is ever removed on a cleanliness that was not proven.
 The tree is never handed to Git to get Git's own sentence,
 because Git's removal is what would delete through the mount;
 the report says so instead of pretending to be Git's words.
