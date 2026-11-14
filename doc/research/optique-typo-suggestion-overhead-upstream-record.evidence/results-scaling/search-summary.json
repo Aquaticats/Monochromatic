@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-11-12T16:56:17.712Z",
+  "arm": "0.7.0",
+  "parameters": {
+    "optionCount": 50,
+    "nameLength": 20,
+    "mistyped": "--opt-000xxxxxxxxxxy",
+    "editDistanceCellsPerSearch": 20000
+  },
+  "processes": 3,
+  "searchMedianMs": 0.060734500000080516,
+  "searchMinMs": 0.05697999999983949,
+  "nanosecondsPerCell": 3.037,
+  "marginBelowOneMillisecond": 16.47,
+  "failingParseMedianMs": 3.358904000000166,
+  "failingParseSearchesImplied": 55.3,
+  "succeedingParseMedianMs": 0.01044000000001688,
+  "countedParse": {
+    "pathCount": 1000,
+    "success": true,
+    "probes": 50000,
+    "acceptedPaths": 1000,
+    "ms": 8695.888634
+  },
+  "suggestions": [
+    "--opt-000xxxxxxxxxxx",
+    "--opt-001xxxxxxxxxxx",
+    "--opt-002xxxxxxxxxxx"
+  ]
+}
