@@ -119,15 +119,55 @@ fn ask(repo: &std::path::Path, scope: DirtyScope) -> bool {
 /// A Git directory without an `index` file is absent;
 /// one with an `index` file,
 /// empty included,
-/// is not.
+/// is not;
+/// and a lookup that gave no answer is no answer rather than either.
 #[test]
 fn the_index_file_is_absent_only_where_the_git_directory_has_none() {
     let root = fixture("index-file-absent");
     let git_directory = root.join("git-directory");
     std::fs::create_dir(&git_directory).expect("git directory");
-    assert!(index_file_is_absent(Some(git_directory.as_path()), None));
+    assert_eq!(index_file_is_absent(Some(git_directory.as_path()), None), Some(true));
     std::fs::write(git_directory.join("index"), b"").expect("empty index file");
-    assert!(!index_file_is_absent(Some(git_directory.as_path()), None));
+    assert_eq!(index_file_is_absent(Some(git_directory.as_path()), None), Some(false));
+    // A dangling link named `index` is present, never absent: the entry is the link.
+    std::fs::remove_file(git_directory.join("index")).expect("drop the index file");
+    std::os::unix::fs::symlink(git_directory.join("gone"), git_directory.join("index")).expect("the dangling link");
+    assert_eq!(index_file_is_absent(Some(git_directory.as_path()), None), Some(false));
+    remove(root.as_path());
+}
+
+/// What:
+///  A lookup held past its ceiling answers nothing,
+///  and the question returns at the ceiling instead of waiting for the stall.
+/// Why:
+///  A `stat` on a mount whose server stopped answering waits in the kernel with no end;
+///  the guard must refuse such a command instead of holding it, so the lookups are given here
+///  with one that sleeps past a short ceiling, which is the seam the code's own reads sit in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// indexFileIsAbsentReadWith(dir, undefined, { ofTheEntry: () => sleep(5s) }, 100ms) === undefined
+/// ```
+#[test]
+fn a_lookup_held_past_its_ceiling_leaves_the_question_unanswered() {
+    let root = fixture("index-file-stalled");
+    let git_directory = root.join("git-directory");
+    std::fs::create_dir(&git_directory).expect("git directory");
+    let ceiling: std::time::Duration = std::time::Duration::from_millis(100);
+    let stalled = super::IndexLookups {
+        of_the_entry: std::sync::Arc::new(|_path: &std::path::Path| {
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            return std::fs::symlink_metadata("/");
+        }),
+        through_a_link: std::sync::Arc::new(|path: &std::path::Path| return std::fs::metadata(path)),
+    };
+    let started: std::time::Instant = std::time::Instant::now();
+    let answer: Option<bool> = super::index_file_is_absent_read_with(Some(git_directory.as_path()), None, &stalled, ceiling);
+    let waited: std::time::Duration = started.elapsed();
+    assert_eq!(answer, None, "a lookup that did not answer is no answer");
+    assert!(waited < std::time::Duration::from_secs(2), "the question returned at the ceiling, not after {waited:?}");
+    // The same question with the real reads answers, so the stall above is the only reason it did not.
+    assert_eq!(index_file_is_absent(Some(git_directory.as_path()), None), Some(true));
     remove(root.as_path());
 }
 
@@ -138,11 +178,14 @@ fn the_index_file_is_absent_only_where_the_git_directory_has_none() {
 fn the_index_file_is_not_absent_when_the_question_is_not_the_default_index() {
     let root = fixture("index-file-unknown");
     let missing = root.join("no-such-git-directory");
-    assert!(!index_file_is_absent(Some(missing.as_path()), None));
-    assert!(!index_file_is_absent(None, None));
+    assert_eq!(index_file_is_absent(Some(missing.as_path()), None), Some(false));
+    assert_eq!(index_file_is_absent(None, None), Some(false));
     let git_directory = root.join("git-directory");
     std::fs::create_dir(&git_directory).expect("git directory");
-    assert!(!index_file_is_absent(Some(git_directory.as_path()), Some(OsStr::new("other-index"))));
+    assert_eq!(
+        index_file_is_absent(Some(git_directory.as_path()), Some(OsStr::new("other-index"))),
+        Some(false)
+    );
     remove(root.as_path());
 }
 

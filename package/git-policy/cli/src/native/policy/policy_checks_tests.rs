@@ -887,13 +887,15 @@ fn head_moves_are_rejected_only_while_dirty() {
             GuardedCommand::SwitchMove
         };
         for location in [main_worktree("/r", ""), linked_worktree("/r", "/w")] {
+            // The question whether the Git directory has an index file comes before the status, because the initial
+            //  checkout that state means is the one case where the status lists every committed file as staged.
             assert_eq!(
                 pre_forward(
                     PolicyId::LinkedWorktreeOnly,
                     values.as_slice(),
                     dirty_in(location.clone(), false)
                 ),
-                (clean(), asked(&["location", "dirty:Tracked"])),
+                (clean(), asked(&["location", "index-file-is-absent", "dirty:Tracked"])),
                 "{values:?} clean"
             );
             assert_eq!(
@@ -908,7 +910,7 @@ fn head_moves_are_rejected_only_while_dirty() {
                         &dirty_worktree_message(command)
                     ),
                     // The refusal names the paths that scope holds, so it reads them after the status.
-                    asked(&["location", "dirty:Tracked", "uncommitted:Tracked"])
+                    asked(&["location", "index-file-is-absent", "dirty:Tracked", "uncommitted:Tracked"])
                 ),
                 "{values:?} dirty"
             );
@@ -1312,6 +1314,49 @@ fn linked_worktree_refuses_the_shared_remote_settings_only_in_a_linked_worktree(
             ),
             (clean(), location_only()),
             "{values:?}"
+        );
+    }
+}
+
+/// What:
+///  A `checkout` or a `switch` that only moves `HEAD` is refused when the question whether the Git
+///  directory has an index file gave no answer within its ceiling,
+///  and the sentence names the file and says nothing was changed.
+/// Why:
+///  The lookup waits in the kernel with no end on a mount whose server stopped answering,
+///  and a guard that cannot look must refuse rather than let the command through unlooked:
+///  the initial-checkout state is the one case where the status lists every committed file as a
+///  staged deletion,
+///  so reading the status without the answer would refuse a command Git runs happily.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// preForward(['checkout', 'topic'], factsAnsweringNoIndexQuestion()) // refused, names <git dir>/index
+/// ```
+#[test]
+fn a_head_move_is_refused_when_the_index_question_gives_no_answer() {
+    for values in [vec!["checkout", "topic"], vec!["switch", "topic"]] {
+        let mut facts: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        facts.git_dir = Some(std::path::PathBuf::from("/w/.git"));
+        facts.index_file_is_absent = None;
+        let (outcome, questions): (PolicyOutcome, Vec<String>) =
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), facts);
+        let PolicyOutcome::Findings(findings) = outcome else {
+            panic!("{values:?} ran without the answer to whether the index file is there")
+        };
+        assert_eq!(findings[0].code, "linked-worktree-required", "{values:?}");
+        let said: &String = &findings[0].message;
+        assert!(said.contains("/w/.git/index"), "{values:?} names the file it could not read: {said}");
+        assert!(said.contains("Nothing was run or changed"), "{values:?}: {said}");
+        assert!(said.contains("--no-enforce-worktree"), "{values:?} names the way past it: {said}");
+        assert_eq!(questions, asked(&["location", "index-file-is-absent"]), "{values:?}");
+        // The same question answered runs to the status as it always did.
+        let mut answered: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+        answered.index_file_is_absent = Some(false);
+        assert_eq!(
+            pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), answered).0,
+            clean(),
+            "{values:?} answered"
         );
     }
 }

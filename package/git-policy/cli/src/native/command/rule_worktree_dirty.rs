@@ -17,7 +17,7 @@
 
 use crate::git_metadata::MetadataOutput;
 use std::ffi::{OsStr, OsString};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Which files count as uncommitted state.
@@ -523,12 +523,40 @@ pub fn dirty_from_output(output: &MetadataOutput) -> Result<bool, String> {
 }
 
 /// What:
+///  The two metadata reads `index_file_is_absent` makes,
+///  each a closure the caller supplies:
+///  the entry itself, no link followed, and the path through any link.
+///  A `struct` is a record with named fields.
+/// Why:
+///  The reads are the storage work of the question,
+///  and each runs on a thread the question waits for only until its ceiling;
+///  a closure named here is the seam a control stalls,
+///  so the test proves the ceiling rather than a mount.
+///  `Arc` is needed because the job runs on a thread of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type IndexLookups = { ofTheEntry: (path: string) => Metadata; throughALink: (path: string) => Metadata };
+/// ```
+pub struct IndexLookups {
+    /// The entry itself, as `lstat` reads it,
+    ///  so a dangling link named `index` is present and never absent.
+    pub of_the_entry: std::sync::Arc<dyn Fn(&Path) -> std::io::Result<std::fs::Metadata> + Send + Sync>,
+    /// The path through any link,
+    ///  as `Path::is_dir` reads it,
+    ///  so a Git directory named by a link is the directory it names.
+    pub through_a_link: std::sync::Arc<dyn Fn(&Path) -> std::io::Result<std::fs::Metadata> + Send + Sync>,
+}
+
+/// What:
 ///  Whether a Git directory has never had an index file:
-/// the state `git clone --no-checkout` leaves.
+/// the state `git clone --no-checkout` leaves,
+///  or no answer at all when a lookup gave none within its ceiling.
 ///  `Option<&Path>` is "a borrowed path or nothing";
 /// the second argument is the value of `GIT_INDEX_FILE`,
 /// injected so tests
 ///  never read the process environment.
+///  `Option<bool>` is "the answer, or none".
 /// Why:
 ///   With no index file Git sees an initial checkout and has nothing of the user's to protect:
 /// `builtin/checkout.c` sets
@@ -545,23 +573,81 @@ pub fn dirty_from_output(output: &MetadataOutput) -> Result<bool, String> {
 /// so a staged deletion of every file still counts;
 /// a `GIT_INDEX_FILE` that names
 ///  another index,
-/// an unreadable Git directory and a Git directory that does not exist all answer false and leave the question to `git status`.
+/// an unreadable Git directory and a Git directory that does not exist all answer `Some(false)` and leave
+/// the question to `git status`.
+///  Both lookups run on a thread this process waits for only until `WORKTREE_LOOKUP_CEILING`:
+/// a `stat` on a mount whose server stopped answering waits in the kernel with no end,
+///  and that wait is what `None` reports so the caller refuses instead of holding the command
+///  (`policy/policy_linked_worktree.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function indexFileIsAbsent(gitDirectory?: string, indexFileVariable?: string): boolean;
+/// function indexFileIsAbsent(gitDirectory?: string, indexFileVariable?: string): boolean | undefined;
 /// ```
-pub fn index_file_is_absent(git_directory: Option<&Path>, index_file_variable: Option<&OsStr>) -> bool {
+pub fn index_file_is_absent(git_directory: Option<&Path>, index_file_variable: Option<&OsStr>) -> Option<bool> {
+    let lookups: IndexLookups = IndexLookups {
+        of_the_entry: std::sync::Arc::new(|path: &Path| return std::fs::symlink_metadata(path)),
+        through_a_link: std::sync::Arc::new(|path: &Path| return std::fs::metadata(path)),
+    };
+    return index_file_is_absent_read_with(
+        git_directory,
+        index_file_variable,
+        &lookups,
+        crate::wait_ceilings::WORKTREE_LOOKUP_CEILING,
+    );
+}
+
+/// What:
+///  The same question with its lookups and its ceiling given,
+///  so a control can stall a lookup and read the answer the ceiling gives.
+///  `Option<bool>` is "the answer, or none".
+/// Why:
+///  A control cannot stall a real mount here,
+///  and what the ceiling does must be provable:
+///  a lookup held past it answers nothing,
+///  which the caller refuses on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function indexFileIsAbsentReadWith(gitDirectory, variable, lookups, 100ms): boolean | undefined;
+/// ```
+pub(crate) fn index_file_is_absent_read_with(
+    git_directory: Option<&Path>,
+    index_file_variable: Option<&OsStr>,
+    lookups: &IndexLookups,
+    ceiling: std::time::Duration,
+) -> Option<bool> {
     if index_file_variable.is_some() {
-        return false;
+        return Some(false);
     }
     let Some(directory) = git_directory else {
-        return false;
+        return Some(false);
     };
     // `symlink_metadata` does not follow a link, so a dangling link named `index` is present, never absent.
-    return match std::fs::symlink_metadata(directory.join("index")) {
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => directory.is_dir(),
-        Err(_) | Ok(_) => false,
+    let named: PathBuf = directory.join("index");
+    let of_the_entry: std::sync::Arc<dyn Fn(&Path) -> std::io::Result<std::fs::Metadata> + Send + Sync> =
+        lookups.of_the_entry.clone();
+    let answer = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || return of_the_entry(named.as_path()));
+    return match answer {
+        // A lookup that gave no answer says nothing about the worktree, so the caller refuses on `None`.
+        None => None,
+        Some(Ok(_)) => Some(false),
+        Some(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => {
+            // `is_dir` follows a link, which is the reading that answers for a Git directory named by one.
+            let named_directory: PathBuf = directory.to_path_buf();
+            let through_a_link: std::sync::Arc<dyn Fn(&Path) -> std::io::Result<std::fs::Metadata> + Send + Sync> =
+                lookups.through_a_link.clone();
+            let found = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
+                return through_a_link(named_directory.as_path());
+            });
+            return match found {
+                None => None,
+                Some(Ok(metadata)) => Some(metadata.is_dir()),
+                // A directory that is not there, or that the system refuses, leaves the question to `git status`.
+                Some(Err(_)) => Some(false),
+            };
+        }
+        Some(Err(_)) => Some(false),
     };
 }
 

@@ -23,7 +23,7 @@
 //! const copies = await setNestedRepositoriesAside({ commonDir, worktreeRoot, repositories, milliseconds });
 //! ```
 
-use crate::conflict_sides::{SavedCopy, SaveFailure, depth_deepest_first, fresh_saved_directory};
+use crate::conflict_sides::{SAVED_DIRECTORY, SavedCopy, SaveFailure, depth_deepest_first, fresh_saved_directory};
 use crate::fs_beneath::plain_components;
 use crate::private_storage::{create_private_directory_all, sync_directory};
 /// `OsStr`/`OsString` are operating-system text of raw bytes.
@@ -65,9 +65,29 @@ pub fn set_nested_repositories_aside(
     repositories: &[Vec<u8>],
     milliseconds: i64,
 ) -> Result<Vec<SavedCopy>, SaveStopped> {
-    let base: PathBuf = match fresh_saved_directory(common_dir, milliseconds) {
-        Ok(created) => created,
-        Err(error) => return Err(SaveStopped { failure: SaveFailure::io(common_dir.display().to_string(), error.to_string()), still_moved: Vec::<SavedCopy>::new() }),
+    // Creating the folder of saved copies is a storage step of its own, and a mount whose server stopped answering
+    //  makes a `mkdir` wait in the kernel with no end, so it runs on a thread this save waits for only to the ceiling.
+    let common: PathBuf = common_dir.to_path_buf();
+    let base: PathBuf = match crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, move || {
+        return fresh_saved_directory(common.as_path(), milliseconds);
+    }) {
+        Some(Ok(created)) => created,
+        Some(Err(error)) => {
+            return Err(SaveStopped { failure: SaveFailure::io(common_dir.display().to_string(), error.to_string()), still_moved: Vec::<SavedCopy>::new() })
+        }
+        // No answer is not a failed creation: the folder may exist now, so the save stops and names the place.
+        None => {
+            return Err(SaveStopped {
+                failure: SaveFailure::io(
+                    common_dir.join(SAVED_DIRECTORY).display().to_string(),
+                    format!(
+                        "creating the place the copies go in gave no answer within {} seconds",
+                        crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
+                    ),
+                ),
+                still_moved: Vec::<SavedCopy>::new(),
+            })
+        }
     };
     let mut moved: Vec<Moved> = Vec::<Moved>::new();
     let mut written: BTreeSet<PathBuf> = BTreeSet::<PathBuf>::new();
@@ -85,8 +105,26 @@ pub fn set_nested_repositories_aside(
                 moved.as_slice(),
             ));
         };
-        if let Err(error) = create_private_directory_all(parent) {
-            return Err(stopped(SaveFailure::io(shown, error.to_string()), moved.as_slice()));
+        // The directory a copy goes in is made on a thread this save waits for only to the ceiling, for the same reason
+        //  the creation of the folder above is: a `mkdir` on a mount that stopped answering never returns.
+        let make: PathBuf = parent.to_path_buf();
+        match crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, move || {
+            return create_private_directory_all(make.as_path());
+        }) {
+            Some(Ok(())) => {}
+            Some(Err(error)) => return Err(stopped(SaveFailure::io(shown, error.to_string()), moved.as_slice())),
+            None => {
+                return Err(stopped(
+                    SaveFailure::io(
+                        shown,
+                        format!(
+                            "the directory it is moved into gave no answer within {} seconds",
+                            crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
+                        ),
+                    ),
+                    moved.as_slice(),
+                ))
+            }
         }
         written.insert(parent.to_path_buf());
         // A rename or a sync on a mount whose server stopped answering waits in the kernel with no end,

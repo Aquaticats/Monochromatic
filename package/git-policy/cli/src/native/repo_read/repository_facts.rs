@@ -220,6 +220,24 @@ pub trait RepositoryFacts {
     /// from the location already asked,
     /// or from the file system.
     /// A provider that has neither answers nothing.
+    /// Whether this worktree's Git directory has never had an `index` file,
+    ///  which is Git's own initial checkout and holds no tracked work to keep,
+    ///  or no answer when the lookup gave none within its ceiling.
+    ///  `Option<bool>` is "absent, present, or not looked".
+    /// Why:
+    ///  A `checkout` or a `switch` that only moves `HEAD` asks this before it reads the status,
+    ///  because `git status` lists every committed file as a staged deletion in that state;
+    ///  the lookup waits in the kernel with no end on a mount whose server stopped answering,
+    ///  so it runs under the worktree lookup ceiling and says nothing at all when that ceiling
+    ///  passes, which the caller refuses on.
+    ///  A provider that models the repository in memory answers for it.
+    fn the_index_file_is_absent(&mut self) -> Option<bool> {
+        let directory: Option<PathBuf> = self.known_git_dir();
+        return crate::rule_worktree_dirty::index_file_is_absent(
+            directory.as_deref(),
+            std::env::var_os("GIT_INDEX_FILE").as_deref(),
+        );
+    }
     fn known_git_dir(&mut self) -> Option<PathBuf> {
         let asked: Option<Result<RepositoryLocation, String>> = self.asked_location();
         if let Some(Ok(found)) = asked

@@ -45,6 +45,30 @@ pub fn symlink_metadata_within(ceiling: Duration, path: &Path) -> Option<std::io
     });
 }
 
+
+/// What:
+///  The metadata of the entry at `path`, following any symbolic link, read for no longer than
+///  `ceiling`.
+///  `Option<std::io::Result<std::fs::Metadata>>` is "the lookup's own answer, or none".
+/// Why:
+///  A caller that asks whether a path is a directory asks the target when the path is a link,
+///  which is what `Path::is_dir` reads and what a Git directory named by a link needs,
+///  and that lookup waits in the kernel with no end on a mount whose server stopped answering.
+///  The answer keeps the lookup's own error apart from no answer at all,
+///  so a path that is not there stays distinguishable from a lookup still waiting.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const metadata = metadataThroughLinksWithin(READ_CEILING, 'a-link-to-a-directory');
+/// ```
+pub fn metadata_through_links_within(ceiling: Duration, path: &Path) -> Option<std::io::Result<std::fs::Metadata>> {
+    let named: std::path::PathBuf = path.to_path_buf();
+    return crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
+        // `metadata` follows a link, which is the target a directory question asks about.
+        return std::fs::metadata(named.as_path());
+    });
+}
+
 /// The bounded lookup is controlled beside it.
 #[cfg(test)]
 #[path = "metadata_of_a_path_within_a_ceiling_tests.rs"]

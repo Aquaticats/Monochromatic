@@ -44,6 +44,14 @@ mod no_self_invocation_tests;
 #[path = "blocking_code_off_the_runtime_tests.rs"]
 mod blocking_code_off_the_runtime_tests;
 
+/// A check of the crate's own source text that fails when a discarding guard touches storage
+/// without a ceiling:
+/// a stat, a read, a listing, a canonicalize or an open on a mount whose server stopped answering
+/// waits in the kernel with no end, and the guard's pass runs synchronously and has no bound around
+/// it.
+#[path = "a_storage_step_of_the_guard_is_bounded_tests.rs"]
+mod a_storage_step_of_the_guard_is_bounded_tests;
+
 /// The structural check that the review's network client is reachable only from the service run;
 /// never in the release build.
 #[cfg(test)]

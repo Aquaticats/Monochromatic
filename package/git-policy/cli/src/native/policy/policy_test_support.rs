@@ -80,6 +80,11 @@ pub(crate) struct ScriptedFacts {
     /// The answer to `clean_require_force`,
     ///  which Git's own default is true for.
     pub(crate) clean_require_force: bool,
+    /// The answer to `the_index_file_is_absent`:
+    ///  `Some(true)` for a Git directory with no index file,
+    ///  `Some(false)` for one with it,
+    ///  and nothing for a lookup that gave no answer within its ceiling.
+    pub(crate) index_file_is_absent: Option<bool>,
     /// The answer to `repository_holds_a_stash`.
     pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
@@ -156,6 +161,11 @@ impl RepositoryFacts for ScriptedFacts {
     ///   return patterns || forces > 1 ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
     /// }
     /// ```
+    fn the_index_file_is_absent(&mut self) -> Option<bool> {
+        self.asked.push(String::from("index-file-is-absent"));
+        return self.index_file_is_absent;
+    }
+
     fn clean_require_force(&mut self) -> Result<bool, String> {
         self.asked.push(String::from("clean-require-force"));
         return Ok(self.clean_require_force);
@@ -337,6 +347,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         clean_deletes: Ok(Vec::<Vec<u8>>::new()),
         clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
         clean_require_force: true,
+        index_file_is_absent: Some(false),
         asked: Vec::<String>::new(),
         candidates_repository: None,
         git_dir: None,

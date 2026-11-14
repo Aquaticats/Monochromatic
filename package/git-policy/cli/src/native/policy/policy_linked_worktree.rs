@@ -79,7 +79,6 @@ use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange}
 /// The text that refusal prints.
 use crate::rule_shared_remote_messages::shared_remote_settings_message;
 /// Whether a Git directory has no index file yet.
-use crate::rule_worktree_dirty::index_file_is_absent;
 /// The one place a form is let through,
 /// which keeps a clean's nested repositories first.
 use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form};
@@ -411,9 +410,37 @@ pub(crate) fn check_linked_worktree(
     }
     // A checkout that only moves `HEAD` in a Git directory with no index file is Git's own initial checkout (a clone made with
     // `--no-checkout`): there is no tracked work to carry over, so the status, which lists every file as a staged deletion, is not read.
-    if moves_head_only && index_file_is_absent(facts.known_git_dir().as_deref(), std::env::var_os("GIT_INDEX_FILE").as_deref()) {
-        record_audit(&location.identity, command, AuditOutcome::Allowed, seen, Some(false));
-        return clean();
+    if moves_head_only {
+        // The word the command was decided on names it in the sentence below, and the opt-out is written after it.
+        let subcommand: String = command_tokens(decided)
+            .map(|(word, _)| return word.to_string_lossy().into_owned())
+            .unwrap_or_else(|| return String::from("command"));
+        let git_directory: Option<PathBuf> = facts.known_git_dir();
+        match facts.the_index_file_is_absent() {
+            Some(true) => {
+                record_audit(&location.identity, command, AuditOutcome::Allowed, seen, Some(false));
+                return clean();
+            }
+            Some(false) => {}
+            // A lookup that gave no answer within its ceiling says nothing about the worktree, and a guard that
+            //  cannot look refuses rather than letting the command through unlooked.
+            None => {
+                record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+                let named: String = git_directory
+                    .as_deref()
+                    .map(|directory| return directory.join("index").display().to_string())
+                    .unwrap_or_else(|| return String::from("the index file"));
+                return rejected(
+                    LINKED_WORKTREE_REQUIRED_CODE,
+                    format!(
+                        "monochromatic-git-policy-cli: git {} is rejected because the guard could not read whether `{named}` exists within {} seconds: Git reports an initial checkout only while that file is absent, so the guard cannot tell whether this worktree holds staged work to keep. Nothing was run or changed. If you have decided to discard it on purpose, run `git {} --no-enforce-worktree …`, and the command runs exactly as real Git runs it.",
+                        subcommand,
+                        crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs(),
+                        subcommand,
+                    ),
+                );
+            }
+        }
     }
     // The tokens after the subcommand, read once: which tree a forced form writes and which question a clean asks
     //  both come from them.

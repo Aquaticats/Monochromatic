@@ -211,6 +211,30 @@ pub fn nested_repositories_and_their_shape(
     worktree_root: &Path,
     command_prefix: &[u8],
 ) -> Result<Vec<NestedRepository>, String> {
+    return nested_repositories_and_their_shape_read_with(deleted_lines, worktree_root, command_prefix, walk_beneath);
+}
+
+/// What:
+///  The same reading with the walk given,
+///  so a control can name what a look finds without a filesystem under it,
+///  and read which shape the reading reports.
+/// Why:
+///  The shape of each repository must be the walk's own answer,
+///  decided inside the job the ceiling awaits;
+///  a control that supplies the walk and names a repository the filesystem does not hold
+///  tells a reading that trusts the walk from one that looks a second time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nestedRepositoriesAndTheirShapeReadWith(lines, root, prefix, aWalkThatNamesWhatIsNotThere)
+///   === [{ path: 'container/gone-mirror', bare: true }]
+/// ```
+pub(crate) fn nested_repositories_and_their_shape_read_with(
+    deleted_lines: &[Vec<u8>],
+    worktree_root: &Path,
+    command_prefix: &[u8],
+    walk: fn(&Path, &[OsString]) -> Result<Vec<(Vec<OsString>, bool)>, String>,
+) -> Result<Vec<NestedRepository>, String> {
     let command: Vec<OsString> = match plain_components(Path::new(OsStr::from_bytes(command_prefix))) {
         Ok(names) => names,
         Err(error) => {
@@ -226,16 +250,9 @@ pub fn nested_repositories_and_their_shape(
         let Some(names) = names_below_the_command(path.as_slice(), command.as_slice()) else {
             continue;
         };
-        // The look inside the path reads its every component, so the check that it is a directory of its own happens
-        //  under the same ceiling as the walk below it.
-        for nested in repositories_beneath_within_a_ceiling(worktree_root, names.as_slice(), READ_CEILING, walk_beneath)? {
-            // The walk's own rule: a directory with a `.git` entry is the shape one force keeps; a bare repository is
-            //  the shape it does not.
-            let mut full: PathBuf = worktree_root.to_path_buf();
-            for name in &nested {
-                full.push(name);
-            }
-            let is_bare: bool = a_bare_repository_is(full.as_path());
+        // The look inside the path reads its every component, and it answers each repository's shape as well, so the
+        //  whole question runs under one ceiling: the walk's job.
+        for (nested, is_bare) in repositories_beneath_within_a_ceiling(worktree_root, names.as_slice(), READ_CEILING, walk)? {
             found.push((joined_names(nested.as_slice()), nested, is_bare));
         }
     }
@@ -339,8 +356,8 @@ pub(crate) fn repositories_beneath_within_a_ceiling(
     worktree_root: &Path,
     start: &[OsString],
     ceiling: std::time::Duration,
-    walk: fn(&Path, &[OsString]) -> Result<Vec<Vec<OsString>>, String>,
-) -> Result<Vec<Vec<OsString>>, String> {
+    walk: fn(&Path, &[OsString]) -> Result<Vec<(Vec<OsString>, bool)>, String>,
+) -> Result<Vec<(Vec<OsString>, bool)>, String> {
     let root: PathBuf = worktree_root.to_path_buf();
     let names: Vec<OsString> = start.to_vec();
     let Some(answer) = work_within(ceiling, move || { return walk(root.as_path(), names.as_slice()); }) else {
@@ -366,13 +383,18 @@ pub(crate) fn repositories_beneath_within_a_ceiling(
 /// so nothing behind it is deleted.
 ///  A directory that went away between Git's answer and this look holds nothing,
 ///  and a directory the wrapper cannot open is a failure naming that directory.
+///  The shape of each repository is decided here as well,
+///  on the same thread and so under the same ceiling:
+///  a `.git` entry is the shape one force keeps and a bare repository is the shape it deletes,
+///  and a second look at the shape after this walk would be a metadata read with no ceiling
+///  (`a_bare_repository_is` reads `HEAD`, `objects` and `refs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function walkBeneath(root: string, start: string[]): string[][]; // throws
+/// function walkBeneath(root: string, start: string[]): [string[], boolean][]; // throws, bare second
 /// ```
-fn walk_beneath(worktree_root: &Path, start: &[OsString]) -> Result<Vec<Vec<OsString>>, String> {
-    let mut found: Vec<Vec<OsString>> = Vec::<Vec<OsString>>::new();
+fn walk_beneath(worktree_root: &Path, start: &[OsString]) -> Result<Vec<(Vec<OsString>, bool)>, String> {
+    let mut found: Vec<(Vec<OsString>, bool)> = Vec::<(Vec<OsString>, bool)>::new();
     // Every component of the removed path must be a directory of its own: a file holds nothing below it, and a
     //  link is removed as a link.
     let Some(start_path) = directory_beneath(worktree_root, start) else {
@@ -380,8 +402,8 @@ fn walk_beneath(worktree_root: &Path, start: &[OsString]) -> Result<Vec<Vec<OsSt
     };
     let mut pending: Vec<(PathBuf, Vec<OsString>)> = vec![(start_path, start.to_vec())];
     while let Some((directory, names)) = pending.pop() {
-        if a_repository_is(directory.as_path()) {
-            found.push(names);
+        if let Some(bare) = a_repository_shape(directory.as_path()) {
+            found.push((names, bare));
             continue;
         }
         let listing: std::fs::ReadDir = match std::fs::read_dir(directory.as_path()) {
@@ -411,24 +433,35 @@ fn walk_beneath(worktree_root: &Path, start: &[OsString]) -> Result<Vec<Vec<OsSt
 }
 
 /// What:
-///  Whether one directory is a Git repository of its own,
-///  with a `.git` entry or as a bare repository.
+///  The shape of the repository one directory is,
+///  or nothing when it is no repository of its own:
+///  `Some(false)` for a directory with a `.git` entry,
+///  which one force keeps,
+///  and `Some(true)` for a bare repository,
+///  which one force deletes.
 /// Why:
 ///   A second `-f` deletes both shapes whole,
 ///  without naming the repository it removes,
 ///  and a bare repository has no `.git` entry to find.
 ///  `.git` is read as the entry itself,
 ///  so a file (a worktree's or a submodule's) counts as much as a directory.
+///  The shape is answered here and not after the walk,
+///  because these reads (`symlink_metadata`, `metadata`) wait in the kernel with no end on a mount
+///  whose server stopped answering,
+///  and this runs inside the job the walk's ceiling awaits.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function aRepositoryIs(directory: string): boolean;
+/// function aRepositoryShape(directory: string): boolean | undefined; // true when bare
 /// ```
-fn a_repository_is(directory: &Path) -> bool {
+fn a_repository_shape(directory: &Path) -> Option<bool> {
     if std::fs::symlink_metadata(directory.join(".git")).is_ok() {
-        return true;
+        return Some(false);
     }
-    return a_bare_repository_is(directory);
+    if a_bare_repository_is(directory) {
+        return Some(true);
+    }
+    return None;
 }
 
 /// What:

@@ -365,9 +365,9 @@ fn a_look_inside_that_does_not_answer_stops_the_clean() {
 fn a_look_that_does_not_answer(
     _worktree_root: &std::path::Path,
     _start: &[std::ffi::OsString],
-) -> Result<Vec<Vec<std::ffi::OsString>>, String> {
+) -> Result<Vec<(Vec<std::ffi::OsString>, bool)>, String> {
     std::thread::sleep(std::time::Duration::from_secs(30));
-    return Ok(Vec::<Vec<std::ffi::OsString>>::new());
+    return Ok(Vec::<(Vec<std::ffi::OsString>, bool)>::new());
 }
 
 /// What:
@@ -436,4 +436,86 @@ fn an_empty_answer_names_nothing() {
     let empty: MetadataOutput = answer(true, b"\n  \n", b"");
     let read: Vec<Vec<u8>> = dry_run_lines_from_answer(&empty, "what the clean would delete").expect("a successful answer");
     assert!(read.is_empty(), "{read:?}");
+}
+
+/// What:
+///  The shape of each repository is the walk's own answer,
+///  decided inside the job the ceiling awaits and never read again afterwards.
+/// Why:
+///  A second look after the walk (`a_bare_repository_is`) is a metadata read with no ceiling,
+///  and a mount that stops answering between the walk and that read holds the command with no end.
+///  Here the walk names a repository the filesystem does not hold and says it is bare:
+///  a reading that trusted the walk answers `bare: true`,
+///  while one that looked again would find nothing there and answer `bare: false`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nestedRepositoriesAndTheirShape(['Would remove container/'], root, '') with a walk that says bare
+///   === [{ path: 'container/gone-mirror', bare: true }]
+/// ```
+#[test]
+fn a_repository_shape_is_the_walks_own_answer() {
+    let root: PathBuf = fixture("clean-nested-shape-from-the-walk");
+    // The walk names a path that is not on disk, and says it is bare.
+    fn a_walk_that_names_what_is_not_there(
+        _worktree_root: &std::path::Path,
+        start: &[std::ffi::OsString],
+    ) -> Result<Vec<(Vec<std::ffi::OsString>, bool)>, String> {
+        let mut named: Vec<std::ffi::OsString> = start.to_vec();
+        named.push(std::ffi::OsString::from("gone-mirror"));
+        return Ok(vec![(named, true)]);
+    }
+    let found: Vec<(Vec<std::ffi::OsString>, bool)> = repositories_beneath_within_a_ceiling(
+        root.as_path(),
+        &[std::ffi::OsString::from("container")],
+        std::time::Duration::from_secs(30),
+        a_walk_that_names_what_is_not_there,
+    )
+    .expect("the walk answers");
+    assert_eq!(
+        found,
+        vec![(vec![std::ffi::OsString::from("container"), std::ffi::OsString::from("gone-mirror")], true)],
+        "the shape is what the walk said, not a second look at a directory that is not there"
+    );
+    remove(root.as_path());
+}
+
+/// What:
+///  The reading of a clean reports the shape the walk gave it,
+///  even for a repository the filesystem does not hold,
+///  so no metadata read happens after the walk.
+/// Why:
+///  A second look at the shape (`a_bare_repository_is`) is a `metadata` read with no ceiling,
+///  and a mount that stops answering between the walk and that read holds the command with no end.
+///  The walk here names a repository that is not there and says it is bare:
+///  a reading that trusts the walk answers `bare`, while one that looked again would answer the
+///  `.git` shape.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nestedRepositoriesAndTheirShapeReadWith(['Would remove container/'], root, '', aWalkNamingGoneMirror)
+///   === [{ path: 'container/gone-mirror', bare: true }]
+/// ```
+#[test]
+fn the_shape_a_clean_reports_is_the_one_its_walk_found() {
+    fn a_walk_that_names_what_is_not_there(
+        _worktree_root: &std::path::Path,
+        start: &[std::ffi::OsString],
+    ) -> Result<Vec<(Vec<std::ffi::OsString>, bool)>, String> {
+        let mut named: Vec<std::ffi::OsString> = start.to_vec();
+        named.push(std::ffi::OsString::from("gone-mirror"));
+        return Ok(vec![(named, true)]);
+    }
+    let root: PathBuf = fixture("clean-nested-shape-read-with");
+    let found: Vec<super::NestedRepository> = super::nested_repositories_and_their_shape_read_with(
+        lines(&["Would remove container/\n"]).as_slice(),
+        root.as_path(),
+        b"",
+        a_walk_that_names_what_is_not_there,
+    )
+    .expect("the reading answers");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].path, line("container/gone-mirror"));
+    assert!(found[0].bare, "the shape is the walk's answer, not a second look at a path that is not there");
+    remove(root.as_path());
 }
