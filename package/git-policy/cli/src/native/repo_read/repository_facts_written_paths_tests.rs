@@ -355,6 +355,51 @@ fn a_query_a_signal_ended_is_a_failure_and_never_an_answer() {
     remove(directory.as_path());
 }
 
+/// What:
+///  A pipe named by `--pathspec-from-file` is still read,
+///  which is what a process substitution names.
+/// Why:
+///  The byte bound is on the read and not on the kind of file:
+///  `--pathspec-from-file=<(printf 'b.txt\n')` is a spelling Git runs,
+///  so refusing a pipe would refuse a command that writes what its words say.
+///  A writer is started first, so the read has its bytes and no wait is possible.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fromTheFile(repo, fifoWrittenWith('b.txt\n'), tree('other')) === ['b.txt']
+/// ```
+#[test]
+fn a_pipe_the_form_names_is_read() {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_tracked_file("facts-pathspec-file-pipe");
+    git(repository.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    std::fs::write(repository.join("b.txt"), b"from the other tree\n").expect("the tracked file");
+    git(repository.as_path(), &["add", "--", "b.txt"]);
+    git(repository.as_path(), &["commit", "--quiet", "--message=other"]);
+    git(repository.as_path(), &["checkout", "--quiet", "main"]);
+    let pipe: PathBuf = directory.join("list.pipe");
+    let made: std::process::ExitStatus = std::process::Command::new("mkfifo")
+        .arg(pipe.as_path())
+        .status()
+        .expect("mkfifo runs");
+    assert!(made.success(), "mkfifo must create {}", pipe.display());
+    // The writer waits for the read, as a process substitution's own writer does.
+    let writer: std::process::Child = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(format!("printf 'b.txt\\n' > {}", pipe.display()))
+        .spawn()
+        .expect("the writer starts");
+    let answer: Result<Vec<Vec<u8>>, String> = from_the_file(
+        repository.as_path(),
+        pipe.to_str().expect("utf-8 path"),
+        PathspecTarget::Tree(Some(OsString::from("other"))),
+        false,
+    );
+    let mut writer: std::process::Child = writer;
+    let _ = writer.wait();
+    assert_eq!(answer, Ok(vec![b"b.txt".to_vec()]), "a pipe's bytes are the pathspecs Git reads");
+    remove(directory.as_path());
+}
+
 //endregion
 
 //region The shapes a forced move has, each measured against real Git

@@ -285,6 +285,36 @@ fn rooted_at_the_run_directory(facts: &mut GitFacts, run_in: &Path, path: &[u8])
 }
 
 /// What:
+///  The bytes of the file at `path`,
+///  read once and never past `limit` bytes,
+///  which is the `limit + 1` it reads so that a file past it is recognised.
+///  `&Path` borrows the file, and `u64` is the bound.
+/// Why:
+///  The read runs on a thread this process abandons at the read ceiling,
+///  so every byte it can still take is memory this process keeps after the answer:
+///  a bound is what keeps a file larger than memory from growing it without end.
+///  The file is opened the way Git opens it rather than as a plain file only,
+///  because a process substitution names a pipe
+///  (`--pathspec-from-file=<(printf 'a.txt\n')`),
+///  and Git reads it.
+///  A file past the bound is `InvalidData` with no size in the error, so the refusal can
+///  name the bound and the path in the person's own terms.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bytes = readAtMost(path, limit); // throws InvalidData when longer
+/// ```
+fn read_at_most(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
+    let file: std::fs::File = std::fs::File::open(path)?;
+    let mut bytes: Vec<u8> = Vec::<u8>::new();
+    std::io::Read::read_to_end(&mut std::io::Read::take(&file, limit + 1), &mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "larger than the guard reads"));
+    }
+    return Ok(bytes);
+}
+
+/// What:
 ///  The pathspecs the file a form names holds,
 ///  each as its own token,
 ///  `Result<Vec<OsString>, String>` is "the pathspecs, or why the file could not be read".
@@ -300,11 +330,16 @@ fn rooted_at_the_run_directory(facts: &mut GitFacts, run_in: &Path, path: &[u8])
 ///  written".
 ///  A relative name means the directory the command runs in,
 ///  which is the worktree's top for the command a `!` alias's shell runs.
-///  The bytes are read through the plain-file reader under a byte bound:
-///  a name that is a pipe is refused rather than waited on,
-///  and a file larger than the bound is refused by its size instead of being read whole,
-///  because the thread that reads it is abandoned when the ceiling passes and a read with no
-///  bound would go on filling this process's memory after the answer.
+///  The bytes are read under a byte bound,
+///  because the thread that reads them is abandoned when the ceiling passes and a read with no
+///  bound went on filling this process's memory after the answer
+///  (a sparse file larger than this host's memory raised the wrapper's resident memory to a
+///  scope's whole gigabyte in the five seconds before the refusal,
+///  measured on this host on 2026-11-14).
+///  A file past the bound is refused by its size,
+///  and a pipe is still read, which is what a process substitution names
+///  (`--pathspec-from-file=<(printf 'a.txt\n')`):
+///  refusing it would refuse a spelling Git runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -331,7 +366,7 @@ fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: &Path) ->
     };
     let opened: PathBuf = absolute.clone();
     let Some(answer) = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
-        return crate::plain_file::read_plain_file_through_links(opened.as_path(), PATHSPEC_FILE_READ_LIMIT);
+        return read_at_most(opened.as_path(), PATHSPEC_FILE_READ_LIMIT);
     }) else {
         return Err(format!(
             "the file `{}` that `--pathspec-from-file` names gave no bytes within {} seconds, so the guard cannot tell which paths this command writes over",
