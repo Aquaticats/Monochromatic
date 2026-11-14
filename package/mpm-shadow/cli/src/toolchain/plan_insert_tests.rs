@@ -111,6 +111,15 @@ fn an_empty_tools_object_gets_the_entry_inside_it_and_keeps_its_indentation() {
 }
 
 #[test]
+fn an_empty_tools_object_whose_braces_are_on_their_own_lines_keeps_them_there() {
+    let empty = "{\n  \"schemaVersion\": 1,\n  \"tools\": {\n  }\n}\n";
+    let updated = plan_with_entries(empty, "plan", &[fastmod()]).expect("the entry is added");
+    let expected = "{\n  \"schemaVersion\": 1,\n  \"tools\": {\n    \"cargo:fastmod\": {\n      \"request\": \"cargo:fastmod@latest\",\n      \"route\": \"cargo-binstall\",\n      \"bins\": [\n        \"fastmod\"\n      ]\n    }\n  }\n}\n";
+    assert_eq!(updated, expected);
+    assert_eq!(parse_plan(&updated, "plan").expect("parses").tools.len(), 1);
+}
+
+#[test]
 fn a_plan_whose_last_entry_pins_a_version_keeps_the_comma_the_person_wrote() {
     let plan = "{\n  \"schemaVersion\": 1,\n  \"tools\": {\n    \"cargo:tokei\": {\"request\": \"cargo:tokei@1.0.0\", \"route\": \"cargo-binstall\", \"bins\": [\"tokei\"]}\n  }\n}\n";
     let updated = plan_with_entries(plan, "plan", &[fastmod()]).expect("the entry is added");

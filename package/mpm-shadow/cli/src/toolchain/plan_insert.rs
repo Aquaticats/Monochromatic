@@ -61,6 +61,8 @@ struct ToolsRecord {
     closing_indent: String,
     /// Whether the object holds no entry yet.
     empty: bool,
+    /// Whether an empty object's braces already sit on separate lines.
+    empty_is_broken: bool,
 }
 
 /// A reader of the parser's two span lists,
@@ -263,6 +265,7 @@ fn tools_of(
             member_indent: format!("{closing_indent}{ONE_LEVEL}"),
             closing_indent,
             empty: true,
+            empty_is_broken: source[brace + 1..end - 1].contains('\n'),
         });
     }
     let mut last: Option<(usize, usize)> = None;
@@ -276,7 +279,7 @@ fn tools_of(
         return Err(misaligned(label));
     };
     let member_indent: String = line_indent(source, last_key).unwrap_or_else(|| return indent_below(source, brace));
-    return Ok(ToolsRecord { insert_at: last_value_end, member_indent, closing_indent, empty: false });
+    return Ok(ToolsRecord { insert_at: last_value_end, member_indent, closing_indent, empty: false, empty_is_broken: false });
 }
 
 /// What:
@@ -303,7 +306,10 @@ pub fn plan_with_entries(source: &str, label: &str, declarations: &[Declaration]
         entries.push(entry_text(&record.member_indent, declaration));
     }
     let joined: String = entries.join(",\n");
-    let insertion: String = if record.empty {
+    let insertion: String = if record.empty && record.empty_is_broken {
+        // The newline and the closing brace the person wrote already follow; only the entry is added.
+        format!("\n{joined}")
+    } else if record.empty {
         format!("\n{joined}\n{}", record.closing_indent)
     } else {
         // The comma the last entry already carries (or does not) stays where it was, after the new text.
