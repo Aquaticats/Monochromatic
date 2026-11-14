@@ -115,7 +115,14 @@ Each rule is the project's own requirement.
   `printenv`,
   `set`,
   `export -p`,
-  even piped through a filter),
+  `mise env` in any form,
+  `sops --decrypt`,
+  even piped through a filter or `head`),
+  never print a file that holds credentials
+  (`~/.bashrc`,
+  `~/.pi/agent/models.json`,
+  `~/.pi/agent/auth.json`,
+  `.env.local.json` decrypted),
   and never read another process's environment (`/proc/<pid>/environ`,
   `ps e`,
   `ps -E`):
@@ -123,6 +130,29 @@ Each rule is the project's own requirement.
   and everything a command prints is sent to the model provider.
   To learn one variable,
   name it (`printenv CARGO_TARGET_DIR`).
+  That ban stands as before,
+  and a run does not rely on it alone:
+  see the next rule.
+- What a run's Pi masks for you
+  (the driver reads these values once, in its own process,
+  and never writes them anywhere):
+  every value the checkout's `.env.local.json` declares,
+  the provider keys of Pi's own `~/.pi/agent/auth.json` and `~/.pi/agent/models.json`,
+  a token the shell start-up files export
+  (`~/.bashrc`, `~/.bash_profile`, `~/.profile`),
+  the age key that decrypts the store,
+  and a credential-named variable of the driver's own environment.
+  They are replaced in each tool result,
+  and again in the whole transcript before every model request,
+  by a marker that names where the value came from,
+  as `[masked secret value of MISE_GITHUB_TOKEN]`:
+  seeing that marker means the value you asked for was there and was taken out,
+  so read the name and go on without the value.
+  What is masked is the value alone and its JSON-escaped,
+  percent-encoded and base64 forms;
+  a value inside a message or a file someone encoded some other way
+  is not one of those forms,
+  which is why the ban above is unchanged.
 - Never write to this repository's Git config (`git remote set-url`,
   `git config` outside a throwaway repository):
   the worktree shares it with every other agent and the main checkout.

@@ -1085,6 +1085,89 @@ in the environment that carried 38 credential-shaped variables,
 neither carrier held any of those values,
 compared rather than printed.
 
+## What is masked before it reaches the model
+
+The environment rule above bounds what a command inherits.
+It does not bound what a command can print,
+and a tool result is sent to the model whole:
+on 2026-11-14 at 09:11:15 a run ran `mise env 2>&1 | head -3`
+and the answer held a credential of `.env.local.json`.
+So every value of this machine's secret environment is masked before it reaches the model,
+and the run's own files are read back for a value a tool printed.
+
+Four sources,
+and why these:
+the checkout's `.env.local.json`,
+read through `@monochromatic-dev/env-local-json-core`,
+because the rules file bans printing it and it declares the repository's secret environment;
+Pi's own `~/.pi/agent/auth.json` and
+`~/.pi/agent/models.json`,
+because they hold provider keys in clear and the rules file names both;
+the shell start-up files
+(`~/.bashrc`,
+`~/.bash_profile`,
+`~/.profile`),
+because a token exported for a terminal lives there and `sed -n '40,70p' ~/.bashrc` was one leak;
+and the driver's own environment's credential-named variables,
+because `environment-without-credentials.ts` takes them out of Pi's environment
+while an ancestor process still holds them,
+which is what `tr '\0' '\n' < /proc/$pid/environ` reads.
+The age identity that decrypts the store is read too,
+because it is the one key that opens every other value.
+
+The values are read once in the driver's own process.
+Nothing writes them to disk,
+logs them,
+summarises them,
+or puts them in an error message,
+and they are never in Pi's environment (a command would inherit it)
+nor on Pi's command line (every process could read it).
+They travel on a descriptor the driver opens for Pi and names in
+`MONOCHROMATIC_SECRET_VALUE_DESCRIPTOR`,
+and the extension reads it once while it loads and closes it
+(`src/secret-value-masking-extension.ts`).
+
+The extension the driver loads with `--extension` masks them in two places:
+`tool_result`,
+which fires after a tool ran and before Pi ends the call and keeps the tool result message
+(`dist/core/agent-session.js:403` in Pi 1.5.2),
+so a value never reaches the model,
+Pi's session file,
+or the run's feed;
+and `context_with_system`,
+which fires before every model request with the whole transcript,
+so a value an earlier session already held is masked on its way out when a run resumes one.
+
+An agent reads a marker that names where the value came from,
+`[masked secret value of MISE_GITHUB_TOKEN]`,
+and goes on without it.
+The masking covers the value itself,
+the value as JSON escapes it,
+as a URL percent-encodes it,
+and as base64 encodes it (both alphabets, padded and unpadded).
+It does not cover a container the value was encoded inside
+(base64 of a whole file, hex, gzip, base64 wrapped at column 76)
+nor a value shorter than eight characters,
+and Pi's compaction and branch summarization build their request from the session without running
+`context_with_system`
+(`dist/core/compaction/compaction.js:524`),
+so a value that an old session already held could travel inside one.
+
+A store that is there and cannot be read stops the run before Pi starts,
+with a `SecretEnvironmentUnreadableError` naming the cause and no value,
+because a run whose values this code does not know would show them to a model.
+A checkout with no store is not that case:
+it declares no secret environment,
+and the other sources are read as usual.
+Pi's command list is the readiness check:
+the extension registers a command whose description holds how many values it armed with,
+and a Pi that answers a list without it is sent no prompt,
+ending the run as `masking-not-armed`.
+
+Pi keeps the whole text of a truncated tool output in a file under its temporary folder,
+and the extension rewrites that file too,
+so a value masked in what the model reads is not left in what Pi wrote.
+
 A provider credential still reaches Pi,
 which is why no provider key is on the allow list:
 a stored credential owns the provider,

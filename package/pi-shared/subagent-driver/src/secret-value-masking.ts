@@ -8,7 +8,7 @@
  What this does not cover, and why: a transformation of a *container* of the value (base64 of a whole file, hex, gzip, base64
  wrapped at column 76, a substitution cipher) is not a form of the value, and matching it needs a decoder in front of every matcher
  rather than one pattern per value. The shapes this repository has seen a value leak through are a command's own output and a file
- printed with `cat` (`doc/troubleshooting/secret-values-reaching-a-model.md`), and those print the value itself.
+ printed with `cat` (`doc/troubleshooting/secret-values-reaching-a-model.md` beside this package), and those print the value itself.
 
  @module
  */
