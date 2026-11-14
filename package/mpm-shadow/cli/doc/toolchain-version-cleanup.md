@@ -172,6 +172,20 @@ the most specific first:
   the second look,
   and the pass that finishes a removal an earlier run left.
 - **it was written inside the age floor**.
+- **an install put another entry there**:
+  the entry a removal deletes is the one its pass judged,
+  and the judgement is compared with what the removal holds after the rename:
+  by the directory's inode number,
+  which changes when an install replaces a version by an atomic rename,
+  and by its write time,
+  which changes when an install writes in place.
+  An entry that differs goes back under its name at once,
+  so a fresh install is never what a removal deletes.
+- **the name of a held copy was taken by an install that has not finished**:
+  a held copy that finished is deleted only in favour of a copy that finished
+  (an archive's completion marker,
+  or a `cargo binstall` crate's record),
+  and otherwise it stays aside with its marker until a later pass decides.
 - **another run wrote it after the scan**:
   the directory write time is read again before the rename,
   and a version that changed is kept with that reason.
@@ -216,7 +230,9 @@ so a kill between them leaves a marker for the downloads with the version still 
 that state reads as a removal that never got past its first rename,
 and the archives are put back under the name the version keeps them at,
 never deleted.
-The marker in the store root goes only once the store holds no `.mpm-shadow-removing.*` at all.
+The marker in the store root goes only once the store holds no `.mpm-shadow-removing.*` at all,
+and a root whose removals were all deferred by the work limit is left with the marker too,
+so the next install runs the pass even when it installs nothing.
 
 ## The window that is left
 
