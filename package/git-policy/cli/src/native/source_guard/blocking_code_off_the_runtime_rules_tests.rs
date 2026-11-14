@@ -237,6 +237,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the line about a service manager that has not answered is said by a thread of its own, because the D-Bus call that waits for it blocks the thread provisioning runs on and nothing else can count those seconds; a timeout around awaited manager calls replaces it when the provisioning is a task",
     },
     Allowed {
+        file: "service/service_log_lines_off_the_calling_thread.rs",
+        rule: "thread-start",
+        why: "the one thread that writes the service's log lines, and it exists because a caller must never wait for the stream: a landing was held 7.35 s by a full FIFO, and the journal's own disk held commits for 56 to 199 s (the audit of 0.6.1-alpha.14). Its job never returns while the process runs, which a job of the blocking pool cannot be, so nothing of that pool replaces it; the entry goes when the process's log is a stream a write cannot wait on, where a caller writes its own line",
+    },
+    Allowed {
         file: "foundation/scratch_entry_removal.rs",
         rule: "thread-start",
         why: "the removal of a scratch entry on a thread it starts, awaited under a ceiling",
@@ -388,6 +393,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the wait for a holder of index.lock, which the inotify watch replaces",
     },
     Allowed {
+        file: "lock/abandoned_lock_proving.rs",
+        rule: "blocking-sleep",
+        why: "the pause between asks for the removal's own exclusive `flock` of the lock file, which keeps two commands from removing one stale lock, bounded by `REMOVAL_CLAIM_WAIT` (2 s) and ended at once when the claim is the caller's. No `async fn` encloses it: the removal runs on the service's landing thread and on a command's own thread, so it pauses a thread no runtime owns, and the kernel's `flock` has no timeout on Linux, so a retried ask is what bounds it. The entry goes when the removal is a task, where `tokio::time::sleep` ends the pause",
+    },
+    Allowed {
         file: "process/child_awaited_through_a_pidfd.rs",
         rule: "blocking-sleep",
         why: "the pause of the pidfd look loop, for the caller that has no runtime",
@@ -458,6 +468,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         file: "service/service_provision_instance_unloaded.rs",
         rule: "blocking-sleep",
         why: "the pause between looks at whether the manager dropped this worktree's units, on the synchronous face of provisioning",
+    },
+    Allowed {
+        file: "service/service_warm_request_control_window.rs",
+        rule: "blocking-sleep",
+        why: "the pause between looks for a control's release file while the warm request's look at the processes is parked, and only the control variable `PARK_VARIABLE` (`CLI_GIT_TEST_ONLY_WARM_SCAN_PARK`) arms it: a request without it passes at once. The pause runs inside the job `work_within` wraps, not on a worker of the runtime, and it ends at the control's release file or at `CONTROL_PARK_CEILING` (60 s), so a control that ended leaves no thread parked. The entry goes when the park is replaced by a signal the control sends rather than a file the request polls",
     },
     Allowed {
         file: "transaction/transaction_phase.rs",
