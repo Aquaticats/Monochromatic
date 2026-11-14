@@ -1311,7 +1311,10 @@ removed and queued.
 - Read at 16:35:36:
   no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
   no launcher had outlived a run.
-  The queue held 70 entries at 16:36:52.
+  The queue held 64 entries at 16:37:10
+  (this line first said 70 at 16:36:52,
+  a figure written without reading the queue;
+  corrected from the count taken at the commit).
 
 ##### mpm-shadow's cleanup is answered a fourth time and goes to review (2026-11-14T16:23:00-05:00)
 
