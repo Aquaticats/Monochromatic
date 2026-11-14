@@ -285,7 +285,7 @@ fn wrapped_here(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Comm
 
 /// What:
 ///  Every file of a tree with its bytes,
-///  the Git directories' own files included but their object stores left out,
+///  the Git directories' own files included but their object stores and the wrapper's holder records left out,
 /// so a commit anywhere in the tree,
 ///  a staged path,
 ///  a moved reference or a leftover scratch file all show as a difference.
@@ -294,10 +294,14 @@ fn wrapped_here(fixture: &Fixture, directory: &Path, arguments: &[&str]) -> Comm
 ///  and what must stay unchanged is the whole tree:
 ///  the composition that landed a commit in an unrelated repository changed a
 ///  tree this way.
+///  The holder records are the wrapper's own account of the Gits it started
+///  (`lock/lock_holder_records.rs`),
+///  which a later pass removes once every process it names is gone,
+///  so they say nothing about what a refusal did to a repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const everythingUnder = (root) => walk(root).filter((p) => !p.endsWith('/.git/objects')).map((p) => [p, read(p)]);
+/// const everythingUnder = (root) => walk(root).filter((p) => !p.endsWith('/.git/objects') && !p.includes('/cli-git-lock-holders/')).map((p) => [p, read(p)]);
 /// ```
 fn everything_under(root: &Path) -> Vec<(String, Vec<u8>)> {
     let mut found: Vec<(String, Vec<u8>)> = Vec::new();
@@ -310,6 +314,13 @@ fn everything_under(root: &Path) -> Vec<(String, Vec<u8>)> {
             let path: PathBuf = entry.path();
             let name: String = path.strip_prefix(root).unwrap_or(path.as_path()).display().to_string();
             if name.ends_with(".git/objects") || name.contains(".git/objects/") {
+                continue;
+            }
+            // The wrapper's own record of the Gits it started, in a repository's common Git directory
+            //  (`lock/lock_holder_records.rs`, `HOLDER_FOLDER`): it is written before the first child may take a lock and
+            //  removed by the pass that finds every holder it names gone, so it is the wrapper's bookkeeping and not a
+            //  change a refusal made to the repository.
+            if name.split('/').any(|part| { return part == "cli-git-lock-holders"; }) {
                 continue;
             }
             if path.is_dir() {
