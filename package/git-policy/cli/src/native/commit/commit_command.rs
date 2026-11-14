@@ -27,7 +27,7 @@ use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
 use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
 use crate::service_messages::render;
-use crate::commit_form_refusal_from_git::{ask_git, unavailable_words};
+use crate::commit_form_refusal_from_git::{Decision, Unanswered, ask_git, unavailable_words};
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop};
 use crate::config_schema::CliGitConfig;
 use crate::command_commit::CommitRegion;
@@ -229,9 +229,43 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 }
 
 /// What:
+///  The real Git context and the directory the commit's own Git runs in,
+///  worked out once for every start this command makes.
+/// Why:
+///  A `-C` moves Git before it runs a command,
+///  so the wrapper starts its own Git in the directory the chain already reached
+///  and drops the `-C` tokens:
+///  forwarding one would move Git a second time,
+///  and a relative `-C sub` would then be read inside `sub` itself.
+///  `--git-dir`,
+///  `--work-tree` and `--bare` stay,
+///  because Git resolves their relative values after its last `-C`,
+///  which is the directory this returns;
+///  a `GIT_DIR` or `GIT_WORK_TREE` in the environment stays for the same reason.
+///  Every start of this commit reads one answer,
+///  so the question asked for a refusal is asked where the commit itself runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const whereTheCommitRuns = (command) => ({
+///   context: { ...command.context, globalPrefix: withoutDirectoryChanges(command.context.globalPrefix) },
+///   cwd: effectiveDirectory(process.cwd(), command.context.globalPrefix),
+/// });
+/// ```
+fn where_the_commit_runs(command: &CommitCommand<'_>) -> (GitContext, PathBuf) {
+    let start: PathBuf = std::env::current_dir().unwrap_or(PathBuf::from("."));
+    let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
+    let context: GitContext = GitContext {
+        global_prefix: without_directory_changes(command.context.global_prefix.as_slice()),
+        ..command.context.clone()
+    };
+    return (context, cwd);
+}
+
+/// What:
 ///  Refuse a `git commit` whose options are a form real Git refuses,
-///  with Git's own status and words,
-///  or nothing when Git would accept the command.
+///  with Git's own status and bytes,
+///  or nothing when the command goes on.
 /// Why:
 ///   "Refuse as Git does" (owner,
 ///  2026-11-12):
@@ -240,36 +274,67 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 ///  (`commit_form_refusal_from_git.rs`),
 ///  so a release that rewords a message changes nothing in this program.
 ///  Nothing is created first:
-///  the question is a `--dry-run` of the same command line,
+///  the question is a `--dry-run` of the same command line in the directory the
+///  commit runs in,
 ///  which rolls its index lock back and never looks for a commit,
 ///  so a refused command leaves no staged path,
 /// no reference and no record.
-///  A command Git accepts costs one token comparison here and no process.
+///  Where Git's own answer is that it would run the command,
+///  the command goes on and the transaction makes the one commit:
+///  the question committed nothing,
+///  so nothing is made twice,
+/// and nothing the person staged is lost.
+///  A command that is fine costs one token comparison here and no process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const form = formGitRefuses(region); if (!form) return; const refusal = await askGit(context, cwd, args); ...
+/// const form = formGitRefuses(region); if (!form) return;
+/// const { context, cwd } = whereTheCommitRuns(command);
+/// switch (askGit(context, cwd, asked).decide()) { ... }
 /// ```
 fn refuse_a_form_git_refuses(command: &CommitCommand<'_>) -> Option<CommitEnding> {
     let form: GitRefusedForm = form_git_refuses(command.region)?;
-    let start: PathBuf = std::env::current_dir().unwrap_or(PathBuf::from("."));
-    let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
+    let (context, cwd): (GitContext, PathBuf) = where_the_commit_runs(command);
     let asked: &[OsString] = &command.arguments[command.subcommand_index + 1..];
-    // The answer is Git's, so its status and its bytes are handed on as they came.
-    match ask_git(command.context, cwd.as_path(), asked) {
-        Some(refusal) => {
-            debug("commit-form-refusal", format!("real Git refuses {}: status {}", form.name(), refusal.code).as_str());
-            write_stderr_bytes(refusal.stderr.as_slice());
-            return Some(CommitEnding { code: refusal.code });
+    match ask_git(&context, cwd.as_path(), asked).decide() {
+        Decision::EndWithGit { status, stderr } => {
+            debug("commit-form-refusal", format!("real Git answers {} with status {status}", form.name()).as_str());
+            write_stderr_bytes(stderr.as_slice());
+            return Some(CommitEnding { code: status });
         }
-        None => {
-            // Git could not be asked, so it printed nothing, and the form is still one it refuses: the wrapper says which
-            //  form and that the sentence is its own.
-            debug("commit-form-refusal", format!("real Git could not be asked about {}; the wrapper refuses it in its own words", form.name()).as_str());
-            write_stderr(unavailable_words(form.name()).as_str());
+        Decision::Accept => {
+            // Git runs this command line, so the rule's word is not enough to refuse it. The question was a dry run, so
+            //  no commit was made by it, and the transaction that goes on is the only writer of this commit.
+            debug("commit-form-refusal", format!("real Git accepts {} here, so the commit goes on", form.name()).as_str());
+            return None;
+        }
+        Decision::RefuseInOurWords(why) => {
+            debug(
+                "commit-form-refusal",
+                format!("real Git gave no answer about {} ({}), so the wrapper refuses it in its own words", form.name(), reason_name(why)).as_str(),
+            );
+            write_stderr(unavailable_words(form.name(), why).as_str());
             return Some(CommitEnding { code: 128 });
         }
     }
+}
+
+/// What:
+///  The name of one way the question went unanswered,
+///  for the debug line.
+/// Why:
+///   A person reading the debug log says which of the three happened without reading the sentence's prose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reasonName = (why: Unanswered) => ({ 'not-started': 'not-started', ... })[why];
+/// ```
+fn reason_name(why: Unanswered) -> &'static str {
+    return match why {
+        Unanswered::NotStarted => "not started",
+        Unanswered::HeldPastItsBound => "held past its bound",
+        Unanswered::EndedWithoutAStatus => "ended without a status",
+    };
 }
 
 /// What:
@@ -297,18 +362,9 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
         write_stderr(render_engine_failure(0, EngineFailureCode::ContentUnavailable, reason.as_str()).as_str());
         return CommitEnding { code: 2 };
     }
-    let start: PathBuf = match std::env::current_dir() {
-        Ok(found) => found,
-        Err(_) => PathBuf::from("."),
-    };
-    let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
-    // Every Git of this commit runs in `cwd`, the directory the caller's `-C` chain already reached, so the options it forwards
-    //  keep everything the caller wrote but that `-C`: forwarding it moved Git a second time and read the repository beside the
-    //  one the command was in.
-    let context: GitContext = GitContext {
-        global_prefix: without_directory_changes(command.context.global_prefix.as_slice()),
-        ..command.context.clone()
-    };
+    // Every Git of this commit runs where the caller's `-C` chain already reached, with those tokens dropped, so one of
+    //  them reaches no start twice (`where_the_commit_runs`).
+    let (context, cwd): (GitContext, PathBuf) = where_the_commit_runs(command);
     let invocation: CommitInvocation<'_> = CommitInvocation {
         context: &context,
         environment: command.environment,

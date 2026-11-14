@@ -142,20 +142,41 @@ fn is_rewording(region: &CommitRegion) -> bool {
 }
 
 /// What:
+///  Whether the command's `--fixup` names the prefix Git calls `amend`.
+/// Why:
+///   Git's parse gives `amend:` and `reword:` the same `fixup_prefix` ("amend")
+///  and turns on `allow_empty` for both,
+///  so a pathless `-o` beside either of them is a commit Git accepts.
+///  Git's `strcmp(fixup_prefix, "amend")` reads exactly these two forms.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const namesTheAmendPrefix = (fixup) => fixup === 'amend' || fixup === 'reword';
+/// ```
+fn fixup_names_the_amend_prefix(region: &CommitRegion) -> bool {
+    return matches!(region.fixup, Some(FixupKind::Amend | FixupKind::Reword));
+}
+
+/// What:
 ///  Whether a pathless `-i`/`-o` is one Git refuses,
 /// from Git's own condition.
 /// Why:
-///   Git refuses it unless an empty commit was allowed or the commit amends
-/// (`-o` with `--allow-empty`,
-///  `-o` with `--amend`,
-///  and `-o` with `--fixup=amend:`,
-///  which allows an empty change too).
+///   Git refuses it unless an empty change was allowed or the commit amends.
+///  `--allow-empty` allows one,
+/// and so does a `--fixup` that names the `amend` prefix,
+///  `amend:` or `reword:`,
+/// with or without `--amend`
+///  (`builtin/commit.c`,
+///  `parse_and_validate_options`:
+///  both set `allow_empty` and `fixup_prefix = "amend"`).
 ///  A pathspec file decides the count itself,
 /// so with one the count is Git's to read and this file stays silent.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const refused = !fromFile && !paths.length && (include || (only && !allowEmpty && (!amend || (fixup && !amendFixup))));
+/// const refused =
+///   !fromFile && !paths.length
+///   && (include || (only && !allowEmpty && !fixupNamesTheAmendPrefix && (!amend || fixup)));
 /// ```
 fn no_paths_with_selection_is_refused(region: &CommitRegion) -> bool {
     if region.pathspec_from_file.is_some() || !region.pathspecs.is_empty() {
@@ -164,15 +185,17 @@ fn no_paths_with_selection_is_refused(region: &CommitRegion) -> bool {
     if region.include {
         return true;
     }
-    if region.only != Some(true) || region.allow_empty {
+    if region.only != Some(true) {
         return false;
     }
-    if !region.amend {
-        return true;
+    // Git's `allow_empty` is turned on by `--allow-empty` and by either fixup prefix, so a pathless `-o` beside one of
+    //  those is a commit Git accepts, with or without `--amend`.
+    if region.allow_empty || fixup_names_the_amend_prefix(region) {
+        return false;
     }
-    // `--fixup=amend:` allows an empty change, so its pathless `-o` is fine; `--fixup=reword:` does not, and Git's own
-    //  `strcmp(fixup_prefix, "amend")` reads exactly that difference.
-    return region.fixup.is_some() && region.fixup != Some(FixupKind::Amend);
+    // Without `--amend` the pathless `-o` still needs where to stop; with it, only a `--fixup` that names another prefix
+    //  still needs paths, because Git then asks `strcmp(fixup_prefix, "amend")` a second time.
+    return !region.amend || region.fixup.is_some();
 }
 
 /// What:
@@ -187,7 +210,9 @@ fn no_paths_with_selection_is_refused(region: &CommitRegion) -> bool {
 /// const form = formGitRefuses(region);
 /// ```
 pub fn form_git_refuses(region: &CommitRegion) -> Option<GitRefusedForm> {
-    // Selection conflicts come first because Git's own parse refuses them before it reads anything else.
+    // The rules are in the order Git checks them, so the form named here is the one whose message Git prints first:
+    //  the compatibility of the four selection options, then the `reword:` form, then `-a` with paths (all of them in
+    //  `parse_and_validate_options`), then the pathspec file and the pathless selection (`prepare_index`).
     if selection_count(region) > 1 {
         return Some(GitRefusedForm::SelectionConflict);
     }
@@ -199,19 +224,19 @@ pub fn form_git_refuses(region: &CommitRegion) -> Option<GitRefusedForm> {
             return Some(GitRefusedForm::RewordWithSelection);
         }
     }
+    if region.all && !region.pathspecs.is_empty() {
+        return Some(GitRefusedForm::AllWithPaths);
+    }
     if region.pathspec_from_file.is_some() {
-        if !region.pathspecs.is_empty() {
-            return Some(GitRefusedForm::PathspecFromFileWithPaths);
+        if region.interactive || region.patch {
+            return Some(GitRefusedForm::PathspecFromFileWithInteractive);
         }
         if region.all {
             return Some(GitRefusedForm::PathspecFromFileWithAll);
         }
-        if region.interactive || region.patch {
-            return Some(GitRefusedForm::PathspecFromFileWithInteractive);
+        if !region.pathspecs.is_empty() {
+            return Some(GitRefusedForm::PathspecFromFileWithPaths);
         }
-    }
-    if region.all && !region.pathspecs.is_empty() {
-        return Some(GitRefusedForm::AllWithPaths);
     }
     if region.pathspec_file_nul && region.pathspec_from_file.is_none() {
         return Some(GitRefusedForm::PathspecFileNulWithoutFromFile);
