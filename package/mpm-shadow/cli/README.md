@@ -153,6 +153,9 @@ because pnpm has none.
 
 People edit `toolchain.plan.jsonc` (JSONC:
 comments and trailing commas are allowed).
+The one exception is `install <tool>`,
+which appends the entry a request describes and writes nothing else in the file
+(see "Adding a tool with install").
 mpm-shadow is the only writer and the only checker of `toolchain.lock.json`,
 which stays strict JSON because `jq` readers in CI and Dockerfiles select
 `.tools.<id>.version`,
