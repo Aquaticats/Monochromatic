@@ -228,13 +228,27 @@ pub(crate) fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str,
     };
 }
 
+/// Every permission bit a person can set on an entry:
+/// the read,
+/// write and execute bits of each of the owner,
+/// the group and everyone,
+/// and the setuid,
+/// setgid and sticky bits above them.
+const EVERY_PERMISSION_BIT: u32 = 0o7777;
+
 /// What:
 ///  The permission bits a plain file carries,
 ///  or nothing on a platform whose permissions are not these bits.
 /// Why:
-///  A capture keeps them because Git records one bit of a file's mode and a person sets all of them;
-///  the rest of the write's mode comes from the entry a write replaces,
-///  which is gone when the path stands empty.
+///  A capture keeps them because a path the merge deletes stands empty when the carry writes the person's entry back,
+///  and the read,
+/// write and special bits of their file are then nowhere else:
+///  Git records the executable bit alone,
+/// so a `chmod 0600` on a tracked `0644` file is invisible to Git.
+///  A path the merge writes takes Git's own mode instead,
+/// which the file system decides from the umask as it does for Git
+///  (`SPEC.md`,
+///  "Carry edits forward").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -243,7 +257,8 @@ pub(crate) fn bytes_at(location: &Path) -> Result<Option<(Vec<u8>, &'static str,
 pub(crate) fn the_permissions(metadata: &std::fs::Metadata) -> Option<u32> {
     #[cfg(unix)]
     {
-        return Some(crate::merge_isolation_carry_permissions::the_permission_bits_of(metadata));
+        use std::os::unix::fs::PermissionsExt;
+        return Some(metadata.permissions().mode() & EVERY_PERMISSION_BIT);
     }
     // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
     #[cfg(not(unix))]

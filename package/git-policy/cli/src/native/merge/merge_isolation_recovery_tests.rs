@@ -4356,18 +4356,25 @@ fn a_merge_that_wrote_its_record_after_the_owners_were_read_keeps_its_copy() {
 }
 
 /// What:
-///  A saved merge whose file carries a permission the person set after the capture keeps that permission.
+///  A saved merge whose file carries a permission the person set after the capture ends at the mode Git writes.
 /// Why:
-///  The capture holds the bytes and the executable bit Git records,
-/// and a chmod that leaves the bytes as they are is the person's too:
-///  installing the merge and carrying their work back must not put the mode back to what Git would check out.
+///  The merge's install writes the merge's own file as Git's own update writes it:
+///  created with `0666` and narrowed by the process's umask,
+///  so a `chmod 0600` made after the capture is not put back.
+///  Real Git writes such a file the same way,
+///  because it records the executable bit alone
+///  (owner's decision of 2026-11-12T12:26:24-05:00,
+///  "As real Git,
+///  both cases";
+///  `SPEC.md`,
+///  "Merges and commits never fail").
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// capture(); chmod('f.txt', 0o600); record(sideRef); await recover(...); expect(mode('f.txt')).toBe(0o600);
+/// capture(); chmod('f.txt', 0o600); record(sideRef); await recover(...); expect(mode('f.txt')).toBe(gitWrites('f.txt')); expect(read('f.txt')).toContain("the person's line");
 /// ```
 #[test]
-fn a_saved_merge_keeps_a_permission_the_person_set_after_the_capture() {
+fn a_saved_merge_writes_the_mode_git_writes_over_a_permission_set_after_the_capture() {
     let world: World = world("merge-recovery-saved-merge-mode");
     let id: &str = "62626262-0000-4000-8000-000000000062";
     let side_ref: &str = "refs/cli-git/kept/62";
@@ -4397,7 +4404,12 @@ fn a_saved_merge_keeps_a_permission_the_person_set_after_the_capture() {
     let after = std::fs::read(world.repo.join("f.txt")).expect("f.txt");
     assert_eq!(outcomes[0].action, MergeRecoveryAction::Completed, "the merge is made over the person's own bytes");
     assert!(String::from_utf8_lossy(after.as_slice()).contains("the person's line"), "their line is carried");
-    assert_eq!(mode, 0o600, "the chmod made after the capture was replaced: f.txt holds {:?}", String::from_utf8_lossy(after.as_slice()));
+    assert_eq!(
+        mode,
+        the_mode_git_checks_out(&world, "f.txt"),
+        "the file ends at the mode Git's own checkout writes, not the one set after the capture: f.txt holds {:?}",
+        String::from_utf8_lossy(after.as_slice())
+    );
     remove(world.parent.as_path());
 }
 
