@@ -23,7 +23,7 @@ use std::time::{Duration, Instant};
 /// The most a control waits for anything:
 /// far beyond what a healthy run needs,
 /// so only a hang reaches it.
-const PATIENCE: Duration = Duration::from_secs(60);
+pub(super) const PATIENCE: Duration = Duration::from_secs(60);
 
 /// How long the service's write runs before the service calls it stuck:
 /// short,
@@ -80,10 +80,10 @@ fn short_directory(name: &str) -> PathBuf {
 
 /// A service on a socket of its own,
 /// serving on a thread until the control ends.
-struct Serving {
+pub(super) struct Serving {
     /// The socket directory,
     /// removed at the end.
-    directory: PathBuf,
+    pub(super) directory: PathBuf,
     /// Where the clients connect.
     socket: PathBuf,
 }
@@ -102,7 +102,7 @@ fn serve_on_a_thread_stuck_after(context: LandContext, name: &str, stuck_after: 
 
 /// Start the service of `context` with the settings of the run,
 /// which a control shortens so it ends in seconds.
-fn serve_on_a_thread_with_settings(context: LandContext, name: &str, settings: ServeSettings) -> Serving {
+pub(super) fn serve_on_a_thread_with_settings(context: LandContext, name: &str, settings: ServeSettings) -> Serving {
     let directory: PathBuf = short_directory(name);
     let socket: PathBuf = directory.join("s");
     let listener: UnixListener = UnixListener::bind(&socket).expect("bind");
@@ -111,7 +111,7 @@ fn serve_on_a_thread_with_settings(context: LandContext, name: &str, settings: S
 }
 
 /// A client of the service with the given ceilings.
-fn client(serving: &Serving, answer_ceiling: Duration, withdraw_ceiling: Duration) -> ClientConfig {
+pub(super) fn client(serving: &Serving, answer_ceiling: Duration, withdraw_ceiling: Duration) -> ClientConfig {
     return client_with_extra_wait(serving, answer_ceiling, withdraw_ceiling, crate::wait_ceilings::SHORT_EXTRA_WAIT);
 }
 
@@ -136,7 +136,7 @@ fn client_with_extra_wait(serving: &Serving, answer_ceiling: Duration, withdraw_
 /// which is waited for no longer than `PATIENCE`,
 /// so a regression that waits for ever
 /// fails the control and does not hang it.
-struct Submitting {
+pub(super) struct Submitting {
     /// Where the client sends what it ended with and printed.
     ended: std::sync::mpsc::Receiver<(Result<Submitted, ClientFailure>, String)>,
 }
@@ -144,13 +144,13 @@ struct Submitting {
 impl Submitting {
     /// What the client ended with and printed,
     /// or an error when it was still waiting after `PATIENCE`.
-    fn join(self) -> Result<(Result<Submitted, ClientFailure>, String), String> {
+    pub(super) fn join(self) -> Result<(Result<Submitted, ClientFailure>, String), String> {
         return self.ended.recv_timeout(PATIENCE).map_err(|_| { return String::from("the client was still waiting after the longest a control waits"); });
     }
 }
 
 /// A client that submits `request` on a thread of its own.
-fn submit_on_a_thread(config: ClientConfig, request: CommitRequest) -> Submitting {
+pub(super) fn submit_on_a_thread(config: ClientConfig, request: CommitRequest) -> Submitting {
     let (sender, ended) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let mut notices: Vec<u8> = Vec::new();
@@ -177,7 +177,7 @@ fn wait_for(path: &Path) {
 /// the records),
 /// and a fixture removed under it is not empty when the
 /// removal reaches it.
-fn wait_until_settled(world: &World) {
+pub(super) fn wait_until_settled(world: &World) {
     let began: Instant = Instant::now();
     loop {
         let open: usize = crate::service_journal::list_intents(world.context.journal.as_path(), crate::service_journal::OPEN_EXTENSION).len();
