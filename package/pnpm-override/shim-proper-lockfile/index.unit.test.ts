@@ -31,10 +31,17 @@ const ASYNC_RETRIES = 2;
 const ASYNC_MIN_TIMEOUT_MS = 20;
 /** How long a holder keeps the lock before the waiting `lock` call is allowed to succeed, in milliseconds. */
 const HOLDER_RELEASE_DELAY_MS = 5;
-/** Budget each async case gives `lock` before it gives up, in milliseconds. */
-const ASYNC_CASE_TIMEOUT_MS = 10_000;
+/**
+ Budget each case that reaches the file system gives its work, in milliseconds.
+
+ This machine's home drive has stalled for many seconds at a time (143 s on a small write in the night of
+ 2026-11-14), and the test harness's own logger sink reports the same stall. A case that fails on a stall would fail
+ on the machine rather than on the shim, so the budget is far above the work's own cost of a few milliseconds, and a
+ stall beyond it still fails.
+ */
+const ASYNC_CASE_TIMEOUT_MS = 30_000;
 /** Longest a case waits for a child process to leave its report, in milliseconds. */
-const CHILD_REPORT_TIMEOUT_MS = 10_000;
+const CHILD_REPORT_TIMEOUT_MS = 30_000;
 /** How often a case looks again for a child's report or a compromise, in milliseconds. */
 const POLL_MS = 10;
 /** Lock conflict code the upstream contract defines. */
@@ -62,7 +69,7 @@ const TAKER_ROUNDS = 6;
 /** How long before the shared barrier both racing takers are started, in milliseconds. */
 const TAKER_BARRIER_LEAD_MS = 150;
 /** Budget the round-by-round race gives its child processes, in milliseconds. */
-const TAKER_CASE_TIMEOUT_MS = 60_000;
+const TAKER_CASE_TIMEOUT_MS = 120_000;
 
 /** Absolute path of the shim the holder processes load, so they run this package's code and no installed copy. */
 const SHIM_PATH = fileURLToPath(new URL('index.cjs', import.meta.url,),);
@@ -216,6 +223,8 @@ async function rejectionFrom(call: () => Promise<unknown>,): Promise<unknown> {
 /**
  Waits until a child process leaves its report file, and reads it.
  The wait is bounded, so a child that never reports fails its own case instead of hanging the suite.
+ An empty file is treated as absent: a reader can see a report file between the write that creates it and the write
+ that fills it, and only a non-empty file is a report.
 
  @param reportPath - file the child writes its report in
 
@@ -224,8 +233,11 @@ async function rejectionFrom(call: () => Promise<unknown>,): Promise<unknown> {
  @returns the report text
  */
 async function reportOfChild(reportPath: string, deadline: number,): Promise<string> {
-  if (existsSync(reportPath,))
-    return readFileSync(reportPath, 'utf8',);
+  if (existsSync(reportPath,)) {
+    const text = readFileSync(reportPath, 'utf8',);
+    if (text !== '')
+      return text;
+  }
   if (Date.now() >= deadline)
     throw new Error(`a child process left no report at ${reportPath} in time`,);
   await sleep(POLL_MS,);
@@ -511,7 +523,11 @@ await describe({
             const reports = rounds.flat();
             const held = reports.filter(report => report === HELD_REPORT,);
             const refused = reports.filter(report => report === HELD_CODE,);
+            // A report that is neither says the round ended in a way this case does not expect, so it is named here.
+            const known = new Set([HELD_REPORT, HELD_CODE,],);
+            const unexpected = reports.filter(report => !known.has(report,),);
 
+            expect(unexpected,).toEqual([],);
             expect(held.length,).toBe(TAKER_ROUNDS,);
             expect(refused.length,).toBe(TAKER_ROUNDS,);
           },
