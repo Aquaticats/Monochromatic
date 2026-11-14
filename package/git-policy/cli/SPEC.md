@@ -6235,7 +6235,16 @@ Every Git step a command or a landing starts is also listed with its duration (`
 `steps` in the commit timing record (`name`,
 and the read-only queries the in-process readers decline count here too,
 because a commit that waits on one must name it (`src/native/repo_read/git_metadata.rs`);
-the program and the subcommand only;
+the program and the subcommand,
+then `arguments` for a step that ran `NAMED_STEP` (1,000 ms) or longer
+(`src/native/transaction/git_step_arguments.rs`:
+the arguments are named so that a slow child explains itself,
+the value of an option that carries the person's own text is replaced by `an argument`,
+so is every word that is neither an object name nor a ref name,
+and the words are bounded by `NAMED_WORDS_LIMIT` (12) with the rest counted,
+because 496 of the 29,053 Git steps of this repository's records on 2026-11-12 ran a second or longer);
+a shorter step carries no `arguments` member at all,
+so a record of short steps reads as it did before that field existed;
 `offsetMs` from the command's start;
 `durationMs`) and `stepsDropped`,
 and `steps="<name>@<offset>+<duration>;..."` with `steps_dropped=<count>` at the end of the
@@ -7026,7 +7035,8 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   so a running unit that greets nothing is one whose program stopped inside its own process,
   and a start of a unit the manager believes runs brings nothing back.
   Nearly three times the slowest of the 52 measured cold starts (1.04 s),
-  and under the owner's 5,000 ms bound on what a commit may add to native Git.
+  and under the owner's bound on what a commit may add to native Git,
+  which since 2026-11-12 is the larger of 5,000 ms and twice that commit's own native time.
 - `HAND_OVER_GREETING_WAIT` 2 seconds:
   the longest a command waits for the greeting of a service it only has to tell about work whose record it has
   already written (a snapshot's trash,
@@ -12448,7 +12458,8 @@ Measured on 2026-11-12 on this host,
 one look at the held records of a worktree that holds none costs 27.8 microseconds
 (2,000 looks through the command's notice desk,
 `push_notices_for`),
-which is nothing beside the owner's limit of five seconds per commit.
+which is nothing beside the owner's bound on what a commit may add to native Git
+(the larger of 5,000 ms and twice that commit's own native time).
 The gate itself promotes its own record into `pending` with one rename when it passes and unlinks it when it
 blocks,
 so a blocked gate keeps the commit local,
@@ -14618,7 +14629,21 @@ these private entries:
   and `logs`.
   It contains the private `HEAD`,
   a snapshot of every real ref taken at invocation
-  (`git for-each-ref` in the owning worktree,
+  (read from `packed-refs` and the loose ref files by the wrapper's own reader,
+  `src/native/repo_read/repo_read_refs.rs`,
+  with `refs/bisect`,
+  `refs/worktree` and `refs/rewritten` read from the worktree's own Git directory in a linked worktree,
+  and one `git for-each-ref` in the owning worktree whenever that reader cannot prove the answer:
+  a reftable store,
+  an object format it does not know,
+  a ref name it declines,
+  or a damaged `packed-refs`);
+  the reader lists a symbolic ref at the end of its chain,
+  never at the name it points at directly,
+  and lists none at all for a chain that ends at no ref or that passes more than four links,
+  which is Git's own `SYMREF_MAXDEPTH` counted as Git counts it;
+  every chain is resolved from the targets as they are stored before any of them is rewritten,
+  so one name's answer never depends on which other name was answered first;
   symbolic refs recreated with `git symbolic-ref`),
   and a private copy of the target branch ref at the preparation base
   that replaces the snapshot's entry for that ref.
@@ -17264,7 +17289,7 @@ in the same shape as `prepareParts` and with the same rule,
 its own list and its own bound stated in `buildPartsDropped`:
 a build's name is never read as a preparation's,
 and a stretch whose own Git child took all of it,
-such as `shadow refs` around the ref snapshot's `git for-each-ref`,
+such as `index` around `git read-tree` or the build around the scratch `git commit`,
 states that child's time in `childrenMs`),
 `buildPartsDropped`
 `indexBuilds`
