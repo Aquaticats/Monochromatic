@@ -1225,6 +1225,105 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The merge-lock answer passed its review: pass 35; a merge fails when a lock appears between its look and its settle; two authors' answers go to review (2026-11-14T01:45:40-05:00)
+
+Not final and not approved:
+the coordinating session's reading of one review and two last messages,
+kept under `~/temp/agent/last-messages-of-the-runs-that-ended-2026-11-14T0139-to-0144/keep/`,
+with what it queued.
+
+- **The merge that meets a held lock never waits, its review**
+  (`~/temp/agent/change-reviews/git-policy-cli-merge-that-meets-a-held-index-lock-never-waits-and-its-two-controls/review.md`,
+  on `88cd36ad07`,
+  ended 01:39:27,
+  recorded `pi-not-stopped`;
+  it built the commit and ran two reproductions and a positive control):
+  the changed look and the corrected count are sound.
+  The branch goes to a pass:
+  integration pass 35 is queued at the head
+  (`integration-pass-35-with-the-two-merge-controls-that-state-a-merge-never-waits-prompt.md`),
+  told where it is most likely to meet pass 28.
+  It turns the two red binary controls of `merge_never_fails` green.
+- **One defect that review reproduced, outside the diff and in `main` as well**:
+  a merge the wrapper completes exits 1 when another program's lock appears between its look and its own `git merge --ff-only`,
+  because the settle cannot put the person's bytes back.
+  With an unproven empty lock:
+  exit 1 after 60.3 s.
+  With a killed Git's leftover:
+  exit 1 in 0.15 s,
+  the lock still there,
+  and a line promising a clearing that does not happen.
+  In both the worktree holds the branch's content where the person's edit was,
+  and the finding says the worktree is as it was.
+  Nothing is lost:
+  a later command restores the edit.
+  A fresh run is queued from the reviewed tip
+  (`merge-the-wrapper-completes-ends-saved-when-a-lock-appears-between-its-look-and-its-settle`,
+  base `88cd36ad07`),
+  told to merge `main` first and see what pass 28's clearing already changes.
+- **Package state of a new worktree is relinked or the wrapper says why not**
+  (`fix/git-policy-cli-package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not`,
+  tip `b84db0f4de`,
+  ended 01:39:46,
+  recorded `pi-not-stopped`):
+  the author reproduced both review findings and answered them.
+  The reason is no longer forgotten before the record settles,
+  and a second telling writes the same notice;
+  the lock is read without a blocking open and within 1 MiB.
+  Controls fail with each fix taken out.
+  Cost by its measurement:
+  +0.5 ms on a `git worktree add` of 47 ms.
+  Review of the answer queued
+  (range `main...b84db0f4de`).
+- **The watch note is read the way every record is read**
+  (`fix/git-policy-cli-watch-note-of-the-commit-service-is-read-the-way-every-record-is-read-and-never-waits-on-a-pipe`,
+  tip `47f44b0ef9`,
+  ended 01:43:14):
+  three callers read a watch note with `std::fs::read`;
+  the one with no bound at all was the note a landing writes before it answers a commit,
+  where a pipe at the name left the commit unanswered until the client's 20 minutes ran out.
+  All now read through the shared reader:
+  a pipe,
+  a link,
+  a directory or an oversized file is answered at once,
+  said once and left.
+  Five controls fail without the fix.
+  Cost by its measurement:
+  ratio 1.02 to 1.04 on the landing's note write of about 96 µs.
+  Where it meets pass 33's journal tests:
+  no file overlaps;
+  a control on a watch-note pipe's old reading would fail.
+  Review queued
+  (range `main...47f44b0ef9`).
+- **Noticed by those runs, left alone**:
+  `service_work_items_side_by_side::tests::a_push_goes_out_while_a_review_and_a_trash_are_held_claimed` failed once under load
+  (the push waited 40 s against a bound of 10 s)
+  and passed alone,
+  a wall-clock bound in a test;
+  one start test of `package_repair_command.rs` failed once and passed alone;
+  the installed wrapper printed "still waiting for git rev-parse … after 5 seconds" once.
+  None has a run yet.
+- **cargo-shadow's Clippy, measured**:
+  run on `main` at `658d1bf496` by this session,
+  `mise run //package/cargo-shadow/cli:lint:clippy` ends with status 101 and six findings of `clippy::unnecessary_to_owned`,
+  all in test code
+  (`~/temp/agent/checks-red-on-main-after-the-daily-update-run-by-hand-2026-11-14/keep/clippy-of-cargo-shadow-on-main.txt`).
+  The queued run's brief names them.
+- **The fuzz sidecar's type check, measured**:
+  run on `main` at `658d1bf496` by this session,
+  `mise run //package/git-policy/cli.fuzz:lint:types` ends with status 101 and one error,
+  `E0046` at `src/controls.rs:443`:
+  `impl RepositoryFacts for FixedFacts` lacks `untracked_files_the_tree_tracks`,
+  `main_worktree_root` and `abort_discard`,
+  three methods the wrapper's trait gained.
+  Every dependency was fetched in that run,
+  so the download failure the daily update logged at 00:51:54 did not show again
+  (`~/temp/agent/checks-red-on-main-after-the-daily-update-run-by-hand-2026-11-14/keep/type-check-of-the-wrapper-fuzz-sidecar-on-main.txt`).
+  The queued run's brief names it.
+  This corrects the section of 2026-11-14T01:41:12-05:00,
+  which had both from the daily update's log alone.
+- The queue held 64 entries at 01:45:40.
+
 ##### Pass 28 is in `main` and `0.6.1-alpha.24` is dispatched; the daily update left Clippy red for mpm-shadow and cargo-shadow (2026-11-14T01:41:12-05:00)
 
 Not final and not approved:
