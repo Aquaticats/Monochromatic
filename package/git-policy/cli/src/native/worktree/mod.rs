@@ -108,6 +108,14 @@ pub mod worktree_removal_holds_the_worktree;
 #[cfg(target_os = "linux")]
 pub mod worktree_remove;
 
+/// How one attempt to remove a worktree ended,
+/// and what each ending needs of the caller.
+pub mod worktree_remove_outcome;
+
+/// The four lines a removal that destroyed a subvolume prints,
+/// and the one place that chooses between them.
+pub mod worktree_remove_notices;
+
 /// The half of a removal that goes around a volume it did not make:
 /// the record a killed pass leaves, the continuation that record proves, and the pass.
 pub mod worktree_remove_around;

@@ -760,6 +760,12 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - The queue of runs filled from the driver package (tip `9a778654e9`, added 2026-11-14T13:15-05:00):
+    does `reviewOfBranch` belong in the queue too;
+    is half an hour the right bound for the notice that the filling has stalled;
+    is an entry whose batch gave up waiting for a place at its two-hour deadline put back
+    (a fresh run now covers a launcher that fails or gives up);
+    and does the queue's path get a documented default under the runs folder?
   - The drawn shadow tree (tip `f9557d3e6e`, added 2026-11-14T12:18-05:00):
     a resident service keeps one drawn tree for each worktree standing with no end,
     where the sweep removed a drawn tree for its age before.
@@ -1229,6 +1235,139 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Pass 40 is in `main` and `0.6.1-alpha.30` is dispatched; the watch note's write ceiling goes to review (2026-11-14T13:31:08-05:00)
+
+Not final and not approved:
+what two runs report of themselves,
+and what the coordinating session measured,
+merged and queued.
+
+- **Pass 40** (tip `678e601936`:
+  the three removal notices)
+  reported fit at 13:25:53:
+  the one branch in at the commit named,
+  build,
+  both test compiles and Clippy clean,
+  every test of the changed modules passing at the tip and at four CPUs
+  (85,
+  132,
+  11 and 26 tests),
+  both guard modules passing,
+  a commit of one changed file at a ratio of 4.85 to 6.86 to real Git within a round,
+  three library tests still red that are `main`'s.
+  It says the meeting with pass 38's renamed subvolume has not been built,
+  since pass 38 is not in `main`.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `2f38016ac4` at 13:30:49,
+  and `0.6.1-alpha.30` was dispatched at 13:30:59
+  (run 43627019191).
+  Passes 38 and 41 to 43,
+  all four going,
+  were told at 13:31.
+  The wait for the release,
+  the install and the sample commit run as one background command;
+  the journal checks follow.
+- **A watch note a landing writes is written within a ceiling** (tip `4307d45a89`, ended 13:29:01):
+  the author reports the note bounded before the answer,
+  and names what it left:
+  other places that touch the filesystem on the landing thread with no ceiling
+  (`hold_the_push` and neighbours),
+  and two merges to expect,
+  with the branch that reads the note and with the landing branch.
+  Review queued second (seven code files).
+- The queue held 62 entries at 13:31:08.
+
+##### mpm-shadow's stale launchers go back a third time, with the design to be weighed first; two wrapper answers go to review; the lock shim's reviewer runs (2026-11-14T13:24:01-05:00)
+
+Not final and not approved:
+what one review and two authors report of themselves,
+and what the coordinating session queued.
+
+- **mpm-shadow's stale launchers** (`649a45b459`),
+  third review:
+  five things,
+  four by a run.
+  The highest:
+  when the 5 s wait on the scope's guard runs out the install goes on without it,
+  and the holder's pass deletes the fresh record of the install beside it in the middle of its placement;
+  after a kill at the link's move a `git commit` through the postinstall link ends with status 2,
+  and the stale launcher can never be retired,
+  which is the bug the branch began with.
+  The others:
+  a postinstall link whose folder is the farm is retired by the install that makes it;
+  a person's broken link is deleted when its target's folder merely shares a basename;
+  a fallback temporary name is unchecked (by reading);
+  and every install warns about links its own postinstall command maintains.
+  Each of three reviews found the next thing in the same place,
+  installs beside each other in one scope,
+  so the author is resumed second and asked to weigh the design first
+  (lock-free by an atomic rename and one owner for each item,
+  as the project's rule on concurrency reads)
+  (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **The merge that ends saved** (tip `1e04fc59d0`, ended 13:19:15):
+  the author reports both findings answered,
+  the review's scripts no longer reproducing either,
+  and a list of words on neighbouring refusals it left alone.
+  Review queued third (fifteen code files).
+- **A commit that does not land** (tip `f7fe3be7ee`, ended 13:21:55):
+  the author reports the signal and its sender recorded as one fact,
+  195 tests of the changed modules and five binary controls passing.
+  Review queued fourth (29 code files).
+- **The lock shim's reviewer**,
+  put back at 13:15,
+  is going:
+  its run folder `…-2` exists and its unit is active at 13:24.
+- The queue held 62 entries at 13:24:01.
+
+##### A queue entry was lost for an hour and three quarters behind a launcher that outlived its run; the queue-filling change goes to review (2026-11-14T13:15:42-05:00)
+
+Not final and not approved:
+what the coordinating session measured and did,
+and what one author reports of itself.
+
+- **An entry lost, found by reading the queue by hand.**
+  The resume of the lock shim's reviewer,
+  queued at 11:26,
+  was logged by the filling unit as started at 11:28:42 and taken out of the queue.
+  Its launcher ended twenty seconds later with status 1 and the words `ALREADY RUNNING`:
+  the launcher of that reviewer's first run,
+  started at 09:34:57,
+  was still active although its run had ended `idle` at 09:58,
+  holding four processes of the driver and nothing else.
+  Nothing put the entry back or said so.
+  Done at 13:14 to 13:15:
+  the leftover launcher was stopped
+  (it held no run and no work),
+  and the entry was put back first in the queue.
+- **How far it goes**:
+  three launcher units failed since 08:50.
+  The one of 11:29:02 is this lost entry.
+  The one of 10:44:42 is the non-zero ending the driver gives a run that ended `pi-not-stopped`.
+  The one of 13:12:24 is the lock shim author's launcher,
+  which ended almost two hours after its run had (11:20);
+  no entry of that name was queued meanwhile,
+  so nothing was lost by it,
+  and it is a second launcher that outlived its run.
+- **A fresh driver run** is queued fourth,
+  started from the queue-filling change's tip:
+  a launcher ends when its run has ended,
+  and an entry whose launcher fails or gives up after the filling started it is put back or set aside with the reason
+  (`~/temp/agent/pi-runs/launcher-ends-when-its-run-has-ended-and-an-entry-whose-launcher-fails-is-never-lost-prompt.md`).
+  Until it lands,
+  each round compares the filling unit's `started` lines with the run folders.
+- **The queue of runs filled from the package** (tip `9a778654e9`, ended 13:09:06):
+  the author reports the filling moved into the package with a failing entry set aside,
+  220 passing unit tests,
+  and how its files came to be in the main checkout that morning:
+  it read files by their absolute path in the main checkout and reused those paths for its writes.
+  Review queued second (range `main...9a778654e9`, 22 code files).
+  Its four questions for the owner are added to the kept list.
+- 20 Pi runs were going at 13:13;
+  the queue held 62 entries at 13:15:42,
+  thirty resumes of authors,
+  thirty fresh runs and two reviews.
+  One run ended between 12:45 and 13:13.
 
 ##### The fuzz seeds pass and are in `main`; the drawn tree and the package state go back; the stale launchers' answer goes to review (2026-11-14T12:46:32-05:00)
 

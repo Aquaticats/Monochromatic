@@ -128,8 +128,52 @@ pub fn diagnostic_line(level: &str, time: &str, tag: &str, message: &str) -> Str
 /// process.stderr.write(line);
 /// ```
 fn write_line(line: &str) {
+    #[cfg(test)]
+    remember_the_line(line);
     // `let _ =` discards the write result: there is nowhere left to report it.
     let _ = std::io::stderr().write_all(line.as_bytes());
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The lines this thread wrote, for a control whose subject is the words a command says.
+    static LINES_WRITTEN: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// What:
+///  Remember one diagnostic line this thread wrote.
+/// Why:
+///   A control of a command's words has no other way to read them:
+/// the line goes to standard error,
+/// which a test process does not own.
+///  Keeping it per thread means two controls running beside each other cannot read each other's words.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// linesWritten.push(line);
+/// ```
+#[cfg(test)]
+fn remember_the_line(line: &str) {
+    LINES_WRITTEN.with(|lines| {
+        lines.borrow_mut().push(line.to_owned());
+    });
+}
+
+/// What:
+///  Take and clear the diagnostic lines this thread has written so far.
+/// Why:
+///   A control clears them before the step under test and reads exactly that step's words after it.
+///  A release build carries none of this.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lines = linesWritten.splice(0);
+/// ```
+#[cfg(test)]
+pub(crate) fn take_lines_written() -> Vec<String> {
+    return LINES_WRITTEN.with(|lines| {
+        return std::mem::take(&mut *lines.borrow_mut());
+    });
 }
 
 /// What:
