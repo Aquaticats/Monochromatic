@@ -182,10 +182,10 @@ pub(crate) fn put_back(path: &Path, temporary: &Path) -> Result<(), String> {
 }
 
 /// What:
-/// Removes `path` only when the entry standing there is still the one judged and `keep` says it may go,
+/// Removes `path` only when the entry standing there is still the one judged and `may_remove` says it may go,
 /// and puts back whatever else stands there.
 /// Why:
-/// `keep` is asked after the entry is in hand and before anything is deleted,
+/// `may_remove` is asked after the entry is in hand and before anything is deleted,
 /// which is the instant the removal happens:
 /// the caller re-reads the lock on disk there and keeps the entry when it declares it now,
 /// so a decision taken on a lock loaded earlier never deletes what a newer lock declares.
@@ -199,7 +199,7 @@ pub(crate) fn put_back(path: &Path, temporary: &Path) -> Result<(), String> {
 /// ```ts
 /// export function removeIfStill(path: string, judged: Judged): Removal  // throws
 /// ```
-pub(crate) fn remove_if_still(path: &Path, judged: Judged, keep: &dyn Fn() -> bool) -> Result<Removal, String> {
+pub(crate) fn remove_if_still(path: &Path, judged: Judged, may_remove: &dyn Fn() -> bool) -> Result<Removal, String> {
     let temporary: PathBuf = temporary_name_beside(path)?;
     match fs::rename(path, &temporary) {
         Ok(()) => {}
@@ -213,7 +213,7 @@ pub(crate) fn remove_if_still(path: &Path, judged: Judged, keep: &dyn Fn() -> bo
             Err(reason) => Err(reason),
         };
     }
-    if keep() {
+    if !may_remove() {
         return match put_back(path, &temporary) {
             Ok(()) => Ok(Removal::Kept),
             Err(reason) => Err(reason),

@@ -36,7 +36,7 @@ fn the_entry_that_was_judged_is_removed() {
     let (link, _target) = a_link(directory.path());
     let judged = judged_of(&link).expect("the link is inspected");
 
-    assert_eq!(remove_if_still(&link, judged, &|| return false).expect("the removal runs"), Removal::Retired);
+    assert_eq!(remove_if_still(&link, judged, &|| return true).expect("the removal runs"), Removal::Retired);
     assert!(fs::symlink_metadata(&link).is_err());
 }
 
@@ -47,7 +47,7 @@ fn an_entry_that_is_already_gone_is_not_an_error() {
     let judged = judged_of(&link).expect("the link is inspected");
     fs::remove_file(&link).expect("another install removed it first");
 
-    assert_eq!(remove_if_still(&link, judged, &|| return false).expect("the removal runs"), Removal::Gone);
+    assert_eq!(remove_if_still(&link, judged, &|| return true).expect("the removal runs"), Removal::Gone);
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn a_file_that_replaced_the_judged_one_is_put_back() {
     let persons_text = "#!/bin/sh\necho a person's own script\n";
     fs::write(&link, persons_text).expect("write the person's file");
 
-    assert_eq!(remove_if_still(&link, judged, &|| return false).expect("the removal runs"), Removal::Replaced);
+    assert_eq!(remove_if_still(&link, judged, &|| return true).expect("the removal runs"), Removal::Replaced);
     assert_eq!(fs::read_to_string(&link).expect("the person's file is back in place"), persons_text);
 }
 
@@ -100,7 +100,7 @@ fn a_directory_that_took_the_judged_entrys_name_is_put_back_too() {
     fs::remove_dir(&entry).expect("the judged directory goes");
     fs::rename(&theirs, &entry).expect("the person's directory takes the name");
 
-    assert_eq!(remove_if_still(&entry, judged, &|| return false).expect("the removal runs"), Removal::Replaced);
+    assert_eq!(remove_if_still(&entry, judged, &|| return true).expect("the removal runs"), Removal::Replaced);
     assert!(fs::symlink_metadata(&entry).expect("still there").is_dir());
 }
 
@@ -116,7 +116,7 @@ fn a_removal_whose_hidden_names_are_all_taken_refuses_to_move_the_entry_aside() 
     }
     fs::write(directory.path().join(format!(".link.{}.retired", std::process::id())), persons_text).expect("keep the fallback file");
 
-    let outcome = remove_if_still(&link, judged, &|| return false);
+    let outcome = remove_if_still(&link, judged, &|| return true);
 
     assert!(outcome.is_err(), "with every hidden name taken the entry must not be moved aside at all: {outcome:?}");
     assert!(fs::symlink_metadata(&link).is_ok(), "the entry that was judged is still where it was");

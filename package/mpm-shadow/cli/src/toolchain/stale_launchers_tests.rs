@@ -469,3 +469,97 @@ fn a_launcher_a_newer_lock_declares_is_kept_whatever_this_install_loaded() {
     assert!(exists_at(&record));
     assert!(exists_at(&link), "and nothing decides about its farm link");
 }
+
+//region The ownership rule, one control per rule
+// The fifth review's findings and the rule the sixth brief asked for: a thing goes only when this tool's own record
+// proves it placed it, the lock on disk read again does not declare it, no live process owns it, and the removal is one
+// step that fails when the thing changed since the look.
+
+/// One pass that takes the record of postinstall links as unreadable before this run wrote it.
+fn retire_while_the_link_set_is_unknown(rig: &Rig) -> LauncherNotices {
+    return retire_undeclared_launchers(&rig.context(), &[], false);
+}
+
+#[test]
+fn a_launcher_is_kept_and_counted_while_the_link_set_is_unknown() {
+    let rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    let record: PathBuf = record_path(&launcher);
+
+    let notices = retire_while_the_link_set_is_unknown(&rig);
+
+    assert!(exists_at(&launcher) && exists_at(&record), "a link a killed run made may point at it and nothing can find that \
+        folder, so the launcher stays: {notices:?}");
+    assert_eq!(notices.retired.len(), 0, "{notices:?}");
+    assert_eq!(notices.warnings.len(), 1, "one line and no more: {notices:?}");
+    assert!(notices.warnings[0].contains("left 1 launcher(s)"), "{notices:?}");
+}
+
+#[test]
+fn a_live_installs_temporary_is_left_and_keeps_its_launcher() {
+    let rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    // The link an install is placing this instant: `atomic_symlink`'s temporary, carrying that install's process number.
+    // This process stands in for it, so the number is alive and the temporary is in flight.
+    let directory: PathBuf = rig.scope.root.join(".cache").join("placing-bin");
+    fs::create_dir_all(&directory).expect("make the link folder");
+    let temporary: PathBuf = directory.join(format!(".mpm.{}.tmp", std::process::id()));
+    symlink(&launcher, &temporary).expect("the temporary an install is placing");
+
+    let notices = retire(&rig);
+
+    assert!(exists_at(&temporary), "a live install's temporary is never a leftover: {notices:?}");
+    assert!(exists_at(&launcher) && exists_at(&record_path(&launcher)), "and its target is not removed from under it: {notices:?}");
+}
+
+#[test]
+fn a_removal_that_the_lock_declares_puts_the_entry_back() {
+    let directory = crate::test_scratch::scratch();
+    let target: PathBuf = directory.path().join("target");
+    fs::write(&target, "x").expect("write the target");
+    let entry: PathBuf = directory.path().join("entry");
+    symlink(&target, &entry).expect("the entry");
+    let judged = super::removal::judged_of(&entry).expect("the entry is inspected");
+
+    // The closure is the seam: this is where the pass asks the lock on disk again, and a lock that declares the entry
+    // means keep it.
+    let outcome = super::removal::remove_if_still(&entry, judged, &|| return false);
+
+    assert_eq!(outcome.expect("the removal runs"), super::removal::Removal::Kept);
+    assert!(exists_at(&entry), "the entry was put back, not deleted");
+}
+
+//endregion
+
+#[test]
+fn a_temporary_is_judged_only_when_its_maker_is_gone() {
+    // `atomic_symlink` writes `.<name>.<pid>.tmp` and a removal writes `.<name>.<pid>.<n>.retired`; the number in both is
+    // the maker. A maker that is alive owns its temporary; one that is gone does not.
+    assert_eq!(super::stale_launchers::maker_of(&format!(".mpm.{}.tmp", std::process::id())), Some(std::process::id()));
+    assert_eq!(super::stale_launchers::maker_of(&format!(".mpm.{}.0.retired", std::process::id())), Some(std::process::id()));
+    assert!(super::stale_launchers::a_live_installs_temporary(&format!(".mpm.{}.tmp", std::process::id())));
+    // A number no process can have: the maker is gone, so the temporary is a leftover.
+    assert!(!super::stale_launchers::a_live_installs_temporary(".mpm.4294967.tmp"));
+    assert!(!super::stale_launchers::a_live_installs_temporary("mpm"));
+}
+
+#[test]
+fn the_removal_asks_the_lock_on_disk_at_that_instant() {
+    let mut rig = rig_with_installed_shadow();
+    let mut newer = rig.lock.clone();
+    let tool = newer.tools.iter_mut().find(|tool| return tool.declaration.id == SHADOW_TOOL).expect("the sample lock holds the tool");
+    tool.declaration.bins.push(RENAMED_BIN.to_string());
+    fs::write(&rig.scope.lock_file, render_lock(&newer)).expect("publish the lock that declares the name");
+    let context = rig.context();
+
+    // The rule, asked on its own: a name the lock on disk declares is not one a removal may take.
+    assert_eq!(super::stale_launchers::still_undeclared(&context, &[], RENAMED_BIN, None), Some(false));
+    assert!(!super::stale_launchers::may_go(&context, &[], RENAMED_BIN, None));
+
+    // And with a lock that declares it nowhere, the removal may go.
+    fs::write(&rig.scope.lock_file, render_lock(&rig.lock)).expect("publish a lock without the name");
+    let without = rig.context();
+    assert_eq!(super::stale_launchers::still_undeclared(&without, &[], RENAMED_BIN, None), Some(true));
+    assert!(super::stale_launchers::may_go(&without, &[], RENAMED_BIN, None));
+    assert_eq!(super::stale_launchers::still_undeclared(&without, &[], RENAMED_BIN, None), Some(true));
+}

@@ -288,3 +288,27 @@ fn a_link_the_global_scope_made_in_the_users_bin_directory_is_still_retired() {
 }
 
 //endregion
+
+#[test]
+fn a_link_the_lock_on_disk_declares_is_kept_when_this_run_loaded_an_older_lock() {
+    let mut rig = rig_with_program();
+    let link = declared_link(&mut rig);
+    let path = link_path(&rig, &link);
+    sync(&rig);
+    assert!(exists_at(&path), "the fixture made the link");
+
+    // The lock the run holds no longer declares the link; the lock on disk does, because another install published one
+    // declaring it again and made it again. The removal must be decided by the lock on disk at that instant.
+    declare(&mut rig, None);
+    let newer: Vec<LockedTool> = rig.lock.tools.clone();
+    let mut with_link: Vec<LockedTool> = newer.clone();
+    let tool = with_link.iter_mut().find(|tool| return tool.declaration.id == LINKED).expect("the sample lock holds the tool");
+    tool.declaration.options.postinstall = Some(Postinstall::Link(link.clone()));
+    fs::write(&rig.scope.lock_file, render_lock(&super::lock::Lock { tools: with_link })).expect("publish the newer lock");
+
+    let tools: Vec<&LockedTool> = rig.lock.tools.iter().collect();
+    let notices = sync_postinstall_links(&rig.context(), &tools).expect("the pass succeeds");
+
+    assert!(exists_at(&path), "the lock on disk declares this link, so this run leaves it: {notices:?}");
+    assert!(notices.retired.is_empty(), "{notices:?}");
+}

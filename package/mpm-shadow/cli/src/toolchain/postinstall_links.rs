@@ -326,7 +326,7 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
             Held::Nothing => {
                 leaving.insert(path.clone());
             }
-            Held::OwnLink(judged) => match remove_if_still(path, judged, &|| return declared_now(ctx, path) != Some(false)) {
+            Held::OwnLink(judged) => match remove_if_still(path, judged, &|| return declared_now(ctx, path) == Some(false)) {
                 Ok(Removal::Retired) => {
                     leaving.insert(path.clone());
                     notices.retired.push(format!(

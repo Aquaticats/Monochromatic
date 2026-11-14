@@ -566,7 +566,10 @@ fn managed_link_paths(ctx: &Context) -> Vec<PathBuf> {
     for folder in link_folders(ctx) {
         if let Ok(entries) = fs::read_dir(&folder) {
             for entry in entries.flatten() {
-                if entry.file_name().to_string_lossy().starts_with('.') {
+                let name: String = entry.file_name().to_string_lossy().to_string();
+                // A hidden temporary is a write of a killed run, except one whose maker is alive: that one is the link an
+                // install is placing right now, and its target is a launcher nothing may remove from under it.
+                if name.starts_with('.') && !a_live_installs_temporary(&name) {
                     continue;
                 }
                 paths.push(entry.path());
@@ -1054,7 +1057,7 @@ fn declared_at(ctx: &Context, made_links: &[String]) -> Option<Declared> {
 /// That question at that instant is the whole ownership test of a removal:
 /// if a newer lock declares the item, it is not a leftover whatever this run's lock said.
 /// `None` means the lock cannot be read now, and then nothing may be removed.
-fn still_undeclared(ctx: &Context, made_links: &[String], name: &str, given: Option<&Path>) -> Option<bool> {
+pub(super) fn still_undeclared(ctx: &Context, made_links: &[String], name: &str, given: Option<&Path>) -> Option<bool> {
     let now: Declared = declared_at(ctx, made_links)?;
     if now.launchers.contains(name) || now.links.contains(name) {
         return Some(false);
@@ -1079,7 +1082,7 @@ fn unreadable_lock_again(ctx: &Context) -> String {
 
 /// The process number a hidden temporary name carries, when it is one of this tool's (`.<name>.<pid>.tmp` or
 /// `.<name>.<pid>.<n>.retired`).
-fn maker_of(name: &str) -> Option<u32> {
+pub(super) fn maker_of(name: &str) -> Option<u32> {
     let parts: Vec<&str> = name.split('.').collect();
     let index: usize = match parts.last() {
         Some(&"tmp") => parts.len().checked_sub(2)?,
@@ -1095,7 +1098,7 @@ fn maker_of(name: &str) -> Option<u32> {
 /// A temporary carries its maker's process number,
 /// and a maker that is alive is an install placing a link this instant:
 /// its temporary is never a leftover, and deleting it fails that install's rename.
-fn a_live_installs_temporary(name: &str) -> bool {
+pub(super) fn a_live_installs_temporary(name: &str) -> bool {
     if !name.starts_with('.') {
         return false;
     }
@@ -1107,7 +1110,7 @@ fn a_live_installs_temporary(name: &str) -> bool {
 /// and when the lock cannot be read at all.
 /// Why:
 /// That is the ownership test of a removal, asked where the entry is already in hand.
-fn may_go(ctx: &Context, made_links: &[String], name: &str, link_path: Option<&Path>) -> bool {
+pub(super) fn may_go(ctx: &Context, made_links: &[String], name: &str, link_path: Option<&Path>) -> bool {
     return still_undeclared(ctx, made_links, name, link_path) != Some(true);
 }
 
