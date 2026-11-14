@@ -6,11 +6,16 @@
 //!  A service that refuses a step or ends says so only on its own error stream,
 //! an inherited stream mixes that line with the output of every other control running at the same moment,
 //! and a panic removes the fixture the line belongs to;
-//! so the words go to a file beside the fixture and to the stream a person reads.
+//! so the words go to a file beside the fixture,
+//! which is the one place a control reads them from.
+//!  They are never copied to this process's own standard error as well:
+//! a process that runs the tests may have the journal on it,
+//! and then a throwaway fixture's service would write into the user journal of the machine
+//! (`doc/troubleshooting/git-policy-cli-test-services-write-into-the-user-journal.md`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! command.stderr = keptStderrPipe(root); // copies into `${root}/service.log` and into process.stderr
+//! command.stderr = keptStderrPipe(root); // copies into `${root}/service.log` and nowhere else
 //! const said = serviceLog(root).slice(-8 * 1024);
 //! ```
 
@@ -30,15 +35,15 @@ const SERVICE_LOG_KEPT_BYTES: u64 = 8 * 1024;
 
 /// What:
 ///  The writing end of a pipe whose other end copies what a service writes on standard error into
-///  `SERVICE_LOG_FILE` under `root` and into this test's own error stream.
+///  `SERVICE_LOG_FILE` under `root`.
 /// Why:
 ///   An inherited stream loses the line that explains a failure with the fixture a panic removes,
-/// and a file alone would take the service's words off the output a person reads while it runs;
-/// the copy keeps both.
+/// a fixture's service may not write to anything the fixture does not hold,
+/// and the file is what `service_log` hands to a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const [reader, writer] = os.pipe(); spawn(() => copy(reader, [logFile, process.stderr])); return writer;
+/// const [reader, writer] = os.pipe(); spawn(() => copy(reader, logFile)); return writer;
 /// ```
 pub fn kept_stderr_pipe(root: &Path) -> std::io::Result<OwnedFd> {
     let (mut reader, writer): (std::io::PipeReader, std::io::PipeWriter) = std::io::pipe()?;
@@ -54,7 +59,6 @@ pub fn kept_stderr_pipe(root: &Path) -> std::io::Result<OwnedFd> {
                     if let Some(held) = file.as_mut() {
                         let _written = std::io::Write::write_all(held, said);
                     }
-                    let _shown = std::io::Write::write_all(&mut std::io::stderr(), said);
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
                 Err(_) => return,

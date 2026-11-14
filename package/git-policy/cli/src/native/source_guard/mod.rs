@@ -64,3 +64,11 @@ pub(crate) mod source_scan_tests;
 #[cfg(test)]
 #[path = "no_start_at_login_tests.rs"]
 pub(crate) mod no_start_at_login_tests;
+
+/// The rule that no control's service writes into the user journal of this machine:
+/// no inherited streams,
+/// no journal trigger,
+/// and a start support that keeps both off.
+#[cfg(test)]
+#[path = "service_journal_isolation_tests.rs"]
+mod service_journal_isolation_tests;

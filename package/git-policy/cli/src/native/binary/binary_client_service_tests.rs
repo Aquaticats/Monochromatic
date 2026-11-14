@@ -11,7 +11,7 @@
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::{Running, runtime_for, start};
-use super::support::{Fixture, fixture, git, repository};
+use super::support::{Fixture, fixture, git, kept_stderr_pipe, repository};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
@@ -212,7 +212,7 @@ pub(super) fn service_with_git(fixture: &Fixture, name: &str, git_dir: &Path, gi
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")))
         .spawn()
         .expect("the service starts");
     let held: Held = Held { child, runtime };

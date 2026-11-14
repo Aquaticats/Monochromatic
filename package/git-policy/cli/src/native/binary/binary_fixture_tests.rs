@@ -3,8 +3,8 @@
 //! (issue 1809).
 
 use super::support::{
-    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, fixture, missing_fixture_root_report, give_service_environment, remove_patiently, repository, service_runtime,
-    service_is_serving, settle_fixture, spawn_owned, start_fixture_service,
+    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, NOBODY_JOURNAL_ADDRESS, fixture, missing_fixture_root_report, give_service_environment, remove, remove_patiently, repository,
+    service_command, service_log, service_runtime, service_is_serving, settle_fixture, spawn_owned, start_fixture_service,
 };
 use git_policy_cli::service_server::Bind;
 use std::path::{Path, PathBuf};
@@ -460,4 +460,82 @@ fn a_listener_that_accepts_a_connection_and_says_nothing_is_not_a_service_that_i
     assert!(service_is_serving(&Bind::Path(socket)), "a listener that greets is serving");
     greeter.join().expect("the greeter ends");
     let _removed = std::fs::remove_dir_all(runtime.as_path());
+}
+
+/// How long a fixture's log may take to gain the line its service wrote as it started.
+/// The line is written before the service listens,
+/// and the pipe that carries it is read by a thread of this process,
+/// so anything near this means the words went somewhere else.
+const SERVICE_LOG_PATIENCE: Duration = Duration::from_secs(10);
+
+/// What:
+///  The command that starts every control's service hands it neither the journal's trigger nor the machine's journal
+///  socket:
+/// `$JOURNAL_STREAM` is recorded as removed,
+/// and the address an entry would go to is an abstract name nothing listens at.
+/// Why:
+///   A service that inherits the trigger sends every entry as a datagram to `/run/systemd/journal/socket`,
+///  a path of this machine that a fixture's `HOME` and `XDG_RUNTIME_DIR` do not move,
+///  and on 2026-11-14 its user journal held services of two agents' throwaway fixtures
+///  (`doc/troubleshooting/git-policy-cli-test-services-write-into-the-user-journal.md`).
+///  The other half of the bargain, that no control gives its service a stream the run owns,
+///  is the source guard `source_guard::service_journal_isolation`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const env = new Map(serviceCommand().getEnv()); expect(env.get('JOURNAL_STREAM')).toBe(undefined); expect(env.get('CLI_GIT_TEST_ONLY_JOURNAL_SOCKET')).toBe(NOBODY_JOURNAL_ADDRESS);
+/// ```
+#[test]
+fn a_control_s_service_is_never_handed_the_journal_of_the_machine() {
+    let command: Command = service_command();
+    let recorded: Vec<(String, Option<String>)> = command
+        .get_envs()
+        .map(|(name, value)| { return (name.to_string_lossy().into_owned(), value.map(|text| { return text.to_string_lossy().into_owned(); })); })
+        .collect();
+    let written = |name: &str| -> Option<Option<String>> {
+        return recorded.iter().find(|(key, _)| { return key == name; }).map(|(_, value)| { return value.clone(); });
+    };
+    assert_eq!(
+        written(git_policy_cli::journald_native::STREAM_VARIABLE),
+        Some(None),
+        "the journal's trigger is removed rather than inherited, so no control's service can believe its stream is the journal: {recorded:?}"
+    );
+    assert_eq!(
+        written(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE),
+        Some(Some(String::from(NOBODY_JOURNAL_ADDRESS))),
+        "the address an entry goes to is a name nothing listens at, so even a trigger a control names itself reaches no journal: {recorded:?}"
+    );
+}
+
+/// What:
+///  What a fixture's service says as it starts is in the fixture's own log,
+///  which is where a control reads it.
+/// Why:
+///   The service's standard error is a pipe the fixture holds and copies into `service.log`
+///  (`kept_stderr_pipe`),
+///  so the words are readable while the fixture is there and in a failure that quotes them after it is gone,
+///  and no stream of the process running the tests holds them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// startFixtureService(fixture).serve(fixture, gitDir); await eventually(() => serviceLog(fixture.root).includes('started release='));
+/// ```
+#[test]
+fn a_fixture_service_says_its_release_into_the_fixture_s_log() {
+    let created: Fixture = fixture("service-log-holds-start");
+    let git_dir: PathBuf = created.root.join("repo/.git");
+    std::fs::create_dir_all(&git_dir).expect("a Git directory to serve");
+    let service: FixtureService = start_fixture_service(&created);
+    service.serve(&created, git_dir.as_path());
+    let began: Instant = Instant::now();
+    while !service_log(created.root.as_path()).contains("started release=") {
+        assert!(
+            began.elapsed() < SERVICE_LOG_PATIENCE,
+            "the fixture's log never gained the line its service wrote as it started: {}",
+            service_log(created.root.as_path())
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    drop(service);
+    remove(&created);
 }

@@ -283,10 +283,21 @@ pub fn kill_with_everything_it_started(child: &mut Child) {
 ///  service.
 pub const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-cli");
 
+/// The address a control's service sends its journal entries to when the control names no journal of its own:
+/// the abstract name nothing listens at,
+/// which the hermetically kept wrapped commands send to as well (`hermetic`,
+/// `binary_support.rs`).
+/// A send there is refused,
+/// so the entry falls back to the service's own standard error,
+/// which a control's start makes a pipe of the fixture.
+pub const NOBODY_JOURNAL_ADDRESS: &str = "@cli-git-test-journal-nobody-hermetic";
+
 /// What:
 ///  The command that starts the resident service of this build:
 /// the one executable followed by the words of its service mode,
-/// with no runtime directory and no session bus inherited from the process that runs the tests.
+/// with no runtime directory,
+/// no session bus and no journal inherited from the process that runs the tests,
+/// and with all three of its streams the fixture's own unless a control says otherwise.
 /// Why:
 ///   The service is a mode of the wrapper's executable (`service_main.rs`),
 /// so every control that starts one names these words
@@ -299,12 +310,31 @@ pub const SERVICE_PROGRAM: &str = env!("CARGO_BIN_EXE_monochromatic-git-policy-c
 /// (`doc/troubleshooting/git-policy-cli-service-units-of-deleted-worktrees.md`).
 /// A control that needs a bus or a runtime directory gives its own after this call,
 /// so nothing a control starts can find one by inheritance.
+///  The journal is the same bargain and it is what the start of 2026-11-14 cost:
+/// a service whose standard error was the journal's stream,
+/// or whose `$JOURNAL_STREAM` named it,
+/// wrote `started release=...` into the user journal of this machine from a throwaway fixture
+/// (`doc/troubleshooting/git-policy-cli-test-services-write-into-the-user-journal.md`),
+/// where a reader counts the services that were never this machine's.
+/// `HOME` and `XDG_RUNTIME_DIR` do not move the journal:
+/// the native socket is `/run/systemd/journal/socket`,
+/// and a service's standard error is the journal whenever the process that runs the tests had it
+/// (`journald_native.rs`).
+///  So the trigger is removed (`$JOURNAL_STREAM`),
+/// the address is a name nothing listens at,
+/// and the streams are `/dev/null` here,
+/// which a control replaces with the fixture's own pipe when it reads what the service said.
 pub fn service_command() -> Command {
     let mut command: Command = Command::new(SERVICE_PROGRAM);
     command
         .args(git_policy_cli::service_main::SERVICE_WORDS)
         .env_remove("XDG_RUNTIME_DIR")
-        .env_remove("DBUS_SESSION_BUS_ADDRESS");
+        .env_remove("DBUS_SESSION_BUS_ADDRESS")
+        .env_remove(git_policy_cli::journald_native::STREAM_VARIABLE)
+        .env(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, NOBODY_JOURNAL_ADDRESS)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
     return command;
 }
 

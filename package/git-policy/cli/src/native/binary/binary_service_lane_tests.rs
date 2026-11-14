@@ -15,7 +15,7 @@
 //!  (`doc/planning/cli-git-resident-service.md`,
 //! "One service per worktree").
 
-use super::support::{Fixture, fixture, git, repository};
+use super::support::{Fixture, fixture, git, kept_stderr_pipe, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
 use git_policy_cli::service_instance::{instance_of, socket_for};
 use git_policy_cli::service_messages::ClientFailure;
@@ -98,7 +98,7 @@ fn start(fixture: &Fixture, name: &str, worktrees: &Worktrees) -> Services {
             .args(["--instance", instance_of(git_dir.as_path()).as_str()])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")))
             .spawn()
             .expect("the service starts");
         services.children.push(child);

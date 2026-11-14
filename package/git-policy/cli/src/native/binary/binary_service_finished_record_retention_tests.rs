@@ -21,7 +21,7 @@
 //! ```
 
 use super::commit::{remove_settled, run_commit};
-use super::support::{Fixture, FixtureService, fixture, git, repository, start_fixture_service};
+use super::support::{Fixture, FixtureService, fixture, git, kept_stderr_pipe, repository, start_fixture_service};
 use git_policy_cli::claim_time::ClaimTime;
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
 use git_policy_cli::service_instance::{instance_of, socket_for};
@@ -387,7 +387,7 @@ fn two_services_pruning_at_once_lose_no_record_that_should_stay() {
             .args(["--instance", instance_of(git_dir.as_path()).as_str()])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::from(kept_stderr_pipe(scene.fixture.root.as_path()).expect("a pipe for the service's log")))
             .spawn()
             .expect("a service starts");
         services.push(child);

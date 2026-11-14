@@ -14,7 +14,7 @@
 //! const before = threadsOf(service); const held = await connectMany(32); expect(threadsOf(service) - before).toBeLessThan(16);
 //! ```
 
-use super::support::{Fixture, fixture};
+use super::support::{Fixture, fixture, kept_stderr_pipe};
 use git_policy_cli::service_protocol::{PROTOCOL_VERSION, ServiceMessage, decode_service};
 use std::io::{BufRead, BufReader};
 use std::os::linux::net::SocketAddrExt;
@@ -49,7 +49,7 @@ fn start(fixture: &Fixture, name: &str) -> Held {
         .args(["--abstract", name])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit())
+        .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")))
         .spawn()
         .expect("the service starts");
     let began: Instant = Instant::now();

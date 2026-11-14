@@ -28,7 +28,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled};
-use super::support::{Fixture, ServiceLaunch, fixture, git, repository};
+use super::support::{Fixture, ServiceLaunch, fixture, git, kept_stderr_pipe, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, FIRST_BATCH_VARIABLE, PRESTAGE_FLUSHED, PRESTAGE_STAGED, PRESTAGE_START};
 use git_policy_cli::service_instance::{instance_of, socket_path};
@@ -99,7 +99,11 @@ fn address(fixture: &Fixture, label: &str) -> String {
 fn start_service(fixture: &Fixture, name: &str, fault: Option<&str>) -> Service {
     let journal: PathBuf = fixture.root.join("journal");
     let mut command: Command = super::support::service_command();
-    command.args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::inherit());
+    command
+        .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
     if let Some(point) = fault {
         command.env(FAULT_VARIABLE, point);
     }
@@ -329,7 +333,7 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
         .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name.as_str(), "--instance", instance.as_str()])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit());
+        .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
     let service: Service = Service { child: command.spawn().expect("the service starts") };
     wait_until_reachable(name.as_str());
     // The first answer comes after the service has started serving, so the pruning at its start has been done.
@@ -370,7 +374,7 @@ fn a_service_whose_worktree_is_gone_serves_nothing() {
         .env("XDG_RUNTIME_DIR", runtime.as_path())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit());
+        .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
     let mut service: Service = Service { child: command.spawn().expect("the service starts") };
     let status: std::process::ExitStatus = ended_at_fault(&mut service, "a service of a gone worktree");
     assert!(status.success(), "serving nothing is not a failure, or `Restart=on-failure` starts the unit again: {status}");
@@ -462,14 +466,14 @@ fn a_service_a_control_starts_is_never_handed_the_manager_of_its_parent() {
 /// Starts the service of one worktree with its journal in `journal`,
 /// as the unit does with `--journal` and `--instance`,
 ///  and with the further words a control gives.
-fn start_instance_service(name: &str, journal: &Path, instance: &str, further: &[&str]) -> Service {
+fn start_instance_service(root: &Path, name: &str, journal: &Path, instance: &str, further: &[&str]) -> Service {
     let mut command: Command = super::support::service_command();
     command
         .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name, "--instance", instance])
         .args(further)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit());
+        .stderr(Stdio::from(kept_stderr_pipe(root).expect("a pipe for the service's log")));
     return Service { child: command.spawn().expect("the service starts") };
 }
 
@@ -483,7 +487,7 @@ fn start_instance_service(name: &str, journal: &Path, instance: &str, further: &
 fn leave_a_batch_open(fixture: &Fixture, repo: &Path, instance: &str, earlier: &Path, label: &str) -> (PathBuf, PathBuf) {
     std::fs::create_dir_all(earlier).expect("the earlier journal");
     let first_name: String = address(fixture, format!("{label}-first").as_str());
-    let first: Service = start_instance_service(first_name.as_str(), earlier, instance, &[]);
+    let first: Service = start_instance_service(fixture.root.as_path(), first_name.as_str(), earlier, instance, &[]);
     wait_until_reachable(first_name.as_str());
     let sent: CommitRequest = request(fixture, repo, format!("{label}-1").as_str(), "a.txt", "a\n");
     submit_quietly(&config(first_name.as_str()), &sent).expect("answered");
@@ -815,7 +819,7 @@ fn the_service_has_no_start_option_that_settles_the_earlier_helpers_batches() {
     let (open, finished) = leave_a_batch_open(&fixture, &repo, instance.as_str(), earlier.as_path(), "held");
     for (index, further) in [vec![], vec!["--adopt-earlier-journals"], vec!["--adopt-earlier-journals", "true"], vec!["--adopt"]].into_iter().enumerate() {
         let name: String = address(&fixture, format!("held-second-{index}").as_str());
-        let second: Service = start_instance_service(name.as_str(), current.as_path(), instance.as_str(), further.as_slice());
+        let second: Service = start_instance_service(fixture.root.as_path(), name.as_str(), current.as_path(), instance.as_str(), further.as_slice());
         wait_until_reachable(name.as_str());
         // The first answer comes after the start, where an adoption would have run.
         let next: CommitRequest = request(&fixture, &repo, format!("held-next-{index}").as_str(), format!("b{index}.txt").as_str(), "b\n");
@@ -1499,7 +1503,7 @@ fn two_services_of_one_journal_never_number_their_batches_alike() {
             .env(FIRST_BATCH_VARIABLE, pinned.as_str())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::inherit());
+            .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
         services.push(Service { child: command.spawn().expect("the service starts") });
         names.push(name);
     }

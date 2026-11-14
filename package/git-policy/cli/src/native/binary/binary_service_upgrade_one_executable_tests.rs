@@ -35,7 +35,7 @@
 
 use super::commit::wrapped_commit;
 use super::service_provision::{PATIENCE, fake_bus_many, finish, finished_batches, prepared};
-use super::support::{Fixture, service_command, service_executable, spawn_owned};
+use super::support::{Fixture, kept_stderr_pipe, service_command, service_executable, spawn_owned};
 use git_policy_cli::service_instance::{instance_of, socket_for};
 use git_policy_cli::service_provision::{SERVICE_UNIT_NAME, SOCKET_UNIT, SOCKET_UNIT_NAME};
 use std::os::fd::AsRawFd;
@@ -124,7 +124,7 @@ fn activate(listener: &UnixListener, words: &[String], root: &Path) -> Child {
         .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::inherit());
+        .stderr(Stdio::from(kept_stderr_pipe(root).expect("a pipe for the service's log")));
     // SAFETY: between fork and exec only `dup2` and `fcntl`, async-signal-safe calls, run; the descriptor is open in the parent.
     unsafe {
         command.pre_exec(move || {

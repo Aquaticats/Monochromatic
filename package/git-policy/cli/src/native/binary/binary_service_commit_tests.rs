@@ -12,7 +12,7 @@
 //! the wrapper finds the socket and uses it.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, fixture, git, repository};
+use super::support::{Fixture, fixture, git, kept_stderr_pipe, repository};
 use git_policy_cli::service_instance::{instance_of, socket_for};
 use std::ffi::OsStr;
 use std::os::unix::net::UnixStream;
@@ -170,7 +170,7 @@ fn serve_into(running: &mut Running, root: &Path, runtime: &Path, git_dirs: &[Pa
             .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::inherit())
+            .stderr(Stdio::from(kept_stderr_pipe(root).expect("a pipe for the service's log")))
             .spawn()
             .expect("the service starts");
         running.children.push(child);
