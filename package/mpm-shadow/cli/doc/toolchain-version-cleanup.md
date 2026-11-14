@@ -40,6 +40,20 @@ so a version's access time is not maintained and was **not** used:
 the age of a version is the write time of its own directory,
 which is when the version was installed.
 
+## What a pass costs an install
+
+Measured on this machine, 2026-11-13
+(`keep/cost-of-a-pass-on-the-real-store.txt`, `keep/deletion-cost-home-volume.txt`):
+
+- an install that installed nothing and has no removal to finish:
+  two `stat` calls (the unfinished-removal markers of the two roots), and the pass is not run at all;
+- a pass on a store it has never measured: 9.3 s (one `stat` and a size walk per version directory);
+- a pass afterwards: 1 ms for the versions (`.mpm-shadow-version-sizes.json` records each version's size beside
+  the write time it had, and one `stat` per version says whether the record still holds),
+  plus 30 ms for `git worktree list`, 0.27 to 0.7 s to read and parse 164 lock files,
+  and 0.15 s for the process table;
+- the removals: at most 2 s, at the measured 30 microseconds per file.
+
 ## The rule
 
 While the stores keep more than the size bound,

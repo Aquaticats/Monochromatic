@@ -24,15 +24,19 @@
 //! export function treeSize(path: string): number
 //! ```
 
-/// Imports `BTreeSet`,
-/// the sorted set of tool directory names.
-use std::collections::BTreeSet;
+/// Imports `BTreeMap` and `BTreeSet`,
+/// the sorted map of the size records and the sorted set of tool directory names.
+use std::collections::{BTreeMap, BTreeSet};
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
-/// Imports `SystemTime` from `std::time`.
-use std::time::SystemTime;
+/// Imports `SystemTime` and `UNIX_EPOCH` from `std::time`.
+use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Imports `Value` from `serde_json`,
+/// which reads the size records.
+use serde_json::Value;
 
 /// Imports what this module uses from `super::cargo_installs` (the `cargo` namespace and the `current` link).
 use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME};
@@ -40,8 +44,8 @@ use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME};
 use super::layout::install_dir_name;
 /// Imports `Route` from `super::model`.
 use super::model::Route;
-/// Imports `file_name_text` from `super::util`.
-use super::util::file_name_text;
+/// Imports `file_name_text` and `write_atomically` from `super::util`.
+use super::util::{file_name_text, write_atomically};
 
 /// The directory below a toolchain root that holds the archives downloaded for each version.
 pub const DOWNLOADS_DIRECTORY_NAME: &str = "downloads";
@@ -55,6 +59,103 @@ pub const TOMBSTONE_PREFIX: &str = ".mpm-shadow-removing.";
 /// The suffix of a download that is still being written,
 /// which is never a leftover to remove.
 pub const IN_FLIGHT_DOWNLOAD_SUFFIX: &str = ".download";
+
+/// What:
+/// The file in a store root that records what each version directory weighed when it was last measured:
+/// `.mpm-shadow-version-sizes.json`.
+/// Why:
+/// Measuring a store costs 9.3 s on this machine (103 version directories, 54.5 GiB, read on 2026-11-13),
+/// and a pass that reads the records instead takes 1 ms,
+/// and a version directory's own write time changes exactly when its content changes (`install` renames a finished
+/// tree into place, so the whole version arrives as one rename),
+/// so one `stat` per version tells whether the recorded size still holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const SIZE_RECORDS_FILE_NAME = '.mpm-shadow-version-sizes.json';
+/// ```
+pub const SIZE_RECORDS_FILE_NAME: &str = ".mpm-shadow-version-sizes.json";
+
+/// What one version directory weighed,
+/// keyed by the write time it had.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SizeRecord {
+    /// The version directory's own write time,
+    /// in nanoseconds after the epoch.
+    pub written_ns: u64,
+    /// The bytes the version and the downloads kept for it weighed.
+    pub bytes: u64,
+}
+
+/// The nanoseconds `written` lies after the epoch,
+/// and zero for a time before it.
+fn written_ns(written: SystemTime) -> u64 {
+    return match written.duration_since(UNIX_EPOCH) {
+        Ok(since) => u64::try_from(since.as_nanos()).unwrap_or(u64::MAX),
+        Err(_) => 0,
+    };
+}
+
+/// What:
+/// The size records of the store at `toolchain_root`,
+/// keyed by `<tool>/<version>`,
+/// read from [`SIZE_RECORDS_FILE_NAME`].
+/// Why:
+/// A file that is missing,
+/// unreadable or corrupt reads as no records,
+/// so the store is measured again rather than trusted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function readSizeRecords(root: string): Map<string, SizeRecord>
+/// ```
+pub fn read_size_records(toolchain_root: &Path) -> BTreeMap<String, SizeRecord> {
+    let mut records: BTreeMap<String, SizeRecord> = BTreeMap::new();
+    let Ok(text) = fs::read_to_string(toolchain_root.join(SIZE_RECORDS_FILE_NAME)) else {
+        return records;
+    };
+    let Ok(decoded) = serde_json::from_str::<Value>(&text) else {
+        return records;
+    };
+    let Some(versions) = decoded.get("versions").and_then(Value::as_object) else {
+        return records;
+    };
+    for (key, record) in versions {
+        let Some(written_ns) = record.get("writtenNs").and_then(Value::as_u64) else {
+            continue;
+        };
+        let Some(bytes) = record.get("bytes").and_then(Value::as_u64) else {
+            continue;
+        };
+        records.insert(key.clone(), SizeRecord { written_ns, bytes });
+    }
+    return records;
+}
+
+/// What:
+/// Writes the size records of the store at `toolchain_root`.
+/// Why:
+/// A record that cannot be written costs the next pass a measurement and nothing else,
+/// so a failure is ignored.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function writeSizeRecords(root: string, records: Map<string, SizeRecord>): void
+/// ```
+pub fn write_size_records(toolchain_root: &Path, records: &BTreeMap<String, SizeRecord>) {
+    let mut versions: serde_json::Map<String, Value> = serde_json::Map::new();
+    for (key, record) in records {
+        let mut fields: serde_json::Map<String, Value> = serde_json::Map::new();
+        fields.insert("writtenNs".to_string(), Value::from(record.written_ns));
+        fields.insert("bytes".to_string(), Value::from(record.bytes));
+        versions.insert(key.clone(), Value::Object(fields));
+    }
+    let mut document: serde_json::Map<String, Value> = serde_json::Map::new();
+    document.insert("schemaVersion".to_string(), Value::from(1));
+    document.insert("versions".to_string(), Value::Object(versions));
+    let text: String = Value::Object(document).to_string();
+    let _ = write_atomically(&toolchain_root.join(SIZE_RECORDS_FILE_NAME), text.as_bytes());
+}
 
 /// What:
 /// The directory under a toolchain root whose children are the versions of one tool,
@@ -191,6 +292,8 @@ fn is_version_entry(entry: &fs::DirEntry, name: &str) -> bool {
 /// export function versionDirectories(root: string, tools: ReadonlySet<string>): VersionDirectory[]
 /// ```
 pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>) -> Vec<VersionDirectory> {
+    let recorded: BTreeMap<String, SizeRecord> = read_size_records(toolchain_root);
+    let mut measured: BTreeMap<String, SizeRecord> = BTreeMap::new();
     let mut found: Vec<VersionDirectory> = Vec::new();
     for tool in tools {
         let tool_directory: PathBuf = toolchain_root.join(tool);
@@ -214,13 +317,27 @@ pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>) -> V
                 Ok(found_downloads) if found_downloads.is_dir() => Some(downloads_directory),
                 _ => None,
             };
-            let mut bytes: u64 = tree_size(&directory);
-            if let Some(downloads_path) = &downloads {
-                bytes = bytes.saturating_add(tree_size(downloads_path));
-            }
+            // What: a version whose directory still has the write time it had when it was measured keeps the
+            // recorded size; any other is measured now.
+            // Why: measuring the whole store costs seconds, and a version directory's write time changes when an
+            // install replaces the version, so one `stat` per version answers whether the record still holds.
+            let key: String = format!("{tool}/{version}");
+            let recorded_ns: u64 = written_ns(written);
+            let bytes: u64 = match recorded.get(&key) {
+                Some(record) if record.written_ns == recorded_ns => record.bytes,
+                _ => {
+                    let mut measured_bytes: u64 = tree_size(&directory);
+                    if let Some(downloads_path) = &downloads {
+                        measured_bytes = measured_bytes.saturating_add(tree_size(downloads_path));
+                    }
+                    measured_bytes
+                }
+            };
+            measured.insert(key, SizeRecord { written_ns: recorded_ns, bytes });
             found.push(VersionDirectory { tool: tool.clone(), version, directory, downloads, bytes, written });
         }
     }
+    write_size_records(toolchain_root, &measured);
     // Oldest write first: the cleanup removes in this order.
     found.sort_by(|left, right| {
         let by_write: std::cmp::Ordering = left.written.cmp(&right.written);

@@ -23,8 +23,8 @@ use std::time::{Duration, SystemTime};
 
 /// Imports the module under test.
 use crate::toolchain::store_versions::{
-    DOWNLOADS_DIRECTORY_NAME, TOMBSTONE_PREFIX, install_directory_name, leftover_downloads, tombstone_of, tombstones,
-    tree_size, version_directories,
+    DOWNLOADS_DIRECTORY_NAME, SIZE_RECORDS_FILE_NAME, TOMBSTONE_PREFIX, install_directory_name, leftover_downloads,
+    read_size_records, tombstone_of, tombstones, tree_size, version_directories,
 };
 use crate::toolchain::model::Route;
 use crate::test_scratch::scratch;
@@ -174,6 +174,53 @@ fn finds_a_removal_marker_beside_the_downloads() {
     fs::rename(&downloads, &marker).expect("move the downloads aside");
 
     assert_eq!(tombstones(&root, &["node".to_string()].into_iter().collect()), vec![marker]);
+}
+
+/// A version's size is recorded once,
+/// and a version whose directory was written again is measured again.
+#[test]
+fn records_a_size_and_measures_again_once_the_version_is_written() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("toolchain");
+    let version: PathBuf = make_version(&root, "node", "26.13.1", 1000);
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+
+    assert_eq!(version_directories(&root, &tools)[0].bytes, 1000);
+    assert_eq!(read_size_records(&root).get("node/26.13.1").map(|record| return record.bytes), Some(1000));
+    assert!(root.join(SIZE_RECORDS_FILE_NAME).is_file());
+
+    // An install replaces a version as one rename, so the next entry changes the directory's own write time.
+    fs::write(version.join("extra"), vec![b'e'; 24]).expect("add a file to the version");
+    assert_eq!(version_directories(&root, &tools)[0].bytes, 1024);
+}
+
+/// A version whose directory is unchanged keeps its recorded size even when a file inside it was rewritten in place,
+/// which is the one change a directory's write time does not show.
+#[test]
+fn trusts_a_record_while_the_version_directory_is_unchanged() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("toolchain");
+    let version: PathBuf = make_version(&root, "node", "26.13.1", 1000);
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+    assert_eq!(version_directories(&root, &tools)[0].bytes, 1000);
+
+    fs::write(version.join("program"), vec![b'b'; 10]).expect("rewrite the program in place");
+
+    assert_eq!(version_directories(&root, &tools)[0].bytes, 1000);
+}
+
+/// A size record file that is not the document this release writes reads as no records,
+/// so the store is measured again.
+#[test]
+fn measures_everything_when_the_size_records_are_not_readable() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("toolchain");
+    make_version(&root, "node", "26.13.1", 1000);
+    fs::write(root.join(SIZE_RECORDS_FILE_NAME), b"not the document").expect("write a broken record file");
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+
+    assert!(read_size_records(&root).is_empty());
+    assert_eq!(version_directories(&root, &tools)[0].bytes, 1000);
 }
 
 /// The size of a version is the length of every file below it.
