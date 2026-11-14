@@ -1239,6 +1239,114 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's stale launchers are answered with the scope lock gone, at a cost not yet attributed; the brief writer for tests is answered; both go to review (2026-11-14T14:27:24-05:00)
+
+Not final and not approved:
+what two authors report of themselves,
+which this session has not checked,
+and what it queued.
+
+- **mpm-shadow's stale launchers** (tip `7fa024e9d5`, ended 14:22:51):
+  the author reports the scope's lock removed,
+  so an install never waits,
+  skips or fails for it,
+  and each of the five findings answered,
+  with five controls that fail at the code before and the review's scripts no longer reaching the defect's state;
+  808 tests passing and Clippy clean after merging `main`.
+  Open,
+  and a condition before this branch is merged:
+  an install with nothing to do measures at a ratio of 1.18 to `649a45b459`
+  (medians 61.87 and 73.17 ms over seven interleaved rounds,
+  ranges 53.17 to 65.88 and 72.17 to 81.29,
+  which do not overlap).
+  The author puts most of it down to `main`'s `install <tool>` arriving in the same merge
+  (178 more `openat` calls against 174 declared bins)
+  and did not build an arm of `main` alone,
+  so the cause is not measured.
+  Whoever touches the branch next,
+  its author after a review with findings or a fresh run after a clean one,
+  is asked for that arm.
+  Review queued second (range `main...7fa024e9d5`, eight code files).
+- **The brief writer for a change to tests alone** (tip `cc72076d8e`, ended 14:26:27):
+  the author reports the review answered in one commit;
+  a range that only deletes code now starts a review where it was refused,
+  and real runs of the writer on three ranges gave a tests brief,
+  a plain brief and a refusal for the `.cjs` range as before.
+  It reworded a sentence of the tests brief,
+  so the review script's phrase check now reads false for a tests-only change:
+  the reviewer will meet that.
+  Review queued third (range `main...cc72076d8e`, seven code files).
+- The queue held 61 entries at 14:27:24.
+
+##### The read-only main checkout works and refuses a start for a path with a space, back to its author; the landed removal's second answer goes to review (2026-11-14T14:20:54-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session queued.
+
+- **A Pi run cannot write into the main checkout** (`ca137eb2bf`):
+  by the review's probes the mechanism holds
+  (the listed paths writable,
+  every other write,
+  delete and rename under the checkout refused;
+  the checkout's symbolic-link alias does not get past it;
+  a commit cannot be blocked by it).
+  Two things,
+  both refusals of a start:
+  paths are put unquoted into the two properties,
+  so a checkout path with a space or a relative folder is rejected by systemd and the unit does not start,
+  where it started before (reproduced);
+  and the worktree is a mandatory writable path,
+  so a finish of the same name that removes it before the namespace is set up fails the start with status 226
+  (mechanism reproduced,
+  the race by reading).
+  The author is resumed second
+  (`~/temp/agent/pi-runs/pi-run-cannot-write-into-the-main-checkout-answers-its-review-of-2026-11-14-prompt.md`).
+- **The landed removal's guard** (tip `9e6c8619a9`, ended 14:18:30):
+  the author reports both findings of the second review answered:
+  the operand is resolved as Git resolves it and refused where that cannot be said,
+  and no read can be held by a pipe,
+  a device or a link;
+  835 tests of `worktree::` passing.
+  It names one read it left alone because it is `main`'s and reached only on the btrfs destroy path:
+  `check_clean` still opens an index with an open that blocks.
+  Review queued third (range `main...9e6c8619a9`, nineteen code files).
+- The queue held 62 entries at 14:20:54.
+
+##### The killed-Git lock's answer holds every pin for the life of a Git run, back to its author (2026-11-14T14:10:07-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+and what the coordinating session queued and measured.
+
+- **The lock a killed Git left** (`1ee73d2728`),
+  third review:
+  the change's aim is met
+  (31 of 31 controls,
+  the two for the earlier findings among them;
+  no path found that clears a live writer's lock).
+  One reproduced that the change brought:
+  each take's record now has a name of its own,
+  nothing forgets a record until the Git run ends,
+  so one rebase of many commits pins every intermediate copy of the index:
+  10 pins grew to 46 during a rebase,
+  and with an index of 3,000 files the bytes held grew from 240 KB to 2.64 MB,
+  all freed at the end.
+  Its "before" is read from the diff and not run.
+  One more by reading,
+  older than the change:
+  a sweep beside a write can remove a `.lock-path.writing` temporary file.
+  The author is resumed second,
+  asked for a bound that does not grow with the run's length
+  (`~/temp/agent/pi-runs/lock-a-killed-git-left-answers-its-third-review-of-2026-11-14-prompt.md`).
+- The check of queued entries at 14:10:07:
+  63 names queued by this session since 08:54,
+  none missing,
+  none twice;
+  60 entries in the queue,
+  21 Pi runs going and 22 launchers
+  (a launcher that waits for a place has no run yet).
+
 ##### The change that keeps a Pi run out of the main checkout is written and goes to review (2026-11-14T13:59:05-05:00)
 
 Not final and not approved:
