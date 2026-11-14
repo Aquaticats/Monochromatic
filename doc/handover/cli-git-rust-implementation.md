@@ -1202,6 +1202,77 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The reload fix's author found what fails a start at an upgrade; the discarding commands' third review has two defects (2026-11-13T23:22:53-05:00)
+
+Not final and not approved:
+read by the coordinating session from one run's last message and one review file;
+the journal count is its own.
+
+- **The reload fix (issue 6286)**
+  (run `reload-fix-brought-onto-main-where-a-program-link-already-is-5`,
+  ended 23:17:27,
+  tip `05edb83219`,
+  `main` merged):
+  the cause of the instance that fails its start at an upgrade is named from its measurements.
+  The unit's `ExecStart` names a link that still exists;
+  the link's target was inside the `0.6.1-alpha.19` release directory,
+  which the store no longer held.
+  By its reading the step that takes it away is `mise run toolchain:install`,
+  which keeps the release it installs and removes the one it replaces;
+  the first command of the new release is where the failure shows.
+  A command of the new release in that worktree repairs it at the price of a second;
+  a connection from anything else leaves the two units failed until such a command comes,
+  which is the 97 s the main checkout showed.
+  What it changed:
+  every provisioning points the path the earlier releases named at the running program;
+  a service retired before it accepted any commit has its own socket stopped alone,
+  so a client of another release chasing it costs one start and leaves no failed unit;
+  the unload stops the socket with `stop_alone`,
+  so a service started between the look and the stop is never cut.
+  Its proof,
+  in a container with a manager of its own:
+  the released alpha.20 leaves two units failed and a commit with status 1;
+  its build leaves none and every commit lands.
+  Its review is queued at the head
+  (`review-git-policy-cli-reload-fix-answers-the-instance-that-fails-its-start-at-an-upgrade`,
+  range `main...05edb83219`).
+  It names what it cannot close:
+  the window between an install and the first command of the new release,
+  which only the installer can close by keeping a version that a lock or a process names.
+  That is the mpm-shadow run queued at 23:10;
+  it now stands at position 3 with this finding in its brief.
+  Left by it:
+  `doc/planning/git-wrapper-reload-remedy.md` is outside its package and uncorrected.
+- **Discarding commands, third review**
+  (`~/temp/agent/change-reviews/git-policy-cli-discarding-commands-answers-after-its-second-review/review.md`,
+  ended 23:20:50,
+  on `1edafc6c7d`):
+  the core protections hold in its controls,
+  the nested-repository save is safe against a kill and a race,
+  every wait is bounded.
+  Two defects,
+  both reproduced,
+  both weighed as standing.
+  This change refuses a safe `git mv -f a.txt b` into an untracked directory with a sentence that is untrue
+  (real Git moves into `b/` and loses nothing).
+  And `git rm -f --sparse` deletes an edit that `skip-worktree` hides:
+  there before this change,
+  and the same guard this change taught to read hidden edits for two other commands.
+  Back to the author in its own session
+  (`discarding-commands-answers-its-third-review-of-2026-11-13-prompt.md`,
+  queued at position 6).
+- **The journal after the install of alpha.23**,
+  23:14:00 to 23:21:00,
+  310 lines:
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at its start limit;
+  three services said alpha.23 at their start.
+  The main checkout's link was repaired by the install's own sample commit,
+  so this count says nothing about a worktree no command has yet run in.
+- The review that the rate limit ended at 23:15:51 was put back by the filling unit at 23:17:59 and is going again.
+- The queue held 49 entries at 23:22:53.
+
 ##### The warm request's author answered; a review ended on the rate limit (2026-11-13T23:17:55-05:00)
 
 Not final and not approved:
