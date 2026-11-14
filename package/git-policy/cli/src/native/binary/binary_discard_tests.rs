@@ -2828,3 +2828,200 @@ fn a_separated_checkout_index_prefix_runs_when_git_writes_nothing_in_the_way() {
 }
 
 //endregion
+
+//region The fifth review's forms (2026-11-14)
+
+/// The bytes a person wrote at the path a form would write over.
+const PRECIOUS_HERE: &[u8] = b"PRECIOUS UNTRACKED\n";
+
+/// What:
+///  A `checkout-index --prefix` run from a subdirectory is refused over the entry Git writes,
+///  which is below the prefix at the worktree root and not below the caller.
+/// Why:
+///  Git joins the prefix to the index path and resolves the pair from the top of the working tree
+///  (`setup_work_tree`),
+///  so from `sub/` with the index holding `sub/placeholder.txt` it writes
+///  `out/sub/placeholder.txt`;
+///  the reading based the pair on the directory the command ran in, named
+///  `sub/out/sub/placeholder.txt`, found no entry there, and let the command write over an untracked
+///  file
+///  (reproduced with `--no-enforce-require-root` from `sub/`, measured on this host with native Git
+///  2.56.0,
+///  2026-11-14).
+///  The hatch lifts only the root rule, so this policy is the one answering.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wrapped(checkout-index --no-enforce-require-root -f --prefix=out/ --all) in linked/sub
+///   // exit 1, names out/sub/placeholder.txt, the precious file intact
+/// ```
+#[test]
+fn a_prefix_write_from_a_subdirectory_is_refused_over_the_entry_git_writes() {
+    let (fixture, _repo, linked, below): (Fixture, PathBuf, PathBuf, PathBuf) =
+        linked_worktree_with_a_file_below_its_root("discard-checkout-index-prefix-from-a-subdirectory");
+    std::fs::create_dir_all(linked.join("out/sub")).expect("the directory the prefix writes into");
+    std::fs::write(linked.join("out/sub/placeholder.txt"), PRECIOUS_HERE).expect("the person's untracked file");
+    for spelling in [
+        vec!["checkout-index", "--no-enforce-require-root", "-f", "--prefix=out/", "--all"],
+        vec!["checkout-index", "--no-enforce-require-root", "-f", "--prefix=out/", "--", "placeholder.txt"],
+    ] {
+        let refused: Observed = run_wrapped(&fixture, below.as_path(), spelling.as_slice());
+        assert!(rejected_by_policy(&refused), "{spelling:?}: {}", stderr_of(&refused));
+        assert!(
+            stderr_of(&refused).contains("out/sub/placeholder.txt"),
+            "{spelling:?} names the entry Git writes: {}",
+            stderr_of(&refused)
+        );
+        assert_eq!(
+            std::fs::read(linked.join("out/sub/placeholder.txt")).expect("the person's file"),
+            PRECIOUS_HERE,
+            "{spelling:?} wrote over the file it refused for"
+        );
+    }
+    // The positive control: with the hatch Git's own write lands where the refusal said it would.
+    let hatched: Observed = run_wrapped(
+        &fixture,
+        below.as_path(),
+        &["checkout-index", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "-f", "--prefix=out/", "--all"],
+    );
+    assert_eq!(hatched.code, Some(0), "{}", stderr_of(&hatched));
+    assert_ne!(
+        std::fs::read(linked.join("out/sub/placeholder.txt")).expect("the written file"),
+        PRECIOUS_HERE,
+        "the opt-out writes the index content at the path the reading names"
+    );
+    remove(&fixture);
+}
+
+/// What:
+///  A clean Git refuses with no force moves nothing,
+///  and the same clean with the requirement turned off is read and saves what Git deletes.
+/// Why:
+///  `git clean -Xd` under the default `clean.requireForce` exits 128 and deletes nothing,
+///  while the guard's dry run added a `-f` of its own and moved the bare nested repository aside
+///  before Git refused
+///  (reproduced through the wrapper, measured on this host with native Git 2.56.0, 2026-11-14).
+///  A command that changes nothing must change nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wrapped(clean -Xd) // exit 128, Git's own words, bare/ still in the worktree, no saved copy
+/// wrapped(-c clean.requireForce=false clean -Xd) // exit 0, bare/ saved whole
+/// ```
+#[test]
+fn a_clean_git_refuses_moves_no_repository() {
+    let fixture: Fixture = fixture("discard-clean-refused-moves-nothing");
+    let found: BareAndInner = linked_worktree_with_a_bare_and_an_inner_repository(&fixture);
+    let before: usize = audit_lines_of(found.repo.as_path()).len();
+    let refused: Observed = run_wrapped(&fixture, found.linked.as_path(), &["clean", "-d", "-X"]);
+    assert_eq!(refused.code, Some(128), "{}", stderr_of(&refused));
+    let said: String = stderr_of(&refused);
+    assert!(said.contains("clean.requireForce"), "Git's own words answer: {said}");
+    assert!(found.bare.join("HEAD").exists(), "a refused clean moved the bare repository away");
+    let lines: Vec<String> = audit_lines_since(found.repo.as_path(), before);
+    assert!(
+        lines.iter().all(|line| { return !line.contains("saved-nested-repository"); }),
+        "a refused clean recorded a save: {lines:?}"
+    );
+    // The control: with the requirement off Git deletes, and the reading saves that repository whole first.
+    let saving: Observed = run_wrapped(
+        &fixture,
+        found.linked.as_path(),
+        &["-c", "clean.requireForce=false", "clean", "-d", "-X"],
+    );
+    assert_eq!(saving.code, Some(0), "{}", stderr_of(&saving));
+    let saved_lines: Vec<String> = audit_lines_since(found.repo.as_path(), before);
+    let line: String = saved_nested_repository_line(saved_lines.as_slice());
+    let place: PathBuf = saved_place(line.as_str(), "bare");
+    assert!(place.join("HEAD").exists(), "the saved bare repository lost its own shape");
+    assert!(!found.bare.exists(), "the clean Git runs deletes the repository as typed");
+    remove(&fixture);
+}
+
+/// What:
+///  A forced move whose source ends in separators renames it,
+///  and the entry standing where the rename lands is still refused.
+/// Why:
+///  Git reads `tracked.txt/` as `tracked.txt` and renames it
+///  (`git mv -f a.txt/ renamed.txt` exits 0, measured on this host with native Git 2.56.0,
+///  2026-11-14),
+///  while a lookup of the spelling as typed met `ENOTDIR` and refused the rename.
+///  Reading it as "nothing there" instead would have let the rename write over an untracked file,
+///  which is the second half of this control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wrapped(mv -f tracked.txt/ renamed.txt) // exit 0, renamed.txt written
+/// wrapped(mv -f tracked.txt/ precious.txt) // exit 1, names precious.txt, its bytes intact
+/// ```
+#[test]
+fn a_forced_move_with_a_trailing_separator_renames() {
+    let (fixture, _repo, linked, _below): (Fixture, PathBuf, PathBuf, PathBuf) =
+        linked_worktree_with_a_file_below_its_root("discard-move-trailing-separator");
+    let renamed: Observed = run_wrapped(&fixture, linked.as_path(), &["mv", "-f", "tracked.txt/", "renamed.txt"]);
+    assert_eq!(renamed.code, Some(0), "{}", stderr_of(&renamed));
+    assert!(linked.join("renamed.txt").exists(), "the rename Git runs wrote its destination");
+    // The rename is staged by Git, so the worktree is settled before the second half, which must be judged by what
+    //  stands at the destination and not by the status of the first rename.
+    git(&fixture, linked.as_path(), &["commit", "--quiet", "--message=renamed"]);
+    // The same spelling must not be read as a source that writes nothing: the destination is written.
+    std::fs::write(linked.join("precious.txt"), PRECIOUS_HERE).expect("the person's untracked file");
+    let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["mv", "-f", "renamed.txt/", "precious.txt"]);
+    assert!(rejected_by_policy(&refused), "{}", stderr_of(&refused));
+    assert!(stderr_of(&refused).contains("precious.txt"), "{}", stderr_of(&refused));
+    assert_eq!(
+        std::fs::read(linked.join("precious.txt")).expect("the person's file"),
+        PRECIOUS_HERE,
+        "a refused move wrote over the file it refused for"
+    );
+    remove(&fixture);
+}
+
+/// What:
+///  An unforced `rm` that reaches a `skip-worktree` edit is refused,
+///  because Git deletes the file the mark hides there,
+///  while a plain unforced `rm` stays Git's own.
+/// Why:
+///  `git rm --sparse s.txt` exits 0 and the edited `s.txt` is gone,
+///  while `git rm s.txt` prints `The following paths and/or pathspecs matched paths that exist` and
+///  keeps the file
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14),
+///  so only the form that reaches the marked edit is guarded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// wrapped(rm --sparse s.txt) // exit 1, names s.txt, the edit intact
+/// wrapped(rm s.txt)          // the policy lets it through, and Git keeps the file itself
+/// ```
+#[test]
+fn an_unforced_removal_that_reaches_a_hidden_edit_is_refused() {
+    let (fixture, _repo, linked, _below): (Fixture, PathBuf, PathBuf, PathBuf) =
+        linked_worktree_with_a_file_below_its_root("discard-rm-sparse-unforced");
+    std::fs::write(linked.join("tracked.txt"), b"edited-precious\n").expect("the person's edit");
+    git(&fixture, linked.as_path(), &["update-index", "--skip-worktree", "tracked.txt"]);
+    let refused: Observed = run_wrapped(&fixture, linked.as_path(), &["rm", "--sparse", "tracked.txt"]);
+    assert!(rejected_by_policy(&refused), "{}", stderr_of(&refused));
+    assert!(stderr_of(&refused).contains("tracked.txt"), "{}", stderr_of(&refused));
+    assert_eq!(
+        std::fs::read(linked.join("tracked.txt")).expect("the person's edit"),
+        b"edited-precious\n",
+        "a refused removal deleted the edit it refused for"
+    );
+    // A plain unforced `rm` is Git's own protection: the policy asks nothing and Git keeps the file.
+    let plain: Observed = run_wrapped(&fixture, linked.as_path(), &["rm", "tracked.txt"]);
+    assert!(!rejected_by_policy(&plain), "the policy refused a form Git protects itself: {}", stderr_of(&plain));
+    assert_eq!(plain.code, Some(1), "{}", stderr_of(&plain));
+    assert!(linked.join("tracked.txt").exists(), "Git itself kept the file");
+    // The control that the guarded form really deletes: the hatch runs it as Git runs it.
+    let hatched: Observed = run_wrapped(
+        &fixture,
+        linked.as_path(),
+        &["rm", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--sparse", "tracked.txt"],
+    );
+    assert_eq!(hatched.code, Some(0), "{}", stderr_of(&hatched));
+    assert!(!linked.join("tracked.txt").exists(), "the opt-out deletes what the refusal named");
+    remove(&fixture);
+}
+
+//endregion

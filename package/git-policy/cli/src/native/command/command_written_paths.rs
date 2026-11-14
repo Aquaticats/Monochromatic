@@ -423,6 +423,18 @@ fn checkout_index_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
             }
             continue;
         }
+        if spells_long(written, "stage", names) {
+            // `--stage=<n>` takes the number of the stage whose entry Git writes, and the separated spelling takes the
+            //  token after it for that number.
+            //  The number is no path: a reading that left it in the loop read it as a pathspec, which named an index
+            //  entry called `2` and refused a command Git runs over nothing of the sort
+            //  (`git checkout-index -f --stage 2 -- a.txt` refuses for the stage itself when the index holds no
+            //  stage-2 entry, measured on this host with native Git 2.56.0, 2026-11-14).
+            if !written.contains(&b'=') {
+                at += 1;
+            }
+            continue;
+        }
         if written.starts_with(b"--") {
             continue;
         }

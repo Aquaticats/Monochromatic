@@ -127,6 +127,14 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
 ///  Relative words are read from the directory the command runs in,
 ///  which is the worktree's top for the command a `!` alias's shell runs,
 ///  and the names this answers are rooted there.
+///  A source's trailing separators are dropped before it is looked up:
+///  Git reads `a.txt/` and `a.txt//` as `a.txt` and renames it
+///  (`git mv -f a.txt/ renamed.txt` exits 0 and writes `renamed.txt`, measured on this host with
+///  native Git 2.56.0,
+///  2026-11-14),
+///  so a lookup of the spelling as typed met `ENOTDIR` and refused a rename Git runs.
+///  A source with nothing left after its separators is the `bad source` Git refuses, which writes
+///  nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -143,7 +151,11 @@ fn move_paths(
     //  Git's `bad source`, which writes nothing.
     let mut sources_are_directories: Vec<bool> = Vec::<bool>::with_capacity(sources.len());
     for source in sources {
-        match named_entry(run_in.join(source).as_path())? {
+        let named: &[u8] = without_trailing_separators(source.as_encoded_bytes());
+        if named.is_empty() {
+            return Ok(Vec::<Vec<u8>>::new());
+        }
+        match named_entry(run_in.join(path_from_bytes(named).as_os_str()).as_path())? {
             Named::Missing => return Ok(Vec::<Vec<u8>>::new()),
             Named::Directory => sources_are_directories.push(true),
             Named::Other => sources_are_directories.push(false),
@@ -213,6 +225,9 @@ enum Named {
 ///  A metadata lookup on a mount whose server stopped answering waits in the kernel with no end,
 ///  and a shape the reading did not see is one it cannot judge:
 ///  no answer is a refusal naming the path, never "nothing is there".
+///  `ENOTDIR` is a name with a component below a file, which no path stands at and Git refuses
+///  itself (`bad source` for `git mv -f a.txt/. renamed`), so it is read as nothing there rather
+///  than as a lookup that failed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -231,9 +246,35 @@ fn named_entry(path: &Path) -> Result<Named, String> {
     return match answer {
         Ok(metadata) if metadata.file_type().is_dir() => Ok(Named::Directory),
         Ok(_) => Ok(Named::Other),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Named::Missing),
+        Err(error)
+            if error.kind() == std::io::ErrorKind::NotFound || error.kind() == std::io::ErrorKind::NotADirectory =>
+        {
+            Ok(Named::Missing)
+        }
         Err(error) => Err(format!("Git could not read `{}`: {error}", path.display())),
     };
+}
+
+/// What:
+///  One name with the trailing separators Git ignores dropped.
+///  `&[u8]` borrows the name, `&[u8]` is the same bytes without them.
+/// Why:
+///  Git reads `a.txt/` as `a.txt` and renames it, and `dir//` as `dir`
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14),
+///  while a lookup of the spelling as typed fails with `ENOTDIR` and refused the rename.
+///  `a.txt/.` keeps its last component and is Git's own `bad source`, which the lookup answers.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const withoutSeparators = (name) => name.replace(/\/+$/, '');
+/// ```
+fn without_trailing_separators(name: &[u8]) -> &[u8] {
+    let mut trimmed: &[u8] = name;
+    while let Some(shorter) = trimmed.strip_suffix(b"/") {
+        trimmed = shorter;
+    }
+    return trimmed;
 }
 
 /// What:
@@ -1002,11 +1043,18 @@ fn under_the_prefix(path: Vec<u8>, prefix: Option<&OsStr>) -> Vec<u8> {
 ///  `git checkout-index --prefix=<directory>/ --all` writes the index's content there,
 ///  so the worktree entry a form would write over stands at that shifted path,
 ///  and no query of the index knows the directory's name.
-///  Git joins the prefix to the path as text and resolves the pair from the directory it runs
-///  in,
-///  so a relative prefix is read below that directory and an absolute one is its own path:
-///  a prefix naming a directory outside the worktree writes no entry of it,
+///  Git joins the prefix to the path as text and resolves the pair from the top of the working
+///  tree
+///  (`setup_work_tree` moves there before any index entry is written),
+///  so a relative prefix is read from the worktree root and an absolute one is its own path:
+///  `git checkout-index -f --prefix=out/ -- b.txt` run in `sub/` writes `out/sub/b.txt`,
+///  and `--prefix=out2` without a separator writes `out2sub/b.txt`
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14).
+///  A prefix naming a directory outside the worktree writes no entry of it,
 ///  and a command that writes nothing of the worktree is no reason to refuse.
+///  The index paths it shifts are already the worktree root's own, so no directory prefix is
+///  written before them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1022,26 +1070,30 @@ fn index_under_prefix_paths(
     if written.is_empty() {
         return Ok(written);
     }
-    let location: crate::repository_location::RepositoryLocation = facts.location()?;
-    let Some(root) = worktree_root(&location.identity) else {
-        return Ok(Vec::<Vec<u8>>::new());
-    };
-    let mut base: Vec<u8> = if prefix.as_encoded_bytes().starts_with(b"/") {
-        Vec::<u8>::new()
+    let prefix_bytes: &[u8] = prefix.as_encoded_bytes();
+    let root: Option<PathBuf> = if prefix_bytes.starts_with(b"/") {
+        let location: crate::repository_location::RepositoryLocation = facts.location()?;
+        match worktree_root(&location.identity) {
+            Some(found) => Some(found.to_path_buf()),
+            // A repository with no worktree of its own holds no entry a write outside it could lose.
+            None => return Ok(Vec::<Vec<u8>>::new()),
+        }
     } else {
-        run_in.as_os_str().as_encoded_bytes().to_vec()
+        None
     };
-    if !base.is_empty() && !base.ends_with(b"/") {
-        base.push(b'/');
-    }
-    base.extend_from_slice(prefix.as_encoded_bytes());
     let mut shifted: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(written.len());
     for path in written {
-        let mut absolute: Vec<u8> = base.clone();
-        absolute.extend(path);
+        let mut joined: Vec<u8> = Vec::<u8>::with_capacity(prefix_bytes.len() + path.len());
+        joined.extend_from_slice(prefix_bytes);
+        joined.extend(path);
         // An entry outside the worktree is not one it holds, so nothing there is lost.
-        if let Some(below) = below_the_worktree_root(root, absolute.as_slice()) {
-            shifted.push(below);
+        match root.as_ref() {
+            Some(found) => {
+                if let Some(below) = below_the_worktree_root(found.as_path(), joined.as_slice()) {
+                    shifted.push(below);
+                }
+            }
+            None => shifted.push(joined),
         }
     }
     return Ok(shifted);
@@ -1069,15 +1121,22 @@ fn below_the_worktree_root(root: &Path, absolute: &[u8]) -> Option<Vec<u8>> {
 
 /// What:
 ///  The paths the index holds that the given pathspecs match,
-///  or every path of it when there are none.
+///  or every path of it when there are none,
+///  each as the worktree root names it.
 ///  `&Path` borrows the directory Git runs the command in.
 /// Why:
 ///  A restore without a source writes the index's content over the worktree,
 ///  and a query that failed is a failure rather than an empty answer.
-///  A pathspec of the form means the directory the command runs in,
-///  so the query starts there and the answers are rooted there;
+///  A pathspec of the form means the directory the command runs in, so the query starts there;
 ///  a listing with no pathspec is scoped to that directory unless `:(top)` is written,
 ///  and every guarded form acts on the whole worktree.
+///  `--full-name` makes Git print every answer from the worktree root whatever directory the
+///  query started in
+///  (run in `sub/`, `ls-files --full-name -- b.txt` printed `sub/b.txt`, measured on this host with
+///  native Git 2.56.0,
+///  2026-11-14),
+///  so the answers are already the names the entries in the way carry and nothing is written
+///  before them.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1106,15 +1165,5 @@ fn index_paths(facts: &mut GitFacts, pathspecs: &[OsString], run_in: &Path) -> R
             .to_string();
         return Err(format!("Git could not read the paths the index holds: {detail}"));
     }
-    let mut paths: Vec<Vec<u8>> = nul_separated_paths(output.stdout.as_slice());
-    if pathspecs.is_empty() || paths.is_empty() {
-        return Ok(paths);
-    }
-    // A path form's answers are relative to the directory Git runs in, and the entries in the way are named from the
-    //  worktree root, so that directory's own prefix is written before each of them.
-    let mut rooted: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(paths.len());
-    for path in paths.drain(..) {
-        rooted.push(rooted_at_the_run_directory(facts, run_in, path.as_slice())?);
-    }
-    return Ok(rooted);
+    return Ok(nul_separated_paths(output.stdout.as_slice()));
 }

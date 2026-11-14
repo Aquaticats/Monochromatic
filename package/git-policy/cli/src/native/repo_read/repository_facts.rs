@@ -154,6 +154,16 @@ pub trait RepositoryFacts {
     /// Asked for `git stash drop` and `git stash clear`,
     /// which delete entries of the one stash every worktree shares.
     fn repository_holds_a_stash(&mut self) -> Result<bool, String>;
+    /// Whether this repository requires a force for a clean that deletes.
+    ///  Asked before a clean that carries no `-f` is judged,
+    ///  because Git refuses such a clean before it deletes anything
+    ///  (`cmd_clean`:
+    ///  `if (!interactive && !dry_run && force == 0 && clean_require_force) die(...)`),
+    ///  and the guard must not move a repository for a command Git never runs.
+    ///  `clean.requireForce` defaults to true,
+    ///  and `-c clean.requireForce=…` is part of the invocation's global options,
+    ///  so the answer is the one the command Git runs will read.
+    fn clean_require_force(&mut self) -> Result<bool, String>;
     /// The paths the given clean's dry run would delete,
     /// each as Git printed it,
     /// asked for a clean
@@ -553,6 +563,28 @@ impl RepositoryFacts for GitFacts {
         let arguments: Vec<OsString> = stash_query_arguments(self.global_prefix.as_slice());
         let output: MetadataOutput = self.query(arguments, "the repository stash")?;
         return stash_from_output(&output);
+    }
+
+    fn clean_require_force(&mut self) -> Result<bool, String> {
+        let mut arguments: Vec<OsString> = self.global_prefix.clone();
+        for token in ["--no-optional-locks", "config", "--bool", "--get", "clean.requireForce"] {
+            arguments.push(OsString::from(token));
+        }
+        let output: MetadataOutput = self.query(arguments, "the repository's answer on requiring a force for a clean")?;
+        if !output.success {
+            // A child a signal ended answered nothing at all, which is no statement about the repository's setting.
+            if output.code.is_none() {
+                return Err(String::from(
+                    "Git was ended by a signal while the guard asked whether this repository requires a force for a clean, so it cannot tell whether the clean would run",
+                ));
+            }
+            // `config --get` exits 1 for a key that is not set, and Git then requires a force: the default is true.
+            //  Any other nonzero is a value Git objects to, and Git then refuses the clean itself, so nothing is
+            //  moved and Git's own refusal answers the person.
+            return Ok(true);
+        }
+        let value: String = String::from_utf8_lossy(output.stdout.as_slice()).trim().to_ascii_lowercase();
+        return Ok(value != "false");
     }
 
     fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {

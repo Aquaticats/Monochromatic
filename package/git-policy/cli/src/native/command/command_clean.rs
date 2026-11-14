@@ -268,9 +268,15 @@ pub struct CleanDryRun {
 ///  The region is rebuilt from the parsed facts rather than edited,
 ///  because `-i`
 ///  would make the dry run read the terminal and `-q` would silence it;
-///  `-f` is written as often as
-///  the caller wrote it (at least once),
-///  because the second and third also remove a nested repository.
+///  `-f` is written exactly as often as
+///  the caller wrote it,
+///  because the second and third also remove a nested repository,
+///  and because a clean with none is one Git may refuse:
+///  `git clean -Xd` under the default `clean.requireForce` exits 128 and deletes nothing,
+///  while `git clean -n -X` lists without a word
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14),
+///  so a reading that added a force to the dry run moved a repository for a command Git never ran.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -302,8 +308,7 @@ pub fn clean_dry_run_arguments_without_exclusions(global_prefix: &[OsString], re
 ///  The dry run of one clean,
 /// with or without its own exclusion patterns,
 ///  started where the clean itself starts,
-///  and with the force count the person typed,
-///  at least one.
+///  and with exactly the force count the person typed.
 ///  `bool` says whether the patterns are written.
 ///  `&Path` borrows that directory,
 ///  which every caller passes absolute.
@@ -358,7 +363,7 @@ fn dry_run_arguments(
     for token in ["--no-optional-locks", "clean", "-n"] {
         arguments.push(OsString::from(token));
     }
-    for _ in 0..forces.max(1) {
+    for _ in 0..forces {
         arguments.push(OsString::from("-f"));
     }
     if descends {

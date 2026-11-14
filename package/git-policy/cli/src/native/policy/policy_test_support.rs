@@ -77,6 +77,9 @@ pub(crate) struct ScriptedFacts {
     /// The paths the same clean names without those patterns;
     ///  the whole answer is the same when the query carries none.
     pub(crate) clean_deletes_without_exclusions: Result<Vec<Vec<u8>>, String>,
+    /// The answer to `clean_require_force`,
+    ///  which Git's own default is true for.
+    pub(crate) clean_require_force: bool,
     /// The answer to `repository_holds_a_stash`.
     pub(crate) stash: Result<bool, String>,
     /// The answer to `remote_guess_creates_branch`.
@@ -153,6 +156,11 @@ impl RepositoryFacts for ScriptedFacts {
     ///   return patterns || forces > 1 ? this.cleanDeletes : this.cleanDeletesWithoutExclusions;
     /// }
     /// ```
+    fn clean_require_force(&mut self) -> Result<bool, String> {
+        self.asked.push(String::from("clean-require-force"));
+        return Ok(self.clean_require_force);
+    }
+
     fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
         self.asked.push(format!(
             "clean-would-delete:{}:{}",
@@ -328,6 +336,7 @@ pub(crate) fn scripted_facts() -> ScriptedFacts {
         in_the_way: Ok(Vec::<String>::new()),
         clean_deletes: Ok(Vec::<Vec<u8>>::new()),
         clean_deletes_without_exclusions: Ok(Vec::<Vec<u8>>::new()),
+        clean_require_force: true,
         asked: Vec::<String>::new(),
         candidates_repository: None,
         git_dir: None,

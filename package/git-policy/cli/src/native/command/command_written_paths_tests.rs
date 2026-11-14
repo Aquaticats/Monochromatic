@@ -556,3 +556,50 @@ fn a_separated_checkout_index_prefix_is_no_pathspec() {
 }
 
 //endregion
+
+//region The fifth review: a value that is no path, and a prefix's folder (2026-11-14)
+
+/// What:
+///  A `--stage` value written as the next token is that option's value and no pathspec.
+/// Why:
+///  The reading consumed `--prefix`'s value and stepped past it, but every other long option was
+///  skipped without its value,
+///  so `git checkout-index -f --stage 2 -- a.txt` read `2` as a path:
+///  an index holding a file named `2` was named as written,
+///  and the guard refused a command Git runs over nothing of the sort.
+///  Git takes the number as the stage whose entry it writes
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writtenPaths('CheckoutIndex', ['-f', '--stage', '2', '--', 'a.txt']).pathspecs === ['a.txt']
+/// ```
+#[test]
+fn a_separated_stage_value_is_no_pathspec() {
+    assert_eq!(
+        written_paths(
+            GuardedCommand::CheckoutIndex,
+            words(&["-f", "--stage", "2", "--", "a.txt"]).as_slice()
+        ),
+        Some(WrittenPaths::Index { pathspecs: words(&["a.txt"]) })
+    );
+    // The attached spelling is one token, and the stage number is inside it.
+    assert_eq!(
+        written_paths(
+            GuardedCommand::CheckoutIndex,
+            words(&["-f", "--stage=2", "--", "a.txt"]).as_slice()
+        ),
+        Some(WrittenPaths::Index { pathspecs: words(&["a.txt"]) })
+    );
+    // The abbreviated spelling Git accepts takes its value too.
+    assert_eq!(
+        written_paths(
+            GuardedCommand::CheckoutIndex,
+            words(&["-f", "--sta", "2", "--", "a.txt"]).as_slice()
+        ),
+        Some(WrittenPaths::Index { pathspecs: words(&["a.txt"]) })
+    );
+}
+
+//endregion

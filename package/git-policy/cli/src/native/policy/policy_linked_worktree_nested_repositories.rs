@@ -188,6 +188,22 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     if parsed.interactive {
         return NestedRepositories::Nothing;
     }
+    // Git refuses a clean with no force while `clean.requireForce` is on, and it refuses before it deletes anything
+    //  (`cmd_clean`: `if (!interactive && !dry_run && force == 0 && clean_require_force) die(...)`):
+    //  `git clean -Xd` exits 128 and keeps the bare repository, while `git clean -n -X` lists it without a word
+    //  (measured on this host with native Git 2.56.0, 2026-11-14),
+    //  so the dry run cannot tell this refusal from a clean that runs.
+    //  Git's own answer is read here instead, and nothing is moved for a command Git never runs:
+    //  the command is forwarded and Git's own refusal answers the person.
+    //  `-i` is left out of Git's condition, and the transform above already keeps every interactive clean here.
+    if parsed.forces == 0 {
+        match facts.clean_require_force() {
+            Ok(true) => return NestedRepositories::Nothing,
+            Ok(false) => {}
+            // The answer that was not read is no proof that the clean runs, so the clean stops with the reason.
+            Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
+        }
+    }
     let Some(root) = worktree_root(&location.identity) else {
         return NestedRepositories::Nothing;
     };

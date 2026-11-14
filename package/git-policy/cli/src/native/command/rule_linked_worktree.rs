@@ -591,7 +591,19 @@ fn guarded_decision(
         return Ok(LinkedWorktreeDecision::Pass);
     }
     if word == b"rm" {
-        return Ok(decided(GuardedCommand::Remove, force_discard(b"rm", region)));
+        // An unforced `git rm` refuses a file whose worktree copy differs, but it does not look past a
+        //  `skip-worktree` mark:
+        //  `git rm --sparse s.txt` deletes the edit the mark hides at exit 0,
+        //  while `git rm s.txt` without `--sparse` prints `The following paths and/or pathspecs matched paths that exist`
+        //  and keeps the file
+        //  (measured on this host with native Git 2.56.0, 2026-11-14),
+        //  so a removal that reaches such an edit is guarded even without a force.
+        //  Every other unforced removal is Git's own protection and stays out of this policy.
+        let forced: Discard = force_discard(b"rm", region);
+        if matches!(forced, Discard::Harmless) && !reaches_a_skipped_edit(region) {
+            return Ok(LinkedWorktreeDecision::Pass);
+        }
+        return Ok(decided(GuardedCommand::Remove, Discard::Overwrites));
     }
     if word == b"mv" {
         return Ok(decided(GuardedCommand::Move, force_discard(b"mv", region)));

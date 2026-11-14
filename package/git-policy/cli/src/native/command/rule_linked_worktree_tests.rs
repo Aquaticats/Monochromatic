@@ -115,6 +115,9 @@ fn destructive_forms_need_the_worktree_kind() {
         (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce),
         (vec!["switch", "-f", "topic"], GuardedCommand::SwitchForce),
         (vec!["rm", "-rf", "dir"], GuardedCommand::Remove),
+        // An unforced removal that reaches a `skip-worktree` edit is guarded too: Git deletes that edit
+        //  at exit 0 (`git rm --sparse s.txt`, measured on this host with native Git 2.56.0, 2026-11-14).
+        (vec!["rm", "--sparse", "s.txt"], GuardedCommand::Remove),
         (vec!["mv", "--force", "a", "b"], GuardedCommand::Move),
         (vec!["checkout-index", "-f", "-a"], GuardedCommand::CheckoutIndex),
         (vec!["read-tree", "--reset", "HEAD"], GuardedCommand::ReadTree),
@@ -212,6 +215,8 @@ fn harmless_forms_pass() {
         vec!["checkout", "-b", "topic"],
         vec!["switch", "-c", "topic"],
         vec!["rm", "a.txt"],
+        // `--sparse` with `--cached` keeps the worktree file, and no force is needed for that form.
+        vec!["rm", "--cached", "--sparse", "a.txt"],
         vec!["rm", "--", "-f"],
         vec!["mv", "a", "b"],
         vec!["merge", "topic"],

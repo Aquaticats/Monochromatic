@@ -715,15 +715,18 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
         // A form with no question of its own runs in a linked worktree whatever it holds, and leaves one line.
         let Some(scope_asked) = dirty_scope else {
             for dirty in [false, true] {
-                assert_eq!(
-                    pre_forward(
-                        PolicyId::LinkedWorktreeOnly,
-                        values.as_slice(),
-                        dirty_in(linked_worktree("/r", "/w"), dirty)
-                    ),
-                    (clean(), asked(&["location"])),
-                    "{values:?} linked dirty={dirty}"
+                let (outcome, questions): (PolicyOutcome, Vec<String>) = pre_forward(
+                    PolicyId::LinkedWorktreeOnly,
+                    values.as_slice(),
+                    dirty_in(linked_worktree("/r", "/w"), dirty),
                 );
+                // A clean that deletes ignored files is read for the nested repositories Git's dry run names, which is
+                //  its own control (`a_clean_with_a_second_force_asks_what_git_would_delete`).
+                let kept: Vec<String> = questions
+                    .into_iter()
+                    .filter(|question| { return !question.starts_with("clean-would-delete:"); })
+                    .collect();
+                assert_eq!((outcome, kept), (clean(), asked(&["location"])), "{values:?} linked dirty={dirty}");
             }
             continue;
         };
@@ -731,15 +734,32 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
         if !tree_question.is_empty() {
             clean_questions.push(tree_question.as_str());
         }
+        // A clean that deletes ignored files is also read for the nested repositories Git's dry run names, which
+        //  starts where the clean runs and is its own control (`a_clean_with_a_second_force_asks_what_git_would_delete`).
+        let (clean_outcome, clean_asked): (PolicyOutcome, Vec<String>) = pre_forward(
+            PolicyId::LinkedWorktreeOnly,
+            values.as_slice(),
+            dirty_in(linked_worktree("/r", "/w"), false),
+        );
+        let kept: Vec<String> = clean_asked
+            .into_iter()
+            .filter(|question| { return !question.starts_with("clean-would-delete:"); })
+            .collect();
         assert_eq!(
-            pre_forward(
-                PolicyId::LinkedWorktreeOnly,
-                values.as_slice(),
-                dirty_in(linked_worktree("/r", "/w"), false)
-            ),
+            (clean_outcome, kept),
             (clean(), asked(clean_questions.as_slice())),
             "{values:?} linked clean"
         );
+        // A refusal that asks the worktree names the paths it holds, so the status's paths are read after it.
+        let mut dirty_questions: Vec<&str> = vec!["location", scope_asked.as_str()];
+        if let Some(scope) = scope_asked.strip_prefix("dirty:") {
+            dirty_questions.push(match scope {
+                "Tracked" => "uncommitted:Tracked",
+                "TrackedAndUntracked" => "uncommitted:TrackedAndUntracked",
+                "TrackedAndSkipWorktreeEdits" => "uncommitted:TrackedAndSkipWorktreeEdits",
+                _ => panic!("a scope this control does not know: {scope}"),
+            });
+        }
         assert_eq!(
             pre_forward(
                 PolicyId::LinkedWorktreeOnly,
@@ -751,7 +771,7 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
                     "linked-worktree-required",
                     &dirty_worktree_message(command)
                 ),
-                asked(&["location", scope_asked.as_str()])
+                asked(dirty_questions.as_slice())
             ),
             "{values:?} linked dirty"
         );
@@ -887,7 +907,8 @@ fn head_moves_are_rejected_only_while_dirty() {
                         "linked-worktree-required",
                         &dirty_worktree_message(command)
                     ),
-                    asked(&["location", "dirty:Tracked"])
+                    // The refusal names the paths that scope holds, so it reads them after the status.
+                    asked(&["location", "dirty:Tracked", "uncommitted:Tracked"])
                 ),
                 "{values:?} dirty"
             );
@@ -925,24 +946,34 @@ fn an_unreadable_status_is_reported() {
 
 /// linked-worktree-only:
 ///  a forced `checkout`,
-///  a forced `switch` and a hard `reset` save every entry the worktree holds where the tree they write goes,
-///  and the form runs;
+///  a forced `switch` and a hard `reset` are refused while the worktree holds an entry the tree they
+///  write stands on,
+///  and the refusal names it and the option that runs the form anyway;
 ///  a tree or a listing Git cannot read is a failure,
 ///  never a clean answer.
+///  The copy the earlier design kept is gone: the owner's answer of 2026-11-12T10:35:07 is "Refuse
+///  with opt-out", so the form does not run and nothing is saved
+///  (`policy_linked_worktree_refused_overwrite.rs`).
 #[test]
-fn a_tree_that_tracks_an_ignored_path_is_saved_in_a_clean_linked_worktree() {
+fn a_tree_that_tracks_an_ignored_path_is_refused_in_a_clean_linked_worktree() {
     let root: PathBuf = crate::test_support::fixture("policy-checks-in-the-way");
     let main: PathBuf = root.join("main");
     let linked: PathBuf = root.join("linked");
     std::fs::create_dir_all(main.join(".git")).expect("the common Git directory");
     std::fs::create_dir_all(linked.as_path()).expect("the worktree");
     std::fs::write(linked.join(".env"), b"SECRET=the person value\n").expect("the ignored file");
-    for (values, kind) in [
-        (vec!["checkout", "--force", "tracks"], "tree"),
-        (vec!["switch", "--force", "tracks"], "tree"),
-        (vec!["reset", "--hard", "tracks"], "tree"),
-        (vec!["reset", "--hard"], "tree"),
-        (vec!["checkout", "tracks", "--", ".env"], "matching-tree"),
+    for (values, kind, scope) in [
+        (vec!["checkout", "--force", "tracks"], "tree", "dirty:Tracked"),
+        (vec!["switch", "--force", "tracks"], "tree", "dirty:Tracked"),
+        (vec!["reset", "--hard", "tracks"], "tree", "dirty:Tracked"),
+        (vec!["reset", "--hard"], "tree", "dirty:Tracked"),
+        // A form that writes named paths over a tree writes over an edit a `skip-worktree` mark hides, so it asks
+        //  about that edit as well (`dirty_question`).
+        (
+            vec!["checkout", "tracks", "--", ".env"],
+            "matching-tree",
+            "dirty:TrackedAndSkipWorktreeEdits",
+        ),
     ] {
         let mut shared: ScriptedFacts = dirty_in(linked_worktree(
             main.to_str().expect("utf-8 fixture path"),
@@ -951,30 +982,21 @@ fn a_tree_that_tracks_an_ignored_path_is_saved_in_a_clean_linked_worktree() {
         shared.in_the_way = Ok(vec![String::from(".env")]);
         let (outcome, questions): (PolicyOutcome, Vec<String>) =
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), shared);
-        assert_eq!(outcome, clean(), "{values:?} was not let through");
+        let PolicyOutcome::Findings(findings) = outcome else {
+            panic!("{values:?} ran over the file in its way")
+        };
+        assert_eq!(findings[0].code, "linked-worktree-required", "{values:?}");
+        assert!(findings[0].message.contains("`.env`"), "{values:?}: {}", findings[0].message);
+        assert!(
+            findings[0].message.contains("--no-enforce-worktree"),
+            "{values:?} names the way past the refusal: {}",
+            findings[0].message
+        );
         assert_eq!(
             questions,
-            asked(&["location", "dirty:Tracked", format!("paths-in-the-way:{kind}").as_str()]),
+            asked(&["location", scope, format!("paths-in-the-way:{kind}").as_str()]),
             "{values:?}"
         );
-        // The file is copied before the form runs, and the person's bytes are in the copy.
-        let saved: PathBuf = main.join(".git/monochromatic-git-policy-cli/discarded");
-        let mut found: bool = false;
-        let mut pending: Vec<PathBuf> = vec![saved];
-        while let Some(directory) = pending.pop() {
-            let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
-                continue;
-            };
-            for entry in entries.flatten() {
-                let path: PathBuf = entry.path();
-                if path.is_dir() {
-                    pending.push(path);
-                    continue;
-                }
-                found = found || std::fs::read(path.as_path()).is_ok_and(|bytes| return bytes == b"SECRET=the person value\n");
-            }
-        }
-        assert!(found, "{values:?} left no copy of the ignored file");
         // A listing Git cannot read stops the command: what it would overwrite was never seen, so nothing may run.
         let mut unreadable: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
         unreadable.in_the_way = Err(String::from("Git could not read the files this command writes over: fatal"));
@@ -1081,12 +1103,12 @@ fn a_clean_with_an_exclusion_asks_git_what_it_would_delete() {
         let (nothing_outcome, nothing_questions): (PolicyOutcome, Vec<String>) =
             pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), empty);
         assert_eq!(nothing_outcome, clean(), "{values:?} nothing to delete");
-        assert_eq!(
+        // The dry run without the patterns is the second question, and a clean that deletes nothing never asks it.
+        assert!(
             nothing_questions
                 .iter()
                 .filter(|asked_for| { return asked_for.starts_with("clean-would-delete:"); })
-                .count(),
-            1,
+                .all(|asked_for| { return asked_for.contains("notes.txt"); }),
             "{values:?}: {nothing_questions:?}"
         );
     }
@@ -1145,14 +1167,33 @@ fn a_clean_with_a_second_force_asks_what_git_would_delete() {
         one("linked-worktree-required", unanswered_text),
         "{unanswered_questions:?}"
     );
-    // One force is Git's own protection of every nested repository, so the wrapper asks nothing.
+    // One force is no reason to ask nothing: a bare repository is deleted by a clean at one force as well.
     let one_force: Vec<&str> = vec!["clean", "-f", "-d", "-X"];
     let (one_outcome, one_questions): (PolicyOutcome, Vec<String>) =
         pre_forward(PolicyId::LinkedWorktreeOnly, one_force.as_slice(), dirty_in(linked_worktree("/r", "/w"), false));
     assert_eq!(one_outcome, clean(), "{one_questions:?}");
     assert!(
-        one_questions.iter().all(|question| { return !question.starts_with("clean-would-delete:"); }),
+        one_questions.iter().any(|question| { return question.starts_with("clean-would-delete:"); }),
         "{one_questions:?}"
+    );
+    // A clean with no force is one Git refuses while it requires a force, and nothing is read for it.
+    let no_force: Vec<&str> = vec!["clean", "-d", "-X"];
+    let (no_force_outcome, no_force_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, no_force.as_slice(), dirty_in(linked_worktree("/r", "/w"), false));
+    assert_eq!(no_force_outcome, clean(), "{no_force_questions:?}");
+    assert!(
+        no_force_questions.iter().all(|question| { return !question.starts_with("clean-would-delete:"); }),
+        "{no_force_questions:?}"
+    );
+    // The same clean with the requirement turned off deletes, so it is read.
+    let mut unforced: ScriptedFacts = dirty_in(linked_worktree("/r", "/w"), false);
+    unforced.clean_require_force = false;
+    let (unforced_outcome, unforced_questions): (PolicyOutcome, Vec<String>) =
+        pre_forward(PolicyId::LinkedWorktreeOnly, no_force.as_slice(), unforced);
+    assert_eq!(unforced_outcome, clean(), "{unforced_questions:?}");
+    assert!(
+        unforced_questions.iter().any(|question| { return question.starts_with("clean-would-delete:"); }),
+        "{unforced_questions:?}"
     );
     // A menu is answered after Git starts: the repositories are kept out of it by the transform, never moved first.
     let interactive: Vec<&str> = vec!["clean", "-i", "-f", "-f", "-d", "-X"];

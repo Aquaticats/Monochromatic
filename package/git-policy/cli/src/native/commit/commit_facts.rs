@@ -146,6 +146,10 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.paths_in_the_way(written, shell_directory);
     }
 
+    fn clean_require_force(&mut self) -> Result<bool, String> {
+        return self.inner.clean_require_force();
+    }
+
     fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
         return self.inner.clean_deleted_paths(dry_run);
     }
@@ -223,6 +227,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn paths_in_the_way(&mut self, written: &WrittenPaths, shell_directory: Option<&Path>) -> Result<Vec<String>, String> {
         return (**self).paths_in_the_way(written, shell_directory);
+    }
+
+    fn clean_require_force(&mut self) -> Result<bool, String> {
+        return (**self).clean_require_force();
     }
 
     fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {

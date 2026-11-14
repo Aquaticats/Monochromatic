@@ -675,3 +675,119 @@ fn a_pathspec_file_larger_than_the_bound_is_refused_by_its_size() {
 }
 
 //endregion
+
+//region The fifth review: the folder a prefix is read from, and a source's separators (2026-11-14)
+
+/// What:
+///  A relative `--prefix` names the entry Git writes from the worktree root,
+///  whatever directory the command runs in,
+///  and an index path is already the worktree root's own.
+/// Why:
+///  `git checkout-index --prefix=out/` joins the prefix to the index path and resolves the pair
+///  from the top of the working tree
+///  (`setup_work_tree`),
+///  so from `sub/` with the index holding `sub/b.txt` Git writes `out/sub/b.txt`.
+///  The reading based the pair on the directory the command ran in, named `sub/out/sub/b.txt`,
+///  found no entry there, and let the command write over an untracked `out/sub/b.txt`
+///  (reproduced through the wrapper from `sub/` with `--no-enforce-require-root`,
+///  measured on this host with native Git 2.56.0, 2026-11-14).
+///  `ls-files --full-name` prints `sub/b.txt` from `sub/` as well, so a reading that wrote the
+///  run directory's prefix before it named `sub/sub/b.txt`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pathsTheTreeWrites(factsAt('repo/sub'), { kind: 'index-under-a-prefix', pathspecs: ['b.txt'], prefix: 'out/' })
+///   === ['out/sub/b.txt']
+/// ```
+#[test]
+fn a_prefix_names_the_entry_git_writes_from_the_worktree_root() {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_tracked_file("facts-prefix-from-a-subdirectory");
+    std::fs::create_dir(repository.join("sub")).expect("the directory the command runs in");
+    std::fs::write(repository.join("sub/inside.txt"), b"inside\n").expect("a file below the caller");
+    git(repository.as_path(), &["add", "--", "sub/inside.txt"]);
+    git(repository.as_path(), &["commit", "--quiet", "--message=inside"]);
+    let below: PathBuf = repository.join("sub");
+    let at: Vec<OsString> = vec![OsString::from("-C"), below.clone().into_os_string()];
+    let mut facts: GitFacts = git_facts(Path::new(REAL_GIT), at.as_slice(), isolated_overlay().as_slice());
+    let written: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+        &mut facts,
+        &WrittenPaths::IndexUnderPrefix {
+            pathspecs: vec![OsString::from("inside.txt")],
+            prefix: OsString::from("out/"),
+        },
+        below.as_path(),
+    );
+    assert_eq!(
+        written,
+        Ok(vec![b"out/sub/inside.txt".to_vec()]),
+        "the prefix is read from the worktree root, and the index path is already that root's own"
+    );
+    // The whole index, asked with no pathspec, is shifted the same way.
+    let mut whole: GitFacts = git_facts(
+        Path::new(REAL_GIT),
+        &[OsString::from("-C"), repository.join("sub").into_os_string()],
+        isolated_overlay().as_slice(),
+    );
+    let all: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+        &mut whole,
+        &WrittenPaths::IndexUnderPrefix { pathspecs: Vec::new(), prefix: OsString::from("out/") },
+        repository.join("sub").as_path(),
+    );
+    let names: Vec<String> = all.expect("the whole index").iter().map(|path| return String::from_utf8_lossy(path).into_owned()).collect();
+    assert!(names.contains(&String::from("out/sub/inside.txt")), "{names:?}");
+    assert!(
+        names.iter().all(|name| return !name.starts_with("sub/sub/")),
+        "an index path was rooted twice: {names:?}"
+    );
+    // The index alone, for a restore with no source: `--full-name` answers are the root's own.
+    let mut plain: GitFacts = git_facts(
+        Path::new(REAL_GIT),
+        &[OsString::from("-C"), repository.join("sub").into_os_string()],
+        isolated_overlay().as_slice(),
+    );
+    let restore: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+        &mut plain,
+        &WrittenPaths::Index { pathspecs: vec![OsString::from("inside.txt")] },
+        repository.join("sub").as_path(),
+    );
+    assert_eq!(restore, Ok(vec![b"sub/inside.txt".to_vec()]));
+    remove(directory.as_path());
+}
+
+/// What:
+///  A source written with trailing separators is read as the name Git renames,
+///  a spelling below a file is Git's own `bad source`, and
+///  a destination entry in the way is still found.
+/// Why:
+///  Git reads `a.txt/` and `a.txt//` as `a.txt` and renames it
+///  (`git mv -f a.txt/ renamed.txt` exits 0 and writes `renamed.txt`),
+///  while a lookup of the spelling as typed met `ENOTDIR` and refused the rename;
+///  `a.txt/.` is Git's `bad source, source=a.txt/`, which writes nothing
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pathsTheTreeWrites(facts, { kind: 'move-into', sources: ['a.txt/'], destination: 'renamed.txt' }) === ['renamed.txt']
+/// ```
+#[test]
+fn a_source_with_a_trailing_separator_is_read_as_its_name() {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_tracked_file("facts-move-source-separators");
+    for (sources, destination, wanted) in [
+        (vec!["tracked.txt/"], "renamed.txt", vec!["renamed.txt"]),
+        (vec!["tracked.txt//"], "renamed.txt", vec!["renamed.txt"]),
+        (vec!["./tracked.txt/"], "renamed.txt", vec!["renamed.txt"]),
+        // Git refuses a source with a component below a file, and writes nothing.
+        (vec!["tracked.txt/."], "renamed.txt", Vec::new()),
+    ] {
+        let got: Result<Vec<String>, String> = moved_paths(repository.as_path(), sources.as_slice(), destination);
+        assert_eq!(got, Ok(wanted.iter().map(|path| return String::from(*path)).collect()), "{sources:?}");
+    }
+    // The reason the separators are dropped and not read as "nothing there": the rename writes the destination,
+    //  so an entry standing there is still in the way.
+    let in_the_way: Result<Vec<String>, String> = moved_paths(repository.as_path(), &["tracked.txt/"], "tracked.txt");
+    assert_eq!(in_the_way, Ok(vec![String::from("tracked.txt")]));
+    remove(directory.as_path());
+}
+
+//endregion
