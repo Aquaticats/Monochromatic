@@ -6489,8 +6489,15 @@ The client sends `warm` only after `merge`,
 `switch`,
 `rebase` or `reset` exits 0 and the digest of the rules text
 it would load changed,
-only to a service of that worktree that already runs (found by its start arguments),
-and never starts a process.
+only to a service of that worktree that already runs (found by its start arguments,
+read within `WARM_SCAN_CEILING` and only among the processes of this user),
+and it writes no unit,
+asks no manager for a start,
+and starts no process.
+A service killed between that look and the connection is started by the connection itself:
+the socket unit keeps listening,
+which is what socket activation is for,
+and no check before a connection is one with it.
 The client keeps compiling on a cache miss.
 `src/native/policy/policy_forbidden_strings.rs` decides whether that miss writes the shared cache
 (`CachePublisher`,
@@ -6521,6 +6528,13 @@ also leaves the artifact for the next command that publishes,
 so such a machine compiles the rules once per command:
 correct,
 and slower than a cache it cannot fill.
+A request that is not made is not sent either:
+its look at the processes is made within `WARM_SCAN_CEILING` and its connection within `WARM_REQUEST_CONNECT_CEILING`
+(`src/native/service/wait_ceilings.rs`),
+so a process stuck in the kernel and a service whose queue of unaccepted connections is full each cost the command
+that ceiling and no more,
+and the command publishes the artifact itself,
+as it does when no service runs.
 The artifact's publication (`package/forbidden-strings/cli/src/runtime_cache/publish.rs`)
 writes a private temporary and renames it over the artifact,
 syncing neither the file nor its directory:
