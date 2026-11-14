@@ -43,6 +43,10 @@ pub mod transaction_git_step_bounds;
 /// for the timing records.
 pub mod transaction_step_durations;
 
+/// The arguments of a Git step that ran long,
+/// named in its record with every word the person typed left out.
+pub mod git_step_arguments;
+
 /// No-follow file operations recovery and landing share.
 pub mod recovery_files;
 

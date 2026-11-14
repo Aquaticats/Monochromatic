@@ -123,6 +123,7 @@
 //! const sweep = sweepLandedWorktrees({ context, commonDir, currentRoot, procRoot }, before, now, branch);
 //! ```
 
+use crate::subvolume_remove_walk::Boundary;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_branch_reflog::{MergeMove, branch_made_at, branch_moved_onto};
@@ -191,6 +192,22 @@ pub struct RemovedWorktree {
     /// The branch it had checked out,
     /// which is kept.
     pub branch: String,
+}
+
+/// A worktree this sweep removed and left something in:
+/// what someone else put inside it stands where it was,
+/// with the directories that lead to it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RemovedAroundWorktree {
+    /// The worktree directory,
+    /// which is gone from Git's records and holds nothing but what was left.
+    pub worktree: PathBuf,
+    /// The branch it had checked out,
+    /// which is kept.
+    pub branch: String,
+    /// What stands where it was,
+    /// each with what it is.
+    pub left: Vec<Boundary>,
 }
 
 /// A worktree this sweep left,
@@ -265,6 +282,9 @@ pub struct LandedSweep {
     pub landed_branch: String,
     /// What it removed.
     pub removed: Vec<RemovedWorktree>,
+    /// What it removed and left something in,
+    /// which the notice says in its own words.
+    pub removed_around: Vec<RemovedAroundWorktree>,
     /// What it handed to the commit service to remove,
     /// because that removal is Git's own read of every tracked file and may not be run twice.
     pub handed_over: Vec<HandedOverWorktree>,
@@ -682,6 +702,10 @@ fn record_what_became_of(place: &LandedPlace<'_>, one: &Registration, examined: 
             forget_kept(place.common_dir, one.worktree.as_path());
             sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() });
         }
+        Examined::RemovedAround(left) => {
+            forget_kept(place.common_dir, one.worktree.as_path());
+            sweep.removed_around.push(RemovedAroundWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), left });
+        }
         Examined::Unfinished(report) => {
             forget_kept(place.common_dir, one.worktree.as_path());
             sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report });
@@ -732,6 +756,9 @@ enum Attempt {
     /// The removal is recorded for the commit service,
     /// which performs it on its own with Git's own judgment of what it would keep.
     Handed(WorkItem),
+    /// The worktree and its registration are gone,
+    /// and what someone else put inside it stands where it was.
+    RemovedAround(Vec<Boundary>),
 }
 
 /// What:
@@ -773,6 +800,10 @@ fn remove_here_or_hand_over(
         }
         RemoveOutcome::Incomplete(report) => return Attempt::Unfinished(report),
         RemoveOutcome::Refused(report) => return Attempt::Refused(report),
+        RemoveOutcome::RemovedAround(left) => return Attempt::RemovedAround(left),
+        // The volume went away during the pass, so the emptied root went with one `rmdir` and the worktree is gone: the line the
+        // sweep prints for a removal says what became of the worktree, and no line of it promises a queued delete.
+        RemoveOutcome::RemovedAroundNothingLeft => return Attempt::Removed,
         RemoveOutcome::LeftToGit => {}
     }
     let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), told) {
@@ -804,6 +835,8 @@ enum Examined {
     /// It stays,
     /// for this reason.
     Kept(String),
+    /// It is gone and something someone else put inside it stayed.
+    RemovedAround(Vec<Boundary>),
     /// Nothing proves the wrapper made it.
     Unproven,
 }
@@ -873,6 +906,7 @@ fn examine_and_remove(
         Attempt::Refused(report) => Examined::Refused(report),
         Attempt::Handed(record) => Examined::Handed(record),
         Attempt::Kept(why) => Examined::Kept(why),
+        Attempt::RemovedAround(left) => Examined::RemovedAround(left),
     };
 }
 

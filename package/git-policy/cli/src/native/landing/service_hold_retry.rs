@@ -29,7 +29,7 @@ use crate::forwarding::{ChildOutcome, exit_code, git_command, outcome_of, run_re
 /// this step reruns the command the person typed.
 use crate::hooks_off::StartOwner;
 use crate::scratch_location::scratch_file;
-use crate::service_index_wait::{foreign_holds, wait_for_service_hold_within};
+use crate::service_index_wait::{Waited, foreign_holds, wait_for_service_hold_within};
 use crate::wait_ceilings::SERVICE_HOLD_CEILING;
 use crate::wait_progress::Cadence;
 use crate::start_retry::RetryStart;
@@ -110,7 +110,10 @@ pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
 fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], captured: std::fs::File) -> std::io::Result<ChildOutcome> {
     let mut command = git_command(real_git, arguments, overlay, StartOwner::Person);
     command.stderr(Stdio::from(captured));
-    let status = command.status_retrying()?;
+    let mut child: std::process::Child = command.spawn_retrying()?;
+    // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
+    crate::lock_holder_records::note_child_started(child.id());
+    let status: std::process::ExitStatus = child.wait()?;
     return Ok(outcome_of(status));
 }
 
@@ -186,23 +189,45 @@ pub fn run_again_within(
             && String::from_utf8_lossy(said.as_slice()).contains(LOCK_REFUSAL)
             && !foreign_holds(real_index);
         if lost_to_service && attempt < ATTEMPTS && began.elapsed() < ceiling {
-            wait_for_service_hold_within(real_index, name, ceiling.saturating_sub(began.elapsed()), Cadence::from_environment(), &mut std::io::stderr());
+            // What: The wait's own answer decides whether another run can succeed.
+            // Why:  A hold that was proven a dead service's leftover, or that outlasted its ceiling, is still there when the
+            //       command ends: running Git again would meet the same lock, print the same notice, and burn the attempts
+            //       (fifty runs and fifty notices in 110 ms, the second audit of alpha.14, finding F5). One notice and one
+            //       attempt are what the person gets, and the lock's own diagnostic already said what to do.
+            let waited: Waited = wait_for_service_hold_within(real_index, name, ceiling.saturating_sub(began.elapsed()), Cadence::from_environment(), &mut std::io::stderr());
+            if !matches!(waited, Waited::Released | Waited::NotHeld) {
+                return showed(shown, outcome, code, said.as_slice());
+            }
             continue;
         }
-        // A closed terminal is not a reason to stop the command the person asked for.
-        if shown.write_all(said.as_slice()).is_ok() {
-            let _flushed = shown.flush();
-        }
-        // What: The last attempt's death is kept whole.
-        // Why:  A Git this run's last attempt was ended by a signal has to reach the caller as that death, not as the
-        //       status a shell prints for it (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-        //       finding 4 of the round-1 review).
-        return match outcome {
-            ChildOutcome::Exited(_) => ForwardedRun::Ran(code),
-            ChildOutcome::Signaled(signal) => ForwardedRun::Killed(signal),
-        };
+        return showed(shown, outcome, code, said.as_slice());
     }
     return ForwardedRun::Ran(DIE_STATUS);
+}
+
+/// What:
+///  Show one attempt's standard error and report how Git ended,
+///  keeping a death by a signal whole.
+/// Why:
+///   The ending of the attempt that is reported is the command's,
+///  whether it lost the index once, lost it to a hold that never ended, or never lost it at all.
+///   A Git this run's last attempt was ended by a signal has to reach the caller as that death, not as the status a shell
+///  prints for it (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
+///  finding 4 of the round-1 review).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function showed(stream, outcome, code, text) { stream.write(text); return outcome.signaled ?? outcome.exited }
+/// ```
+fn showed(shown: &mut dyn Write, outcome: ChildOutcome, code: i32, said: &[u8]) -> ForwardedRun {
+    // A closed terminal is not a reason to stop the command the person asked for.
+    if shown.write_all(said).is_ok() {
+        let _flushed = shown.flush();
+    }
+    return match outcome {
+        ChildOutcome::Exited(_) => ForwardedRun::Ran(code),
+        ChildOutcome::Signaled(signal) => ForwardedRun::Killed(signal),
+    };
 }
 
 /// The retry is controlled in the test module.

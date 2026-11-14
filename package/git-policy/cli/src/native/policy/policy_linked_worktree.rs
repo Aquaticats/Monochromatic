@@ -42,12 +42,14 @@ use crate::guarded_forwarded_command::GuardedForwarded;
 /// The named facts a record of an exemption carries.
 use crate::discard_audit_facts::AuditFact;
 /// The record of every decision.
-use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies, record_audit_with_facts};
+use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_facts};
 /// The limits of the folder of saved copies of conflicted files.
 use crate::discarded_prune::Limits;
-/// The sides of a conflicted file,
-///  judged before a `checkout` or `restore` takes one.
+/// The conflicted files a `checkout` or `restore` would replace,
+///  read before the command is refused.
 use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
+/// The rejection text that names every conflicted file the command would replace.
+use crate::rule_linked_worktree_messages::conflicted_files_message;
 /// The two commands that are recorded and never refused.
 use crate::policy_audited::record_audited;
 /// The abort and skip carve-out:
@@ -97,7 +99,7 @@ use crate::rule_shared_remote_messages::shared_remote_settings_message;
 use crate::rule_worktree_dirty::index_file_is_absent;
 /// The one place a form is let through,
 /// which keeps a clean's nested repositories first.
-use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form, now_milliseconds};
+use crate::policy_linked_worktree_nested_repositories::{AllowedForm, allow_a_discarding_form};
 /// The common Git directory,
 ///  for naming the file every worktree shares.
 use crate::worktree_identity::common_directory;
@@ -421,33 +423,16 @@ pub(crate) fn check_linked_worktree(
     };
     let target: EffectiveTarget =
         classify_effective_target(&location.identity, allowed_worktree_dirs);
-    // During a merge, rebase, cherry-pick or revert, taking a side of conflicted files is let through after the files
-    // are saved; the verdict also carries the sentence a rejection of the same line gets.
-    let mut conflict_note: String = String::new();
+    // A checkout or a restore that writes a worktree file would replace the resolution of a conflict, which exists
+    // nowhere else, so the command is refused and the refusal names every such file. No copy is kept: the person who
+    // means to replace that work passes `--no-enforce-worktree` and the command then runs exactly as real Git runs it.
     if matches!(command, GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree)
-        && matches!(target, EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree)
+        && matches!(target, EffectiveTarget::MainWorktree | EffectiveTarget::LinkedWorktree | EffectiveTarget::Allowlisted)
+        && let SideVerdict::WouldReplace { operation, paths } = judge_conflict_sides(&facts.transaction_context(), seen)
     {
-        match judge_conflict_sides(&facts.transaction_context(), seen, now_milliseconds(), discarded_limits) {
-            SideVerdict::NotApplicable => {}
-            SideVerdict::Refused(note) => conflict_note = note,
-            SideVerdict::Allowed { notice, copies } => {
-                let mut places: Vec<String> = Vec::new();
-                for copy in &copies {
-                    let saved_to: String = match copy.saved_to.as_ref() {
-                        Some(place) => place.display().to_string(),
-                        None => String::from("none"),
-                    };
-                    places.push(format!("{} => {}", copy.path, saved_to));
-                }
-                record_audit_with_copies(&location.identity, command, AuditOutcome::SavedConflict, seen, None, places.as_slice());
-                notices.push(notice);
-                return clean();
-            }
-            SideVerdict::CopyFailed(message) => {
-                record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
-                return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
-            }
-        }
+        record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+        let message: String = conflicted_files_message(command, operation, target == EffectiveTarget::MainWorktree, paths.as_slice());
+        return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
     }
     if moves_head_only {
         // A `HEAD` move outside a worktree or in an exempt cache is not this policy's concern.
@@ -460,7 +445,7 @@ pub(crate) fn check_linked_worktree(
         // Every abort and every skip is decided by the carve-out below, in the main worktree as in a linked one:
         //  the same reading answers both, and only the work it finds decides the command.
         record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
-        return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{message}{conflict_note}"));
+        return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
     }
     if target == EffectiveTarget::Allowlisted {
         // The environment chose this exemption, so the person is told which variable did it and where it points,
@@ -549,7 +534,7 @@ pub(crate) fn check_linked_worktree(
     match measured {
         Ok(true) => {
             record_audit(&location.identity, command, AuditOutcome::Rejected, seen, Some(true));
-            return rejected(LINKED_WORKTREE_REQUIRED_CODE, format!("{rejection}{conflict_note}"));
+            return rejected(LINKED_WORKTREE_REQUIRED_CODE, rejection);
         }
         Ok(false) => {
             // The tracked state being clean says nothing about an ignored file the target tree tracks: a forced
@@ -573,7 +558,7 @@ pub(crate) fn check_linked_worktree(
                     );
                     return rejected(
                         LINKED_WORKTREE_REQUIRED_CODE,
-                        format!("{}{conflict_note}", ignored_file_message(command, written.revision.as_deref(), shared.as_slice())),
+                        ignored_file_message(command, written.revision.as_deref(), shared.as_slice()),
                     );
                 }
             }
