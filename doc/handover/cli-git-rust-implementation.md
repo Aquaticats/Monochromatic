@@ -1202,6 +1202,59 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Two authors answered: the landing's control of a trash at its ceiling, and the journal's start tests with a held read (2026-11-13T23:55:34-05:00)
+
+Not final and not approved:
+read by the coordinating session from the two runs' last messages.
+
+- **A commit's landing never waits behind slow work, the missing control**
+  (run `landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service-2`,
+  ended 23:50:46,
+  tip `7365315791`,
+  three commits after the reviewed `08d7a82212`,
+  the last a merge of `main` at alpha.22):
+  one binary control.
+  A trash of four entries,
+  an item ceiling of two seconds,
+  a hold of the test's own inside the first wave:
+  the record stays claimed at the ceiling,
+  a commit lands meanwhile,
+  and after the shipped lease of 120 s the round that follows empties the trash.
+  Shown failing with the ceiling taken out and with the wake that takes a kept claim up again taken out.
+  One line added to the service,
+  a hold point only a test arms;
+  nothing the service does changed.
+  The control waits the whole lease,
+  about two minutes of a gate;
+  its author left a test-only knob for the lease unwritten and says the owner may want it the other way.
+  Pass 29 carries the branch at `08d7a82212`,
+  so these three commits follow in a later pass after their review,
+  queued near the head
+  (`review-git-policy-cli-landing-never-waits-control-of-a-trash-that-reaches-its-ceiling`,
+  range `main...7365315791`).
+- **The journal restored at a start, its tests**
+  (run `two-tests-of-the-journal-restored-at-start-state-what-a-plan-read-from-a-pipe-does-2`,
+  ended 23:51:09,
+  tip `acd357f67a`,
+  six commits after `e05bcd57b2`,
+  `main` merged):
+  replaying the review's plants showed two defects of its own first answer and one assertion that proved nothing.
+  The tests now hold the read through a fault point compiled for tests alone and wait for the hold to be reached;
+  no assertion is a duration.
+  Every plant of the review but one fails a test at the tip;
+  the one,
+  a read slowed by 150 ms,
+  fails none,
+  which is what the review asked for.
+  The four tests pass by name,
+  the three that are red on `main` among them.
+  Its review is queued near the head
+  (`review-git-policy-cli-journal-start-tests-answer-with-a-held-read-after-their-review`,
+  range `main...acd357f67a`).
+  It wrote this pass's report over its first pass's report file;
+  the first pass's logs still stand.
+- The queue held 51 entries at 23:55:34.
+
 ##### The warm request passed its review and is pass 31; the reload fix's review ran nothing and goes on; mpm-shadow's cleanup has two defects (2026-11-13T23:44:17-05:00)
 
 Not final and not approved:
