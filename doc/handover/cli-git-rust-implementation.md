@@ -1202,6 +1202,39 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### A commit in the main checkout took 44 s under alpha.23, waiting for its service's answer (2026-11-14T00:20:52-05:00)
+
+Not final and not approved;
+measured by the coordinating session from the wrapper's own timing record.
+
+- The handover commit `9c5e1521ca` printed
+  "The commit service has not said where this commit stands yet;
+  it has waited 10 seconds.
+  This commit is next."
+  and then landed.
+- Its timing line
+  (kept as `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/timing-line-of-the-commit-that-waited-ten-seconds-2026-11-14T0020.json`):
+  44,189 ms in all,
+  528 ms preparing,
+  43,277 ms waiting for the service's answer at position 1,
+  the landing's own lock held 214 ms,
+  nothing queued behind it.
+  The three commits before it took 414 to 681 ms.
+- So the service was doing something else for 43 s before it took the commit up.
+  What,
+  is not established:
+  the journal of that minute holds no line of the service.
+- That is over the commit-time rule
+  (the larger of five seconds and twice real Git),
+  and it is the shape the branch in pass 29 answers
+  (a commit's landing never waits behind slow work in its service,
+  `08d7a82212`),
+  which is not in `main` yet.
+  No new run:
+  the fix is written and reviewed.
+  After the release that carries pass 29,
+  the same record is read again for a wait of this kind.
+
 ##### The reload fix's review ran and found no defect: pass 32; issue 6293's author answered (2026-11-14T00:19:46-05:00)
 
 Not final and not approved:
