@@ -220,6 +220,8 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
     let slice: HousekeepingOfOneRound = HousekeepingOfOneRound::starting_now(housekeeping);
     let mut housekeeping_has_started: bool = false;
     let mut left_for_a_later_round: Vec<Claimed> = Vec::new();
+    // How many items a step of this round ran went as far as their own bound allowed and were queued again for a later look.
+    let mut settled_by_their_own_bound: usize = 0;
     let renewing: ClaimRenewal = match renewal {
         Renewal::Timed => ClaimRenewal::start(renewer, renewal_interval(lease)),
         Renewal::Driven(driver) => ClaimRenewal::driven(renewer, driver),
@@ -340,7 +342,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                     let (priority, outcome, said): (Priority, &str, &str) = match &verdict {
                         Verdict::Done | Verdict::Delivered { .. } => (Priority::Info, "done", ""),
                         Verdict::Failed(text) => (Priority::Warning, "failed", text.as_str()),
-                        Verdict::Retry(text) => (Priority::Warning, "retrying", text.as_str()),
+                        // A push is one delivery and never answers that its own bound ran out with work left; if one ever did, its
+                        //  line is the one a push that will be tried again reads.
+                        Verdict::Retry(text) | Verdict::Deferred(text) => (Priority::Warning, "retrying", text.as_str()),
                         Verdict::Skipped(text) => (Priority::Info, "skipped", text.as_str()),
                     };
                     let fields: [(&str, String); 3] = [
@@ -397,7 +401,9 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
                 upkept.push(item.item.repository.clone());
                 let upkeep_began: Instant = Instant::now();
                 match handlers.maintenance_awaiting(&item.item).await {
-                    Verdict::Failed(reason) | Verdict::Retry(reason) => crate::service_warn!("automatic maintenance did not run: {reason}"),
+                    Verdict::Failed(reason) | Verdict::Retry(reason) | Verdict::Deferred(reason) => {
+                        crate::service_warn!("automatic maintenance did not run: {reason}");
+                    }
                     // Only a push answers `Delivered`, and the upkeep of this kind keeps no record; what it said would be a line about
                     //  work that was not a push, so it is said in the journal beside the line that the upkeep ran.
                     Verdict::Delivered { said, .. } => crate::service_log!(
@@ -453,6 +459,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             ask_prewarm,
             &mut may_start_prewarm_now,
             &mut left_for_a_later_round,
+            &mut settled_by_their_own_bound,
         )
         .await
         {
@@ -517,6 +524,7 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             ask_trash,
             &mut may_start_trash_now,
             &mut left_for_a_later_round,
+            &mut settled_by_their_own_bound,
         )
         .await
         {
@@ -537,6 +545,23 @@ pub(crate) async fn drain_pending_awaiting<H: WorkHandlers + Sync + ?Sized>(
             );
             // A set the system refused a thread for cannot be handed back, and the records it held keep their lease.
             let _settled: Option<HeldClaims> = settle_all_awaiting(held, work_dir.as_path(), std::mem::take(&mut left_for_a_later_round), PENDING).await;
+            look_again = Some(LOOK_AGAIN_AFTER_DEFERRING);
+            break 'round;
+        }
+        // What:
+        //  An item whose own bound ran out with work left of it is queued again,
+        //  and this look ends so that a later one goes on with it.
+        // Why:
+        //  The item is `pending` again with the tries it had, so this look would claim it and run it at once,
+        //  and a look that did that would never end for a trash of many rounds:
+        //  it would hold the lane, which is the waiting the bound was made to end.
+        //  The line is the one a person reads to see a large trash moving, once per look and not once per entry.
+        if settled_by_their_own_bound > 0 {
+            let how_many: usize = settled_by_their_own_bound;
+            crate::service_log!(
+                "the round leaves {how_many} housekeeping items of {} for a later look, because their own bound ran out with work left of them, and nothing of them failed",
+                git_dir.display()
+            );
             look_again = Some(LOOK_AGAIN_AFTER_DEFERRING);
             break 'round;
         }

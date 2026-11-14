@@ -263,6 +263,9 @@ where
         return true;
     };
     let mut nothing_left_for_a_later_round: Vec<Claimed> = Vec::new();
+    // A kind that runs this way (a relink, a review) answers `Done`, `Skipped` or `Failed`, never that its own bound ran
+    //  out with work left, so nothing here is queued again for a later look.
+    let mut nothing_settled_by_its_own_bound: usize = 0;
     return run_and_settle_what_may_start(
         held,
         work_dir,
@@ -273,6 +276,7 @@ where
         ask,
         &mut every_item_may_start,
         &mut nothing_left_for_a_later_round,
+        &mut nothing_settled_by_its_own_bound,
     )
     .await;
 }
@@ -307,6 +311,7 @@ pub(crate) async fn run_and_settle_what_the_round_may_start<H, F>(
     ask: F,
     may_start: &mut (dyn FnMut() -> bool + Send),
     left_for_a_later_round: &mut Vec<Claimed>,
+    settled_by_their_own_bound: &mut usize,
 ) -> Option<HeldClaims>
 where
     H: WorkHandlers + Sync + ?Sized,
@@ -322,6 +327,7 @@ where
         ask,
         may_start,
         left_for_a_later_round,
+        settled_by_their_own_bound,
     )
     .await;
 }
@@ -346,6 +352,7 @@ async fn run_and_settle_what_may_start<H, F>(
     ask: F,
     may_start: &mut (dyn FnMut() -> bool + Send),
     left_for_a_later_round: &mut Vec<Claimed>,
+    settled_by_their_own_bound: &mut usize,
 ) -> Option<HeldClaims>
 where
     H: WorkHandlers + Sync + ?Sized,
@@ -373,7 +380,14 @@ where
                 AnAnswer::Stopped(said) => Verdict::Failed(said),
             };
             held = match settle_with_the_words(held, work_dir, items[starting[at]].clone(), verdict, kind).await {
-                Some(back) => back,
+                Some(settled) => {
+                    // A step that went as far as its own bound allowed is queued again here, and the caller is told to look at
+                    //  the directory again: it is the next look that goes on with that item, not this round.
+                    if settled.look_again {
+                        *settled_by_their_own_bound += 1;
+                    }
+                    settled.held
+                }
                 None => {
                     // The set went with a job the system refused a thread for, so nothing here can settle what is left:
                     //  the items still inside their work are waited for, and their records keep their lease.

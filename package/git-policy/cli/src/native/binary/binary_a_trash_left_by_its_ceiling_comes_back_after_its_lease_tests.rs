@@ -1,8 +1,8 @@
 //! What:
 //!  A trash whose emptying cannot finish inside its ceiling:
-//! the item is left for a later round,
-//! its claim is kept and comes back when its lease ends,
-//! the round that follows removes what is left and touches nothing it already removed,
+//! the item is queued again for a later look, with the tries it had,
+//! the look that follows removes what is left and touches nothing it already removed,
+//! a trash of more rounds than the tries a failure gets is emptied rather than given up on,
 //! and a commit lands in its usual time through all of it.
 //! Why:
 //!  `HOUSEKEEPING_OF_ONE_ROUND` bounds only what a round starts, and a trash that began before it ran out was the
@@ -11,11 +11,13 @@
 //! The repair is a bound of the item's own (`TRASH_ITEM_CEILING`) that stops it between waves of entries and leaves the
 //! rest to the next round, and the path from that answer to the round that takes it up again was judged by reading only
 //! (`/var/home/user/temp/agent/change-reviews/…/review.md`, "Limits of this review").
-//! This control walks that path with the shipped values:
-//! the shipped claim lease (`CLAIM_LEASE`) and a ceiling a control states in seconds
-//! (`CLI_GIT_TRASH_ITEM_SECONDS`), so nothing here is a large tree or a slow disk.
-//! The emptying is held inside its first wave by a hold of the test's own
+//! These controls walk that path with a ceiling a control states in seconds (`CLI_GIT_TRASH_ITEM_SECONDS`),
+//! so nothing here is a large tree or a slow disk.
+//! The emptying is held inside each of its waves by a hold of the test's own
 //! (`service_hold_a_step_for_a_control.rs`, `BEFORE_A_TRASH_WAVE`), which is the one state a bound can stop.
+//! A round that removed entries never spends a try: the review of `af0b824df3` found a trash of a removed worktree
+//! given up on in `failed` after three bounded rounds, where nothing reads it again
+//! (`/home/user/temp/agent/change-reviews/git-policy-cli-landing-never-waits-answers-after-its-third-review/`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -27,7 +29,8 @@ use super::commit::{remove_settled, wrapped_commit};
 use super::support::{Fixture, FixtureService, fixture, git, repository, start_fixture_service};
 use git_policy_cli::fs_beneath::{ObjectId, identity_at, identity_of, open_directory_at, open_directory_beneath, open_root, plain_components};
 use git_policy_cli::service_hold_a_step_for_a_control::{BEFORE_A_TRASH_WAVE, HOLD_DIRECTORY_VARIABLE, HOLD_VARIABLE, let_go_file, reached_file};
-use git_policy_cli::service_work::{CLAIM_LEASE, work_directory};
+use git_policy_cli::service_work::work_directory;
+use git_policy_cli::housekeeping_of_one_round::LOOK_AGAIN_AFTER_DEFERRING;
 use git_policy_cli::wait_ceilings::TRASH_ITEM_CEILING_VARIABLE;
 use git_policy_cli::work_item::{CLAIMED, DONE, FAILED, PENDING, WorkItem, id_of_entry, state_directory};
 use git_policy_cli::worktree_trash::{PendingTrash, TRASH_PARENT, TrashManifest, entry_name, record_the_trash};
@@ -51,10 +54,10 @@ const THE_CEILING: Duration = Duration::from_secs(2);
 /// longer than the ceiling, so the item cannot finish inside its bound whatever else the machine does.
 const THE_HOLD: Duration = Duration::from_secs(3);
 
-/// How long past the lease the control waits for the round that takes the item up again:
-/// forty-five seconds, which is the drain's own pause and a wide margin over one look's scheduling.
-/// The lease itself is read from the shipped `CLAIM_LEASE`, so no figure here is a guess about the service.
-const THE_LEASE_MARGIN: Duration = Duration::from_secs(45);
+/// How long past the pause a look asks for the control waits for the round that takes the item up again:
+/// a quarter of a minute, which is a wide margin over one look's scheduling.
+/// The pause itself is read from the shipped `LOOK_AGAIN_AFTER_DEFERRING`, so no figure here is a guess about the service.
+const THE_LOOK_AGAIN_MARGIN: Duration = Duration::from_secs(15);
 
 /// How many entries the trash holds.
 /// Why:
@@ -87,6 +90,8 @@ struct Setup {
     holds: PathBuf,
     /// The trash's recorded name.
     name: String,
+    /// How many entries this trash holds.
+    entries: usize,
 }
 
 impl Setup {
@@ -120,7 +125,7 @@ impl Setup {
     /// How many of the trash's entries are still there.
     fn entries_present(&self) -> usize {
         let mut present: usize = 0;
-        for index in 0..THE_ENTRIES {
+        for index in 0..self.entries {
             if self.entry_present(index) {
                 present += 1;
             }
@@ -153,23 +158,6 @@ impl Setup {
         return WorkItem::decode(text.as_str()).ok();
     }
 
-    /// The tries the claim in `claimed` carries,
-    /// which is how many rounds the record has had,
-    /// and nothing when no claim of it is there.
-    fn claimed_tries(&self) -> Option<u32> {
-        let entries = std::fs::read_dir(state_directory(self.work().as_path(), CLAIMED)).ok()?;
-        for entry in entries.flatten() {
-            let name: String = entry.file_name().to_string_lossy().into_owned();
-            if id_of_entry(name.as_str()) != self.id().as_str() {
-                continue;
-            }
-            let text: String = std::fs::read_to_string(entry.path()).ok()?;
-            let item: WorkItem = WorkItem::decode(text.as_str()).ok()?;
-            return Some(item.tries);
-        }
-        return None;
-    }
-
     /// Whether the service has reached the wave the control holds.
     fn reached(&self) -> bool {
         return reached_file(self.holds.as_path(), BEFORE_A_TRASH_WAVE).exists();
@@ -193,7 +181,7 @@ impl Setup {
 /// administrative directory the record was read from (`worktree_trash_dispose::verify_association`), and the record must
 /// sit under the common directory, because one repository's service drains one work directory.
 /// The holds are named before the first command starts the service, because it reads them once for its own life.
-fn setup(name: &str) -> Setup {
+fn setup(name: &str, entries: usize, ceiling: Duration) -> Setup {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     let remote: PathBuf = fixture.root.join("remote.git");
@@ -207,15 +195,15 @@ fn setup(name: &str) -> Setup {
     git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
     let trash_name: String = "7".repeat(40);
     let worktree: PathBuf = fixture.root.join("topic");
-    let manifest: TrashManifest = plant_the_trash(repo.join(".git").as_path(), worktree.as_path(), trash_name.as_str());
+    let manifest: TrashManifest = plant_the_trash(repo.join(".git").as_path(), worktree.as_path(), trash_name.as_str(), entries);
     let pending: PendingTrash = PendingTrash { destination: worktree.clone(), common_dir: repo.join(".git"), manifest, taken_over: 0, quiet: true };
     record_the_trash(&pending).expect("the trash's record is queued");
     let holds: PathBuf = fixture.root.join("holds");
     std::fs::create_dir_all(holds.as_path()).expect("the directory the holds go in");
-    name_the_holds(&fixture, holds.as_path());
+    name_the_holds(&fixture, holds.as_path(), ceiling);
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
-    return Setup { fixture, repo, worktree, service, holds, name: trash_name };
+    return Setup { fixture, repo, worktree, service, holds, name: trash_name, entries };
 }
 
 /// What:
@@ -225,12 +213,12 @@ fn setup(name: &str) -> Setup {
 /// Why:
 ///   This is the shape `git worktree add` leaves behind, written by hand so the control does not need a snapshot:
 /// what the emptying proves is the `.git` pointer, each entry's identity and the trash's own identity, which are all here.
-fn plant_the_trash(common: &Path, worktree: &Path, name: &str) -> TrashManifest {
+fn plant_the_trash(common: &Path, worktree: &Path, name: &str, entries: usize) -> TrashManifest {
     let git_dir: PathBuf = common.join("worktrees").join("topic");
     std::fs::create_dir_all(git_dir.as_path()).expect("the administrative directory");
     std::fs::create_dir_all(worktree).expect("the worktree");
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect("the .git file");
-    for index in 0..THE_ENTRIES {
+    for index in 0..entries {
         let entry: PathBuf = worktree.join(TRASH_PARENT).join(name).join(entry_name(index));
         std::fs::create_dir_all(entry.join("payload")).expect("a trash entry");
         std::fs::write(entry.join("payload/credentials"), b"another worktree's token\n").expect("an entry file");
@@ -239,16 +227,16 @@ fn plant_the_trash(common: &Path, worktree: &Path, name: &str) -> TrashManifest 
     let names = plain_components(Path::new(TRASH_PARENT)).expect("a plain parent");
     let parent: std::fs::File = open_directory_beneath(&held, names.as_slice()).expect("the trash parent");
     let trash: std::fs::File = open_directory_at(&parent, OsStr::new(name)).expect("the trash");
-    let entries: Vec<ObjectId> = (0..THE_ENTRIES).map(|index: usize| { return identity_at(&trash, OsStr::new(entry_name(index).as_str())).expect("an entry identity"); }).collect();
-    return TrashManifest { name: String::from(name), trash: identity_of(&trash).expect("the trash identity"), entries };
+    let identities: Vec<ObjectId> = (0..entries).map(|index: usize| { return identity_at(&trash, OsStr::new(entry_name(index).as_str())).expect("an entry identity"); }).collect();
+    return TrashManifest { name: String::from(name), trash: identity_of(&trash).expect("the trash identity"), entries: identities };
 }
 
 /// Name the hold and the ceiling this control states in the fixture service's environment.
-fn name_the_holds(fixture: &Fixture, holds: &Path) {
+fn name_the_holds(fixture: &Fixture, holds: &Path, ceiling: Duration) {
     let mut environment = fixture.service_environment.lock().expect("the fixture's service environment");
     environment.push((OsString::from(HOLD_VARIABLE), OsString::from(BEFORE_A_TRASH_WAVE)));
     environment.push((OsString::from(HOLD_DIRECTORY_VARIABLE), holds.as_os_str().to_os_string()));
-    environment.push((OsString::from(TRASH_ITEM_CEILING_VARIABLE), OsString::from(THE_CEILING.as_secs().to_string())));
+    environment.push((OsString::from(TRASH_ITEM_CEILING_VARIABLE), OsString::from(ceiling.as_secs().to_string())));
 }
 
 /// Commit `content` through the service and answer how long the command took.
@@ -271,21 +259,22 @@ fn wait_until(what: &str, patience: Duration, condition: &dyn Fn() -> bool) {
 }
 
 /// What:
-///  A trash left by its ceiling is taken up again when its claim's lease ends,
+///  A trash left by its ceiling is taken up again by the look that follows,
+///  with the tries it had,
 ///  the round that follows removes what the first one left,
 ///  and a commit lands in its usual time while both rounds run.
 /// Why:
 ///   This is the whole path a bounded trash item depends on:
-/// the ceiling answers `LeftForALaterRound`,
-/// the record keeps its claim,
-/// the lease running out queues it again with one more try,
-/// and the next round proves each entry it removes against the manifest the record still carries.
+/// the ceiling answers `LeftForALaterRound` with entries removed,
+/// the record is queued again rather than retried,
+/// the next look runs it with the try count it had,
+/// and it proves each entry it removes against the manifest the record still carries.
 /// An entry the first wave already removed is handed to the removal again and comes back absent, which is not a refusal:
 /// the whole trash is gone and the record is done, so nothing was removed twice and nothing was reported as a failure
 /// for an entry that was already gone.
 #[test]
-fn a_trash_left_by_its_ceiling_comes_back_after_its_lease_and_a_commit_lands_meanwhile() {
-    let setup: Setup = setup("trash-left-by-its-ceiling");
+fn a_trash_left_by_its_ceiling_is_taken_up_by_the_next_look_and_a_commit_lands_meanwhile() {
+    let setup: Setup = setup("trash-left-by-its-ceiling", THE_ENTRIES, THE_CEILING);
     // The commit wakes the service, and its lane claims the trash and stops at the wave this control holds.
     let (first, first_ms): (Output, Duration) = commit_and_time(&setup, "one\n");
     assert!(first.status.success(), "{}", String::from_utf8_lossy(first.stderr.as_slice()));
@@ -298,8 +287,8 @@ fn a_trash_left_by_its_ceiling_comes_back_after_its_lease_and_a_commit_lands_mea
     wait_until("the wave the control held removed the entries it named", PATIENCE, &|| { return setup.entries_present() < THE_ENTRIES; });
     let state_after_the_wave: &'static str = setup.record_state();
     assert_eq!(
-        state_after_the_wave, CLAIMED,
-        "a bound that ran out leaves the record claimed, which is the retry the answer asked for; the record stands in {state_after_the_wave}"
+        state_after_the_wave, PENDING,
+        "a bound that ran out with entries removed queues the record again for a later look, and spends no try; the record stands in {state_after_the_wave}"
     );
     let removed_before_the_retry: usize = THE_ENTRIES - setup.entries_present();
     assert!(removed_before_the_retry > 0, "the wave that began was finished, so the entries it named are gone");
@@ -308,16 +297,16 @@ fn a_trash_left_by_its_ceiling_comes_back_after_its_lease_and_a_commit_lands_mea
         "the ceiling stopped the next wave, so its entries are left for a later round; {removed_before_the_retry} of {THE_ENTRIES} were removed and the rest went with them"
     );
     assert!(setup.trash().is_dir(), "the trash directory keeps the identity its record proves it by, so the later round finds it");
-    assert_eq!(setup.claimed_tries(), Some(0), "the round kept the claim it took, which is what the retry answers, and the claim is still the first try's");
+    assert_eq!(setup.record_in(PENDING).map(|item| { return item.tries; }), Some(0), "the record queued again is the first try's: a round that removed entries spends none");
     assert_eq!(setup.record_in(DONE), None, "the record is not done while entries are left");
     assert_eq!(setup.record_in(FAILED), None, "a bound that ran out is not a failure");
-    // The lease ends, and the round the lease brings back removes what is left.
-    wait_until("the lease ended and the round that followed emptied the trash", CLAIM_LEASE + THE_LEASE_MARGIN, &|| {
+    // The look the record asked for runs it again, and that round removes what is left.
+    wait_until("the look that followed emptied the trash", LOOK_AGAIN_AFTER_DEFERRING + THE_LOOK_AGAIN_MARGIN, &|| {
         return !setup.trash().exists() && setup.record_state() == DONE;
     });
     assert_eq!(setup.entries_present(), 0, "every entry the first wave left is gone");
     let done: WorkItem = setup.record_in(DONE).expect("the record that is done");
-    assert_eq!(done.tries, 1, "the round that took the item up again was the one the lease queued, with one more try");
+    assert_eq!(done.tries, 0, "the rounds that emptied it were taken up again for later looks, and no round spent a try of a failure");
     assert_eq!(done.kind.name(), "trash");
     assert_eq!(done.branch_ref, TRASH_REFERENCE);
     // A commit lands in its usual time after both rounds, as it did between them.

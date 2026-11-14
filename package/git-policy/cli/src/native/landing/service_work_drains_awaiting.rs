@@ -326,7 +326,9 @@ pub(crate) async fn run_due_push_retries_awaiting<H: WorkHandlers + Sync + ?Size
                 }
                 replanning.forget(git_dir, branch).await;
             }
-            Verdict::Skipped(text) => {
+            // A push is one delivery and never answers that its own bound ran out with work left; if one ever did, its words
+            //  are a skip's, which leaves the branch as it is and says why.
+            Verdict::Deferred(text) | Verdict::Skipped(text) => {
                 if !text.is_empty()
                     && let Err(reason) = record_push_skip_awaiting(git_dir, branch, commit, text.as_str()).await
                 {

@@ -30,6 +30,11 @@ use crate::work_item::WorkItem;
 use crate::worktree_trash_dispose::{EmptiedTrash, delete_trash_awaiting};
 use crate::worktree_trash_manifest::TrashManifest;
 
+/// A trash of more rounds than the tries a failure gets, driven one round at a time.
+#[cfg(test)]
+#[path = "worktree_trash_dispose_awaiting_tests.rs"]
+mod tests;
+
 /// The point a control holds to keep a trash running while it checks what the service did meanwhile;
 /// it is reached on whichever thread runs the trash,
 /// and inert unless a control asks for it.
@@ -60,8 +65,15 @@ pub async fn empty_trash_awaiting(item: &WorkItem) -> Verdict {
     return match delete_trash_awaiting(item.repository.as_path(), item.git_dir.as_path(), &manifest, crate::wait_ceilings::trash_item_ceiling()).await {
         EmptiedTrash::Emptied => Verdict::Done,
         EmptiedTrash::Kept(left) => Verdict::Failed(left.reason),
-        // The bound ran out with entries still to remove, and the record keeps its claim: the lease running out returns it to
-        //  `pending` and the next round goes on with the entries the manifest still names.
-        EmptiedTrash::LeftForALaterRound(left) => Verdict::Retry(left.reason),
+        // What:
+        //  A round that removed entries and ran out of its bound is queued again for a later look, and nothing of it failed;
+        //  a round that could not remove any entry within its bound is a retry, which the claim's lease and `MAX_TRIES` bound.
+        // Why:
+        //  A trash of a removed worktree is emptied over many rounds by design (`TRASH_ITEM_CEILING`),
+        //  and a retry spends one of the three tries the recovery gives a failure before the record is given up on in `failed`,
+        //  where nothing reads it again: a trash of more than a few rounds was left on the disk that way.
+        //  A round that removed nothing is a different thing, and three of those do end it.
+        EmptiedTrash::LeftForALaterRound { left, removed: 0 } => Verdict::Retry(left.reason),
+        EmptiedTrash::LeftForALaterRound { left, removed: _progress } => Verdict::Deferred(left.reason),
     };
 }

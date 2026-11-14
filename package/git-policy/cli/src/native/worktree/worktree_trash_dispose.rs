@@ -43,6 +43,7 @@ use crate::worktree_trash::TRASH_PARENT;
 use crate::worktree_trash_manifest::TrashManifest;
 use crate::parallel_budget::HostResources;
 use crate::worktree_trash_entries::{EntryRemoval, entries_a_wave_may_remove, remove_entries, remove_these_entries_awaiting};
+use crate::worktree_trash_manifest::entry_name;
 use crate::worktree_path_failure_message::path_failure;
 use crate::worktree_trash_remove::remove_tree_beneath;
 use std::fs::File;
@@ -541,7 +542,13 @@ pub enum EmptiedTrash {
     /// Something in the trash stays, with the reason it gives.
     Kept(TrashLeft),
     /// The item's bound ran out with entries still to remove, and they are left for a later round.
-    LeftForALaterRound(TrashLeft),
+    LeftForALaterRound {
+        /// What is left, with the reason it gives.
+        left: TrashLeft,
+        /// How many of the trash's entries this round removed, which is what tells a round that did work from one that
+        ///  could not work at all.
+        removed: usize,
+    },
 }
 
 /// What:
@@ -579,17 +586,37 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
     //  round spent fifty times its budget on (`2026-11-12`, the main checkout's service).
     let began: Instant = Instant::now();
     let wave: usize = entries_a_wave_may_remove(&request.host);
+    // What:
+    //  Which of the manifest's entries the trash still holds,
+    //  read once from the directory the emptying has open.
+    // Why:
+    //  A round starts at the manifest's first entry, and the entries an earlier round removed are absent:
+    // a round that handed those over again would spend its whole bound walking over them and remove nothing new,
+    //  which is a trash that never finishes. The listing is one read of a directory the emptying already holds open.
+    let present: std::collections::HashSet<std::ffi::OsString> = match std::fs::read_dir(handle_path(held.trash.as_ref())) {
+        Ok(listing) => listing.flatten().map(|found| { return found.file_name(); }).collect(),
+        // A trash that cannot be listed is left alone with that reason, and nothing was removed.
+        Err(error) => return EmptiedTrash::Kept(TrashLeft::kept(format!("{} cannot be listed ({error}), so it is left alone", held.inside.display()))),
+    };
+    let still_there: Vec<bool> = (0..manifest.entries.len())
+        .map(|index| { return present.contains(std::ffi::OsStr::new(entry_name(index).as_str())); })
+        .collect();
+    // The position in the manifest this round has walked to, and how many entries that were there it removed.
     let mut done: usize = 0;
+    let mut removed: usize = 0;
     let mut left_behind: Vec<String> = Vec::new();
     while done < manifest.entries.len() {
         if began.elapsed() >= ceiling {
             // The entries this wave would have named are left where they are, and the manifest still names them: the trash
             //  directory keeps its recorded identity, so the next round finds it and goes on from here.
-            return EmptiedTrash::LeftForALaterRound(TrashLeft::kept(format!(
-                "{} of its {} entries were removed within {ceiling:?}, and the rest are left for a later round",
-                done,
-                manifest.entries.len()
-            )));
+            return EmptiedTrash::LeftForALaterRound {
+                left: TrashLeft::kept(format!(
+                    "{} of its {} entries were removed within {ceiling:?}, and the rest are left for a later round",
+                    removed,
+                    manifest.entries.len()
+                )),
+                removed,
+            };
         }
         // What:
         //  The place a control holds an emptying at, between its bound's check and the wave it is about to hand over.
@@ -604,9 +631,22 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
         // await holdAwaiting(BEFORE_A_TRASH_WAVE); const names = entries(done, wave); done += names.length; await removeTheseEntries(request, names);
         // ```
         crate::service_hold_a_step_for_a_control::hold_awaiting(crate::service_hold_a_step_for_a_control::BEFORE_A_TRASH_WAVE).await;
-        let names: Vec<usize> = (done..manifest.entries.len().min(done + wave)).collect();
-        done += names.len();
-        left_behind.extend(remove_these_entries_awaiting(&request, names.as_slice()).await);
+        // The wave is the next entries the trash still holds, in manifest order, so a round never hands over an entry an
+        //  earlier round removed.
+        let mut names: Vec<usize> = Vec::new();
+        while done < manifest.entries.len() && names.len() < wave {
+            let at: usize = done;
+            if still_there[at] {
+                names.push(at);
+            }
+            done += 1;
+        }
+        if names.is_empty() {
+            break;
+        }
+        let (left, gone): (Vec<String>, usize) = remove_these_entries_awaiting(&request, names.as_slice()).await;
+        removed += gone;
+        left_behind.extend(left);
         if !left_behind.is_empty() {
             // An entry that stayed is either not the recorded object or one whose removal failed, and the line cannot tell
             //  them apart, so what the trash holds is not shown to be the snapshot's own.

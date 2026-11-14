@@ -86,7 +86,9 @@ pub(super) async fn settle_after_the_push(
             }
             return settle_all_awaiting(held, work_dir, settling, if recorded { DONE } else { FAILED }).await;
         }
-        Verdict::Retry(text) => {
+        // A push is one delivery and never answers that its own bound ran out with work left of it, so a `Deferred` here is a
+        //  retry's words: it is settled by the plan the words promise, or left to its claim's lease.
+        Verdict::Retry(text) | Verdict::Deferred(text) => {
             // Without handlers that retry, a retryable push is a failed one. A push that can pass is not known to
             //  have reached the remote, so its record says that instead of naming what was refused, and it says
             //  whether a plan will try it again.

@@ -230,12 +230,22 @@ impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
 struct KeepReasonsOfEntriesThatStay<'a> {
     /// The reasons so far.
     left: &'a mut Vec<String>,
+    /// How many of the entries named were there and are now gone,
+    /// which is the round's progress and not the number it walked over.
+    removed: &'a mut usize,
 }
 
 impl OrderedEvents<Result<Removal, String>> for KeepReasonsOfEntriesThatStay<'_> {
     fn on_event(&mut self, event: Event<'_, Result<Removal, String>>) {
-        if let Event::End(_slot, Err(reason)) = event {
-            self.left.push(reason);
+        match event {
+            Event::End(_slot, Err(reason)) => self.left.push(reason),
+            // An entry that was already gone is not progress: a round that only walked over the ones a round before it
+            //  removed has done nothing, and the ceiling is asked about what a round did.
+            Event::End(_slot, Ok(Removal::Removed)) => *self.removed += 1,
+            // An entry that was already gone, and a line or a start of an item, are not progress.
+            Event::End(_slot, Ok(Removal::Absent)) => {}
+            Event::Begin(_slot) => {}
+            Event::Line(_slot, _line) => {}
         }
     }
 }
@@ -323,7 +333,8 @@ fn remove_entries_in_turn(request: &EntryRemoval) -> Vec<String> {
 /// ```
 pub async fn remove_entries_awaiting(request: &EntryRemoval) -> Vec<String> {
     let all: Vec<usize> = (0..request.manifest.entries.len()).collect();
-    return remove_these_entries_awaiting(request, all.as_slice()).await;
+    let (left, _removed) = remove_these_entries_awaiting(request, all.as_slice()).await;
+    return left;
 }
 
 /// What:
@@ -348,7 +359,8 @@ pub(crate) fn entries_a_wave_may_remove(host: &HostResources) -> usize {
 ///  Remove the entries `entries` names of the trash `request` describes,
 /// side by side,
 /// and return the reason each entry that stays gives,
-/// in entry order.
+/// in entry order,
+/// with how many of them were there and are now gone.
 /// Why:
 ///   The service empties one trash within a bound of its own
 /// (`TRASH_ITEM_CEILING`),
@@ -364,7 +376,7 @@ pub(crate) fn entries_a_wave_may_remove(host: &HostResources) -> usize {
 /// ```ts
 /// const left = await removeTheseEntries({ inside, trash, manifest, host, remove }, [3, 4, 5]);
 /// ```
-pub(crate) async fn remove_these_entries_awaiting(request: &EntryRemoval, entries: &[usize]) -> Vec<String> {
+pub(crate) async fn remove_these_entries_awaiting(request: &EntryRemoval, entries: &[usize]) -> (Vec<String>, usize) {
     let indices: Arc<[usize]> = Arc::from(entries.to_vec());
     // One lane per entry, so no entry waits for another.
     // A lane names the *position* of an item and not the entry's own number, which differ once a trash is emptied a wave at
@@ -380,19 +392,20 @@ pub(crate) async fn remove_these_entries_awaiting(request: &EntryRemoval, entrie
     let workers: usize = worker_budget(&BudgetRequest { items: indices.len(), per_item_memory: ENTRY_MEMORY, ceiling: None, cap: None, host: &request.host })
         .min(places_a_round_may_take());
     let mut left: Vec<String> = Vec::new();
-    let removed = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
+    let mut gone: usize = 0;
+    let stopped_run = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
         items: indices,
         lanes: Arc::from(lanes),
         workers,
         work: Arc::new(RemoveEachEntry { inside: request.inside.clone(), trash: Arc::clone(&request.trash), manifest: Arc::clone(&request.manifest), remove: Arc::clone(&request.remove) }),
-        on_event: &mut KeepReasonsOfEntriesThatStay { left: &mut left },
+        on_event: &mut KeepReasonsOfEntriesThatStay { left: &mut left, removed: &mut gone },
     })
     .await;
-    if let Err(stopped) = removed {
+    if let Err(stopped) = stopped_run {
         // The entries the run did not reach stay, so what ended the run is a reason among the others.
         left.push(format!("the removal of the other entries stopped: {stopped}"));
     }
-    return left;
+    return (left, gone);
 }
 
 /// The controls for the entries of a trash removed side by side stay out of the release executable.

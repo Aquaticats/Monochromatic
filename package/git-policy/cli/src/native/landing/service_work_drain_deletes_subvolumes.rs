@@ -51,7 +51,9 @@ pub(crate) async fn delete_subvolumes_awaiting<H: WorkHandlers + Sync + ?Sized>(
     for item in deleted {
         let verdict: Verdict = handlers.subvolume_delete_awaiting(&item.item).await;
         match settle_with_the_words(held, work_dir, item, verdict, "subvolume delete").await {
-            Some(back) => held = back,
+            // A subvolume is one kernel call and never answers that its own bound ran out with work left, so nothing here is
+            //  queued again for a later look.
+            Some(settled) => held = settled.held,
             None => return None,
         }
     }

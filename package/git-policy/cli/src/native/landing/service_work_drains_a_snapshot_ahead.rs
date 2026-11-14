@@ -72,9 +72,9 @@ pub(crate) async fn drain_a_snapshot_ahead<H: WorkHandlers + Sync + ?Sized>(held
                 crate::service_warn!("the snapshot ahead of {} could not be made: {reason}", item.item.repository.display());
                 Some(FAILED)
             }
-            // The copy could not be made for a reason that can pass, so nothing is settled: the claim keeps its lease,
-            //  and the lease running out queues the record again with one more try.
-            crate::service_work::Verdict::Retry(reason) => {
+            // A snapshot ahead is one ioctl and cannot be finished over several rounds, so nothing of this kind answers that its
+            //  own bound ran out; if one ever did, the record travels with the words of a retry, which queues it again.
+            crate::service_work::Verdict::Deferred(reason) | crate::service_work::Verdict::Retry(reason) => {
                 crate::service_warn!(
                     "the snapshot ahead of {} could not be made yet: {reason}; this is tried again when its claim runs out",
                     item.item.repository.display()

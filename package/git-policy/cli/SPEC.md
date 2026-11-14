@@ -8266,11 +8266,15 @@ now inside these bounds:
   because a removal stopped halfway would need a resume it does not keep.
   A trash is the one kind whose resume the manifest gives it:
   it may stop between two entries at its own ceiling (`TRASH_ITEM_CEILING`),
-  the entries it removed are absent,
-  and every entry it did not remove is still the object the manifest recorded,
-  so the round its claim's lease brings back goes on from the first entry that is still there
+  and it is queued again for a later look with the tries it had,
+  so the emptying of a large trash is finished over as many rounds as it needs:
+  a round that removed entries is progress and spends no try,
+  while a round that removed none is a retry the claim's lease and `MAX_TRIES` bound,
+  and the one trash that ends that way is named once in the journal with where it stays
   (`worktree/worktree_trash_dispose.rs`,
-  and the control of that whole path,
+  `landing/service_work_settling_with_words.rs`,
+  and the controls of that whole path,
+  `worktree/worktree_trash_dispose_awaiting_tests.rs` and
   `binary/binary_a_trash_left_by_its_ceiling_comes_back_after_its_lease_tests.rs`);
   the bound decides what a round starts,
   and the first housekeeping item a round finds starts whatever its slice has spent,

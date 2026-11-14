@@ -132,6 +132,18 @@ pub enum Verdict {
     /// for a fixed number of tries when the cause is the
     ///  server's protected-branch refusal.
     Retry(String),
+    /// What:
+    ///  The item's work went as far as its own bound allowed and there is more of it,
+    ///  and nothing of it failed.
+    /// Why:
+    ///   A kind whose work is finished over several rounds (the emptying of a trash of a removed worktree,
+    ///  whose bound stops it between two waves) must not spend the retries a failure spends:
+    /// a record that answered `Retry` was requeued with one more try and given up on at `MAX_TRIES`,
+    /// so a trash of more than a few rounds was left on the disk with nothing that would come back for it.
+    /// The record is queued again for a later look instead, with the tries it had,
+    /// and the caller is told to look again.
+    ///  The text is what the person is told, and it says how far the round got.
+    Deferred(String),
 }
 
 /// What runs each kind of work.
@@ -405,6 +417,21 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool
                     told = false;
                 }
             }
+            continue;
+        }
+        // What:
+        //  A trash the service could not get any progress on is said once, in the journal, with where its directory is and
+        //  what the person can do about it.
+        // Why:
+        //  The record moves to `failed`, which nothing scans, so this line is the one place a person learns that the
+        //  directory stays;
+        // a trash given up on was silent before it.
+        if item.kind == WorkKind::Trash {
+            crate::service_warn!(
+                "the trash {} of {} was emptied by no round in {MAX_TRIES} tries, so it is left where it is and nothing tries it again: remove it by hand, or let the next add of that worktree set a new trash aside",
+                item.repository.join(crate::worktree_trash::TRASH_PARENT).join(item.oid.as_str()).display(),
+                crate::service_timing::in_the_repository_at(item.repository.as_path())
+            );
             continue;
         }
         if item.kind != WorkKind::Push {

@@ -87,6 +87,36 @@ static NAMED: OnceLock<Vec<String>> = OnceLock::new();
 /// read once for the life of the process.
 static DIRECTORY: OnceLock<Option<PathBuf>> = OnceLock::new();
 
+/// What:
+///  The point and the directory a control of this process states,
+/// for a control whose hold is in the process itself rather than in a fixture's service.
+/// Why:
+///  The variables are read once for the life of a process and a test process runs one control,
+/// so a control of the package's own code can state the same hold here instead of in its environment.
+/// Compiled only into a test build.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdForAControl('before-a-trash-wave', holds); // this process holds that step
+/// ```
+#[cfg(test)]
+static IN_THIS_PROCESS: std::sync::Mutex<Option<(String, PathBuf)>> = std::sync::Mutex::new(None);
+
+/// What:
+///  Hold `point` in this process at `directory`, as the variables would.
+/// Why:
+///  A control of the package's own code (a unit test of the emptying) cannot start a service of its own,
+///  so it states the hold here and the step waits for the let-go file a control writes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdForAControl(BEFORE_A_TRASH_WAVE, holds)
+/// ```
+#[cfg(test)]
+pub(crate) fn hold_for_a_control(point: &str, directory: &std::path::Path) {
+    *IN_THIS_PROCESS.lock().expect("the hold this process states") = Some((String::from(point), directory.to_path_buf()));
+}
+
 /// The steps a control named,
 /// which is nothing in every run that sets no such variable.
 fn the_steps_a_control_named() -> &'static [String] {
@@ -139,6 +169,13 @@ pub fn let_go_file(directory: &std::path::Path, point: &str) -> PathBuf {
 /// if (!holds.includes(point)) return;
 /// ```
 fn a_control_asked(point: &str) -> Option<PathBuf> {
+    // A control of this process states its hold in memory, and the variables are for a process it cannot reach.
+    #[cfg(test)]
+    if let Some((named, directory)) = IN_THIS_PROCESS.lock().expect("the hold this process states").as_ref()
+        && named == point
+    {
+        return Some(directory.clone());
+    }
     let directory: &PathBuf = the_directory_a_control_named()?;
     if !the_steps_a_control_named().iter().any(|named| { return named == point; }) {
         return None;
