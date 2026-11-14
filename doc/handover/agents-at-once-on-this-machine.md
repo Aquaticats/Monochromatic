@@ -474,3 +474,13 @@ one line a minute:
 - Free room at 18:06:54: `/var/home` 506 GiB,
   the build volume 1.5 TiB by `df`'s rounding
   (1,467 GiB by the launcher's count at 17:51).
+- The walk was stopped by hand at 18:24:20,
+  once it had printed what each toolchain's build folder holds.
+  The probe of this level started by itself at that moment and was stopped at 18:30,
+  because the owner had the build folders of two old toolchains deleted from 18:30:32
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section dated 2026-11-13T18:33:32-05:00),
+  and readings taken during that deletion cannot be put down to the agents alone.
+  The deletion takes its own write-and-sync reading of both drives before each shard,
+  recorded in the same readings file with a `during` field and no agent count.
+  **The hour that judges this level starts when the deletion has ended.**
