@@ -1121,6 +1121,60 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 25 reports fit at a tip two releases behind `main`, and goes back to merge `main` again (2026-11-13T20:51:01-05:00)
+
+Not final and not approved:
+the coordinating session's reading of the pass's report,
+which ended at 20:45:35.
+
+- **Pass 25** (`~/temp/agent/integration-pass-25-for-alpha-23-scratch/keep/report.md`)
+  merged the reviewed `50d55b0b8d` with no conflict and no repair.
+  At its tip `3c7e82ba75`:
+  build,
+  both test compiles and Clippy pass;
+  the 36 controls the branch adds pass by name
+  (26 unit, 10 binary),
+  and the second review's own 32;
+  through its release build on btrfs fixtures,
+  a worktree holding a foreign subvolume is removed around it with exit 0,
+  the subvolume and the file in it left with the bytes and modes they had,
+  the registration gone and the documented words printed;
+  an ordinary worktree is removed as before;
+  a commit of one changed file added 21 to 24 ms over real Git in the same round.
+- **Not merged yet.**
+  Its tip holds `main` as it stood at `8f55758715`,
+  before passes 22 and 24.
+  `git log 3c7e82ba75..main -- package/git-policy/` lists 37 commits,
+  so by the rule recorded at 19:45 the pass merges `main` again and reruns its build,
+  both test compiles,
+  its controls and its probes before it goes into `main`.
+  Its agent is resumed for that
+  (`~/temp/agent/pi-runs/integration-pass-25-merges-main-again-after-two-releases-prompt.md`),
+  queued at the head.
+  It is released as the next number when it comes back,
+  `0.6.1-alpha.22` as things stand.
+- **What the pass found in the change:**
+  in the state right after `git worktree add`
+  (files and index written in the same second),
+  an unforced removal of a clean worktree that holds a foreign subvolume refuses
+  and says Git reports nothing but entries missing,
+  though nothing is missing;
+  once a later Git command has rewritten the index the same removal goes around the volume.
+  The racy stat answer is turned into the wording for a half-emptied tree,
+  because an empty status counts as "only deletions".
+  Weighed:
+  it deletes nothing and `--force` works,
+  and before this branch the same removal stopped part way,
+  so it does not hold the release;
+  it earns a fix because the message is false in a state every person meets.
+  It went to the branch's author,
+  whose run on the review's finding had started,
+  as a note in its inbox.
+- The pass put its own branch on the remote by hand once,
+  after which the wrapper pushed every commit:
+  a third sighting for the pending-push run,
+  beside passes 23 and 24.
+
 ##### The index-lock author answered its third review; a lock a killed Git leaves is still never cleared on this volume (2026-11-13T20:47:05-05:00)
 
 Not final and not approved:
