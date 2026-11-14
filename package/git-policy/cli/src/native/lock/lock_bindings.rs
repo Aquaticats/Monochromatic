@@ -312,10 +312,10 @@ fn holder_of_pin_name(digest: &str, name: &str) -> Option<(i64, String)> {
 ///    so a take that finished in the gap between the look that reported it and the link records
 ///    nothing.
 ///    Without this look the record would pin the new file and name the Git that no longer holds it,
-///    and a reader that stops at the first record pinning the file would be stopped by that one and
-///    never judge the right record, so a dead Git's lock would stand and the next commit fail
+///    and a reader that stopped at the first record pinning the file would be stopped by that one
+///    and never judge the right record, so a dead Git's lock would stand and the next commit fail
 ///    (a review of `5327cbbfa4`,
-/// finding 1).
+///    finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -482,6 +482,9 @@ pub fn bindings_of(common_dir: &Path, lock: &Path) -> Vec<Binding> {
             found.push(Binding { lock: lock.to_path_buf(), pin: entry.path(), pid, identity });
         }
     }
+    // The order a directory lists its names in belongs to the file system; the records are judged in the same order
+    //  everywhere, so a repository judged on one machine is judged the same way on another.
+    found.sort_by(|one, other| { return one.pin.cmp(&other.pin); });
     return found;
 }
 

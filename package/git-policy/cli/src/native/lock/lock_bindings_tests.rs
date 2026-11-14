@@ -448,10 +448,18 @@ fn a_second_take_of_one_path_leaves_a_record_of_the_file_that_stands() {
 ///  so a dead Git's lock stands and the next commit fails on this volume.
 ///  The reader must judge every record that pins the file,
 ///  and the one that names the PID file's process and a Git that has ended clears the lock.
-///  The control writes the wrong record first, and this volume lists directory entries in creation
-///  order
-///  (`ls -U`, measured by the review that reported this), so a reader that stops at the first is
-///  stopped by the wrong one.
+///  The control writes the wrong record first and the right one after it.
+///  A reader that stops at the first record it meets is stopped by the wrong one only when the file
+///  system lists that one first,
+///  which belongs to the file system and not to this code:
+///  the records are therefore read in the order of their names
+///  (`bindings_of`),
+///  and the consequence itself was reproduced end to end by the review that reported it and by this
+///  run's `the-round4-reproductions/shadowed_record.ts`
+///  (`DEFECT REPRODUCED (Rp shadowed Rq; dead lock kept; merge failed)` on the commit before this
+///  fix).
+///  This control states the rule it leaves behind: every record pinning the file is judged, so the
+///  order cannot decide a clearance.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
