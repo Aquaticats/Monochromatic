@@ -1009,6 +1009,13 @@ fn remove_around_what_is_not_this_removals(item: &WorkItem, target: &Path, regis
             forget_begun(item.git_dir.as_path(), item.id().as_str());
             return Verdict::Done;
         }
+        RemoveOutcome::RemovedAroundNothingLeft => {
+            for line in crate::worktree_removal_goes_around_a_foreign_volume::emptied_around_report(target).lines() {
+                crate::service_log!("{line}");
+            }
+            forget_begun(item.git_dir.as_path(), item.id().as_str());
+            return Verdict::Done;
+        }
         RemoveOutcome::RemovedAround(left) => {
             let branch: String = branch_of_registration(registration.admin.as_path()).unwrap_or_else(|| return String::from("a head with no branch"));
             if let Err(reason) = crate::worktree_removal_goes_around_a_foreign_volume::record_left_in_place(item.git_dir.as_path(), target, branch.as_str(), left.as_slice()) {

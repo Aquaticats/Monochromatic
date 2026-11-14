@@ -37,6 +37,7 @@ use crate::push_failure_notice_shown_then_removed::Notice;
 use crate::shell_quote::shell_quote;
 use crate::subvolume_remove_around::{BoundaryLook, look_for_boundaries};
 use crate::subvolume_remove_walk::{A_MOUNT_POINT, ANOTHER_FILESYSTEM, Boundary};
+use crate::worktree_removal_only_deletions::Reported;
 use crate::worktree_removal_takes_its_pending_deletions::is_a_leaving_name;
 use std::path::{Path, PathBuf};
 
@@ -200,7 +201,7 @@ pub fn around_removal_report(target: &Path, left: &[Boundary]) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type BesideAVolume = { why: string; begun: boolean; onlyDeletions: boolean };
+/// type BesideAVolume = { reason: string; begun: boolean; reported: Reported };
 /// ```
 #[derive(Clone, Copy)]
 pub struct BesideAVolume<'a> {
@@ -210,8 +211,9 @@ pub struct BesideAVolume<'a> {
     /// Whether a record of this program says an earlier removal of this very worktree emptied it and was cut
     /// short.
     pub begun: bool,
-    /// Whether everything Git reports about the tree is an entry missing from it.
-    pub only_deletions: bool,
+    /// What Git reports about the tree,
+    /// leaving out what stands inside the volumes this removal keeps.
+    pub reported: Reported,
 }
 
 /// What:
@@ -227,35 +229,39 @@ pub struct BesideAVolume<'a> {
 /// what the tree in front of it is:
 /// an earlier pass of this program that was cut short is finished by the same command once
 ///  its record proves it,
-/// and a tree whose entries are only missing is finished by `--force` because
-///  nothing else can prove those deletions.
+/// a tree whose entries are only missing is finished by `--force` because nothing else can
+///  prove those deletions,
+/// and a tree Git reports nothing about is no half-emptied tree at all:
+/// it is refused
+///  in words that say the proof of cleanliness could not settle it and what does end it.
 ///  It never claims to be Git's sentence,
 /// because the reason it refuses may be one Git does not judge,
 /// and it never says
-///  nothing was removed when the tree shows otherwise.
+///  nothing was removed when the tree shows otherwise,
+/// nor that entries are missing when none is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const report = refusedBesideAVolumeReport({ target, operand: '../wt', left, beside });
 /// ```
 pub fn refused_beside_a_volume_report(target: &Path, operand: &str, left: &[Boundary], beside: BesideAVolume<'_>) -> String {
-    let way_on: String = match (beside.begun, beside.only_deletions) {
+    let way_on: String = match (beside.begun, beside.reported) {
         // A record of this program proves the missing entries are its own, and the removal then finishes without a word
         // about them; this branch is unreachable while that record is read, and is worded for a record that went away
         // between the two readings.
-        (true, true) => format!(
+        (true, Reported::OnlyDeletions) => String::from(
             "A record of this program says an earlier removal of this worktree was cut short, and the entries Git reports \
              missing are the ones it removed: running this removal again finishes it, and what is named above stays exactly \
              as it is.",
         ),
-        (true, false) => format!(
+        (true, Reported::Nothing | Reported::Something) => format!(
             "A record of this program says an earlier removal of this worktree was cut short, and what stands there now is \
              more than the entries it removed: {reason}. `git worktree remove --force {operand}` finishes this removal, and \
              what is named above stays exactly as it is.",
             reason = beside.reason,
             operand = operand
         ),
-        (false, true) => format!(
+        (false, Reported::OnlyDeletions) => format!(
             "Git reports nothing about the worktree but entries missing from it, apart from what stands inside the volumes \
              named above: {reason}. No record of this program says a removal of this worktree removed them, so nothing here \
              proves they are not yours: `git worktree remove --force {operand}` finishes this state, and what is named above \
@@ -264,7 +270,19 @@ pub fn refused_beside_a_volume_report(target: &Path, operand: &str, left: &[Boun
             reason = beside.reason,
             operand = operand
         ),
-        (false, false) => format!(
+        // Git names nothing at all: no entry is missing, no change stands there, and the proof of cleanliness is what
+        // refused. Nothing is half emptied, so nothing of the pass's wording applies.
+        (false, Reported::Nothing) => format!(
+            "Git reports no change in the worktree at all, and the proof of cleanliness this removal makes could not settle it: \
+             {reason}. This is no state a pass of this program left: the tree holds what Git already holds, and only the \
+             question of whether the files are the ones the index names is open. Nothing was removed, and what is named above \
+             stays exactly as it is. `git worktree remove --force {operand}` removes every other entry of the worktree now; \
+             to keep what Git would delete as well, move what is named above out and run this removal again, which then \
+             hands the tree to Git.",
+            reason = beside.reason,
+            operand = operand
+        ),
+        (false, Reported::Something) => format!(
             "What Git refuses to delete without `--force` stands there too: {reason}. `git worktree remove --force {operand}` \
              removes every other entry of the worktree and leaves what is named above exactly as it is. To keep what Git would \
              delete as well, move that out first and run this removal again; to keep everything, move what is named above out \
@@ -282,6 +300,38 @@ pub fn refused_beside_a_volume_report(target: &Path, operand: &str, left: &[Boun
         way_on = way_on
     );
 }
+
+/// What:
+///  The report of a removal that went around a volume and found it gone when its pass ended:
+///  the worktree's entries went one by one,
+///  the empty root went with one `rmdir`,
+///  and nothing was handed to the commit service.
+/// Why:
+///   The line for a removal whose subvolume was destroyed says the destroy took it in one step and that the
+///   commit service deletes the files after the command returns.
+/// On this path neither is true:
+/// the pass deleted the files before the command
+///  returned,
+/// no hand-over record was written,
+/// and the root went with one `rmdir` because the volume that had kept it
+///  standing was gone.
+/// A person who read the destroy's words would look for a queued delete that does not exist,
+/// and
+///  for a worktree that is a plain directory they would also be told of a subvolume that never was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = emptiedAroundReport('/repo/wt');
+/// ```
+pub fn emptied_around_report(target: &Path) -> String {
+    return format!(
+        "{PREFIX}removed the worktree {target}, and Git no longer lists it: this command deleted its entries one by one, the \
+         subvolume or mount point that stood inside it had gone by the time that pass ended, and the root went with one \
+         `rmdir`. Nothing was handed to the commit service, so no delete waits behind this command.",
+        target = target.display()
+    );
+}
+
 
 /// What:
 ///  The report of a removal that removed what it could and stopped,
