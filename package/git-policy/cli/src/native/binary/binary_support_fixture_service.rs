@@ -12,6 +12,7 @@
 //! const fixture = fixture(); const service = startFixtureService(fixture);
 //! ```
 
+use git_policy_cli::service_server::Bind;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -187,11 +188,25 @@ pub static RUNTIME_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::
 /// which the fixture tree's depth does not allow,
 /// so the runtime directory is
 ///  in the short agent scratch directory under the home.
+/// A control of the address a long runtime directory takes gives its own instead
+///  (`start_fixture_service_in`).
 /// Each service gets the parent-death signal,
 /// so a control that panics
 ///  or is killed leaves no service behind.
 pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
-    let runtime: PathBuf = short_runtime_directory(fixture);
+    return start_fixture_service_in(short_runtime_directory(fixture));
+}
+
+/// What:
+///  Makes the runtime directory `runtime` the one a fixture's services listen in.
+/// Why:
+///   A runtime directory too long for a socket path is the case this package's address form exists for,
+///  and only a control that chooses the directory can make one that long.
+///  The service is started at whatever address `socket_address_of` gives that directory,
+///  which is the address the wrapper's own client computes.
+pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
+    // The socket file stands in a folder of its own, which a socket unit's `DirectoryMode=` makes in production.
+    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("the folder of the sockets");
     return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
 }
 
@@ -256,13 +271,16 @@ pub fn spawn_for_the_process_lifetime(command: Command) -> std::io::Result<Child
 impl FixtureService {
     /// What:
     ///  Starts the service of the worktree whose own Git directory is `git_dir`,
-    /// listening at the socket the wrapper looks for,
+    /// listening at the address the wrapper looks for,
     ///  unless it already runs.
     /// Why:
     ///   In production the manager starts one instance per worktree on its first connection;
     /// the fixture has no manager,
     /// so
     ///  it starts the instance itself and waits until it listens.
+    /// The address is the one `socket_address_of` gives this runtime directory,
+    /// which is a socket file where a path fits one socket address and an abstract name where it does not,
+    ///  and the service is given the one or the other on its command line.
     pub fn serve(&self, fixture: &Fixture, git_dir: &Path) {
         use std::os::unix::process::CommandExt;
         let key: PathBuf = std::fs::canonicalize(git_dir).unwrap_or_else(|_| { return git_dir.to_path_buf(); });
@@ -270,10 +288,11 @@ impl FixtureService {
         if children.contains_key(&key) {
             return;
         }
-        let socket: PathBuf = git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path());
+        let instance: String = git_policy_cli::service_instance::instance_of(key.as_path());
+        let address: Bind = git_policy_cli::service_address_of_a_worktree::socket_address_of(self.runtime.as_path(), instance.as_str());
         // A service ended a moment ago may still hold the socket; the new one would end with its address in use while the poll below
         //  connected to the old one and called the new one ready.
-        wait_until_nothing_listens(&socket);
+        wait_until_nothing_listens(&address);
         let launch: ServiceLaunch = fixture.service_launch.lock().expect("the service launch").clone();
         // A helper that an older program started has the earlier command word in its unit file.
         let words: [&str; 3] = if launch.earlier_command_word {
@@ -295,11 +314,19 @@ impl FixtureService {
         };
         command
             .args(["--journal"])
-            .arg(fixture.root.join("journal"))
-            .arg("--path")
-            .arg(&socket)
+            .arg(fixture.root.join("journal"));
+        match &address {
+            Bind::Path(path) => {
+                command.arg("--path").arg(path);
+            }
+            Bind::Abstract(name) => {
+                command.arg("--abstract").arg(name);
+            }
+            Bind::Inherited => panic!("the fixture's service names the address it listens at"),
+        }
+        command
             .arg("--instance")
-            .arg(git_policy_cli::service_instance::instance_of(key.as_path()))
+            .arg(instance.as_str())
             .env_clear()
             .env("PATH", format!("{}:/usr/bin:/bin", fixture.root.join("bin").display()))
             .env("HOME", fixture.root.join("home"))
@@ -343,7 +370,7 @@ impl FixtureService {
         let mut signs: SignsOfWork = SignsOfWork::of(service_pid);
         let began: std::time::Instant = std::time::Instant::now();
         let mut last_change: std::time::Instant = std::time::Instant::now();
-        while !service_is_serving(&socket) {
+        while !service_is_serving(&address) {
             // A service that has ended will never listen, so waiting out the patience for it only hides how it ended. A
             //  control whose fault may keep the service from starting (a disk that is full from its first write) goes on
             //  once the service has ended or a short wait has passed: what the client then says is the control's to check.
@@ -354,7 +381,7 @@ impl FixtureService {
                 }
             } else if let Some(status) = ended {
                 children.remove(&key);
-                panic!("the fixture's commit service ended ({status}) before it listened at {}; what it wrote to its log is in this test's output", socket.display());
+                panic!("the fixture's commit service ended ({status}) before it listened at {}; what it wrote to its log is in this test's output", git_policy_cli::service_server::address_text(&address));
             }
             // A service that is starting on a loaded host is working: it reads its configuration, opens its log and binds
             //  its socket. The fixture ends the wait on the service's own silence, never on the clock, because six
@@ -366,7 +393,7 @@ impl FixtureService {
             assert!(
                 last_change.elapsed() < SERVICE_QUIET_WINDOW,
                 "the fixture's commit service at {} showed no sign of work for {:?} while it was starting",
-                socket.display(),
+                git_policy_cli::service_server::address_text(&address),
                 SERVICE_QUIET_WINDOW
             );
             std::thread::sleep(std::time::Duration::from_millis(5));
@@ -388,7 +415,8 @@ impl FixtureService {
         for (key, child) in children.iter_mut() {
             kill_with_everything_it_started(child);
             // Reaping the child is not the service's end when a tracer is the child: the socket answers until the service is gone.
-            wait_until_nothing_listens(git_policy_cli::service_instance::socket_for(self.runtime.as_path(), key.as_path()).as_path());
+            let instance: String = git_policy_cli::service_instance::instance_of(key.as_path());
+            wait_until_nothing_listens(&git_policy_cli::service_address_of_a_worktree::socket_address_of(self.runtime.as_path(), instance.as_str()));
         }
         children.clear();
     }
