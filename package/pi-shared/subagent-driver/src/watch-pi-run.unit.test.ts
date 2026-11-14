@@ -581,6 +581,7 @@ async function startRunWhoseLastAnswerHadWords(): Promise<RunUnderTest> {
 }
 
 /**
+ A connection whose every message is taken at once, and whose Pi then answers with nothing again.
 
  @param sent - where the messages the watch sends are recorded
 
@@ -664,6 +665,7 @@ function connectionThatRefusesWhilePiWorks({
 }
 
 /**
+ A connection whose every message ends the wait before Pi answers it.
 
  @param ending - how the wait ends
 
