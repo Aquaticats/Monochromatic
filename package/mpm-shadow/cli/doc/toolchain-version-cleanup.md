@@ -117,6 +117,13 @@ A version is kept when any of these holds,
   its working directory (`/proc/<pid>/cwd`),
   a file it has mapped (`/proc/<pid>/maps`),
   or a file it has open (the `/proc/<pid>/fd` links).
+- **an install is using its downloads**:
+  a file under the version's `downloads` directory written inside `DOWNLOAD_IN_USE_FLOOR` (one hour).
+  An install downloads an archive and then unpacks it,
+  and until the unpack ends the archive is its own;
+  the client gives up on a download whose bytes stop for 60 s,
+  and unpacking takes seconds to a minute,
+  so an install needs no file it has not touched for an hour.
   Those paths carry every symbolic link resolved,
   so a store root spelled through `$HOME` is compared by both spellings as well;
   before this a root under a linked home (`/home` to `/var/home` on this machine) matched no holder at all.
@@ -144,7 +151,7 @@ A removal is three steps:
 1. the version's downloads directory is renamed to `.mpm-shadow-removing.<name>` beside it,
    one atomic rename;
 2. the version directory is renamed to a hidden
-   `.mpm-shadow-claimed.<process id>.<attempt>.<version>` beside it,
+   `.mpm-shadow-claimed.<version>.<process id>.<process start time>.<attempt>.claimed` beside it,
    one atomic rename,
    and the copy that arrived is compared with the one the scan judged;
 3. the claimed version directory is renamed to `.mpm-shadow-removing.<name>`,
@@ -154,13 +161,30 @@ A run killed between the second and third steps leaves the version's tree under 
 No scan lists it as a version,
 and the tombstone pass does not know the name,
 so the next pass gives it back instead:
-it reads the process number the name carries,
-and for a claim whose process is gone it renames the tree to the version's name again,
+it reads the version and the maker out of the name,
+and for a claim whose maker has ended it renames the tree to the version's name again,
 in one atomic step,
 saying one line.
+The maker is the process's number **and the moment it started**,
+because a number alone names a process only until the process table reuses it:
+a service that got a killed run's number does not hold that run's claim,
+and the claim is given back at the next pass.
+A number the table cannot describe (another user's process,
+a kernel without `/proc`) counts as a live maker,
+so the claim waits rather than being released under a run that may still hold it.
 A claim whose version's name is taken stays where it is,
 because the tree at that name is another run's,
 and the line names where it is kept.
+Two passes that recover one claim at once are fine:
+the one that finds the claim gone says nothing and marks nothing unfinished,
+because the version is where it belongs.
+A claim an earlier build of this branch wrote under its old name
+(`.mpm-shadow-claimed.<process id>.<version>`,
+and the shape with an attempt field)
+is not read as a claim:
+that name cannot be told from a version that begins with a number and a dot,
+and restoring a version under a guessed name is worse than leaving the tree,
+which `mv` puts back by hand from the version the name spells.
 A run killed after the third step leaves a hidden `.mpm-shadow-removing.*` directory,
 which no scan lists as a version,
 and a `.mpm-shadow-removal-unfinished` file in the store root.
@@ -262,6 +286,20 @@ Any other failure is still reported,
 with the directory named and,
 for a recursive removal,
 that part of it may be gone.
+
+## The archives of versions that are gone
+
+A removal keeps the archives of a version whose files are younger than the in-use floor,
+and a run killed between removing a version and removing its archives leaves them too.
+Nothing reads a `downloads` directory whose version this root does not have installed,
+so the pass removes those archives once nothing in them has been touched for the floor,
+one line per version,
+and leaves the ones an install is still using.
+It looks only under the tools the locks name,
+the same set every other removal of the pass judges,
+and leaves a hidden name (`.<something>`) alone,
+because that is a removal in progress or another marker,
+never a version.
 
 ## What it does not touch
 

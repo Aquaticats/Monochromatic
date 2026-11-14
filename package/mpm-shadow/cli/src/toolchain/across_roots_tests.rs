@@ -533,8 +533,10 @@ fn a_stale_current_in_the_winning_root_is_repaired_before_another_scope_links_th
     assert!(resolved.ends_with(Path::new("0.4.5").join("bin").join(GIT_BIN)), "the newest copy runs: {}", resolved.display());
 }
 
-/// The link's target is a version this run deletes, so the guard that leaves a newer link alone must not hold:
-/// the link has to end on the finished version that survives, or commands through `current/bin` fail.
+/// The link's target is a version this run deletes,
+/// so the guard that leaves a newer link alone must not hold:
+/// the link has to end on the finished version that survives,
+/// or commands through `current/bin` fail.
 #[test]
 fn prune_points_current_at_the_finished_survivor_when_the_link_named_a_newer_deletion() {
     let duo = Duo::new();
@@ -560,8 +562,10 @@ fn prune_points_current_at_the_finished_survivor_when_the_link_named_a_newer_del
     assert!(fs::metadata(&link).is_ok(), "and the link resolves");
 }
 
-/// Only an unfinished version survives because the other root forwards to it, and the link names the version this
-/// run deletes: the link must go rather than outlive its target,
+/// Only an unfinished version survives because the other root forwards to it,
+/// and the link names the version this
+/// run deletes:
+/// the link must go rather than outlive its target,
 /// since an unfinished install is not something `current` may name.
 #[test]
 fn prune_removes_a_link_that_names_its_own_deletion_when_only_an_unfinished_version_stays() {
@@ -589,8 +593,10 @@ fn prune_removes_a_link_that_names_its_own_deletion_when_only_an_unfinished_vers
     );
 }
 
-/// A version the other root forwards to stays while a newer one is pruned, because no lock names the crate:
-/// `current` must name the newest version that stays, never the newest installed one,
+/// A version the other root forwards to stays while a newer one is pruned,
+/// because no lock names the crate:
+/// `current` must name the newest version that stays,
+/// never the newest installed one,
 /// or a successful prune leaves it naming a directory it just removed.
 #[test]
 fn prune_points_current_at_the_newest_version_that_stays_not_the_newest_installed_one() {
@@ -770,6 +776,11 @@ fn a_release_archive_tools_older_copy_in_the_other_root_goes_with_its_downloads_
     let downloads = global_root.join("downloads").join(ARCHIVE_ID).join("0.2.1");
     fs::create_dir_all(&downloads).expect("make the downloads");
     fs::write(downloads.join("mpm-shadow-0.2.1.tar.gz"), "bytes").expect("write a download");
+    // Older than the in-use floor: no install is unpacking it, so the removal may take it.
+    crate::toolchain::fixtures::age_file(
+        &downloads.join("mpm-shadow-0.2.1.tar.gz"),
+        std::time::Duration::from_secs(2 * 60 * 60),
+    );
     let older_file = global_root.join(ARCHIVE_ID).join("0.2.1").join("release-folder").join(ARCHIVE_BIN);
     let link = rig.scope.home.join(".local/bin/mpm");
     make_link(&link, &older_file);

@@ -7,7 +7,7 @@
 //! and the cleanup.
 //! Each runs against the fake runner and the fake network inside disposable homes.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -23,10 +23,10 @@ use super::lock::{Lock, render_lock};
 use super::model::{Artifact, LockedTool, OsFamily, Request, Route};
 use super::observe::observe_all;
 use super::prune_cargo::{PresentVersion, prune_toolchain};
-use super::layout::{find_tool_bin, tool_directory};
+use super::layout::{find_tool_bin, tool_directory, tool_downloads_dir};
 use super::published_archive::{
-    current_link_of, is_published_archive, named_archives, newest_installed_archive, plan_archive_prune, remove_older_archives,
-    running_version_archive,
+    current_link_of, is_published_archive, named_archives, newest_installed_archive, plan_archive_prune,
+    remove_downloads, remove_older_archives, remove_orphan_downloads, running_version_archive,
 };
 use super::runner::RunRequest;
 use super::scope::{Scope, ScopeKind, repo_scope};
@@ -222,6 +222,8 @@ fn installing_a_newer_release_removes_the_older_one_its_download_and_leaves_no_d
     assert_eq!(running_version_archive(&root, ID).as_deref(), Some("0.2.0"));
     let old_download = root.join("downloads").join(ID).join("0.2.0").join("mpm-shadow-0.2.0.tar.gz");
     assert!(old_download.is_file());
+    // Older than the in-use floor: no install is unpacking it, so the removal may take it.
+    super::fixtures::age_file(&old_download, std::time::Duration::from_secs(2 * 60 * 60));
 
     let second = sync_tools(&context_of(&rig, &rig.scope, &lock_new), None);
     assert_eq!(second.installed, vec![ID.to_string()], "{second:?}");
@@ -820,6 +822,80 @@ fn a_superseded_archive_version_another_run_removed_first_is_a_finished_cleanup(
     assert_eq!(removed, vec![slowest.clone()], "this run deleted the slow version and nothing else: {removed:?}");
     assert!(!later.exists(), "the other run removed the second version");
     assert!(tool_dir.join("0.3.0").join("release-folder").join(BIN).is_file(), "the newest finished version stays");
+}
+
+//endregion
+
+//region the archives of a version an install is using, or of one this root no longer has
+
+/// What:
+/// The archives of a version an install is unpacking are not removed by another command,
+/// and the file stays readable for the install that comes back for it.
+/// Why:
+/// The review of this change found that a removal which finds a version's directory already gone could still remove
+/// the downloads of that version,
+/// which a third command may have been downloading for a version its lock named after the remover read its own
+/// snapshot of the locks.
+/// The file a running install needs is written now,
+/// and the removal judges by that age.
+#[test]
+fn remove_downloads_keeps_the_archives_an_install_is_unpacking() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let directory: PathBuf = tool_downloads_dir(&root, ID, "0.3.0").expect("a plain name");
+    fs::create_dir_all(&directory).expect("make the downloads");
+    let in_flight: PathBuf = directory.join("mpm-shadow-0.3.0.tar.gz");
+    fs::write(&in_flight, b"the archive an install is unpacking").expect("write the download");
+    // The install's own handle on the file, as a download or an unpack holds one.
+    let held: fs::File = fs::File::open(&in_flight).expect("hold the download open");
+
+    remove_downloads(&root, ID, "0.3.0").expect("nothing to do");
+
+    assert!(in_flight.is_file(), "another command took the archive of an install in progress");
+    assert_eq!(
+        fs::read(&in_flight).expect("read it back, as the install does next"),
+        b"the archive an install is unpacking"
+    );
+    drop(held);
+}
+
+/// What:
+/// The pass removes the archives of a version this root does not have installed any more,
+/// and keeps the ones an install is using or a version that is here.
+/// Why:
+/// A removal keeps the archives of a version whose files are younger than the in-use floor,
+/// and a run killed between removing a version and removing its archives leaves them;
+/// nothing else reads a downloads directory whose version is not installed,
+/// so without this they stay on the disk for ever.
+#[test]
+fn the_pass_removes_the_archives_of_a_version_this_root_does_not_have() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let tools: BTreeSet<String> = [ID.to_string()].into_iter().collect();
+    // A version that is gone, with old archives: the pass removes them.
+    let orphan: PathBuf = tool_downloads_dir(&root, ID, "0.1.0").expect("a plain name");
+    fs::create_dir_all(&orphan).expect("make the orphan's downloads");
+    fs::write(orphan.join("mpm-shadow-0.1.0.tar.gz"), b"old").expect("write the archive");
+    super::fixtures::age_file(&orphan.join("mpm-shadow-0.1.0.tar.gz"), std::time::Duration::from_secs(2 * 60 * 60));
+    // A version that is gone, with archives an install is using: the pass keeps them.
+    let in_use: PathBuf = tool_downloads_dir(&root, ID, "0.1.1").expect("a plain name");
+    fs::create_dir_all(&in_use).expect("make the in-use downloads");
+    fs::write(in_use.join("mpm-shadow-0.1.1.tar.gz"), b"new").expect("write the archive");
+    // A version that is installed: its archives are its own.
+    let installed: PathBuf = tool_downloads_dir(&root, ID, "0.2.0").expect("a plain name");
+    fs::create_dir_all(&installed).expect("make the installed version's downloads");
+    fs::write(installed.join("mpm-shadow-0.2.0.tar.gz"), b"kept").expect("write the archive");
+    super::fixtures::age_file(&installed.join("mpm-shadow-0.2.0.tar.gz"), std::time::Duration::from_secs(2 * 60 * 60));
+    let version_directory: PathBuf = tool_directory(&root, ID).expect("a plain name").join("0.2.0");
+    fs::create_dir_all(&version_directory).expect("make the installed version's directory");
+    write_complete_marker(&version_directory, ID, "0.2.0").expect("mark the version installed");
+
+    let lines: Vec<String> = remove_orphan_downloads(&root, &tools, std::time::Instant::now() + std::time::Duration::from_secs(60));
+
+    assert!(!orphan.exists(), "the orphan's archives stayed: {lines:?}");
+    assert!(lines.iter().any(|line| return line.contains("0.1.0")), "the pass says what it removed: {lines:?}");
+    assert!(in_use.join("mpm-shadow-0.1.1.tar.gz").is_file(), "the archives an install is using were taken");
+    assert!(installed.join("mpm-shadow-0.2.0.tar.gz").is_file(), "an installed version's archives were taken");
 }
 
 //endregion

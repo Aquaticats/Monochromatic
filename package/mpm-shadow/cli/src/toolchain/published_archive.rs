@@ -39,6 +39,8 @@ use std::fs;
 use std::io::ErrorKind;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
+/// Imports `Instant` from `std::time`.
+use std::time::Instant;
 
 /// Imports `serde_json::Value`,
 /// the shape a lock's text is read as when only a few fields matter.
@@ -63,6 +65,8 @@ use super::layout::{find_bin_under, install_dir_name, tool_directory, tool_downl
 use super::model::{LockedTool, Request, Route};
 /// Imports `PresentVersion` from `super::prune_cargo`.
 use super::prune_cargo::PresentVersion;
+/// Imports what this module uses from `super::store_versions`.
+use super::store_versions::{DOWNLOADS_DIRECTORY_NAME, downloads_in_use};
 /// Imports the name checks from `super::segment`.
 use super::segment::{check_bin_name, check_tool_id, check_version};
 /// Imports the keeps every removal asks from `super::store_keeps`.
@@ -245,6 +249,13 @@ pub fn point_current_at_newest_archive(toolchain_root: &Path, id: &str, first_bi
 /// ```
 pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Result<(), ToolchainError> {
     let directory: PathBuf = tool_downloads_dir(toolchain_root, id, version)?;
+    // What: a downloads directory an install is writing or unpacking now is kept, whoever asks for its removal.
+    // Why: another command may be installing this version from a lock this run read before that command's lock named
+    // it, and taking the archive away fails that install for a version this run only judged removable from a
+    // snapshot; the next pass removes the archives once nothing has touched them for the in-use floor.
+    if downloads_in_use(&directory).is_some() {
+        return Ok(());
+    }
     match fs::remove_dir_all(&directory) {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {}
@@ -258,6 +269,66 @@ pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Resul
         let _ = fs::remove_dir(tool_downloads);
     }
     return Ok(());
+}
+
+/// What:
+/// Removes the downloaded archives of versions this root does not have installed any more,
+/// leaves the ones an install is using now,
+/// and returns one line per version whose archives went.
+/// Why:
+/// A removal keeps the archives of a version whose files are younger than `store_versions::DOWNLOAD_IN_USE_FLOOR`,
+/// because an install may still be unpacking them,
+/// and a run killed between removing a version and removing its archives leaves them too;
+/// nothing else reads a downloads directory whose version is not installed,
+/// so without this they stay on the disk for ever.
+/// The tools are the ones the locks name,
+/// the same set every other removal of this pass judges,
+/// so a tool that left every plan is never touched.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function removeOrphanDownloads(root: string, tools: ReadonlySet<string>, deadline: Date): string[]
+/// ```
+pub fn remove_orphan_downloads(toolchain_root: &Path, tools: &BTreeSet<String>, deadline: Instant) -> Vec<String> {
+    let downloads: PathBuf = toolchain_root.join(DOWNLOADS_DIRECTORY_NAME);
+    let mut lines: Vec<String> = Vec::new();
+    for tool in tools {
+        let tool_downloads: PathBuf = downloads.join(tool);
+        let Ok(entries) = fs::read_dir(&tool_downloads) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if Instant::now() >= deadline {
+                return lines;
+            }
+            let version: String = file_name_text(&entry.path());
+            // A hidden name is a removal in progress (`.mpm-shadow-removing.<version>`) or another marker, never a
+            // version whose archives this scan may judge.
+            if version.starts_with('.') {
+                continue;
+            }
+            // What: only a version this root does not have installed is an orphan.
+            // Why: an installed version's archives are its own, and the removal that takes the version takes them.
+            if toolchain_root.join(tool).join(&version).exists() {
+                continue;
+            }
+            let directory: PathBuf = entry.path();
+            if downloads_in_use(&directory).is_some() {
+                continue;
+            }
+            // Best effort: a removal that fails leaves the archives for the next pass, and nothing here is data a
+            // person loses.
+            if fs::remove_dir_all(&directory).is_ok() {
+                lines.push(format!(
+                    "mpm-shadow: removed the archives of {} {}, which this root does not have installed any more",
+                    tool, version
+                ));
+            }
+        }
+        // Best effort: the tool's downloads directory goes once its last version's archives are gone.
+        let _ = fs::remove_dir(&tool_downloads);
+    }
+    return lines;
 }
 
 /// What:

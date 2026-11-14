@@ -1114,7 +1114,14 @@ so a run killed halfway leaves a marker the next install finishes,
 and it removes for at most two seconds per pass,
 so an install never waits on a long deletion.
 Before it moves a version aside it compares what it moved with the version it judged,
-so a version another command publishes at that name while the pass runs is put back and kept.
+so a version another command publishes at that name while the pass runs is put back and kept;
+the name it moves the version to carries that version and the process that took it,
+number and start time,
+so a run killed there is given the version back by the next pass
+and a process that got the dead run's number cannot hold it.
+An install that is downloading or unpacking a version's archives keeps them:
+a file written inside the hour before is an install's own,
+and the archives of a version this root no longer has are removed once nothing has touched them for that long.
 
 Every program an install starts runs under a stated bound,
 and so does every lock it waits on;

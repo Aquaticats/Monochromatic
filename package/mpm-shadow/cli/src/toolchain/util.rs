@@ -238,6 +238,109 @@ pub(crate) fn process_is_gone(_pid: u32) -> bool {
 }
 
 /// What:
+/// One process as the process table names it:
+/// its number,
+/// and the moment it started,
+/// in ticks since the machine booted.
+/// Why:
+/// A number alone names a process only until the process table reuses it,
+/// and a claim a removal left behind must not be held by a stranger that got the dead run's number.
+/// The start time is what tells the two apart:
+/// the kernel gives every process a distinct start time,
+/// and a reused number's process started later.
+/// This is the package's own liveness rule,
+/// beside `process_is_gone`,
+/// so one module decides what "the process that wrote this" means.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ProcessIdentity = { pid: number; started: number };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ProcessIdentity {
+    /// The process number.
+    pub(crate) pid: u32,
+    /// When it started,
+    /// in ticks since the machine booted;
+    /// zero where the platform cannot say,
+    /// which makes liveness a question about the number alone.
+    pub(crate) started: u64,
+}
+
+/// The ticks since boot a process started at,
+/// read from `/proc/<pid>/stat`,
+/// or `None` where that cannot be read.
+/// Why:
+/// The kernel writes the process's own name in parentheses in that file,
+/// and a name may hold spaces or parentheses,
+/// so the fields after it are counted from the last `)`.
+/// The 22nd field of the line is the start time,
+/// which is the 20th of the fields after that name.
+#[cfg(target_os = "linux")]
+fn process_started(pid: u32) -> Option<u64> {
+    let line: String = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let after_name: &str = line.rsplit_once(')')?.1;
+    return after_name.split_whitespace().nth(PROCESS_START_TIME_FIELD_AFTER_NAME)?.parse().ok();
+}
+
+/// The position of the start time among the fields `/proc/<pid>/stat` writes after the process's name.
+/// The name is field two of the line,
+/// the start time field twenty-two,
+/// and both are counted from one.
+#[cfg(target_os = "linux")]
+const PROCESS_START_TIME_FIELD_AFTER_NAME: usize = 19;
+
+/// The ticks since boot a process started at;
+/// no platform but Linux keeps the file that says.
+#[cfg(not(target_os = "linux"))]
+fn process_started(_pid: u32) -> Option<u64> {
+    return None;
+}
+
+/// What:
+/// The identity of the process `pid` now,
+/// or `None` when that number names no process.
+/// Why:
+/// A number the process table has not reused yet names one process,
+/// and reading its start time is what makes the identity exact.
+fn identity_of_pid(pid: u32) -> Option<ProcessIdentity> {
+    let started: u64 = process_started(pid)?;
+    return Some(ProcessIdentity { pid, started });
+}
+
+/// The identity of this process,
+/// or `None` where the process table cannot say when it started.
+/// A caller that gets `None` writes a claim whose owner can only be judged by its number.
+pub(crate) fn this_process() -> Option<ProcessIdentity> {
+    return identity_of_pid(std::process::id());
+}
+
+/// What:
+/// Whether the process `identity` names has ended:
+/// its number is unused,
+/// or a later process of that number holds it now.
+/// Why:
+/// A claim is given back only when nobody holds it,
+/// so a number the table cannot describe (another user's process,
+/// a kernel without `/proc`,
+/// a read that failed) is
+/// answered "not ended" and the claim stays;
+/// a postponement costs disk,
+/// and a released claim that a live run holds would cost the version.
+/// An identity that carries no start time (`0`) can be judged by its number alone,
+/// which is what the platforms without `/proc` have.
+pub(crate) fn process_has_ended(identity: &ProcessIdentity) -> bool {
+    if identity.started == 0 {
+        return process_is_gone(identity.pid);
+    }
+    return match identity_of_pid(identity.pid) {
+        Some(now) => now.started != identity.started,
+        // The number names no process any more, or the table cannot say: only the first is an ending.
+        None => process_is_gone(identity.pid),
+    };
+}
+
+/// What:
 /// Removes the temporaries a killed write left beside `target`,
 /// and leaves the ones whose process still runs.
 /// Why:

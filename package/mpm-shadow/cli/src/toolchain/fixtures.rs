@@ -13,6 +13,16 @@
 //! export function sampleLock(): Lock { ... }
 //! ```
 
+/// Imports `fs` from `std`.
+use std::fs;
+/// Imports `FileTimes` from `std::fs`.
+use std::fs::FileTimes;
+/// Imports what this module uses from `std::path`.
+use std::path::Path;
+/// Imports `Duration`,
+/// `SystemTime` from `std::time`.
+use std::time::{Duration, SystemTime};
+
 /// Imports what this module uses from `super::lock`.
 use super::lock::{Lock, render_lock};
 /// Imports what this module uses from `super::model`.
@@ -113,6 +123,24 @@ pub(crate) const SAMPLE_PLAN: &str = r#"{
   },
 }
 "#;
+
+/// What:
+/// Gives the file at `path` a write time `age` before now.
+/// Why:
+/// A removal keeps the downloaded archives of a version whose files are younger than
+/// `store_versions::DOWNLOAD_IN_USE_FLOOR`,
+/// because an install may still be unpacking them,
+/// so a test that wants a leftover archive removed has to make it old first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function ageFile(path: string, age: number): void
+/// ```
+pub(crate) fn age_file(path: &Path, age: Duration) {
+    let when: SystemTime = SystemTime::now() - age;
+    let file: fs::File = fs::File::options().write(true).open(path).expect("open the file to give it an age");
+    file.set_times(FileTimes::new().set_modified(when)).expect("set its write time");
+}
 
 /// The 64-character hash the fixture lock gives every artifact row.
 pub(crate) const SAMPLE_SHA256: &str = "439e9c438acdf6a6ffe47418da709153d66c4bed812e30a473faacb107dd2791";

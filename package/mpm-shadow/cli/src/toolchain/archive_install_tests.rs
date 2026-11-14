@@ -282,6 +282,8 @@ fn removing_the_downloads_of_one_version_never_touches_another_tools_with_a_simi
         let directory = tool_downloads_dir(&root, id, version).expect("a plain name");
         fs::create_dir_all(&directory).expect("make");
         fs::write(directory.join("file"), "x").expect("write");
+        // Older than the in-use floor: no install is unpacking these, so the removal may take them.
+        crate::toolchain::fixtures::age_file(&directory.join("file"), std::time::Duration::from_secs(2 * 60 * 60));
     }
     remove_downloads(&root, "a", "1-b").expect("removed");
     assert!(!tool_downloads_dir(&root, "a", "1-b").expect("a plain name").exists());

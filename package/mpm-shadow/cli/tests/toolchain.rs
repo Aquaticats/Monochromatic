@@ -506,18 +506,22 @@ const CLEANUP_CRATE: &str = "mpm-shadow-cleanup-fixture";
 /// The version the cleanup judges removable in the controls.
 const CLEANUP_OLD: &str = "1.0.0";
 
-/// The version a lock names, which the cleanup keeps.
+/// The version a lock names,
+/// which the cleanup keeps.
 const CLEANUP_NAMED: &str = "2.0.0";
 
-/// A worktree, a home and a store the cleanup controls own,
+/// A worktree,
+/// a home and a store the cleanup controls own,
 /// with a plan that declares no tool and the lock the binary itself wrote for it.
 struct Store {
-    /// The fixture directory, removed when the fixture drops.
+    /// The fixture directory,
+    /// removed when the fixture drops.
     directory: tempfile::TempDir,
 }
 
 impl Store {
-    /// A store whose worktree is a git repository, because the cleanup lists worktrees through git.
+    /// A store whose worktree is a git repository,
+    /// because the cleanup lists worktrees through git.
     fn new() -> Store {
         let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
         fs::create_dir_all(directory.path().join("home")).expect("make the home");
@@ -572,8 +576,10 @@ impl Store {
         }
     }
 
-    /// Writes the machine scope's lock, naming the fixture crate at `version`.
-    /// The machine scope keeps its lock in the config directory, not beside the store.
+    /// Writes the machine scope's lock,
+    /// naming the fixture crate at `version`.
+    /// The machine scope keeps its lock in the config directory,
+    /// not beside the store.
     fn name_in_the_machine_lock(&self, version: &str) {
         let directory = self.home().join(".config").join("monochromatic-dev").join("toolchain");
         fs::create_dir_all(&directory).expect("make the machine scope");
@@ -646,8 +652,10 @@ fn wait_until_present(path: &Path, deadline: std::time::Duration) -> bool {
 /// The review of 2026-11-14 found by reading that `store_trim`'s removal rechecks the version directory's write time
 /// and then renames whatever stands at that name to the removal marker;
 /// a `publish_staged` of another command that lands between the two was renamed away and deleted,
-/// which is a freshly installed version, possibly one a lock now names.
-/// The window is a few system calls, so this control holds the install's `rename` calls with `strace` and publishes
+/// which is a freshly installed version,
+/// possibly one a lock now names.
+/// The window is a few system calls,
+/// so this control holds the install's `rename` calls with `strace` and publishes
 /// the fresh copy while the cleanup is inside the window.
 #[test]
 fn a_version_another_run_publishes_while_the_cleanup_judges_it_is_never_removed() {
@@ -656,7 +664,17 @@ fn a_version_another_run_publishes_while_the_cleanup_judges_it_is_never_removed(
     store.write_version(CLEANUP_OLD, &["program"]);
     store.write_version(CLEANUP_NAMED, &["program"]);
     fs::create_dir_all(store.downloads(CLEANUP_OLD)).expect("make the downloads");
-    fs::write(store.downloads(CLEANUP_OLD).join("archive.tar.gz"), b"x").expect("write an archive");
+    let archive: PathBuf = store.downloads(CLEANUP_OLD).join("archive.tar.gz");
+    fs::write(&archive, b"x").expect("write an archive");
+    // Older than the in-use floor: no install is unpacking it, so the cleanup may move it aside, and the downloads
+    // marker this control waits for is the one that says the cleanup has begun.
+    let aged: std::time::SystemTime = std::time::SystemTime::now() - std::time::Duration::from_secs(2 * 60 * 60);
+    fs::File::options()
+        .write(true)
+        .open(&archive)
+        .expect("open the archive to give it an age")
+        .set_times(std::fs::FileTimes::new().set_modified(aged))
+        .expect("set its write time");
     // A removal an earlier run left unfinished: the pass runs even though this install installs nothing.
     fs::write(store.root().join(".mpm-shadow-removal-unfinished"), b"").expect("leave the marker the pass runs for");
     // The fresh copy the other command publishes at the version's name inside the window,
@@ -716,7 +734,8 @@ fn a_version_another_run_publishes_while_the_cleanup_judges_it_is_never_removed(
 }
 
 /// What:
-/// A `git` that never answers costs the install its worktree list within a stated bound, and nothing else:
+/// A `git` that never answers costs the install its worktree list within a stated bound,
+/// and nothing else:
 /// the cleanup keeps every version and says which read ran out of time.
 /// Why:
 /// The review of 2026-11-14 found that the install path runs `git worktree list` through a runner with no timeout,

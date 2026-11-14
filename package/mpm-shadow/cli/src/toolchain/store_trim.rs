@@ -60,6 +60,9 @@ use super::cargo_installs::{CURRENT_LINK_NAME, shell_word};
 use super::context::Context;
 /// Imports `Route` from `super::model`.
 use super::model::Route;
+/// Imports `remove_orphan_downloads` from `super::published_archive`,
+/// which owns where a version's archives are kept and what tells an install's use of them.
+use super::published_archive::remove_orphan_downloads;
 /// Imports `crate_of_entry` from `super::prune_cargo`,
 /// which reads a lock row's crate name the way the prune of unnamed cargo versions does.
 use super::prune_cargo::crate_of_entry;
@@ -69,16 +72,16 @@ use super::scope::{EnvMap, ScopeKind, global_scope};
 use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_reason};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
-    VersionDirectory, install_directory_name, leftover_downloads, tombstone_of, tombstones, tree_size,
+    VersionDirectory, downloads_in_use, install_directory_name, leftover_downloads, tombstone_of, tombstones, tree_size,
     version_directories,
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
-/// Imports `file_name_text` from `super::util`,
+/// Imports what this module uses from `super::util`:
+/// `file_name_text`,
 /// which spells a path's last name for the suffix a claim adds to it,
-/// and `process_is_gone`,
-/// which tells a claim a live run holds from one a kill left.
-use super::util::{file_name_text, process_is_gone};
+/// and the process identity that tells a claim a live run holds from one a kill left.
+use super::util::{ProcessIdentity, file_name_text, process_has_ended, this_process};
 
 /// Bytes in the next larger unit.
 const BYTES_PER_KIB: u64 = 1024;
@@ -703,6 +706,19 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
     if judged.written != Some(candidate.written) {
         return Err("another run wrote it while the cleanup ran".to_string());
     }
+    // What: a version whose downloads an install is writing stays, whoever asked for its removal.
+    // Why: the archives are that install's, and moving or deleting them fails it for a version this pass judged from
+    // a snapshot of the locks that is older than the install.
+    if let Some(downloads) = &candidate.downloads
+        && let Some(reason) = downloads_in_use(downloads)
+    {
+        return Err(format!("an install is using its downloads: {reason}"));
+    }
+    // What: the name the version will be moved to is chosen before anything moves.
+    // Why: a name that cannot be had keeps the version where it is, and the pass has written nothing to undo.
+    let Some(claimed) = claim_name_beside(&candidate.directory) else {
+        return Err("no free claim name is left beside it, so it is not moved aside".to_string());
+    };
     // What: the marker is written before the first rename.
     // Why: a run killed inside `remove_dir_all` leaves the marker, and the next install finishes the removal.
     let _ = fs::write(unfinished_marker(&candidate.root), b"");
@@ -724,7 +740,6 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
     // to a hidden name no scan judges and no recovery deletes.
     // Why: the move is one atomic step, so whatever another run put at that name is in hand and can be told from the
     // version that was judged; a check and then a move would delete whatever the second run published in between.
-    let claimed: PathBuf = claim_name_beside(&candidate.directory);
     match fs::rename(&candidate.directory, &claimed) {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {
@@ -803,45 +818,111 @@ impl JudgedVersion {
     }
 }
 
-/// The prefix of the hidden name a removal's one atomic move takes a version to.
-/// The rest is `<process id>.<attempt>.<version>`,
-/// so the recovery pass can name both.
+/// The first field of the hidden name a removal's one atomic move takes a version to.
 const CLAIM_PREFIX: &str = ".mpm-shadow-claimed.";
+
+/// The last field of that name,
+/// which is what tells it from the names of every other hidden entry.
+const CLAIM_SUFFIX: &str = ".claimed";
+
+/// How many names of one process this removal tries beside a version before it keeps the version instead.
+/// Why:
+/// A name is taken only by a claim the same process instance left for the same version,
+/// which a run that was killed and its own retry can each produce once;
+/// a store holding more than this many of them is one a person has to look at.
+const CLAIM_ATTEMPTS: u32 = 32;
+
+/// What:
+/// The name a removal gives the version directory it has taken out of the version's name:
+/// the version it holds,
+/// the process that took it,
+/// and which of that process's claims it is.
+/// Why:
+/// The name is written by the removal and read back by the recovery pass,
+/// so both ask this one definition and cannot disagree about which field holds what;
+/// a version that holds dots,
+/// dashes,
+/// plus signs or the word `claimed` is written between the prefix and the
+/// process's own three fields and read back as everything before them,
+/// so the encoding is exact for every version name the store can hold.
+/// The process's number alone would name a process only until the table reuses it,
+/// so the start time the kernel gives it is written beside the number:
+/// a reused number's process started later,
+/// and the claim's maker is then known to be gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ClaimedVersion = { version: string; maker: ProcessIdentity; attempt: number };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ClaimedVersion {
+    /// The version the claim holds,
+    /// as the version directory was named.
+    pub(crate) version: String,
+    /// The process that claimed it.
+    pub(crate) maker: ProcessIdentity,
+    /// Which claim of that process it is,
+    /// so two claims of one process can sit side by side.
+    pub(crate) attempt: u32,
+}
+
+/// The methods of `ClaimedVersion`.
+impl ClaimedVersion {
+    /// The name this claim is written under.
+    pub(crate) fn to_name(&self) -> String {
+        return format!(
+            "{CLAIM_PREFIX}{}.{}.{}.{}{CLAIM_SUFFIX}",
+            self.version, self.maker.pid, self.maker.started, self.attempt
+        );
+    }
+
+    /// The claim a name stands for,
+    /// or `None` for a name this build did not write.
+    pub(crate) fn parse(name: &str) -> Option<ClaimedVersion> {
+        let rest: &str = name.strip_prefix(CLAIM_PREFIX)?.strip_suffix(CLAIM_SUFFIX)?;
+        // The three fields this build writes are the last three, and the version is everything before them.
+        let mut fields = rest.rsplitn(4, '.');
+        let attempt: u32 = fields.next()?.parse().ok()?;
+        let started: u64 = fields.next()?.parse().ok()?;
+        let pid: u32 = fields.next()?.parse().ok()?;
+        let version: String = fields.next()?.to_string();
+        // A version names one directory: anything else would put the tree where it was never installed.
+        if version.is_empty() || version.starts_with('.') || version.contains('/') {
+            return None;
+        }
+        return Some(ClaimedVersion { version, maker: ProcessIdentity { pid, started }, attempt });
+    }
+}
+
+/// The identity this process writes its claims under:
+/// its number and the moment it started where the process table says,
+/// and its number alone where that cannot be read.
+fn claim_maker() -> ProcessIdentity {
+    return this_process().unwrap_or(ProcessIdentity { pid: std::process::id(), started: 0 });
+}
 
 /// What:
 /// A free hidden name beside `version_directory`,
-/// where the one atomic move of a removal takes it.
+/// where the one atomic move of a removal takes it,
+/// or `None` when every name this process would write is taken.
 /// Why:
 /// No scan lists a hidden name as a version,
 /// and the recovery pass finishes only the names it recognizes as a removal in progress,
 /// so a copy whose identity has not been compared yet is never a name that pass deletes.
-/// The process number in the name is what a later pass reads to tell a claim a live run holds from one a kill left.
-fn claim_name_beside(version_directory: &Path) -> PathBuf {
-    let name: String = file_name_text(version_directory);
-    for attempt in 0..8 {
-        let candidate: PathBuf =
-            version_directory.with_file_name(format!("{CLAIM_PREFIX}{}.{attempt}.{name}", std::process::id()));
+/// The maker's number and start time in the name are what a later pass reads to tell a claim a live run holds from
+/// one a kill left,
+/// and a made-up name is never a second shape a reader has to guess about.
+fn claim_name_beside(version_directory: &Path) -> Option<PathBuf> {
+    let version: String = file_name_text(version_directory);
+    let maker: ProcessIdentity = claim_maker();
+    for attempt in 0..CLAIM_ATTEMPTS {
+        let candidate: PathBuf = version_directory
+            .with_file_name(ClaimedVersion { version: version.clone(), maker, attempt }.to_name());
         if fs::symlink_metadata(&candidate).is_err() {
-            return candidate;
+            return Some(candidate);
         }
     }
-    return version_directory.with_file_name(format!("{CLAIM_PREFIX}{}.{name}", std::process::id()));
-}
-
-/// What:
-/// The process number and the version name a claimed directory's name carries,
-/// or `None` for a name this pass did not write.
-fn claim_of(name: &str) -> Option<(u32, String)> {
-    let rest: &str = name.strip_prefix(CLAIM_PREFIX)?;
-    let mut fields = rest.splitn(3, '.');
-    let pid: u32 = fields.next()?.parse().ok()?;
-    // The attempt only keeps two claims of one process apart; it is read so the shape is checked.
-    fields.next()?.parse::<u32>().ok()?;
-    let version: String = fields.next()?.to_string();
-    if version.is_empty() || version.starts_with('.') {
-        return None;
-    }
-    return Some((pid, version));
+    return None;
 }
 
 /// Puts the downloads moved aside for a version back under their name,
@@ -904,30 +985,34 @@ fn give_back_claimed(
     let Ok(entries) = fs::read_dir(&tool_directory) else {
         return;
     };
-    let mut abandoned: Vec<(String, PathBuf)> = Vec::new();
+    let mut abandoned: Vec<(ClaimedVersion, PathBuf)> = Vec::new();
     for entry in entries.flatten() {
         let name: String = entry.file_name().to_string_lossy().to_string();
-        let Some((pid, version)) = claim_of(&name) else {
+        let Some(claim) = ClaimedVersion::parse(&name) else {
             continue;
         };
-        // What: only a claim whose process is gone is given back.
-        // Why: the claim of a run that is still comparing is that run's to put back or to delete.
-        if process_is_gone(pid) {
-            abandoned.push((version, entry.path()));
+        // What: only a claim whose maker has ended is given back.
+        // Why: the claim of a run that is still comparing is that run's to put back or to delete,
+        // and the maker is its number and start time together,
+        // so a process that got a dead run's number does not hold a claim that run left.
+        if process_has_ended(&claim.maker) {
+            abandoned.push((claim, entry.path()));
         }
     }
-    abandoned.sort();
-    for (version, claimed) in abandoned {
+    abandoned.sort_by(compare_by_version);
+    for (claim, claimed) in abandoned {
         if run.started.elapsed() >= run.bounds.work_limit {
             unfinished.insert(root.to_path_buf());
             return;
         }
-        match fs::rename(&claimed, tool_directory.join(&version)) {
+        match fs::rename(&claimed, tool_directory.join(&claim.version)) {
             Ok(()) => lines.push(format!(
                 "mpm-shadow: gave back {} of {}, which a removal an earlier run started had taken out of its name",
-                version,
-                tool
+                claim.version, tool
             )),
+            // Another pass gave this one back a moment before this one reached it:
+            // the version is where it belongs, and nothing here failed.
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
             Err(error) => {
                 unfinished.insert(root.to_path_buf());
                 lines.push(format!(
@@ -937,6 +1022,12 @@ fn give_back_claimed(
             }
         }
     }
+}
+
+/// Orders two abandoned claims by the version they hold,
+/// so the pass gives them back in one order every time.
+fn compare_by_version(left: &(ClaimedVersion, PathBuf), right: &(ClaimedVersion, PathBuf)) -> std::cmp::Ordering {
+    return left.0.version.cmp(&right.0.version);
 }
 
 /// What:
@@ -1176,6 +1267,13 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
             "mpm-shadow: removed no toolchain version: {reason}; every version is kept until the locks can be read"
         ));
     } else if !tools.is_empty() {
+        // What: the archives of versions this root no longer has installed go, once nothing has touched them for the
+        // in-use floor.
+        // Why: a removal keeps an archive an install is still unpacking, and a run killed between removing a version
+        // and removing its archives leaves them; nothing else reads a downloads directory whose version is gone.
+        for root in &roots {
+            lines.extend(remove_orphan_downloads(root, &tools, run.started + bounds.work_limit));
+        }
         let holders: StoreHolders = holders_of(&roots, run.started + bounds.work_limit);
         let installed_set: BTreeSet<(String, String)> = installed.iter().cloned().collect();
         let links: BTreeMap<(PathBuf, String), String> = current_links(&roots, &tools);

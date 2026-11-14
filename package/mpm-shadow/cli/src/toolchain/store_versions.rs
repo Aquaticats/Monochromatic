@@ -31,8 +31,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
-/// Imports `SystemTime` and `UNIX_EPOCH` from `std::time`.
-use std::time::{SystemTime, UNIX_EPOCH};
+/// Imports `Duration`,
+/// `SystemTime` and `UNIX_EPOCH` from `std::time`.
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Imports `Value` from `serde_json`,
 /// which reads the size records.
@@ -64,10 +65,13 @@ pub const IN_FLIGHT_DOWNLOAD_SUFFIX: &str = ".download";
 /// The file in a store root that records what each version directory weighed when it was last measured:
 /// `.mpm-shadow-version-sizes.json`.
 /// Why:
-/// Measuring a store costs 9.3 s on this machine (103 version directories, 54.5 GiB, read on 2026-11-13),
+/// Measuring a store costs 9.3 s on this machine (103 version directories,
+/// 54.5 GiB,
+/// read on 2026-11-13),
 /// and a pass that reads the records instead takes 1 ms,
 /// and a version directory's own write time changes exactly when its content changes (`install` renames a finished
-/// tree into place, so the whole version arrives as one rename),
+/// tree into place,
+/// so the whole version arrives as one rename),
 /// so one `stat` per version tells whether the recorded size still holds.
 ///
 /// In TS you'd write (pseudocode):
@@ -199,7 +203,8 @@ pub struct VersionDirectory {
     /// The directory holding the archives downloaded for this version,
     /// when the store keeps any.
     pub downloads: Option<PathBuf>,
-    /// The size the version and its downloads weigh, in bytes.
+    /// The size the version and its downloads weigh,
+    /// in bytes.
     pub bytes: u64,
     /// When the version directory was last written.
     pub written: SystemTime,
@@ -212,7 +217,8 @@ pub struct LeftoverDownload {
     pub tool: String,
     /// The file.
     pub file: PathBuf,
-    /// The size it weighs, in bytes.
+    /// The size it weighs,
+    /// in bytes.
     pub bytes: u64,
     /// When it was last written.
     pub written: SystemTime,
@@ -229,7 +235,8 @@ pub struct LeftoverDownload {
 /// A work stack walks the tree:
 /// a deep directory cannot overflow the call stack.
 /// Anything that cannot be read counts as nothing:
-/// the size is what a bound is compared with, never a reason to remove something.
+/// the size is what a bound is compared with,
+/// never a reason to remove something.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -254,6 +261,57 @@ pub fn tree_size(path: &Path) -> u64 {
         total = total.saturating_add(metadata.len());
     }
     return total;
+}
+
+/// What:
+/// The longest a downloaded file may go untouched and still belong to an install that is using it:
+/// one hour.
+/// Why:
+/// An install downloads an archive and then unpacks it,
+/// and until the unpack ends another command must not take the file away.
+/// The working file shows that a download is running,
+/// but a finished download waiting to be unpacked looks like a leftover,
+/// so the age is what tells the two apart:
+/// the client gives up on a download whose bytes stop for `http::DOWNLOAD_IDLE_TIMEOUT_SECONDS` (60 s),
+/// a whole download is bounded by `http::DOWNLOAD_TOTAL_TIMEOUT_SECONDS` (30 min),
+/// and unpacking reads the file for seconds to a minute,
+/// so no install needs a file it has not touched for an hour.
+/// An install whose process was stopped for longer than this can lose its download to it,
+/// and it reports that download as failed and installs again.
+pub const DOWNLOAD_IN_USE_FLOOR: Duration = Duration::from_secs(60 * 60);
+
+/// What:
+/// Why an install is using this downloads directory now,
+/// or `None` when nothing in it belongs to one.
+/// Why:
+/// Two removals ask this before they take a version's archives away,
+/// the newest-only removal and the size- and write-time cleanup,
+/// and both must answer it the same way:
+/// a directory whose files are younger than `DOWNLOAD_IN_USE_FLOOR` is one an install is writing or unpacking,
+/// and the version it belongs to is in use.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function downloadsInUse(downloads: string): string | undefined
+/// ```
+pub fn downloads_in_use(downloads: &Path) -> Option<String> {
+    let Ok(entries) = fs::read_dir(downloads) else {
+        return None;
+    };
+    let now: SystemTime = SystemTime::now();
+    for entry in entries.flatten() {
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        let Ok(written) = metadata.modified() else {
+            continue;
+        };
+        let age: Duration = now.duration_since(written).unwrap_or(Duration::ZERO);
+        if age < DOWNLOAD_IN_USE_FLOOR {
+            return Some(format!("{} was written {} s ago", entry.path().display(), age.as_secs()));
+        }
+    }
+    return None;
 }
 
 /// The directory holding the archives downloaded for one version of one tool.

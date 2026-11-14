@@ -29,10 +29,11 @@ use std::time::{Duration, Instant, SystemTime};
 
 /// Imports the module under test.
 use crate::toolchain::store_trim::{
-    DEFAULT_SIZE_BOUND_BYTES, TrimBounds, TrimCandidate, TrimPlan, TrimRun, TrimStep, apply_trim, candidates_of,
-    DEFAULT_AGE_FLOOR_SECONDS, TrimOutcome, finish_removals, format_age, has_unfinished_removal, parse_duration,
-    parse_size, plan_trim, read_named_versions, settle_markers, unfinished_marker,
+    ClaimedVersion, DEFAULT_SIZE_BOUND_BYTES, TrimBounds, TrimCandidate, TrimPlan, TrimRun, TrimStep, apply_trim,
+    candidates_of, DEFAULT_AGE_FLOOR_SECONDS, TrimOutcome, finish_removals, format_age, has_unfinished_removal,
+    parse_duration, parse_size, plan_trim, read_named_versions, settle_markers, unfinished_marker,
 };
+use crate::toolchain::util::{ProcessIdentity, this_process};
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, tombstone_of};
 use crate::test_scratch::scratch;
 
@@ -414,11 +415,73 @@ fn finishes_a_removal_cut_short() {
 /// for the name of a claim a killed removal left.
 const A_PROCESS_NUMBER_NO_MACHINE_HAS: u32 = u32::MAX - 1;
 
-/// The claimed name a removal killed at `pid` left for `version` of a tool.
-/// The shape is the one `claim_name_beside` writes,
-/// which is what the pass reads back.
-fn claimed_name(version: &str, pid: u32) -> String {
-    return format!(".mpm-shadow-claimed.{pid}.0.{version}");
+/// The claimed name a removal killed at `pid` left for `version` of a tool,
+/// spelled the way the review wrote it out:
+/// the version,
+/// the process's number and start time,
+/// and which claim of that process it is.
+/// The spelling is deliberate here rather than taken from the code,
+/// so a change to the shape has to change this line too.
+fn claimed_name(version: &str, pid: u32, started: u64) -> String {
+    return format!(".mpm-shadow-claimed.{version}.{pid}.{started}.0.claimed");
+}
+
+/// What:
+/// The name a removal writes and the name the recovery pass reads are one definition,
+/// and a version comes back out of it exactly as it went in,
+/// whatever it holds.
+/// Why:
+/// The two halves disagreed once:
+/// the writer fell back to a name with one field fewer than the reader expected,
+/// so a killed removal's dotted version came back under a made-up name (`26.11.0` as `11.0`)
+/// and a plain number was never given back at all.
+/// A version can hold dots,
+/// dashes,
+/// plus signs,
+/// underscores and the word `claimed`,
+/// so the encoding has to be exact for every one of them.
+#[test]
+fn a_claim_name_reads_back_as_the_version_it_was_written_with() {
+    let awkward: [&str; 13] = [
+        "26.11.0",
+        "1",
+        "123",
+        "v1.2.3",
+        "0.4.5-alpha.9",
+        "1.0.0+build.7",
+        "2024.01.01-rc.1+build-5",
+        "9.9.9_1",
+        "a.b.c",
+        "x",
+        "1.2.3.4.5.6.7",
+        "26.11.0.claimed",
+        "nightly-2026-11-14",
+    ];
+    let maker: ProcessIdentity = ProcessIdentity { pid: A_PROCESS_NUMBER_NO_MACHINE_HAS, started: 123456 };
+    for version in awkward {
+        for attempt in [0u32, 7, u32::MAX] {
+            let written: ClaimedVersion = ClaimedVersion { version: version.to_string(), maker, attempt };
+            let name: String = written.to_name();
+            assert_eq!(ClaimedVersion::parse(&name), Some(written.clone()), "{name} did not read back");
+            assert!(!name.contains('/'), "{name} is not one directory name");
+        }
+    }
+}
+
+/// What:
+/// A claim another build of this branch wrote under its two-field name is not read as one version or another:
+/// the pass leaves it where it is.
+/// Why:
+/// That name is `.mpm-shadow-claimed.<process number>.<version>`,
+/// which cannot be told from a version that begins with a number and a dot
+/// (`.mpm-shadow-claimed.26.11.0` is version `26.11.0` or process `26` and version `11.0`),
+/// and restoring a version under a name it did not have is worse than leaving it for a person to move back.
+#[test]
+fn a_claim_an_older_build_wrote_is_left_where_it_is() {
+    let older_shapes: [&str; 2] = [".mpm-shadow-claimed.4294967294.26.11.0", ".mpm-shadow-claimed.4294967294.0.26.11.0"];
+    for name in older_shapes {
+        assert_eq!(ClaimedVersion::parse(name), None, "{name} was read as a claim of this build");
+    }
 }
 
 /// What:
@@ -433,7 +496,10 @@ fn claimed_name(version: &str, pid: u32) -> String {
 fn gives_back_a_version_a_killed_removal_took_out_of_its_name() {
     let fixture = Fixture::new();
     let version: PathBuf = fixture.root.join("node/26.11.0");
-    let claimed: PathBuf = fixture.root.join("node").join(claimed_name("26.11.0", A_PROCESS_NUMBER_NO_MACHINE_HAS));
+    let claimed: PathBuf = fixture
+        .root
+        .join("node")
+        .join(claimed_name("26.11.0", A_PROCESS_NUMBER_NO_MACHINE_HAS, 987_654));
     fs::rename(&version, &claimed).expect("leave the claim a kill leaves");
     let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
 
@@ -448,12 +514,13 @@ fn gives_back_a_version_a_killed_removal_took_out_of_its_name() {
 }
 
 /// The claim of a run that is still working is that run's own:
-/// the pass reads the process number in the name and leaves it alone.
+/// the pass reads the process's number and start time in the name and leaves it alone.
 #[test]
 fn leaves_the_claim_of_a_run_that_is_still_working() {
     let fixture = Fixture::new();
     let version: PathBuf = fixture.root.join("node/26.12.0");
-    let claimed: PathBuf = fixture.root.join("node").join(claimed_name("26.12.0", std::process::id()));
+    let maker: ProcessIdentity = this_process().expect("this process's start time is readable");
+    let claimed: PathBuf = fixture.root.join("node").join(claimed_name("26.12.0", maker.pid, maker.started));
     fs::rename(&version, &claimed).expect("move the version to the claim of this process");
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
@@ -463,6 +530,96 @@ fn leaves_the_claim_of_a_run_that_is_still_working() {
     assert!(unfinished.is_empty(), "{unfinished:?}");
     assert!(claimed.exists(), "the claim of a live run was touched");
     assert!(!version.exists());
+}
+
+/// What:
+/// A claim whose process number a later process took is given back:
+/// the claim names the run that made it by its start time too,
+/// so a stranger holding the dead run's number does not
+/// hold its claim.
+/// Why:
+/// The review of this change noted that a reused number postpones the recovery for as long as the new process lives,
+/// and a service that keeps a number makes that indefinite.
+#[test]
+fn gives_back_a_claim_whose_process_number_a_later_process_took() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let maker: ProcessIdentity = this_process().expect("this process's start time is readable");
+    // This process's number, and a start time no process with that number has: the number was reused after the kill.
+    let claimed: PathBuf = fixture
+        .root
+        .join("node")
+        .join(claimed_name("26.11.0", maker.pid, maker.started.saturating_add(1)));
+    fs::rename(&version, &claimed).expect("leave the claim a killed removal left");
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+
+    let (lines, unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+
+    assert!(unfinished.is_empty(), "{unfinished:?}");
+    assert!(version.join("program").is_file(), "the version was not given back");
+    assert!(!claimed.exists(), "the claim is still there");
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert!(lines[0].contains("gave back 26.11.0"), "{lines:?}");
+}
+
+/// What:
+/// Two passes that recover one claim at once say nothing false and leave no unfinished marker:
+/// the pass that loses the rename finds the claim gone,
+/// which is the state it wanted.
+/// Why:
+/// The review of this change ran this race 300 times in 300 rounds and every round printed
+/// "kept ... cannot be given back:
+/// No such file or directory" from the losing pass and marked the root unfinished.
+/// The store is shared by every worktree,
+/// so two installs reach this pass together.
+#[test]
+fn two_recoveries_of_one_claim_at_once_say_nothing_false() {
+    let fixture = Fixture::new();
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+    let rounds: u32 = 20;
+    let claims: u32 = 40;
+    for round in 0..rounds {
+        let root: PathBuf = fixture.root.join(format!("node-round-{round}"));
+        let tool_directory: PathBuf = root.join("node");
+        fs::create_dir_all(&tool_directory).expect("make the tool directory");
+        for claim in 0..claims {
+            let version: String = format!("1.0.{claim}");
+            let claimed: PathBuf = tool_directory.join(claimed_name(&version, A_PROCESS_NUMBER_NO_MACHINE_HAS, 987_654));
+            fs::create_dir_all(&claimed).expect("leave a claim");
+            fs::write(claimed.join("program"), b"bytes").expect("write the version's program");
+        }
+        let barrier: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let mut passes: Vec<std::thread::JoinHandle<(Vec<String>, BTreeSet<PathBuf>)>> = Vec::new();
+        for _pass in 0..2 {
+            let pass_root: PathBuf = root.clone();
+            let pass_tools: BTreeSet<String> = tools.clone();
+            let pass_barrier: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&barrier);
+            passes.push(std::thread::spawn(move || {
+                pass_barrier.wait();
+                return finish_removals(std::slice::from_ref(&pass_root), &pass_tools, &fixture_run());
+            }));
+        }
+        for pass in passes {
+            let (lines, unfinished) = pass.join().expect("the pass finished");
+            for line in &lines {
+                assert!(!line.contains("cannot be given back"), "a pass reported work the other pass did: {line}");
+            }
+            assert!(unfinished.is_empty(), "a pass marked {} unfinished, with nothing left to do", unfinished.len());
+        }
+        // Control: every claim was given back exactly once, so the rounds are not passing on an empty pass.
+        for claim in 0..claims {
+            assert!(tool_directory.join(format!("1.0.{claim}")).join("program").is_file(), "version 1.0.{claim} is not back");
+        }
+    }
+}
+
+/// A pass's run for the concurrency control,
+/// with a work limit that fits every claim of one round.
+fn fixture_run() -> TrimRun {
+    return TrimRun {
+        bounds: TrimBounds { size_bound_bytes: 0, age_floor: Duration::ZERO, work_limit: Duration::from_secs(60) },
+        started: Instant::now(),
+    };
 }
 
 /// The removal marker is what makes the next install run the pass,
@@ -524,6 +681,8 @@ fn removes_the_downloads_of_the_version_it_removes() {
     let downloads: PathBuf = fixture.root.join("downloads/node/26.11.0");
     fs::create_dir_all(&downloads).expect("make the downloads directory");
     fs::write(downloads.join("node.tar.gz"), vec![b'z'; 40]).expect("write the archive");
+    // Older than the in-use floor: no install is unpacking it, so the removal may take it.
+    crate::toolchain::fixtures::age_file(&downloads.join("node.tar.gz"), Duration::from_secs(2 * 60 * 60));
     let candidates: Vec<TrimCandidate> = fixture.candidates();
     let judged: TrimCandidate = candidates
         .iter()
@@ -715,3 +874,41 @@ fn replays_a_real_store_listing() {
 }
 
 //endregion replaying a real store's listing
+
+/// What:
+/// A version whose downloads an install is unpacking stays,
+/// with the file the install is reading,
+/// and the line says why.
+/// Why:
+/// The size- and write-time cleanup judges a version from a snapshot of the locks and the process table,
+/// and a command in another worktree may start installing that very version after the snapshot was read;
+/// moving its downloads aside fails that install.
+#[test]
+fn keeps_a_version_whose_downloads_an_install_is_unpacking() {
+    let fixture = Fixture::new();
+    let downloads: PathBuf = fixture.root.join("downloads/node/26.11.0");
+    fs::create_dir_all(&downloads).expect("make the downloads directory");
+    let in_flight: PathBuf = downloads.join("node-v26.11.0.tar.gz");
+    fs::write(&in_flight, vec![b'z'; 40]).expect("write the archive an install is unpacking");
+    let held: fs::File = fs::File::open(&in_flight).expect("hold the archive open, as the install does");
+    let candidates: Vec<TrimCandidate> = fixture.candidates();
+    let judged: TrimCandidate = candidates
+        .iter()
+        .find(|found| return found.version == "26.11.0")
+        .expect("the oldest version is scanned")
+        .clone();
+    let plan: TrimPlan = TrimPlan { total_bytes: judged.bytes, over_bound: true, steps: vec![TrimStep::Remove(judged)] };
+
+    let outcome = apply_trim(&plan, &fixture.run());
+
+    assert_eq!(outcome.removed, 0, "{:?}", outcome.lines);
+    assert!(fixture.root.join("node/26.11.0").join("program").is_file(), "the version was removed under an install");
+    assert!(in_flight.is_file(), "the archive an install is unpacking was taken");
+    assert_eq!(fs::read(&in_flight).expect("read it back, as the install does next"), vec![b'z'; 40]);
+    assert!(
+        outcome.lines.iter().any(|line| return line.contains("an install is using its downloads")),
+        "{:?}",
+        outcome.lines
+    );
+    drop(held);
+}
