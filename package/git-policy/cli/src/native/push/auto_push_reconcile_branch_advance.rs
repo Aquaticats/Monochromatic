@@ -275,6 +275,31 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
 }
 
 /// What:
+///  The worktree's own Git directory,
+/// or nothing when Git names none.
+/// Why:
+///   An intent record is written in the Git directory of the worktree it is about,
+/// so the command that reads it is the one in that worktree;
+///  the directory comes from Git's bytes and not from their text,
+/// because a path that is not text names another directory,
+///  or none,
+/// when it is read as text.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gitDir = await git(['rev-parse', '--absolute-git-dir']); // the bytes, not the text
+/// ```
+pub(crate) async fn absolute_git_dir_awaiting(git: &PushGit) -> Result<Option<PathBuf>, SingleFlightError> {
+    let named = run_query_awaiting(git, &argv(&["rev-parse", "--absolute-git-dir"])).await?;
+    // Git prints the directory's bytes and ends them with one line break that belongs to no path.
+    let printed: &[u8] = named.stdout.strip_suffix(b"\n".as_slice()).unwrap_or(named.stdout.as_slice());
+    if named.code != Some(0) {
+        return Ok(None);
+    }
+    return Ok(Some(PathBuf::from(crate::path_bytes::os_from_path_bytes(printed))));
+}
+
+/// What:
 ///  Git's fast-forward to the published merge,
 /// with an intent record written first and settled after,
 /// so a branch that moved in
@@ -299,13 +324,7 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
 /// const refusal = await fastForwardRecorded({ git, branchRef, local, mergeOid }); // undefined when it moved
 /// ```
 pub(crate) async fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local: &str, merge_oid: &str, move_branch: &dyn BranchMove) -> Result<Result<Checkout, String>, SingleFlightError> {
-    let git_dir: Option<PathBuf> = {
-        let named = run_query_awaiting(git, &argv(&["rev-parse", "--absolute-git-dir"])).await?;
-        // Git prints the directory's bytes and ends them with one line break that belongs to no path, so the record is
-        //  written in the worktree a path that is not text names and not in a directory made from its text.
-        let printed: &[u8] = named.stdout.strip_suffix(b"\n".as_slice()).unwrap_or(named.stdout.as_slice());
-        if named.code == Some(0) { Some(PathBuf::from(crate::path_bytes::os_from_path_bytes(printed))) } else { None }
-    };
+    let git_dir: Option<PathBuf> = absolute_git_dir_awaiting(git).await?;
     let mut recorded: Option<(PathBuf, MergeIntent)> = None;
     if let Some(dir) = git_dir.as_deref() {
         recorded = record_merge_intent(dir, git, branch_ref, local, merge_oid);

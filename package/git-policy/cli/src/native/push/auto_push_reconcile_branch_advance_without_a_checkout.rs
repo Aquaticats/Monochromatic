@@ -32,13 +32,16 @@ use crate::auto_push_single_flight::{
 };
 use crate::auto_push_dirty_paths::status_paths;
 /// The answers a move gives, the words of a refusal, and the steps both moves share.
-use crate::auto_push_reconcile_branch_advance::{Advanced, BRANCH_MOVED, Brought, advice_to_move, refusal_of};
+use crate::auto_push_reconcile_branch_advance::{
+    Advanced, BRANCH_MOVED, Brought, absolute_git_dir_awaiting, advice_to_move, record_merge_intent, refusal_of,
+};
 /// The repair that writes only what the index proves is the move's own content.
-use crate::auto_push_reconcile_branch_checkout::bring_the_checkout_to_its_branch_awaiting;
+use crate::auto_push_reconcile_branch_checkout::{bring_the_checkout_to_its_branch_awaiting, shown_branch_awaiting};
 use crate::auto_push_reconcile_branch_worktree::{git_at, live_holder_awaiting};
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
 use crate::diagnostic_log::debug;
 use crate::inner_git_words::record_streams;
+use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -153,30 +156,63 @@ async fn finish_the_checkout_that_raced_the_move(
     merge_oid: &str,
 ) -> Result<Advanced, SingleFlightError> {
     let named: String = format!("the worktree at {}", place.display());
-    let where_to: String = format!("in {named}");
     let there: PushGit = git_at(git, place);
-    let checked_out = run_query_awaiting(&there, &argv(&["symbolic-ref", "--quiet", "HEAD"])).await?;
-    if checked_out.code != Some(0) || String::from_utf8_lossy(&checked_out.stdout).trim() != branch_ref {
-        return Ok(Advanced::Not {
-            reason: format!("{named} checked out another branch while the merge was published"),
-            advice: advice_to_move(merge_oid, where_to.as_str()),
+    #[cfg(test)]
+    play_in_the_window(Window::BeforeTheRepairReads);
+    let shows: Option<String> = shown_branch_awaiting(&there).await?;
+    if shows.as_deref() != Some(branch_ref) {
+        // What: the branch is at the merge, and this checkout went elsewhere inside the window.
+        // Why: the reference has already moved, so this is not a branch that stayed behind, and the answer must not say
+        //      so nor advise `git merge --ff-only`, which is a no-op there
+        //      (a review of commit `c15fc5a7b1`, its finding 4).
+        return Ok(Advanced::WorktreeHolding {
+            worktree: place.to_path_buf(),
+            shows,
+            paths: Vec::new(),
+            reason: format!("{named} checked another branch out while {branch_ref} moved, so it holds nothing of the merge"),
         });
     }
     let head = run_query_awaiting(&there, &argv(&["rev-parse", "--verify", "HEAD^{commit}"])).await?;
     if head.code != Some(0) || String::from_utf8_lossy(&head.stdout).trim() != merge_oid {
-        return Ok(Advanced::Not {
-            reason: String::from(BRANCH_MOVED),
-            advice: advice_to_move(merge_oid, where_to.as_str()),
+        return Ok(Advanced::WorktreeHolding {
+            worktree: place.to_path_buf(),
+            shows: Some(branch_ref.to_owned()),
+            paths: Vec::new(),
+            reason: format!("{named} moved off the merge while {branch_ref} was moved, so it holds nothing of it"),
         });
     }
+    // What: the record of this repair, written before it starts and kept unless the repair finished.
+    // Why: the worktree moves write one for the same reason, and a kill inside this repair (a `read-tree` that wrote some
+    //      of its paths, a process ended between two of them) would otherwise leave a checkout whose next commit records a
+    //      reversal of the published merge, with nothing for a later command to find
+    //      (a review of commit `c15fc5a7b1`, its finding 3).
+    let git_dir: Option<PathBuf> = absolute_git_dir_awaiting(&there).await?;
+    let recorded: Option<(PathBuf, MergeIntent)> = match git_dir.as_deref() {
+        Some(dir) => record_merge_intent(dir, &there, branch_ref, local, merge_oid),
+        None => None,
+    };
+    #[cfg(test)]
+    play_in_the_window(Window::AfterTheRecord);
     let brought: Brought = match bring_the_checkout_to_its_branch_awaiting(&there, branch_ref, local, merge_oid).await {
         Ok(brought) => brought,
         Err(error) => Brought::Left { paths: Vec::new(), reason: format!("{named} could not be read: {error}") },
     };
+    if let Some((record, _)) = recorded.as_ref()
+        && brought == Brought::Right
+    {
+        // The repair finished, so there is nothing left for a later command to settle.
+        if let Err(error) = remove_merge_intent(record.as_path()) {
+            debug(TAG, &format!("the merge record could not be removed: {error}"));
+        }
+    }
+    // What: the branch the checkout shows is read again, after the repair, and never reused from before it.
+    // Why: a switch landing inside the repair leaves the report naming a branch the worktree no longer shows
+    //      (a review of commit `c15fc5a7b1`, its finding 5).
+    let shows_now: Option<String> = shown_branch_awaiting(&there).await?;
     if let Brought::Left { paths, reason } = brought {
         return Ok(Advanced::WorktreeHolding {
             worktree: place.to_path_buf(),
-            shows: Some(branch_ref.to_owned()),
+            shows: shows_now,
             paths,
             reason: format!("{named} took {branch_ref} while its reference moved, and its files there are older than the merge: {reason}"),
         });
@@ -186,7 +222,7 @@ async fn finish_the_checkout_that_raced_the_move(
     if status.code != Some(0) {
         return Ok(Advanced::WorktreeHolding {
             worktree: place.to_path_buf(),
-            shows: Some(branch_ref.to_owned()),
+            shows: shows_now,
             paths: Vec::new(),
             reason: format!("the status of {named} could not be read after its files were brought to the merge"),
         });
@@ -212,13 +248,17 @@ pub(crate) enum Window {
     BeforeTheWrite,
     /// After the reference's compare-and-swap, before the worktree listing is read again.
     AfterTheWrite,
+    /// The listing has named the worktree that took the branch, before the repair reads it.
+    BeforeTheRepairReads,
+    /// The record of the repair is written, before the repair writes anything.
+    AfterTheRecord,
 }
 
 // The step a control plays inside a window, as a `git worktree add` of the branch finishing there; nothing outside a control.
 #[cfg(test)]
 thread_local! {
     /// The steps of the controls running on this thread, one per window.
-    static IN_THE_WINDOW: std::cell::RefCell<[Option<Box<dyn Fn()>>; 2]> = const { std::cell::RefCell::new([None, None]) };
+    static IN_THE_WINDOW: std::cell::RefCell<[Option<Box<dyn Fn()>>; 4]> = const { std::cell::RefCell::new([None, None, None, None]) };
 }
 
 /// Plays `step` in `window` until the guard drops.
@@ -227,6 +267,8 @@ pub(crate) fn in_the_window_in_a_control(window: Window, step: impl Fn() + 'stat
     let slot: usize = match window {
         Window::BeforeTheWrite => 0,
         Window::AfterTheWrite => 1,
+        Window::BeforeTheRepairReads => 2,
+        Window::AfterTheRecord => 3,
     };
     IN_THE_WINDOW.with(|steps| {
         steps.borrow_mut()[slot] = Some(Box::new(step));
@@ -247,6 +289,8 @@ impl Drop for WindowGuard {
         let slot: usize = match self.window {
             Window::BeforeTheWrite => 0,
             Window::AfterTheWrite => 1,
+            Window::BeforeTheRepairReads => 2,
+            Window::AfterTheRecord => 3,
         };
         IN_THE_WINDOW.with(|steps| {
             steps.borrow_mut()[slot] = None;
@@ -261,6 +305,8 @@ fn play_in_the_window(window: Window) {
     let slot: usize = match window {
         Window::BeforeTheWrite => 0,
         Window::AfterTheWrite => 1,
+        Window::BeforeTheRepairReads => 2,
+        Window::AfterTheRecord => 3,
     };
     // The step borrows nothing of the caller, so it runs here rather than through a reference that would hold the borrow.
     let played: Option<Box<dyn Fn()>> = IN_THE_WINDOW.with(|steps| {

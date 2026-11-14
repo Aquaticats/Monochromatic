@@ -82,7 +82,7 @@ pub(crate) enum Checkout {
 /// ```ts
 /// const shows = await git(['symbolic-ref','--quiet','HEAD']); // undefined for a detached HEAD
 /// ```
-async fn shows_awaiting(git: &PushGit) -> Result<Option<String>, SingleFlightError> {
+pub(crate) async fn shows_awaiting(git: &PushGit) -> Result<Option<String>, SingleFlightError> {
     let asked = run_query_awaiting(git, &argv(&["symbolic-ref", "--quiet", "HEAD"])).await?;
     if asked.code != Some(0) {
         return Ok(None);
@@ -174,6 +174,7 @@ async fn the_paths_held_unlike_the_branch_awaiting(
 /// ```ts
 /// type Brought = { kind: 'right' } | { kind: 'left'; paths: Uint8Array[]; reason: string };
 /// ```
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) enum Brought {
     /// The checkout agrees with the branch it shows on the paths this move wrote.
     Right,
@@ -224,6 +225,8 @@ pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(
     if the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?.is_empty() {
         return Ok(Brought::Right);
     }
+    #[cfg(test)]
+    play_in_the_window(Window::WhileTheCheckoutIsRepaired);
     let mut refusal: String = String::new();
     for _attempt in 0..2 {
         let shows: Option<String> = shows_awaiting(git).await?;
@@ -278,13 +281,15 @@ pub(crate) enum Window {
     BeforeTheBranchMoves,
     /// Between the write of the reference and the look that puts the checkout right.
     AfterTheBranchMoved,
+    /// Inside the repair, after the paths it would write are read and before it writes any of them.
+    WhileTheCheckoutIsRepaired,
 }
 
 // The step a control plays in one of those instants, as another command finishing there; nothing outside a control.
 #[cfg(test)]
 thread_local! {
     /// The steps of the controls running on this thread, one per window.
-    static IN_THE_WINDOW: std::cell::RefCell<[Option<Box<dyn Fn()>>; 2]> = const { std::cell::RefCell::new([None, None]) };
+    static IN_THE_WINDOW: std::cell::RefCell<[Option<Box<dyn Fn()>>; 3]> = const { std::cell::RefCell::new([None, None, None]) };
 }
 
 /// The slot of one window in the thread's list.
@@ -293,6 +298,7 @@ fn slot_of(window: Window) -> usize {
     return match window {
         Window::BeforeTheBranchMoves => 0,
         Window::AfterTheBranchMoved => 1,
+        Window::WhileTheCheckoutIsRepaired => 2,
     };
 }
 
@@ -345,6 +351,16 @@ pub(crate) fn play_in_the_window(window: Window) {
 }
 
 /// What:
+///  The branch a worktree shows, or nothing for a detached commit,
+/// as the move's answers read it.
+/// Why:
+///   Two paths write a checkout and both must say which branch it shows at the end,
+/// so the question is asked in one place.
+pub(crate) async fn shown_branch_awaiting(git: &PushGit) -> Result<Option<String>, SingleFlightError> {
+    return shows_awaiting(git).await;
+}
+
+/// What:
 ///  Look at the checkout after the reference moved and answer what became of it.
 /// Why:
 ///   The reference's move is the last step that can race a switch,
@@ -360,17 +376,17 @@ pub(crate) async fn the_checkout_after_the_move_awaiting(
     local: &str,
     merge_oid: &str,
 ) -> Result<Checkout, SingleFlightError> {
-    let shows: Option<String> = shows_awaiting(git).await?;
     #[cfg(test)]
     play_in_the_window(Window::AfterTheBranchMoved);
     let brought: Brought = match bring_the_checkout_to_its_branch_awaiting(git, branch_ref, local, merge_oid).await {
         Ok(brought) => brought,
         Err(error) => Brought::Left { paths: Vec::new(), reason: format!("the checkout could not be read: {error}") },
     };
-    let shows_now: Option<String> = match shows {
-        Some(found) => Some(found),
-        None => shows_awaiting(git).await?,
-    };
+    // What: the branch the checkout shows is read after the repair, never reused from before it.
+    // Why: a switch landing inside the repair leaves the report naming a branch the worktree no longer shows, which is a
+    //      wrong report although every write stayed content-guarded
+    //      (a review of commit `c15fc5a7b1`, its finding 5).
+    let shows_now: Option<String> = shows_awaiting(git).await?;
     return Ok(match brought {
         Brought::Right => match shows_now.as_deref() {
             Some(named) if named == branch_ref => Checkout::Followed,
