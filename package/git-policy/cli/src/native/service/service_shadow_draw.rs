@@ -253,10 +253,9 @@ impl DrawnShadows {
         let waiting: Waiting = taken?;
         // The claim moves from the renewal to the handed entry in one step, so no sweep finds the tree unheld
         //  while the answer that names it travels to the commit that will claim it.
-        let claim: Option<crate::tree_held_by_a_live_process::HeldTree> = waiting._renewal.into_claim();
-        if let Some(claim) = claim {
+        if let Some(held) = waiting._renewal.into_claim() {
             let mut handed = self.handed.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-            handed.push(HandedOut { path: waiting.path.clone(), since: Instant::now(), _claim: claim });
+            handed.push(HandedOut { path: waiting.path.clone(), since: Instant::now(), _claim: held });
         }
         return Some(waiting.path);
     }

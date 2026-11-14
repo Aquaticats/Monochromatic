@@ -26,7 +26,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, FixtureService, Observed, executable, fixture, git, observe, repository, stderr_of, start_fixture_service};
+use super::support::{Fixture, FixtureService, Observed, fixture, git, observe, repository, stderr_of, start_fixture_service};
 use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use git_policy_cli::wrapper_names_old_and_new::SHADOW_DRAWN_FOLDER;
