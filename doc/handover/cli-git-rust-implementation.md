@@ -1230,6 +1230,49 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow `0.2.7-alpha.11` is released, in the toolchain lock and installed; the first minutes of `0.6.1-alpha.29` are clean (2026-11-14T12:37:49-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **mpm-shadow `0.2.7-alpha.11`**:
+  published at 12:35:14 as archives on GitHub
+  (crates.io skipped for the alpha label);
+  local `main` fast-forwarded to the release commit `76cc96469e`.
+  `toolchain:outdated` named one tool that would move,
+  mpm-shadow from `0.2.7-alpha.10`,
+  and every other as unchanged or pinned;
+  `toolchain:update` then moved that one.
+  The lock's diff,
+  read line by line,
+  is ten lines changed:
+  the version,
+  four archive addresses with their checksums,
+  and the lock's digest.
+  Committed as `02bd785765` at 12:37:40.
+  `toolchain:install` ended with status 0 at 12:37:49
+  (fetched and verified by its SHA-256;
+  66 other tools unchanged),
+  and `mpm-shadow --version` answers `0.2.7-alpha.11`.
+  The outputs are in `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/`.
+- **`0.6.1-alpha.29`**,
+  the user journal from 12:30:30 until 12:36:30:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  two services saying `0.6.1-alpha.29` at their start.
+- **A correction to earlier sections**:
+  the counting script reads the whole user journal of its window,
+  every unit of this account,
+  and not the wrapper's units alone.
+  The totals of lines given for earlier releases
+  (356 for alpha.26,
+  266 for alpha.27,
+  215 for alpha.28,
+  2,487 here)
+  are therefore totals of everything logged and say nothing of the wrapper alone;
+  the four checks are what each count stands on.
+
 ##### `0.6.1-alpha.29` is installed; mpm-shadow's `0.2.7-alpha.11` is dispatched (2026-11-14T12:31:09-05:00)
 
 Not final and not approved:
