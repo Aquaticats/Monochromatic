@@ -174,6 +174,20 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }
+    // A subvolume a removal renamed aside is named by a record of its own, which outlives the delete's queue record: a round
+    //  that settled that record before the rename, a destroy the kernel refused, and a command killed between the rename and
+    //  its repair all leave the directory standing with nothing else naming its delete. This is the command that queues it
+    //  again, says why it could not, and stops queueing once the attempts a record may cost have run out.
+    let leavings: crate::worktree_removal_leavings_a_command_queues_again::Leavings =
+        crate::worktree_removal_leavings_a_command_queues_again::queue_the_leavings_a_record_no_longer_names(common_dir.as_path());
+    if leavings.queued {
+        // The wake is the hand-over's own: a record this command queued must not wait for a command nobody runs.
+        let _woken: Result<(), String> = crate::worktree_remove_hand_over::wake_the_service(&context, common_dir.as_path());
+    }
+    for line in leavings.said {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
     // A removal a merge handed over that a commit service of an earlier release refused for good is queued once more,
     // because that service could not read the record and nothing else would ever look at it again. The wake is the one
     // a hand-over makes: a record this command queued must not wait for a command nobody runs.
