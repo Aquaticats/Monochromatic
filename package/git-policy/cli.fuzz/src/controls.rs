@@ -78,6 +78,8 @@ use git_policy_cli::wrapper_invocation::{StrippedInvocation, strip_wrapper_contr
 /// // string, but byte-preserving.
 /// ```
 use std::ffi::{OsStr, OsString};
+/// `size_of` is the width of the mode's own type, in bytes.
+use std::mem::size_of;
 /// `PathBuf` is an owned filesystem path of raw bytes.
 use std::path::{Path, PathBuf};
 
@@ -696,6 +698,24 @@ impl RepositoryFacts for FixedFacts {
 }
 
 /// What:
+///  The answers one frontier run gives its repository, as bits of one unsigned integer.
+/// Why:
+///   The fuzzer chooses them and the seeds carry them,
+///  so both need one width to read and write:
+///  `MODE_BYTES` is it,
+///  and widening the answers is a change here and in `fuzz_targets/wrapper_controls.rs`,
+///  which the seed writer reads and the seed control decodes with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Mode = number; // little endian, MODE_BYTES wide
+/// ```
+pub type Mode = u16;
+
+/// The bytes an input spends on its mode, which is the width of `Mode` itself.
+pub const MODE_BYTES: usize = size_of::<Mode>();
+
+/// What:
 ///  The bit of a mode that selects the linked worktree;
 ///  its absence is no repository at all.
 /// Why:
@@ -705,44 +725,44 @@ impl RepositoryFacts for FixedFacts {
 /// ```ts
 /// const LINKED_WORKTREE = 0x001;
 /// ```
-pub const LINKED_WORKTREE: u16 = 1 << 0;
+pub const LINKED_WORKTREE: Mode = 1 << 0;
 
 /// The bit of a mode that makes the index differ from `HEAD`.
-pub const INDEX_DIFFERS: u16 = 1 << 1;
+pub const INDEX_DIFFERS: Mode = 1 << 1;
 
 /// The bit of a mode that makes an operation wait for its conflicts.
-pub const SEQUENCER_WAITS: u16 = 1 << 2;
+pub const SEQUENCER_WAITS: Mode = 1 << 2;
 
 /// The bit of a mode that makes the target of a `checkout` or `switch` a branch of one remote.
-pub const REMOTE_GUESS: u16 = 1 << 3;
+pub const REMOTE_GUESS: Mode = 1 << 3;
 
 /// The bit of a mode whose worktree holds uncommitted state.
-pub const WORKTREE_DIRTY: u16 = 1 << 4;
+pub const WORKTREE_DIRTY: Mode = 1 << 4;
 
 /// The bit of a mode whose repository holds an ignored file at a path a restored tree tracks.
-pub const IGNORED_AND_TRACKED: u16 = 1 << 5;
+pub const IGNORED_AND_TRACKED: Mode = 1 << 5;
 
 /// The bit of a mode whose repository holds a stash entry.
-pub const STASH_HELD: u16 = 1 << 6;
+pub const STASH_HELD: Mode = 1 << 6;
 
 /// The bit of a mode whose pattern-only `clean` dry run names a path.
-pub const CLEAN_DELETES: u16 = 1 << 7;
+pub const CLEAN_DELETES: Mode = 1 << 7;
 
 /// The bit of a mode whose repository holds an untracked file at a path a restored tree tracks.
-pub const UNTRACKED_AND_TRACKED: u16 = 1 << 8;
+pub const UNTRACKED_AND_TRACKED: Mode = 1 << 8;
 
 /// What:
 ///  The bit of a mode in which the operation a guarded abort or skip form ends waits.
 /// Why:
 ///   Without it the form's own state is absent,
 ///  which is Git's to refuse and discards nothing.
-pub const OPERATION_WAITS: u16 = 1 << 9;
+pub const OPERATION_WAITS: Mode = 1 << 9;
 
 /// The bit of a mode in which the person's own work stands in the worktree an abort writes over.
-pub const WORKTREE_WORK: u16 = 1 << 10;
+pub const WORKTREE_WORK: Mode = 1 << 10;
 
 /// The bit of a mode in which the person's own work stands in the index an abort resets.
-pub const STAGED_WORK: u16 = 1 << 11;
+pub const STAGED_WORK: Mode = 1 << 11;
 
 /// What:
 ///  Whether `mode` selects the linked worktree.
@@ -754,7 +774,7 @@ pub const STAGED_WORK: u16 = 1 << 11;
 /// ```ts
 /// const isLinked = (mode: number) => (mode & LINKED_WORKTREE) !== 0;
 /// ```
-pub fn mode_is_linked(mode: u16) -> bool {
+pub fn mode_is_linked(mode: Mode) -> bool {
     return mode & LINKED_WORKTREE != 0;
 }
 
@@ -776,7 +796,7 @@ pub fn mode_is_linked(mode: u16) -> bool {
 /// ```ts
 /// function fixedFacts(mode: number): FixedFacts;
 /// ```
-pub fn fixed_facts(mode: u16) -> FixedFacts {
+pub fn fixed_facts(mode: Mode) -> FixedFacts {
     let identity: WorktreeIdentity = if mode_is_linked(mode) {
         WorktreeIdentity::LinkedWorktree {
             common_dir: PathBuf::from("/nonexistent-cli-git-fuzz/main/.git"),
@@ -933,7 +953,7 @@ pub enum FrontierSeen {
 /// ```ts
 /// function checkFrontier(args: string[], mode: number): FrontierSeen;
 /// ```
-pub fn check_frontier(arguments: &[OsString], mode: u16) -> FrontierSeen {
+pub fn check_frontier(arguments: &[OsString], mode: Mode) -> FrontierSeen {
     let stripped: StrippedInvocation = strip_wrapper_controls(arguments);
     // `mut` lets the lifecycle state what content policies can read.
     let mut checks: ShippedChecks<FixedFacts> = shipped_checks(
