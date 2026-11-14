@@ -567,6 +567,26 @@ fn a_run_stopped_between_the_plans_write_and_the_locks_leaves_files_a_later_run_
 }
 
 #[test]
+fn a_machine_global_run_stopped_between_the_two_writes_leaves_files_a_later_run_finishes() {
+    let fixture = Fixture::global();
+    fixture.serve_crates_io();
+    fixture.fake_binstall(&["fastmod"]);
+    let lock_before = fixture.lock_text();
+    let stopped = add_named_tools(&fixture.context(), &arguments(&["cargo:fastmod"]), None, || {
+        return Err(ToolchainError::failure("killed between the plan's write and the lock's"));
+    })
+    .expect_err("stopped");
+    assert!(stopped.message.contains("killed"), "{stopped}");
+    assert!(fixture.plan_text().contains("\"cargo:fastmod\""), "the machine plan holds the new entry");
+    assert_eq!(fixture.lock_text(), lock_before, "the machine lock was not written");
+    let synced = run_sync_with(&fixture.scope, &fixture.env, &fixture.runner, &fixture.http, &fixture.host, LockPolicy::Resolve)
+        .expect("a plain install finishes it");
+    assert!(synced.installed.contains(&"cargo:fastmod".to_string()), "{synced:?}");
+    let lock: serde_json::Value = serde_json::from_str(&fixture.lock_text()).expect("the lock is JSON");
+    assert_eq!(lock["tools"]["cargo:fastmod"]["version"], "0.4.4");
+}
+
+#[test]
 fn a_plan_another_run_wrote_meanwhile_is_not_overwritten() {
     let fixture = Fixture::repo();
     let before = fs::read(&fixture.scope.plan_file).expect("read the plan");
