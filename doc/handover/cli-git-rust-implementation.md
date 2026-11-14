@@ -1236,6 +1236,48 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 40 is in `main` and `0.6.1-alpha.30` is dispatched; the watch note's write ceiling goes to review (2026-11-14T13:31:08-05:00)
+
+Not final and not approved:
+what two runs report of themselves,
+and what the coordinating session measured,
+merged and queued.
+
+- **Pass 40** (tip `678e601936`:
+  the three removal notices)
+  reported fit at 13:25:53:
+  the one branch in at the commit named,
+  build,
+  both test compiles and Clippy clean,
+  every test of the changed modules passing at the tip and at four CPUs
+  (85,
+  132,
+  11 and 26 tests),
+  both guard modules passing,
+  a commit of one changed file at a ratio of 4.85 to 6.86 to real Git within a round,
+  three library tests still red that are `main`'s.
+  It says the meeting with pass 38's renamed subvolume has not been built,
+  since pass 38 is not in `main`.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `2f38016ac4` at 13:30:49,
+  and `0.6.1-alpha.30` was dispatched at 13:30:59
+  (run 43627019191).
+  Passes 38 and 41 to 43,
+  all four going,
+  were told at 13:31.
+  The wait for the release,
+  the install and the sample commit run as one background command;
+  the journal checks follow.
+- **A watch note a landing writes is written within a ceiling** (tip `4307d45a89`, ended 13:29:01):
+  the author reports the note bounded before the answer,
+  and names what it left:
+  other places that touch the filesystem on the landing thread with no ceiling
+  (`hold_the_push` and neighbours),
+  and two merges to expect,
+  with the branch that reads the note and with the landing branch.
+  Review queued second (seven code files).
+- The queue held 62 entries at 13:31:08.
+
 ##### mpm-shadow's stale launchers go back a third time, with the design to be weighed first; two wrapper answers go to review; the lock shim's reviewer runs (2026-11-14T13:24:01-05:00)
 
 Not final and not approved:
