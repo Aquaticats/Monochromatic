@@ -16,7 +16,7 @@
 //! writeBinding({...}); expect(bindingOf(commonDir, lock)).toEqual({...});
 //! ```
 
-use crate::lock_bindings::{Binding, Written, folder_of, name_of, of, parse, remove, sweep, text_of, write};
+use crate::lock_bindings::{A_PIN_IS_REACHABLE, Binding, Written, folder_of, name_of, of, parse, remove, sweep, text_of, write};
 use crate::test_support::{fixture, remove as remove_fixture};
 use std::path::{Path, PathBuf};
 
@@ -84,7 +84,7 @@ fn an_identity() -> String {
 fn a_record_reads_back_as_the_lock_it_names() {
     let (common_dir, lock) = a_lock("binding-round-trip", "index.lock");
     let holder: (i64, String) = (42, an_identity());
-    assert!(write(common_dir.as_path(), lock.as_path(), file_of(lock.as_path()), &holder).is_some(), "a lock that stands can be pinned");
+    assert!(write(common_dir.as_path(), lock.as_path(), &holder).is_some(), "a lock that stands can be pinned");
     let read: Binding = of(common_dir.as_path(), lock.as_path()).expect("the record written a moment ago");
     assert_eq!(read.lock, lock);
     assert_eq!(read.pid, 42);
@@ -108,7 +108,7 @@ fn a_record_reads_back_as_the_lock_it_names() {
 fn a_lock_made_again_at_the_path_is_not_the_pinned_file() {
     let (common_dir, lock) = a_lock("binding-replaced", "index.lock");
     let holder: (i64, String) = (42, an_identity());
-    assert!(write(common_dir.as_path(), lock.as_path(), file_of(lock.as_path()), &holder).is_some());
+    assert!(write(common_dir.as_path(), lock.as_path(), &holder).is_some());
     std::fs::remove_file(lock.as_path()).expect("the lock goes");
     std::fs::write(lock.as_path(), b"another Git's lock\n").expect("a later lock");
     assert_eq!(of(common_dir.as_path(), lock.as_path()), None, "a record describes the file it pinned and no other");
@@ -130,7 +130,7 @@ fn a_lock_made_again_at_the_path_is_not_the_pinned_file() {
 fn a_record_without_its_pin_describes_nothing() {
     let (common_dir, lock) = a_lock("binding-pin-gone", "index.lock");
     let holder: (i64, String) = (42, an_identity());
-    assert!(write(common_dir.as_path(), lock.as_path(), file_of(lock.as_path()), &holder).is_some());
+    assert!(write(common_dir.as_path(), lock.as_path(), &holder).is_some());
     let name: String = name_of(lock.as_path(), file_of(lock.as_path()));
     let pin: PathBuf = folder_of(common_dir.as_path()).join(format!("{name}.pin"));
     std::fs::remove_file(pin.as_path()).expect("the pin goes");
@@ -202,8 +202,8 @@ fn the_sweep_removes_the_record_of_a_lock_that_is_gone() {
     let gone: PathBuf = common_dir.join("HEAD.lock");
     std::fs::write(gone.as_path(), b"a lock that never reached its rename\n").expect("the lock");
     let holder: (i64, String) = (42, an_identity());
-    let standing_record: Written = write(common_dir.as_path(), standing.as_path(), file_of(standing.as_path()), &holder).expect("the standing lock's record");
-    assert!(write(common_dir.as_path(), gone.as_path(), file_of(gone.as_path()), &holder).is_some());
+    let standing_record: Written = write(common_dir.as_path(), standing.as_path(), &holder).expect("the standing lock's record");
+    assert!(write(common_dir.as_path(), gone.as_path(), &holder).is_some());
     std::fs::remove_file(gone.as_path()).expect("the lock it recorded goes");
     sweep(common_dir.as_path());
     assert!(of(common_dir.as_path(), standing.as_path()).is_some(), "the record of a standing lock stays");
@@ -211,4 +211,58 @@ fn the_sweep_removes_the_record_of_a_lock_that_is_gone() {
     remove(common_dir.as_path(), &standing_record);
     assert_eq!(of(common_dir.as_path(), standing.as_path()), None, "a record removed by name is gone");
     remove_fixture(common_dir.as_path());
+}
+
+/// What:
+///  Another command's sweep, run at the instant a record's pin becomes reachable,
+///  leaves that record where it is:
+///  the lock it pins stands,
+///  so the record is the proof that clears it if the Git holding it is killed.
+/// Why:
+///  This is the interleaving a review of `2ac27d2a29` reproduced with a preload that widened only the
+///  window between the pin and the record
+///  (`sweep-race-reproduction.ts`):
+///  the sweep listed the folder while the pin was there and the record was not,
+///  unlinked the pin it could not explain,
+///  and the writer then published a record with no pin.
+///  A Git killed holding that lock then left a lock no command on this volume could clear
+///  (its birth and the PID file's carry one stamp),
+///  so the next `git add` and `git commit` failed.
+///  The order is forced here by the code's own fault point `A_PIN_IS_REACHABLE`
+///  and by nothing else, and the sweep is the production one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// at(APinIsReachable, () => sweep(common)); write(common, lock, holder);
+/// expect(bindingOf(common, lock)).toBeDefined();
+/// ```
+#[test]
+fn a_sweep_beside_a_write_leaves_the_record_of_a_standing_lock() {
+    let (common_dir, lock) = a_lock("binding-sweep-beside-a-write", "index.lock");
+    let holder: (i64, String) = (42, an_identity());
+    let swept_at: std::rc::Rc<std::cell::Cell<bool>> = std::rc::Rc::new(std::cell::Cell::new(false));
+    let hook_common: PathBuf = common_dir.clone();
+    let ran: std::rc::Rc<std::cell::Cell<bool>> = swept_at.clone();
+    crate::service_fault::hooks::set(
+        A_PIN_IS_REACHABLE,
+        std::rc::Rc::new(move || {
+            // The other command's pass, at the instant this record's pin is reachable and its record is not yet.
+            sweep(hook_common.as_path());
+            ran.set(true);
+        }),
+    );
+    let written: Option<Written> = write(common_dir.as_path(), lock.as_path(), &holder);
+    crate::service_fault::hooks::clear();
+    assert!(swept_at.get(), "the control reached the instant the pin became reachable, and the sweep ran there");
+    assert!(written.is_some(), "the record is written");
+    let found: Option<Binding> = of(common_dir.as_path(), lock.as_path());
+    // A later command's pass runs the sweep again over the same state.
+    sweep(common_dir.as_path());
+    let after: Option<Binding> = of(common_dir.as_path(), lock.as_path());
+    remove_fixture(common_dir.as_path());
+    assert!(
+        found.is_some(),
+        "a sweep that ran while the record was being published leaves the record of a standing lock: {found:?}"
+    );
+    assert!(after.is_some(), "and so does the next one: {after:?}");
 }

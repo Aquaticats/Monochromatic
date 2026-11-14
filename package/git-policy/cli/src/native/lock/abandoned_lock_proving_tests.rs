@@ -603,9 +603,8 @@ fn plant_bound(common_dir: &Path, name: &str, pid: i64, identity: &str) {
     std::fs::write(pid_file.as_path(), format!("pid {pid}\n").as_bytes()).expect("the PID file");
     let file: PathBuf = folder_of(common_dir).join(format!("record-{name}"));
     std::fs::write(file, record_text(&[("child", pid, String::from(identity))])).expect("the record");
-    let seen = crate::index_lock_evidence::read_lock_metadata(lock.as_path()).expect("the lock's identity").expect("the lock stands");
     assert!(
-        crate::lock_bindings::write(common_dir, lock.as_path(), (seen.device, seen.inode), &(pid, String::from(identity))).is_some(),
+        crate::lock_bindings::write(common_dir, lock.as_path(), &(pid, String::from(identity))).is_some(),
         "the lock that stands can be pinned"
     );
 }
@@ -695,8 +694,7 @@ fn a_bound_lock_of_a_live_or_unrecorded_git_is_kept() {
     std::fs::write(lock.as_path(), b"a lock of a Git no command of this repository started\n").expect("the lock");
     let pid_file: PathBuf = pid_file_beside(lock.as_path());
     std::fs::write(pid_file.as_path(), format!("pid {dead_pid}\n").as_bytes()).expect("the PID file");
-    let seen = crate::index_lock_evidence::read_lock_metadata(lock.as_path()).expect("the lock's identity").expect("the lock stands");
-    assert!(crate::lock_bindings::write(unrecorded.as_path(), lock.as_path(), (seen.device, seen.inode), &(dead_pid, dead_identity)).is_some());
+    assert!(crate::lock_bindings::write(unrecorded.as_path(), lock.as_path(), &(dead_pid, dead_identity)).is_some());
     assert!(matches!(looked(unrecorded.as_path(), "index.lock"), Ended::Kept), "a record naming a process no record of this repository explains proves nothing");
     remove(unrecorded.as_path());
 }

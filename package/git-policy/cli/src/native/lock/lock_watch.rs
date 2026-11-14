@@ -666,7 +666,7 @@ fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64
         if written.iter().any(|held| { return held.name() == name; }) {
             continue;
         }
-        if let Some(recorded) = lock_bindings::write(common_dir, lock.as_path(), (file.device, file.inode), &(child_pid, identity.to_owned())) {
+        if let Some(recorded) = lock_bindings::write(common_dir, lock.as_path(), &(child_pid, identity.to_owned())) {
             written.push(recorded);
         }
     }

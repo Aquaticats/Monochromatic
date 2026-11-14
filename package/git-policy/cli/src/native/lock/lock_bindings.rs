@@ -74,6 +74,16 @@ const HOLDER_SUFFIX: &str = ".holder";
 /// a path written as its bytes in hexadecimal and three short lines.
 const BINDING_LIMIT: u64 = 64 * 1024;
 
+/// The instant the pin of a record has just been made reachable under its own name,
+/// and the writer has not yet finished publishing the record.
+/// Why:
+///   A control states the interleaving the publication must survive:
+///  another command's sweep runs at this instant and may not take away the pin of a lock that stands
+///  (`a_sweep_beside_a_write_leaves_the_record_of_a_standing_lock`).
+///  Named here so both halves of that promise reach one point,
+/// and inert unless the test variable or a control names it.
+pub const A_PIN_IS_REACHABLE: &str = "a-pin-is-reachable";
+
 /// What:
 ///  One lock a command's own Git took,
 ///  as the command wrote it down.
@@ -300,9 +310,13 @@ pub fn parse(text: &str) -> Option<Binding> {
 /// ```ts
 /// linkSync(lock, pin); if (statSync(pin).ino !== file.ino) return undefined; renameSync(holderTemp, holder);
 /// ```
-pub fn write(common_dir: &Path, lock: &Path, file: (u64, u64), holder: &(i64, String)) -> Option<Written> {
+pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<Written> {
     let folder: PathBuf = folder_of(common_dir);
     std::fs::create_dir_all(folder.as_path()).ok()?;
+    // The file this record is named for is the one standing at the path now; the link below is checked against it
+    //  before the record is published.
+    let seen: LockMetadata = crate::index_lock_evidence::read_lock_metadata(lock).ok()??;
+    let file: (u64, u64) = (seen.device, seen.inode);
     let name: String = name_of(lock, file);
     let pin: PathBuf = folder.join(format!("{name}{PIN_SUFFIX}"));
     let record: PathBuf = folder.join(format!("{name}{HOLDER_SUFFIX}"));
@@ -313,6 +327,11 @@ pub fn write(common_dir: &Path, lock: &Path, file: (u64, u64), holder: &(i64, St
     let _removed_pin = std::fs::remove_file(pin.as_path());
     std::fs::hard_link(lock, pin.as_path()).ok()?;
     let linked: Option<LockMetadata> = crate::index_lock_evidence::read_lock_metadata(pin.as_path()).ok().flatten();
+    // What: A control reaches here, with the pin made reachable under its own name and the record not yet published,
+    //       to act as another command whose pass sweeps the folder at this instant.
+    // Why:  The publication has to survive the sweep: the lock stands, so the record is the proof that clears it once the
+    //       Git holding it is killed (a review of `2ac27d2a29`, finding 1).
+    crate::service_fault::reach(A_PIN_IS_REACHABLE);
     if !matches!(linked, Some(seen) if (seen.device, seen.inode) == file) {
         // The path holds another file than the one this record is named for, so this pin describes nothing: it goes with
         //  the record that was never published.
