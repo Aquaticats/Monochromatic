@@ -283,17 +283,17 @@ fn a_commit_is_never_failed_by_a_starved_routing_look() {
         // The pair and the connection are made inside the runtime, where the reactor they belong to runs.
         let (service, client_end) = UnixStream::pair().expect("a connected pair");
         let serving = crate::lazy_runtime::spawn_on_runtime(handle_connection(service, shared)).expect("a worker for the connection");
-        let (mut read_half, mut write_half) = client_end.into_split();
+        let (read_half, mut write_half) = client_end.into_split();
         let line: String = encode_client(&ClientMessage::Commit(Box::new(a_commit_request_named("starved-look"))));
         tokio::io::AsyncWriteExt::write_all(&mut write_half, format!("{line}\n").as_bytes()).await.expect("the request line is sent");
         let mut reader = tokio::io::BufReader::new(read_half);
         let mut heard: Vec<ServiceMessage> = Vec::new();
         let deadline: tokio::time::Instant = tokio::time::Instant::now() + A_WATCH;
         while tokio::time::Instant::now() < deadline {
-            let mut line: String = String::new();
+            let mut heard_line: String = String::new();
             let left = deadline.saturating_duration_since(tokio::time::Instant::now());
-            let Ok(Ok(_read)) = tokio::time::timeout(left, tokio::io::AsyncBufReadExt::read_line(&mut reader, &mut line)).await else { break };
-            if let Ok(message) = crate::service_protocol::decode_service(line.trim_end_matches('\n')) {
+            let Ok(Ok(_read)) = tokio::time::timeout(left, tokio::io::AsyncBufReadExt::read_line(&mut reader, &mut heard_line)).await else { break };
+            if let Ok(message) = crate::service_protocol::decode_service(heard_line.trim_end_matches('\n')) {
                 heard.push(message);
             }
         }

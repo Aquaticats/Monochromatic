@@ -152,12 +152,6 @@ fn where_no_thread_can_start_the_note_of_a_beat_is_left_out() {
     });
 }
 
-/// A request the fake services below never look at,
-/// so it needs no repository.
-fn a_request_of(id: &str) -> crate::service_protocol::CommitRequest {
-    return a_request_at(Path::new("/nowhere/repo/gitdir"), id);
-}
-
 /// The same request,
 /// naming the Git directory it is about.
 fn a_request_at(git_dir: &Path, id: &str) -> crate::service_protocol::CommitRequest {
@@ -211,16 +205,21 @@ fn a_commit_whose_directory_check_waits_is_beaten_while_it_waits() {
     // Six beats: wide enough that no delay of this loaded machine passes for the wait itself, and a line that never
     //  came is the failure this control names.
     let the_longest_a_beat_may_wait: Duration = HEARTBEAT_EVERY.saturating_mul(6);
-    let (shared, mut jobs) = shared_in("connection-slow-directory-check");
+    let (mut shared, mut jobs) = shared_in("connection-slow-directory-check");
+    // The request names a Git directory this instance was named for, so the look has to read it (the fast path of an exact
+    //  text is not taken) and answers that it is this instance's.
+    let own: PathBuf = crate::test_support::fixture("connection-slow-directory-check-own");
+    shared.instance = Some(instance_of(own.as_path()));
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, write_half, mut client) = connection();
         // The look answers only when this control lets it go, so "while the check waits" is a state and not a duration.
         let (reached, was_reached) = tokio::sync::oneshot::channel::<()>();
         let (let_go, still_held) = std::sync::mpsc::channel::<()>();
         hooks::hold_on_any_thread(HoldOnAnyThread { point: String::from(IN_THE_INSTANCE_READ), reached, let_go: still_held });
+        let own_for_the_task: PathBuf = own.clone();
         let serving: tokio::task::JoinHandle<()> = tokio::spawn(async move {
             let mut writing: OwnedWriteHalf = write_half;
-            queue_a_commit(Box::new(a_request_of("slow-check")), &mut writing, &shared, Instant::now()).await;
+            queue_a_commit(Box::new(a_request_at(own_for_the_task.as_path(), "slow-check")), &mut writing, &shared, Instant::now()).await;
         });
         was_reached.await.expect("the look of the Git directory reaches its read");
         // The first line is a beat: the check has not answered, so nothing of the landing has been said yet.
