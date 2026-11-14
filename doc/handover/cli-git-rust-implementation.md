@@ -1295,6 +1295,36 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Six reviews are going on Kimi and the machine is at its cap; the read-only main checkout's third answer goes to review (2026-11-14T18:50:48-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+and what the coordinating session measured and queued.
+
+- **Counted at 18:50:48**:
+  24 Pi units going,
+  18 on `deepseek-v4.1-flash-flex` and six on `kimi-k3.1-pro-flex`.
+  The six are the reviews of the masking,
+  the queue filling,
+  mpm-shadow's removal of old versions,
+  the push of a branch not checked out,
+  the test services' journal change and the drawn shadow tree.
+  The reviews of the scan for a process that has gone,
+  of the empty last answer and of the lock a killed Git left wait for a place.
+- **A Pi run cannot write into the main checkout** (tip `0a9d5c3c93`, ended 18:46:10):
+  the author reports that a run that happened and whose worktree is gone is now told so,
+  with what it left and where,
+  while a unit that never started is still told no run happened;
+  and a new control that asks this machine's manager for one capped transient unit for each of ten awkward paths,
+  all ten passing,
+  each skipped with its reason where no manager answers.
+  197 tests pass by name.
+  Review queued (range `main...0a9d5c3c93`, eight code files).
+- Read at 18:50:48:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  That author measured `~/temp/agent` at 410 GiB.
+
 ##### `0.6.1-alpha.34` is installed and its gate is running; the masking's review is going on Kimi (2026-11-14T18:32:42-05:00)
 
 Not final and not approved:
