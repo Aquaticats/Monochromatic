@@ -54,7 +54,7 @@ use crate::fs_kind::is_subvolume_root;
 use crate::fs_mount_options::read_mount_facts;
 use crate::subvolume_remove_walk::{Boundary, empty_directory, find_boundary_below_except, verify_below};
 use crate::transaction_git::GitContext;
-use crate::worktree_clean::check_clean;
+use crate::worktree_clean::{check_clean, check_clean_by_content};
 use crate::worktree_removal_hidden_edits::hidden_edits_beneath;
 use crate::worktree_removal_keeps_git_work::git_work_a_removal_would_strand;
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
@@ -132,6 +132,16 @@ pub enum RemoveOutcome {
     ///
     /// The report is for standard error and says what is left and what frees the path.
     RemovedAround(Vec<Boundary>),
+    /// The worktree and its registration are gone,
+    /// and the volume the removal went around went away while its pass ran,
+    /// so the empty root went with one `rmdir`:
+    /// nothing was destroyed in one step and nothing waits for the commit service.
+    ///
+    /// `Removed` cannot stand for this,
+    /// because the command that prints a line for `Removed` promises a delete the commit
+    ///  service still has to make,
+    /// and on this path there is none.
+    RemovedAroundNothingLeft,
     /// The removal is refused and nothing was changed;
     /// the report is for standard error and says what stands in the way and how to clear it.
     Refused(String),
@@ -200,6 +210,13 @@ pub trait RemoveOperations {
     /// The proof that the worktree is clean,
     /// or the reason it is not proven.
     fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String>;
+    /// The proof of the same state that settles by reading a file whatever its stat data cannot vouch for,
+    /// or the reason it is not proven;
+    /// a stand-in proves nothing by content,
+    /// so a state it refuses stays refused.
+    fn check_clean_by_content(&self, _request: &RemoveRequest<'_>, _admin: &Path, _common_dir: &Path) -> Result<(), String> {
+        return Err(String::from("this stand-in proves no file by content, so the state stays unproven"));
+    }
     /// Destroy the subvolume that `held` holds,
     /// and nothing else.
     fn destroy(&self, held: &Held) -> Result<(), String>;
@@ -248,6 +265,13 @@ impl RemoveOperations for LinuxOperations {
 
     fn check_clean(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
         return match check_clean(request.context, request.plan.target.as_path(), admin, common_dir) {
+            Ok(_proof) => Ok(()),
+            Err(refusal) => Err(refusal.reason),
+        };
+    }
+
+    fn check_clean_by_content(&self, request: &RemoveRequest<'_>, admin: &Path, common_dir: &Path) -> Result<(), String> {
+        return match check_clean_by_content(request.context, request.plan.target.as_path(), admin, common_dir) {
             Ok(_proof) => Ok(()),
             Err(refusal) => Err(refusal.reason),
         };
@@ -464,7 +488,17 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
             debug(TAG, format!("{} is not proven clean ({reason}); Git decides", target.display()).as_str());
             return RemoveOutcome::LeftToGit;
         }
-        return crate::worktree_remove_around::refusal_beside_a_volume(request, target, &registration, foreign.as_slice(), continuation, reason.as_str());
+        // The state a worktree is in the moment it was added makes the stat fields of its entries prove nothing, by Git's own
+        // racy rule (a whole-second modification time that is not older than the index's), and the proof then refuses a tree
+        // Git itself finds unchanged. Git settles such an entry by comparing it with the commit, and so does this program's own
+        // proof that reads the files: the state is proven the same way this repository proves a conversion's tree, and no
+        // worktree is removed on a cleanliness that was never proven.
+        match operations.check_clean_by_content(request, registration.admin.as_path(), request.common_dir) {
+            Ok(()) => debug(TAG, format!("the stat fields of {} proved nothing and its files are the ones the index names; the proof holds by content", target.display()).as_str()),
+            Err(by_content) => {
+                return crate::worktree_remove_around::refusal_beside_a_volume(request, target, &registration, foreign.as_slice(), continuation, by_content.as_str());
+            }
+        }
     }
     if let Err(reason) = confirm(&held, &registration) {
         debug(TAG, format!("{reason}; Git decides").as_str());

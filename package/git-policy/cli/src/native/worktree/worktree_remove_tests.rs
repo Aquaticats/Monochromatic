@@ -593,3 +593,140 @@ fn btrfs_a_pending_deletion_inside_a_worktree_is_taken_with_the_removal() {
     assert!(copies.contains(&b"a copy nobody owns any more\n".to_vec()), "and the leftover still holds what it held: {copies:?}");
     remove(root.as_path());
 }
+
+/// What:
+///  A volume that somebody else removes while the removal's pass runs leaves an emptied tree,
+///  and the removal ends as the around route's ending:
+///  the root went with one `rmdir`,
+///  nothing was destroyed in one step,
+///  and nothing waits for the commit service.
+/// Why:
+///   `Removed` is the ending of a removal whose subvolume a destroy took,
+/// and the command that prints a line for it promises a
+///  delete the commit service still has to make.
+/// On this path there is none,
+/// so an ending of its own is what keeps the words true;
+/// the control
+///  makes the volume go at the one moment the state can change, between the pass and the look,
+/// rather than racing it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// actAfterTheAroundPass((target) => emptyAndRemove(`${target}/snap`));
+/// expect(outcome.name).toBe('RemovedAroundNothingLeft');
+/// ```
+#[test]
+fn btrfs_a_volume_gone_when_the_pass_ends_leaves_the_around_routes_own_ending() {
+    let Some(root) = btrfs_fixture("remove-around-volume-gone") else { return };
+    let (repo, worktree, volume) = a_worktree_holding_a_volume_nobody_will_delete(root.as_path());
+    let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let plan: RemovePlan = plan_for(&worktree);
+    let emptied: PathBuf = volume.clone();
+    crate::subvolume_remove_listing_test_support::act_after_the_around_pass(move |_target: &Path| {
+        // The volume the pass went around is emptied and its root removed, as another command's `btrfs subvolume delete` of an
+        //  emptied one does: the kernel allows `rmdir` of an empty subvolume root.
+        std::fs::remove_file(emptied.join("precious.txt")).expect("the file the person put there");
+        std::fs::remove_dir(emptied.as_path()).expect("an empty subvolume root goes with rmdir");
+    });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    let ended: String = format!("{outcome:?}");
+    assert!(
+        ended.starts_with("RemovedAroundNothingLeft"),
+        "the removal tells the around route's ending apart from a destroy's: {ended}"
+    );
+    assert!(!worktree.exists(), "the emptied root is gone");
+    assert!(!repo.join(".git/worktrees/wt").exists(), "and its registration is gone");
+    remove(root.as_path());
+}
+
+/// What:
+///  A volume somebody else removes while the pass runs ends the same way in a worktree that is no subvolume,
+///  where no destroy could ever have run.
+/// Why:
+///   The line for a destroy would tell a person of a subvolume that never was,
+/// and the ending has to be the same one either way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(plainWorktreeOutcome.name).toBe('RemovedAroundNothingLeft');
+/// ```
+#[test]
+fn btrfs_a_volume_gone_when_the_pass_ends_ends_the_same_way_in_a_plain_directory_worktree() {
+    let Some(root) = btrfs_fixture("remove-around-volume-gone-plain") else { return };
+    let (repo, worktree, volume) = a_worktree_holding_a_volume_nobody_will_delete_in_a_plain_directory(root.as_path());
+    let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
+    let plan: RemovePlan = plan_for(&worktree);
+    let emptied: PathBuf = volume.clone();
+    crate::subvolume_remove_listing_test_support::act_after_the_around_pass(move |_target: &Path| {
+        std::fs::remove_file(emptied.join("precious.txt")).expect("the file the person put there");
+        std::fs::remove_dir(emptied.as_path()).expect("an empty subvolume root goes with rmdir");
+    });
+    let outcome: RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &git_context(), plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    let ended: String = format!("{outcome:?}");
+    assert!(
+        ended.starts_with("RemovedAroundNothingLeft"),
+        "a worktree that is no subvolume ends the same way: {ended}"
+    );
+    assert!(!worktree.exists(), "the emptied root is gone");
+    assert!(!repo.join(".git/worktrees/plain").exists(), "and its registration is gone");
+    remove(root.as_path());
+}
+
+/// What:
+///  A repository with one worktree that is a subvolume,
+///  and a subvolume of the person's inside it that nothing will delete:
+///  the control's act does.
+/// Why:
+///   Both controls of the emptied ending need the same state,
+///  and only the shape of the worktree differs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, worktree, volume } = aWorktreeHoldingAVolumeNobodyWillDelete(root);
+/// ```
+fn a_worktree_holding_a_volume_nobody_will_delete(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
+    return a_worktree_with_a_volume(root, "wt", "topic", true);
+}
+
+/// The same for a worktree Git makes as an ordinary directory,
+/// which is no subvolume at all.
+fn a_worktree_holding_a_volume_nobody_will_delete_in_a_plain_directory(root: &Path) -> (PathBuf, PathBuf, PathBuf) {
+    return a_worktree_with_a_volume(root, "plain", "plain", false);
+}
+
+/// What:
+///  A repository with one clean worktree that holds a subvolume a person put there.
+/// Why:
+///   The volume is what puts the removal on the around route;
+///  the worktree's own entries are deleted by the pass,
+///  so no control may
+///  leave one of them untracked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { repo, worktree, volume } = aWorktreeWithAVolume(root, 'wt', 'topic', asSubvolume);
+/// ```
+fn a_worktree_with_a_volume(root: &Path, name: &str, branch: &str, as_subvolume: bool) -> (PathBuf, PathBuf, PathBuf) {
+    let repo: PathBuf = repository(root, "repo");
+    std::fs::write(repo.join("tracked.txt"), b"tracked\n").expect("tracked");
+    // The volume stands under an ignored name, because a volume Git lists as untracked keeps an unforced removal from happening.
+    std::fs::write(repo.join(".gitignore"), b"/snap/\n").expect("the ignore rule");
+    git(repo.as_path(), &["add", "--", "tracked.txt", ".gitignore"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=tracked"]);
+    let worktree: PathBuf = root.join(name);
+    if as_subvolume {
+        subvolume_create_at(worktree.as_path()).expect("subvolume");
+    }
+    git(repo.as_path(), &["worktree", "add", "--quiet", "-b", branch, format!("../{name}").as_str()]);
+    let outer: PathBuf = std::fs::canonicalize(worktree.as_path()).expect("canonical");
+    let volume: PathBuf = outer.join("snap");
+    subvolume_create_at(volume.as_path()).expect("a subvolume the removal did not make");
+    std::fs::write(volume.join("precious.txt"), b"what I put there\n").expect("a file the person put there");
+    for tracked in ["tracked.txt", ".gitignore"] {
+        age(outer.join(tracked).as_path());
+    }
+    git(outer.as_path(), &["update-index", "--refresh"]);
+    return (repo, outer, volume);
+}

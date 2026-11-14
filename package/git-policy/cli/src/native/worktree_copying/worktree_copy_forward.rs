@@ -433,6 +433,14 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
             let _closed = writeln!(std::io::stderr(), "{report}");
             return Some(ForwardedRun::Ran(0));
         }
+        RemoveOutcome::RemovedAroundNothingLeft => {
+            // The destroy's line says a delete the commit service still has to make, and this path has none: the files went
+            // one by one here, the volume that kept the root standing went away during that pass, and the empty root went
+            // with one `rmdir`.
+            let report: String = crate::worktree_removal_goes_around_a_foreign_volume::emptied_around_report(plan.target.as_path());
+            let _closed = writeln!(std::io::stderr(), "{report}");
+            return Some(ForwardedRun::Ran(0));
+        }
         RemoveOutcome::Incomplete(report) => {
             return Some(ForwardedRun::Failed { stderr: format!("{report}\n"), code: crate::action::ENGINE_FAILURE_EXIT_CODE });
         }
