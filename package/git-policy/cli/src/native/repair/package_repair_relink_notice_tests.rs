@@ -52,7 +52,8 @@ fn the_words_name_the_worktree_what_failed_and_every_command() {
     let worktree: PathBuf = root.join("the worktree");
     let words: String = words_for(worktree.as_path(), &entry_rooted_at(worktree.as_path()), 3, Some("pnpm: exit status 1: ERR_PNPM_META_FETCH_FAIL"));
     assert!(words.contains(worktree.to_string_lossy().as_ref()), "the words do not name the worktree: {words}");
-    assert!(words.contains("the last try failed with: pnpm: exit status 1: ERR_PNPM_META_FETCH_FAIL"), "the words do not say what failed: {words}");
+    assert!(words.contains("The last try failed with: pnpm: exit status 1: ERR_PNPM_META_FETCH_FAIL."), "the words do not say what failed: {words}");
+    assert!(words.contains("ERR_PNPM_META_FETCH_FAIL. Running the same command again"), "the tool's own words run into the next sentence: {words}");
     assert!(words.contains("3 times"), "the words do not say how many times the service tried: {words}");
     assert!(words.contains("pnpm --dir "), "the words do not name the pnpm command: {words}");
     assert!(words.contains(MANUAL_COMMAND), "the words do not name the toolchain command: {words}");
@@ -76,7 +77,7 @@ fn the_words_of_a_record_no_tool_answered_say_the_service_stopped() {
     let worktree: PathBuf = root.join("the worktree");
     let words: String = words_for(worktree.as_path(), &entry_rooted_at(worktree.as_path()), 3, None);
     assert!(words.contains("stopped 3 times"), "the words do not say the service stopped: {words}");
-    assert!(!words.contains("the last try failed with"), "the words name a failure no tool gave: {words}");
+    assert!(!words.contains("The last try failed with"), "the words name a failure no tool gave: {words}");
     remove(root.as_path());
 }
 
@@ -210,7 +211,7 @@ fn a_relink_record_names_the_tools_it_asked_for() {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// remember(item.gitDir, item.id(), 'toolchain: 1 launcher records still name another lock file');
-/// assert(noticeForGivenUp(item, 3).includes('the last try failed with: toolchain: 1 launcher records still name another lock file'));
+/// assert(noticeForGivenUp(item, 3).includes('The last try failed with: toolchain: 1 launcher records still name another lock file.'));
 /// ```
 #[test]
 fn the_notice_quotes_the_reason_the_last_try_gave() {
@@ -219,6 +220,6 @@ fn the_notice_quotes_the_reason_the_last_try_gave() {
     let item: WorkItem = record_of(worktree.as_path(), root.as_path());
     crate::package_repair_relink_failure::remember(item.git_dir.as_path(), item.id().as_str(), "pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE").expect("kept");
     let notice: String = notice_for_given_up(&item, 3).expect("the notice");
-    assert!(notice.contains("the last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE"), "{notice}");
+    assert!(notice.contains("The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE."), "{notice}");
     remove(root.as_path());
 }

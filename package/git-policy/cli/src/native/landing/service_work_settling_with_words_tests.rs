@@ -298,7 +298,7 @@ fn drained_once(common: &Path, handlers: &RelinkRetries) {
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// for (let attempt = 0; attempt < MAX_TRIES; attempt += 1) { drainOnce(common); requeueExpired(work, after, LEASE, MAX_TRIES, skipNotice(common)); }
-/// assert(takeNotices(admin)[0].includes('the last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE'));
+/// assert(takeNotices(admin)[0].includes('The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE.'));
 /// ```
 #[test]
 fn a_given_up_relink_quotes_the_reason_the_last_try_gave_and_lands_in_its_own_worktree() {
@@ -331,7 +331,7 @@ fn a_given_up_relink_quotes_the_reason_the_last_try_gave_and_lands_in_its_own_wo
     assert_eq!(given_up.len(), 1, "the record whose tries ran out is given up on once");
     let notices: Vec<String> = crate::package_repair_relink_notice::take_notices(admin.as_path());
     assert_eq!(notices.len(), 1, "one notice waits in the relinked worktree's own Git directory: {notices:?}");
-    assert!(notices[0].contains("the last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE"), "the notice does not quote the reason: {notices:?}");
+    assert!(notices[0].contains("The last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE."), "the notice does not quote the reason: {notices:?}");
     assert!(crate::package_repair_relink_notice::take_notices(common.as_path()).is_empty(), "the notice was left in the Git directory of the worktree whose command added it");
     // The reason the notice quoted is not kept once the record it belongs to has settled.
     assert!(!work_directory(common.as_path()).parent().expect("the wrapper's folder").join("relink-failures").join(item.id()).is_file(), "the reason of a settled record is left behind");

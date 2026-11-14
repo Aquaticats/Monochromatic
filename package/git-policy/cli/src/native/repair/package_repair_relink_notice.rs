@@ -69,13 +69,14 @@ fn commands_for(worktree: &Path, tools: &[RelinkTool]) -> Vec<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const words = (worktree, commands, tries, lastFailure) => `monochromatic-git-policy-cli: the package state of ${worktree} was not relinked, so its links still name the checkout it was copied from. ${lastFailure === undefined ? `The commit service stopped ${tries} times before it could finish the job, so no tool's answer was ever recorded.` : `The wrapper tried ${tries} times and gave up; the last try failed with: ${lastFailure}`} Running the same command again would fail the same way, so something only you can change has to come first; after that, ${commands.map((c) => `\`${c}\``).join(' or ')} finishes the job.`;
+/// const words = (worktree, commands, tries, lastFailure) => `monochromatic-git-policy-cli: the package state of ${worktree} was not relinked, so its links still name the checkout it was copied from. ${lastFailure === undefined ? `The commit service stopped ${tries} times before it could finish the job (a restart, a kill or a crash each time), so no tool's answer was ever recorded.` : `The wrapper tried ${tries} times and gave up. The last try failed with: ${lastFailure.replace(/[. \\n]+$/, '')}.`} Running the same command again would fail the same way, so something only you can change has to come first; after that, ${commands.map((c) => `\`${c}\``).join(' or ')} finishes the job.`;
 /// ```
 pub fn words_for(worktree: &Path, entry: &RelinkEntry, tries: u32, last_failure: Option<&str>) -> String {
     let commands: Vec<String> = commands_for(worktree, &entry.tools);
     let opening: String = format!("monochromatic-git-policy-cli: the package state of {} was not relinked, so its links still name the checkout it was copied from.", worktree.display());
-    let what_happened: String = match last_failure {
-        Some(reason) => format!("The wrapper tried {tries} times and gave up; the last try failed with: {reason}"),
+    // The tool's own words are quoted as they came, minus the stop that would double the sentence's own period.
+    let what_happened: String = match last_failure.map(|reason| return reason.trim_end_matches(['.', ' ', '\n'])) {
+        Some(reason) => format!("The wrapper tried {tries} times and gave up. The last try failed with: {reason}."),
         None => format!("The commit service stopped {tries} times before it could finish the job (a restart, a kill or a crash each time), so no tool's answer was ever recorded."),
     };
     return format!(

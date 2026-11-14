@@ -4448,16 +4448,25 @@ of which the two that rewrite link layouts in place are the service's work whene
   copies another checkout still links;
   both are accepted consequences.
   The success line keeps mpm-shadow's own summary of what was installed.
+  The install writes a launcher and its record for each bin the worktree's own lock declares and touches no other name,
+  so a record for a name that lock declares nowhere is a copy of an earlier release's layout:
+  this repository's own checkout holds `cli-git-native.launch`, left by the rename of 0.6.0,
+  and a copy of it reached every new worktree.
+  Such a record is removed together with the launcher beside it,
+  and the count that says whether the install did its work covers only the records the lock declares.
+  On 2026-11-13 that copy made every new worktree report
+  "toolchain: 1 launcher records still name another lock file" on every try,
+  which no install can change, so the record was retried and given up on with everything relinked.
+  A lock the repair cannot read leaves every record counted,
+  which keeps the check as strict as it was before the names were read at all.
   The add writes this tool in the same `relink` record,
   so the install is the service's work when a service answers and the add's own when none does.
   A failed install,
   a timeout or a missing `mpm-shadow` never fails the add:
   the line names the reason and
   `mise run toolchain:install`.
-  A service that fails the install leaves the record failed,
-  and its journal names the worktree and the reason.
-  The worktree keeps the copied launchers until the install runs,
-  which is what the add itself left between the copy and the install.
+  The worktree keeps the copied launchers until the repair runs,
+  which is what the add itself left between the copy and the repair.
 - The `pnpm` the repair starts is the first one on the person's `PATH`,
   which in this repository is the pnpm-shadow.
   The owner decided this on 2026-11-03:
@@ -4492,6 +4501,36 @@ of which the two that rewrite link layouts in place are the service's work whene
   The record's object name is a digest of the worktree's path and the moment the add asked,
   so a worktree removed and added again at the same path never takes an earlier record's answer,
   whether that record settled or failed there.
+
+A relink whose tool fails is tried again rather than given up on after one try:
+two installers can meet in one worktree's `node_modules`,
+and pnpm answers that with a failure that passes when it runs alone.
+The record's own count of tries bounds the retries (`MAX_TRIES`,
+`src/native/landing/work_item_recovery.rs`),
+and the round that ran the tool keeps the reason it gave in a file of its own,
+`<git dir>/monochromatic-git-policy-cli/relink-failures/<record id>`
+(`src/native/repair/package_repair_relink_failure.rs`),
+replaced by the next try's reason.
+A record whose tries run out is given up on by the recovery,
+which never saw the tool's answer,
+so it writes the person's notice from the kept reason:
+the notice names the worktree,
+says how many times the wrapper tried,
+quotes what the last try failed with,
+names the command the record's tool finishes the job with,
+and says that something only the person can change has to come first,
+because the wrapper ran exactly that command.
+A record killed on every try has no reason to quote,
+and its notice says the service stopped that many times before it could finish the job instead.
+The notice is written in the relinked worktree's own Git directory,
+where a command run there reads it,
+and the reason is removed once the words are written;
+a command shows a notice once and removes it.
+A relink written in the Git directory of the worktree whose command added the new one was shown by the next command there,
+about a worktree that command had never touched:
+on 2026-11-13 one commit in the main checkout printed eight of them for eight other worktrees.
+A worktree that is gone has no Git directory to write in,
+and the notice is left in the directory the record was drained from.
 
 What the service proves before it relinks:
 the record's payload and its repository field must name one directory,
