@@ -1202,6 +1202,69 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The archives' review verified the substance and found five small defects; the rate-limit plugin's second review found two (2026-11-14T00:08:04-05:00)
+
+Not final and not approved:
+read by the coordinating session from two review files,
+nothing rerun by it.
+
+- **Archives**
+  (`~/temp/agent/change-reviews/doc-tracked-archives-are-removed-and-history-holds-each/review.md`,
+  ended 00:04:02,
+  on `0ef01cf14e`):
+  the substance holds,
+  each part checked by a script of the reviewer's.
+  All 136 removed archives print from history by the record's command with the recorded size and digest;
+  the record's entries equal the deleted set in both directions;
+  all 158 kept members match;
+  910 notes in 71 JSON files are valid and no entry's original text changed;
+  no dead link;
+  nothing in the tree still reads a removed path;
+  by extension and by content,
+  over 23,857 tracked files,
+  the three Java archives are the only archives left;
+  no kept file holds a credential.
+  Five defects,
+  none losing data,
+  all weighed as worth their fix before the merge:
+  the record's closing sentence still says four archives stayed tracked;
+  one note is repeated nineteen times at one site;
+  the record says five documents cite an archive where four do;
+  a document cites a cost model's prediction whose model and input are not among the kept members
+  (kept now,
+  by the branch's own rule that what documents cite is kept);
+  and a README promises a citation map the record does not hold.
+  Also the ignore block's comment claims more spellings than its rules cover.
+  Back to the author in its own session
+  (`tracked-archives-answers-the-review-of-0ef01cf14e-prompt.md`,
+  queued at position 4).
+  The branch is not merged:
+  the merge was recorded at 23:29 as following a review with no defect,
+  and a record with a false sentence in it is a defect.
+- **The rate-limit plugin (issue 6297), second review**
+  (`~/temp/agent/change-reviews/pi-plugin-qwen-token-plan-individual-token-rate-limit-proof-is-bounded-answers-after-its-review/review.md`,
+  ended 00:02:14,
+  on `0e62c1df44`):
+  none of the three requirements is violated;
+  the wrapper's endings,
+  the retry classification and both bounds are confirmed with the installed Pi sources read.
+  Two findings,
+  both reproduced with a positive control,
+  both weighed as standing.
+  In the product:
+  an older refresh's cleanup deletes a newer refresh's controller,
+  so a shutdown cancels nothing and a catalog can be published after it.
+  In the proof's harness:
+  a child that ends by itself is waited on for two more seconds,
+  because the listener for `close` is attached after `close` fired.
+  Back to the author in its own session
+  (`qwen-plan-token-rate-limit-answers-its-second-review-of-2026-11-14-prompt.md`,
+  queued at position 10).
+  The review did not run the proof or the unit suite,
+  since both build into the worktree it may not change;
+  it ran probes through the same source.
+- The queue held 51 entries at 00:08:04.
+
 ##### Two authors answered: the landing's control of a trash at its ceiling, and the journal's start tests with a held read (2026-11-13T23:55:34-05:00)
 
 Not final and not approved:
