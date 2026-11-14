@@ -1310,7 +1310,11 @@ did and queued.
   of which 9,653 ms was the wait for the service's answer and 151 ms the landing's lock:
   the shape that passes 29 and 34 answer,
   not something this release changes.
-  The journal count for the install minutes is still owed.
+  The journal from 01:53:30 to 02:00:30 holds 915 lines of the wrapper's units:
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at its start limit,
+  and nine services that said `0.6.1-alpha.24` at their start.
 - **Add never skips**
   (tip `5e01a74f19`,
   ended 01:48:22):
