@@ -1,15 +1,20 @@
 //! Controls of the one start of a worktree's service:
-//! the starter marker, the greeting, and the takeover of a killed starter's marker.
+//! the starter marker,
+//! the greeting,
+//! and the takeover of a killed starter's marker.
 
 use super::*;
 
-/// A folder of this test's own, short enough for a socket address.
+/// A folder of this test's own,
+/// short enough for a socket address.
 fn folder(name: &str) -> PathBuf {
     return crate::test_support::short_directory_for_sockets(format!("server-start-{name}").as_str());
 }
 
-/// What: One taker of the marker wins and a second finds it held.
-/// Why:  Two commands that both found no service must not both start one.
+/// What:
+/// One taker of the marker wins and a second finds it held.
+/// Why:
+///  Two commands that both found no service must not both start one.
 #[test]
 fn one_taker_of_the_marker_wins() {
     let root = folder("marker");
@@ -21,8 +26,10 @@ fn one_taker_of_the_marker_wins() {
     assert!(StarterMarker::take(marker.as_path()).expect("the marker is created").is_some(), "and the next start takes it again");
 }
 
-/// What: A marker whose owner is gone is nobody's and is taken over.
-/// Why:  A command killed between the marker and the greeting must not block every later start.
+/// What:
+/// A marker whose owner is gone is nobody's and is taken over.
+/// Why:
+///  A command killed between the marker and the greeting must not block every later start.
 #[test]
 fn a_marker_whose_owner_is_gone_is_taken_over() {
     let root = folder("takeover");
@@ -32,8 +39,11 @@ fn a_marker_whose_owner_is_gone_is_taken_over() {
     assert!(StarterMarker::take(marker.as_path()).expect("the marker is created").is_some(), "the next start takes it");
 }
 
-/// What: Nothing at an address answers, and a service that greets does.
-/// Why:  The greeting is what tells this service from a file someone left at its address.
+/// What:
+/// Nothing at an address answers,
+/// and a service that greets does.
+/// Why:
+///  The greeting is what tells this service from a file someone left at its address.
 #[test]
 fn only_a_service_that_greets_answers() {
     let root = folder("greeting");

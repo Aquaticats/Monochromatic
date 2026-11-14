@@ -9,7 +9,8 @@
 //! a scratch folder under an agent's home,
 //! a container's private directory and a nested session's directory all reach past the forty bytes a path form leaves.
 //! Before the abstract form existed the commit failed there while real Git made the commit
-//! (owner's rule, "Commits should never fail").
+//! (owner's rule,
+//! "Commits should never fail").
 //! Each control runs the built wrapper through `git` on a fixture PATH,
 //!  with a service the fixture starts in a runtime directory the control chose,
 //!  so what is checked is the program a person runs and the address it really reaches.
@@ -78,7 +79,8 @@ fn edited(name: &str) -> (Fixture, PathBuf) {
 ///   The runtime directory is the control's to place,
 /// and the service is started at whatever address the wrapper's own function gives that directory,
 /// which is the address the commit computes for itself.
-/// The service is left in the fixture, so it runs until the control ends and the assertion that its address really
+/// The service is left in the fixture,
+/// so it runs until the control ends and the assertion that its address really
 ///  answers is made while it does.
 fn commit_through(fixture: &Fixture, repo: &Path, runtime: PathBuf) -> Output {
     let service = start_fixture_service_in(runtime.clone());
@@ -204,7 +206,8 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
 /// Why:
 ///   A runtime directory of forty bytes leaves no room for the socket's name,
 /// so the address is an abstract name;
-/// the plain spelling is what the other controls use, and this one is the spelling the file system has to fold.
+/// the plain spelling is what the other controls use,
+/// and this one is the spelling the file system has to fold.
 fn runtime_directory_spelled_through_a_missing_directory(instance: &str, tag: &str) -> (PathBuf, PathBuf) {
     let base: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
     std::fs::create_dir_all(&base).expect("the scratch directory");

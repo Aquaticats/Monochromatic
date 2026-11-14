@@ -413,6 +413,10 @@ pub mod service_claim_renewal_running;
 /// The service's consumer of after-commit push and upkeep work.
 pub mod service_work;
 
+/// What became of one failed push,
+/// as the verdict the round settles it with.
+pub mod service_work_settles_a_failed_push;
+
 /// The verdict of one push Git refused:
 /// the addresses that can never be a remote,
 /// and what Git's words mean for the rest.

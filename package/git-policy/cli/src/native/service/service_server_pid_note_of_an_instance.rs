@@ -65,7 +65,11 @@ pub fn path(socket_directory: &Path, instance: &str) -> PathBuf {
 /// writePrivate(pidNotePath, `${process.pid} ${currentBirthIdentity()}\n`) // the path of the private file
 /// ```
 fn write_private(note: &Path, pid: i32) -> std::io::Result<PathBuf> {
-    let identity: String = current_birth_identity().map_err(|unsupported| { return std::io::Error::other(format!("{unsupported:?}")) })?;
+    let identity: String = match current_birth_identity() {
+        Ok(identity) => identity,
+        // A platform without an identity source cannot make a note a later command may trust, so none is made.
+        Err(unsupported) => return Err(std::io::Error::other(format!("{unsupported:?}"))),
+    };
     let private: PathBuf = note.with_extension(format!("{pid}.pid.writing"));
     std::fs::write(&private, format!("{pid} {identity}\n"))?;
     return Ok(private);
@@ -91,7 +95,8 @@ fn write_private(note: &Path, pid: i32) -> std::io::Result<PathBuf> {
 /// each write its own name after the other's,
 /// and both read their own writing back,
 /// so both believed they held one instance and one took the other's address
-/// (the fifth review of issue 6293, finding 2).
+/// (the fifth review of issue 6293,
+/// finding 2).
 /// A note that names a process which is gone is the leftovers of a killed service,
 /// and the birth identity is what tells the two apart,
 /// so the claim is taken over then and never otherwise;
@@ -140,7 +145,8 @@ fn another_live_service_holds(pid: i32) -> std::io::Error {
 //   and that instant is the whole of what the claim's atomicity is about.
 #[cfg(test)]
 thread_local! {
-    /// What a control runs between the look and the publish, once.
+    /// What a control runs between the look and the publish,
+    /// once.
     static BEFORE_THE_PUBLISH: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
 }
 
@@ -161,7 +167,8 @@ pub(crate) fn a_control_runs_before_the_publish(step: impl FnOnce() + 'static) {
     });
 }
 
-/// Runs the step a control left for this instant, if one did.
+/// Runs the step a control left for this instant,
+/// if one did.
 fn run_the_controls_step_before_the_publish() {
     #[cfg(test)]
     BEFORE_THE_PUBLISH.with(|slot| {

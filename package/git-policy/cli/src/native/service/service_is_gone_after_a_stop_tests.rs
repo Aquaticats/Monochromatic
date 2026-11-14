@@ -8,7 +8,8 @@ fn folder(name: &str) -> std::path::PathBuf {
     return root;
 }
 
-/// An instance with no note is gone, and so is one whose number carries another birth.
+/// An instance with no note is gone,
+/// and so is one whose number carries another birth.
 #[test]
 fn a_note_that_names_no_living_process_is_gone() {
     let root = folder("stale");

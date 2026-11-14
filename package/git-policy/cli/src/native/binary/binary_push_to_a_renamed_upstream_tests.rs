@@ -6,12 +6,15 @@
 //!  Git's status line names the reference the push wrote to,
 //! which is the branch's upstream and not always the branch's own name:
 //! a local `topic` that tracks `origin/main` under `push.default=upstream` is pushed as
-//! `<commit>:refs/heads/main`, and Git prints `... <oid> -> main`.
+//! `<commit>:refs/heads/main`,
+//! and Git prints `... <oid> -> main`.
 //! A reading that looks for `topic` finds no line there,
 //! and the verdict called a delivered push one that reached nowhere,
 //! with a final notice that said the commit was saved only in this repository and a plan ended
-//! (the fifth review of issue 6293, finding 1).
-//! Everything here is real: the remote is a bare repository,
+//! (the fifth review of issue 6293,
+//! finding 1).
+//! Everything here is real:
+//! the remote is a bare repository,
 //! the second address is the reserved word Git refuses,
 //! the service is a real process and the commit is the built wrapper's.
 //!

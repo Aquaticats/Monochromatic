@@ -318,7 +318,7 @@ pub fn run(arguments: &[String]) -> i32 {
     let socket_directory: PathBuf = match option(arguments, "--instance-files").map(PathBuf::from) {
         Some(named) => named,
         None => match &address {
-            Bind::Path(socket) => socket.parent().map_or_else(|| { return PathBuf::from("."); }, Path::to_path_buf),
+            Bind::Path(socket) => socket.parent().map_or(PathBuf::from("."), Path::to_path_buf),
             Bind::Abstract(_) | Bind::Inherited => PathBuf::from("."),
         },
     };

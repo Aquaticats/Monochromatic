@@ -17,7 +17,8 @@
 //! A service that maps to nothing is reported and never stopped.
 //! Nothing here asks a service manager or signals a process by name:
 //! a service is asked to leave over its own address,
-//! and its own note, which it writes when it listens,
+//! and its own note,
+//! which it writes when it listens,
 //! says when its process is gone.
 //! A service that starts and finds its own worktree gone removes its own address before it serves anything,
 //! so a removal that Git ran with the wrapper replaced,

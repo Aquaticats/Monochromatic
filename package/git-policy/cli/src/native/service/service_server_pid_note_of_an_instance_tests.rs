@@ -1,5 +1,7 @@
 //! Controls of the note that names an instance's service:
-//! its text, its reading, and the birth identity that tells a reused number apart.
+//! its text,
+//! its reading,
+//! and the birth identity that tells a reused number apart.
 
 use super::*;
 
@@ -67,7 +69,8 @@ const CLAIMER_OUTCOME_VARIABLE: &str = "CLI_GIT_TEST_ONLY_PID_NOTE_OUTCOME";
 const CLAIMER_PATIENCE: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// What the child of the two-claimer control does:
-/// claim the note, held between its look and its publish until the parent has claimed it first.
+/// claim the note,
+/// held between its look and its publish until the parent has claimed it first.
 fn claim_as_the_second_process() {
     let note: std::path::PathBuf = std::path::PathBuf::from(std::env::var_os(CLAIMER_NOTE_VARIABLE).expect("the note to claim"));
     let looked: std::path::PathBuf = std::path::PathBuf::from(std::env::var_os(CLAIMER_LOOKED_VARIABLE).expect("where to say it looked"));
@@ -88,7 +91,9 @@ fn claim_as_the_second_process() {
     std::fs::write(&outcome, said.as_bytes()).expect("the child leaves its outcome");
 }
 
-/// Waits, bounded, until the condition holds.
+/// Waits,
+/// bounded,
+/// until the condition holds.
 fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
     let began: std::time::Instant = std::time::Instant::now();
     while !condition() {
@@ -101,7 +106,8 @@ fn wait_until(what: &str, condition: &dyn Fn() -> bool) {
 ///  Two processes that claim one instance leave exactly one owner.
 /// Why:
 ///  The fifth review of issue 6293 (finding 2):
-/// a look, a write and a read back were not one step,
+/// a look,
+/// a write and a read back were not one step,
 /// so two services could both read a note that named nobody,
 /// each write its own name after the other's,
 /// and both read their own writing back.

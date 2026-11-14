@@ -9,7 +9,8 @@
 //! so a Git release that changes one breaks a control here rather than a person's notice.
 
 use super::*;
-/// The reading of one push's output, which the handlers make and this file makes the same way.
+/// The reading of one push's output,
+/// which the handlers make and this file makes the same way.
 use crate::push_attempts_of_a_failed_push::failed_push_by_address;
 use crate::auto_push::AutoPushOutcome;
 
@@ -136,7 +137,9 @@ fn a_host_that_does_not_answer_at_the_second_address_keeps_the_plan() {
 ///  A decline at the second address ends the plan with the branch-gone sentence when the branch was deleted while the
 ///  push ran.
 /// Why:
-///  The third review of issue 6293 (finding 3): the record is the last thing said about this push, and a person who is
+///  The third review of issue 6293 (finding 3):
+/// the record is the last thing said about this push,
+/// and a person who is
 /// not told the branch is gone waits for a retry that will not come.
 #[test]
 fn a_decline_at_the_second_address_with_the_branch_gone_says_so_and_tries_nothing_again() {
@@ -158,7 +161,10 @@ fn a_decline_at_the_second_address_with_the_branch_gone_says_so_and_tries_nothin
 /// What:
 ///  A failure at the second address that may pass keeps the plan only while the branch is there to push.
 /// Why:
-///  The other side of the rule: a deleted branch ends every further attempt, but the delivery is still reported, so the
+///  The other side of the rule:
+/// a deleted branch ends every further attempt,
+/// but the delivery is still reported,
+/// so the
 ///  answer is a record and not a retry.
 #[test]
 fn a_failure_that_may_pass_at_the_second_address_ends_when_the_branch_is_gone() {

@@ -453,7 +453,8 @@ enum Answered {
 /// and a connection taken and never greeted is a program that stopped inside itself
 /// (`wait_ceilings.rs`,
 /// `HAND_OVER_GREETING_WAIT`).
-/// The address is the one the commit itself uses, a socket file or an abstract name (`service_address_of_a_worktree.rs`),
+/// The address is the one the commit itself uses,
+/// a socket file or an abstract name (`service_address_of_a_worktree.rs`),
 /// and a connection another account's process took is no service of this command.
 ///
 /// In TS you'd write (pseudocode):
@@ -480,12 +481,18 @@ fn asking(address: &Bind) -> Answered {
 ///   Without a worktree to ask about,
 /// any service of the account counts,
 /// and one that takes a connection and says nothing does not.
-/// A service holds either a socket file under the folder of the sockets or, where that folder's path is too long for one
-/// socket address, an abstract name, which has no file to be found by
+/// A service holds either a socket file under the folder of the sockets or,
+/// where that folder's path is too long for one
+/// socket address,
+/// an abstract name,
+/// which has no file to be found by
 /// (`service_address_of_a_worktree.rs`).
-/// The instances of an account are the ones the notes name, which provisioning writes for every instance and the sweep
-/// reads for the same reason (`instances_with_units`), and each names its own address;
-/// the files still answer for an instance whose note is gone, which a process killed in provisioning leaves.
+/// The instances of an account are the ones the notes name,
+/// which provisioning writes for every instance and the sweep
+/// reads for the same reason (`instances_with_units`),
+/// and each names its own address;
+/// the files still answer for an instance whose note is gone,
+/// which a process killed in provisioning leaves.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

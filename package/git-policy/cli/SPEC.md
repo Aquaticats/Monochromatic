@@ -8116,7 +8116,8 @@ on the commit path:
   the output and the notes live,
   and whose error number is replaced by the setting that decides it.
   A runtime directory too long for a socket path is not such a cause:
-  the service is listened at an abstract name there, and the commit is made (`SPEC.md`,
+  the service is listened at an abstract name there,
+  and the commit is made (`SPEC.md`,
   "Where the service listens").
   There is no longer a state a service manager could create and a command could not reach:
   the manager takes no part in an address,

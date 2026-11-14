@@ -407,7 +407,7 @@ impl GitHandlers {
 /// ```ts
 /// const answer = await branchExistsOnTheRuntime(git, item.branch_ref);
 /// ```
-async fn branch_exists_awaiting(git: &PushGit, branch_ref: &str) -> Option<bool> {
+pub(crate) async fn branch_exists_awaiting(git: &PushGit, branch_ref: &str) -> Option<bool> {
     let asked = crate::auto_push_single_flight::run_query_awaiting(git, &crate::auto_push_reconcile_basics_and_limits::argv(&["rev-parse", "--verify", "--quiet", branch_ref])).await.ok()?;
     return match asked.code {
         Some(0) => Some(true),
@@ -511,45 +511,9 @@ impl WorkHandlers for GitHandlers {
             //       remote holds stays there after the branch is deleted, so a push that reached an address is a delivery the branch's
             //       fate cannot take away, and it keeps the record that says where the commit is (the third review of issue 6293,
             //       finding 3, which found this arm answering "this push was not made" over a delivery to the first address).
-            Ok(failed) => {
-                // What: The push read once, and the branch's own fate asked once, for the one decision below.
-                // Why:  Both answers belong to the same verdict: what the push reached decides whether a record says where the commit
-                //       is, and the branch being gone decides that nothing is tried again for it. The three facts of a push are one
-                //       pass over Git's output, so the output is read here and handed in rather than read a second time.
-                // What: The reference this reading looks for is the one the push wrote to, which is the branch's upstream when
-                //       that is named differently, and the branch's own name only when the push named no reference at all.
-                // Why:  Git's status line names the reference it updated (`... <oid> -> main` for a local `topic`), so looking for
-                //       the local name found no line and called a delivered push one that reached nowhere, with a final notice that
-                //       said the commit was saved only here (the fifth review of issue 6293, finding 1).
-                let destination: &str = failed.destination_or(newest.branch_ref.as_str());
-                let read: crate::push_attempts_of_a_failed_push::FailedPushByAddress = crate::push_attempts_of_a_failed_push::failed_push_by_address(
-                    failed.shown.as_str(),
-                    destination,
-                    failed.push_addresses.as_slice(),
-                );
-                let branch_is_gone: bool = branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false);
-                let settled: crate::service_work_failed_push_verdict::SettledFailedPush = crate::service_work_failed_push_verdict::verdict_of_a_failed_push(
-                    failed,
-                    read,
-                    newest.branch_ref.as_str(),
-                    newest.repository.as_path(),
-                    branch_is_gone,
-                );
-                // What: A push that reached an address is a push that landed, whatever another address did.
-                // Why:  The branch is backed up, so nothing is retried and nothing failed; what is left to say is where the commit is and
-                //       which address was given up, and that goes where every accepted push's words go: a record the next command shows
-                //       once, which the step that settles this verdict writes, named for the commit this push sent.
-                match settled {
-                    crate::service_work_failed_push_verdict::SettledFailedPush::Reached(said) => Verdict::Delivered { commit: sent, said },
-                    // What: A push that reached no address on a branch the person deleted is answered as it always was.
-                    // Why:  Nothing was sent, so nothing can pass by waiting, and the repository is asked where the commit still lives,
-                    //       never the words of the output: any program a push runs can print a line about a branch of its own.
-                    crate::service_work_failed_push_verdict::SettledFailedPush::Unreached(_) if branch_is_gone => {
-                        Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
-                    }
-                    crate::service_work_failed_push_verdict::SettledFailedPush::Unreached(verdict) => verdict,
-                }
-            }
+            // What: What became of a failed push is answered in `service_work_settles_a_failed_push.rs`.
+            // Why:  This file is at its line bound, and the answer is one decision over three facts of one push.
+            Ok(failed) => crate::service_work_settles_a_failed_push::answer(failed, sent.as_str(), newest, &git).await,
             Err(error) => Verdict::Retry(format!("{error}")),
         };
         });

@@ -145,7 +145,8 @@ pub struct AutoPushResult {
     /// or a `remote.<name>.push` refspec that renames):
     /// a reading that looks for the local name then finds no line,
     /// and calls a delivered push one that reached nowhere
-    /// (the fifth review of issue 6293, finding 1).
+    /// (the fifth review of issue 6293,
+    /// finding 1).
     pub destination_ref: Option<String>,
 }
 
