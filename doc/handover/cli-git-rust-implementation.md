@@ -1198,6 +1198,48 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Two reviews with findings: the lock shim takes a live holder's lock three ways; the driver's ask can end a run that is at work (2026-11-14T10:03:21-05:00)
+
+Not final and not approved:
+what two reviews report of themselves,
+each having run reproductions,
+and what the coordinating session queued.
+
+- **The lock shim of Pi** (`7ec2fd422d`):
+  sound within one PID namespace and one version of the shim.
+  Three reproduced,
+  each ending with two live processes that both believe they hold one lock:
+  a record that cannot be read is aged out with no check that its holder lives
+  (`chmod 000` standing in for a read that fails);
+  a holder in another PID namespace is judged gone;
+  a live holder of the old shim's lock,
+  an empty directory,
+  is aged out on its age alone.
+- **Adopted from the record, open to veto**:
+  a lock is taken over only on proof that its holder is gone,
+  and age or a read error is never proof;
+  a caller that meets a lock it cannot judge ends within a stated bound and names the one command that clears it.
+  Two requirements meet here
+  (nothing a person made is lost;
+  nothing waits forever),
+  and `doc/decision/proper-lockfile-removal.md` already names removal by hand for what the shim cannot settle.
+  The author is resumed second in the queue
+  (`~/temp/agent/pi-runs/lock-shim-of-pi-answers-its-review-of-2026-11-14-prompt.md`).
+  Until that fix is in,
+  the shim in `main` is the old one:
+  a lock left by a dead Pi stops every start and is cleared by hand under the recorded checks.
+- **The driver's empty last answer** (`bb279c8356`):
+  one reproduced,
+  with the start of a turn scripted:
+  the ask is sent after a scan with no second look at whether Pi is at rest,
+  so a Pi that began a turn refuses it,
+  the watch reads that as an empty answer,
+  and the run is ended in the middle of its turn.
+  The author is resumed third
+  (`~/temp/agent/pi-runs/driver-empty-last-answer-answers-its-review-of-2026-11-14-prompt.md`).
+  That review did not run the built unit suite,
+  since building would have written into its worktree.
+
 ##### Two authors answered: the archive's files are kept as plain text, and removal-refuses names a rename rightly; each goes to review (2026-11-14T09:58:49-05:00)
 
 Not final and not approved:
