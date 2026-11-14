@@ -1241,6 +1241,86 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's cleanup of old versions is answered a third time and goes to review (2026-11-14T14:48:42-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked,
+and what it queued.
+
+- **mpm-shadow removes by itself the old versions it installed** (tip `542b881860`, ended 14:43:53):
+  the author reports the third review answered with five controls,
+  a pass that keeps a version by undoing a removal,
+  `main` merged with none of its three modules touched,
+  834 tests of the whole suite passing and the type check clean;
+  cost against the commit before at a median ratio of 1.02
+  (0.89 to 1.05 with nothing to remove,
+  0.95 to 1.02 with 63 removals),
+  inside each arm's own spread.
+  It says the review's harness for one scenario asks whether a held file exists at one name,
+  where a restore puts it back at the other,
+  and leaves one window open:
+  a `current` link can dangle until the next sync repairs it,
+  unless a lock over the whole store closes it.
+  The project's rule on concurrency reads lock-free first with a lock over the smallest unit,
+  so no store-wide lock is adopted here,
+  open to the owner's veto;
+  what a dangling `current` link costs a tool that starts meanwhile is for the review to show.
+  Review queued second (range `main...542b881860`, six code files).
+- **`0.6.1-alpha.31`**:
+  the release workflow ended with success at 14:41:37 and the release was published at 14:48:15 with its archives;
+  the install follows in the command that waits for it.
+- The queue held 60 entries at 14:48:42.
+
+##### Three reviews each reproduce something: an ambiguous operand reaches real Git unguarded, a file put back over a newer one, a path outside ASCII dropped from a brief; all three go back (2026-11-14T14:45:27-05:00)
+
+Not final and not approved:
+what three reviews report of themselves,
+and what the coordinating session checked and queued.
+
+- **The landed removal's guard** (`9e6c8619a9`),
+  third review,
+  built and run through the wrapper:
+  when the operand is a suffix two registered worktrees share,
+  the guard answers that it does not know and stands down,
+  and real Git removes the worktree with a hidden edit or a commit only a detached head names
+  (status 0;
+  with an operand one worktree matches,
+  the guard refuses).
+  One more by reading:
+  the questions about a stranded commit and a hidden edit are not asked again where the btrfs destroy is decided.
+  The author is resumed first,
+  asked to list every place the guard can stand down and to refuse there
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **mpm-shadow's stale launchers** (`7fa024e9d5`),
+  fourth review:
+  with the scope's lock gone the retirement passes run under no lock,
+  so an install that loaded an older lock can delete what an install beside it has just placed for the same tool
+  (by reading;
+  the reviewer's scope could not reach the archive host to run it);
+  and the put-back of an entry moved aside is an unconditional rename that writes over a file placed there meanwhile
+  (reproduced with a stand-in and a control).
+  The author is resumed second,
+  asked by what an install knows at the instant of a deletion that a newer lock does not declare the thing,
+  and for the three-arm cost against `main` alone
+  (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- **The brief writer for a change to tests alone** (`cc72076d8e`),
+  second review,
+  against real Git:
+  a changed file whose name holds a byte outside ASCII is dropped from the brief,
+  since one list of paths is read with `-z` and the other is not,
+  which the author's last commit brought;
+  and two renames whose joined text is equal collide in the key that removes duplicates.
+  The author is resumed third
+  (`~/temp/agent/pi-runs/review-brief-writer-for-tests-answers-its-second-review-of-2026-11-14-prompt.md`).
+- **No resume of today names a session the credential scan lists.**
+  The scan's files name each affected session by its worktree folder;
+  a search of them for the eight authors resumed since 13:24 found none,
+  and the same search shows the folder names it can find
+  (among them integration pass 37 and the first run of mpm-shadow's install-removes-no-version,
+  which is why that branch got a fresh run).
+- The queue held 59 entries at 14:45:27.
+
 ##### Pass 43 is in `main` and `0.6.1-alpha.31` is dispatched; the new drive is expected two days later (2026-11-14T14:41:29-05:00)
 
 Not final and not approved:
