@@ -1230,6 +1230,31 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.29` is installed; mpm-shadow's `0.2.7-alpha.11` is dispatched (2026-11-14T12:31:09-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **`0.6.1-alpha.29`** (pass 39):
+  published at 12:30:46,
+  installed here from 12:30:51 to 12:30:58,
+  sample commit 1,200 ms,
+  `--version` answering `0.6.1-alpha.29`.
+  The count of the wrapper units' journal for its first minutes is still to run.
+  The next wrapper release is `0.6.1-alpha.30`.
+- **mpm-shadow `0.2.7-alpha.11`**
+  (an install takes a tool,
+  issue 6300;
+  the Clippy fix):
+  dispatched at 12:31:09 from `main` with the wrapper's release commit in it
+  (run 43621534396).
+  An alpha label is released as archives on GitHub and is not published to crates.io,
+  as the wrapper's alphas are.
+  `toolchain:update` follows when the run has ended.
+- Of the inbox notes this session sent today,
+  none stands refused:
+  five `.failed-*` files exist under the run folders' inboxes and none was written on 2026-11-14.
+
 ##### The driver's empty last answer goes back with three reproduced defects (2026-11-14T12:29:33-05:00)
 
 Not final and not approved:
