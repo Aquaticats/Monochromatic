@@ -231,6 +231,16 @@ No future software update or reboot was performed as part of this verification.
 
 OpenSnitch logged live reloads for both final filenames at `2026-11-14T14:00:44Z`.
 The existing precedence-selection explanation in this document applies to these `000-` rules.
+The selecting predicate was re-read in
+[`daemon/rule/loader.go:497 to 515`](https://github.com/evilsocket/opensnitch/blob/b404c4c6316760fa7bc415509d3f8d747f7dc9cc/daemon/rule/loader.go#L497-L515):
+
+```go
+if rule.Action == Reject || rule.Action == Deny || rule.Precedence == true {
+    return rule
+}
+```
+
+`agent-browser` confirmed that the pinned selection contains this predicate.
 
 ### Cleanup and verification
 
