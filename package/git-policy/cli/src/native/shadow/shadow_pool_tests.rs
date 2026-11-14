@@ -321,6 +321,33 @@ fn an_abandoned_fill_is_removed_by_a_later_fill() {
     remove(root.as_path());
 }
 
+/// What:
+///  A step of the wall clock forward does not remove a half-made member a live fill is writing.
+/// Why:
+///  The fill's folder is removed by its age, and the age is a difference between a mark on the volume and the clock
+///  the sweep reads: time synchronisation after a suspend and a resume steps that clock forward past any fill's age,
+///  and the member being written would be taken from the fill that publishes it.
+///  The claim the fill keeps is what answers instead of the clock (`tree_held_by_a_live_process.rs`),
+///  and a folder no live fill claims still goes.
+#[test]
+fn a_clock_step_forward_never_removes_a_half_made_member_a_live_fill_writes() {
+    let root: PathBuf = fixture("shadow-pool-clock-step");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let template: ShadowTemplate = template_of(repo.as_path());
+    let pool: PathBuf = pool_root(&template);
+    std::fs::create_dir_all(pool.as_path()).expect("pool");
+    let making: PathBuf = pool.join(format!("{FILLING_PREFIX}a-fill-that-is-writing"));
+    std::fs::create_dir(making.as_path()).expect("half a member");
+    let _writing: crate::service_scratch_renewal::ScratchRenewal =
+        crate::service_scratch_renewal::ScratchRenewal::start(making.as_path(), crate::scratch_location::SCRATCH_REFRESH_EVERY);
+    let killed: PathBuf = pool.join(format!("{FILLING_PREFIX}a-fill-that-was-killed"));
+    std::fs::create_dir(killed.as_path()).expect("half a member nothing claims");
+    sweep_abandoned(pool.as_path(), SystemTime::now() + Duration::from_secs(3600));
+    assert!(making.exists(), "a half-made member a live fill writes is still there at the stepped clock");
+    assert!(std::fs::symlink_metadata(killed.as_path()).is_err(), "and one no live fill claims goes as it did before");
+    remove(root.as_path());
+}
+
 /// A reftable repository is never pooled:
 /// its shadow is Git's own tables,
 /// which no member holds.

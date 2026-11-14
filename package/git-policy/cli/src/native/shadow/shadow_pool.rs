@@ -36,7 +36,7 @@
 //! ```
 
 /// Private directory creation and tree removal.
-use crate::private_storage::{create_private_directory_all, remove_tree};
+use crate::private_storage::{create_private_directory, create_private_directory_all, remove_tree};
 /// Random member names.
 use crate::random_id::random_uuid;
 /// The facts a creation is made from,
@@ -370,6 +370,14 @@ pub fn fill(context: &GitContext, template: &ShadowTemplate) -> Result<Option<Pa
     }
     sweep_abandoned(root.as_path(), SystemTime::now());
     let staging: PathBuf = root.join(format!("{FILLING_PREFIX}{}", random_uuid().unwrap_or_default()));
+    // What: The staging name is made here and claimed before anything is written into it.
+    // Why:  The claim is what a sweep reads before it takes a half-made member for one a killed fill left
+    //       (`tree_held_by_a_live_process.rs`), and the age that sweep goes by is a wall clock that may step forward.
+    //       The creation's first directory is this one, so making it here costs the creation no call it would not have made.
+    if let Err(error) = create_private_directory(staging.as_path()) {
+        return Err(GitFailure(format!("the staging folder of the finished shadow {} cannot be made: {error}", staging.display())));
+    }
+    let _claimed: Option<crate::tree_held_by_a_live_process::HeldTree> = crate::tree_held_by_a_live_process::hold(staging.as_path());
     // The creation names its own stretches; nothing reads them here, so they are taken and dropped rather than
     // left in the process's ledger for a record that this process never writes.
     let mut clock: BuildPartClock = BuildPartClock::begin("shadow fill");
@@ -491,6 +499,10 @@ pub fn members(root: &Path) -> Vec<PathBuf> {
 ///   A fill publishes its member with one rename,
 /// so anything still named as a fill belongs to a process that stopped,
 /// and nothing else ever claims it.
+///  The age is asked first and the claim second,
+///  so a fill a live process is making is left alone even when a wall clock that stepped forward says its folder is old
+///  (`tree_held_by_a_live_process.rs`),
+///  and a volume that gives no `flock` leaves the age to decide, as it did before the claim existed.
 ///  The moment is a parameter so a control can show the age that removes one.
 ///
 /// In TS you'd write (pseudocode):
@@ -512,10 +524,20 @@ fn sweep_abandoned(root: &Path, now: SystemTime) {
             Ok(modified) => now.duration_since(modified).is_ok_and(older_than_the_fill_age),
             Err(_) => false,
         };
-        if old {
-            let _removed: std::io::Result<()> = remove_tree(entry.path().as_path());
-            crate::diagnostic_log::debug("shadowPool", format!("removed the abandoned fill {name}").as_str());
+        if !old {
+            continue;
         }
+        // What: A half-made member a live fill is writing is not abandoned, whatever age the clock gives its folder.
+        // Why:  A forward step of the wall clock makes a folder a fill wrote moments ago look older than any fill takes,
+        //       and this sweep would remove it under the fill that publishes it (`tree_held_by_a_live_process.rs`).
+        //       The claim is asked only where the age would already have removed the entry, so an ordinary fill pays nothing.
+        if crate::tree_held_by_a_live_process::whether_held(entry.path().as_path())
+            == crate::tree_held_by_a_live_process::WhetherHeld::ByALiveProcess
+        {
+            continue;
+        }
+        let _removed: std::io::Result<()> = remove_tree(entry.path().as_path());
+        crate::diagnostic_log::debug("shadowPool", format!("removed the abandoned fill {name}").as_str());
     }
 }
 

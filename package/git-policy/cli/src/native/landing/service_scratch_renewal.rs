@@ -37,22 +37,32 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Duration;
 
 /// What:
-///  The renewal of one scratch tree,
-///  which stops when this value goes.
+///  The renewal of one tree a command holds,
+///  which stops when this value goes,
+///  and the claim on that tree a clock step cannot move.
 /// Why:
-///   The value lives as long as the commit's scratch directory does,
+///   The value lives as long as the tree does,
 ///  so a command that ends,
 ///  by answer,
 ///  by a stop or by a panic,
 ///  stops renewing,
 ///  and one that is killed stops with the process.
+///  The claim is the half of that a sweep can read without arithmetics on the wall clock:
+///  a modification time cannot tell a live tree from an abandoned one across a forward clock step,
+///  and the claim can, because the kernel holds it and no clock moves it
+///  (`tree_held_by_a_live_process.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const renewal = startScratchRenewal(path); // stops on disposal
+/// const renewal = startScratchRenewal(path); // stops on disposal, and holds the tree meanwhile
 /// ```
 #[derive(Debug)]
 pub struct ScratchRenewal {
+    /// The claim this command keeps on the tree while it lives,
+    /// which is what a sweep reads before it takes the tree for abandoned.
+    ///  Nothing reads it here: holding it is the whole of the claim,
+    ///  and it ends with this value or with the process.
+    _held: Option<crate::tree_held_by_a_live_process::HeldTree>,
     /// The message that ends the waiting thread,
     /// which no one needs to receive:
     /// the thread ends when the sender goes,
@@ -71,12 +81,17 @@ impl ScratchRenewal {
     ///  The first beat is made before the waiting and not after it,
     ///  because a tree that arrived already old is a tree a sweep may take while its holder waits out the first span:
     ///  the mark is the whole of what says the tree is somebody's.
+    ///  The claim is taken before the thread starts,
+    ///  so a tree is known as held from the moment this value exists and not from the first beat:
+    ///  a sweep that runs inside that span reads the claim and leaves the tree,
+    ///  and a volume that gives no `flock` leaves the tree to the mark alone, as before.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// ScratchRenewal.start(path, REFRESH_EVERY);
     /// ```
     pub fn start(path: &Path, every: Duration) -> Self {
+        let held: Option<crate::tree_held_by_a_live_process::HeldTree> = crate::tree_held_by_a_live_process::hold(path);
         let (stop, waited): (Sender<()>, Receiver<()>) = channel();
         let renewed: PathBuf = path.to_path_buf();
         let started = std::thread::Builder::new().name(String::from("scratch-renewal")).spawn(move || {
@@ -95,7 +110,7 @@ impl ScratchRenewal {
                 format!("the scratch tree {} is not renewed while this command lives: {error}", path.display()).as_str(),
             );
         }
-        return Self { stop };
+        return Self { _held: held, stop };
     }
 
     /// What:

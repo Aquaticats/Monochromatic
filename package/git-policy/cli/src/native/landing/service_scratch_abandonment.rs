@@ -70,6 +70,9 @@ pub const SCRATCH_TREES_REMOVED_PER_COMMAND: usize = 8;
 ///  however old it is, until the service is done with that request.
 ///  Every other entry of a scratch place is the wrapper's own and goes by the age the caller gives it,
 ///  because nothing else ever collects it.
+///  A commit tree that a live process claims goes nothing, whatever age the clock gives it:
+///  a forward step of the wall clock makes a tree a commit is building in look hours old,
+///  and the claim is the one thing a clock step cannot move (`tree_held_by_a_live_process.rs`).
 ///  An entry whose age cannot be told,
 ///  and one dated in the future,
 ///  is never old enough:
@@ -87,10 +90,19 @@ pub fn may_go(path: &Path, metadata: &std::fs::Metadata, now: SystemTime, max_ag
         return false;
     }
     let allowed: Duration = if tree { SCRATCH_TREE_ABANDONED_AFTER } else { max_age };
-    return match age {
-        Some(found) => found > allowed,
-        None => false,
-    };
+    let Some(found) = age else { return false };
+    if found <= allowed {
+        return false;
+    }
+    // What: The age says the tree may go, and a tree a live process is building in is not abandoned: the command that
+    //       builds in it holds a claim no wall-clock step can take away.
+    // Why:  A forward step of the clock, as time synchronisation makes after a suspend and a resume, otherwise makes the tree
+    //       of a commit that is running look hours old and this collection deletes it under that commit.
+    //       The claim is asked only here, where the age would already have removed the entry, so the ordinary sweep pays nothing.
+    if tree && crate::tree_held_by_a_live_process::whether_held(path) == crate::tree_held_by_a_live_process::WhetherHeld::ByALiveProcess {
+        return false;
+    }
+    return true;
 }
 
 /// Whether `path` is named as one of the wrapper's commit scratch trees:

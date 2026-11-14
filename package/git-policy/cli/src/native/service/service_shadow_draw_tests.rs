@@ -100,6 +100,38 @@ fn a_stocked_tree_is_kept_fresh_so_no_sweep_takes_it() {
 }
 
 /// What:
+///  A step of the wall clock forward does not sweep a tree the stock holds,
+///  and the answer still names a tree that is there.
+/// Why:
+///  The stock's entry is kept fresh by its renewal, and that keeps a sweep at a steady clock away;
+///  a clock that steps forward makes the same tree look hours old,
+///  and the service's holding is the one thing a step cannot take (`tree_held_by_a_live_process.rs`).
+///  A stock whose tree went would answer the next commit with a path that is gone.
+#[test]
+fn a_clock_step_forward_never_sweeps_a_tree_the_stock_holds() {
+    let root: PathBuf = fixture("shadow-draw-stock-clock-step");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+    git(repo.as_path(), &["add", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
+    let context: GitContext = git_context();
+    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
+    let _member: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
+    let drawn: PathBuf = crate::shadow_drawn::draw(&context, &template).expect("a draw").expect("a drawn tree");
+    let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
+    stock.note_ready(drawn.clone());
+    // The host clock steps forward three hours, well past the bound and its renewal margin, and a sweep reads it.
+    let stepped: SystemTime = SystemTime::now() + Duration::from_secs(3 * 60 * 60);
+    let swept: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn(template.common_dir.as_path(), stepped);
+    assert!(swept.is_empty(), "a tree the stock holds must not be swept however far the clock stepped: {swept:?}");
+    let handed: PathBuf = stock.hand_out().expect("the stock answers with the tree it kept");
+    assert!(handed.exists(), "and the tree it names is there for the commit");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A stock that counts a tree the drawn folder no longer holds draws another one,
 ///  so the commit the landing drew for is not answered a path that is gone.
 /// Why:

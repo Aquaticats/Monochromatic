@@ -322,6 +322,14 @@ pub fn sweep_drawn_of(common_dir: &Path, git_dir: &Path, now: SystemTime) -> Vec
 /// Why:
 ///  The three callers above and below differ only in which folders they ask about,
 ///  and the age rule is one rule.
+///  The age is asked first and the claim second,
+///  so the ordinary sweep pays no question to the file system beyond the listing:
+///  a tree the age keeps is never asked about at all.
+///  A tree whose age would take it is taken only when no live process claims it,
+///  because an age computed from a wall clock that stepped forward says a tree written moments ago is hours old
+///  (`tree_held_by_a_live_process.rs`).
+///  A volume that gives no `flock` leaves the age to decide, as it did before the claim existed,
+///  and the log names it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -331,6 +339,12 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
     let mut removed: Vec<PathBuf> = Vec::new();
     for drawn in drawn_members(folder) {
         if !nothing_holds(drawn.as_path(), now) {
+            continue;
+        }
+        // What: A tree a live process holds is not abandoned, whatever the clock says its age is.
+        // Why:  A forward step of the wall clock, as time synchronisation makes after a suspend and a resume, otherwise
+        //       makes the age of a tree a commit is building in pass the bound and this sweep deletes it under that commit.
+        if crate::tree_held_by_a_live_process::whether_held(drawn.as_path()) == crate::tree_held_by_a_live_process::WhetherHeld::ByALiveProcess {
             continue;
         }
         match remove_tree(drawn.as_path()) {
@@ -360,6 +374,11 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
 ///  or one dated in the future,
 ///  is never old enough:
 ///  a wrong clock must not delete a live tree.
+///  That guard covers a clock that went backwards and a mark written by one that ran ahead;
+///  a clock that steps **forward** makes a live tree look old instead,
+///  and that direction is answered by the claim a live process keeps, which no clock moves
+///  (`sweep_drawn_folder`,
+///  `tree_held_by_a_live_process.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

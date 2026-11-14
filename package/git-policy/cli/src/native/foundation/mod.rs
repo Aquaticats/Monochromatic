@@ -27,6 +27,11 @@ pub mod scratch_entry_removal;
 ///  never the system temporary directory.
 pub mod scratch_location;
 
+/// Whether a tree is held by a live process,
+///  asked of a claim no wall-clock step can move,
+///  which is what a sweep reads before it takes a tree for abandoned.
+pub mod tree_held_by_a_live_process;
+
 /// The common Git directory a worktree's own Git directory belongs to,
 /// read from its `commondir` file.
 pub mod common_directory_of_a_git_directory;

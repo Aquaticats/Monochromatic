@@ -280,6 +280,37 @@ fn a_held_tree_is_marked_as_used_from_the_moment_it_is_held() {
 }
 
 /// What:
+///  A step of the wall clock forward does not sweep a tree a live holder keeps,
+///  and it still sweeps a tree nobody holds.
+/// Why:
+///  The age a sweep reads is a difference between the mark a holder wrote and the clock the sweep reads,
+///  and the ordinary way those two clocks differ is time synchronisation after a suspend and a resume:
+///  the clock steps forward and every live tree looks hours old.
+///  A tree a commit is building in is the one thing that age may never take, so the holder's claim answers the
+///  question instead of the clock (`tree_held_by_a_live_process.rs`).
+///  The second arm is the positive control: the sweep still collects what nobody holds at the stepped clock,
+///  so the first arm is the claim and not a sweep that stopped working.
+#[test]
+fn a_clock_step_forward_never_sweeps_a_tree_a_live_holder_keeps() {
+    let root: PathBuf = fixture("shadow-drawn-clock-step");
+    let repo: PathBuf = one_commit_repository(root.as_path(), "repo");
+    let (template, _member) = a_member(repo.as_path());
+    let folder: PathBuf = drawn_root(&template);
+    let held: PathBuf = folder.join("drawn-a-tree-a-commit-builds-in");
+    std::fs::create_dir_all(held.as_path()).expect("a tree a commit holds");
+    let _holding: HandedShadow = HandedShadow::hold(held.clone());
+    let stopped: PathBuf = folder.join("drawn-a-tree-a-command-that-stopped");
+    std::fs::create_dir_all(stopped.as_path()).expect("a tree nothing holds");
+    // The host clock steps forward three hours, well past the bound and its renewal margin, and a sweep reads it.
+    let stepped: SystemTime = SystemTime::now() + Duration::from_secs(3 * 60 * 60);
+    let removed: Vec<PathBuf> = sweep_drawn(template.common_dir.as_path(), stepped);
+    assert_eq!(removed, vec![stopped.clone()], "only the tree nobody holds goes at the stepped clock: {removed:?}");
+    assert!(held.exists(), "the tree a live holder keeps is still there, and the commit building in it is safe");
+    assert!(!stopped.exists(), "and the tree nothing holds is collected as it was before");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A shadow that cannot be written for a reason of its own is the commit's to report:
 ///  the old tree or the pool is not tried again in its place.
 /// Why:
