@@ -1202,6 +1202,40 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The journal's start tests passed their review: pass 33; a pipe at a watch note's name is reproduced on the landing thread (2026-11-14T00:38:14-05:00)
+
+Not final and not approved:
+read by the coordinating session from the review file,
+nothing rerun by it.
+
+- **The tests of the journal read at a start**
+  (`~/temp/agent/change-reviews/git-policy-cli-journal-start-tests-answer-with-a-held-read-after-their-review/review.md`,
+  ended 00:32:05,
+  on `acd357f67a`):
+  no defect in the change.
+  Every wait of the reworked controls is bounded,
+  the hold is taken and let go by the read's own thread,
+  and the four controls pass
+  (the one that binds a socket only under a short `HOME`).
+  The change touches four files and no shipped behaviour.
+  Pass 33 is queued at the head
+  (`integration-pass-33-with-the-journal-start-tests-that-hold-the-read-prompt.md`);
+  it turns three of the twelve tests that are red on `main` green.
+- **Its one finding is in a file the change does not touch**,
+  and is the defect a fresh run already has,
+  going since before midnight
+  (`watch-note-of-the-commit-service-is-read-the-way-every-record-is-read-and-never-waits-on-a-pipe-1`):
+  the watch store reads with `std::fs::read`,
+  so a named pipe at a watch note's name is waited on in `open`.
+  New in this review,
+  and reproduced with the real functions and a control for each:
+  the same read is made on the landing thread,
+  before the client is answered and under no ceiling,
+  when a pipe stands at the exact note name.
+  By its reading a commit that has landed is then never answered and every commit behind it waits.
+  Sent to that run at 00:38 with the probe's path.
+- The queue held 51 entries at 00:38:14.
+
 ##### The cargo fetch before lint: its author answered both review findings (2026-11-14T00:27:03-05:00)
 
 Not final and not approved:
