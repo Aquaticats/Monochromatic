@@ -30,8 +30,7 @@
 //! // 'left-to-git' | { kind: 'allowed', notice, copies } | { kind: 'copy-failed', text }
 //! ```
 
-use crate::conflict_side_guard::prune_after_save;
-use crate::conflict_sides::{SaveFailure, SavedCopy, save_copies};
+use crate::conflict_sides::{SaveFailure, SavedCopy, prune_after_save, save_copies};
 use crate::discarded_prune::Limits;
 use crate::repository_facts::RepositoryFacts;
 use crate::repository_facts_abort_discard::AbortDiscard;
