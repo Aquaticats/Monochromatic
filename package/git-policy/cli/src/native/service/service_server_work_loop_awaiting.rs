@@ -486,7 +486,7 @@ pub async fn work_loop_awaiting(
             let (back, waiting): (ClaimWatch, Vec<PathBuf>) = look_awaiting(watch).await;
             watch = back;
             for directory in waiting {
-                if wakes.iter().any(|(named, _)| named == &directory) {
+                if wakes.iter().any(|(named, _)| return named == &directory) {
                     continue;
                 }
                 wakes.push((directory, None));

@@ -362,13 +362,12 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     );
     // The plan and the watch are read here, after the acceptor started and before the task that runs the loop starts, so the
     //  loop's task begins with what a service that stopped last left and neither reading delays a client's greeting.
-    let (started_retries, started_watch): (PushRetries, ClaimWatch) =
+    let (started_retries, mut started_watch): (PushRetries, ClaimWatch) =
         crate::service_journal_restored_at_start::restored_within(settings.journal_restore_ceiling, plan_directory, watch_directory, watch_instance);
     // What: The worktree this service serves is one of the repositories the loop looks at by itself.
     // Why:  Every record a client leaves for this instance is written under this worktree's own Git directory, so a record whose
     //       wake was lost is found by the look even when no landing of this process wrote a note for it and no client ever woke
     //       it (`service_claim_watch.rs`, `LOOK_AGAIN_AFTER`).
-    let mut started_watch: ClaimWatch = started_watch;
     if let Some(own) = settings.own_git_dir.as_deref() {
         started_watch.remember(own);
     }
