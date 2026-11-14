@@ -50,65 +50,126 @@ pub fn path(socket_directory: &Path, instance: &str) -> PathBuf {
 }
 
 /// What:
-///  Writes the note that names this process.
+///  Writes the complete text of one note into a private file beside it,
+///  and gives that file's path.
 /// Why:
-///   Only the service itself can say which process is its own,
-/// and only its own birth identity is certainly its own.
-/// The text is written beside the note and renamed onto it,
-/// so a reader never sees half of a note,
-/// and the temporary file carries this process's number,
+///   The note is published under its own name by one exclusive link,
+/// so its text must be whole before that name exists:
+/// a reader that opens the note must never find half of it,
+/// which is what a write under the note's own name would let it do.
+/// The private file carries this process's number,
 /// so two processes writing at once never write into one file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// write(pidNotePath, `${process.pid} ${currentBirthIdentity()}\n`);
+/// writePrivate(pidNotePath, `${process.pid} ${currentBirthIdentity()}\n`) // the path of the private file
 /// ```
-pub fn write(note: &Path, pid: i32) -> std::io::Result<()> {
-    let identity: String = match current_birth_identity() {
-        Ok(identity) => identity,
-        // A platform without an identity source cannot make a note a later command may trust, so none is made.
-        Err(_unsupported) => return Ok(()),
-    };
-    let temporary: PathBuf = note.with_extension(format!("{pid}.pid.writing"));
-    std::fs::write(&temporary, format!("{pid} {identity}\n"))?;
-    return std::fs::rename(&temporary, note);
+fn write_private(note: &Path, pid: i32) -> std::io::Result<PathBuf> {
+    let identity: String = current_birth_identity().map_err(|unsupported| { return std::io::Error::other(format!("{unsupported:?}")) })?;
+    let private: PathBuf = note.with_extension(format!("{pid}.pid.writing"));
+    std::fs::write(&private, format!("{pid} {identity}\n"))?;
+    return Ok(private);
 }
 
 /// What:
 ///  Claims one instance for this process:
-/// writes the note that names it,
+/// publishes the note that names it with one exclusive link,
 /// unless another process that is still that process holds the instance.
 /// Why:
 ///   The note is what a starter,
 /// a second service and the sweep all read to learn whose an address is,
-/// so it is written before the address is bound,
+/// so it is published before the address is bound,
 /// and a service that is alive keeps its instance from the moment it claims it,
 /// whether or not it has greeted yet.
+/// The claim is one atomic step with one owner,
+/// as this project's lock-free rule asks:
+/// the complete text is written in a private file,
+/// and `link` gives the note's own name to exactly one process,
+/// which the kernel decides.
+/// A look followed by a write and a read back was not one step:
+/// two services could both read a note that named nobody,
+/// each write its own name after the other's,
+/// and both read their own writing back,
+/// so both believed they held one instance and one took the other's address
+/// (the fifth review of issue 6293, finding 2).
 /// A note that names a process which is gone is the leftovers of a killed service,
 /// and the birth identity is what tells the two apart,
-/// so the claim is taken over then and never otherwise.
-/// Two services claiming at the same moment both write and both read the note back:
-/// the one that does not read its own writing has lost the instance and does not bind.
+/// so the claim is taken over then and never otherwise;
+/// a loser of the link looks once more and refuses when the note now names a live process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// claim(note, pid) // throws when another live process holds it
+/// for (const round of [1, 2]) { if (heldByAnotherLiveProcess(note)) throw ...; const private = writePrivate(note, pid); const made = link(private, note); unlink(private); if (made) return; if (!heldByAnotherLiveProcess(note)) unlink(note); }
 /// ```
 pub fn claim(note: &Path, pid: i32) -> std::io::Result<()> {
     for _round in 0..2 {
         if let Some(held) = held_by_another_live_process(note) {
-            return Err(std::io::Error::other(format!(
-                "the commit service of this instance is process {} and is still that process, so this one does not claim it",
-                held.pid
-            )));
+            return Err(another_live_service_holds(held.pid));
         }
-        write(note, pid)?;
-        // The note is believed only once it reads back as this process's: another claimer may have written it after this one.
-        if matches!(read(note), Some(written) if written.pid == pid && is_still_the_process(&written)) {
-            return Ok(());
+        run_the_controls_step_before_the_publish();
+        let private: PathBuf = write_private(note, pid)?;
+        // The one step that decides the owner: the name is given to whoever the kernel lets link it first.
+        let published: std::io::Result<()> = std::fs::hard_link(private.as_path(), note);
+        let _removed = std::fs::remove_file(private.as_path());
+        match published {
+            Ok(()) => return Ok(()),
+            // Another claimer published first. A note whose process is gone is a killed service's leftovers, which this claim
+            //  removes so the next round can publish; a note naming a live process is that service's, and is looked at again.
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                if held_by_another_live_process(note).is_none() {
+                    let _removed = std::fs::remove_file(note);
+                }
+            }
+            Err(refused) => return Err(refused),
         }
     }
     return Err(std::io::Error::other("another process claimed this instance at the same moment, so this one does not claim it"));
+}
+
+/// The refusal that names the process holding an instance.
+fn another_live_service_holds(pid: i32) -> std::io::Error {
+    return std::io::Error::other(format!(
+        "the commit service of this instance is process {pid} and is still that process, so this one does not claim it"
+    ));
+}
+
+// What:
+//  A control's step between the claim's look and its publish, which is where two claimers of one instance can meet.
+// Why:
+//   No test can make one process's claim land between another's look and its publish by timing alone,
+//   and that instant is the whole of what the claim's atomicity is about.
+#[cfg(test)]
+thread_local! {
+    /// What a control runs between the look and the publish, once.
+    static BEFORE_THE_PUBLISH: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+///  Runs a control's step between the claim's look at the note and its publish.
+/// Why:
+///   The ordering a control of one owner needs is this instant,
+/// and a seam here holds it without any load or timing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aControlRunsBeforeThePublish(() => { tellTheParent(); waitForTheParent(); });
+/// ```
+#[cfg(test)]
+pub(crate) fn a_control_runs_before_the_publish(step: impl FnOnce() + 'static) {
+    BEFORE_THE_PUBLISH.with(|slot| {
+        *slot.borrow_mut() = Some(Box::new(step));
+    });
+}
+
+/// Runs the step a control left for this instant, if one did.
+fn run_the_controls_step_before_the_publish() {
+    #[cfg(test)]
+    BEFORE_THE_PUBLISH.with(|slot| {
+        let step: Option<Box<dyn FnOnce()>> = slot.borrow_mut().take();
+        if let Some(step) = step {
+            step();
+        }
+    });
 }
 
 /// What:

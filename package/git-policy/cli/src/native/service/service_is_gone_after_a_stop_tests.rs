@@ -23,6 +23,6 @@ fn a_note_that_names_no_living_process_is_gone() {
 fn a_note_that_names_a_living_process_is_not_gone() {
     let root = folder("living");
     let note = crate::service_server_pid_note_of_an_instance::path(root.as_path(), "3f9a");
-    crate::service_server_pid_note_of_an_instance::write(note.as_path(), i32::try_from(std::process::id()).expect("a process number")).expect("the note");
+    crate::service_server_pid_note_of_an_instance::claim(note.as_path(), i32::try_from(std::process::id()).expect("a process number")).expect("the note");
     assert!(!service_is_gone(root.as_path(), "3f9a"), "the process the note names is this one");
 }
