@@ -65,8 +65,7 @@ struct Start {
 fn shim_source(record: &Path) -> String {
     return format!(
         "#!/bin/sh\n\
-         scratch=\"${{XDG_RUNTIME_DIR}}/monochromatic-git-policy-cli/scratch\"\n\
-         [ -n \"${{XDG_RUNTIME_DIR-}}\" ] || scratch=\"${{HOME}}/.local/state/monochromatic-git-policy-cli/scratch\"\n\
+         scratch=\"${{HOME}}/.local/state/monochromatic-git-policy-cli/scratch\"\n\
          printf 'service=%s|marker=%s|home=%s|path=%s|target=%s|count=%s|scratch=%s\\n' \
          \"$1\" \"${{{MARKER_NAME}-unset}}\" \"${{HOME-unset}}\" \"${{PATH-unset}}\" \
          \"${{CLI_GIT_NATIVE_FORWARD_TARGET-unset}}\" \"${{GIT_CONFIG_COUNT-unset}}\" \
@@ -99,15 +98,16 @@ fn push_world(fixture: &Fixture) -> PushWorld {
 }
 
 /// What:
-///  The per-user scratch directory of the fixture's run.
+///  The per-user scratch directory of the fixture's run,
+///  as this build places it for that run.
 /// Why:
-///  It follows the runtime directory the wrapper is given
-/// (issue 6293:
-/// a run given a runtime directory of its own keeps nothing under the account's state directory),
-/// so a control that looks for what a command left there must look where this build puts it.
+///  A fixture inherits no session bus (`hermetic` clears the environment),
+///  so nothing proves which session its runtime directory is,
+///  and the wrapper keeps such a run's scratch files where a logout does not clear them:
+///  under the state directory the fixture's own `HOME` names.
+///  A control that looks for what a command leaves there must look where this build puts it.
 fn user_scratch_of(fixture: &Fixture) -> PathBuf {
-    let runtime: PathBuf = super::support::service_runtime(fixture).expect("the fixture's runtime directory");
-    return runtime.join("monochromatic-git-policy-cli").join("scratch");
+    return fixture.root.join("home").join(".local/state/monochromatic-git-policy-cli").join("scratch");
 }
 
 /// A wrapped command for the fixture's `bin/git` that also carries the marker in its environment.
