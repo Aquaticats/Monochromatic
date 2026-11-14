@@ -1198,6 +1198,65 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The credential scan has ended and a list of names to rotate is written; mpm-shadow's cleanup answer goes to review (2026-11-14T10:51:00-05:00)
+
+Not final and not approved:
+what the coordinating session measured and queued,
+and what one author reports of itself.
+
+- **The wider scan ended at 10:47:07**:
+  3,775 Pi session files (6,046 MiB) and the 1,799 Claude Code transcripts of this repository (20,425 MiB).
+  23 Pi sessions and 13 Claude Code transcripts hold a value that is current today
+  (a fourteenth transcript holds only OAuth metadata the matcher mistook).
+  Found:
+  31 of the 35 names of `.env.local.json`,
+  three provider keys of Pi's `auth.json`,
+  the key of Pi's `models.json`.
+  `MISE_GITHUB_TOKEN` stands in seventeen files,
+  `HCLOUD_TOKEN` in two.
+  Found in no file:
+  the `gh` login token,
+  the sops age key,
+  the two real token strings of `mcp-auth.json`.
+  This session's own Claude Code transcript holds `CLAUDE_CODE_TEST_CLAUDE_API_KEY` since 2026-11-07.
+- **The list for the owner's rotation**,
+  names alone:
+  `~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/credentials-to-rotate-names-only.txt`,
+  with what the scan does not cover.
+- **`PNPR_SECRET`**:
+  three of the four strings sessions show after it stand in tracked files and are stand-ins.
+  The fourth,
+  eighteen times,
+  stands in no tracked file and equals no value read;
+  its shape is being read from the Claude Code transcripts,
+  the Pi sessions holding none.
+- **The masking run** was going at 10:49:45.
+- **mpm-shadow's cleanup** (tip `3a96da6dbf`, ended 10:44:30):
+  the author reports the review's three findings answered with controls,
+  46 tests of the changed modules and 780 of the whole suite passing,
+  judging grown by about 2 ms over 118 candidates.
+  The package's `lint:types` ends with status 101 on eighteen findings in files equal to `main`'s
+  (the Clippy fix `682b1072df`,
+  reviewed and in the mpm-shadow integration,
+  is what answers them).
+  The run's summary says `pi-not-stopped`:
+  Pi was still alive when every bound on ending it ran out.
+  Its unit is gone and its worktree is clean,
+  so nothing of it is left;
+  the ending itself is a driver matter to look at when it shows again.
+  Review queued second (range `main...3a96da6dbf`).
+  Its two questions for the owner
+  (one year and one hundred years as the largest work limit and age floor;
+  whether a global pass looks for a repository above the working folder)
+  join the kept question on mpm-shadow's cleanup bounds.
+- **mpm-shadow's install that removes no version a lock names or a process runs** (`e51ae27709`):
+  held until the cleanup author had answered;
+  review queued third.
+  Its author's session is one of those that hold credentials,
+  so findings go to a fresh run and never to a resume.
+- 24 Pi runs were going at 10:49:45;
+  the queue held 56 entries.
+
 ##### `0.6.1-alpha.28` is installed and its first minutes are clean; the archive's kept files are in `main`; the credential scan widens to April (2026-11-14T10:45:14-05:00)
 
 Not final and not approved:
