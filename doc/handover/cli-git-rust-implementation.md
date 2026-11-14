@@ -740,6 +740,18 @@ Questions kept for the owner's return:
   Nothing measured shows the daily update is the cause.
   At twenty the queue starts nothing new while twenty or more runs are going;
   until then about twenty-two went at once.
+- When a retried push reached one address and was declined at another,
+  and the report of that cannot be written because the storage refuses the write,
+  is it enough that the words stand in the journal?
+  The plan is forgotten and nothing writes the report later;
+  the commit is backed up at the address it reached.
+  The package documents this fallback for a first push
+  (`push_failure_notice_reports.rs`: "nothing makes an accepted push say it again"),
+  and the third review of issue 6293 reproduced it for a retried one
+  (its F4;
+  the section of 2026-11-14T01:33:09-05:00).
+  Nothing is changed meanwhile;
+  the fresh run on the neighbouring arms reports what extending its change would cost.
 - Two folders owned by root stand in what is left of `/var/mnt/encrypted/cargo-build/toolchain/nightly-2026-11-11`
   (`3d/ff5cdb8b411452/debug/build/wg-quicker-exempt/test-scratch/wg-quicker-sweep-real-1626078`
   and `b6/f40fb50bf1a32c/debug/build/wg-quicker-exempt/test-scratch/wg-quicker-watch-stop-397956`,
@@ -1212,6 +1224,166 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Six runs read and routed: pending push, landed removal, the issue 6293 review, five library controls, three removal notices, mpm-shadow's stale launchers (2026-11-14T01:33:09-05:00)
+
+Not final and not approved:
+the coordinating session's reading of six last messages and one review,
+with what it queued.
+The last messages are kept under
+`~/temp/agent/last-messages-of-the-runs-that-ended-2026-11-14T0105-to-0112/keep/` and
+`~/temp/agent/last-messages-of-the-runs-that-ended-2026-11-14T0127-to-0129/keep/`.
+
+- **A pending push is made by a running service**
+  (`fix/git-policy-cli-pending-push-is-made-by-the-service-when-the-wake-for-it-was-lost`,
+  tip `b878fc87a2`,
+  report `~/temp/agent/pending-push-wake-scratch/keep/report.md`):
+  a running service now looks every 5 s at the repositories its watch notes name,
+  so a record whose wake was lost is claimed
+  (the push began 5,005 to 5,009 ms after the service's start in seven of eight rounds);
+  eight kinds of record had the gap.
+  Idle cost by its measurement:
+  0.040 s of processor in 600 s for one service.
+  Its review is queued at the head
+  (`review-git-policy-cli-pending-push-is-made-by-the-service-when-the-wake-for-it-was-lost`,
+  range `main...b878fc87a2`).
+  The author asks that it land after the no-manager branch;
+  it is not held for that:
+  the branch that reaches `main` second merges `main`,
+  and the no-manager author is still answering three defects.
+- **Found by that author and not its task**:
+  the two integration branches that stayed unpushed were declined by the push trigger at each merge,
+  reason `upstream-not-single`,
+  because the branch had no upstream.
+  The spec's "Destination" says a branch without an upstream is pushed to `origin` with `--set-upstream`.
+  A fresh run is queued
+  (`merge-on-a-branch-with-no-upstream-is-pushed-to-origin-as-the-spec-says-of-such-a-branch`),
+  told that the reading of the two texts is this session's and to settle it by runs first.
+- **Landed removal keeps Git work**
+  (tip `bfb908af9d`,
+  report `~/temp/agent/pi-landed-removal-git-work-2026-11-13-scratch/keep/report.md`):
+  the unreadable `HEAD` is fixed with a control that fails on the old code,
+  and `main` is merged.
+  The loss of a nested worktree's edit is still there at its tip and gone on a scratch merge with the removal-refuses branch,
+  by that branch's policy-stage guard.
+  Its own guard refuses a state the other does not ask about
+  (the target's own detached `HEAD` at a commit nothing names).
+  It measured a contradiction:
+  the other branch's refusal names `--no-enforce-worktree`,
+  its own names `git worktree remove --force`,
+  and with the opt-out typed its guard still refuses;
+  and `git worktree remove --no-enforce-worktree <path>` is handed to real Git,
+  which rejects it,
+  while the global position is read.
+- **Adopted while the owner was away,
+  open to veto**:
+  the opt-out wins.
+  `package/git-policy/cli/SPEC.md` quotes the owner on "never discard user data" and states that
+  the person who means it runs the command with the guard's opt-out
+  "and the command then runs exactly as real Git runs it";
+  the record of 2026-11-12T13:04:14-05:00 puts the protection on the automatic removal and a typed unforced removal.
+  So a typed removal with the opt-out passes both guards,
+  a refusal names the opt-out in a spelling that runs as printed,
+  and a forced removal stays as it is.
+  The landed-removal author is resumed for that change to its own guard
+  (`landed-removal-typed-removal-guard-stands-down-under-the-policy-opt-out-prompt.md`,
+  queued near the head);
+  the removal-refuses author's brief,
+  not yet started,
+  gained the spelling as a fourth finding.
+  The earlier order
+  (the two land together,
+  or removal-refuses first)
+  is dropped:
+  each goes to review when its author reports it fit,
+  and the second to reach `main` merges `main` in its own author's hands.
+  Its second question,
+  which record names what a removal deleted,
+  has the 13:04:14 record's answer for the log
+  ("goes with it and is logged");
+  what becomes of the merge-time line is for the author that meets the other branch to propose.
+- **Issue 6293, third review**
+  (`~/temp/agent/change-reviews/git-policy-cli-issue-6293-answers-after-its-second-review/review.md`,
+  on `c5ff5defcc`,
+  ended 01:19:24;
+  it built the commit and drove `run_planned_round` over fixtures):
+  the verdict change is sound.
+  Four findings,
+  each weighed against `main`:
+  - A push that reached one address,
+    failed at another,
+    and whose branch was deleted meanwhile is reported "this push was not made"
+    (reproduced).
+    The arm is in `main`;
+    the knowledge that an address was reached is the branch's,
+    so it goes to its author,
+    resumed in its own session
+    (`issue-6293-answers-its-third-review-of-2026-11-14-prompt.md`).
+  - The retry drain forgets a plan when the notice of a final failure could not be written
+    (reproduced:
+    no plan,
+    no notice,
+    nothing pushes the commit again).
+    `service_work_drains_awaiting.rs` is the same in `main`,
+    so a fresh run from `main` has it
+    (`push-retry-keeps-its-plan-when-the-notice-of-a-final-failure-could-not-be-written`).
+  - The same shape in the `Delivered` arm:
+    the report of a push that reached one address is not written and the plan is forgotten.
+    The commit is backed up,
+    and the package documents the same fallback for the other drain,
+    so nothing is changed and the question is kept for the owner.
+  - A push reads its gate records on a runtime worker with no ceiling
+    (read,
+    not reproduced;
+    the calls are in `main`):
+    a fresh run from `main`
+    (`push-reads-its-gate-records-off-the-runtime-worker-and-within-a-ceiling`),
+    told to confirm the reading by a run first.
+- **Five library controls of `main` are true again**
+  (`fix/git-policy-cli-five-library-controls-of-main-that-state-what-main-changed-are-true-again`,
+  tip `ec658fd836`):
+  three tests were stale and are now stricter,
+  one lock was missing from the inventory and is recorded with its reason,
+  three blocking calls are recorded as exceptions with their evidence;
+  each of the first three has a planted break that fails.
+  Its whole-suite run:
+  7,711 run,
+  7 failed,
+  the seven other runs have.
+  Review queued at the head
+  (range `main...ec658fd836`).
+- **Three removal notices that said what was not so**
+  (`fix/git-policy-cli-removal-goes-around-a-subvolume-or-mount-it-did-not-make`,
+  tip `39f0c83ef0`,
+  six commits after the `82e4f12f6e` that pass 30 carries):
+  a resume no longer says its pass is not recorded
+  (the record is published over its name in one rename);
+  the landed sweep's line for an emptied root and the line for a destroy made in place say what happened.
+  Each with a control that failed first.
+  Review queued
+  (range `main...39f0c83ef0`,
+  placed a few entries down so that pass 30 may be in `main` when it starts;
+  if it is not,
+  the review reads the already reviewed part again).
+- **mpm-shadow install leaves no launcher of a name its lock no longer declares**
+  (`fix/mpm-shadow-cli-install-leaves-no-launcher-record-or-link-of-a-name-its-lock-no-longer-declares`,
+  `82ea47018c`):
+  an install now retires the link,
+  launcher and record of an undeclared name when it can prove them mpm-shadow's own;
+  controls for both shapes,
+  kills at three unlinks,
+  two installs at once.
+  This is the tool-side fix for relinks being given up,
+  so the owner question about moving the three `cli-git-native` files by hand falls away once it is released.
+  Review queued at the head
+  (range `main...82ea47018c`).
+- Twenty agent units were going at 01:32:36,
+  the seven integration passes 28 to 34 among them.
+  The queue held 59 entries at 01:33:09.
+  `${HOME}/temp/agent` holds 326 GiB by one of these runs' reports
+  (`change-reviews` 93 GiB,
+  `pkgrepair-repair-off-the-path` 65 GiB,
+  `sonnet-audits` 45 GiB).
 
 ##### The home drive stalls for up to 133 s; levels thirty-two and twenty-four fail and the cap is twenty (2026-11-14T01:24:15-05:00)
 
