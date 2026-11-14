@@ -44,32 +44,72 @@ fn parents(fixture: &Fixture, repo: &Path) -> Vec<String> {
     return git_text(fixture, repo, &["rev-list", "--parents", "-n", "1", "HEAD"]).split_whitespace().skip(1).map(String::from).collect();
 }
 
-/// A merge started while another program holds `index.lock` says what it waits for,
-/// and lands when the lock is gone;
-///  native Git dies on it (`stash failed`) after the work it did before.
+/// What:
+///  A merge that meets an `index.lock` nothing proves the owner of saves its result at once,
+///  exits 0,
+///  names the lock and the ref that keeps it,
+///  and the next command in that worktree finishes the checkout once the lock is gone.
+/// Why:
+///  This is the owner's answer for a foreign `index.lock`,
+///  and the paragraph `SPEC.md` states it in:
+///  the merge never waits for another program's command
+///  (a cross-vendor audit of alpha.12,
+///  "A merge waits for another agent's live index holder",
+///  found the minute of waiting this replaces).
+///  The fixture is that rule at its hardest:
+///  an empty lock with no PID file,
+///  which is what a killed Git leaves and what a person's own `git commit` holds through its editor
+///  (`service_index_unheld_removal.rs`,
+///  the measurement of 2026-11-07),
+///  so nothing can tell that owner from another program's live command,
+///  and a merge that waited for it would wait a minute for the person at the machine.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write('.git/index.lock', '')
+/// const saved = await wrapped(['merge', '--no-edit', 'feature'])
+/// expect(saved.code).toBe(0)
+/// expect(saved.stderr).toContain('this merge does not wait for it')
+/// const side = sideRefOf(saved.stderr)
+/// expect(parents(await revParse(side))).toHaveLength(2)
+/// rm('.git/index.lock')
+/// await wrapped(['status'])
+/// expect(await revParse('HEAD')).toEqual(await revParse(side))
+/// ```
 #[test]
-fn a_merge_waits_for_a_held_index_lock_and_then_lands() {
+fn a_merge_that_meets_a_lock_no_process_proves_saves_itself_and_the_next_command_lands_it() {
     for staged in [false, true] {
-        let fixture: Fixture = fixture(format!("merge-waits-lock-{staged}").as_str());
+        let fixture: Fixture = fixture(format!("merge-unproven-lock-{staged}").as_str());
         let repo: PathBuf = diverged(&fixture, "repo");
         if staged {
             stage_unrelated_work(&fixture, repo.as_path());
         }
         let before = snapshot(&fixture, repo.as_path());
         let lock: PathBuf = repo.join(".git/index.lock");
-        std::fs::write(&lock, b"").expect("another program holds the lock");
-        let mut command: Command = wrapped_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
-        command.env("CLI_GIT_WAIT_NOTICE_SECONDS", "1");
-        let ended: Ended = run_acting_on_line(&mut command, "waits for the index lock", &mut || {
-            assert_eq!(snapshot_head(&fixture, repo.as_path()), before.head, "nothing was merged while the lock was held");
-            std::fs::remove_file(&lock).expect("the other program lets go");
-        });
-        assert_eq!(ended.code, Some(0), "staged={staged}: {}", ended.stderr);
-        assert!(ended.stderr.contains("git merge has changed nothing yet and waits for the index lock"), "{}", ended.stderr);
-        assert!(ended.stderr.contains("index.lock"), "the lock is named: {}", ended.stderr);
+        std::fs::write(&lock, b"").expect("a lock nothing proves the owner of");
+        let saved = super::commit::run_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+        let said: String = String::from_utf8_lossy(&saved.stderr).into_owned();
+        assert_eq!(saved.code, Some(0), "staged={staged}: {said}");
+        assert!(said.contains("an owner nothing proves alive"), "the words say why the merge does not wait: {said}");
+        assert!(said.contains("this merge does not wait for it"), "the line says the merge did not wait: {said}");
+        assert!(said.contains("index.lock"), "the lock is named: {said}");
+        assert!(!said.contains("waits for the index lock"), "nothing promises a wait the merge does not make: {said}");
+        let side: String = side_ref_of(said.as_str());
+        let merged: String = git_text(&fixture, repo.as_path(), &["rev-parse", side.as_str()]).trim().to_owned();
+        assert_eq!(parents_of(&fixture, repo.as_path(), merged.as_str()).len(), 2, "the side ref names a merge commit");
+        assert_eq!(snapshot_head(&fixture, repo.as_path()), before.head, "nothing of the merge is in the branch yet");
+        assert!(!repo.join(".git/MERGE_HEAD").exists(), "the checkout is not half merged");
+        assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()).len(), 2, "the merge and its save are both recorded");
+        // The next command in the worktree finishes the checkout once the lock is gone.
+        std::fs::remove_file(lock.as_path()).expect("the other program lets go");
+        let finished = super::commit::run_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
+        let result: String = String::from_utf8_lossy(&finished.stderr).into_owned();
+        assert_eq!(finished.code, Some(0), "staged={staged}: {result}");
+        assert!(result.contains("finished an interrupted merge"), "the finish is stated: {result}");
+        assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), merged, "the branch holds the saved merge");
         assert_eq!(parents(&fixture, repo.as_path()).len(), 2, "staged={staged}: a merge commit");
-        assert!(!repo.join(".git/MERGE_HEAD").exists());
-        assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new());
+        assert_eq!(records_in(repo.join(".git/monochromatic-git-policy-cli-merges").as_path()), Vec::<PathBuf>::new(), "no record stays");
+        assert_eq!(kept_refs(&fixture, repo.as_path()), Vec::<String>::new(), "the side ref goes away when the merge lands");
         git(&fixture, repo.as_path(), &["fsck", "--strict", "--no-dangling"]);
         remove_settled(&fixture);
     }
@@ -602,47 +642,103 @@ fn a_merge_that_may_not_clear_the_lock_saves_itself_and_the_next_command_finishe
 }
 
 /// What:
-///  A merge that meets a lock a running process holds waits its one minute,
-///  then saves its result on a side ref and exits 0,
-///  and the next command finishes the checkout after that process lets go.
+///  A merge that meets a lock a running process holds open saves its result at once,
+///  exits 0,
+///  names that process and the proof the scan made,
+///  and the next command in that worktree finishes the checkout once the lock is gone.
 /// Why:
-///  This is the case the owner answered (`SPEC.md:2187`):
-/// a holder that runs is not this command's to remove,
-///  so the merge must not fail,
-/// and its result must not be collectable before it lands.
-/// The lock names this very test process in its PID file,
-/// so it is proven alive and the wait
-///  reaches `MERGE_LOCK_CEILING` instead of ending at once.
+///  A holder that runs is not this command's to remove,
+///  so the merge must not fail and its result must not be collectable before it lands,
+///  and the merge does not wait for another program's command either
+///  (`SPEC.md`,
+///  "Merges and commits never fail";
+///  the audit of alpha.12 named above).
+///  The holder is a process of this account holding the file open,
+///  which is the proof the scan makes;
+///  a PID file naming this test process proves nothing,
+///  because this binary's command name is not Git's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writePidFile(process.pid); const saved = await wrapped(['merge', '--no-edit', 'feature']); expect(saved.code).toBe(0); expect(saved.stderr).toContain('did not let go within');
+/// const holder = holdOpenUntilTheScanSeesIt(lock)
+/// const saved = await wrapped(['merge', '--no-edit', 'feature'])
+/// expect(saved.code).toBe(0)
+/// expect(saved.stderr).toContain('proven by an open descriptor')
+/// const side = sideRefOf(saved.stderr)
+/// expect(parents(await revParse(side))).toHaveLength(2)
+/// rm(lock)
+/// holder.kill()
+/// await wrapped(['status'])
+/// expect(await revParse('HEAD')).toEqual(await revParse(side))
 /// ```
 #[test]
-fn a_merge_that_waits_out_a_live_holder_is_saved_and_not_failed() {
+fn a_merge_that_meets_a_holder_proven_alive_saves_itself_at_once() {
     let fixture: Fixture = fixture("merge-live-holder-saved");
     let repo: PathBuf = diverged(&fixture, "repo");
     let head: String = git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
     let lock: PathBuf = repo.join(".git/index.lock");
     std::fs::write(lock.as_path(), b"").expect("a running program's lock");
-    std::fs::write(repo.join(".git/index~pid.lock"), format!("pid {}\n", std::process::id())).expect("the PID file of this process, which runs");
+    let mut holder: std::process::Child = hold_the_index_open_until_the_scan_sees_it(lock.as_path());
     let saved = super::commit::run_commit(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
     let said: String = String::from_utf8_lossy(&saved.stderr).into_owned();
     assert_eq!(saved.code, Some(0), "a merge behind a running holder still exits 0: {said}");
-    assert!(said.contains("did not let go within"), "the wait is reported: {said}");
+    assert!(said.contains(format!("PID {}", holder.id()).as_str()), "the holder is named: {said}");
+    assert!(said.contains("proven by an open descriptor"), "the proof is named: {said}");
+    assert!(said.contains("this merge does not wait for it"), "the line says the merge did not wait: {said}");
+    assert!(!said.contains("waits for the index lock"), "nothing promises a wait the merge does not make: {said}");
     assert!(said.contains("saved on refs/cli-git/kept/"), "{said}");
-    // The notices before that line say what this merge does, not what Git does after a wait it never makes.
+    // The line says what this merge does, not what Git does after a wait it never makes.
     assert!(!said.contains("reports what Git says"), "no line promises another command's report: {said}");
     assert!(!said.contains("meets Git's own refusal"), "no line promises a refusal the merge does not make: {said}");
     let side: String = side_ref_of(said.as_str());
     let merged: String = git_text(&fixture, repo.as_path(), &["rev-parse", side.as_str()]).trim().to_owned();
     assert_eq!(parents_of(&fixture, repo.as_path(), merged.as_str()).len(), 2, "the side ref names a merge commit");
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), head, "the branch has not moved");
-    std::fs::remove_file(lock.as_path()).expect("the holder lets go");
-    let _pid = std::fs::remove_file(repo.join(".git/index~pid.lock"));
+    std::fs::remove_file(lock.as_path()).expect("the name of the lock goes");
+    let _ended = holder.kill();
+    let _collected = holder.wait();
     let finished = super::commit::run_commit(&fixture, repo.as_path(), &["status", "--porcelain=v1"]);
     assert_eq!(finished.code, Some(0), "{}", String::from_utf8_lossy(&finished.stderr));
     assert_eq!(git_text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).trim(), merged, "the branch holds the saved merge");
     assert_eq!(kept_refs(&fixture, repo.as_path()), Vec::<String>::new(), "the side ref goes away when the merge lands");
     remove_settled(&fixture);
+}
+
+/// How long a holder this control starts may take to appear in the scan,
+/// so a broken start fails the control instead of holding it.
+const HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// What:
+///  Start a process of this account that holds `lock` open on descriptor 3,
+///  and wait for the scan the wrapper makes to see it,
+///  bounded,
+///  so the merge it tests meets a holder that is there.
+/// Why:
+///  A control about a holder proven alive needs the proof in place before the merge runs,
+///  and a shell that has not reached its redirect yet is a process holding nothing.
+///  The scan is the one the wrapper reads,
+///  so the control waits on the same fact.
+fn hold_the_index_open_until_the_scan_sees_it(lock: &Path) -> std::process::Child {
+    let holder: std::process::Child = std::process::Command::new("sh")
+        .args(["-c", "exec 3<\"$0\"; exec sleep 30", lock.to_str().expect("a UTF-8 lock path")])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("a holder starts");
+    let began: std::time::Instant = std::time::Instant::now();
+    while !the_scan_sees(lock, holder.id()) {
+        assert!(began.elapsed() < HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR, "the scan never saw the holder {}", holder.id());
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    return holder;
+}
+
+/// Whether the host's bounded scan for open holders sees `pid` holding `lock` open.
+fn the_scan_sees(lock: &Path, pid: u32) -> bool {
+    let Ok(Some(metadata)) = git_policy_cli::index_lock_evidence::read_lock_metadata(lock) else {
+        return false;
+    };
+    let seen = git_policy_cli::index_lock_holders::scan_platform_holders_bounded(lock, metadata.device, metadata.inode);
+    return seen.holders.iter().any(|holder| { return holder.pid == i64::from(pid); });
 }

@@ -286,14 +286,14 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
     crate::work_item::enqueue(work.as_path(), &item).expect("the push record is queued");
     let now: std::time::SystemTime = std::time::SystemTime::now();
     assert!(
-        queued_push_notices(handoff.git_dir.as_path(), now).is_empty(),
+        queued_push_notices(handoff.git_dir.as_path(), now, &TheRemoteHolds(false), &the_service_is_not_woken()).is_empty(),
         "a record younger than the bound is a push in flight, and nothing is said about it"
     );
     // The wait the bound names is put on the record itself, so no load between the capture and the write can make a record this
     //  control queued look fresher than the instant it asks about.
     let waited: std::time::SystemTime = now + PUSH_QUEUED_AFTER + Duration::from_secs(1);
     age_the_pending_record(work.as_path(), &item, now - Duration::from_secs(1));
-    let said: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
+    let said: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(false), &the_service_is_not_woken());
     assert_eq!(said.len(), 1, "one line: {said:?}");
     assert!(said[0].contains(OID), "the line names the commit: {}", said[0]);
     assert!(said[0].contains("is queued for its push from refs/heads/main"), "{}", said[0]);
@@ -303,7 +303,7 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
     let second: WorkItem = push_item(&handoff, PARENT, handoff.reference.text().expect("a branch name that is text"));
     crate::work_item::enqueue(work.as_path(), &second).expect("a second push record is queued");
     age_the_pending_record(work.as_path(), &second, now);
-    let more: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
+    let more: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(false), &the_service_is_not_woken());
     assert_eq!(more.len(), 2, "the oldest is named and the rest counted: {more:?}");
     assert_eq!(more[0], said[0], "the oldest keeps its line");
     assert!(more[1].contains("1 more commit is queued for its push the same way"), "{}", more[1]);
@@ -311,9 +311,52 @@ fn a_push_record_no_service_has_taken_is_named_as_queued_once_it_has_waited() {
     let claimed: Option<crate::work_item::Claimed> =
         crate::work_item::claim_next_of(work.as_path(), &crate::claim_time::ClaimTime::read(), &[WorkKind::Push]).expect("a claim");
     assert!(claimed.is_some(), "the service took the oldest record");
-    let taken: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited);
+    let taken: Vec<String> = queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(false), &the_service_is_not_woken());
     assert_eq!(taken.len(), 1, "a claimed record is no longer waiting: {taken:?}");
     assert!(!taken[0].contains(OID), "the claimed record is not named: {}", taken[0]);
+    remove(root.as_path());
+}
+
+/// What:
+///  A push record waiting in `pending` whose commit Git holds in the branch's remote is settled as done and not said,
+/// and a record that still waits wakes the service.
+/// Why:
+///   A person's own `git push` after a record was left makes the commit as published as the service's push would have,
+/// and the
+///  line that reads the record must not outlive it:
+/// on 2026-11-13 a hand push of
+///  `integrate/git-policy-cli-pass-25-for-alpha-23` left every command of that worktree saying the push had not been made
+///  although `HEAD` equalled its upstream.
+/// The wake is what leaves nothing waiting for a commit no one will make.
+#[test]
+fn a_queued_push_the_remote_already_holds_is_settled_and_not_said() {
+    let root: std::path::PathBuf = fixture("handoff-queued-settled");
+    let handoff: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
+    let work: std::path::PathBuf = work_directory(handoff.git_dir.as_path());
+    let item: WorkItem = push_item(&handoff, OID, handoff.reference.text().expect("a branch name that is text"));
+    crate::work_item::enqueue(work.as_path(), &item).expect("the push record is queued");
+    let now: std::time::SystemTime = std::time::SystemTime::now();
+    age_the_pending_record(work.as_path(), &item, now - Duration::from_secs(1));
+    let waited: std::time::SystemTime = now + PUSH_QUEUED_AFTER + Duration::from_secs(1);
+    let woken: Woken = Woken::default();
+    // A record the branch's remote does not hold is named, and the command wakes the service that can take it.
+    assert_eq!(queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(false), &woken).len(), 1, "a record that waits is named");
+    assert_eq!(woken.0.borrow().len(), 1, "the service is told to look at a repository whose record waits");
+    // The person's push made the commit: the record goes where a push that was made is kept, and nothing is said about it.
+    let pending: std::path::PathBuf = state_directory(work.as_path(), PENDING).join(item.id());
+    let done: std::path::PathBuf = state_directory(work.as_path(), crate::work_item::DONE).join(item.id());
+    assert_eq!(
+        queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(true), &Woken::default()),
+        Vec::<String>::new(),
+        "a commit the branch's remote holds is not queued"
+    );
+    assert!(!pending.exists(), "the record left `pending`");
+    assert!(done.exists(), "and is known to the queue as a push that was made");
+    assert_eq!(
+        queued_push_notices(handoff.git_dir.as_path(), waited, &TheRemoteHolds(true), &Woken::default()),
+        Vec::<String>::new(),
+        "settled once"
+    );
     remove(root.as_path());
 }
 

@@ -212,11 +212,16 @@ fn user_of(credentials: tokio::net::unix::UCred) -> u32 {
 pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShared) {
     let accepted: Instant = Instant::now();
     let sender_user: Option<u32> = stream.peer_cred().ok().map(user_of);
-    let (first_half, mut write_half): (OwnedReadHalf, OwnedWriteHalf) = stream.into_split();
-    send(&mut write_half, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(shared.release.clone()) }).await;
+    // What: Another account's process is told nothing at all, not even which release this service is.
+    // Why:  A socket file is protected by the directory it stands in, and an abstract name has no file and no permission
+    //       bits (`service_address_of_a_worktree.rs`), so the kernel's word about who took the connection is what keeps
+    //       every other account out. Greeting first told such a process the release of this wrapper, and the check that
+    //       followed read no byte of its request either.
     if sender_user != Some(rustix::process::geteuid().as_raw()) {
         return;
     }
+    let (first_half, mut write_half): (OwnedReadHalf, OwnedWriteHalf) = stream.into_split();
+    send(&mut write_half, &ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(shared.release.clone()) }).await;
     let limit: u64 = u64::try_from(MAX_LINE_BYTES).unwrap_or(u64::MAX) + 1;
     let mut line: String = String::new();
     let mut reader = BufReader::new(first_half.take(limit));

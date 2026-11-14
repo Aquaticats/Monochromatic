@@ -18,7 +18,9 @@ The observed build was `7wjrw9szj0` in isolated research project `27m5m3vjlv`.
 The installed release is `v2.102.23`,
 with [CLI source][cli] pinned to commit `1f96d6d488f938de97ea640b115e9567ebfd6fbf`.
 The source was retrieved and separately checked in a shallow clone at that commit.
-Exact source is retained in the [platform source archive][sources].
+Exact source is retained in the platform source archive (`../audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz`).
+`depot-platform-surface-sources-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The Bake command calls `registry.WithDepotSave` for save requests.
 `pkg/buildx/commands/bake.go:141` contains:
@@ -167,5 +169,4 @@ No upstream issue or comment was sent.
 
 [campaign]: ../audit/depot-buildkit-platform-campaign-2026-10-18.evidence.json
 [cli]: https://github.com/depot/cli
-[sources]: ../audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz
 [upgrade]: https://github.com/depot/cli/pull/627

@@ -1,0 +1,307 @@
+{"failedRun":"{\"round\":1,\"step\":\"large-base\",\"arm\":\"base\",\"script\":\"token-scaling.ts\",\"args\":[\"--counts\",\"64000\",\"--runs\",\"1\",\"--warmup\",\"0\"],\"exit\":1,\"signal\":null,\"wallMs\":23915,\"result\":{\"unparsed\":\"\",\"reason\":\"SyntaxError: Unexpected end of JSON input\"},\"stderr\":\"\\u001b[0m\\u001b[1m\\u001b[31merror\\u001b[0m: Uncaught (in promise) Error: a fit ne
+{"failedRun":"{\"round\":1,\"step\":\"large-base\",\"arm\":\"buffer\",\"script\":\"token-scaling.ts\",\"args\":[\"--counts\",\"64000\",\"--runs\",\"1\",\"--warmup\",\"0\"],\"exit\":1,\"signal\":null,\"wallMs\":24786,\"result\":{\"unparsed\":\"\",\"reason\":\"SyntaxError: Unexpected end of JSON input\"},\"stderr\":\"\\u001b[0m\\u001b[1m\\u001b[31merror\\u001b[0m: Uncaught (in promise) Error: a fit 
+{"runs":561,"failedRuns":2,"points":1562,"rounds":[1,2,3,4,5,6,7,8,9,10]}
+large-base | base | 32000: 5275.094 (5126.204 to 6641.921, n=5); 64000: 25912.465 (23455.423 to 32109.948, n=5) | growth 2.3
+large-base | buffer | 32000: 5141.529 (4973.372 to 9982.789, n=5); 64000: 21066.685 (20338.504 to 26673.176, n=5) | growth 2.03
+large-base | buffer / base | 32000: 0.975 (0.952 to 1.503, slower in 2 of 5); 64000: 0.865 (0.785 to 0.894, slower in 0 of 5)
+small | main | 100: 1.229 (0.939 to 1.552, n=5); 1000: 32.83 (22.958 to 39.164, n=5) | growth 1.43
+small | base | 100: 1.315 (1.074 to 2.241, n=5); 1000: 8.102 (7.233 to 14.681, n=5) | growth 0.79
+small | multiple | 100: 1.264 (0.976 to 1.447, n=5); 1000: 8.23 (7.666 to 12.418, n=5) | growth 0.81
+small | buffer | 100: 1.13 (1.014 to 1.917, n=5); 1000: 8.758 (7.177 to 10.885, n=5) | growth 0.89
+small | both | 100: 1.192 (1.143 to 2.066, n=5); 1000: 10.565 (7.303 to 15.549, n=5) | growth 0.95
+small | views-always | 100: 1.604 (1.534 to 2.727, n=5); 1000: 12.305 (9.844 to 15.835, n=5) | growth 0.88
+small | concat | 100: 1.134 (0.963 to 1.628, n=5); 1000: 9.141 (8.012 to 12.143, n=5) | growth 0.91
+small | slice-push | 100: 1.569 (0.996 to 2.231, n=5); 1000: 10.817 (7.36 to 16.792, n=5) | growth 0.84
+small | base / main | 100: 1.167 (1.054 to 1.444, slower in 5 of 5); 1000: 0.315 (0.233 to 0.377, slower in 0 of 5)
+small | multiple / main | 100: 1.039 (0.844 to 1.336, slower in 3 of 5); 1000: 0.334 (0.211 to 0.378, slower in 0 of 5)
+small | buffer / main | 100: 1.169 (0.892 to 1.56, slower in 4 of 5); 1000: 0.292 (0.225 to 0.313, slower in 0 of 5)
+small | both / main | 100: 1.208 (0.962 to 1.331, slower in 3 of 5); 1000: 0.318 (0.308 to 0.397, slower in 0 of 5)
+small | views-always / main | 100: 1.634 (1.285 to 1.757, slower in 5 of 5); 1000: 0.404 (0.361 to 0.5, slower in 0 of 5)
+small | concat / main | 100: 1.026 (0.785 to 1.325, slower in 3 of 5); 1000: 0.349 (0.233 to 0.372, slower in 0 of 5)
+small | slice-push / main | 100: 1.072 (1.011 to 1.815, slower in 5 of 5); 1000: 0.321 (0.276 to 0.511, slower in 0 of 5)
+small | main / base | 100: 0.857 (0.693 to 0.949, slower in 0 of 5); 1000: 3.174 (2.652 to 4.298, slower in 5 of 5)
+small | multiple / base | 100: 0.816 (0.646 to 1.145, slower in 1 of 5); 1000: 1.062 (0.561 to 1.533, slower in 4 of 5)
+small | buffer / base | 100: 0.944 (0.81 to 1.142, slower in 2 of 5); 1000: 0.992 (0.597 to 1.194, slower in 2 of 5)
+small | both / base | 100: 0.922 (0.71 to 1.096, slower in 2 of 5); 1000: 1.01 (0.84 to 1.706, slower in 3 of 5)
+small | views-always / base | 100: 1.22 (0.987 to 1.428, slower in 4 of 5); 1000: 1.519 (0.958 to 1.738, slower in 4 of 5)
+small | concat / base | 100: 0.897 (0.544 to 1.027, slower in 1 of 5); 1000: 1.108 (0.759 to 1.499, slower in 4 of 5)
+small | slice-push / base | 100: 0.938 (0.7 to 1.684, slower in 2 of 5); 1000: 1.018 (0.898 to 2.073, slower in 3 of 5)
+small | main / multiple | 100: 0.962 (0.748 to 1.185, slower in 2 of 5); 1000: 2.995 (2.644 to 4.731, slower in 5 of 5)
+small | base / multiple | 100: 1.225 (0.873 to 1.549, slower in 4 of 5); 1000: 0.942 (0.652 to 1.784, slower in 1 of 5)
+small | buffer / multiple | 100: 1.057 (0.894 to 1.399, slower in 4 of 5); 1000: 0.936 (0.771 to 1.064, slower in 1 of 5)
+small | both / multiple | 100: 1.14 (0.87 to 1.428, slower in 3 of 5); 1000: 0.953 (0.851 to 1.499, slower in 2 of 5)
+small | views-always / multiple | 100: 1.523 (1.209 to 1.885, slower in 5 of 5); 1000: 1.421 (0.991 to 1.708, slower in 4 of 5)
+small | concat / multiple | 100: 0.987 (0.842 to 1.188, slower in 2 of 5); 1000: 1.045 (0.821 to 1.354, slower in 3 of 5)
+small | slice-push / multiple | 100: 1.084 (0.788 to 2.104, slower in 4 of 5); 1000: 0.971 (0.924 to 1.602, slower in 2 of 5)
+sweep | main | 2000: 96.385 (95.17 to 108.04, n=5); 4000: 343.055 (336.654 to 380.745, n=5); 8000: 1400.93 (1327.333 to 1477.056, n=5); 16000: 6184.315 (5864.845 to 7684.133, n=5); 32000: 30603.495 (29457.921 to 43266.354, n=5) | growth 1.83, 2.03, 2.14, 2.31
+sweep | base | 2000: 37.128 (33.1 to 63.19, n=5); 4000: 70.825 (55.334 to 114.077, n=5); 8000: 216.792 (166.893 to 277.53, n=5); 16000: 1029.483 (928.721 to 1424.665, n=5); 32000: 7303.437 (5935.653 to 9735.671, n=5) | growth 0.93, 1.61, 2.25, 2.83
+sweep | multiple | 2000: 30.427 (27.414 to 58.548, n=5); 4000: 43.398 (38.319 to 107.148, n=5); 8000: 84.045 (72.071 to 163.652, n=5); 16000: 198.104 (179.698 to 457.348, n=5); 32000: 1365.283 (881.2 to 1754.823, n=5) | growth 0.51, 0.95, 1.24, 2.78
+sweep | buffer | 2000: 36.08 (34.166 to 41.611, n=5); 4000: 58.867 (55.61 to 83.828, n=5); 8000: 171.846 (153.76 to 246.733, n=5); 16000: 918.782 (886.383 to 1166.877, n=5); 32000: 5394.925 (5075.999 to 6095.183, n=5) | growth 0.71, 1.55, 2.42, 2.55
+sweep | both | 2000: 28.304 (26.728 to 40.906, n=5); 4000: 41.973 (37.509 to 59.791, n=5); 8000: 85.904 (76.671 to 89.403, n=5); 16000: 197.494 (184.686 to 218.091, n=5); 32000: 694.923 (504.373 to 750.947, n=5) | growth 0.57, 1.03, 1.2, 1.82
+sweep | views-always | 2000: 27.386 (24.427 to 31.727, n=5); 4000: 52.967 (50.285 to 54.384, n=5); 8000: 74.703 (72.94 to 97.149, n=5); 16000: 168.073 (160.133 to 197.233, n=5); 32000: 320.403 (312.734 to 367.449, n=5) | growth 0.95, 0.5, 1.17, 0.93
+sweep | concat | 2000: 29.185 (27.31 to 31.756, n=5); 4000: 47.066 (41.538 to 56.764, n=5); 8000: 115.748 (107.276 to 133.163, n=5); 16000: 368.558 (289.844 to 457.583, n=5); 32000: 2606.996 (2552.995 to 3911.806, n=5) | growth 0.69, 1.3, 1.67, 2.82
+sweep | slice-push | 2000: 33.663 (32.317 to 34.964, n=5); 4000: 57.005 (52.283 to 72.138, n=5); 8000: 153.033 (138.431 to 193.777, n=5); 16000: 839.951 (800.713 to 1033.084, n=5); 32000: 6076.949 (5873.475 to 6359.17, n=5) | growth 0.76, 1.42, 2.46, 2.85
+sweep | base / main | 2000: 0.385 (0.34 to 0.625, slower in 0 of 5); 4000: 0.19 (0.161 to 0.334, slower in 0 of 5); 8000: 0.155 (0.118 to 0.193, slower in 0 of 5); 16000: 0.166 (0.146 to 0.185, slower in 0 of 5); 32000: 0.226 (0.192 to 0.248, slower in 0 of 5)
+sweep | multiple / main | 2000: 0.316 (0.257 to 0.579, slower in 0 of 5); 4000: 0.126 (0.114 to 0.314, slower in 0 of 5); 8000: 0.059 (0.052 to 0.111, slower in 0 of 5); 16000: 0.032 (0.03 to 0.06, slower in 0 of 5); 32000: 0.041 (0.028 to 0.05, slower in 0 of 5)
+sweep | buffer / main | 2000: 0.355 (0.347 to 0.412, slower in 0 of 5); 4000: 0.169 (0.15 to 0.246, slower in 0 of 5); 8000: 0.123 (0.105 to 0.167, slower in 0 of 5); 16000: 0.151 (0.145 to 0.152, slower in 0 of 5); 32000: 0.176 (0.133 to 0.199, slower in 0 of 5)
+sweep | both / main | 2000: 0.294 (0.262 to 0.43, slower in 0 of 5); 4000: 0.114 (0.11 to 0.178, slower in 0 of 5); 8000: 0.059 (0.052 to 0.067, slower in 0 of 5); 16000: 0.031 (0.026 to 0.037, slower in 0 of 5); 32000: 0.021 (0.016 to 0.025, slower in 0 of 5)
+sweep | views-always / main | 2000: 0.284 (0.226 to 0.333, slower in 0 of 5); 4000: 0.154 (0.143 to 0.158, slower in 0 of 5); 8000: 0.055 (0.05 to 0.07, slower in 0 of 5); 16000: 0.027 (0.021 to 0.033, slower in 0 of 5); 32000: 0.01 (0.007 to 0.012, slower in 0 of 5)
+sweep | concat / main | 2000: 0.289 (0.26 to 0.33, slower in 0 of 5); 4000: 0.137 (0.109 to 0.169, slower in 0 of 5); 8000: 0.082 (0.078 to 0.091, slower in 0 of 5); 16000: 0.059 (0.047 to 0.07, slower in 0 of 5); 32000: 0.088 (0.06 to 0.126, slower in 0 of 5)
+sweep | slice-push / main | 2000: 0.34 (0.324 to 0.354, slower in 0 of 5); 4000: 0.169 (0.139 to 0.21, slower in 0 of 5); 8000: 0.11 (0.094 to 0.133, slower in 0 of 5); 16000: 0.136 (0.104 to 0.176, slower in 0 of 5); 32000: 0.205 (0.136 to 0.206, slower in 0 of 5)
+sweep | main / base | 2000: 2.596 (1.599 to 2.943, slower in 5 of 5); 4000: 5.274 (2.992 to 6.2, slower in 5 of 5); 8000: 6.443 (5.172 to 8.502, slower in 5 of 5); 16000: 6.007 (5.394 to 6.852, slower in 5 of 5); 32000: 4.423 (4.028 to 5.211, slower in 5 of 5)
+sweep | multiple / base | 2000: 0.82 (0.568 to 0.945, slower in 0 of 5); 4000: 0.782 (0.541 to 0.939, slower in 0 of 5); 8000: 0.489 (0.332 to 0.59, slower in 0 of 5); 16000: 0.213 (0.167 to 0.321, slower in 0 of 5); 32000: 0.18 (0.124 to 0.223, slower in 0 of 5)
+sweep | buffer / base | 2000: 0.92 (0.659 to 1.033, slower in 2 of 5); 4000: 0.831 (0.735 to 1.005, slower in 1 of 5); 8000: 0.889 (0.617 to 1.03, slower in 1 of 5); 16000: 0.873 (0.819 to 1.037, slower in 1 of 5); 32000: 0.802 (0.593 to 0.855, slower in 0 of 5)
+sweep | both / base | 2000: 0.771 (0.423 to 1.192, slower in 1 of 5); 4000: 0.63 (0.329 to 0.9, slower in 0 of 5); 8000: 0.412 (0.276 to 0.5, slower in 0 of 5); 16000: 0.182 (0.141 to 0.232, slower in 0 of 5); 32000: 0.086 (0.074 to 0.104, slower in 0 of 5)
+sweep | views-always / base | 2000: 0.665 (0.457 to 0.827, slower in 0 of 5); 4000: 0.753 (0.472 to 0.957, slower in 0 of 5); 8000: 0.448 (0.267 to 0.47, slower in 0 of 5); 16000: 0.175 (0.112 to 0.184, slower in 0 of 5); 32000: 0.048 (0.033 to 0.053, slower in 0 of 5)
+sweep | concat / base | 2000: 0.736 (0.462 to 0.959, slower in 0 of 5); 4000: 0.801 (0.409 to 0.851, slower in 0 of 5); 8000: 0.561 (0.417 to 0.775, slower in 0 of 5); 16000: 0.334 (0.282 to 0.438, slower in 0 of 5); 32000: 0.381 (0.268 to 0.659, slower in 0 of 5)
+sweep | slice-push / base | 2000: 0.919 (0.533 to 0.996, slower in 0 of 5); 4000: 0.805 (0.458 to 1.304, slower in 1 of 5); 8000: 0.706 (0.499 to 1.127, slower in 2 of 5); 16000: 0.816 (0.562 to 1.1, slower in 1 of 5); 32000: 0.85 (0.603 to 1.071, slower in 1 of 5)
+sweep | main / multiple | 2000: 3.168 (1.726 to 3.885, slower in 5 of 5); 4000: 7.923 (3.185 to 8.786, slower in 5 of 5); 8000: 16.97 (9.026 to 19.38, slower in 5 of 5); 16000: 31.727 (16.802 to 33.569, slower in 5 of 5); 32000: 24.656 (19.856 to 35.1, slower in 5 of 5)
+sweep | base / multiple | 2000: 1.22 (1.058 to 1.759, slower in 5 of 5); 4000: 1.278 (1.065 to 1.848, slower in 5 of 5); 8000: 2.045 (1.696 to 3.008, slower in 5 of 5); 16000: 4.688 (3.115 to 5.978, slower in 5 of 5); 32000: 5.548 (4.49 to 8.054, slower in 5 of 5)
+sweep | buffer / multiple | 2000: 1.123 (0.711 to 1.347, slower in 4 of 5); 4000: 1.284 (0.782 to 1.536, slower in 3 of 5); 8000: 1.829 (1.508 to 2.632, slower in 5 of 5); 16000: 4.795 (2.551 to 5.113, slower in 5 of 5); 32000: 3.883 (3.289 to 6.46, slower in 5 of 5)
+sweep | both / multiple | 2000: 1.018 (0.457 to 1.492, slower in 3 of 5); 4000: 0.926 (0.35 to 1.56, slower in 2 of 5); 8000: 1.014 (0.469 to 1.24, slower in 4 of 5); 16000: 0.997 (0.44 to 1.18, slower in 2 of 5); 32000: 0.55 (0.409 to 0.692, slower in 0 of 5)
+sweep | views-always / multiple | 2000: 0.876 (0.493 to 1.157, slower in 1 of 5); 4000: 1.159 (0.503 to 1.352, slower in 3 of 5); 8000: 0.905 (0.452 to 1.348, slower in 1 of 5); 16000: 0.818 (0.35 to 1.098, slower in 1 of 5); 32000: 0.229 (0.183 to 0.389, slower in 0 of 5)
+sweep | concat / multiple | 2000: 1.009 (0.498 to 1.143, slower in 3 of 5); 4000: 1.087 (0.435 to 1.481, slower in 3 of 5); 8000: 1.392 (0.707 to 1.688, slower in 4 of 5); 16000: 1.86 (1.001 to 2.227, slower in 5 of 5); 32000: 2.04 (1.486 to 4.439, slower in 5 of 5)
+sweep | slice-push / multiple | 2000: 1.122 (0.575 to 1.257, slower in 4 of 5); 4000: 1.444 (0.488 to 1.666, slower in 3 of 5); 8000: 2.091 (0.846 to 2.306, slower in 4 of 5); 16000: 4.519 (1.751 to 5.589, slower in 5 of 5); 32000: 4.545 (3.347 to 7.216, slower in 5 of 5)
+large | multiple | 64000: 3711.229 (3147.154 to 5106.585, n=5); 128000: 24262.388 (22301.07 to 30895.433, n=5) | growth 2.71
+large | both | 64000: 784.244 (741.34 to 1374.842, n=5); 128000: 2038.373 (1869.782 to 3376.26, n=5) | growth 1.38
+large | views-always | 64000: 801.769 (772.22 to 1272.384, n=5); 128000: 1672.126 (1498.313 to 2523.695, n=5) | growth 1.06
+large | concat | 64000: 12614.631 (11588.483 to 14680.213, n=5); 128000: 61713.09 (59057.134 to 68839.664, n=5) | growth 2.29
+large | slice-push | 64000: 27133.186 (27133.186 to 27133.186, n=1); 128000: 106835.585 (106835.585 to 106835.585, n=1) | growth 1.98
+large | both / multiple | 64000: 0.242 (0.166 to 0.269, slower in 0 of 5); 128000: 0.084 (0.078 to 0.109, slower in 0 of 5)
+large | views-always / multiple | 64000: 0.238 (0.182 to 0.255, slower in 0 of 5); 128000: 0.07 (0.062 to 0.082, slower in 0 of 5)
+large | concat / multiple | 64000: 3.399 (2.6 to 4.336, slower in 5 of 5); 128000: 2.544 (2.131 to 2.824, slower in 5 of 5)
+large | slice-push / multiple | 64000: 7.311 (7.311 to 7.311, slower in 1 of 1); 128000: 4.403 (4.403 to 4.403, slower in 1 of 1)
+mixed | base | 6000: 48.781 (44.052 to 55.955, n=5); 12000: 127.708 (116.231 to 152.88, n=5); 24000: 489.895 (395.25 to 535.807, n=5); 48000: 2651.11 (2530.73 to 2900.08, n=5) | growth 1.39, 1.94, 2.44
+mixed | multiple | 6000: 55.047 (53.691 to 65.663, n=5); 12000: 90.106 (85.111 to 100.471, n=5); 24000: 310.635 (283.338 to 374.411, n=5); 48000: 2657.892 (2520.215 to 3031.815, n=5) | growth 0.71, 1.79, 3.1
+mixed | buffer | 6000: 47.509 (43.414 to 50.659, n=5); 12000: 124.438 (109.594 to 168.335, n=5); 24000: 4411.848 (4324.812 to 4955.228, n=5); 48000: 30310.629 (28487.588 to 38461.546, n=5) | growth 1.39, 5.15, 2.78
+mixed | both | 6000: 58.014 (56.039 to 108.318, n=5); 12000: 89.333 (84.602 to 177.129, n=5); 24000: 4638.311 (4282.286 to 8075.574, n=5); 48000: 28734.199 (26740.651 to 33090.282, n=5) | growth 0.62, 5.7, 2.63
+mixed | multiple / base | 6000: 1.169 (0.96 to 1.491, slower in 4 of 5); 12000: 0.757 (0.589 to 0.823, slower in 0 of 5); 24000: 0.699 (0.619 to 0.717, slower in 0 of 5); 48000: 0.987 (0.916 to 1.198, slower in 2 of 5)
+mixed | buffer / base | 6000: 0.988 (0.805 to 1.012, slower in 2 of 5); 12000: 0.974 (0.806 to 1.421, slower in 2 of 5); 24000: 8.828 (8.534 to 11.162, slower in 5 of 5); 48000: 11.977 (9.823 to 13.81, slower in 5 of 5)
+mixed | both / base | 6000: 1.155 (1.053 to 2.308, slower in 5 of 5); 12000: 0.735 (0.584 to 1.496, slower in 1 of 5); 24000: 10.495 (8.39 to 16.102, slower in 5 of 5); 48000: 11.233 (10.087 to 11.881, slower in 5 of 5)
+mixed | base / multiple | 6000: 0.855 (0.671 to 1.042, slower in 1 of 5); 12000: 1.32 (1.215 to 1.697, slower in 5 of 5); 24000: 1.431 (1.395 to 1.616, slower in 5 of 5); 48000: 1.014 (0.835 to 1.091, slower in 3 of 5)
+mixed | buffer / multiple | 6000: 0.839 (0.661 to 0.92, slower in 0 of 5); 12000: 1.462 (1.091 to 1.728, slower in 5 of 5); 24000: 13.922 (12.213 to 16.671, slower in 5 of 5); 48000: 10.93 (9.998 to 14.858, slower in 5 of 5)
+mixed | both / multiple | 6000: 1.054 (0.853 to 1.974, slower in 3 of 5); 12000: 0.991 (0.842 to 1.818, slower in 2 of 5); 24000: 15.605 (12.006 to 22.57, slower in 5 of 5); 48000: 11.386 (9.478 to 12.783, slower in 5 of 5)
+mixed-views-always | base | 3000: 30.475 (25.879 to 43.918, n=5); 6000: 56.492 (42.937 to 64.155, n=5); 12000: 147.109 (136.466 to 190.791, n=5) | growth 0.89, 1.38
+mixed-views-always | views-always | 3000: 156.636 (140.09 to 240.803, n=5); 6000: 510.67 (451.595 to 812.871, n=5); 12000: 1917.891 (1884.163 to 2441.687, n=5) | growth 1.7, 1.91
+mixed-views-always | views-always / base | 3000: 5.068 (3.567 to 7.902, slower in 5 of 5); 6000: 10.096 (8.047 to 13.58, slower in 5 of 5); 12000: 12.855 (12.437 to 14.054, slower in 5 of 5)
+commit-paths | main | 1000: 63.61 (60.277 to 70.933, n=5)
+commit-paths | base | 1000: 48.087 (46.881 to 61.25, n=5)
+commit-paths | multiple | 1000: 50.46 (45.648 to 55.794, n=5)
+commit-paths | buffer | 1000: 47.768 (45.882 to 75.969, n=5)
+commit-paths | both | 1000: 51.312 (43.107 to 63.135, n=5)
+commit-paths | views-always | 1000: 77.971 (71.361 to 94.164, n=5)
+commit-paths | concat | 1000: 47.842 (43.895 to 54.15, n=5)
+commit-paths | slice-push | 1000: 50.036 (46.147 to 54.607, n=5)
+commit-paths | base / main | 1000: 0.789 (0.732 to 0.963, slower in 0 of 5)
+commit-paths | multiple / main | 1000: 0.787 (0.726 to 0.907, slower in 0 of 5)
+commit-paths | buffer / main | 1000: 0.77 (0.727 to 1.071, slower in 1 of 5)
+commit-paths | both / main | 1000: 0.781 (0.715 to 0.985, slower in 0 of 5)
+commit-paths | views-always / main | 1000: 1.294 (1.136 to 1.414, slower in 5 of 5)
+commit-paths | concat / main | 1000: 0.742 (0.698 to 0.763, slower in 0 of 5)
+commit-paths | slice-push / main | 1000: 0.77 (0.734 to 0.83, slower in 0 of 5)
+commit-paths | main / base | 1000: 1.268 (1.039 to 1.367, slower in 5 of 5)
+commit-paths | multiple / base | 1000: 0.997 (0.824 to 1.149, slower in 2 of 5)
+commit-paths | buffer / base | 1000: 0.979 (0.811 to 1.358, slower in 1 of 5)
+commit-paths | both / base | 1000: 1.023 (0.905 to 1.129, slower in 3 of 5)
+commit-paths | views-always / base | 1000: 1.588 (1.469 to 1.683, slower in 5 of 5)
+commit-paths | concat / base | 1000: 0.94 (0.781 to 1.002, slower in 1 of 5)
+commit-paths | slice-push / base | 1000: 0.984 (0.833 to 1.051, slower in 2 of 5)
+commit-paths | main / multiple | 1000: 1.271 (1.102 to 1.377, slower in 5 of 5)
+commit-paths | base / multiple | 1000: 1.003 (0.871 to 1.214, slower in 3 of 5)
+commit-paths | buffer / multiple | 1000: 0.984 (0.848 to 1.362, slower in 2 of 5)
+commit-paths | both / multiple | 1000: 1.025 (0.788 to 1.241, slower in 3 of 5)
+commit-paths | views-always / multiple | 1000: 1.563 (1.426 to 1.783, slower in 5 of 5)
+commit-paths | concat / multiple | 1000: 0.962 (0.818 to 0.971, slower in 0 of 5)
+commit-paths | slice-push / multiple | 1000: 0.979 (0.915 to 1.011, slower in 2 of 5)
+commit-paths-separator | main | 1000: 50.184 (45.679 to 63.388, n=5)
+commit-paths-separator | base | 1000: 30.952 (29.873 to 47.794, n=5)
+commit-paths-separator | multiple | 1000: 38.31 (31.118 to 44.211, n=5)
+commit-paths-separator | buffer | 1000: 34.459 (29.825 to 46.775, n=5)
+commit-paths-separator | both | 1000: 35.286 (33.314 to 38.798, n=5)
+commit-paths-separator | views-always | 1000: 51.349 (48.427 to 54.994, n=5)
+commit-paths-separator | concat | 1000: 37.105 (34.772 to 45.36, n=5)
+commit-paths-separator | slice-push | 1000: 32.165 (29.754 to 39.621, n=5)
+commit-paths-separator | base / main | 1000: 0.666 (0.573 to 0.754, slower in 0 of 5)
+commit-paths-separator | multiple / main | 1000: 0.664 (0.576 to 0.881, slower in 0 of 5)
+commit-paths-separator | buffer / main | 1000: 0.653 (0.638 to 0.799, slower in 0 of 5)
+commit-paths-separator | both / main | 1000: 0.682 (0.612 to 0.842, slower in 0 of 5)
+commit-paths-separator | views-always / main | 1000: 1.006 (0.797 to 1.124, slower in 3 of 5)
+commit-paths-separator | concat / main | 1000: 0.722 (0.687 to 0.789, slower in 0 of 5)
+commit-paths-separator | slice-push / main | 1000: 0.629 (0.551 to 0.771, slower in 0 of 5)
+commit-paths-separator | main / base | 1000: 1.501 (1.326 to 1.744, slower in 5 of 5)
+commit-paths-separator | multiple / base | 1000: 1.005 (0.802 to 1.48, slower in 3 of 5)
+commit-paths-separator | buffer / base | 1000: 0.98 (0.957 to 1.342, slower in 2 of 5)
+commit-paths-separator | both / base | 1000: 1.14 (0.812 to 1.263, slower in 4 of 5)
+commit-paths-separator | views-always / base | 1000: 1.688 (1.057 to 1.841, slower in 5 of 5)
+commit-paths-separator | concat / base | 1000: 1.185 (0.949 to 1.293, slower in 4 of 5)
+commit-paths-separator | slice-push / base | 1000: 0.961 (0.829 to 1.157, slower in 2 of 5)
+commit-paths-separator | main / multiple | 1000: 1.505 (1.135 to 1.735, slower in 5 of 5)
+commit-paths-separator | base / multiple | 1000: 0.995 (0.676 to 1.248, slower in 2 of 5)
+commit-paths-separator | buffer / multiple | 1000: 0.979 (0.756 to 1.221, slower in 2 of 5)
+commit-paths-separator | both / multiple | 1000: 1.013 (0.775 to 1.134, slower in 3 of 5)
+commit-paths-separator | views-always / multiple | 1000: 1.319 (1.244 to 1.681, slower in 5 of 5)
+commit-paths-separator | concat / multiple | 1000: 1.087 (0.873 to 1.192, slower in 3 of 5)
+commit-paths-separator | slice-push / multiple | 1000: 0.947 (0.728 to 1.034, slower in 1 of 5)
+commit-paths-long | base | 20000: 3031.445 (2713.212 to 3759.889, n=5)
+commit-paths-long | multiple | 20000: 1276.606 (1223.036 to 1617.833, n=5)
+commit-paths-long | buffer | 20000: 3165.104 (2878.523 to 3558.594, n=5)
+commit-paths-long | both | 20000: 1521.144 (1484.908 to 1758.934, n=5)
+commit-paths-long | concat | 20000: 1686.588 (1617.735 to 1970.259, n=5)
+commit-paths-long | slice-push | 20000: 3158.153 (2786.61 to 3483.476, n=5)
+commit-paths-long | multiple / base | 20000: 0.43 (0.405 to 0.453, slower in 0 of 5)
+commit-paths-long | buffer / base | 20000: 0.968 (0.915 to 1.264, slower in 2 of 5)
+commit-paths-long | both / base | 20000: 0.518 (0.405 to 0.625, slower in 0 of 5)
+commit-paths-long | concat / base | 20000: 0.599 (0.491 to 0.618, slower in 0 of 5)
+commit-paths-long | slice-push / base | 20000: 1.027 (0.806 to 1.237, slower in 3 of 5)
+commit-paths-long | base / multiple | 20000: 2.324 (2.205 to 2.471, slower in 5 of 5)
+commit-paths-long | buffer / multiple | 20000: 2.346 (2.126 to 2.788, slower in 5 of 5)
+commit-paths-long | both / multiple | 20000: 1.214 (0.94 to 1.378, slower in 4 of 5)
+commit-paths-long | concat / multiple | 20000: 1.321 (1.14 to 1.428, slower in 5 of 5)
+commit-paths-long | slice-push / multiple | 20000: 2.289 (1.874 to 2.832, slower in 5 of 5)
+commit-paths-long-separator | base | 20000: 2331.037 (2311.079 to 3949.954, n=5)
+commit-paths-long-separator | multiple | 20000: 1223.919 (929.096 to 1748.325, n=5)
+commit-paths-long-separator | buffer | 20000: 2620.122 (2495.847 to 3110.423, n=5)
+commit-paths-long-separator | both | 20000: 1121.767 (1016.268 to 1291.322, n=5)
+commit-paths-long-separator | concat | 20000: 1409.773 (1266.472 to 1581.369, n=5)
+commit-paths-long-separator | slice-push | 20000: 2597.129 (2255.43 to 3345.037, n=5)
+commit-paths-long-separator | multiple / base | 20000: 0.413 (0.31 to 0.739, slower in 0 of 5)
+commit-paths-long-separator | buffer / base | 20000: 1.084 (0.632 to 1.334, slower in 3 of 5)
+commit-paths-long-separator | both / base | 20000: 0.439 (0.273 to 0.554, slower in 0 of 5)
+commit-paths-long-separator | concat / base | 20000: 0.547 (0.4 to 0.61, slower in 0 of 5)
+commit-paths-long-separator | slice-push / base | 20000: 0.968 (0.658 to 1.139, slower in 2 of 5)
+commit-paths-long-separator | base / multiple | 20000: 2.42 (1.354 to 3.227, slower in 5 of 5)
+commit-paths-long-separator | buffer / multiple | 20000: 2.039 (1.734 to 2.744, slower in 5 of 5)
+commit-paths-long-separator | both / multiple | 20000: 0.883 (0.696 to 1.175, slower in 2 of 5)
+commit-paths-long-separator | concat / multiple | 20000: 1.292 (0.749 to 1.476, slower in 3 of 5)
+commit-paths-long-separator | slice-push / multiple | 20000: 2.122 (1.31 to 2.838, slower in 5 of 5)
+kept-patch-sweep | base | 2000: 41.067 (32.527 to 58.436, n=5); 4000: 67.452 (55.728 to 84.755, n=5); 8000: 251.572 (180.521 to 292.11, n=5); 16000: 1197.044 (883.436 to 1522.774, n=5); 32000: 6915.77 (6199.076 to 9008.908, n=5) | growth 0.72, 1.9, 2.25, 2.53
+kept-patch-sweep | multiple | 2000: 39.002 (26.055 to 53.083, n=5); 4000: 51.924 (39.271 to 70.157, n=5); 8000: 105.537 (75.808 to 126.372, n=5); 16000: 231.868 (177.871 to 281.366, n=5); 32000: 1640.807 (844.139 to 1938.643, n=5) | growth 0.41, 1.02, 1.14, 2.82
+kept-patch-sweep | multiple-final | 2000: 29.045 (28.105 to 58.421, n=5); 4000: 43.371 (42.04 to 75.095, n=5); 8000: 82.715 (78.075 to 170.848, n=5); 16000: 236.966 (181.052 to 330.731, n=5); 32000: 1338.969 (1037.187 to 2244.875, n=5) | growth 0.58, 0.93, 1.52, 2.5
+kept-patch-sweep | multiple / base | 2000: 0.846 (0.801 to 0.95, slower in 0 of 5); 4000: 0.783 (0.674 to 0.884, slower in 0 of 5); 8000: 0.42 (0.417 to 0.502, slower in 0 of 5); 16000: 0.221 (0.152 to 0.233, slower in 0 of 5); 32000: 0.214 (0.126 to 0.28, slower in 0 of 5)
+kept-patch-sweep | multiple-final / base | 2000: 0.782 (0.484 to 1.423, slower in 1 of 5); 4000: 0.715 (0.507 to 0.897, slower in 0 of 5); 8000: 0.388 (0.329 to 0.585, slower in 0 of 5); 16000: 0.196 (0.153 to 0.276, slower in 0 of 5); 32000: 0.216 (0.142 to 0.325, slower in 0 of 5)
+kept-patch-sweep | base / multiple | 2000: 1.183 (1.053 to 1.248, slower in 5 of 5); 4000: 1.277 (1.132 to 1.483, slower in 5 of 5); 8000: 2.381 (1.991 to 2.398, slower in 5 of 5); 16000: 4.518 (4.289 to 6.567, slower in 5 of 5); 32000: 4.676 (3.567 to 7.953, slower in 5 of 5)
+kept-patch-sweep | multiple-final / multiple | 2000: 0.925 (0.533 to 1.498, slower in 2 of 5); 4000: 0.979 (0.612 to 1.145, slower in 2 of 5); 8000: 0.931 (0.655 to 1.391, slower in 2 of 5); 16000: 1.1 (0.684 to 1.212, slower in 4 of 5); 32000: 1.158 (0.665 to 1.586, slower in 3 of 5)
+kept-patch-sweep | base / multiple-final | 2000: 1.279 (0.703 to 2.067, slower in 4 of 5); 4000: 1.398 (1.115 to 1.973, slower in 5 of 5); 8000: 2.575 (1.71 to 3.041, slower in 5 of 5); 16000: 5.1 (3.619 to 6.529, slower in 5 of 5); 32000: 4.63 (3.081 to 7.029, slower in 5 of 5)
+kept-patch-sweep | multiple / multiple-final | 2000: 1.081 (0.668 to 1.878, slower in 3 of 5); 4000: 1.021 (0.874 to 1.633, slower in 3 of 5); 8000: 1.074 (0.719 to 1.528, slower in 3 of 5); 16000: 0.909 (0.825 to 1.462, slower in 1 of 5); 32000: 0.864 (0.63 to 1.503, slower in 2 of 5)
+kept-patch-commit-paths | base | 1000: 57.566 (47.451 to 61.694, n=5)
+kept-patch-commit-paths | multiple | 1000: 50.644 (49.314 to 67.695, n=5)
+kept-patch-commit-paths | multiple-final | 1000: 57.702 (45.391 to 71.478, n=5)
+kept-patch-commit-paths | multiple / base | 1000: 1.045 (0.864 to 1.127, slower in 3 of 5)
+kept-patch-commit-paths | multiple-final / base | 1000: 1.002 (0.787 to 1.506, slower in 3 of 5)
+kept-patch-commit-paths | base / multiple | 1000: 0.957 (0.887 to 1.157, slower in 2 of 5)
+kept-patch-commit-paths | multiple-final / multiple | 1000: 0.92 (0.889 to 1.441, slower in 1 of 5)
+kept-patch-commit-paths | base / multiple-final | 1000: 0.998 (0.664 to 1.27, slower in 2 of 5)
+kept-patch-commit-paths | multiple / multiple-final | 1000: 1.086 (0.694 to 1.125, slower in 4 of 5)
+kept-patch-commit-paths-long | base | 20000: 3562.418 (3053.118 to 4537.328, n=5)
+kept-patch-commit-paths-long | multiple | 20000: 1290.639 (1211.195 to 1635.927, n=5)
+kept-patch-commit-paths-long | multiple-final | 20000: 1401.933 (1227.853 to 1682.718, n=5)
+kept-patch-commit-paths-long | multiple / base | 20000: 0.409 (0.267 to 0.476, slower in 0 of 5)
+kept-patch-commit-paths-long | multiple-final / base | 20000: 0.424 (0.271 to 0.472, slower in 0 of 5)
+kept-patch-commit-paths-long | base / multiple | 20000: 2.443 (2.1 to 3.746, slower in 5 of 5)
+kept-patch-commit-paths-long | multiple-final / multiple | 20000: 1.098 (0.857 to 1.204, slower in 4 of 5)
+kept-patch-commit-paths-long | base / multiple-final | 20000: 2.358 (2.117 to 3.695, slower in 5 of 5)
+kept-patch-commit-paths-long | multiple / multiple-final | 20000: 0.911 (0.83 to 1.167, slower in 1 of 5)
+kept-patch-mixed | base | 3000: 23.004 (17.137 to 29.632, n=5); 4500: 34.511 (24.504 to 47.764, n=5); 6000: 51.022 (35.494 to 72.459, n=5); 9000: 80.253 (65.649 to 125.761, n=5); 12000: 137.559 (116.595 to 222.104, n=5) | growth 1, 1.36, 1.12, 1.87
+kept-patch-mixed | multiple | 3000: 22.92 (17.502 to 37.202, n=5); 4500: 33.6 (27.877 to 64.393, n=5); 6000: 50.458 (35.62 to 65.712, n=5); 9000: 70.623 (68.489 to 98.167, n=5); 12000: 113.009 (96.392 to 154.522, n=5) | growth 0.94, 1.41, 0.83, 1.63
+kept-patch-mixed | multiple-final | 3000: 18.901 (16.879 to 28.331, n=5); 4500: 28.164 (25.351 to 41.249, n=5); 6000: 37.4 (33.989 to 62.508, n=5); 9000: 81.612 (52.201 to 119.418, n=5); 12000: 95.25 (78.879 to 153.182, n=5) | growth 0.98, 0.99, 1.92, 0.54
+kept-patch-mixed | multiple / base | 3000: 1.064 (0.761 to 1.337, slower in 3 of 5); 4500: 1.165 (0.881 to 1.652, slower in 3 of 5); 6000: 0.959 (0.801 to 1.096, slower in 1 of 5); 9000: 0.853 (0.781 to 1.076, slower in 1 of 5); 12000: 0.71 (0.509 to 1.059, slower in 1 of 5)
+kept-patch-mixed | multiple-final / base | 3000: 0.99 (0.57 to 1.105, slower in 2 of 5); 4500: 0.989 (0.531 to 1.063, slower in 2 of 5); 6000: 0.901 (0.678 to 0.975, slower in 0 of 5); 9000: 0.853 (0.795 to 1.017, slower in 1 of 5); 12000: 0.692 (0.575 to 0.785, slower in 0 of 5)
+kept-patch-mixed | base / multiple | 3000: 0.94 (0.748 to 1.314, slower in 2 of 5); 4500: 0.858 (0.605 to 1.134, slower in 2 of 5); 6000: 1.043 (0.912 to 1.248, slower in 4 of 5); 9000: 1.172 (0.93 to 1.281, slower in 4 of 5); 12000: 1.408 (0.944 to 1.965, slower in 4 of 5)
+kept-patch-mixed | multiple-final / multiple | 3000: 0.825 (0.535 to 1.156, slower in 2 of 5); 4500: 0.776 (0.456 to 1.01, slower in 1 of 5); 6000: 0.889 (0.741 to 0.954, slower in 0 of 5); 9000: 1.019 (0.739 to 1.216, slower in 3 of 5); 12000: 0.878 (0.742 to 1.355, slower in 1 of 5)
+kept-patch-mixed | base / multiple-final | 3000: 1.01 (0.905 to 1.756, slower in 3 of 5); 4500: 1.011 (0.94 to 1.884, slower in 3 of 5); 6000: 1.11 (1.026 to 1.475, slower in 5 of 5); 9000: 1.172 (0.983 to 1.258, slower in 4 of 5); 12000: 1.445 (1.273 to 1.741, slower in 5 of 5)
+kept-patch-mixed | multiple / multiple-final | 3000: 1.213 (0.865 to 1.868, slower in 3 of 5); 4500: 1.289 (0.99 to 2.195, slower in 4 of 5); 6000: 1.124 (1.048 to 1.349, slower in 5 of 5); 9000: 0.981 (0.822 to 1.353, slower in 2 of 5); 12000: 1.138 (0.738 to 1.349, slower in 4 of 5)
+mixed-threshold | base | 1500: 7.194 (6.45 to 7.999, n=10); 3000: 16.867 (14.435 to 19.089, n=10); 4500: 24.404 (23.149 to 27.878, n=10); 6000: 35.148 (32.506 to 38.687, n=10); 7500: 50.778 (46.483 to 67.749, n=10); 9000: 66.472 (62.517 to 80.031, n=10); 12000: 110.88 (100.816 to 117.997, n=10) | growth 1.23, 0.91, 1.27, 1.65, 1.48, 1.78
+mixed-threshold | multiple | 1500: 6.899 (6.361 to 7.777, n=10); 3000: 16.17 (15.045 to 19.614, n=10); 4500: 27.572 (24.916 to 35.554, n=10); 6000: 33.486 (31.132 to 39.332, n=10); 7500: 45.268 (40.274 to 49.982, n=10); 9000: 52.709 (49.856 to 59.437, n=10); 12000: 82.424 (73.837 to 92.611, n=10) | growth 1.23, 1.32, 0.68, 1.35, 0.83, 1.55
+mixed-threshold | base-again | 1500: 7.221 (6.652 to 8.103, n=10); 3000: 16.97 (14.417 to 17.626, n=10); 4500: 25.534 (23.167 to 30.298, n=10); 6000: 35.703 (31.336 to 46.295, n=10); 7500: 49.776 (45.076 to 55.29, n=10); 9000: 65.427 (60.841 to 78.331, n=10); 12000: 110.489 (105.445 to 119.827, n=10) | growth 1.23, 1.01, 1.17, 1.49, 1.5, 1.82
+mixed-threshold | multiple / base | 1500: 0.978 (0.811 to 1.095, slower in 4 of 10); 3000: 0.988 (0.886 to 1.189, slower in 5 of 10); 4500: 1.111 (0.911 to 1.447, slower in 8 of 10); 6000: 0.938 (0.869 to 1.106, slower in 2 of 10); 7500: 0.867 (0.723 to 0.951, slower in 0 of 10); 9000: 0.781 (0.682 to 0.88, slower in 0 of 10); 12000: 0.761 (0.698 to 0.842, slower in 0 of 10)
+mixed-threshold | base-again / base | 1500: 1.016 (0.899 to 1.195, slower in 6 of 10); 3000: 1.009 (0.874 to 1.193, slower in 6 of 10); 4500: 1.03 (0.938 to 1.119, slower in 9 of 10); 6000: 1.02 (0.906 to 1.252, slower in 7 of 10); 7500: 0.966 (0.752 to 1.133, slower in 3 of 10); 9000: 0.968 (0.84 to 1.172, slower in 3 of 10); 12000: 1.019 (0.921 to 1.185, slower in 6 of 10)
+mixed-threshold | base / multiple | 1500: 1.022 (0.913 to 1.232, slower in 6 of 10); 3000: 1.012 (0.841 to 1.128, slower in 5 of 10); 4500: 0.9 (0.691 to 1.098, slower in 2 of 10); 6000: 1.067 (0.904 to 1.151, slower in 8 of 10); 7500: 1.153 (1.052 to 1.382, slower in 10 of 10); 9000: 1.281 (1.137 to 1.467, slower in 10 of 10); 12000: 1.315 (1.188 to 1.433, slower in 10 of 10)
+mixed-threshold | base-again / multiple | 1500: 1.026 (0.965 to 1.274, slower in 6 of 10); 3000: 1.011 (0.855 to 1.162, slower in 7 of 10); 4500: 0.88 (0.724 to 1.216, slower in 2 of 10); 6000: 1.055 (0.921 to 1.363, slower in 8 of 10); 7500: 1.085 (0.99 to 1.373, slower in 9 of 10); 9000: 1.254 (1.085 to 1.533, slower in 10 of 10); 12000: 1.36 (1.205 to 1.623, slower in 10 of 10)
+node-sweep-with-main | main | 2000: 116.582 (109.635 to 141.137, n=5); 4000: 388.498 (382.118 to 421.303, n=5); 8000: 1578.792 (1473.172 to 1620.937, n=5); 16000: 7257.495 (6524.896 to 7666.75, n=5) | growth 1.74, 2.02, 2.2
+node-sweep-with-main | base | 2000: 36.186 (34.093 to 55.265, n=5); 4000: 56.634 (52.445 to 71.615, n=5); 8000: 163.521 (154.597 to 185.631, n=5); 16000: 854.468 (798.102 to 947.916, n=5) | growth 0.65, 1.53, 2.39
+node-sweep-with-main | base / main | 2000: 0.329 (0.256 to 0.474, slower in 0 of 5); 4000: 0.146 (0.13 to 0.186, slower in 0 of 5); 8000: 0.106 (0.096 to 0.118, slower in 0 of 5); 16000: 0.122 (0.112 to 0.13, slower in 0 of 5)
+node-sweep-with-main | main / base | 2000: 3.038 (2.11 to 3.9, slower in 5 of 5); 4000: 6.86 (5.383 to 7.67, slower in 5 of 5); 8000: 9.406 (8.505 to 10.389, slower in 5 of 5); 16000: 8.176 (7.693 to 8.955, slower in 5 of 5)
+node-sweep | base | 2000: 37.524 (31.331 to 39.016, n=5); 4000: 52.74 (49.795 to 60.797, n=5); 8000: 160.778 (144.986 to 175.503, n=5); 16000: 853.973 (846.379 to 1000.946, n=5); 32000: 6067.085 (5627.018 to 7979.345, n=5) | growth 0.49, 1.61, 2.41, 2.83
+node-sweep | multiple-final | 2000: 31.955 (29.736 to 37.047, n=5); 4000: 46.402 (39.611 to 60.562, n=5); 8000: 83.354 (78.591 to 126.2, n=5); 16000: 205.046 (173.102 to 325.684, n=5); 32000: 1144.177 (849.666 to 1259.777, n=5) | growth 0.54, 0.85, 1.3, 2.48
+node-sweep | both | 2000: 30.873 (26.558 to 32.252, n=5); 4000: 40.043 (36.729 to 50.034, n=5); 8000: 86.926 (77.702 to 89.749, n=5); 16000: 211.578 (201.493 to 227.967, n=5); 32000: 701.371 (648.526 to 824.139, n=5) | growth 0.38, 1.12, 1.28, 1.73
+node-sweep | concat | 2000: 26.609 (25.384 to 29.658, n=5); 4000: 41.821 (34.827 to 51.668, n=5); 8000: 115.156 (102.158 to 124.385, n=5); 16000: 379.729 (345.09 to 424.744, n=5); 32000: 2804.585 (2505.408 to 2992.935, n=5) | growth 0.65, 1.46, 1.72, 2.88
+node-sweep | multiple-final / base | 2000: 0.868 (0.818 to 0.968, slower in 0 of 5); 4000: 0.816 (0.751 to 1.205, slower in 1 of 5); 8000: 0.496 (0.475 to 0.87, slower in 0 of 5); 16000: 0.24 (0.186 to 0.325, slower in 0 of 5); 32000: 0.16 (0.144 to 0.189, slower in 0 of 5)
+node-sweep | both / base | 2000: 0.806 (0.689 to 1.029, slower in 1 of 5); 4000: 0.792 (0.677 to 0.823, slower in 0 of 5); 8000: 0.542 (0.443 to 0.606, slower in 0 of 5); 16000: 0.237 (0.217 to 0.269, slower in 0 of 5); 32000: 0.115 (0.103 to 0.135, slower in 0 of 5)
+node-sweep | concat / base | 2000: 0.722 (0.666 to 0.849, slower in 0 of 5); 4000: 0.708 (0.694 to 0.98, slower in 0 of 5); 8000: 0.715 (0.656 to 0.774, slower in 0 of 5); 16000: 0.438 (0.406 to 0.456, slower in 0 of 5); 32000: 0.456 (0.351 to 0.489, slower in 0 of 5)
+node-sweep | base / multiple-final | 2000: 1.153 (1.033 to 1.222, slower in 5 of 5); 4000: 1.226 (0.83 to 1.331, slower in 4 of 5); 8000: 2.017 (1.149 to 2.106, slower in 5 of 5); 16000: 4.165 (3.073 to 5.38, slower in 5 of 5); 32000: 6.261 (5.303 to 6.946, slower in 5 of 5)
+node-sweep | both / multiple-final | 2000: 0.966 (0.794 to 1.063, slower in 1 of 5); 4000: 0.83 (0.661 to 1.078, slower in 2 of 5); 8000: 0.932 (0.696 to 1.123, slower in 2 of 5); 16000: 1.06 (0.667 to 1.175, slower in 4 of 5); 32000: 0.717 (0.606 to 0.825, slower in 0 of 5)
+node-sweep | concat / multiple-final | 2000: 0.794 (0.76 to 0.997, slower in 0 of 5); 4000: 0.851 (0.691 to 1.304, slower in 1 of 5); 8000: 1.382 (0.809 to 1.583, slower in 4 of 5); 16000: 1.816 (1.255 to 2.454, slower in 5 of 5); 32000: 2.612 (2.226 to 3.363, slower in 5 of 5)
+node-large | multiple-final | 64000: 3454.556 (3005.493 to 4807.497, n=5); 128000: 21295.962 (15584.119 to 23495.502, n=5) | growth 2.62
+node-large | both | 64000: 781.778 (755.162 to 1172.079, n=5); 128000: 2265.314 (2065.274 to 2528.024, n=5) | growth 1.53
+node-large | both / multiple-final | 64000: 0.244 (0.223 to 0.251, slower in 0 of 5); 128000: 0.108 (0.096 to 0.148, slower in 0 of 5)
+node-mixed | base | 3000: 29.513 (25.752 to 31.318, n=5); 4500: 31.065 (27.792 to 36.753, n=5); 6000: 42.948 (38.58 to 48.47, n=5); 12000: 126.88 (117.612 to 166.335, n=5); 24000: 521.692 (440.482 to 665.681, n=5); 48000: 2430.567 (2290.33 to 3369.247, n=5) | growth 0.13, 1.13, 1.56, 2.04, 2.22
+node-mixed | multiple-final | 3000: 28.335 (26.1 to 46.876, n=5); 4500: 31.586 (29.082 to 44.105, n=5); 6000: 41.324 (38.161 to 60.762, n=5); 12000: 91.245 (85.585 to 115.664, n=5); 24000: 274.682 (261.517 to 368.113, n=5); 48000: 2435.881 (2272.825 to 2969.415, n=5) | growth 0.27, 0.93, 1.14, 1.59, 3.15
+node-mixed | both | 3000: 33.169 (28.049 to 38.699, n=5); 4500: 33.269 (30.986 to 39.957, n=5); 6000: 43.072 (40.355 to 59.52, n=5); 12000: 97.107 (88.954 to 102.381, n=5); 24000: 5473.407 (4714.484 to 6117.098, n=5); 48000: 31971.866 (30766.589 to 40577.083, n=5) | growth 0.01, 0.9, 1.17, 5.82, 2.55
+node-mixed | multiple-final / base | 3000: 1.014 (0.954 to 1.497, slower in 3 of 5); 4500: 1.053 (0.889 to 1.27, slower in 3 of 5); 6000: 0.977 (0.897 to 1.321, slower in 1 of 5); 12000: 0.723 (0.559 to 0.832, slower in 0 of 5); 24000: 0.599 (0.393 to 0.676, slower in 0 of 5); 48000: 0.935 (0.857 to 1.064, slower in 2 of 5)
+node-mixed | both / base | 3000: 1.117 (0.95 to 1.345, slower in 4 of 5); 4500: 1.11 (0.843 to 1.317, slower in 4 of 5); 6000: 1.106 (0.833 to 1.294, slower in 3 of 5); 12000: 0.785 (0.535 to 0.821, slower in 0 of 5); 24000: 10.94 (7.082 to 13.887, slower in 5 of 5); 48000: 13.154 (9.17 to 17.717, slower in 5 of 5)
+node-mixed | base / multiple-final | 3000: 0.987 (0.668 to 1.048, slower in 2 of 5); 4500: 0.949 (0.787 to 1.125, slower in 2 of 5); 6000: 1.024 (0.757 to 1.114, slower in 4 of 5); 12000: 1.382 (1.202 to 1.789, slower in 5 of 5); 24000: 1.67 (1.479 to 2.545, slower in 5 of 5); 48000: 1.069 (0.94 to 1.167, slower in 3 of 5)
+node-mixed | both / multiple-final | 3000: 1.033 (0.826 to 1.327, slower in 3 of 5); 4500: 1.053 (0.906 to 1.241, slower in 3 of 5); 6000: 0.991 (0.928 to 1.132, slower in 2 of 5); 12000: 1.012 (0.88 to 1.174, slower in 3 of 5); 24000: 18.271 (13.499 to 22.27, slower in 5 of 5); 48000: 13.023 (10.405 to 16.658, slower in 5 of 5)
+node-commit-paths | base | 1000: 51.977 (46.056 to 76.527, n=5)
+node-commit-paths | multiple-final | 1000: 54.097 (50.006 to 62.573, n=5)
+node-commit-paths | both | 1000: 50.982 (50.75 to 54.649, n=5)
+node-commit-paths | concat | 1000: 54.078 (48.351 to 60.741, n=5)
+node-commit-paths | multiple-final / base | 1000: 1.041 (0.653 to 1.359, slower in 3 of 5)
+node-commit-paths | both / base | 1000: 0.985 (0.714 to 1.102, slower in 2 of 5)
+node-commit-paths | concat / base | 1000: 0.934 (0.778 to 1.077, slower in 2 of 5)
+node-commit-paths | base / multiple-final | 1000: 0.961 (0.736 to 1.53, slower in 2 of 5)
+node-commit-paths | both / multiple-final | 1000: 0.943 (0.811 to 1.093, slower in 1 of 5)
+node-commit-paths | concat / multiple-final | 1000: 1 (0.793 to 1.215, slower in 2 of 5)
+node-commit-paths-long | base | 20000: 2880.852 (2588.683 to 4404.318, n=5)
+node-commit-paths-long | multiple-final | 20000: 1266.567 (1217.266 to 1622.699, n=5)
+node-commit-paths-long | both | 20000: 1476.104 (1269.404 to 1889.281, n=5)
+node-commit-paths-long | concat | 20000: 1690.736 (1668.153 to 2168.06, n=5)
+node-commit-paths-long | multiple-final / base | 20000: 0.433 (0.368 to 0.479, slower in 0 of 5)
+node-commit-paths-long | both / base | 20000: 0.49 (0.429 to 0.537, slower in 0 of 5)
+node-commit-paths-long | concat / base | 20000: 0.602 (0.465 to 0.685, slower in 0 of 5)
+node-commit-paths-long | base / multiple-final | 20000: 2.308 (2.09 to 2.714, slower in 5 of 5)
+node-commit-paths-long | both / multiple-final | 20000: 1.162 (1.025 to 1.165, slower in 5 of 5)
+node-commit-paths-long | concat / multiple-final | 20000: 1.362 (1.252 to 1.712, slower in 5 of 5)
+bun-sweep-with-main | main | 2000: 48.019 (35.212 to 96.754, n=5); 4000: 115.291 (107.881 to 167.527, n=5); 8000: 657.752 (515.65 to 926.532, n=5); 16000: 2180.195 (1685.921 to 2462.884, n=5) | growth 1.26, 2.51, 1.73
+bun-sweep-with-main | base | 2000: 29.219 (21.408 to 43.19, n=5); 4000: 65.897 (52.995 to 79.573, n=5); 8000: 168.877 (140.236 to 198.884, n=5); 16000: 537.856 (436.822 to 616.479, n=5) | growth 1.17, 1.36, 1.67
+bun-sweep-with-main | base / main | 2000: 0.741 (0.221 to 0.886, slower in 0 of 5); 4000: 0.545 (0.316 to 0.723, slower in 0 of 5); 8000: 0.298 (0.151 to 0.328, slower in 0 of 5); 16000: 0.25 (0.2 to 0.319, slower in 0 of 5)
+bun-sweep-with-main | main / base | 2000: 1.35 (1.129 to 4.52, slower in 5 of 5); 4000: 1.833 (1.384 to 3.161, slower in 5 of 5); 8000: 3.353 (3.053 to 6.607, slower in 5 of 5); 16000: 3.995 (3.135 to 4.991, slower in 5 of 5)
+bun-sweep | base | 2000: 28.108 (23.711 to 35.698, n=5); 4000: 66.581 (57.748 to 110.328, n=5); 8000: 169.548 (154.049 to 378.001, n=5); 16000: 512.485 (448.474 to 759.706, n=5); 32000: 1921.962 (1837.663 to 2728.486, n=5) | growth 1.24, 1.35, 1.6, 1.91
+bun-sweep | multiple-final | 2000: 26.274 (22.43 to 34.015, n=5); 4000: 50.665 (47.706 to 64.613, n=5); 8000: 95.418 (92.516 to 140.272, n=5); 16000: 273.233 (249.05 to 351.468, n=5); 32000: 820.072 (783.004 to 1119.501, n=5) | growth 0.95, 0.91, 1.52, 1.59
+bun-sweep | both | 2000: 25.078 (21.898 to 33.262, n=5); 4000: 52.601 (47.192 to 75.511, n=5); 8000: 104.89 (91.671 to 143.197, n=5); 16000: 250.016 (248.152 to 452.631, n=5); 32000: 487.062 (454.506 to 715.318, n=5) | growth 1.07, 1, 1.25, 0.96
+bun-sweep | concat | 2000: 22.293 (16.727 to 40.959, n=5); 4000: 47.686 (44.472 to 63.022, n=5); 8000: 114.003 (102.431 to 134, n=5); 16000: 341.049 (316.867 to 522.259, n=5); 32000: 1129.138 (997.784 to 1718.307, n=5) | growth 1.1, 1.26, 1.58, 1.73
+bun-sweep | multiple-final / base | 2000: 0.935 (0.758 to 1.435, slower in 1 of 5); 4000: 0.783 (0.453 to 0.826, slower in 0 of 5); 8000: 0.58 (0.246 to 0.827, slower in 0 of 5); 16000: 0.5 (0.423 to 0.784, slower in 0 of 5); 32000: 0.427 (0.41 to 0.449, slower in 0 of 5)
+bun-sweep | both / base | 2000: 0.892 (0.777 to 1.349, slower in 1 of 5); 4000: 0.78 (0.684 to 0.854, slower in 0 of 5); 8000: 0.557 (0.277 to 0.781, slower in 0 of 5); 16000: 0.501 (0.443 to 0.892, slower in 0 of 5); 32000: 0.259 (0.236 to 0.265, slower in 0 of 5)
+bun-sweep | concat / base | 2000: 0.757 (0.595 to 1.147, slower in 1 of 5); 4000: 0.712 (0.571 to 0.77, slower in 0 of 5); 8000: 0.693 (0.271 to 0.79, slower in 0 of 5); 16000: 0.687 (0.606 to 0.708, slower in 0 of 5); 32000: 0.614 (0.458 to 0.63, slower in 0 of 5)
+bun-sweep | base / multiple-final | 2000: 1.07 (0.697 to 1.32, slower in 4 of 5); 4000: 1.277 (1.21 to 2.207, slower in 5 of 5); 8000: 1.723 (1.209 to 4.057, slower in 5 of 5); 16000: 2 (1.276 to 2.367, slower in 5 of 5); 32000: 2.344 (2.225 to 2.437, slower in 5 of 5)
+bun-sweep | both / multiple-final | 2000: 0.954 (0.866 to 1.026, slower in 2 of 5); 4000: 1.034 (0.909 to 1.51, slower in 3 of 5); 8000: 1.064 (0.944 to 1.237, slower in 3 of 5); 16000: 1 (0.915 to 1.41, slower in 3 of 5); 32000: 0.602 (0.544 to 0.639, slower in 0 of 5)
+bun-sweep | concat / multiple-final | 2000: 0.756 (0.637 to 1.262, slower in 1 of 5); 4000: 0.932 (0.872 to 1.261, slower in 1 of 5); 8000: 1.099 (0.955 to 1.195, slower in 4 of 5); 16000: 1.369 (0.902 to 1.627, slower in 4 of 5); 32000: 1.442 (1.019 to 1.535, slower in 5 of 5)
+bun-large | multiple-final | 64000: 2643.024 (2203.693 to 4091.014, n=5); 128000: 10245.548 (7926.51 to 13622.466, n=5) | growth 1.95
+bun-large | both | 64000: 820.882 (775.996 to 831.418, n=5); 128000: 1468.942 (1423.685 to 1681.513, n=5) | growth 0.84
+bun-large | both / multiple-final | 64000: 0.311 (0.196 to 0.375, slower in 0 of 5); 128000: 0.142 (0.123 to 0.182, slower in 0 of 5)
+bun-mixed | base | 3000: 21.689 (17.773 to 29.061, n=5); 4500: 35.958 (32.013 to 41.268, n=5); 6000: 44.405 (39.139 to 50.01, n=5); 12000: 128.381 (113.478 to 137.108, n=5); 24000: 409.9 (377.422 to 442.341, n=5); 48000: 1451.041 (1347.207 to 1632.116, n=5) | growth 1.25, 0.73, 1.53, 1.67, 1.82
+bun-mixed | multiple-final | 3000: 20.967 (19.732 to 24.595, n=5); 4500: 39.731 (32.09 to 75.9, n=5); 6000: 47.265 (42.158 to 107.763, n=5); 12000: 106.785 (100.742 to 278.56, n=5); 24000: 312.219 (270.045 to 677.546, n=5); 48000: 1065.525 (892.333 to 1376.197, n=5) | growth 1.58, 0.6, 1.18, 1.55, 1.77
+bun-mixed | both | 3000: 23.117 (21.274 to 41.027, n=5); 4500: 41.763 (33.551 to 72.561, n=5); 6000: 55.296 (45.147 to 90.553, n=5); 12000: 108.817 (101.91 to 150.776, n=5); 24000: 16336.65 (11491.967 to 17544.356, n=5); 48000: 104759.807 (103023.567 to 137255.168, n=5) | growth 1.46, 0.98, 0.98, 7.23, 2.68
+bun-mixed | multiple-final / base | 3000: 0.977 (0.721 to 1.11, slower in 1 of 5); 4500: 1.077 (0.905 to 2.111, slower in 3 of 5); 6000: 1.144 (1.033 to 2.155, slower in 5 of 5); 12000: 0.849 (0.749 to 2.308, slower in 1 of 5); 24000: 0.771 (0.664 to 1.653, slower in 1 of 5); 48000: 0.71 (0.662 to 0.948, slower in 0 of 5)
+bun-mixed | both / base | 3000: 1.147 (0.795 to 1.629, slower in 4 of 5); 4500: 1.112 (0.813 to 2.018, slower in 4 of 5); 6000: 1.39 (0.986 to 1.811, slower in 4 of 5); 12000: 0.871 (0.794 to 1.249, slower in 1 of 5); 24000: 39.855 (29.158 to 46.485, slower in 5 of 5); 48000: 77.007 (63.584 to 101.881, slower in 5 of 5)
+bun-mixed | base / multiple-final | 3000: 1.024 (0.901 to 1.386, slower in 4 of 5); 4500: 0.928 (0.474 to 1.105, slower in 2 of 5); 6000: 0.874 (0.464 to 0.968, slower in 0 of 5); 12000: 1.178 (0.433 to 1.335, slower in 4 of 5); 24000: 1.297 (0.605 to 1.506, slower in 4 of 5); 48000: 1.409 (1.054 to 1.51, slower in 5 of 5)
+bun-mixed | both / multiple-final | 3000: 1.103 (1.063 to 1.668, slower in 5 of 5); 4500: 1.032 (0.898 to 1.107, slower in 3 of 5); 6000: 0.955 (0.84 to 1.662, slower in 2 of 5); 12000: 1.026 (0.541 to 1.071, slower in 3 of 5); 24000: 48.052 (24.111 to 64.968, slower in 5 of 5); 48000: 105.003 (74.861 to 153.816, slower in 5 of 5)
+bun-commit-paths | base | 1000: 53.657 (51.741 to 60.32, n=5)
+bun-commit-paths | multiple-final | 1000: 52.665 (48.917 to 64.971, n=5)
+bun-commit-paths | both | 1000: 52.489 (50.284 to 66.109, n=5)
+bun-commit-paths | concat | 1000: 52.302 (49.69 to 61.745, n=5)
+bun-commit-paths | multiple-final / base | 1000: 0.982 (0.921 to 1.077, slower in 1 of 5)
+bun-commit-paths | both / base | 1000: 1.001 (0.861 to 1.118, slower in 3 of 5)
+bun-commit-paths | concat / base | 1000: 0.983 (0.856 to 1.044, slower in 2 of 5)
+bun-commit-paths | base / multiple-final | 1000: 1.019 (0.928 to 1.085, slower in 4 of 5)
+bun-commit-paths | both / multiple-final | 1000: 1.019 (0.799 to 1.213, slower in 3 of 5)
+bun-commit-paths | concat / multiple-final | 1000: 1.016 (0.795 to 1.133, slower in 4 of 5)
+bun-commit-paths-long | base | 20000: 1790.697 (1645.161 to 2354.488, n=5)
+bun-commit-paths-long | multiple-final | 20000: 1413.665 (1300.241 to 1584.057, n=5)
+bun-commit-paths-long | both | 20000: 1381.376 (1269.716 to 1528.263, n=5)
+bun-commit-paths-long | concat | 20000: 1592.119 (1433.242 to 2137.69, n=5)
+bun-commit-paths-long | multiple-final / base | 20000: 0.789 (0.552 to 0.926, slower in 0 of 5)
+bun-commit-paths-long | both / base | 20000: 0.709 (0.61 to 0.912, slower in 0 of 5)
+bun-commit-paths-long | concat / base | 20000: 0.8 (0.719 to 1.275, slower in 1 of 5)
+bun-commit-paths-long | base / multiple-final | 20000: 1.267 (1.08 to 1.811, slower in 5 of 5)
+bun-commit-paths-long | both / multiple-final | 20000: 0.985 (0.833 to 1.128, slower in 2 of 5)
+bun-commit-paths-long | concat / multiple-final | 20000: 1.078 (1.005 to 1.377, slower in 5 of 5)

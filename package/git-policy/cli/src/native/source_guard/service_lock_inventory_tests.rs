@@ -99,6 +99,14 @@ const INVENTORY: &[&str] = &[
     //  so neither can be one atomic.
     "service/service_repository_scratch_sweep.rs",
     "service/service_scratch_trees_of_queued_requests.rs",
+    // The drawn shadows this service holds ready, in memory only:
+    //  the draw's own thread records one and every connection's answer takes one,
+    //  so two threads reach the list, and under it the list is changed and nothing else.
+    "service/service_shadow_draw.rs",
+    // The lines waiting for the service's own log stream, and how many found no room:
+    //  a caller hands a line and goes on while one thread takes lines and waits on the stream,
+    //  and under it one line is pushed or popped while the write runs outside it.
+    "service/service_log_lines_off_the_calling_thread.rs",
     "commit/commit_build_part_durations.rs",
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",

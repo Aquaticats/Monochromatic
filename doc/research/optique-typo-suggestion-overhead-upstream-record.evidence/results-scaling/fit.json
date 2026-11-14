@@ -1,0 +1,2441 @@
+{
+  "generatedAt": "2026-11-12T16:56:17.477Z",
+  "fits": {
+    "tokens": {
+      "1.1.1": {
+        "slopePerRound": [
+          1.116,
+          1.1223,
+          0.9088,
+          1.1169,
+          1.1589
+        ],
+        "slopeMean": 1.0846,
+        "slopeStandardDeviation": 0.0999,
+        "slopeMin": 0.9088,
+        "slopeMax": 1.1589,
+        "slopeOnLevelMinimum": 1.1221
+      },
+      "1.3.6": {
+        "slopePerRound": [
+          1.0656,
+          1.1243,
+          1.0334,
+          1.1526,
+          1.1738
+        ],
+        "slopeMean": 1.1099,
+        "slopeStandardDeviation": 0.059,
+        "slopeMin": 1.0334,
+        "slopeMax": 1.1738,
+        "slopeOnLevelMinimum": 1.1215
+      },
+      "1.4.0-dev.2664": {
+        "slopePerRound": [
+          1.1177,
+          1.1449,
+          1.0692,
+          1.1381,
+          1.144
+        ],
+        "slopeMean": 1.1228,
+        "slopeStandardDeviation": 0.0319,
+        "slopeMin": 1.0692,
+        "slopeMax": 1.1449,
+        "slopeOnLevelMinimum": 1.1179
+      },
+      "1.4.0-dev.2971": {
+        "slopePerRound": [
+          1.2394,
+          1.2405,
+          1.1876,
+          1.2767,
+          1.3155
+        ],
+        "slopeMean": 1.2519,
+        "slopeStandardDeviation": 0.0476,
+        "slopeMin": 1.1876,
+        "slopeMax": 1.3155,
+        "slopeOnLevelMinimum": 1.3175
+      }
+    },
+    "options": {
+      "1.1.1": {
+        "slopePerRound": [
+          1.8315,
+          1.6927,
+          1.744,
+          1.7358,
+          1.7591
+        ],
+        "slopeMean": 1.7526,
+        "slopeStandardDeviation": 0.0505,
+        "slopeMin": 1.6927,
+        "slopeMax": 1.8315,
+        "slopeOnLevelMinimum": 1.7875
+      },
+      "1.3.6": {
+        "slopePerRound": [
+          1.7819,
+          1.6874,
+          1.6559,
+          1.7075,
+          1.7064
+        ],
+        "slopeMean": 1.7078,
+        "slopeStandardDeviation": 0.0464,
+        "slopeMin": 1.6559,
+        "slopeMax": 1.7819,
+        "slopeOnLevelMinimum": 1.7718
+      },
+      "1.4.0-dev.2664": {
+        "slopePerRound": [
+          1.6169,
+          1.5594,
+          1.6356,
+          1.5975,
+          1.6261
+        ],
+        "slopeMean": 1.6071,
+        "slopeStandardDeviation": 0.0301,
+        "slopeMin": 1.5594,
+        "slopeMax": 1.6356,
+        "slopeOnLevelMinimum": 1.6929
+      },
+      "1.4.0-dev.2971": {
+        "slopePerRound": [
+          0.7181,
+          0.6873,
+          0.5165,
+          0.5788,
+          0.7037
+        ],
+        "slopeMean": 0.6409,
+        "slopeStandardDeviation": 0.0886,
+        "slopeMin": 0.5165,
+        "slopeMax": 0.7181,
+        "slopeOnLevelMinimum": 0.7453
+      }
+    },
+    "length": {
+      "1.1.1": {
+        "slopePerRound": [
+          0.8214,
+          0.804,
+          0.8383,
+          0.8158,
+          0.8211
+        ],
+        "slopeMean": 0.8201,
+        "slopeStandardDeviation": 0.0124,
+        "slopeMin": 0.804,
+        "slopeMax": 0.8383,
+        "slopeOnLevelMinimum": 0.8137
+      },
+      "1.3.6": {
+        "slopePerRound": [
+          -0.0696,
+          -0.0612,
+          -0.1323,
+          -0.0148,
+          -0.0603
+        ],
+        "slopeMean": -0.0676,
+        "slopeStandardDeviation": 0.042,
+        "slopeMin": -0.1323,
+        "slopeMax": -0.0148,
+        "slopeOnLevelMinimum": -0.0781
+      },
+      "1.4.0-dev.2664": {
+        "slopePerRound": [
+          -0.0579,
+          -0.028,
+          -0.0308,
+          0.0229,
+          -0.0107
+        ],
+        "slopeMean": -0.0209,
+        "slopeStandardDeviation": 0.0298,
+        "slopeMin": -0.0579,
+        "slopeMax": 0.0229,
+        "slopeOnLevelMinimum": -0.0524
+      },
+      "1.4.0-dev.2971": {
+        "slopePerRound": [
+          0.0721,
+          0.0347,
+          0.0348,
+          0.0818,
+          -0.0215
+        ],
+        "slopeMean": 0.0404,
+        "slopeStandardDeviation": 0.0407,
+        "slopeMin": -0.0215,
+        "slopeMax": 0.0818,
+        "slopeOnLevelMinimum": 0.0206
+      }
+    }
+  },
+  "optionsShape": {
+    "1.1.1": {
+      "linearR2PerRound": [
+        0.954615,
+        0.94589,
+        0.920664,
+        0.920579,
+        0.952016
+      ],
+      "quadraticR2PerRound": [
+        0.99872,
+        0.999935,
+        0.999562,
+        0.999287,
+        0.999647
+      ],
+      "quadraticCoefficientPerRound": [
+        0.000052,
+        0.00005,
+        0.00007,
+        0.000074,
+        0.000048
+      ],
+      "squaredOnlyR2PerRound": [
+        0.997467,
+        0.999778,
+        0.998146,
+        0.997895,
+        0.998913
+      ],
+      "squaredOnlyCoefficientPerRound": [
+        0.06022,
+        0.052469,
+        0.060485,
+        0.064665,
+        0.053404
+      ],
+      "squaredOnlyInterceptPerRound": [
+        6.525,
+        5.121,
+        -6.587,
+        -5.202,
+        6.752
+      ]
+    },
+    "1.3.6": {
+      "linearR2PerRound": [
+        0.927337,
+        0.93984,
+        0.938707,
+        0.951135,
+        0.937113
+      ],
+      "quadraticR2PerRound": [
+        0.999863,
+        0.999988,
+        0.999989,
+        0.999683,
+        0.99999
+      ],
+      "quadraticCoefficientPerRound": [
+        0.000072,
+        0.000055,
+        0.000057,
+        0.00005,
+        0.000056
+      ],
+      "squaredOnlyR2PerRound": [
+        0.99921,
+        0.999988,
+        0.99998,
+        0.999061,
+        0.99995
+      ],
+      "squaredOnlyCoefficientPerRound": [
+        0.065034,
+        0.054988,
+        0.056039,
+        0.05516,
+        0.054446
+      ],
+      "squaredOnlyInterceptPerRound": [
+        -5.463,
+        2.129,
+        1.53,
+        6.733,
+        0.736
+      ]
+    },
+    "1.4.0-dev.2664": {
+      "linearR2PerRound": [
+        0.938765,
+        0.933482,
+        0.935036,
+        0.930477,
+        0.936845
+      ],
+      "quadraticR2PerRound": [
+        0.999343,
+        0.999939,
+        0.999947,
+        0.999827,
+        0.999944
+      ],
+      "quadraticCoefficientPerRound": [
+        0.000064,
+        0.000063,
+        0.000061,
+        0.000063,
+        0.000058
+      ],
+      "squaredOnlyR2PerRound": [
+        0.99934,
+        0.999754,
+        0.999837,
+        0.999452,
+        0.999898
+      ],
+      "squaredOnlyCoefficientPerRound": [
+        0.063889,
+        0.059359,
+        0.058168,
+        0.058061,
+        0.056321
+      ],
+      "squaredOnlyInterceptPerRound": [
+        5.908,
+        1.649,
+        1.653,
+        -0.258,
+        2.131
+      ]
+    },
+    "1.4.0-dev.2971": {
+      "linearR2PerRound": [
+        0.875296,
+        0.997235,
+        0.96512,
+        0.904622,
+        0.957624
+      ],
+      "quadraticR2PerRound": [
+        0.982059,
+        0.997322,
+        0.965848,
+        0.905321,
+        0.958781
+      ],
+      "quadraticCoefficientPerRound": [
+        -0.000002,
+        0,
+        0,
+        0,
+        0
+      ],
+      "squaredOnlyR2PerRound": [
+        0.68428,
+        0.941984,
+        0.919983,
+        0.838602,
+        0.884588
+      ],
+      "squaredOnlyCoefficientPerRound": [
+        0.001369,
+        0.001422,
+        0.001334,
+        0.001221,
+        0.001437
+      ],
+      "squaredOnlyInterceptPerRound": [
+        7.738,
+        5.227,
+        7.121,
+        7.565,
+        5.664
+      ]
+    }
+  },
+  "predictedShapes": {
+    "tokens": {
+      "1.1.1": {
+        "slopePerRound": [
+          0.307918,
+          0.282987,
+          0.261754,
+          0.25346,
+          0.288299
+        ],
+        "interceptPerRound": [
+          -82.217,
+          -69.565,
+          -43.886,
+          -35.645,
+          -55.345
+        ],
+        "r2PerRound": [
+          0.973368,
+          0.982102,
+          0.986528,
+          0.99024,
+          0.98275
+        ]
+      },
+      "1.3.6": {
+        "slopePerRound": [
+          0.262649,
+          0.280734,
+          0.279249,
+          0.279296,
+          0.294607
+        ],
+        "interceptPerRound": [
+          -18.176,
+          -60.861,
+          -62.657,
+          -30.879,
+          -56.54
+        ],
+        "r2PerRound": [
+          0.986632,
+          0.986884,
+          0.985103,
+          0.996208,
+          0.985105
+        ]
+      },
+      "1.4.0-dev.2664": {
+        "slopePerRound": [
+          0.366467,
+          0.325537,
+          0.293056,
+          0.313969,
+          0.293112
+        ],
+        "interceptPerRound": [
+          -93.587,
+          -72.696,
+          -51.395,
+          -61.745,
+          -40.83
+        ],
+        "r2PerRound": [
+          0.984899,
+          0.991103,
+          0.989907,
+          0.983838,
+          0.995733
+        ]
+      },
+      "1.4.0-dev.2971": {
+        "slopePerRound": [
+          0.180279,
+          0.163737,
+          0.14083,
+          0.156763,
+          0.15705
+        ],
+        "interceptPerRound": [
+          -69.36,
+          -64.947,
+          -42.703,
+          -50.428,
+          -48.58
+        ],
+        "r2PerRound": [
+          0.95905,
+          0.95581,
+          0.969808,
+          0.975115,
+          0.964657
+        ]
+      }
+    },
+    "length": {
+      "1.1.1": {
+        "slopePerRound": [
+          4.55649,
+          4.638561,
+          4.682559,
+          4.784997,
+          4.599826
+        ],
+        "interceptPerRound": [
+          27.972,
+          37.574,
+          56.789,
+          46.292,
+          29.26
+        ],
+        "r2PerRound": [
+          0.999416,
+          0.999361,
+          0.989049,
+          0.942765,
+          0.998812
+        ]
+      },
+      "1.3.6": {
+        "slopePerRound": [
+          -0.056392,
+          -0.059009,
+          -0.087691,
+          -0.035259,
+          -0.059523
+        ],
+        "interceptPerRound": [
+          32.334,
+          35.313,
+          38.529,
+          37.536,
+          33.45
+        ],
+        "r2PerRound": [
+          0.061219,
+          0.057828,
+          0.078112,
+          0.008632,
+          0.070227
+        ]
+      },
+      "1.4.0-dev.2664": {
+        "slopePerRound": [
+          -0.059546,
+          -0.048737,
+          -0.047015,
+          0.008218,
+          -0.041679
+        ],
+        "interceptPerRound": [
+          42.232,
+          44.738,
+          43.877,
+          41.442,
+          43.811
+        ],
+        "r2PerRound": [
+          0.057129,
+          0.036555,
+          0.030742,
+          0.000765,
+          0.027781
+        ]
+      },
+      "1.4.0-dev.2971": {
+        "slopePerRound": [
+          0.013075,
+          0.02587,
+          0.014814,
+          0.077682,
+          -0.010096
+        ],
+        "interceptPerRound": [
+          27.323,
+          26.005,
+          27.507,
+          23.503,
+          28.016
+        ],
+        "r2PerRound": [
+          0.045854,
+          0.512242,
+          0.171274,
+          0.69342,
+          0.071751
+        ]
+      }
+    }
+  },
+  "levels": [
+    {
+      "sweep": "tokens",
+      "fixedOptionCount": 16,
+      "fixedTokenLength": 12,
+      "fixedTokenCount": 0,
+      "points": [
+        {
+          "level": 100,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 16.5866,
+              "minMs": 14.8332,
+              "roundMediansMs": [
+                17.3661,
+                16.6242,
+                38.3615,
+                15.6065,
+                15.3404
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 18.23,
+              "minMs": 14.4927,
+              "roundMediansMs": [
+                23.5353,
+                15.9408,
+                25.4478,
+                17.5806,
+                14.7828
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 18.1354,
+              "minMs": 17.0428,
+              "roundMediansMs": [
+                22.5101,
+                18.1354,
+                18.5377,
+                17.6857,
+                17.3617
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 5.07,
+              "minMs": 3.6974,
+              "roundMediansMs": [
+                6.6098,
+                5.0714,
+                4.7367,
+                4.4712,
+                4.0864
+              ]
+            }
+          }
+        },
+        {
+          "level": 200,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 32.1262,
+              "minMs": 29.3325,
+              "roundMediansMs": [
+                32.3967,
+                30.926,
+                48.2915,
+                32.1262,
+                30.8523
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 32.9812,
+              "minMs": 30.3879,
+              "roundMediansMs": [
+                37.8418,
+                33.7198,
+                33.9557,
+                32.1631,
+                30.9347
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 38.0133,
+              "minMs": 33.6178,
+              "roundMediansMs": [
+                38.9783,
+                35.7641,
+                51.815,
+                35.3447,
+                34.797
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 11.4227,
+              "minMs": 7.8226,
+              "roundMediansMs": [
+                11.0416,
+                12.0498,
+                19.0569,
+                11.2598,
+                9.3872
+              ]
+            }
+          }
+        },
+        {
+          "level": 500,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 81.7812,
+              "minMs": 76.1647,
+              "roundMediansMs": [
+                98.878,
+                77.4269,
+                81.7812,
+                92.6831,
+                78.4162
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 82.6865,
+              "minMs": 77.0213,
+              "roundMediansMs": [
+                84.2271,
+                84.5548,
+                82.0995,
+                78.6218,
+                79.3065
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 92.4284,
+              "minMs": 84.1485,
+              "roundMediansMs": [
+                96.0532,
+                86.0435,
+                91.498,
+                92.9382,
+                89.0163
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 28.359,
+              "minMs": 22.4252,
+              "roundMediansMs": [
+                28.1053,
+                25.5362,
+                27.5264,
+                41.4561,
+                40.9164
+              ]
+            }
+          }
+        },
+        {
+          "level": 1000,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 194.9175,
+              "minMs": 169.224,
+              "roundMediansMs": [
+                175.1794,
+                178.2864,
+                173.3834,
+                233.8105,
+                263.5759
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 188.8966,
+              "minMs": 161.1808,
+              "roundMediansMs": [
+                178.2463,
+                187.8246,
+                163.7383,
+                212.0873,
+                264.0136
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 209.7809,
+              "minMs": 184.3514,
+              "roundMediansMs": [
+                189.9893,
+                191.2187,
+                213.9874,
+                265.0093,
+                264.3227
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 67.6189,
+              "minMs": 51.8705,
+              "roundMediansMs": [
+                67.6189,
+                52.7116,
+                79.5921,
+                59.0462,
+                100.0683
+              ]
+            }
+          }
+        },
+        {
+          "level": 2000,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 377.9094,
+              "minMs": 361.48,
+              "roundMediansMs": [
+                363.0676,
+                370.2281,
+                391.4438,
+                377.9094,
+                381.979
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 425.0066,
+              "minMs": 370.9091,
+              "roundMediansMs": [
+                607.998,
+                394.6832,
+                395.0995,
+                576.3496,
+                401.2013
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 452.9391,
+              "minMs": 407.326,
+              "roundMediansMs": [
+                515.6514,
+                502.0323,
+                439.3542,
+                419.2702,
+                480.0264
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 158.281,
+              "minMs": 145.9106,
+              "roundMediansMs": [
+                172.3503,
+                152.6251,
+                155.7184,
+                193.2912,
+                157.4042
+              ]
+            }
+          }
+        },
+        {
+          "level": 5000,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 1399.4078,
+              "minMs": 1237.4279,
+              "roundMediansMs": [
+                1529.4857,
+                1399.4078,
+                1306.8615,
+                1264.4386,
+                1434.7923
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 1388.571,
+              "minMs": 1229.4514,
+              "roundMediansMs": [
+                1270.4103,
+                1388.571,
+                1381.11,
+                1355.7278,
+                1463.0592
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 1555.747,
+              "minMs": 1408.6818,
+              "roundMediansMs": [
+                1800.2043,
+                1595.3561,
+                1455.3335,
+                1562.2077,
+                1448.8828
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 774.9905,
+              "minMs": 687.9397,
+              "roundMediansMs": [
+                884.567,
+                803.2093,
+                696.4575,
+                767.4174,
+                778.6981
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sweep": "options",
+      "fixedOptionCount": 0,
+      "fixedTokenLength": 12,
+      "fixedTokenCount": 100,
+      "points": [
+        {
+          "level": 4,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 2.1237,
+              "minMs": 1.7092,
+              "roundMediansMs": [
+                1.9978,
+                2.3906,
+                2.1237,
+                2.382,
+                2.0189
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 2.6711,
+              "minMs": 1.9482,
+              "roundMediansMs": [
+                2.3471,
+                2.4626,
+                3.6329,
+                2.8858,
+                2.2447
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 3.6037,
+              "minMs": 2.6068,
+              "roundMediansMs": [
+                4.2656,
+                3.6037,
+                3.0069,
+                4.1355,
+                3.3556
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 2.7644,
+              "minMs": 1.9706,
+              "roundMediansMs": [
+                2.7644,
+                2.4309,
+                3.5688,
+                3.2992,
+                2.6302
+              ]
+            }
+          }
+        },
+        {
+          "level": 8,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 6.3894,
+              "minMs": 4.9894,
+              "roundMediansMs": [
+                5.1453,
+                7.1208,
+                6.6224,
+                6.5547,
+                6.3894
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 6.1422,
+              "minMs": 4.9855,
+              "roundMediansMs": [
+                5.4905,
+                7.8459,
+                5.619,
+                5.6623,
+                7.4263
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 8.0853,
+              "minMs": 6.1596,
+              "roundMediansMs": [
+                8.9313,
+                13.4822,
+                9.015,
+                6.8107,
+                7.9562
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 4.6577,
+              "minMs": 2.7696,
+              "roundMediansMs": [
+                4.6577,
+                3.6156,
+                8.789,
+                4.2167,
+                3.5481
+              ]
+            }
+          }
+        },
+        {
+          "level": 16,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 16.2901,
+              "minMs": 14.4503,
+              "roundMediansMs": [
+                14.9403,
+                17.3163,
+                16.2901,
+                22.7353,
+                15.4411
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 15.6997,
+              "minMs": 14.591,
+              "roundMediansMs": [
+                15.8927,
+                15.4359,
+                15.0538,
+                16.8813,
+                15.0348
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 17.8058,
+              "minMs": 16.5123,
+              "roundMediansMs": [
+                17.8412,
+                17.3263,
+                19.567,
+                19.7792,
+                16.8685
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 5.7376,
+              "minMs": 3.8306,
+              "roundMediansMs": [
+                4.536,
+                5.7376,
+                6.194,
+                12.5548,
+                4.2271
+              ]
+            }
+          }
+        },
+        {
+          "level": 32,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 57.3157,
+              "minMs": 54.2103,
+              "roundMediansMs": [
+                55.407,
+                57.3157,
+                56.3645,
+                64.9073,
+                58.2042
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 58.9891,
+              "minMs": 53.8395,
+              "roundMediansMs": [
+                60.4147,
+                57.1155,
+                60.2719,
+                59.5755,
+                55.3257
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 62.2509,
+              "minMs": 58.3908,
+              "roundMediansMs": [
+                90.2719,
+                60.4206,
+                61.1592,
+                60.6501,
+                62.5111
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 10.8351,
+              "minMs": 7.8894,
+              "roundMediansMs": [
+                13.3176,
+                8.9342,
+                8.9513,
+                10.4671,
+                12.82
+              ]
+            }
+          }
+        },
+        {
+          "level": 64,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 230.1361,
+              "minMs": 203.6289,
+              "roundMediansMs": [
+                292.6155,
+                230.1361,
+                207.4657,
+                221.0173,
+                248.5417
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 232.0788,
+              "minMs": 217.1576,
+              "roundMediansMs": [
+                237.6,
+                227.8288,
+                228.1739,
+                254.8424,
+                219.6212
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 230.6123,
+              "minMs": 214.0992,
+              "roundMediansMs": [
+                254.6889,
+                234.6589,
+                230.6123,
+                219.8808,
+                225.6373
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 16.3244,
+              "minMs": 12.9823,
+              "roundMediansMs": [
+                23.6482,
+                14.0616,
+                16.3244,
+                14.6236,
+                13.8177
+              ]
+            }
+          }
+        },
+        {
+          "level": 128,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 898.3318,
+              "minMs": 827.9635,
+              "roundMediansMs": [
+                984.2396,
+                862.3744,
+                992.5908,
+                1063.4682,
+                876.2614
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 919.7505,
+              "minMs": 843.8215,
+              "roundMediansMs": [
+                1065.8297,
+                903.0199,
+                920.3154,
+                905.2416,
+                893.8694
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 968.7374,
+              "minMs": 889.2125,
+              "roundMediansMs": [
+                1054.7802,
+                976.8057,
+                956.9382,
+                955.239,
+                926.5065
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 27.644,
+              "minMs": 25.1021,
+              "roundMediansMs": [
+                27.4037,
+                27.644,
+                28.0228,
+                26.9038,
+                28.3234
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "sweep": "length",
+      "fixedOptionCount": 16,
+      "fixedTokenLength": 0,
+      "fixedTokenCount": 500,
+      "points": [
+        {
+          "level": 4,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 42.828,
+              "minMs": 40.7595,
+              "roundMediansMs": [
+                43.5273,
+                43.9132,
+                41.3132,
+                42.7017,
+                42.85
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 22.3097,
+              "minMs": 20.0095,
+              "roundMediansMs": [
+                20.7091,
+                23.0759,
+                25.2249,
+                22.3885,
+                20.8865
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 29.8541,
+              "minMs": 27.1424,
+              "roundMediansMs": [
+                29.8541,
+                31.1264,
+                27.9869,
+                28.5025,
+                30.5082
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 26.8359,
+              "minMs": 20.3933,
+              "roundMediansMs": [
+                23.7052,
+                27.8189,
+                22.7027,
+                25.5208,
+                27.4936
+              ]
+            }
+          }
+        },
+        {
+          "level": 8,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 72.4637,
+              "minMs": 58.77,
+              "roundMediansMs": [
+                59.6495,
+                74.9212,
+                74.8394,
+                95.8217,
+                62.3646
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 22.2736,
+              "minMs": 19.4186,
+              "roundMediansMs": [
+                20.135,
+                22.2736,
+                28.1104,
+                21.0972,
+                21.5167
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 30.826,
+              "minMs": 28.531,
+              "roundMediansMs": [
+                30.826,
+                31.1261,
+                32.0316,
+                31.0368,
+                28.8437
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 27.0229,
+              "minMs": 20.3599,
+              "roundMediansMs": [
+                23.3584,
+                25.6427,
+                29.4489,
+                29.2018,
+                25.681
+              ]
+            }
+          }
+        },
+        {
+          "level": 12,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 78.5943,
+              "minMs": 75.4003,
+              "roundMediansMs": [
+                76.6195,
+                81.5804,
+                79.5481,
+                77.8443,
+                78.5943
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 84.4072,
+              "minMs": 77.0666,
+              "roundMediansMs": [
+                78.0035,
+                84.4072,
+                100.5808,
+                116.3365,
+                77.7451
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 96.4123,
+              "minMs": 83.7929,
+              "roundMediansMs": [
+                91.9175,
+                95.8116,
+                98.4778,
+                103.5154,
+                93.9749
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 28.1968,
+              "minMs": 21.5787,
+              "roundMediansMs": [
+                26.352,
+                25.1925,
+                32.1032,
+                28.1977,
+                26.5478
+              ]
+            }
+          }
+        },
+        {
+          "level": 16,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 101.4494,
+              "minMs": 93.6128,
+              "roundMediansMs": [
+                101.1986,
+                111.656,
+                99.9001,
+                96.4175,
+                101.4494
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 21.8901,
+              "minMs": 19.7277,
+              "roundMediansMs": [
+                23.6355,
+                23.4049,
+                21.2096,
+                20.7494,
+                21.7109
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 30.7276,
+              "minMs": 27.9853,
+              "roundMediansMs": [
+                29.377,
+                32.8463,
+                36.6865,
+                28.311,
+                30.4858
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 27.2045,
+              "minMs": 21.1807,
+              "roundMediansMs": [
+                24.4495,
+                28.999,
+                27.5329,
+                23.7289,
+                35.3202
+              ]
+            }
+          }
+        },
+        {
+          "level": 32,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 182.9242,
+              "minMs": 162.9458,
+              "roundMediansMs": [
+                174.6309,
+                194.3223,
+                277.2457,
+                170.9149,
+                182.9242
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 21.8244,
+              "minMs": 19.8393,
+              "roundMediansMs": [
+                21.5126,
+                25.8905,
+                21.252,
+                20.1352,
+                22.5561
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 30.3893,
+              "minMs": 27.3436,
+              "roundMediansMs": [
+                28.4157,
+                35.1021,
+                29.6062,
+                29.619,
+                32.876
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 26.3635,
+              "minMs": 20.7354,
+              "roundMediansMs": [
+                32.1956,
+                25.7624,
+                29.5899,
+                23.2694,
+                26.5467
+              ]
+            }
+          }
+        },
+        {
+          "level": 64,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 341.8393,
+              "minMs": 300.7585,
+              "roundMediansMs": [
+                341.8393,
+                351.6731,
+                406.3601,
+                305.1123,
+                350.9511
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 22.9825,
+              "minMs": 20.14,
+              "roundMediansMs": [
+                22.8541,
+                22.3394,
+                23.2696,
+                21.4101,
+                29.5131
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 33.5784,
+              "minMs": 29.4776,
+              "roundMediansMs": [
+                37.2899,
+                30.4951,
+                31.3536,
+                32.1848,
+                44.2675
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 28.4024,
+              "minMs": 22.2953,
+              "roundMediansMs": [
+                32.3277,
+                28.4024,
+                26.2094,
+                24.0857,
+                25.7748
+              ]
+            }
+          }
+        },
+        {
+          "level": 128,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 652.1237,
+              "minMs": 580.1846,
+              "roundMediansMs": [
+                601.7354,
+                636.976,
+                686.0663,
+                901.5992,
+                596.2038
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 22.6033,
+              "minMs": 20.0418,
+              "roundMediansMs": [
+                21.1755,
+                28.337,
+                20.9768,
+                22.5532,
+                22.642
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 32.1196,
+              "minMs": 27.9668,
+              "roundMediansMs": [
+                28.4629,
+                43.7061,
+                34.5199,
+                30.8694,
+                31.9642
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 27.9706,
+              "minMs": 22.2403,
+              "roundMediansMs": [
+                37.9942,
+                25.1161,
+                27.9706,
+                26.326,
+                25.0025
+              ]
+            }
+          }
+        },
+        {
+          "level": 256,
+          "arms": {
+            "1.1.1": {
+              "medianMs": 1209.0914,
+              "minMs": 1115.9447,
+              "roundMediansMs": [
+                1193.9515,
+                1217.6043,
+                1223.9657,
+                1168.1226,
+                1210.6515
+              ]
+            },
+            "1.3.6": {
+              "medianMs": 22.0072,
+              "minMs": 19.9073,
+              "roundMediansMs": [
+                21.3225,
+                22.0899,
+                22.0072,
+                37.2864,
+                20.077
+              ]
+            },
+            "1.4.0-dev.2664": {
+              "medianMs": 35.8954,
+              "minMs": 29.5297,
+              "roundMediansMs": [
+                30.7451,
+                32.3436,
+                35.9053,
+                51.7677,
+                35.8954
+              ]
+            },
+            "1.4.0-dev.2971": {
+              "medianMs": 30.7465,
+              "minMs": 21.9027,
+              "roundMediansMs": [
+                25.0034,
+                34.5589,
+                32.2009,
+                48.0888,
+                26.5075
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "probes": [
+    {
+      "sweep": "tokens",
+      "level": 100,
+      "arm": "1.1.1",
+      "probes": 1600,
+      "tokens": 100,
+      "optionCount": 16,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 1600,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 100,
+      "arm": "1.3.6",
+      "probes": 1600,
+      "tokens": 100,
+      "optionCount": 16,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 1600,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 100,
+      "arm": "1.4.0-dev.2664",
+      "probes": 1600,
+      "tokens": 100,
+      "optionCount": 16,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 1600,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 100,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 100,
+      "optionCount": 16,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 1600,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 200,
+      "arm": "1.1.1",
+      "probes": 3200,
+      "tokens": 200,
+      "optionCount": 16,
+      "tokenCount": 200,
+      "expectedTokensTimesOptions": 3200,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 200,
+      "arm": "1.3.6",
+      "probes": 3200,
+      "tokens": 200,
+      "optionCount": 16,
+      "tokenCount": 200,
+      "expectedTokensTimesOptions": 3200,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 200,
+      "arm": "1.4.0-dev.2664",
+      "probes": 3200,
+      "tokens": 200,
+      "optionCount": 16,
+      "tokenCount": 200,
+      "expectedTokensTimesOptions": 3200,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 200,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 200,
+      "optionCount": 16,
+      "tokenCount": 200,
+      "expectedTokensTimesOptions": 3200,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 500,
+      "arm": "1.1.1",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 500,
+      "arm": "1.3.6",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 500,
+      "arm": "1.4.0-dev.2664",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 500,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 1000,
+      "arm": "1.1.1",
+      "probes": 16000,
+      "tokens": 1000,
+      "optionCount": 16,
+      "tokenCount": 1000,
+      "expectedTokensTimesOptions": 16000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 1000,
+      "arm": "1.3.6",
+      "probes": 16000,
+      "tokens": 1000,
+      "optionCount": 16,
+      "tokenCount": 1000,
+      "expectedTokensTimesOptions": 16000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 1000,
+      "arm": "1.4.0-dev.2664",
+      "probes": 16000,
+      "tokens": 1000,
+      "optionCount": 16,
+      "tokenCount": 1000,
+      "expectedTokensTimesOptions": 16000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 1000,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 1000,
+      "optionCount": 16,
+      "tokenCount": 1000,
+      "expectedTokensTimesOptions": 16000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 2000,
+      "arm": "1.1.1",
+      "probes": 32000,
+      "tokens": 2000,
+      "optionCount": 16,
+      "tokenCount": 2000,
+      "expectedTokensTimesOptions": 32000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 2000,
+      "arm": "1.3.6",
+      "probes": 32000,
+      "tokens": 2000,
+      "optionCount": 16,
+      "tokenCount": 2000,
+      "expectedTokensTimesOptions": 32000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 2000,
+      "arm": "1.4.0-dev.2664",
+      "probes": 32000,
+      "tokens": 2000,
+      "optionCount": 16,
+      "tokenCount": 2000,
+      "expectedTokensTimesOptions": 32000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 2000,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 2000,
+      "optionCount": 16,
+      "tokenCount": 2000,
+      "expectedTokensTimesOptions": 32000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 5000,
+      "arm": "1.1.1",
+      "probes": 80000,
+      "tokens": 5000,
+      "optionCount": 16,
+      "tokenCount": 5000,
+      "expectedTokensTimesOptions": 80000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 5000,
+      "arm": "1.3.6",
+      "probes": 80000,
+      "tokens": 5000,
+      "optionCount": 16,
+      "tokenCount": 5000,
+      "expectedTokensTimesOptions": 80000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 5000,
+      "arm": "1.4.0-dev.2664",
+      "probes": 80000,
+      "tokens": 5000,
+      "optionCount": 16,
+      "tokenCount": 5000,
+      "expectedTokensTimesOptions": 80000,
+      "ok": true
+    },
+    {
+      "sweep": "tokens",
+      "level": 5000,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 5000,
+      "optionCount": 16,
+      "tokenCount": 5000,
+      "expectedTokensTimesOptions": 80000,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 4,
+      "arm": "1.1.1",
+      "probes": 400,
+      "tokens": 100,
+      "optionCount": 4,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 400,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 4,
+      "arm": "1.3.6",
+      "probes": 400,
+      "tokens": 100,
+      "optionCount": 4,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 400,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 4,
+      "arm": "1.4.0-dev.2664",
+      "probes": 400,
+      "tokens": 100,
+      "optionCount": 4,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 400,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 4,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 100,
+      "optionCount": 4,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 400,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 8,
+      "arm": "1.1.1",
+      "probes": 800,
+      "tokens": 100,
+      "optionCount": 8,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 800,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 8,
+      "arm": "1.3.6",
+      "probes": 800,
+      "tokens": 100,
+      "optionCount": 8,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 800,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 8,
+      "arm": "1.4.0-dev.2664",
+      "probes": 800,
+      "tokens": 100,
+      "optionCount": 8,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 800,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 8,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 100,
+      "optionCount": 8,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 800,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 16,
+      "arm": "1.1.1",
+      "probes": 1600,
+      "tokens": 100,
+      "optionCount": 16,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 1600,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 16,
+      "arm": "1.3.6",
+      "probes": 1600,
+      "tokens": 100,
+      "optionCount": 16,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 1600,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 16,
+      "arm": "1.4.0-dev.2664",
+      "probes": 1600,
+      "tokens": 100,
+      "optionCount": 16,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 1600,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 16,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 100,
+      "optionCount": 16,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 1600,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 32,
+      "arm": "1.1.1",
+      "probes": 3200,
+      "tokens": 100,
+      "optionCount": 32,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 3200,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 32,
+      "arm": "1.3.6",
+      "probes": 3200,
+      "tokens": 100,
+      "optionCount": 32,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 3200,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 32,
+      "arm": "1.4.0-dev.2664",
+      "probes": 3200,
+      "tokens": 100,
+      "optionCount": 32,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 3200,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 32,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 100,
+      "optionCount": 32,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 3200,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 64,
+      "arm": "1.1.1",
+      "probes": 6400,
+      "tokens": 100,
+      "optionCount": 64,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 6400,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 64,
+      "arm": "1.3.6",
+      "probes": 6400,
+      "tokens": 100,
+      "optionCount": 64,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 6400,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 64,
+      "arm": "1.4.0-dev.2664",
+      "probes": 6400,
+      "tokens": 100,
+      "optionCount": 64,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 6400,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 64,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 100,
+      "optionCount": 64,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 6400,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 128,
+      "arm": "1.1.1",
+      "probes": 12800,
+      "tokens": 100,
+      "optionCount": 128,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 12800,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 128,
+      "arm": "1.3.6",
+      "probes": 12800,
+      "tokens": 100,
+      "optionCount": 128,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 12800,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 128,
+      "arm": "1.4.0-dev.2664",
+      "probes": 12800,
+      "tokens": 100,
+      "optionCount": 128,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 12800,
+      "ok": true
+    },
+    {
+      "sweep": "options",
+      "level": 128,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 100,
+      "optionCount": 128,
+      "tokenCount": 100,
+      "expectedTokensTimesOptions": 12800,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 4,
+      "arm": "1.1.1",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 4,
+      "arm": "1.3.6",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 4,
+      "arm": "1.4.0-dev.2664",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 4,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 8,
+      "arm": "1.1.1",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 8,
+      "arm": "1.3.6",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 8,
+      "arm": "1.4.0-dev.2664",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 8,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 12,
+      "arm": "1.1.1",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 12,
+      "arm": "1.3.6",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 12,
+      "arm": "1.4.0-dev.2664",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 12,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 16,
+      "arm": "1.1.1",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 16,
+      "arm": "1.3.6",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 16,
+      "arm": "1.4.0-dev.2664",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 16,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 32,
+      "arm": "1.1.1",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 32,
+      "arm": "1.3.6",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 32,
+      "arm": "1.4.0-dev.2664",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 32,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 64,
+      "arm": "1.1.1",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 64,
+      "arm": "1.3.6",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 64,
+      "arm": "1.4.0-dev.2664",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 64,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 128,
+      "arm": "1.1.1",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 128,
+      "arm": "1.3.6",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 128,
+      "arm": "1.4.0-dev.2664",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 128,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 256,
+      "arm": "1.1.1",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 256,
+      "arm": "1.3.6",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 256,
+      "arm": "1.4.0-dev.2664",
+      "probes": 8000,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    },
+    {
+      "sweep": "length",
+      "level": 256,
+      "arm": "1.4.0-dev.2971",
+      "probes": 0,
+      "tokens": 500,
+      "optionCount": 16,
+      "tokenCount": 500,
+      "expectedTokensTimesOptions": 8000,
+      "ok": true
+    }
+  ],
+  "crossCheck": {
+    "arm": "1.1.1",
+    "tokensMedianMs": 194.9175,
+    "editDistanceCellsPerParse": 36864000,
+    "nanosecondsPerCell": 5.287
+  }
+}

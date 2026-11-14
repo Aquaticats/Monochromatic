@@ -346,7 +346,19 @@
     "path": "doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz",
     "bytes": 173906,
     "sha256": "86b8686ea7e3496cdc9246fa2947b51968350f5031cff535e97ccceb36fb8ac9",
-    "records": 24
+    "records": 24,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show f53c920cb24157db59873d3b24aaf51a493d6e32:doc/audit/depot-expanded-graph-native-correction-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "limitations": [
     "Original native browser invocations stop at the documented rootless group-identity prerequisite failure; no browser-case credit.",

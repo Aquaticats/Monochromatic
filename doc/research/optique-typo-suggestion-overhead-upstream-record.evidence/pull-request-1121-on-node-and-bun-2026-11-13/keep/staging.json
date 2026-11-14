@@ -1,0 +1,17 @@
+{
+  "before": "84f9571069584d8e36a3a4cfbaebf8a9a61fc645",
+  "merge": "d26f1a244d4434f9dbfeb0317f6db32533cb8c32",
+  "mergeParents": [
+    "84f9571069584d8e36a3a4cfbaebf8a9a61fc645",
+    "a175cdb7a90778c1b3bce5712e2bc0bd3ae0f64b"
+  ],
+  "mergeTree": "b8217aebfca59c572911806bed9e6a2344507c44",
+  "sourceFilesChangedByTheMerge": [
+    "packages/core/src/execution-context.test.ts |  18 +++",
+    " packages/core/src/execution-context.ts      |   5 +-",
+    " packages/core/src/short-option.test.ts      | 222 +++++++++++++++++++++++++---",
+    " packages/core/src/short-option.ts           | 105 +++++++++----",
+    " packages/core/src/short-options.test.ts     |  37 +++++",
+    " 5 files changed, 339 insertions(+), 48 deletions(-)"
+  ]
+}

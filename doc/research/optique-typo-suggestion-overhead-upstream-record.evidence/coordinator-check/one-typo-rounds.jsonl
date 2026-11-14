@@ -1,0 +1,4 @@
+{"round":0,"arm":"0.7.0","nameLength":20,"typoLength":20,"failingParseSucceeded":false,"succeedingParseSucceeded":true,"failingParseMs":3.1434,"succeedingParseMs":0.0105,"overheadMs":3.1328,"parsedPaths":0,"medianMs":3.1434}
+{"round":1,"arm":"0.7.0","nameLength":20,"typoLength":20,"failingParseSucceeded":false,"succeedingParseSucceeded":true,"failingParseMs":3.2399,"succeedingParseMs":0.0109,"overheadMs":3.2289,"parsedPaths":0,"medianMs":3.2399}
+{"round":2,"arm":"0.7.0","nameLength":20,"typoLength":20,"failingParseSucceeded":false,"succeedingParseSucceeded":true,"failingParseMs":3.2725,"succeedingParseMs":0.011,"overheadMs":3.2615,"parsedPaths":0,"medianMs":3.2725}
+{"summary":"0.7.0","script":"coordinator-check/one-typo-on-0.7.0.ts","roundMedians":[3.1434,3.2399,3.2725]}

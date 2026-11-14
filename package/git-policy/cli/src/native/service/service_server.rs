@@ -44,6 +44,7 @@ use crate::service_land::LandContext;
 use crate::service_timing::{ExitReason, exit_line, log};
 use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
+use crate::service_server_own_worktree_question::own_worktree_gone_now;
 use crate::service_work::{GitHandlers, Wake};
 use crate::service_busy::{GroupAdmission, LandingBoard};
 use crate::wait_ceilings::{NEVER_ENDED_STEP_SLOW_AFTER, START_CEILING};
@@ -246,29 +247,6 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
 const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
 
 /// What:
-///  Whether this service should stop serving because the worktree whose units are its own is gone.
-/// Why:
-///   Every wake of a service whose worktree is known asks this:
-/// the removal that takes a worktree while its service runs is what leaves a socket listening for a directory that is gone.
-/// The answer is the same rule the sweep and `doctor` use (`worktree_is_gone`),
-/// so an unmounted device and an instance nothing names keep the service serving.
-/// The question is asked before the busy count and before the idle bound:
-/// after-commit work that counts itself busy,
-/// and a service that has served nothing for hours,
-/// both answer it the same way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (ownWorktreeGoneNow(settings, untilIdle)) stopOwnUnitsAndEnd();
-/// ```
-fn own_worktree_gone_now(settings: &ServeSettings, until_idle: Duration) -> bool {
-    if settings.own_git_dir.is_none() || until_idle <= settings.own_worktree_check {
-        return false;
-    }
-    return settings.own_git_dir.as_deref().is_some_and(crate::service_units_of_removed_worktrees::worktree_is_gone);
-}
-
-/// What:
 ///  Runs the service until it is told to retire.
 /// Why:
 ///   The acceptor starts before the recovery of the batch an earlier service left open,
@@ -362,8 +340,15 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     );
     // The plan and the watch are read here, after the acceptor started and before the task that runs the loop starts, so the
     //  loop's task begins with what a service that stopped last left and neither reading delays a client's greeting.
-    let (started_retries, started_watch): (PushRetries, ClaimWatch) =
+    let (started_retries, mut started_watch): (PushRetries, ClaimWatch) =
         crate::service_journal_restored_at_start::restored_within(settings.journal_restore_ceiling, plan_directory, watch_directory, watch_instance);
+    // What: The worktree this service serves is one of the repositories the loop looks at by itself.
+    // Why:  Every record a client leaves for this instance is written under this worktree's own Git directory, so a record whose
+    //       wake was lost is found by the look even when no landing of this process wrote a note for it and no client ever woke
+    //       it (`service_claim_watch.rs`, `LOOK_AGAIN_AFTER`).
+    if let Some(own) = settings.own_git_dir.as_deref() {
+        started_watch.remember(own);
+    }
     start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
     let _reports = settle_open_batches(context, settings.instance.as_deref());
     // The memory of landed requests is bounded: a finished record goes only when no client of it may still read it,
@@ -389,6 +374,10 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     // The marker made ahead is removed whichever way this loop ends.
     let _prestaged = PrestageGuard;
     let mut retiring: bool = false;
+    // What: How many commits this process was asked to land.
+    // Why:  A service retired before it served anything has nothing to finish, and its socket is stopped so the client that
+    //       retired it cannot start it again and again (`stop_own_socket_before_serving_anything`).
+    let mut served: usize = 0;
     // When the service last took work, so that the idle exit stays what `IDLE_EXIT` says while a known worktree is asked about
     //  far more often.
     let mut last_work: Instant = Instant::now();
@@ -478,6 +467,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 Job::Retire => retiring = true,
                 Job::Activity => {}
                 Job::Commit(request, stream, arrival) => {
+                    served += 1;
                     // An amend is a group of its own, and what arrives after it starts another group, so the order on
                     //  one branch is the order of arrival.
                     // `HEAD` is a head of one worktree, so two detached worktrees of one repository are two branches.
@@ -564,6 +554,16 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
             crate::service_error!("ending, because an index lock could not be settled; the next connection starts the service again and its recovery reclaims the lock");
             return;
         }
+    }
+    // What: A service retired before it served anything stops its own socket, so the connection that retired it does not
+    //       start another one.
+    // Why:  A client of another release retires every service it meets, and each of its connections starts one; the manager's
+    //       start limit then leaves the unit failed for as long as no command in that worktree runs
+    //       (`stop_own_socket_before_serving_anything`).
+    if served == 0
+        && let Some(instance) = settings.instance.as_deref()
+    {
+        let _stopped: bool = crate::service_own_socket_of_a_retire_that_served_nothing::stop_own_socket_before_serving_anything(instance);
     }
     // Leaving: the syncs of the landings that were answered are made before the service goes (a signal cannot wait for them).
     crate::service_durable::drain();

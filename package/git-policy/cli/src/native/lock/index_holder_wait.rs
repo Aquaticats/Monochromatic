@@ -42,6 +42,9 @@
 //! one look at the lock decides whether a gone
 //!  process left it,
 //! and the command goes on either way (`look_at_the_index_lock_once`).
+//!  A merge about to apply waits for no holder at all:
+//! one look names the dead owner whose lock it clears and the holder it leaves to the next command
+//!  (`look_at_the_index_before_a_merge`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -53,16 +56,11 @@ use crate::index_lock_evidence::{
     DEAD_OWNER_LOCK_LEFT, Evidence, Verdict, WaitEnd, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
 };
 
-/// The sentence a merge's ceiling line ends on before its own apply.
-/// A held lock is not that merge's failure:
-///  it is saved on a side ref and exits 0,
-/// and the next command in the worktree finishes the checkout.
-const MERGE_CONSEQUENCE: &str = "the merge stops waiting and saves itself on a ref of its own for the next command in this worktree to finish";
-
-/// The sentence the notices before that ceiling end on:
-/// the same outcome,
-/// said without the stop the ceiling line alone announces.
-const MERGE_NOTICE_ENDING: &str = "the merge is saved on a ref of its own for the next command in this worktree to finish";
+/// The sentence a merge's dead-owner line ends on:
+/// nothing of the merge is in the checkout until that lock is gone,
+/// and the lock is not that merge's failure,
+/// because it is cleared on the proof the next clause states or the merge is saved on a side ref and exits 0.
+const MERGE_CONSEQUENCE: &str = "the merge does not apply until that lock is gone";
 
 /// The sentence a command's dead owner's line ends on when nothing else holds the lock:
 /// the command clears it and goes on.
@@ -256,32 +254,45 @@ pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
 }
 
 /// What:
-///  The index lock,
-/// looked at once by a merge that is about to change the checkout,
-///  naming the dead owner whose lock it may clear and the live one it will not wait for.
+///  The index lock before a merge's own apply,
+/// looked at once and never waited for:
+///  the dead owner whose lock the merge may clear is named,
+///  a lock a holder proven alive holds ends the apply there,
+///  and a lock nothing proves the owner of ends it there too.
 /// Why:
-///   The merge has an answer that needs no wait:
-/// its commit is already made,
-/// so a lock another program
-///  holds is met by saving that merge on a side ref for the next command to finish (`SPEC.md`,
-/// "Merges and commits never fail"),
-///  while waiting on another agent's command is what the owner forbids
-/// (`SPEC.md`,
-/// "Dozens of agents at once is normal
-///  operation").
-///  A lock that stays held for the whole ceiling cost that wait and then reached the same save,
-/// so the
-///  sixty seconds bought nothing a person asked for
-/// (a cross-vendor audit of alpha.12,
-/// "A merge waits for another
-///  agent's live index holder").
+///   Three owners are met here,
+///  and none of them is waited for.
+///  A number this process table does not have is what a killed Git leaves,
+///  and no process here will release it,
+///  so the lock is named and the merge clears it on the commit service's proof of disuse
+///  (`remove_if_the_owner_is_gone`).
+///  A holder proven alive is another program's command,
+///  and the merge has an answer that needs no wait:
+///  its commit is already made,
+///  so the merge is saved on a side ref for the next command in the worktree to finish
+///  (`SPEC.md`,
+///  "Merges and commits never fail").
+///  Waiting on another agent's command is what the owner forbids
+///  (`SPEC.md`,
+///  "Dozens of agents at once is normal operation"),
+///  and a lock that stayed held for the whole ceiling reached the same save,
+///  so the minute bought nothing a person asked for
+///  (a cross-vendor audit of alpha.12,
+///  "A merge waits for another agent's live index holder").
+///  An owner nothing proves is the third case,
+///  and it is waited for no more than the other two,
+///  because it is exactly as likely to be another program's live command:
+///  native Git keeps the whole index in `index.lock` through its hooks and editor with no descriptor open,
+///  and writes no PID file unless `core.lockfilePid` is on,
+///  so a person's own `git commit` at its editor and a killed Git leave the same evidence.
+///  A merge that waited for that case would wait a minute for the commit of the person sitting at the machine.
 ///  The holder is classified exactly as the wait classifies it,
-/// so a lock a gone process left is
-///  cleared on the same proof by both.
+///  so a lock a gone process left is cleared on the same proof by both.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const look = lookAtTheIndexBeforeAMerge(gitDir.resolve('index'), stderr); // 'not-held' | { ownerGone } | { heldBy: 'PID 42' }
+/// // 'not-held' | { ownerGone } | { heldBy: 'PID 42' }
+/// lookAtTheIndexBeforeAMerge(gitDir.resolve('index'), stderr)
 /// ```
 pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
     let lock: std::path::PathBuf = lock_path_of(real_index);
@@ -296,6 +307,8 @@ pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(real_index: &Path, ou
             );
             IndexWait::OwnerGone(Duration::ZERO)
         }
+        // A holder proven alive and an owner nothing proves are both another program's command until they let go, and the
+        //  merge does not wait for either: it is saved on its side ref and the next command finishes it.
         Proof::Alive(evidence, ..) | Proof::Nothing(Some(evidence)) => IndexWait::HeldByAnotherCommand(blocker_words(&evidence)),
         Proof::Nothing(None) => IndexWait::HeldByAnotherCommand(String::from("a program whose owner could not be read")),
     };
@@ -380,35 +393,6 @@ thread_local! {
     /// A shortened ceiling for the recovery's wait for the index lock,
     /// so a control reaches it in a moment.
     pub(crate) static RECOVERY_LOCK_CEILING_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
-}
-
-/// What:
-///  The wait a merge makes before its own apply,
-/// whose dead owner's line says the merge clears that lock,
-/// because it does.
-/// Why:
-///  A merge that waited on a lock a gone process left now removes it on the commit service's proof of disuse and goes
-///  on (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
-/// finding 3),
-/// so the line must not promise that the lock was
-///  left in place.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await waitForIndexReleaseBeforeAMergeThatClearsADeadLock(realIndex, stderr)
-/// ```
-pub fn wait_for_index_release_before_a_merge_that_clears_a_dead_lock<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
-    return wait_with_watches_and_consequence(
-        real_index,
-        "merge",
-        MERGE_CONSEQUENCE,
-        MERGE_NOTICE_ENDING,
-        CLEARS_A_DEAD_OWNERS_LOCK,
-        MERGE_LOCK_CEILING,
-        Cadence::from_environment(),
-        out,
-        &Watch::on,
-    );
 }
 
 /// Write `bytes` to `out`,

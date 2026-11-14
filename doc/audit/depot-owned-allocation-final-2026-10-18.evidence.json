@@ -8,7 +8,19 @@
     "sha256": "d265c963dbb0c95c70d33019f3603a3b752c0cc40b6e0846069b331ac05807ff",
     "rows": 223,
     "mutated": false,
-    "baselineIndependentReviewNotRepeated": true
+    "baselineIndependentReviewNotRepeated": true,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 837207,
+        "sha256": "6838bd81c4a50389e55260c184e4dde0efcaa5a8a87224f210db4f9ce2664e34",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "priorFollowOn": {
     "path": "doc/audit/depot-owned-allocation-follow-on-2026-10-18.evidence.json",
@@ -20,7 +32,19 @@
       "bytes": 392421,
       "sha256": "872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d",
       "uncompressedBytes": 3179766,
-      "records": 41
+      "records": 41,
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 3cac1b657b38a1194adb59b1b143a4f7552947a6:doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     "rootVerification": {
       "schemaVersion": 1,
@@ -37,8 +61,32 @@
           "bytes": 392421,
           "sha256": "872651779e81a7ae6627c10c7392151fbe435cb97be456a8e409428ee6ca1b6d",
           "uncompressedBytes": 3179766,
-          "records": 41
-        }
+          "records": 41,
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 3cac1b657b38a1194adb59b1b143a4f7552947a6:doc/audit/depot-owned-allocation-follow-on-2026-10-18.sources.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
+        },
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 143088,
+            "sha256": "78269d1614aa9bcda7b9d4fe4e603c98f1823f7813108559f6df96d7032777b8",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "baselineUnchanged": true,
       "checks": {
@@ -66,7 +114,19 @@
         "denominator": "60000000000",
         "actualAllocatedBuilderCompute": null
       }
-    }
+    },
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 143088,
+        "sha256": "78269d1614aa9bcda7b9d4fe4e603c98f1823f7813108559f6df96d7032777b8",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "rows": [
     {
@@ -3301,7 +3361,19 @@
     "bytes": 386093,
     "sha256": "98d63cf22dfc333016187266983e0f1512d89b401f5c1d88859d65cb314cc813",
     "uncompressedBytes": 3186777,
-    "records": 53
+    "records": 53,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 24ce11c66aeddc012458b05b10e6b940343469f4:doc/audit/depot-owned-allocation-final-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "newKeys": [
     "github:standard-public-github-actions:run:39156185253:job:117759776888:attempt:1",
