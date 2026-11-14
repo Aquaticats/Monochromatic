@@ -290,9 +290,9 @@ fn messages_quote_their_constants_and_facts() {
     let unsaved: String = render(&ClientFailure::BranchSwitched { branch: String::from("topic"), now: String::from("side"), file: None });
     assert!(!unsaved.contains("saved in"), "{unsaved}");
     assert!(render(&ClientFailure::RepositoryFull(String::from("/work/repo"))).contains("/work/repo"));
-    // What a service that stopped leaves a person to do: read the state of this worktree's service, restart the one unit it
-    //  names, and read whether the commit was made. A restart of every service of the account is what these words must never
-    //  ask for, and what the wildcard `RESTART_COMMAND` of the other failures still does.
+    // What a service that stopped leaves a person to do: read the state of this worktree's service, end that one service so
+    //  the next command starts a fresh one, and read the log it left. This release writes no unit, so no step may name one:
+    //  a `systemctl` command here reaches nothing.
     for failure in [
         ClientFailure::ServiceSilent,
         ClientFailure::ServiceNotReading { took_nothing: true },
@@ -300,11 +300,11 @@ fn messages_quote_their_constants_and_facts() {
         ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
     ] {
         let words: String = render(&failure);
-        for command in [STATUS_COMMAND, RESTART_ONE_UNIT_COMMAND] {
+        for command in [STATUS_COMMAND, STOP_COMMAND] {
             assert!(words.contains(command), "{failure:?} names {command}: {words}");
         }
-        assert!(!words.contains(RESTART_COMMAND), "{failure:?} must not restart every service of the account: {words}");
-        assert!(!words.contains(LOG_COMMAND), "{failure:?} must not read the journal of every service: {words}");
+        assert!(!words.contains("systemctl"), "{failure:?} names no manager's command: {words}");
+        assert!(!words.contains("journalctl"), "{failure:?} reads no journal a unit would keep: {words}");
     }
     // A commit that was not made says so and says the staged work is untouched; one whose result nobody knows yet names the
     //  read that shows it.

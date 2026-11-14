@@ -22,7 +22,7 @@
 //! ```
 
 use crate::service_messages::{
-    CHECK_COMMANDS, NOTHING_CHANGED, NOTHING_CHANGED_AND_THE_STAGED_WORK, RESTART_ONE_UNIT_COMMAND, STATUS_COMMAND, WhatTheBranchShows,
+    CHECK_COMMANDS, LOG_COMMAND, NOTHING_CHANGED, NOTHING_CHANGED_AND_THE_STAGED_WORK, STATUS_COMMAND, STOP_COMMAND, WhatTheBranchShows,
 };
 use crate::service_protocol::HEARTBEAT_SILENCE;
 use crate::wait_ceilings::{REQUEST_WRITE_CEILING, REQUEST_WRITE_SILENCE};
@@ -119,10 +119,13 @@ pub(crate) fn silent() -> String {
 /// in the order that ends it,
 /// and each is a command this wrapper and this machine have:
 /// the
-///  status names the unit of this worktree's service,
-/// the restart names that one unit,
-/// and the commit is safe to run again because
-///  the request of the failed one cannot land.
+///  status says whether this worktree's service answers,
+/// the stop ends that one service so the next command starts a fresh one,
+/// and the commit is safe to
+///  run again because the request of the failed one cannot land.
+/// The service has no unit and this release writes none, so no step names one
+/// (`service_messages.rs`,
+/// `STOP_COMMAND`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -131,11 +134,11 @@ pub(crate) fn silent() -> String {
 fn steps_for_a_commit_that_was_not_made() -> String {
     return format!(
         "What to do: the commit service is the background program that lands the commits of this worktree. \
-         1. `{STATUS_COMMAND}` says whether that service answers, and names the unit that serves it. \
+         1. `{STATUS_COMMAND}` says whether that service answers. \
          2. A service that is running and answers nothing has stopped inside itself: it was frozen, a debugger holds it, or it \
-         waits for a disk that never answers. Starting it again does not help, because the service manager believes it runs; \
-         restart that one unit with `{RESTART_ONE_UNIT_COMMAND}` and the unit name the status printed. What it was doing is in \
-         its log: `journalctl --user --unit` and the same unit name, from the start of this commit. \
+         waits for a disk that never answers. Nothing replaces or ends one that is still there, so end it with \
+         `{STOP_COMMAND}`, and the next command starts a fresh one. What it was doing is in its log: `{LOG_COMMAND}` lists the \
+         files, one for each service of this worktree. \
          3. Run the same commit again, which is safe: this command's request never reached the service as one whole line, \
          because a service reads a request only when its framing newline arrived, so the commit is made once and never \
          twice."
@@ -158,11 +161,11 @@ fn steps_for_a_commit_that_was_not_made() -> String {
 fn steps_for_a_result_that_is_not_known() -> String {
     return format!(
         "What to do: the commit service is the background program that lands the commits of this worktree. \
-         1. `{STATUS_COMMAND}` says whether that service answers, and names the unit that serves it. \
+         1. `{STATUS_COMMAND}` says whether that service answers. \
          2. A service that is running and answers nothing has stopped inside itself: it was frozen, a debugger holds it, or it \
-         waits for a disk that never answers. Starting it again does not help, because the service manager believes it runs; \
-         restart that one unit with `{RESTART_ONE_UNIT_COMMAND}` and the unit name the status printed. What it was doing is in \
-         its log: `journalctl --user --unit` and the same unit name, from the start of this commit. \
+         waits for a disk that never answers. Nothing replaces or ends one that is still there, so end it with \
+         `{STOP_COMMAND}`, and the next command starts a fresh one. What it was doing is in its log: `{LOG_COMMAND}` lists the \
+         files, one for each service of this worktree. \
          3. Run the commit again once `{CHECK}` has shown that it was not made. A commit is never made twice, so running it \
          again makes the one commit.",
         CHECK = CHECK_COMMANDS[0]

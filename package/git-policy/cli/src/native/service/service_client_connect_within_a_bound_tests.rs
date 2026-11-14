@@ -177,15 +177,19 @@ fn a_name_the_kernel_holds_takes_the_connection() {
 }
 
 /// What:
-///  The bound of one connect is the silence a service that is working may keep.
+///  The bound of one connect leaves room for several looks inside a command's whole wait for its service.
 /// Why:
-///   A socket that has taken no connection for five beats is one nothing accepts on,
-/// and a connect costs a few microseconds when
-///  something does accept it,
-/// so the bound costs a working commit nothing.
+///   It was the silence a service that is working may keep (five seconds), which was right while a command waited a
+/// minute for a start.
+///  A command now waits one start's bound (`START_WAIT`, ten seconds, `service_client_settings_and_watches.rs`),
+///  and a look at a service costs this bound plus `GREETING_READ`;
+///  at five seconds a whole wait held one look and no second one, so a service that started between two looks was missed.
+///  One second is 16 times the slowest of the 2,000 measured connects and 24 times a healthy commit.
 #[test]
-fn the_connect_bound_is_the_silence_a_working_service_keeps() {
-    assert_eq!(CONNECT_CEILING, Duration::from_secs(5));
-    assert_eq!(CONNECT_CEILING, crate::service_protocol::HEARTBEAT_SILENCE);
+fn the_connect_bound_leaves_room_for_several_looks_in_a_commands_whole_wait() {
+    assert_eq!(CONNECT_CEILING, Duration::from_secs(1));
+    let one_look: Duration = CONNECT_CEILING + crate::service_server_start_by_the_wrapper::GREETING_READ;
+    let whole_wait: Duration = crate::service_client_listen_and_ask_to_retire::START_WAIT;
+    assert!(one_look * 3 <= whole_wait, "a look ({one_look:?}) fits three times in the whole wait ({whole_wait:?})");
     assert!(connect_within_for(&Bind::Path(std::path::PathBuf::from("/nonexistent")), PATIENCE).is_err(), "a name nothing listens at takes no connection");
 }

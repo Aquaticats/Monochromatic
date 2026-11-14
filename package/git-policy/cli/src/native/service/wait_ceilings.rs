@@ -82,21 +82,6 @@ pub const START_CEILING: Duration = Duration::from_secs(60);
 /// so one minute is far from any ordinary slow start.
 pub const RUNTIME_BUILD_PATIENCE: Duration = START_CEILING;
 
-/// What:
-///  The longest one connection to a service's address may take.
-/// Why:
-///   A connection is made by the kernel, and its cost is one round trip through a listening socket that accepts;
-///  but a listening socket whose backlog is full takes no connection at all until its program accepts,
-///  and a program stopped at any instruction never accepts
-///  (`foundation/unix_socket_connect_within_a_deadline.rs`).
-///  A caller that has no bound of its own on the connection therefore has no bound at all:
-/// the review of `3d5c1a0d8c` measured a commit still waiting after 30 s, with nothing printed,
-///  where the same commit against a healthy service took 42 ms.
-///  One second is 24 times that whole healthy commit and twice the longest measured cold start,
-///  and a look at a service costs at most this plus `GREETING_READ`, so a wait's own ceiling still bounds it.
-///  Measured: the healthy commit of 42 ms (the review's own run), and the 4096 connections the kernel queued
-///  before it answered nothing (the same run, `somaxconn`).
-pub const CONNECT_CEILING: Duration = Duration::from_secs(1);
 
 /// The longest a command waits for the greeting of a service it only has to tell about work whose record it has
 /// already written:
@@ -496,11 +481,11 @@ pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
 /// 2,000 connects to a socket whose listener accepts:
 /// 15 us at the median,
 /// 156 us at the 99th percentile and 62.6 ms at the slowest.
-/// Five seconds is 80 times the slowest of those,
-/// and it is `HEARTBEAT_SILENCE`,
-/// the time a service that is working may say nothing:
-/// a socket that has taken no connection for that long is one nothing accepts on.
-pub const CONNECT_CEILING: Duration = Duration::from_secs(5);
+///  One second is 16 times the slowest of those and 24 times the 42 ms a healthy commit through the service took.
+///  It is one second and not five because a look at a service costs this plus `GREETING_READ`, and a command's whole
+///  wait for its service is `START_WAIT` (ten seconds): five seconds for one connection would leave room for one look
+///  and no second one, so a service that started between two looks would be missed.
+pub const CONNECT_CEILING: Duration = Duration::from_secs(1);
 
 /// How long the write of a request may take no byte at all before the service is taken for one that stopped reading.
 ///  Why:
