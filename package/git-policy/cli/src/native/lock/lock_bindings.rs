@@ -78,6 +78,8 @@ use crate::index_lock_evidence::LockMetadata;
 use crate::plain_file::read_plain_file;
 /// The one digest the records and the service's instance names are built from.
 use crate::service_instance::digest_of_bytes;
+/// The name Git's PID file beside a lock has.
+use crate::stale_ref_lock_walk::pid_file_beside;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -301,14 +303,23 @@ fn holder_of_pin_name(digest: &str, name: &str) -> Option<(i64, String)> {
 ///  so it appears whole or not at all,
 ///  and the only thing written before it is the path's own text,
 ///  which is the same for every record of that path.
-///  The link is looked at once more before this returns:
-///  a lock renamed away and made again at the same path between the look above and the link leaves a pin
-///  for another file,
-///  and then the pin is taken away and nothing is recorded.
+///  Two things are looked at once more after the link, and the pin is taken away if either says this
+///  record is not the take it is named for:
+///
+///  - the pin still names the file standing at the path,
+///    so a lock renamed away and made again between the look above and the link records nothing;
+///  - the PID file beside that file still names the Git this record is about,
+///    so a take that finished in the gap between the look that reported it and the link records
+///    nothing.
+///    Without this look the record would pin the new file and name the Git that no longer holds it,
+///    and a reader that stops at the first record pinning the file would be stopped by that one and
+///    never judge the right record, so a dead Git's lock would stand and the next commit fail
+///    (a review of `5327cbbfa4`,
+/// finding 1).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writePathText(digest, lock); linkSync(lock, pinName); if (statSync(pin).ino !== statSync(lock).ino) return undefined;
+/// linkSync(lock, pinName); if (statSync(pin).ino !== statSync(lock).ino || pidOf(pidFile) !== holder.pid) return undefined;
 /// ```
 pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<Written> {
     let folder: PathBuf = folder_of(common_dir);
@@ -335,6 +346,13 @@ pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<W
         let _unlinked = std::fs::remove_file(pin.as_path());
         return None;
     }
+    // The second look: the file this pin names must still be the take of the Git this record names. A take that
+    //  finished here took its PID file with it, and another Git's PID file names another process, so either way this
+    //  record would name a Git that does not hold the file it pins.
+    if crate::stopped_git_locks::pid_named_by(pid_file_beside(lock).as_path()) != Some(i32::try_from(holder.0).ok()?) {
+        let _unlinked = std::fs::remove_file(pin.as_path());
+        return None;
+    }
     return Some(Written { pin, lock: lock.to_path_buf() });
 }
 
@@ -348,15 +366,19 @@ pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<W
 ///  so a record of the path never exists beside a half-written one;
 ///  a text that differs from the lock's own path is a planted or damaged file and is replaced,
 ///  because this folder's name is that path's digest and no other path belongs in it.
-///  The text is made under a temporary name that carries the writing Git's process number and birth
-///  identity,
-///  and the rename into place is tried twice,
-///  because a sweep of another command that lands between the two may take the temporary away:
-///  a sweep keeps a temporary whose writer runs and removes one whose writer is gone
+///  The text is made under a temporary name that carries **the process writing it** - this command, not
+///  the Git the record is about -
+///  and the rename into place is tried twice.
+///  A sweep keeps a temporary whose writer runs and removes one whose writer is gone
 ///  (`sweep`),
-///  and a writer whose temporary went anyway makes it again rather than leaving the lock with no
-///  record
-///  (the second note of a review of `1ee73d2728`).
+///  and the Git a record is about is often already dead when its command writes that record,
+///  which is the whole case the record exists for:
+///  a temporary named for that Git was therefore read as a dead run's litter and removed,
+///  and two sweeps in the two attempts left the lock with no record at all
+///  (the second finding of a review of `5327cbbfa4`).
+///  A temporary named for the command itself is kept by every sweep for as long as the write can
+///  happen,
+///  and the second attempt is what covers a temporary another actor took away.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -370,7 +392,12 @@ fn name_the_path(folder: &Path, digest: &str, lock: &Path, holder: &(i64, String
     if matches!(present.as_deref(), Some(bytes) if bytes == wanted) {
         return Some(());
     }
-    let temporary: PathBuf = folder.join(format!("{digest}{PATH_TEXT_TEMP_INFIX}{}.{}.writing", holder.0, holder.1));
+    // The process writing this text is this one; the Git the record is about may already be gone, and a sweep that read
+    //  the temporary as that Git's would remove it.
+    let writer: (i64, String) = crate::lock_holder_records::identity_of_process(i64::from(std::process::id()))
+        .map(|identity| { return (i64::from(std::process::id()), identity); })
+        .unwrap_or_else(|| { return holder.clone(); });
+    let temporary: PathBuf = folder.join(format!("{digest}{PATH_TEXT_TEMP_INFIX}{}.{}.writing", writer.0, writer.1));
     for _attempt in 0..2 {
         std::fs::write(temporary.as_path(), wanted).ok()?;
         // A control reaches here to act as another command whose pass sweeps the folder at this instant.
@@ -415,20 +442,30 @@ fn writer_of_path_temp(rest: &str) -> Option<(i64, String)> {
 ///  A record is found by the inode its pin names,
 ///  and the path's text says which path that inode was taken at.
 ///
+///  Several records can pin the one file,
+///  because a record written for the wrong Git pins a file it does not describe
+///  (a review of `5327cbbfa4`, finding 1),
+///  and this answers every one of them:
+///  a caller that decides about the lock judges each,
+///  so a record that cannot be the holder never stops it from reaching the one that can.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const binding = readBinding(commonDir, lock); // undefined unless a pin names the file at that path
+/// const bindings = readBindings(commonDir, lock); // [] unless a pin names the file at that path
 /// ```
-pub fn of(common_dir: &Path, lock: &Path) -> Option<Binding> {
+pub fn bindings_of(common_dir: &Path, lock: &Path) -> Vec<Binding> {
     let folder: PathBuf = folder_of(common_dir);
-    let standing: LockMetadata = crate::index_lock_evidence::read_lock_metadata(lock).ok()??;
+    let mut found: Vec<Binding> = Vec::new();
+    let Ok(Some(standing)) = crate::index_lock_evidence::read_lock_metadata(lock) else {
+        return found;
+    };
     let digest: String = digest_of_path(lock);
     if !lock_path_says(folder.as_path(), digest.as_str(), lock) {
-        return None;
+        return found;
     }
     let prefix: String = format!("{digest}.");
     let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
-        return None;
+        return found;
     };
     for entry in entries.flatten() {
         let name: std::borrow::Cow<'_, str> = entry.file_name().to_string_lossy().into_owned().into();
@@ -441,10 +478,26 @@ pub fn of(common_dir: &Path, lock: &Path) -> Option<Binding> {
         if pinned.device != standing.device || pinned.inode != standing.inode {
             continue;
         }
-        let (pid, identity) = holder_of_pin_name(digest.as_str(), name.as_ref())?;
-        return Some(Binding { lock: lock.to_path_buf(), pin: entry.path(), pid, identity });
+        if let Some((pid, identity)) = holder_of_pin_name(digest.as_str(), name.as_ref()) {
+            found.push(Binding { lock: lock.to_path_buf(), pin: entry.path(), pid, identity });
+        }
     }
-    return None;
+    return found;
+}
+
+/// What:
+///  The first record that pins the file standing at `lock`,
+///  for the callers that ask about a lock's existence and not about a decision.
+/// Why:
+///  A decision must judge every record (`bindings_of`), and this is that list's first for the places
+///  that only ask whether any record describes the lock at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = readBindings(commonDir, lock)[0]
+/// ```
+pub fn of(common_dir: &Path, lock: &Path) -> Option<Binding> {
+    return bindings_of(common_dir, lock).into_iter().next();
 }
 
 /// What:

@@ -375,8 +375,11 @@ fn a_finished_child_takes_away_only_the_record_of_its_own_lock() {
     crate::service_fault::hooks::set(
         A_FINISHED_CHILD_FORGETS,
         std::rc::Rc::new(move || {
-            // The concurrent command's Git takes the freed name and its command writes the record of that lock.
+            // The concurrent command's Git takes the freed name, writes its PID file, and its command writes the record
+            //  of that lock.
             std::fs::write(hook_lock.as_path(), b"another command's unfinished index\n").expect("the concurrent lock");
+            std::fs::write(crate::stale_ref_lock_walk::pid_file_beside(hook_lock.as_path()).as_path(), format!("pid {}\n", held.0).as_bytes())
+                .expect("the concurrent Git's PID file");
             assert!(lock_bindings::write(hook_common.as_path(), hook_lock.as_path(), &held).is_some(), "the concurrent command pins its own lock");
             planted_by_the_hook.set(true);
         }),

@@ -341,24 +341,36 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
 ///
 ///  A record whose holder is not gone,
 ///  and every part of one that cannot be read,
-///  leave the lock to the birth-order gate and the wait it has today.
+///  leave that record out,
+///  and the next record pinning the same file is judged in its place:
+///  several records can pin one file,
+///  because a record written for a Git that did not hold it pins a file it does not describe
+///  (a review of `5327cbbfa4`,
+/// finding 1),
+///  and a reader that stopped at the first would be stopped by that one and never reach the record
+///  that names the PID file's process.
+///  When no record can be the holder,
+///  the lock is left to the birth-order gate and the wait it has today.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const bound = bindingOf(commonDir, lock);
-/// if (!bound || !pinnedIs(lock) || !pidFileIs(bound) || holderState(bound) !== 'gone') return undefined;
+/// for (const bound of bindingsOf(commonDir, lock)) if (pinnedIs(lock) && pidFileIs(bound) && holderState(bound) === 'gone') return bound;
 /// ```
 fn bound_holder(lock: &Path, common_dir: &Path, pid_file: &Path) -> Option<(i64, Evidence, crate::lock_bindings::Written)> {
-    let bound: crate::lock_bindings::Binding = crate::lock_bindings::of(common_dir, lock)?;
-    let record: crate::lock_bindings::Written = crate::lock_bindings::Written { pin: bound.pin.clone(), lock: lock.to_path_buf() };
-    if crate::stopped_git_locks::pid_named_by(pid_file) != Some(i32::try_from(bound.pid).ok()?) {
-        return None;
+    for bound in crate::lock_bindings::bindings_of(common_dir, lock) {
+        if crate::stopped_git_locks::pid_named_by(pid_file) != Some(i32::try_from(bound.pid).ok()?) {
+            continue;
+        }
+        if crate::service_index_identity::holder_state(Some(&(bound.pid, bound.identity.clone()))) != crate::service_index_identity::HolderState::Gone {
+            continue;
+        }
+        if proved_gone_writer(common_dir, bound.pid).is_none() {
+            continue;
+        }
+        let record: crate::lock_bindings::Written = crate::lock_bindings::Written { pin: bound.pin, lock: lock.to_path_buf() };
+        return Some((bound.pid, Evidence::Binding, record));
     }
-    if crate::service_index_identity::holder_state(Some(&(bound.pid, bound.identity.clone()))) != crate::service_index_identity::HolderState::Gone {
-        return None;
-    }
-    proved_gone_writer(common_dir, bound.pid)?;
-    return Some((bound.pid, Evidence::Binding, record));
+    return None;
 }
 
 /// What:
