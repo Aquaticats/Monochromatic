@@ -179,6 +179,38 @@ pub fn nested_repositories_the_clean_deletes(
     worktree_root: &Path,
     command_prefix: &[u8],
 ) -> Result<Vec<Vec<u8>>, String> {
+    let found: Vec<NestedRepository> = nested_repositories_and_their_shape(deleted_lines, worktree_root, command_prefix)?;
+    let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for each in found {
+        paths.push(each.path);
+    }
+    return Ok(paths);
+}
+
+/// What:
+///  The same repositories, each with the shape Git's one force keeps or does not:
+///  a working tree with a `.git` entry is kept by one force,
+///  and a bare repository is not.
+///  `bool` is `true` for a bare repository.
+/// Why:
+///  An interactive clean is capped to one force so Git keeps the repositories its menu offers,
+///  and that hold is Git's `DIR_SKIP_NESTED_GIT` rule,
+///  which knows the `.git` shape alone:
+///  `git clean -fXd` at one force deletes a bare repository (`Removing ignored/`)
+///  and keeps the `.git` shape (`Skipping repository ignored/inner`),
+///  measured on this host with native Git 2.56.0,
+///  2026-11-13.
+///  A caller that must not offer a bare repository needs to know which of the two it has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const found = nestedRepositoriesAndTheirShape(lines, root, prefix); // [{ path, bare }]
+/// ```
+pub fn nested_repositories_and_their_shape(
+    deleted_lines: &[Vec<u8>],
+    worktree_root: &Path,
+    command_prefix: &[u8],
+) -> Result<Vec<NestedRepository>, String> {
     let command: Vec<OsString> = match plain_components(Path::new(OsStr::from_bytes(command_prefix))) {
         Ok(names) => names,
         Err(error) => {
@@ -189,7 +221,7 @@ pub fn nested_repositories_the_clean_deletes(
             ));
         }
     };
-    let mut found: Vec<(Vec<u8>, Vec<OsString>)> = Vec::<(Vec<u8>, Vec<OsString>)>::new();
+    let mut found: Vec<(Vec<u8>, Vec<OsString>, bool)> = Vec::<(Vec<u8>, Vec<OsString>, bool)>::new();
     for path in removed_paths_from_dry_run(deleted_lines) {
         let Some(names) = names_below_the_command(path.as_slice(), command.as_slice()) else {
             continue;
@@ -197,22 +229,53 @@ pub fn nested_repositories_the_clean_deletes(
         // The look inside the path reads its every component, so the check that it is a directory of its own happens
         //  under the same ceiling as the walk below it.
         for nested in repositories_beneath_within_a_ceiling(worktree_root, names.as_slice(), READ_CEILING, walk_beneath)? {
-            found.push((joined_names(nested.as_slice()), nested));
+            // The walk's own rule: a directory with a `.git` entry is the shape one force keeps; a bare repository is
+            //  the shape it does not.
+            let mut full: PathBuf = worktree_root.to_path_buf();
+            for name in &nested {
+                full.push(name);
+            }
+            let is_bare: bool = a_bare_repository_is(full.as_path());
+            found.push((joined_names(nested.as_slice()), nested, is_bare));
         }
     }
     // The shortest path first, so an ancestor is always kept before anything it holds.
-    found.sort_by_key(fewest_components_first);
-    let mut outermost: Vec<(Vec<u8>, Vec<OsString>)> = Vec::<(Vec<u8>, Vec<OsString>)>::new();
-    for (path, names) in found {
-        if !is_at_or_below_another(names.as_slice(), outermost.as_slice()) {
-            outermost.push((path, names));
+    found.sort_by_key(|(_, names, _)| return names.len());
+    let mut outermost: Vec<(Vec<u8>, Vec<OsString>, bool)> = Vec::<(Vec<u8>, Vec<OsString>, bool)>::new();
+    for (path, names, is_bare) in found {
+        let kept: Vec<(Vec<u8>, Vec<OsString>)> = outermost.iter().map(|(kept_path, kept_names, _)| return (kept_path.clone(), kept_names.clone())).collect();
+        if !is_at_or_below_another(names.as_slice(), kept.as_slice()) {
+            outermost.push((path, names, is_bare));
         }
     }
-    let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for (path, _names) in outermost {
-        paths.push(path);
+    let mut repositories: Vec<NestedRepository> = Vec::<NestedRepository>::new();
+    for (path, _names, is_bare) in outermost {
+        repositories.push(NestedRepository { path, bare: is_bare });
     }
-    return Ok(paths);
+    return Ok(repositories);
+}
+
+/// What:
+///  One repository a clean would delete:
+///  the path Git named it by,
+///  and whether it is bare.
+///  A `struct` is a record with named fields.
+/// Why:
+///  A bare repository and one with a `.git` entry are kept differently by Git's one force,
+///  so a caller that relies on that force has to know which of the two it is.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type NestedRepository = { path: Buffer; bare: boolean };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NestedRepository {
+    /// The path as Git named it,
+    ///  relative to the directory the clean runs in.
+    pub path: Vec<u8>,
+    /// Whether it is a bare repository,
+    ///  which one force does not keep.
+    pub bare: bool,
 }
 
 /// What:
@@ -480,22 +543,6 @@ fn joined_names(names: &[OsString]) -> Vec<u8> {
         bytes.extend_from_slice(name.as_bytes());
     }
     return bytes;
-}
-
-/// What:
-///  How many components a path has,
-///  which orders a list by how deep each path is.
-///  `&(Vec<u8>, Vec<OsString>)` borrows one candidate and its components.
-/// Why:
-///   The deepest path is the one inside another,
-///  so the shortest first is what makes one pass of the list enough.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// (entry: [Buffer, string[]]) => entry[1].length;
-/// ```
-fn fewest_components_first(entry: &(Vec<u8>, Vec<OsString>)) -> usize {
-    return entry.1.len();
 }
 
 /// What:

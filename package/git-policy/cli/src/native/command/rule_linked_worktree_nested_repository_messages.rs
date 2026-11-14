@@ -191,6 +191,73 @@ pub fn kept_out_of_an_interactive_menu_notice(repositories: &[Vec<u8>]) -> Strin
     );
 }
 
+/// What:
+///  The sentence an interactive clean stops with when its menu would offer a bare Git repository,
+///  which one force does not keep.
+/// Why:
+///  Git's one force keeps a repository with a `.git` entry and deletes a bare one
+///  (`git clean -fXd` at one force: `Skipping repository inner` against `Removing bare/` and `bare/` gone,
+///  measured on this host with native Git 2.56.0, 2026-11-13),
+///  so the cap this wrapper uses for the other shape protects nothing here.
+///  The person decides: the clean without a menu moves the repository to a saved copy first,
+///  and the opt-out runs the menu and the deletion they choose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// bareRepositoryInAMenuMessage(['bare/']);
+/// ```
+pub fn bare_repository_in_a_menu_message(repositories: &[Vec<u8>]) -> String {
+    let mut named: Vec<String> = Vec::<String>::new();
+    for path in repositories.iter().take(SHARED_PATHS_NAMED) {
+        named.push(String::from_utf8_lossy(path).into_owned());
+    }
+    let mut listed: String = named.join(", ");
+    if repositories.len() > SHARED_PATHS_NAMED {
+        listed.push_str(format!(", and {} more", repositories.len() - SHARED_PATHS_NAMED).as_str());
+    }
+    return format!(
+        "monochromatic-git-policy-cli: this interactive clean's menu would offer the bare Git repository {listed} and everything \
+         inside it, and one force does not keep a bare repository: Git deletes it while the menu is answered after Git \
+         started, so the work inside it would be gone with no copy. Nothing was run. Run the same clean without `-i` and the \
+         wrapper moves it whole to a saved copy before Git deletes it, or pass --no-enforce-worktree directly after `clean` \
+         and the menu and whatever you choose run as real Git runs them.\n"
+    );
+}
+
+/// What:
+///  The sentence an interactive clean stops with when this transform cannot write its cap into the words the
+///  wrapper forwards,
+///  which is the case of a `!` shell alias whose own words Git runs.
+/// Why:
+///  The cap is one token inserted after the clean's options,
+///  and a shell alias's words are inside the alias value,
+///  not in what the wrapper forwards;
+///  an inserted token would land after any path the person typed instead.
+///  A menu that would offer a repository this transform cannot keep out of it is one Git deletes from,
+///  so the command stops and the person is told the two ways to run it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// menuCapNotReachableMessage(['nested']);
+/// ```
+pub fn menu_cap_not_reachable_message(repositories: &[Vec<u8>]) -> String {
+    let mut named: Vec<String> = Vec::<String>::new();
+    for path in repositories.iter().take(SHARED_PATHS_NAMED) {
+        named.push(String::from_utf8_lossy(path).into_owned());
+    }
+    let mut listed: String = named.join(", ");
+    if repositories.len() > SHARED_PATHS_NAMED {
+        listed.push_str(format!(", and {} more", repositories.len() - SHARED_PATHS_NAMED).as_str());
+    }
+    return format!(
+        "monochromatic-git-policy-cli: this `!` shell alias runs an interactive clean whose menu would offer the Git \
+         repository {listed}, and the one force that keeps it cannot be written into an alias's own words. Nothing was \
+         run. Run `git clean -i` itself, or the same clean without `-i` so the repository is moved to a saved copy \
+         first, or pass --no-enforce-worktree directly after the alias word to run the menu and whatever you choose as \
+         real Git runs them.\n"
+    );
+}
+
 /// The notices and the rejection,
 /// and the paths they name.
 #[cfg(test)]

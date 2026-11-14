@@ -81,7 +81,12 @@ fn an_interactive_clean_runs_with_one_force_and_names_the_repository_it_keeps() 
         ),
     ] {
         facts.asked.clear();
-        match keep_nested_repositories_out_of_an_interactive_menu(os_arguments(spelling.as_slice()).as_slice(), &mut facts) {
+        match keep_nested_repositories_out_of_an_interactive_menu(
+            os_arguments(spelling.as_slice()).as_slice(),
+            os_arguments(spelling.as_slice()).as_slice(),
+            None,
+            &mut facts,
+        ) {
             CapDecision::Capped { arguments, repositories } => {
                 assert_eq!(arguments, os_arguments(expected.as_slice()), "{spelling:?}");
                 assert_eq!(repositories, vec![b"cache/nested".to_vec()], "{spelling:?}");
@@ -115,7 +120,12 @@ fn a_clean_that_offers_no_menu_reaches_git_untouched() {
     ] {
         facts.asked.clear();
         let decision: CapDecision =
-            keep_nested_repositories_out_of_an_interactive_menu(os_arguments(spelling.as_slice()).as_slice(), &mut facts);
+            keep_nested_repositories_out_of_an_interactive_menu(
+            os_arguments(spelling.as_slice()).as_slice(),
+            os_arguments(spelling.as_slice()).as_slice(),
+            None,
+            &mut facts,
+        );
         assert!(matches!(decision, CapDecision::Unchanged), "{spelling:?}");
         assert!(facts.asked.is_empty(), "{spelling:?} asked {:?}", facts.asked);
     }
@@ -136,6 +146,8 @@ fn an_interactive_clean_without_descent_asks_what_it_would_delete() {
     facts.asked.clear();
     let decision: CapDecision = keep_nested_repositories_out_of_an_interactive_menu(
         os_arguments(&["clean", "-i", "-f", "-f", "-X", "--", "cache"]).as_slice(),
+        os_arguments(&["clean", "-i", "-f", "-f", "-X", "--", "cache"]).as_slice(),
+        None,
         &mut facts,
     );
     assert!(!facts.asked.is_empty(), "the clean asked nothing, so its menu was never read");
@@ -175,6 +187,8 @@ fn an_interactive_clean_names_a_repository_below_the_command() {
     facts.clean_deletes = Ok(vec![b"Would remove ./container".to_vec()]);
     match keep_nested_repositories_out_of_an_interactive_menu(
         os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
+        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
+        None,
         &mut facts,
     ) {
         CapDecision::Capped { repositories, .. } => assert_eq!(repositories, vec![b"sub/container/nested".to_vec()]),
@@ -197,7 +211,7 @@ fn nothing_to_keep_and_gits_own_refusal_leave_the_clean_alone() {
     let mut facts: ScriptedFacts = empty.facts.clone();
     let arguments = os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]);
     assert!(matches!(
-        keep_nested_repositories_out_of_an_interactive_menu(arguments.as_slice(), &mut facts),
+        keep_nested_repositories_out_of_an_interactive_menu(arguments.as_slice(), arguments.as_slice(), None, &mut facts),
         CapDecision::Unchanged
     ));
     let found: Worktree = worktree("rule-interactive-nested-refused", true);
@@ -206,7 +220,7 @@ fn nothing_to_keep_and_gits_own_refusal_leave_the_clean_alone() {
     refused.asked.clear();
     let both_modes: Vec<std::ffi::OsString> = os_arguments(&["clean", "-i", "-f", "-f", "-d", "-x", "-X"]);
     assert!(matches!(
-        keep_nested_repositories_out_of_an_interactive_menu(both_modes.as_slice(), &mut refused),
+        keep_nested_repositories_out_of_an_interactive_menu(both_modes.as_slice(), both_modes.as_slice(), None, &mut refused),
         CapDecision::Unchanged
     ));
     assert!(refused.asked.is_empty(), "a clean Git refuses was read anyway: {:?}", refused.asked);
@@ -229,6 +243,8 @@ fn a_failed_reading_stops_the_command() {
     facts.clean_deletes = Err(String::from(sentence));
     match keep_nested_repositories_out_of_an_interactive_menu(
         os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
+        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
+        None,
         &mut facts,
     ) {
         CapDecision::Stopped { message } => assert_eq!(message, sentence),
@@ -252,6 +268,8 @@ fn a_reading_that_never_answered_stops_the_command() {
     facts.clean_deletes = Err(String::from(sentence));
     match keep_nested_repositories_out_of_an_interactive_menu(
         os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
+        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
+        None,
         &mut facts,
     ) {
         CapDecision::Stopped { message } => assert_eq!(message, sentence),

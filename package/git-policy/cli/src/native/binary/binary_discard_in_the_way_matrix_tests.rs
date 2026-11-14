@@ -1167,3 +1167,417 @@ fn a_pathspec_file_that_never_yields_bytes_is_refused_at_its_ceiling() {
 }
 
 //endregion
+
+//region The second review's ten losses, each refused now
+
+/// What:
+///  A linked worktree holding the person's untracked file where the form's tree writes,
+///  with the list Git reads from a file the control writes.
+///  `&str` names the file inside the fixture.
+/// Why:
+///  Every one of the review's sequences starts from that shape and differs in the words the
+///  command reads its paths from, so one helper keeps the rows about the words alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const list = writeTheList(fixture, 'list', Buffer.from('b.txt\n'));
+/// ```
+fn write_the_list(fixture: &Fixture, name: &str, contents: &[u8]) -> PathBuf {
+    let list: PathBuf = fixture.root.join(name);
+    std::fs::write(list.as_path(), contents).expect("the list");
+    return list;
+}
+
+/// A zero-byte pathspec file is no pathspec to Git, which then switches the branch by force and
+/// writes the whole tree,
+/// so the guard refuses it with the file named,
+/// and the opt-out runs the whole-tree form as Git runs it.
+#[test]
+fn an_empty_pathspec_file_is_the_whole_tree_git_writes() {
+    // A local branch: `checkout -f other --pathspec-from-file=<empty>` switches to it.
+    let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = prepared("discard-empty-list-local", InTheWay::File);
+    let empty: PathBuf = write_the_list(&fixture, "empty-list", b"");
+    let typed: Vec<String> = vec![
+        String::from("checkout"),
+        String::from("-f"),
+        String::from("other"),
+        format!("--pathspec-from-file={}", empty.display()),
+    ];
+    let borrowed: Vec<&str> = typed.iter().map(|word| return word.as_str()).collect::<Vec<&str>>();
+    let before: Vec<String> = worktree_state(linked.as_path());
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), borrowed.as_slice());
+    assert!(refused_by_the_guard(&observed), "an empty list let a forced switch run: {}", stderr_of(&observed));
+    assert!(still_where_it_was(linked.as_path(), "b.txt", PRECIOUS), "the switch lost the file");
+    assert_eq!(worktree_state(linked.as_path()), before, "the switch wrote before refusing");
+    let (hatch_fixture, _hatch_repo, hatch_linked): (Fixture, PathBuf, PathBuf) =
+        prepared("discard-empty-list-local-hatch", InTheWay::File);
+    let hatch_list: PathBuf = write_the_list(&hatch_fixture, "empty-list", b"");
+    let passed: Observed = run_hatched(
+        &hatch_fixture,
+        hatch_linked.as_path(),
+        &["checkout", "-f", "other", format!("--pathspec-from-file={}", hatch_list.display()).as_str()],
+    );
+    let (direct_fixture, _direct_repo, direct_linked): (Fixture, PathBuf, PathBuf) =
+        prepared("discard-empty-list-local-direct", InTheWay::File);
+    let direct: Observed = run_direct(&direct_fixture, direct_linked.as_path(), &["checkout", "-f", "other"]);
+    assert_eq!(
+        state_after(&hatch_fixture, hatch_linked.as_path(), &passed),
+        state_after(&direct_fixture, direct_linked.as_path(), &direct),
+        "the opt-out differs from real Git: {}",
+        stderr_of(&passed)
+    );
+    remove(&direct_fixture);
+    remove(&hatch_fixture);
+    remove(&fixture);
+
+    // A remote-only branch: the same empty list leaves the whole-tree form, which guesses it.
+    let (remote, _remote_repo, remote_linked): (Fixture, PathBuf, PathBuf) =
+        clone_with_a_remote_only_branch("discard-empty-list-remote", "origin");
+    let remote_empty: PathBuf = write_the_list(&remote, "empty-list", b"");
+    let remote_typed: Vec<String> = vec![
+        String::from("checkout"),
+        String::from("--no-enforce-worktree-branch"),
+        String::from("-f"),
+        String::from("topic"),
+        format!("--pathspec-from-file={}", remote_empty.display()),
+    ];
+    let remote_words: Vec<&str> = remote_typed.iter().map(|word| return word.as_str()).collect::<Vec<&str>>();
+    let guessed: Observed = run_wrapped(&remote, remote_linked.as_path(), remote_words.as_slice());
+    assert!(refused_by_the_guard(&guessed), "the guessed whole-tree write ran: {}", stderr_of(&guessed));
+    assert!(still_where_it_was(remote_linked.as_path(), "b.txt", PRECIOUS), "{}", stderr_of(&guessed));
+    remove(&remote);
+}
+
+/// A line that begins with a double quote is the C-quoted name Git reads,
+/// so a form over a file whose name Git prints that way is refused with the name.
+#[test]
+fn a_quoted_pathspec_entry_names_the_file_git_writes() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    let fixture: Fixture = fixture("discard-quoted-pathspec-entry");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let tabbed: OsString = OsString::from_vec(b"a\tb.txt".to_vec());
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(&fixture, repo.as_path(), &["add", "--", "tracked.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    std::fs::write(repo.join(tabbed.as_os_str()), b"from the other tree\n").expect("the tabbed name on the branch");
+    git(&fixture, repo.as_path(), &[OsStr::new("add"), OsStr::new("--"), tabbed.as_os_str()]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=tabbed"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join(tabbed.as_os_str()), PRECIOUS).expect("the person's untracked file");
+    let list: PathBuf = write_the_list(&fixture, "quoted-list", b"\"a\\tb.txt\"\n");
+    let typed: Vec<String> = vec![
+        String::from("checkout"),
+        String::from("other"),
+        format!("--pathspec-from-file={}", list.display()),
+    ];
+    let borrowed: Vec<&str> = typed.iter().map(|word| return word.as_str()).collect::<Vec<&str>>();
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), borrowed.as_slice());
+    assert!(refused_by_the_guard(&observed), "the quoted entry was not read: {}", stderr_of(&observed));
+    assert!(
+        std::fs::read(linked.join(tabbed.as_os_str())).is_ok_and(|bytes| return bytes == PRECIOUS),
+        "the file Git writes by that name is still the person's"
+    );
+    // The control: the same path named as a word is refused too, so the row is about the quoting alone.
+    let named: Observed = run_wrapped(&fixture, linked.as_path(), &["checkout", "other", "--", "a\tb.txt"]);
+    assert!(refused_by_the_guard(&named), "the named path is refused as well: {}", stderr_of(&named));
+    remove(&fixture);
+}
+
+/// A source written twice is the last one, which is the tree Git writes.
+#[test]
+fn a_source_written_twice_is_the_last_one() {
+    let fixture: Fixture = fixture("discard-last-source");
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(&fixture, repo.as_path(), &["add", "--", "tracked.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    std::fs::write(repo.join("f.txt"), b"from the other tree\n").expect("the other tree's file");
+    git(&fixture, repo.as_path(), &["add", "--", "f.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=other"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    std::fs::write(linked.join("f.txt"), PRECIOUS).expect("the person's untracked file");
+    for (index, arguments) in [
+        (1, vec!["restore", "-s", "main", "-s", "other", "--", "f.txt"]),
+        (2, vec!["restore", "--source=main", "--source=other", "--", "f.txt"]),
+    ] {
+        let observed: Observed = run_wrapped(&fixture, linked.as_path(), arguments.as_slice());
+        assert!(refused_by_the_guard(&observed), "{arguments:?} was let through: {}", stderr_of(&observed));
+        assert!(still_where_it_was(linked.as_path(), "f.txt", PRECIOUS), "{arguments:?} lost the file");
+        // The control: the first source alone holds no `f.txt`, so Git refuses the form itself and the guard stays out.
+        assert!(index > 0);
+    }
+    let control: Observed = run_wrapped(&fixture, linked.as_path(), &["restore", "-s", "main", "--", "f.txt"]);
+    assert!(!refused_by_the_guard(&control), "Git refuses a source without the path: {}", stderr_of(&control));
+    assert!(still_where_it_was(linked.as_path(), "f.txt", PRECIOUS));
+    // The opt-out runs the last source, as real Git does.
+    let passed: Observed = run_hatched(&fixture, linked.as_path(), &["restore", "-s", "main", "-s", "other", "--", "f.txt"]);
+    assert_eq!(passed.code, Some(0), "{}", stderr_of(&passed));
+    assert_eq!(
+        std::fs::read(linked.join("f.txt")).expect("the written file"),
+        b"from the other tree\n",
+        "the opt-out wrote what the last source holds"
+    );
+    remove(&fixture);
+}
+
+/// What:
+///  The four words a command takes from bytes that are not text,
+///  each written the way the review wrote it.
+/// Why:
+///  A prefix,
+///  a source and a pathspec file's name are paths and revisions,
+///  and a conversion through text names another file;
+///  each of these sequences wrote over the person's file through such a conversion.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // checkout-index -f --prefix=p-<0xFF>/ --all . read-tree -u --prefix=p-<0xFF>/ other .
+/// // restore --source=br-<0xFF> -- f.txt . checkout -f other --pathspec-from-file=n-<0xFF>
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_word_that_is_not_text_is_the_word_git_reads() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    /// `p-<0xFF>/`, the directory the review used.
+    fn a_prefix() -> OsString {
+        return OsString::from_vec(b"p-\xff/".to_vec());
+    }
+    // a. `checkout-index -f --prefix=p-<0xFF>/ --all` over an untracked file below that prefix.
+    {
+        let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = tracked_pair("discard-nontext-checkout-index");
+        std::fs::create_dir_all(linked.join(a_prefix().as_os_str())).expect("the prefix directory");
+        std::fs::write(linked.join(a_prefix().as_os_str()).join("a.txt"), PRECIOUS).expect("the person's file");
+        let mut prefix: Vec<u8> = b"--prefix=".to_vec();
+        prefix.extend(a_prefix().as_encoded_bytes());
+        let observed: Observed = run_wrapped_os(
+            &fixture,
+            linked.as_path(),
+            &[
+                OsString::from("checkout-index"),
+                OsString::from("-f"),
+                OsString::from("--all"),
+                OsString::from_vec(prefix),
+            ],
+        );
+        assert!(refused_by_letter_or_guard(&observed), "checkout-index wrote over the file: {}", stderr_of(&observed));
+        assert!(
+            std::fs::read(linked.join(a_prefix().as_os_str()).join("a.txt")).is_ok_and(|bytes| return bytes == PRECIOUS),
+            "the person's file below the prefix is still there"
+        );
+        remove(&fixture);
+    }
+    // b. `read-tree -u --prefix=p-<0xFF>/ other` over an ignored file below that prefix.
+    {
+        let fixture: Fixture = fixture("discard-nontext-read-tree");
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        std::fs::write(repo.join(".gitignore"), b"p-*\n").expect("ignore rules");
+        std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+        git(&fixture, repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+        git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "other"]);
+        std::fs::write(repo.join("b.txt"), b"from the other tree\n").expect("the other tree's file");
+        git(&fixture, repo.as_path(), &["add", "--", "b.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=other"]);
+        git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+        let linked: PathBuf = fixture.root.join("linked");
+        git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+        std::fs::create_dir_all(linked.join(a_prefix().as_os_str())).expect("the prefix directory");
+        std::fs::write(linked.join(a_prefix().as_os_str()).join("b.txt"), PRECIOUS).expect("the person's ignored file");
+        let mut prefix: Vec<u8> = b"--prefix=".to_vec();
+        prefix.extend(a_prefix().as_encoded_bytes());
+        let observed: Observed = run_wrapped_os(
+            &fixture,
+            linked.as_path(),
+            &[OsString::from("read-tree"), OsString::from("-u"), OsString::from_vec(prefix), OsString::from("other")],
+        );
+        assert!(refused_by_letter_or_guard(&observed), "read-tree wrote over the file: {}", stderr_of(&observed));
+        assert!(
+            std::fs::read(linked.join(a_prefix().as_os_str()).join("b.txt")).is_ok_and(|bytes| return bytes == PRECIOUS),
+            "the ignored file below the prefix is still there"
+        );
+        remove(&fixture);
+    }
+    // c. `restore --source=br-<0xFF> -- f.txt` from a branch whose name is those bytes.
+    {
+        let fixture: Fixture = fixture("discard-nontext-source");
+        let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+        let branch: OsString = OsString::from_vec(b"br-\xff".to_vec());
+        std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+        git(&fixture, repo.as_path(), &["add", "--", "tracked.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=base"]);
+        git(&fixture, repo.as_path(), &[OsStr::new("checkout"), OsStr::new("--quiet"), OsStr::new("-b"), branch.as_os_str()]);
+        std::fs::write(repo.join("f.txt"), b"from the branch\n").expect("the branch's file");
+        git(&fixture, repo.as_path(), &["add", "--", "f.txt"]);
+        git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=branch"]);
+        git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+        let linked: PathBuf = fixture.root.join("linked");
+        git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+        std::fs::write(linked.join("f.txt"), PRECIOUS).expect("the person's untracked file");
+        let mut source: Vec<u8> = b"--source=".to_vec();
+        source.extend_from_slice(branch.as_encoded_bytes());
+        let inline: OsString = OsString::from_vec(source);
+        let observed: Observed = run_wrapped_os(&fixture, linked.as_path(), &[OsString::from("restore"), inline.clone(), OsString::from("--"), OsString::from("f.txt")]);
+        assert!(refused_by_letter_or_guard(&observed), "restore wrote over the file: {}", stderr_of(&observed));
+        assert!(still_where_it_was(linked.as_path(), "f.txt", PRECIOUS), "the person's file is still there");
+        remove(&fixture);
+    }
+    // d. `checkout -f other --pathspec-from-file=n-<0xFF>` with an empty decoy at the lossy name.
+    {
+        let (fixture, _repo, linked): (Fixture, PathBuf, PathBuf) = prepared("discard-nontext-pathspec-file", InTheWay::File);
+        let mut real: Vec<u8> = b"n-".to_vec();
+        real.push(0xff);
+        let real_path: PathBuf = fixture.root.join(std::ffi::OsString::from_vec(real.clone()));
+        std::fs::write(real_path.as_path(), b"b.txt\n").expect("the real list");
+        // The name a conversion through text would produce, holding no pathspec at all.
+        let decoy: PathBuf = fixture.root.join("n-\u{fffd}");
+        std::fs::write(decoy.as_path(), b"").expect("the decoy");
+        let mut word: Vec<u8> = b"--pathspec-from-file=".to_vec();
+        word.extend_from_slice(real.as_slice());
+        let observed: Observed = run_wrapped_os(
+            &fixture,
+            linked.as_path(),
+            &[OsString::from("checkout"), OsString::from("-f"), OsString::from("other"), OsString::from_vec(word)],
+        );
+        assert!(refused_by_letter_or_guard(&observed), "the list's name was misread: {}", stderr_of(&observed));
+        assert!(still_where_it_was(linked.as_path(), "b.txt", PRECIOUS), "the person's file is still there");
+        remove(&fixture);
+    }
+}
+
+/// The same refusal test for a run whose words are not text.
+fn refused_by_letter_or_guard(observed: &Observed) -> bool {
+    return refused_by_the_guard(observed);
+}
+
+/// Run one wrapped command whose words may hold bytes that are not text.
+fn run_wrapped_os(fixture: &Fixture, directory: &Path, arguments: &[std::ffi::OsString]) -> Observed {
+    let mut command: std::process::Command = bounded_for(
+        fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(fixture).as_os_str(),
+        COMMAND_BOUND_SECONDS,
+    );
+    command.current_dir(directory).args(arguments);
+    return observe(&mut command, b"");
+}
+
+/// What:
+///  A linked worktree whose ignored directory holds a repository of the given shape,
+///  with a force-and-ignore clean that would delete it.
+///  `bool` says whether the repository is bare.
+/// Why:
+///  Git's one force keeps a directory with a `.git` entry and deletes a bare one
+///  (`Skipping repository inner` against `Removing bare/`, measured on this host with native Git
+///  2.56.0, 2026-11-13),
+///  which is the difference the interactive cap has to know about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { fixture, linked } = ignoredRepository('bare-menu', true);
+/// ```
+fn ignored_repository(name: &str, bare: bool) -> (Fixture, PathBuf, PathBuf) {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(".gitignore"), b"ignored/\n").expect("ignore rules");
+    std::fs::write(repo.join("tracked.txt"), b"one\n").expect("tracked file");
+    git(&fixture, repo.as_path(), &["add", "--", ".gitignore", "tracked.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message=files"]);
+    let linked: PathBuf = fixture.root.join("linked");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "side", "../linked"]);
+    let inside: PathBuf = linked.join("ignored");
+    std::fs::create_dir_all(inside.as_path()).expect("the ignored directory");
+    let nested: PathBuf = inside.join(if bare { "bare" } else { "inner" });
+    std::fs::create_dir_all(nested.as_path()).expect("the repository's directory");
+    if bare {
+        git(&fixture, nested.as_path(), &["init", "--quiet", "--bare"]);
+    } else {
+        git(&fixture, nested.as_path(), &["init", "--quiet", "--initial-branch=inner"]);
+    }
+    std::fs::write(nested.join("uncommitted.txt"), b"the person's work inside it\n").expect("untracked work");
+    return (fixture, repo, linked);
+}
+
+/// An interactive clean whose menu would offer a repository Git's one force keeps is capped and says so;
+/// one whose menu would offer a bare repository, which one force deletes, stops instead with the repository named.
+#[test]
+fn an_interactive_clean_that_would_offer_a_bare_repository_is_refused() {
+    // The bare shape: refused, with the repository named and the two ways forward.
+    let (bare_fixture, _bare_repo, bare_linked): (Fixture, PathBuf, PathBuf) = ignored_repository("discard-menu-bare", true);
+    let refused: Observed = run_wrapped(&bare_fixture, bare_linked.as_path(), &["clean", "-i", "-f", "-f", "-X", "-d"]);
+    let said: String = stderr_of(&refused);
+    assert!(said.contains("core-incomplete"), "the clean was not stopped: {said}");
+    assert!(said.contains("bare"), "the refusal names the bare repository: {said}");
+    assert!(said.contains("no-enforce-worktree"), "the refusal names the way past it: {said}");
+    assert!(
+        bare_linked.join("ignored/bare/uncommitted.txt").exists(),
+        "the work inside the bare repository is still there"
+    );
+    remove(&bare_fixture);
+
+    // The `.git` shape: capped, the repository kept, and the menu answered with "clean".
+    let (nested_fixture, _nested_repo, nested_linked): (Fixture, PathBuf, PathBuf) = ignored_repository("discard-menu-nested", false);
+    let mut cleaning: std::process::Command = bounded_for(
+        &nested_fixture,
+        nested_fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(&nested_fixture).as_os_str(),
+        COMMAND_BOUND_SECONDS,
+    );
+    cleaning.current_dir(nested_linked.as_path()).args(["clean", "-i", "-f", "-f", "-X", "-d"]);
+    let capped: Observed = observe(&mut cleaning, b"1\n");
+    assert_eq!(capped.code, Some(0), "{}", stderr_of(&capped));
+    assert!(
+        stderr_of(&capped).contains("runs with one force"),
+        "the notice says what the cap does: {}",
+        stderr_of(&capped)
+    );
+    assert!(
+        nested_linked.join("ignored/inner/uncommitted.txt").exists(),
+        "the non-bare repository is kept, as one force keeps it: {}",
+        stderr_of(&capped)
+    );
+    // The control that the non-interactive clean still saves the bare repository whole.
+    let (saving_fixture, saving_repo, saving_linked): (Fixture, PathBuf, PathBuf) = ignored_repository("discard-menu-saves-bare", true);
+    let saved: Observed = run_wrapped(&saving_fixture, saving_linked.as_path(), &["clean", "-f", "-f", "-X", "-d"]);
+    assert_eq!(saved.code, Some(0), "{}", stderr_of(&saved));
+    assert!(!saving_linked.join("ignored/bare").exists(), "the clean deleted the repository as typed");
+    assert!(!saved_files(saving_repo.as_path()).is_empty(), "the repository is below the saved copies");
+    remove(&saving_fixture);
+    remove(&nested_fixture);
+}
+
+/// An interactive clean a `!` shell alias runs is stopped rather than run with a menu offering a repository:
+/// the cap's token has no place in an alias's own words, and Git deletes from that menu unsaved.
+#[test]
+fn an_interactive_clean_a_shell_alias_runs_is_refused() {
+    let (fixture, repo, linked): (Fixture, PathBuf, PathBuf) = ignored_repository("discard-menu-alias", false);
+    git(&fixture, repo.as_path(), &["config", "alias.wipe", "!git clean -i -f -f -X -d"]);
+    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["wipe"]);
+    let said: String = stderr_of(&observed);
+    assert!(said.contains("core-incomplete"), "the alias was not stopped: {said}");
+    assert!(said.contains("ignored/inner") || said.contains("inner"), "the refusal names the repository: {said}");
+    assert!(said.contains("no-enforce-worktree"), "the refusal names the way past it: {said}");
+    assert!(
+        linked.join("ignored/inner/uncommitted.txt").exists(),
+        "the work inside the repository is still there"
+    );
+    // The control: the same alias without a menu saves the repository, so the alias route works everywhere else.
+    let (control_fixture, control_repo, control_linked): (Fixture, PathBuf, PathBuf) = ignored_repository("discard-menu-alias-control", false);
+    git(&control_fixture, control_repo.as_path(), &["config", "alias.sweep", "!git clean -f -f -X -d"]);
+    let swept: Observed = run_wrapped(&control_fixture, control_linked.as_path(), &["sweep"]);
+    assert_eq!(swept.code, Some(0), "{}", stderr_of(&swept));
+    assert!(!control_linked.join("ignored/inner").exists(), "the clean deleted it as typed");
+    assert!(!saved_files(control_repo.as_path()).is_empty(), "the repository is below the saved copies");
+    remove(&control_fixture);
+    remove(&fixture);
+}
+
+//endregion
+//endregion

@@ -22,7 +22,7 @@
 
 use super::paths_the_tree_writes;
 use crate::command_test_support::{git, repository_with_tracked_file};
-use crate::command_written_paths::{WrittenEntries, WrittenPaths};
+use crate::command_written_paths::{PathspecTarget, WrittenEntries, WrittenPaths};
 use crate::repo_read::repository_facts::{GitFacts, git_facts};
 use crate::test_support::{REAL_GIT, isolated_overlay, remove};
 use std::ffi::OsString;
@@ -181,3 +181,176 @@ fn a_tree_that_cannot_be_listed_is_a_failure() {
     }
     remove(directory.as_path());
 }
+
+//region The second review's readings of a pathspec file and of a killed query
+
+/// The written-path reading of a pathspec file one command names.
+fn from_the_file(
+    repository: &Path,
+    file: &str,
+    target: PathspecTarget,
+    nul_separated: bool,
+) -> Result<Vec<Vec<u8>>, String> {
+    let mut facts: GitFacts = facts_in(repository);
+    return paths_the_tree_writes(
+        &mut facts,
+        &WrittenPaths::PathspecFile {
+            target,
+            file: OsString::from(file),
+            nul_separated,
+            directory: None,
+            entries: WrittenEntries::EveryEntry,
+            guesses_a_remote_branch: true,
+        },
+    );
+}
+
+/// What:
+///  A repository whose `topic` commit holds `b.txt`, reachable as `refs/remotes/origin/topic`,
+/// with a remote configured, and a directory for the lists the controls write.
+/// Why:
+///  A forced `checkout` of such a branch writes over an untracked file at its tree's paths,
+///  and its name is the one a zero-byte pathspec file turns back into a whole-tree write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const { directory, repository } = fixtureWithARemoteBranch('facts-pathspec-file', 'origin');
+/// ```
+fn fixture_with_a_remote_branch(name: &str) -> (PathBuf, PathBuf) {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_only_a_remote_tracking_branch(name, "origin");
+    return (directory, repository);
+}
+
+/// A zero-byte pathspec file is no pathspec at all to Git,
+/// which then switches the branch by force and writes the whole tree,
+/// so the reading answers the tree's paths and not nothing.
+#[test]
+fn an_empty_pathspec_file_is_the_whole_tree_git_writes() {
+    let (directory, repository): (PathBuf, PathBuf) = fixture_with_a_remote_branch("facts-empty-pathspec-file");
+    let list: PathBuf = directory.join("empty-list");
+    std::fs::write(list.as_path(), b"").expect("the zero-byte list");
+    // The control: Git does not resolve `topic` on its own, so the answer needs the guess as well.
+    assert_eq!(
+        from_the_file(repository.as_path(), list.to_str().expect("utf-8 path"), PathspecTarget::Tree(Some(OsString::from("topic"))), false),
+        Ok(the_topics_tree())
+    );
+    // `restore` refuses an empty list itself, so its answer is nothing.
+    assert_eq!(
+        from_the_file(repository.as_path(), list.to_str().expect("utf-8 path"), PathspecTarget::Index, false),
+        Ok(Vec::<Vec<u8>>::new())
+    );
+    // A checkout with no tree-ish is a no-op to Git, so it writes nothing either.
+    assert_eq!(
+        from_the_file(repository.as_path(), list.to_str().expect("utf-8 path"), PathspecTarget::Tree(None), false),
+        Ok(Vec::<Vec<u8>>::new())
+    );
+    remove(directory.as_path());
+}
+
+/// A line that begins with a double quote is the C-quoted name Git reads,
+/// so the reading asks about that name and not about the quoted text.
+#[test]
+fn a_quoted_entry_is_the_name_git_reads() {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_tracked_file("facts-quoted-pathspec");
+    let tabbed: String = String::from("a\tb.txt");
+    git(repository.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    std::fs::write(repository.join(tabbed.as_str()), b"from the other tree\n").expect("the tabbed name");
+    git(repository.as_path(), &["add", "--", tabbed.as_str()]);
+    git(repository.as_path(), &["commit", "--quiet", "--message=tabbed"]);
+    git(repository.as_path(), &["checkout", "--quiet", "main"]);
+    let quoted: PathBuf = directory.join("quoted-list");
+    std::fs::write(quoted.as_path(), b"\"a\\tb.txt\"\n").expect("the quoted list");
+    let written: Result<Vec<Vec<u8>>, String> = from_the_file(
+        repository.as_path(),
+        quoted.to_str().expect("utf-8 path"),
+        PathspecTarget::Tree(Some(OsString::from("other"))),
+        false,
+    );
+    assert_eq!(written, Ok(vec![b"a\tb.txt".to_vec()]), "the quoted entry is the name Git reads");
+    remove(directory.as_path());
+}
+
+/// An empty line and a line Git calls badly quoted are Git's own refusals,
+/// so the reading refuses rather than answering that nothing is written.
+#[test]
+fn an_empty_or_badly_quoted_line_is_a_refusal() {
+    let (directory, repository): (PathBuf, PathBuf) = fixture_with_a_remote_branch("facts-bad-lines");
+    for (name, contents, wanted) in [
+        ("empty-line", b"b.txt\n\n".to_vec(), "holds an empty pathspec"),
+        ("bad-quote", b"\"b\\qb.txt\"\n".to_vec(), "badly quoted"),
+        ("unterminated", b"\"b.txt\n".to_vec(), "badly quoted"),
+    ] {
+        let list: PathBuf = directory.join(name);
+        std::fs::write(list.as_path(), contents.as_slice()).expect("the list");
+        let answer: Result<Vec<Vec<u8>>, String> = from_the_file(
+            repository.as_path(),
+            list.to_str().expect("utf-8 path"),
+            PathspecTarget::Tree(Some(OsString::from("origin/topic"))),
+            false,
+        );
+        match answer {
+            Err(cause) => assert!(cause.contains(wanted), "{name}: {cause}"),
+            Ok(found) => panic!("{name} was read as {found:?}"),
+        }
+    }
+    remove(directory.as_path());
+}
+
+/// What:
+///  A real Git replaced by a program that ends itself on one query and is Git for every other.
+///  `&str` names the word the shim dies on.
+/// Why:
+///  A child a signal ends answers nothing at all,
+///  which is not the answer "Git does not know the name" and not "the repository leaves guessing off";
+///  the guard must refuse rather than read a killed probe as nothing to guard.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const shim = writeShimThatDiesOn('checkout.guess', realGitPath);
+/// ```
+fn a_git_that_dies_on(word: &str, directory: &Path) -> PathBuf {
+    let shim: PathBuf = directory.join("git-that-dies");
+    let script: String = format!(
+        "#!/bin/sh\nfor each in \"$@\"; do\n  if [ \"$each\" = \"{word}\" ]; then kill -9 $$; fi\ndone\nexec {REAL_GIT} \"$@\"\n"
+    );
+    std::fs::write(shim.as_path(), script.as_bytes()).expect("the shim");
+    let mut permissions = std::fs::metadata(shim.as_path()).expect("the shim").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o755);
+    std::fs::set_permissions(shim.as_path(), permissions).expect("the shim runs");
+    return shim;
+}
+
+/// A query the system ended by a signal is a failure of the reading,
+/// for the listing,
+/// for the question whether Git knows the name,
+/// and for the repository's setting on guessing a remote branch.
+#[test]
+fn a_query_a_signal_ended_is_a_failure_and_never_an_answer() {
+    let (directory, repository): (PathBuf, PathBuf) = fixture_with_a_remote_branch("facts-killed-queries");
+    for word in ["checkout.guess", "ls-tree", "rev-parse"] {
+        let shim: PathBuf = a_git_that_dies_on(word, directory.as_path());
+        let prefix: Vec<OsString> = vec![OsString::from("-C"), repository.as_os_str().to_os_string()];
+        // The in-process readers answer `config` without starting a child, and a control about a killed child needs
+        //  the child: the same switch the wrapper's own README documents for that.
+        let mut overlay: Vec<(OsString, OsString)> = isolated_overlay();
+        overlay.push((OsString::from(crate::repo_read_hook::SWITCH_VARIABLE), OsString::from("off")));
+        let mut facts: GitFacts = git_facts(shim.as_path(), prefix.as_slice(), overlay.as_slice());
+        // The shape the review's case has: a forced `checkout` of a remote-only name, which asks the repository
+        //  whether it leaves the guess on before it can read the tree.
+        let answer: Result<Vec<Vec<u8>>, String> = paths_the_tree_writes(
+            &mut facts,
+            &WrittenPaths::Tree {
+                revision: Some(OsString::from("topic")),
+                entries: WrittenEntries::EveryEntry,
+                guesses_a_remote_branch: true,
+            },
+        );
+        match answer {
+            Err(cause) => assert!(cause.contains("ended by a signal"), "{word}: {cause}"),
+            Ok(found) => panic!("a {word} child a signal ended was read as {found:?}"),
+        }
+    }
+    remove(directory.as_path());
+}
+
+//endregion

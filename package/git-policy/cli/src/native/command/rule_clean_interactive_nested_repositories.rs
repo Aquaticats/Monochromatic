@@ -28,7 +28,7 @@ use crate::command_clean::{CLEAN_TABLE, CleanDryRun, clean_dry_run_arguments, pa
 ///  which is where the reading of it must start.
 use crate::command_run_directory::command_run_directory;
 /// Which nested Git repositories that reading says the clean would delete.
-use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
+use crate::command_clean_nested_repositories::{NestedRepository, nested_repositories_and_their_shape};
 /// Git's own option grammar,
 ///  for where the clean's options end.
 use crate::command_options::{Boundary, DEFAULT_MODE, ParsedOptions, parse_options};
@@ -40,8 +40,14 @@ use crate::repository_facts::RepositoryFacts;
 use crate::rule_argument_rewrite::insert_tokens;
 /// The directory the paths Git prints are below.
 use crate::worktree_identity::worktree_root;
+/// The two sentences a clean this transform cannot cap gives instead of the menu.
+use crate::rule_linked_worktree_nested_repository_messages::{
+    bare_repository_in_a_menu_message, menu_cap_not_reachable_message,
+};
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
+/// `Path` is a borrowed filesystem path.
+use std::path::Path;
 
 /// The tokens that make a clean run with exactly one force,
 ///  whatever it was typed with.
@@ -134,10 +140,12 @@ struct InteractiveClean {
 /// function keepNestedRepositoriesOutOfAnInteractiveMenu(args, facts): CapDecision;
 /// ```
 pub fn keep_nested_repositories_out_of_an_interactive_menu(
-    arguments: &[OsString],
+    reading: &[OsString],
+    forwarded: &[OsString],
+    shell_directory: Option<&Path>,
     facts: &mut dyn RepositoryFacts,
 ) -> CapDecision {
-    let Some(clean) = plan_interactive_clean(arguments) else {
+    let Some(clean) = plan_interactive_clean(reading, shell_directory) else {
         return CapDecision::Unchanged;
     };
     let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(clean.query) {
@@ -153,17 +161,41 @@ pub fn keep_nested_repositories_out_of_an_interactive_menu(
         },
         Err(_) => return CapDecision::Unchanged,
     };
-    let repositories: Vec<Vec<u8>> =
-        match nested_repositories_the_clean_deletes(deleted.as_slice(), root.as_path(), prefix.as_slice()) {
+    let found: Vec<NestedRepository> =
+        match nested_repositories_and_their_shape(deleted.as_slice(), root.as_path(), prefix.as_slice()) {
             Ok(found) => found,
             Err(message) => return CapDecision::Stopped { message },
         };
-    if repositories.is_empty() {
+    if found.is_empty() {
         return CapDecision::Unchanged;
     }
+    // One force is Git's own hold on a repository with a `.git` entry, and Git has none on a bare one:
+    //  `git clean -fXd` at one force deletes `bare/` and keeps `inner/`
+    //  (measured on this host with native Git 2.56.0, 2026-11-13).
+    //  A menu that would offer a bare repository is a menu one force does not keep, so the clean stops and the person
+    //  is told the two ways to run it with the repository in hand.
+    let mut bare: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    let mut kept: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    for each in found {
+        if each.bare {
+            bare.push(each.path);
+        } else {
+            kept.push(each.path);
+        }
+    }
+    if !bare.is_empty() {
+        return CapDecision::Stopped { message: bare_repository_in_a_menu_message(bare.as_slice()) };
+    }
+    // The cap is written into the words the wrapper forwards, and a `!` shell alias's own words are not among them:
+    //  Git appends the caller's words to the value the shell runs, so a token inserted here would land after any path
+    //  the person typed. A clean this transform cannot cap stops instead of running with a menu that offers the
+    //  repository.
+    if reading != forwarded {
+        return CapDecision::Stopped { message: menu_cap_not_reachable_message(kept.as_slice()) };
+    }
     return CapDecision::Capped {
-        arguments: insert_tokens(arguments, clean.insertion, ONE_FORCE),
-        repositories,
+        arguments: insert_tokens(forwarded, clean.insertion, ONE_FORCE),
+        repositories: kept,
     };
 }
 
@@ -182,7 +214,7 @@ pub fn keep_nested_repositories_out_of_an_interactive_menu(
 /// ```ts
 /// function planInteractiveClean(args): InteractiveClean | undefined;
 /// ```
-fn plan_interactive_clean(arguments: &[OsString]) -> Option<InteractiveClean> {
+fn plan_interactive_clean(arguments: &[OsString], shell_directory: Option<&Path>) -> Option<InteractiveClean> {
     let layout: GlobalLayout = global_layout(arguments);
     if layout.outcome != GlobalOutcome::Command {
         return None;
@@ -208,7 +240,7 @@ fn plan_interactive_clean(arguments: &[OsString]) -> Option<InteractiveClean> {
         query: clean_dry_run_arguments(
             &arguments[..layout.prefix_len],
             region,
-            command_run_directory(&arguments[..layout.prefix_len], None).ok()?.as_path(),
+            command_run_directory(&arguments[..layout.prefix_len], shell_directory).ok()?.as_path(),
         )?,
         insertion: layout.prefix_len + 1 + option_region_end(&parsed, region.len()),
     });

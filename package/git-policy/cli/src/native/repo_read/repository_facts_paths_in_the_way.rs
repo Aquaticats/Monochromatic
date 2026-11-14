@@ -329,7 +329,15 @@ fn worktree_entry_query(global_prefix: &[OsString], ignored: bool) -> Vec<OsStri
     } else {
         &["--others", "--exclude-standard", "--directory"]
     };
-    return crate::rule_worktree_dirty::listing_arguments(global_prefix, selection);
+    let mut arguments: Vec<OsString> = crate::rule_worktree_dirty::listing_arguments(global_prefix, selection);
+    // `:(top)` asks Git from the top of the worktree whatever directory the command runs in:
+    //  a listing without a pathspec is scoped to that directory
+    //  (`git ls-files --others --exclude-standard --directory --full-name` run in `sub` printed `sub/deep/` alone,
+    //  measured on this host with native Git 2.56.0, 2026-11-13),
+    //  while the forms this guards act on the whole worktree,
+    //  so the guard would otherwise see only the corner it stands in and call the rest empty.
+    arguments.push(OsString::from(":(top)"));
+    return arguments;
 }
 
 /// What:

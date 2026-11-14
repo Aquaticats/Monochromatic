@@ -162,6 +162,8 @@ pub fn run_policy_pass<F: RepositoryFacts>(
         // `&mut checks.facts` lends the provider for writing: a transform may ask Git one fact.
         let transformed: TransformResult = apply_fixed_transforms(
             arguments.as_slice(),
+            forwarded.decided_words.as_slice(),
+            forwarded.shell_directory.as_deref(),
             request.controls.commit_only_escaped,
             request.controls.escaped.contains(&PolicyId::LinkedWorktreeOnly),
             &mut checks.facts,

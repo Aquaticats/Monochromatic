@@ -261,54 +261,91 @@ fn a_forced_checkout_index_writes_the_index_below_its_prefix() {
     }
 }
 
+/// What:
+///  The pathspec-file answer a form gives:
+///  what the list is matched against,
+///  the file,
+///  its separator,
+///  which entries an empty list turns the form into,
+///  and whether `checkout` may guess the remote branch its name stands for.
+/// Why:
+///  Every spelling of the option reaches the same reading, and each field is a different question the
+///  files in the way are found by.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fromAFile('tree', 'list.txt', false, 'every-entry', true)
+/// ```
+fn from_a_file(
+    target: PathspecTarget,
+    file: &str,
+    nul_separated: bool,
+    entries: WrittenEntries,
+    guesses: bool,
+) -> Option<WrittenPaths> {
+    return Some(WrittenPaths::PathspecFile {
+        target,
+        file: OsString::from(file),
+        nul_separated,
+        directory: None,
+        entries,
+        guesses_a_remote_branch: guesses,
+    });
+}
+
 /// A form that reads its pathspecs from a file names paths no token does,
 /// in every spelling Git accepts,
-/// matched against the tree it names or against the index when it names none.
+/// matched against the tree it names or against the index when it names none;
+/// a `restore` refuses an empty list itself, so its whole-tree answer keeps `EveryEntry`,
+/// while a `checkout` writes over every entry when it is forced and over the ignored ones when it is not,
+/// and guesses the remote branch its name stands for.
 #[test]
 fn a_pathspec_file_is_read_in_every_spelling() {
-    let from_a_file: fn(PathspecTarget, &str, bool) -> Option<WrittenPaths> = |target, file, nul_separated| {
-        return Some(WrittenPaths::PathspecFile {
-            target,
-            file: OsString::from(file),
-            nul_separated,
-            directory: None,
-        });
-    };
-    let cases: [(GuardedCommand, Vec<&str>, Option<WrittenPaths>); 8] = [
+    let cases: [(GuardedCommand, Vec<&str>, Option<WrittenPaths>); 10] = [
         (
             GuardedCommand::RestoreWorktree,
             vec!["--source=other", "--pathspec-from-file", "list.txt"],
-            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false),
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false, WrittenEntries::EveryEntry, false),
         ),
         (
             GuardedCommand::RestoreWorktree,
             vec!["--source=other", "--pathspec-from-file=list.txt"],
-            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false),
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false, WrittenEntries::EveryEntry, false),
         ),
         (
             GuardedCommand::RestoreWorktree,
             vec!["--pathspec-from-file", "list.txt"],
-            from_a_file(PathspecTarget::Index, "list.txt", false),
+            from_a_file(PathspecTarget::Index, "list.txt", false, WrittenEntries::EveryEntry, false),
         ),
         (
             GuardedCommand::RestoreWorktree,
             vec!["--source=other", "--pathspec-file-nul", "--pathspec-from-file=list.txt"],
-            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", true),
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", true, WrittenEntries::EveryEntry, false),
         ),
         (
             GuardedCommand::CheckoutPaths,
             vec!["other", "--pathspec-from-file", "list.txt"],
-            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false),
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false, WrittenEntries::OnlyIgnored, true),
         ),
         (
             GuardedCommand::CheckoutPaths,
             vec!["--pathspec-from-file=list.txt"],
-            from_a_file(PathspecTarget::Index, "list.txt", false),
+            from_a_file(PathspecTarget::Index, "list.txt", false, WrittenEntries::OnlyIgnored, true),
         ),
         (
             GuardedCommand::CheckoutPaths,
             vec!["--pathspec-file-nul", "--pathspec-from-file=list.txt", "other"],
-            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", true),
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", true, WrittenEntries::OnlyIgnored, true),
+        ),
+        (
+            GuardedCommand::CheckoutPaths,
+            vec!["--force", "other", "--pathspec-from-file", "list.txt"],
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false, WrittenEntries::EveryEntry, true),
+        ),
+        (
+            GuardedCommand::CheckoutPaths,
+            vec!["--no-guess", "other", "--pathspec-from-file", "list.txt"],
+            from_a_file(PathspecTarget::Tree(Some(OsString::from("other"))), "list.txt", false, WrittenEntries::OnlyIgnored, false),
         ),
         (
             GuardedCommand::CheckoutPaths,
@@ -324,3 +361,113 @@ fn a_pathspec_file_is_read_in_every_spelling() {
         );
     }
 }
+
+//region The second review's readings of repeated options and of names that are not text
+
+/// A source written twice is the last one, which is the value Git's own parser keeps.
+#[test]
+fn a_source_written_twice_is_the_last_one() {
+    for (values, wanted) in [
+        (vec!["-s", "main", "-s", "other", "--", "f.txt"], "other"),
+        (vec!["--source=main", "--source=other", "--", "f.txt"], "other"),
+        (vec!["--source", "main", "--source", "other", "--", "f.txt"], "other"),
+        (vec!["-smain", "-sother", "--", "f.txt"], "other"),
+        // A value that looks like a flag is that value, and the one after it is the last.
+        (vec!["--source", "-W", "--source", "other", "--", "f.txt"], "other"),
+    ] {
+        let tree_of: Option<WrittenPaths> = matching(Some(wanted), &["f.txt"]);
+        assert_eq!(
+            written_paths(GuardedCommand::RestoreWorktree, words(values.as_slice()).as_slice(), None),
+            tree_of,
+            "{values:?}"
+        );
+    }
+    for values in [vec!["-s", "other", "-s", "main", "--", "f.txt"], vec!["--source=other", "--source=main", "--", "f.txt"]] {
+        assert_eq!(
+            written_paths(GuardedCommand::RestoreWorktree, words(values.as_slice()).as_slice(), None),
+            matching(Some("main"), &["f.txt"]),
+            "{values:?}"
+        );
+    }
+}
+
+/// Every word that is a path or a revision keeps the bytes it was typed as,
+/// in each spelling Git's tables accept.
+#[test]
+fn a_word_that_is_a_path_or_a_revision_keeps_its_bytes() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    /// One name as the operating system holds it, with a byte no text holds.
+    fn word(bytes: &[u8]) -> OsString {
+        return OsString::from_vec(bytes.to_vec());
+    }
+    // A `read-tree` prefix, and a `checkout-index` prefix.
+    let read_tree_prefix: [u8; 9] = [b'p', b'-', 0xff, b'/', b'x', b'/', b'y', b'/', b'z'];
+    let read_tree: Option<WrittenPaths> = written_paths(
+        GuardedCommand::ReadTree,
+        &[word(b"-u"), word(b"--prefix"), word(&read_tree_prefix), word(b"other")],
+        None,
+    );
+    assert_eq!(
+        read_tree,
+        Some(WrittenPaths::ReadTree {
+            revisions: vec![word(b"other")],
+            prefix: Some(word(&read_tree_prefix)),
+            entries: WrittenEntries::OnlyIgnored,
+        })
+    );
+    let checkout_index: Option<WrittenPaths> = written_paths(
+        GuardedCommand::CheckoutIndex,
+        &[word(b"-f"), word(b"--prefix=p-\xff/"), word(b"-a")],
+        None,
+    );
+    assert_eq!(
+        checkout_index,
+        Some(WrittenPaths::IndexUnderPrefix {
+            pathspecs: Vec::<OsString>::new(),
+            prefix: word(b"p-\xff/"),
+        })
+    );
+    // Both spellings of a restore's source.
+    for region in [
+        vec![word(b"--source=br-\xff"), word(b"--"), word(b"f.txt")],
+        vec![word(b"-sbr-\xff"), word(b"--"), word(b"f.txt")],
+    ] {
+        assert_eq!(
+            written_paths(GuardedCommand::RestoreWorktree, region.as_slice(), None),
+            Some(WrittenPaths::MatchingTree {
+                revision: Some(word(b"br-\xff")),
+                pathspecs: vec![word(b"f.txt")],
+            })
+        );
+    }
+    // The file a `--pathspec-from-file` name gives.
+    let inline: Option<WrittenPaths> = written_paths(
+        GuardedCommand::CheckoutPaths,
+        &[word(b"other"), word(b"--pathspec-from-file=n-\xff")],
+        None,
+    );
+    match inline {
+        Some(WrittenPaths::PathspecFile { file, .. }) => assert_eq!(file, word(b"n-\xff")),
+        other => panic!("the inline file name was read as {other:?}"),
+    }
+    // The name a source takes inside a directory destination of a forced move.
+    let moved: Option<WrittenPaths> = written_paths(
+        GuardedCommand::Move,
+        &[word(b"-f"), word(b"a.txt"), word(b"p-\xff")],
+        None,
+    );
+    match moved {
+        Some(WrittenPaths::Paths { paths }) => {
+            let named: Vec<Vec<u8>> = paths.iter().map(|path| return path.as_encoded_bytes().to_vec()).collect();
+            assert!(named.contains(&b"p-\xff".to_vec()), "{named:?}");
+            assert!(
+                named.contains(&b"p-\xff/a.txt".to_vec()),
+                "the name inside the destination keeps its bytes: {named:?}"
+            );
+        }
+        other => panic!("the move was read as {other:?}"),
+    }
+}
+
+//endregion

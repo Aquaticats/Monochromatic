@@ -104,9 +104,12 @@ pub(super) fn edits_the_status_hides(
 /// ```
 fn marked_paths(facts: &mut GitFacts, skip_worktree_too: bool) -> Result<Vec<Vec<u8>>, String> {
     let mut arguments: Vec<OsString> = facts.global_prefix.clone();
-    for token in ["--no-optional-locks", "ls-files", "-v", "-z", "--full-name"] {
+    for token in ["--no-optional-locks", "--no-literal-pathspecs", "ls-files", "-v", "-z", "--full-name", "--"] {
         arguments.push(OsString::from(token));
     }
+    // `:(top)` asks from the top of the worktree: a listing without a pathspec is scoped to the directory Git runs in,
+    //  while an edit to a marked path anywhere in the worktree is one a discarding form would lose.
+    arguments.push(OsString::from(":(top)"));
     let output: MetadataOutput = facts.query(arguments, "the paths the index marks assume-unchanged")?;
     if !output.success {
         return Err(failed(&output, "the paths the index marks assume-unchanged"));

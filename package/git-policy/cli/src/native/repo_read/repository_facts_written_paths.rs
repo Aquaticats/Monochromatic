@@ -25,6 +25,9 @@
 use super::repository_facts::GitFacts;
 /// The written-path reading this fact answers.
 use crate::command_written_paths::{PathspecTarget, WrittenPaths};
+/// The interface the location is asked through,
+///  whose `prefix` names the paths a form that names paths writes below.
+use crate::repository_facts::RepositoryFacts;
 /// The captured-query runner's output type,
 ///  and the NUL-separated reading of an answer.
 use crate::git_metadata::MetadataOutput;
@@ -66,17 +69,24 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
         WrittenPaths::IndexUnderPrefix { pathspecs, prefix } => index_under_prefix_paths(facts, pathspecs, prefix),
         WrittenPaths::Paths { paths } => Ok(paths.iter().map(|path| return path.as_encoded_bytes().to_vec()).collect()),
         WrittenPaths::ReadTree { revisions, prefix, .. } => read_tree_paths(facts, revisions.as_slice(), prefix.as_deref()),
-        WrittenPaths::PathspecFile { target, file, nul_separated, directory } => {
+        WrittenPaths::PathspecFile { target, file, nul_separated, directory, entries: _, guesses_a_remote_branch } => {
             let at: Option<&Path> = directory.as_ref().map(|named| return Path::new(named));
             let pathspecs: Vec<OsString> = pathspecs_in_the_file(file, *nul_separated, at)?;
-            if pathspecs.is_empty() {
-                Ok(Vec::<Vec<u8>>::new())
-            } else {
-                match target {
+            if !pathspecs.is_empty() {
+                return match target {
                     PathspecTarget::Tree(revision) => tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false),
                     PathspecTarget::Index => index_paths(facts, pathspecs.as_slice()),
-                }
+                };
             }
+            // Git reads a zero-byte file as "no pathspecs were given", so the form becomes the one without a path at
+            //  all: a `checkout` of a tree writes that whole tree (by force, over every entry) and guesses the remote
+            //  branch its name stands for, and a `restore` is Git's own refusal, which writes nothing.
+            return match target {
+                PathspecTarget::Tree(Some(revision)) => {
+                    tree_paths(facts, Some(revision.as_os_str()), &[], *guesses_a_remote_branch)
+                }
+                PathspecTarget::Tree(None) | PathspecTarget::Index => Ok(Vec::<Vec<u8>>::new()),
+            };
         }
     };
 }
@@ -144,16 +154,131 @@ fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: Option<&P
             return Err(format!("Git could not read the pathspecs `{}` names: {error}", absolute.display()));
         }
     };
+    // A zero-byte file is no pathspec at all, which Git reads as "none were given"
+    //  (`git checkout -f other --pathspec-from-file=<empty>` switches the branch by force,
+    //  measured on this host with native Git 2.56.0, 2026-11-13);
+    //  an empty entry inside a file is Git's own refusal
+    //  (`fatal: empty string is not a valid pathspec`, measured in the same place),
+    //  and neither may be read as "nothing is written by a form that names paths".
+    if bytes.is_empty() {
+        return Ok(Vec::<OsString>::new());
+    }
     let separator: u8 = if nul_separated { 0 } else { b'\n' };
     let mut pathspecs: Vec<OsString> = Vec::<OsString>::new();
-    for entry in bytes.split(|byte| return *byte == separator) {
-        let trimmed: &[u8] = entry.strip_suffix(b"\r").unwrap_or(entry);
-        if trimmed.is_empty() {
-            continue;
+    let mut entries: Vec<&[u8]> = bytes.split(|byte| return *byte == separator).collect::<Vec<&[u8]>>();
+    // A line-ended file ends with a separator, which names no entry of its own.
+    if let Some(last) = entries.last()
+        && last.is_empty()
+    {
+        entries.pop();
+    }
+    for entry in entries {
+        let line: &[u8] = if nul_separated { entry } else { entry.strip_suffix(b"\r").unwrap_or(entry) };
+        if line.is_empty() {
+            return Err(format!(
+                "the file `{}` that `--pathspec-from-file` names holds an empty pathspec, which Git refuses (`empty string is not a valid pathspec`), and the guard cannot tell which paths this command writes over",
+                absolute.display()
+            ));
         }
-        pathspecs.push(path_from_bytes(trimmed));
+        // A line that begins with a double quote is a C-quoted string to Git, and one that does not is the name
+        //  itself: the quoted form is what Git prints for a name it cannot show plainly.
+        let unquoted: Vec<u8> = if !nul_separated && line.first() == Some(&b'"') {
+            match unquote_c_style(line, absolute.as_path())? {
+                Some(found) => found,
+                None => line.to_vec(),
+            }
+        } else {
+            line.to_vec()
+        };
+        pathspecs.push(path_from_bytes(unquoted.as_slice()));
     }
     return Ok(pathspecs);
+}
+
+/// What:
+///  The bytes of one C-quoted line of a pathspec file,
+///  which is the name Git reads from it,
+///  or nothing when the line does not end its quote.
+///  `&[u8]` borrows the line, `&Path` the file, for the refusal's words.
+/// Why:
+///  Git unquotes a line that begins with a double quote (`parse_pathspec_file` in `pathspec.c`):
+///  `\t`, `\n` and the other C escapes become their bytes,
+///  an octal `\ooo` becomes one byte,
+///  and anything after the closing quote is ignored
+///  (`"plain.txt" junk` writes `plain.txt`,
+///  measured on this host with native Git 2.56.0, 2026-11-13).
+///  An escape Git does not know, or a quote it never closes, is Git's own refusal
+///  (`fatal: line is badly quoted`), so the reading refuses too rather than asking about a path
+///  Git never writes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unquoted = (line) => line[0] === '"' ? unquoteCStyle(line) : line;
+/// ```
+fn unquote_c_style(line: &[u8], file: &Path) -> Result<Option<Vec<u8>>, String> {
+    let mut found: Vec<u8> = Vec::<u8>::new();
+    let mut at: usize = 1;
+    while at < line.len() {
+        let byte: u8 = line[at];
+        at += 1;
+        match byte {
+            b'"' => return Ok(Some(found)),
+            b'\\' => {
+                let Some(escaped) = line.get(at) else {
+                    return Err(badly_quoted(line, file));
+                };
+                at += 1;
+                match *escaped {
+                    b'a' => found.push(0x07),
+                    b'b' => found.push(0x08),
+                    b'f' => found.push(0x0c),
+                    b'n' => found.push(b'\n'),
+                    b'r' => found.push(b'\r'),
+                    b't' => found.push(b'\t'),
+                    b'v' => found.push(0x0b),
+                    b'\\' => found.push(b'\\'),
+                    b'"' => found.push(b'"'),
+                    digit if (b'0'..=b'7').contains(&digit) => {
+                        let mut value: u32 = u32::from(digit - b'0');
+                        let mut taken: usize = 1;
+                        while taken < 3
+                            && let Some(next) = line.get(at)
+                            && (b'0'..=b'7').contains(next)
+                        {
+                            value = value * 8 + u32::from(*next - b'0');
+                            at += 1;
+                            taken += 1;
+                        }
+                        if value > u32::from(u8::MAX) {
+                            return Err(badly_quoted(line, file));
+                        }
+                        found.push(u8::try_from(value).unwrap_or(0));
+                    }
+                    _ => return Err(badly_quoted(line, file)),
+                }
+            }
+            other => found.push(other),
+        }
+    }
+    return Err(badly_quoted(line, file));
+}
+
+/// What:
+///  The sentence for a quote Git would reject,
+///  naming the file and the line.
+/// Why:
+///  A refusal a person reads has to say which file holds the line Git cannot read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refused = (line, file) => `... line is badly quoted ... ${file}`;
+/// ```
+fn badly_quoted(line: &[u8], file: &Path) -> String {
+    return format!(
+        "the file `{}` that `--pathspec-from-file` names holds a line Git refuses as badly quoted (`{}`), so the guard cannot tell which paths this command writes over",
+        file.display(),
+        String::from_utf8_lossy(line)
+    );
 }
 
 /// What:
@@ -296,6 +421,14 @@ fn tree_reading_failure(named: &OsStr, what_git_did: &str) -> String {
 /// Why:
 ///  A listing that ran and failed says the name did not resolve to a tree Git can list;
 ///  a listing that could not run at all is a failure of the query, never a killed read.
+///  `git ls-tree` is scoped to the directory Git runs in unless `--full-tree` is written
+///  (run in `sub` it printed `inner.txt` alone, where the tree holds `top.txt` and `sub/inner.txt`,
+///  measured on this host with native Git 2.56.0, 2026-11-13),
+///  and every guarded form acts on the whole worktree,
+///  so the whole-tree reading asks with `--full-tree` and names paths the worktree root holds.
+///  A form that names paths keeps Git's own reading of them, which is relative to the directory the
+///  command runs in,
+///  and its answers are written below that directory as the worktree root sees it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -306,6 +439,10 @@ fn listed_paths_of(facts: &mut GitFacts, named: &OsStr, pathspecs: &[OsString]) 
     for token in ["--no-optional-locks", "ls-tree", "-r", "-z", "--name-only"] {
         arguments.push(OsString::from(token));
     }
+    if pathspecs.is_empty() {
+        // `--full-tree` prints every path of the tree, whatever directory Git runs in.
+        arguments.push(OsString::from("--full-tree"));
+    }
     arguments.push(named.to_os_string());
     if !pathspecs.is_empty() {
         arguments.push(OsString::from("--"));
@@ -313,9 +450,28 @@ fn listed_paths_of(facts: &mut GitFacts, named: &OsStr, pathspecs: &[OsString]) 
     }
     let output: MetadataOutput = facts.query(arguments, "the tree this command writes")?;
     if !output.success {
+        // A child a signal ended answered nothing at all; only a nonzero exit is an answer about the name.
+        if output.code.is_none() {
+            return Err(String::from(
+                "Git was ended by a signal while the guard asked which paths this command writes, so it cannot tell what would be overwritten",
+            ));
+        }
         return Ok(None);
     }
-    return Ok(Some(nul_separated_paths(output.stdout.as_slice())));
+    let mut paths: Vec<Vec<u8>> = nul_separated_paths(output.stdout.as_slice());
+    if pathspecs.is_empty() || paths.is_empty() {
+        return Ok(Some(paths));
+    }
+    // A path form's answers are relative to the directory Git runs in, and the entries in the way are named from the
+    //  worktree root, so the directory's own prefix is written before each of them.
+    let location: crate::repository_location::RepositoryLocation = facts.location()?;
+    let mut rooted: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(paths.len());
+    for path in paths.drain(..) {
+        let mut below: Vec<u8> = location.prefix.clone();
+        below.extend(path);
+        rooted.push(below);
+    }
+    return Ok(Some(rooted));
 }
 
 /// What:
@@ -341,6 +497,12 @@ fn git_holds_an_object_named(facts: &mut GitFacts, named: &OsStr) -> Result<bool
     }
     arguments.push(named.to_os_string());
     let output: MetadataOutput = facts.query(arguments, "whether Git knows this revision")?;
+    // `rev-parse --verify --quiet` answers through its exit status, so a child a signal ended answered nothing.
+    if !output.success && output.code.is_none() {
+        return Err(String::from(
+            "Git was ended by a signal while the guard asked whether it knows the revision this command names, so it cannot tell what would be overwritten",
+        ));
+    }
     return Ok(output.success);
 }
 
@@ -366,6 +528,12 @@ fn guessing_is_left_on_in_this_repository(facts: &mut GitFacts) -> Result<bool, 
     }
     let output: MetadataOutput = facts.query(arguments, "the repository's answer on guessing a remote branch")?;
     if !output.success {
+        // A child a signal ended answered nothing at all, which is no statement about the repository's setting.
+        if output.code.is_none() {
+            return Err(String::from(
+                "Git was ended by a signal while the guard asked whether this repository leaves a remote branch to be guessed, so it cannot tell what this command would write over",
+            ));
+        }
         // `config --get` exits 1 for a key that is not set, and Git then guesses.
         //  Any other nonzero is a configuration Git objects to, and Git then refuses the command
         //  itself, so the guard resolves nothing either.
@@ -608,8 +776,12 @@ fn index_paths(facts: &mut GitFacts, pathspecs: &[OsString]) -> Result<Vec<Vec<u
     for token in ["--no-optional-locks", "ls-files", "-z", "--cached", "--full-name"] {
         arguments.push(OsString::from(token));
     }
-    if !pathspecs.is_empty() {
-        arguments.push(OsString::from("--"));
+    arguments.push(OsString::from("--"));
+    if pathspecs.is_empty() {
+        // A listing without a pathspec is scoped to the directory Git runs in, and the paths it prints are the
+        //  worktree's own, so the whole index is asked for from the top (`:(top)`).
+        arguments.push(OsString::from(":(top)"));
+    } else {
         arguments.extend(pathspecs.iter().cloned());
     }
     let output: MetadataOutput = facts.query(arguments, "the paths the index holds")?;

@@ -12,8 +12,13 @@
 //! // outermostEntries([Buffer.from('a/b'), Buffer.from('a'), Buffer.from('ab')]) === ['a', 'ab']
 //! ```
 
-use super::{entries_the_form_would_lose, outermost_entries, stands_where_the_form_writes};
-use crate::command_test_support::{fixture, remove};
+use super::{entries_the_form_would_lose, outermost_entries, paths_in_the_way, stands_where_the_form_writes};
+use crate::command_test_support::{fixture, git, remove, repository_with_tracked_file};
+use crate::command_written_paths::{WrittenEntries, WrittenPaths};
+use crate::repo_read::repository_facts::{GitFacts, git_facts};
+use crate::test_support::{REAL_GIT, isolated_overlay};
+use std::ffi::OsString;
+use std::path::{Path, PathBuf};
 
 /// The paths as the reading sorts them.
 fn written(paths: &[&[u8]]) -> Vec<Vec<u8>> {
@@ -133,3 +138,50 @@ fn a_written_path_names_what_lies_inside_a_collapsed_directory() {
     );
     remove(root.as_path());
 }
+
+//region A listing made below the worktree root
+
+/// What:
+///  The entries a form's written paths meet, read by a command that runs in a directory below the
+///  worktree root.
+/// Why:
+///  `git ls-files` without a pathspec lists only the directory Git runs in
+///  (`git ls-files --others --exclude-standard --directory --full-name` run in `sub` printed `sub/deep/` alone,
+///  measured on this host with native Git 2.56.0, 2026-11-13),
+///  while every guarded form acts on the whole worktree;
+///  a guard that asked from the caller's directory would report the rest of the worktree as empty
+///  and let the form write over a file it never saw.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pathsInTheWay(factsAt('repo/sub'), { kind: 'tree', revision: 'other' }) === ['top.txt']
+/// ```
+#[test]
+fn a_whole_worktree_listing_names_entries_above_the_directory_it_runs_in() {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_tracked_file("paths-in-the-way-below-the-root");
+    // The branch `other` holds `top.txt`; the worktree is on `main`, which does not, so the file stands untracked.
+    git(repository.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    std::fs::write(repository.join("top.txt"), b"from the other tree\n").expect("the tracked file on other");
+    git(repository.as_path(), &["add", "--", "top.txt"]);
+    git(repository.as_path(), &["commit", "--quiet", "--message=other", "--", "top.txt"]);
+    git(repository.as_path(), &["checkout", "--quiet", "main"]);
+    std::fs::create_dir(repository.join("sub")).expect("the directory the command runs in");
+    std::fs::write(repository.join("top.txt"), b"the person's untracked file above the caller\n").expect("the untracked file");
+    let mut facts: GitFacts = git_facts(
+        Path::new(REAL_GIT),
+        &[OsString::from("-C"), repository.join("sub").into_os_string()],
+        isolated_overlay().as_slice(),
+    );
+    let named: Result<Vec<String>, String> = paths_in_the_way(
+        &mut facts,
+        &WrittenPaths::Tree {
+            revision: Some(OsString::from("other")),
+            entries: WrittenEntries::EveryEntry,
+            guesses_a_remote_branch: false,
+        },
+    );
+    assert_eq!(named, Ok(vec![String::from("top.txt")]), "the entry above the caller is the one in the way");
+    remove(directory.as_path());
+}
+
+//endregion

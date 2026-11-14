@@ -61,6 +61,25 @@ pub enum PathspecTarget {
 }
 
 /// What:
+///  One word of a command as the operating system takes it,
+///  from the bytes the person typed or Git printed.
+/// Why:
+///  A prefix,
+///  a source and a file name are paths and revisions,
+///  and Git holds any bytes in a name;
+///  a conversion through `String` replaces every byte that is not UTF-8
+///  and then names another file,
+///  which is how a forced form wrote over a file the guard had not found.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const word = (bytes) => Buffer.from(bytes); // already the name
+/// ```
+fn word_of(bytes: &[u8]) -> OsString {
+    return crate::path_bytes::os_from_path_bytes(bytes);
+}
+
+/// What:
 ///  Which of the worktree's entries at a written path Git writes over:
 ///  every one, or only the ones its ignore rules cover.
 ///  An `enum` is a closed set of named alternatives.
@@ -173,6 +192,21 @@ pub enum WrittenPaths {
         ///  which is the shell's for a command a `!` alias runs
         ///  and the command's own otherwise.
         directory: Option<OsString>,
+        /// What:
+        ///  Which entries at the written paths Git writes over,
+        ///  when the file holds no pathspec at all.
+        /// Why:
+        ///  Git reads a zero-byte file as "no pathspecs were given"
+        ///  (`git checkout -f other --pathspec-from-file=<empty>` switches the branch by force,
+        ///  measured on this host with native Git 2.56.0, 2026-11-13),
+        ///  so the form becomes the whole-tree form and its forced or ordinary answer decides the
+        ///  entries: a forced one writes over everything, an ordinary one keeps an untracked file
+        ///  and writes over the ignored one.
+        entries: WrittenEntries,
+        /// What:
+        ///  Whether the command line leaves `checkout` free to guess the remote branch the name stands
+        ///  for, which it does for the whole-tree form an empty file leaves behind.
+        guesses_a_remote_branch: bool,
     },
     /// The paths of every tree a `git read-tree -u` names,
     ///  each below the prefix the form writes them under.
@@ -319,7 +353,7 @@ fn move_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
         let mut inside: Vec<u8> = destination.as_encoded_bytes().to_vec();
         inside.push(b'/');
         inside.extend(name);
-        paths.push(OsString::from(String::from_utf8_lossy(inside.as_slice()).into_owned()));
+        paths.push(word_of(inside.as_slice()));
     }
     return Some(WrittenPaths::Paths { paths });
 }
@@ -363,7 +397,7 @@ fn checkout_index_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
         }
         if spells_long(written, "prefix", names) {
             match written.iter().position(|byte| return *byte == b'=') {
-                Some(equals) => prefix = Some(OsString::from(String::from_utf8_lossy(&written[equals + 1..]).into_owned())),
+                Some(equals) => prefix = Some(word_of(&written[equals + 1..])),
                 None => prefix = region.get(at).cloned(),
             }
             continue;
@@ -429,7 +463,7 @@ fn read_tree_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
         if occurrence.id == READ_TREE_PREFIX
             && let Some(value) = occurrence.value
         {
-            prefix = Some(OsString::from(String::from_utf8_lossy(value_bytes(region, value)).into_owned()));
+            prefix = Some(word_of(value_bytes(region, value)));
         }
     }
     return Some(WrittenPaths::ReadTree {
@@ -456,7 +490,7 @@ fn checkout_written_paths(region: &[OsString], shell_directory: Option<&Path>) -
     // A form that reads its pathspecs from a file reaches paths no token names, so the file is where the
     //  written paths are read.
     if let Some((file, nul_separated)) = pathspec_file(region) {
-        return Some(pathspec_file_written_paths(region, file, nul_separated, shell_directory));
+        return Some(pathspec_file_written_paths(region, file, nul_separated, shell_directory, is_enabled(&parsed, FORCE)));
     }
     let names: Vec<&OsString> = positional_tokens(&parsed, region.len())
         .into_iter()
@@ -554,6 +588,10 @@ fn restore_written_paths(region: &[OsString], shell_directory: Option<&Path>) ->
             file,
             nul_separated,
             directory: shell_directory.map(|directory| return directory.as_os_str().to_os_string()),
+            // Git refuses a restore with no path at all: `fatal: you must specify path(s) to restore`
+            //  (measured on this host with native Git 2.56.0, 2026-11-13), so only the refusal follows an empty file.
+            entries: WrittenEntries::EveryEntry,
+            guesses_a_remote_branch: false,
         });
     }
     let pathspecs: Vec<OsString> = restore_pathspecs(region);
@@ -569,6 +607,8 @@ fn restore_written_paths(region: &[OsString], shell_directory: Option<&Path>) ->
 /// Why:
 ///   `--source <tree>`, `--source=<tree>`, `-s <tree>` and `-s<tree>` are one option,
 ///  and a value that looks like a flag is that value (`restore --source -W -- f`).
+///  An option written twice keeps the last value, as Git's own parser does,
+///  so every occurrence is read and the last one is the answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -576,19 +616,29 @@ fn restore_written_paths(region: &[OsString], shell_directory: Option<&Path>) ->
 /// ```
 fn restore_source(region: &[OsString]) -> Option<OsString> {
     let mut at: usize = 0;
+    let mut source: Option<OsString> = None;
     while at < region.len() {
         let written: &[u8] = region[at].as_encoded_bytes();
         at += 1;
         if written == b"--" {
-            return None;
+            break;
         }
         if let Some(value) = long_option_value(written, "source") {
-            return Some(value);
+            // Git's own option parser keeps the last value of an option written twice
+            //  (`git restore -s main -s other -- f.txt` writes `other`'s content,
+            //  measured on this host with native Git 2.56.0, 2026-11-13), so a reading that stopped at the first
+            //  one asked about a tree Git never reads.
+            source = Some(value);
+            continue;
         }
         let long_without_value: bool =
             written.starts_with(b"--") && !written.contains(&b'=') && spells_long(written, "source", crate::command_discard::RESTORE_LONG_OPTIONS);
         if long_without_value {
-            return region.get(at).cloned();
+            if let Some(value) = region.get(at) {
+                source = Some(value.clone());
+            }
+            at += 1;
+            continue;
         }
         if written.starts_with(b"--") {
             if !written.contains(&b'=') && option_takes_a_value(written) {
@@ -606,12 +656,16 @@ fn restore_source(region: &[OsString]) -> Option<OsString> {
             };
             let value: &[u8] = &cluster[position + 1..];
             if !value.is_empty() {
-                return Some(OsString::from(String::from_utf8_lossy(value).into_owned()));
+                source = Some(word_of(value));
+                continue;
             }
-            return region.get(at).cloned();
+            if let Some(next) = region.get(at) {
+                source = Some(next.clone());
+            }
+            at += 1;
         }
     }
-    return None;
+    return source;
 }
 
 /// What:
@@ -630,7 +684,7 @@ fn long_option_value(written: &[u8], name: &str) -> Option<OsString> {
         return None;
     }
     let equals: usize = written.iter().position(|byte| return *byte == b'=')?;
-    return Some(OsString::from(String::from_utf8_lossy(&written[equals + 1..]).into_owned()));
+    return Some(word_of(&written[equals + 1..]));
 }
 
 /// What:
@@ -722,7 +776,7 @@ fn pathspec_file(region: &[OsString]) -> Option<(OsString, bool)> {
             continue;
         }
         match written.iter().position(|byte| return *byte == b'=') {
-            Some(equals) => file = Some(OsString::from(String::from_utf8_lossy(&written[equals + 1..]).into_owned())),
+            Some(equals) => file = Some(word_of(&written[equals + 1..])),
             None => file = region.get(at).cloned(),
         }
     }
@@ -746,6 +800,7 @@ fn pathspec_file_written_paths(
     file: OsString,
     nul_separated: bool,
     shell_directory: Option<&Path>,
+    forced: bool,
 ) -> WrittenPaths {
     // The tree-ish is the last word that is neither an option nor the file's name.
     let read: Option<ParsedOptions> = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok();
@@ -767,6 +822,8 @@ fn pathspec_file_written_paths(
         file,
         nul_separated,
         directory: shell_directory.map(|directory| return directory.as_os_str().to_os_string()),
+        entries: if forced { WrittenEntries::EveryEntry } else { WrittenEntries::OnlyIgnored },
+        guesses_a_remote_branch: guess_is_not_switched_off(region),
     };
 }
 
