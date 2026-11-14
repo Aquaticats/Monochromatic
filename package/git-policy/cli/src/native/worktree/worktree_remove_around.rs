@@ -183,6 +183,8 @@ pub(crate) fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: 
         warn(TAG, report.as_str());
         return RemoveOutcome::Incomplete(report);
     }
+    #[cfg(test)]
+    crate::subvolume_remove_listing_test_support::after_the_around_pass(target);
     // What is left is looked at again through the descriptor this removal holds: a volume that went away while the pass ran
     // leaves a tree that is now empty, and the root then goes with it.
     let left: Vec<Boundary> = look_for_boundaries(&held.target, target).found;
