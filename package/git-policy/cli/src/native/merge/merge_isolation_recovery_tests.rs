@@ -4512,6 +4512,92 @@ fn a_capture_another_record_still_names_keeps_its_ref() {
     remove(world.parent.as_path());
 }
 
+/// What:
+///  Two commands that finish the two records of one capture, each deciding before either removes its record,
+///  leave no ref behind.
+/// Why:
+///  A saved merge writes two records that name one capture,
+/// and the ref that keeps the capture is dropped by whichever command finishes last.
+/// Nothing orders two commands' recoveries,
+/// so both can look at the record set before either removes its record:
+/// if each answers "the other one still needs it",
+/// both remove their records and the ref is left with nobody to drop it
+/// (the second review of this branch,
+/// its second finding,
+/// which is the price of the fix for the alpha.14 audit's third finding).
+/// Each finish writes the sibling that says its carry has finished before it decides
+/// (`merge_isolation_journal.rs`,
+/// `mark_carry_finished`),
+/// so a record whose carry is finished is no claim on the ref,
+/// and a deletion of a name already gone is what the deletion wanted.
+/// The control takes both decisions before it acts on either,
+/// which is the interleaving,
+/// and then removes both records as the two commands would.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// settled(a); settled(b);
+/// const first = drop(capture, a); const second = drop(capture, b); rm(a); rm(b);
+/// expect(refs.filter((one) => one.startsWith('refs/cli-git/carried/'))).toEqual([]);
+/// ```
+#[test]
+fn two_finished_records_of_one_capture_leave_no_ref_behind() {
+    let world: World = world("merge-recovery-two-finished-records");
+    std::fs::write(world.repo.join("f.txt"), b"f.txt base\nthe person's line\n").expect("the person's edit");
+    let context = crate::test_support::git_context();
+    let capture = crate::merge_isolation_carry::keep_capture(
+        &context,
+        world.repo.as_path(),
+        &crate::merge_isolation_carry::capture_work(&context, world.repo.as_path(), &[b"f.txt".to_vec()]).expect("the capture"),
+    )
+    .expect("kept");
+    let reference: String = capture.reference.clone().expect("the ref that keeps the capture");
+    let mut records: Vec<PathBuf> = Vec::new();
+    for id in ["11111111-0000-4000-8000-000000000081", "22222222-0000-4000-8000-000000000082"] {
+        let intent: MergeIntent = MergeIntent {
+            owner: dead_owner(id),
+            repository_root: world.repo.clone(),
+            target_ref: Some(String::from("refs/heads/main")),
+            old_oid: world.old_oid.clone(),
+            new_oid: world.new_oid.clone(),
+            side_ref: None,
+            carried: Some(capture.clone()),
+        };
+        records.push(write_merge_intent(world.git_dir.as_path(), &intent).expect("a record"));
+    }
+    // Each command's carry has finished, which is what it writes beside its record before it decides.
+    for record in &records {
+        std::fs::write(record.with_extension("settled"), b"").expect("the marker of a finished carry");
+    }
+    // The interleaving: both commands decide before either removes its record, so each drop is asked while both records are
+    //  still there, which is the ordering the two commands can realise.
+    let first: bool = crate::merge_isolation_carry::drop_capture_ref(
+        &context,
+        world.git_dir.as_path(),
+        world.repo.as_path(),
+        &capture,
+        Some(records[0].as_path()),
+    );
+    assert!(first, "the first finish may go on");
+    let second: bool = crate::merge_isolation_carry::drop_capture_ref(
+        &context,
+        world.git_dir.as_path(),
+        world.repo.as_path(),
+        &capture,
+        Some(records[1].as_path()),
+    );
+    assert!(second, "a ref that is already gone is what the second deletion wanted");
+    for record in &records {
+        std::fs::remove_file(record.as_path()).expect("the record goes");
+    }
+    assert_eq!(
+        git_text(world.repo.as_path(), &["for-each-ref", "--format=%(refname)", crate::merge_isolation_carry::CARRIED_REF_PREFIX]).trim(),
+        "",
+        "no ref is left once both records are gone (the ref that was {reference})"
+    );
+    remove(world.parent.as_path());
+}
+
 /// A stand-in for real Git that refuses the first deletion of a capture ref,
 /// as another command's lock on that ref makes Git refuse it,
 /// and answers everything else itself.

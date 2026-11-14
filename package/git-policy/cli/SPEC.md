@@ -89,6 +89,87 @@ made with the advisor on 2026-11-10 and open to the owner's veto:
 - Where moving a sync off the waiting path does not stop the waiting path stalling behind it,
   the coordinator chooses between removing the sync and batching it into one.
 
+## What never discarding a person's data means
+
+The owner's rule,
+typed on 2026-11-12 at about 10:33 and recorded in
+`doc/handover/cli-git-rust-implementation.md`
+("The owner on what "never discard user data" means",
+with the answers of 2026-11-12T10:35:07-05:00 below it):
+
+> I do want to say "never discard user data" means to block potentially destructive commands with a
+> --no-enforce-* opt-out,
+> not that we save everything myself.
+
+So,
+for one command a person typed:
+
+- A command that could destroy a person's data is refused,
+  and the refusal names what it would destroy.
+- The person who means it runs the command with the guard's opt-out
+  (`--no-enforce-<policy>`),
+  and the command then runs exactly as real Git runs it.
+- The wrapper keeps no copy of the data,
+  does not move it aside and does not carry it:
+  a copy is a thing the person makes,
+  and the refusal says so where a copy would help.
+
+The rule reaches behaviour that is already released.
+Where an earlier release saved a copy and let the command run,
+the command is refused with the opt-out instead
+(the owner's answer of 2026-11-12T10:35:07-05:00,
+"Redirect everything";
+the cost named in that answer is that commands which work today start being refused).
+
+The guards a person meets,
+and the opt-out of each:
+
+- `linked-worktree-only`:
+  `--no-enforce-worktree`,
+  written directly after the subcommand.
+  It guards the discarding forms of "Discarding commands",
+  the conflicted-file refusals of
+  "Conflicted files during a merge,
+  rebase,
+  cherry-pick or revert",
+  and the shared remote settings of "The remote settings every worktree shares".
+- `branch-worktree-only`:
+  `--no-enforce-worktree-branch`.
+- `add-explicit`:
+  `--no-enforce-bulk-add`.
+- `commit-only`:
+  `--no-enforce-only` (or `--no-only` to commit the whole index).
+- `final-newline`:
+  `--no-enforce-final-newline`.
+- `mono/forbidden-root-context`,
+  `mono/dependent-version-bump`,
+  `mono/catalog-specifiers` and
+  `security/forbidden-strings`:
+  `--no-enforce-<policy id>`,
+  for example `--no-enforce-security/forbidden-strings`.
+- Any shipped policy:
+  the generic `--no-enforce-<policy-id>` of
+  "Generic `--no-enforce-<policy-id>` escapes and the legacy safeguard aliases".
+
+Three behaviours stay as an earlier answer of the same day decided them,
+and no command of this release changes them:
+
+- `git clean -fX` and `git clean -fx` of ignored files delete,
+  exit `0` and leave one audit line;
+  no copy is saved
+  (the owner's answer of 2026-11-12T10:27:45-05:00,
+  "Keep allow and log",
+  which stands over the answer "Save a copy first").
+- A batch whose scratch reference cannot be proven is committed as real Git would commit it,
+  and the commit says that the extra protection was not in place
+  (the same answers,
+  "Commit and say so").
+- A commit against a commit service that does not answer fails,
+  after a wait,
+  with a clear message
+  (the owner's answer of 2026-11-12T10:32:10-05:00,
+  "Fail with a clear message").
+
 ## Module seams
 
 The executable has these external seams:
@@ -464,12 +545,10 @@ so the defaults stay at the coordinator's earlier values,
 and the coordinator's choice among the options in `doc/planning/cli-git-shipped-limits-audit.md`
 ("Defaults for saved conflict copies",
 open to the owner's veto) is pending.
-A saved copy can be the only copy of a person's work (the worktree file as it was before a side replaced it),
+A saved copy can be the only copy of a person's work (the worktree file as it stood before the command replaced it),
 which is why that choice is open.
 
-The pass that applies them is described under "Conflicted files during a merge,
-rebase,
-cherry-pick or revert".
+The pass that applies them is described under "The folder of saved copies".
 
 ## Command facts and classification
 
@@ -5543,11 +5622,20 @@ and "never discard user data"):
   and one `git commit-tree` holds them all under slot names on `refs/cli-git/carried/<n>`,
   written with an all-zero old value;
   the merge's record names the commit and every path with its two layers.
-  The ref goes only once no record that is still there names its commit
-  (`a_record_still_names_the_capture` in `src/native/merge/merge_isolation_carry.rs`):
+  The ref goes only once no record whose carry has not finished names its commit
+  (`another_record_still_needs_the_capture` in `src/native/merge/merge_isolation_carry.rs`):
   a merge that saves its result for a later finish writes a second record beside the first,
   both name one capture,
   and the record settled first must not take the ref the other one still needs for the person's bytes.
+  A record says beside itself when its carry has finished
+  (`<record>.settled`,
+  `mark_carry_finished` in `merge_isolation_journal.rs`),
+  written before the ref is decided,
+  so the last finished record to go is the one that drops the reference:
+  two commands can settle at once,
+  each finding the other's record,
+  and a deletion that finds the name already gone counts as done,
+  so no order of two commands leaves the ref with nobody to drop it.
   The objects are written and the ref exists before the first byte of the checkout changes.
   The ref is removed only once its bytes are back in the checkout,
   and the merge's record,
@@ -5555,10 +5643,14 @@ and "never discard user data"):
   goes after it:
   a deletion that met another command's lock on that ref keeps the record,
   and the next command's recovery removes both,
+  while a deletion refused because the name is already gone removes the record at once,
   so no capture ref is ever left for a person to clean up by hand
+  and no record is ever kept for a retry that cannot succeed
   (a cross-vendor audit of alpha.12,
   "Capture-ref cleanup is never retried after a transient failure",
-  found the record removed first).
+  found the record removed first;
+  the second review of the branch that refuses conflict-side commands
+  found the record kept for ever against a ref that was already gone).
   That set includes the paths whose index entry carries the `assume-unchanged` or `skip-worktree` mark:
   Git's own status,
   `git diff-files`,
@@ -7820,7 +7912,12 @@ on the commit path:
   `HEAD` is read again immediately before the branch moves,
   and a worktree that changed branch by then keeps the record as well.
   The record and the side ref go when the merge lands,
-  and the side ref is deleted only while it still holds the merge's commit.
+  and the side ref is deleted only while it still holds the merge's commit;
+  a kept ref that is already gone,
+  pruned by age or removed by another command,
+  counts as deleted,
+  so a record never waits for a name nothing can remove
+  (`drop_side_ref_awaiting` in `src/native/merge/merge_isolation_recovery_cleanup.rs`).
   and everything the merge does not change is left as it is,
   so an edit made meanwhile to such a file is carried forward.
   Staged content is never written over:
@@ -18776,36 +18873,39 @@ and leave one audit line each
 
 #### Conflicted files during a merge, rebase, cherry-pick or revert
 
-The owner's decision of 2026-11-02 (choice "save,
-then allow") is one exception to the rule above.
-While a merge,
+A conflicted path is where the person's own resolution of it lives,
+and nothing else holds it:
+the index holds the three sides,
+and the wrapper keeps no copy
+("What never discarding a person's data means").
+So a `checkout` or a `restore` that writes a worktree file is refused while a merge,
 a rebase of either backend,
 a cherry-pick or a revert is in progress,
-a `checkout` or `restore` command line that takes a side of conflicted files is let through,
-in the main worktree and in a linked worktree,
-after the wrapper copies the current worktree file of each path.
+and the refusal names every file it would replace,
+says that no copy is kept,
+offers the way to settle the conflict that loses nothing
+(edit the file and commit the result,
+with `git show :1:<path>`,
+`:2:<path>` and `:3:<path>` for the base and the two sides),
+and names `--no-enforce-worktree`,
+which runs the command exactly as real Git runs it and copies nothing.
+The wording is `conflicted_files_message` (`rule_linked_worktree_messages.rs`).
+
 In progress means `MERGE_HEAD`,
 `CHERRY_PICK_HEAD` or `REVERT_HEAD` in the worktree's Git directory,
 a `rebase-merge` directory,
 or a `rebase-apply` directory that holds `rebasing`
 (with `applying` it is `git am`,
-whose conflicts are not covered).
+whose conflicts this reading does not cover).
 A conflicted path is a path with an unmerged index entry (stage 1,
 2 or 3),
 read from the index file in process:
-no Git process runs for the decision.
-An index that cannot be read in process (split,
-sparse,
-carrying an extension the readers cannot vouch for,
-unreadable,
-or chosen by `GIT_INDEX_FILE`)
-shows no path as conflicted,
-and the usual rejection stays.
+no Git process runs for the reading.
 
-The forms covered are:
+The forms read are:
 
-- `checkout [<tree-ish>] -- <path>...`,
-  with `--ours`,
+- `checkout [<tree-ish>] -- <path>...` with the options that choose a side or how a file is written:
+  `--ours`,
   `--theirs`,
   `-2`,
   `-3`,
@@ -18823,119 +18923,73 @@ The forms covered are:
   and the quiet,
   progress,
   overlay and ignore options.
-  Abbreviated `restore` options are not read and keep the rejection.
+  Abbreviated `restore` options are not read.
   `-W`,
   `--worktree`,
   `-S` and `--staged` count only where Git parses them as options:
   the token after `--source`,
   `-s` or `--conflict` is that option's value,
   so in `restore --source -W --staged -- f`
-  (a tag can be named `-W`) the `-W` is a revision,
-  the restore is index-only,
-  and the rejection stays.
-The rejection reads the line the same way and names `git restore --staged` (the policy's own classification of an
-index-only restore skips those values and reads `-sW` as `-s` with the value `W`).
+  (a tag can be named `-W`) the `-W` is a revision and the line is an index-only restore,
+  which the policy refuses as that form.
 
-Every other line keeps the rejection:
+Every other line keeps the rejection without a sentence about a conflict:
 a force,
 a patch,
 a path list read from a file,
 a branch option,
-a form without `--`
-before the paths,
+a form without `--` before the paths,
 an index-only `restore --staged`,
-and any `reset` or other guarded command
-(the abort forms of `merge`,
-`rebase`,
-`cherry-pick`,
-`revert` and `am` are decided by the carve-out above,
-which lets one run only where the operation it undoes waits).
-A path is read by its literal spelling below the working directory.
-A directory,
+a directory,
 a trailing slash,
 a wildcard,
-pathspec magic or a path outside the worktree is not a conflicted file.
-A global pathspec mode changes which files a pathspec names (`--icase-pathspecs` and `GIT_ICASE_PATHSPECS` match `A.rs`
-for `a.rs`;
-the glob,
-noglob and literal forms change the reading of the characters),
-so a line under one keeps the
-rejection:
-the layout reader declines every global option except `-C` and every `GIT_` variable it does not tolerate,
-and `core.ignorecase` does not widen a pathspec.
-The rejection of such a line stays,
-and when the line qualifies,
-an operation is in progress,
-the index is readable and
-every path it names is a conflicted file,
-the message gains one sentence:
-it names the mode (`--icase-pathspecs`,
-`--glob-pathspecs`,
-`--noglob-pathspecs`,
-`--literal-pathspecs`,
-`--no-literal-pathspecs`,
-`GIT_ICASE_PATHSPECS`,
-`GIT_GLOB_PATHSPECS`,
-`GIT_NOGLOB_PATHSPECS`,
-`GIT_LITERAL_PATHSPECS`)
-and says the same command without it would be saved first and then allowed.
-The layout reader is asked a second time,
-without the mode,
-only for such a line.
-Pathspec magic on a conflicted file's name (`:(icase)a.rs`,
-`:(glob)a.rs`,
-`:(literal)a.rs`,
-`:(top)a.rs`,
-`:(exclude)a.rs`,
-`:!a.rs`,
-`:^a.rs`,
-`:/a.rs`) is rejected the same way,
-and when every token that is not a plain conflicted file is such magic
-the message names the magic and the file and says that naming the file itself is saved first and then allowed.
-Other magic (`:(attr:...)`,
-`:(prefix:...)`),
-a wildcard,
-a clean file,
-a mix,
-a form the carve-out does not cover and a
-repository with no operation in progress get no such sentence,
-because the carve-out would refuse those anyway.
-A line that names a path that is not conflicted is rejected whole,
-with the rejection text of the form
-followed by a sentence that names every such path.
-A path that Git resolves in the index as the command runs (`checkout <tree-ish> -- <path>` stages it) stops being conflicted,
-so a later line that names it is judged by the rules again.
+pathspec magic,
+a path outside the worktree,
+and a global pathspec mode.
+A path is read by its literal spelling below the working directory:
+`.` and `..` are folded,
+and a path that leaves the worktree names nothing.
+An index that cannot be read in process (split,
+sparse,
+carrying an extension the readers cannot vouch for,
+unreadable,
+or chosen by `GIT_INDEX_FILE`)
+shows no path as unmerged,
+so the refusal names none;
+the command is refused all the same,
+because it is a discarding form.
+So is a line under a `GIT_` variable that the in-process layout reader does not tolerate,
+such as `GIT_CONFIG_GLOBAL`:
+the layout is not read and no file is named.
 
-The copy is written and synced before Git starts.
-It goes to `<common-git-dir>/monochromatic-git-policy-cli/discarded/<UTC time as YYYY-MM-DDTHH-MM-SS>/<path from the top of the worktree>`,
+The refusal is the one `linked-worktree-only` makes,
+decided before the worktree's status is asked,
+so the main worktree,
+a linked worktree that holds uncommitted work and an exempt repository all refuse the line,
+and so would a linked worktree that held an unmerged entry while its status read as clean.
+That holds when the index can be read:
+a reading that declines names no file,
+and the line then falls back to what was there before,
+which still refuses in the main worktree and in a dirty linked worktree but runs under the exemption.
+So an exempt repository whose index this reader cannot read still runs a conflict-side line with no refusal and
+no copy.
+`--no-enforce-worktree` skips it as it skips every other guarded form,
+and the record then says `hatch`.
+
+#### The folder of saved copies
+
+A clean that would delete a nested Git repository
+("Nested Git repositories a clean would delete")
+copies what it would otherwise discard into
+`<common-git-dir>/monochromatic-git-policy-cli/discarded/<UTC time as YYYY-MM-DDTHH-MM-SS>/<path from the top of the worktree>`,
 next to `monochromatic-git-policy-cli-audit.jsonl`;
 a second invocation in the same second gets `-1`,
 `-2` and so on after the time.
 The directories are private (`0700`),
 and the copy has the file's content and permission bits
 or the symbolic link's target.
-The wrapper prints,
-before Git runs,
-for each path:
-
-```text
-monochromatic-git-policy-cli: saved your copy of a.rs to
-  /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-02T14-01-07/a.rs
-  before this command replaces it (a.rs was conflicted).
-```
-
-A conflicted path with no file in the worktree has nothing to copy:
-the wrapper says so in one line and allows the command.
-A file another program is still writing is copied up to the size it had when the copy opened it,
-that copy is kept,
-and the wrapper says so before Git runs:
-
-```text
-monochromatic-git-policy-cli: a.rs was still being written while the wrapper copied it, so the copy holds what stood when the wrapper opened the file and nothing written after that. This command runs now, and a write that lands after the copy is not saved. Keep it another way if the later bytes matter.
-```
-
-The copy loop reads at most that size,
-so a writer that never stops cannot hold the command for good.
+The command prints where each copy went before Git runs.
+A path with no file in the worktree has nothing to copy and is named as such.
 If a copy cannot be written (a full disk,
 a refused permission,
 a place that is not a directory,
@@ -18944,6 +18998,9 @@ regular file nor a symbolic link),
 the command is rejected with a finding that names the path or place and the system's reason,
 no cut-short copy is left,
 and nothing is changed.
+
+An abort that lists a path with no file in the worktree is refused instead,
+because that content stands only in the index.
 
 The file is found without following a symbolic link.
 Each directory in front of the name is opened one component at a time below the worktree's top level,
@@ -19081,7 +19138,6 @@ with `schemaVersion`,
 `exempt`,
 `hatch`,
 `logged`,
-`saved-conflict` or
 `saved-nested-repository`),
 `dirty`,
 `cwd` and `arguments`.
@@ -19093,14 +19149,16 @@ the two-field form every other record of a path takes (`path_bytes_in_records.rs
 so a command whose working directory or argument is not UTF-8 is still the command the line names:
 the line exists to attribute a loss to it.
 The text fields hold what a reader of an earlier release read.
-A `saved-conflict` line also has `copies`,
+A `saved-nested-repository` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy),
-and so does a `saved-nested-repository` line,
 whose places hold the repositories a clean would have deleted.
-No outcome of this release copies anything before an abort or a skip:
+No outcome of this release copies anything before an abort,
+a skip or a conflict-side line:
 those forms are refused instead.
-A file an earlier release wrote may still hold `saved-abort` and `saved-skip` lines with their own `copies`,
-because the record is append-only.
+A file an earlier release wrote may still hold `saved-conflict`,
+`saved-abort` and `saved-skip` lines with their own `copies`,
+because the record is append-only,
+and the retention reader below still honours them.
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
 `dirty` is whether the worktree or the repository held what the form could destroy,
