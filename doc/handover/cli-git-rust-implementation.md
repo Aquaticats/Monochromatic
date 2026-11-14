@@ -790,6 +790,186 @@ read by the coordinating session from the output of `native:release:wait` and `n
   for whichever of passes 22,
   23 and 24 reports fit first.
 
+##### The removal-goes-around answer passed its second review and is pass 25 (2026-11-13T18:55:47-05:00)
+
+Not final and not approved:
+the coordinating session's reading of the review,
+which ended at 18:49:22.
+
+- The review of `50d55b0b8d`
+  (`~/temp/agent/change-reviews/git-policy-cli-removal-goes-around-answers-after-its-first-review/review.md`)
+  found no defect that discards a person's data,
+  fails a commit or a merge,
+  lands a removal twice
+  or waits without a bound.
+  It built the crate at that commit and ran 32 focused controls,
+  all passing,
+  and probed that `rmdir` of an empty subvolume root succeeds on this host.
+- It reports one finding,
+  found by reading and not reproduced:
+  when the volume a removal goes around is removed by somebody else during the pass,
+  the command prints the notice of a subvolume destroyed in one step with files the service deletes later,
+  where the root went by `rmdir`,
+  the files were already gone and nothing is queued.
+  Weighed:
+  the removal is right and only the words are false,
+  so it does not hold the branch back;
+  it earns a fix because a message naming a deletion still to come sends its reader looking for one.
+- One candidate the review dismissed it also calls a real gap:
+  a renamed subvolume that nothing deletes,
+  when the inline destroy in `hand_over_with` fails after the service has settled the record.
+  It loses nothing and waits on nothing,
+  and it holds room on the volume whose filling ended twenty runs on 2026-11-12.
+  The author is asked whether the sequence can happen as the code stands
+  and whether the lines are the change's own or older;
+  a run of its own follows from that answer.
+- Routed:
+  integration pass 25 for `0.6.1-alpha.23`,
+  pinned to `50d55b0b8d`,
+  queued at the head
+  (`~/temp/agent/pi-runs/integration-pass-25-for-alpha-23-prompt.md`);
+  the author,
+  resumed with its session,
+  on the finding and the two questions
+  (`~/temp/agent/pi-runs/removal-goes-around-answers-its-second-review-of-2026-11-13-prompt.md`),
+  queued behind the two cleanup runs.
+  What the author commits comes after the pinned commit and gets a review and a pass of its own.
+- The scratch folder `~/temp/agent` measured 321 GiB at 18:55
+  (`du`, one level deep):
+  `change-reviews` 66 GiB,
+  `pkgrepair-repair-off-the-path` 65 GiB,
+  `sonnet-audits` 45 GiB,
+  three run scratch folders of 28 GiB each,
+  `kimi-trials` 17 GiB,
+  `module-test-logs` 11 GiB.
+
+##### The issue 6299 fix is written and the build-tree correction is in (2026-11-13T19:01:05-05:00)
+
+Not final and not approved:
+the coordinating session's reading of two runs that ended at 18:54:36 and 18:57:48.
+
+- **Issue 6299.**
+  The fix is on `fix/pi-shared-subagent-driver-a-run-that-settled-and-whose-pi-exited-zero-never-ends-as-driver-failed`
+  (tip `7faa687169`;
+  report in `~/temp/agent/issue-6299-a-run-that-settled-and-whose-pi-exited-zero-never-ends-as-driver-failed-scratch/keep/report.md`).
+  The cause its author measured:
+  `workTheToolReportedIn` parsed the `result` of a feed's `tool_end` line as JSON,
+  and that field is a preview cut at 500 characters with the length appended,
+  so an answer of four-digit length is cut inside a string at position 509.
+  The read runs at the idle check,
+  which is the 120 s after settling.
+  Fifteen summaries carried the error by 18:40,
+  the earliest from 2026-11-12T14:23-05:00;
+  of the newest 120 runs,
+  16 feeds could not be read by the reader as it was.
+  The run that wrote the fix ended `driver-failed` by the same defect with its work done.
+- The branch keeps a `process` answer whole in a feed record of its own,
+  has every reader of a feed or a session read whole lines only,
+  and keeps a failed read beside the end reason (`workProblem`) where it used to decide it.
+  Its author measured that a reader in the same process sees a line cut in half
+  in 17 and in 39 of 1,200 reads of a feed being appended to.
+- Limits its author names:
+  a run whose leftover work could not be read ends as the run it was,
+  not kept open;
+  a last line without its line feed is not read;
+  the growth of a long feed by the new record is not measured.
+- Routed:
+  its review is queued at the head
+  (`reviewOfBranch`, source `package/pi-shared/subagent-driver/src`);
+  the issue has a comment with the cause and the branch.
+- One unit test of the driver,
+  `the silence starts afresh when a compaction ends` in `src/wait-for-an-answer.unit.test.ts`,
+  failed once in three runs of the whole suite on that branch and passes alone.
+  By the rule `SUF` that is a contention or ordering defect until measured otherwise,
+  so a run of its own is queued
+  (`~/temp/agent/pi-runs/driver-unit-test-of-the-silence-after-a-compaction-passes-in-its-suite-as-it-does-alone-prompt.md`).
+- **Build tree of the wrapper.**
+  The author's correction is `446e9e7f6b`,
+  which changes `package/git-policy/cli/doc/development-profile-measurements.md` alone
+  (one file,
+  28 insertions and 6 deletions against the reviewed `bf9c397cf2`,
+  read from `git diff --stat`).
+  The author measured what the review had read:
+  the gate's two environment settings override the manifest's profile,
+  so the gate compiled without debug information before the change and after it.
+- Routed:
+  integration pass 26 for `0.6.1-alpha.24`,
+  pinned to `446e9e7f6b`,
+  queued at the head
+  (`~/temp/agent/pi-runs/integration-pass-26-for-alpha-24-prompt.md`).
+  Pass 25 had started at 18:55:49,
+  so the two could not share a pass.
+
+##### The discarding-commands answer loses files ten ways; two journal tests are corrected and a third is red (2026-11-13T19:13:13-05:00)
+
+Not final and not approved:
+the coordinating session's reading of two runs that ended at 19:06:08 and 19:09:27.
+
+- **Discarding commands** (`0da808e1e0`).
+  Its second review
+  (`~/temp/agent/change-reviews/git-policy-cli-discarding-commands-answers-after-its-first-review/review.md`)
+  built the wrapper at that commit and reproduced ten sequences in which a command the guard lets run
+  destroys a file a person made,
+  with exit status 0 and no copy,
+  each with a control the wrapper refuses:
+  a zero-byte pathspec file read as "nothing is written" where Git switches the branch by force;
+  quoted pathspec-file entries not unquoted;
+  `restore` reading the first `--source` where Git keeps the last;
+  four places where a path or a revision that is not UTF-8 is decoded lossily before the lookup
+  (`checkout-index --prefix`,
+  `read-tree --prefix`,
+  `restore --source=`,
+  the inline `--pathspec-from-file=` name);
+  the interactive clean's cap to one force not keeping a bare repository while its notice says it does;
+  an interactive clean through a `!` alias never capped;
+  and a `checkout.guess` query ended by a signal read as guessing turned off.
+  It found nothing against "Commits should never fail" and no wait without a bound.
+- Weighed:
+  every one is a reproduced loss through a command the change exists to guard,
+  so all ten go back to the author,
+  resumed with its session
+  (`~/temp/agent/pi-runs/discarding-commands-answers-its-second-review-of-2026-11-13-prompt.md`),
+  queued near the head.
+  The brief also asks for what the review dismissed:
+  the guard's whole-worktree listings are right only while the `require-root` policy refuses guarded forms below the root,
+  and that dependence is either written where it can be met or removed.
+  The branch stays out of every pass until its third review.
+- **Two tests of the journal's start** (`e05bcd57b2`,
+  one test file).
+  Both failed on `main`;
+  the author's reading,
+  with the `SPEC.md` lines and the commit `de74ced87d` behind it:
+  the code is right and the tests stated a read that waits on a pipe,
+  which the project forbids.
+  Both were rewritten and each shown failing against a planted break.
+- The launcher's review reads no file of a change that touches tests alone,
+  so its review is hand-written
+  (`~/temp/agent/change-reviews/git-policy-cli-two-tests-of-the-journal-restored-at-start-state-what-a-plan-read-from-a-pipe-does/brief.md`):
+  it judges each test by whether it fails when the code is broken,
+  and lets the reviewer plant breaks in its own worktree,
+  one at a time,
+  none left.
+  Queued at the head.
+- **A third test is red on `main`** for the same cause:
+  `a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer`
+  in `service_server_greets_before_the_journal_is_restored_tests.rs`.
+  Its fixture stands a pipe that no longer holds the read.
+  Its subject still matters
+  (a service greets, beats and lands while its journal's read has not answered,
+  and a read can be slow here without a pipe),
+  so a fresh run is queued to hold the read through the package's own fault points
+  (`~/temp/agent/pi-runs/control-of-the-greeting-before-the-journal-is-restored-states-a-read-the-code-can-still-make-prompt.md`).
+- A wording corrected in briefs from here on:
+  "nothing you run reaches this machine's service manager" read as a limit that forbids `systemd-run --user --scope`,
+  which the rules file requires.
+  The sentence now says that no fixture of the package's tests reaches it
+  and that a capped scope for the agent's own commands is no contradiction.
+  Briefs queued before 19:10 carry the older sentence.
+- Started since 18:55:
+  pass 26,
+  the review of the issue 6299 fix,
+  and the commit-forms author.
+
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
 Not final and not approved:
