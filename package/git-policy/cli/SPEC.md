@@ -89,6 +89,87 @@ made with the advisor on 2026-11-10 and open to the owner's veto:
 - Where moving a sync off the waiting path does not stop the waiting path stalling behind it,
   the coordinator chooses between removing the sync and batching it into one.
 
+## What never discarding a person's data means
+
+The owner's rule,
+typed on 2026-11-12 at about 10:33 and recorded in
+`doc/handover/cli-git-rust-implementation.md`
+("The owner on what "never discard user data" means",
+with the answers of 2026-11-12T10:35:07-05:00 below it):
+
+> I do want to say "never discard user data" means to block potentially destructive commands with a
+> --no-enforce-* opt-out,
+> not that we save everything myself.
+
+So,
+for one command a person typed:
+
+- A command that could destroy a person's data is refused,
+  and the refusal names what it would destroy.
+- The person who means it runs the command with the guard's opt-out
+  (`--no-enforce-<policy>`),
+  and the command then runs exactly as real Git runs it.
+- The wrapper keeps no copy of the data,
+  does not move it aside and does not carry it:
+  a copy is a thing the person makes,
+  and the refusal says so where a copy would help.
+
+The rule reaches behaviour that is already released.
+Where an earlier release saved a copy and let the command run,
+the command is refused with the opt-out instead
+(the owner's answer of 2026-11-12T10:35:07-05:00,
+"Redirect everything";
+the cost named in that answer is that commands which work today start being refused).
+
+The guards a person meets,
+and the opt-out of each:
+
+- `linked-worktree-only`:
+  `--no-enforce-worktree`,
+  written directly after the subcommand.
+  It guards the discarding forms of "Discarding commands",
+  the conflicted-file refusals of
+  "Conflicted files during a merge,
+  rebase,
+  cherry-pick or revert",
+  and the shared remote settings of "The remote settings every worktree shares".
+- `branch-worktree-only`:
+  `--no-enforce-worktree-branch`.
+- `add-explicit`:
+  `--no-enforce-bulk-add`.
+- `commit-only`:
+  `--no-enforce-only` (or `--no-only` to commit the whole index).
+- `final-newline`:
+  `--no-enforce-final-newline`.
+- `mono/forbidden-root-context`,
+  `mono/dependent-version-bump`,
+  `mono/catalog-specifiers` and
+  `security/forbidden-strings`:
+  `--no-enforce-<policy id>`,
+  for example `--no-enforce-security/forbidden-strings`.
+- Any shipped policy:
+  the generic `--no-enforce-<policy-id>` of
+  "Generic `--no-enforce-<policy-id>` escapes and the legacy safeguard aliases".
+
+Three behaviours stay as an earlier answer of the same day decided them,
+and no command of this release changes them:
+
+- `git clean -fX` and `git clean -fx` of ignored files delete,
+  exit `0` and leave one audit line;
+  no copy is saved
+  (the owner's answer of 2026-11-12T10:27:45-05:00,
+  "Keep allow and log",
+  which stands over the answer "Save a copy first").
+- A batch whose scratch reference cannot be proven is committed as real Git would commit it,
+  and the commit says that the extra protection was not in place
+  (the same answers,
+  "Commit and say so").
+- A commit against a commit service that does not answer fails,
+  after a wait,
+  with a clear message
+  (the owner's answer of 2026-11-12T10:32:10-05:00,
+  "Fail with a clear message").
+
 ## Module seams
 
 The executable has these external seams:
@@ -464,12 +545,10 @@ so the defaults stay at the coordinator's earlier values,
 and the coordinator's choice among the options in `doc/planning/cli-git-shipped-limits-audit.md`
 ("Defaults for saved conflict copies",
 open to the owner's veto) is pending.
-A saved copy can be the only copy of a person's work (the worktree file as it was before a side replaced it),
+A saved copy can be the only copy of a person's work (the worktree file as it stood before the command replaced it),
 which is why that choice is open.
 
-The pass that applies them is described under "Conflicted files during a merge,
-rebase,
-cherry-pick or revert".
+The pass that applies them is described under "The folder of saved copies".
 
 ## Command facts and classification
 
@@ -3399,6 +3478,16 @@ because Git's own removal is the route that would delete through a mount point.
 `look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume, which the
 registration's own proof still uses.
 
+The proof of cleanliness a removal makes is the stat proof every removal makes,
+and a refusal beside a volume is proven again by the files themselves:
+`check_clean_by_content` settles by reading a file every entry its stat data cannot vouch for
+(the state a worktree is in the moment it was added,
+where a whole-second modification time is not older than the index's and Git's own racy rule says the stat
+data proves nothing either way)
+and makes the untracked scan the ordinary proof makes,
+so a tree refused only because its stat fields prove nothing yet is proven clean and removed around the volume,
+and a tree that proof cannot settle is refused while nothing of it is deleted.
+
 A removal that found such a volume proves what every removal proves before it deletes anything:
 the worktree is registered,
 not locked,
@@ -3415,12 +3504,27 @@ gives the reason Git refuses,
 and words the way on by what the tree in front of it is:
 `git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
 stands, and, for a tree whose entries are all present, clearing or moving what Git would delete.
-A tree whose only trouble is entries missing from it is the shape a pass of this program leaves,
-and the report says which of the two it read:
-a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it,
-and without such a record the report names `--force`,
+The status a removal reads is one of three,
+and the report says which of them it read:
+Git names nothing at all,
+Git names entries and every one is missing from the tree,
+or Git names something else.
+An empty report is no report of deletions,
+so a clean tree is never worded as one a pass half emptied.
+A tree whose entries are missing is the shape a pass of this program leaves,
+and a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it;
+without such a record the report names `--force`,
 says that moving a volume out cannot finish a tree whose tracked entries are gone,
 and never claims that nothing was removed.
+A tree Git names nothing in,
+and which the proof of cleanliness cannot settle,
+is refused in its own words:
+the report says that Git reports no change in the worktree at all,
+gives the reason the proof refused,
+says that this is no state a pass of this program left,
+and names `--force` as what goes around the volume now.
+A tree whose entries are only missing may be finished by the same unforced command once that record proves it,
+and no worktree is ever removed on a cleanliness that was not proven.
 The tree is never handed to Git to get Git's own sentence,
 because Git's removal is what would delete through the mount;
 the report says so instead of pretending to be Git's words.
@@ -5405,11 +5509,20 @@ and "never discard user data"):
   and one `git commit-tree` holds them all under slot names on `refs/cli-git/carried/<n>`,
   written with an all-zero old value;
   the merge's record names the commit and every path with its two layers.
-  The ref goes only once no record that is still there names its commit
-  (`a_record_still_names_the_capture` in `src/native/merge/merge_isolation_carry.rs`):
+  The ref goes only once no record whose carry has not finished names its commit
+  (`another_record_still_needs_the_capture` in `src/native/merge/merge_isolation_carry.rs`):
   a merge that saves its result for a later finish writes a second record beside the first,
   both name one capture,
   and the record settled first must not take the ref the other one still needs for the person's bytes.
+  A record says beside itself when its carry has finished
+  (`<record>.settled`,
+  `mark_carry_finished` in `merge_isolation_journal.rs`),
+  written before the ref is decided,
+  so the last finished record to go is the one that drops the reference:
+  two commands can settle at once,
+  each finding the other's record,
+  and a deletion that finds the name already gone counts as done,
+  so no order of two commands leaves the ref with nobody to drop it.
   The objects are written and the ref exists before the first byte of the checkout changes.
   The ref is removed only once its bytes are back in the checkout,
   and the merge's record,
@@ -5417,10 +5530,14 @@ and "never discard user data"):
   goes after it:
   a deletion that met another command's lock on that ref keeps the record,
   and the next command's recovery removes both,
+  while a deletion refused because the name is already gone removes the record at once,
   so no capture ref is ever left for a person to clean up by hand
+  and no record is ever kept for a retry that cannot succeed
   (a cross-vendor audit of alpha.12,
   "Capture-ref cleanup is never retried after a transient failure",
-  found the record removed first).
+  found the record removed first;
+  the second review of the branch that refuses conflict-side commands
+  found the record kept for ever against a ref that was already gone).
   That set includes the paths whose index entry carries the `assume-unchanged` or `skip-worktree` mark:
   Git's own status,
   `git diff-files`,
@@ -6365,8 +6482,15 @@ The client sends `warm` only after `merge`,
 `switch`,
 `rebase` or `reset` exits 0 and the digest of the rules text
 it would load changed,
-only to a service of that worktree that already runs (found by its start arguments),
-and never starts a process.
+only to a service of that worktree that already runs (found by its start arguments,
+read within `WARM_SCAN_CEILING` and only among the processes of this user),
+and it writes no unit,
+asks no manager for a start,
+and starts no process.
+A service killed between that look and the connection is started by the connection itself:
+the socket unit keeps listening,
+which is what socket activation is for,
+and no check before a connection is one with it.
 The client keeps compiling on a cache miss.
 `src/native/policy/policy_forbidden_strings.rs` decides whether that miss writes the shared cache
 (`CachePublisher`,
@@ -6397,6 +6521,13 @@ also leaves the artifact for the next command that publishes,
 so such a machine compiles the rules once per command:
 correct,
 and slower than a cache it cannot fill.
+A request that is not made is not sent either:
+its look at the processes is made within `WARM_SCAN_CEILING` and its connection within `WARM_REQUEST_CONNECT_CEILING`
+(`src/native/service/wait_ceilings.rs`),
+so a process stuck in the kernel and a service whose queue of unaccepted connections is full each cost the command
+that ceiling and no more,
+and the command publishes the artifact itself,
+as it does when no service runs.
 The artifact's publication (`package/forbidden-strings/cli/src/runtime_cache/publish.rs`)
 writes a private temporary and renames it over the artifact,
 syncing neither the file nor its directory:
@@ -7327,7 +7458,12 @@ on the commit path:
   the watch ends nothing that shows work,
   and it ends nothing before the ceiling.
 
-- The landing waits for a foreign `index.lock` until `LANDING_LOCK_CEILING`.
+- The landing waits for a foreign `index.lock` until `LANDING_LOCK_CEILING`,
+  after the pass that removes the locks whose holder the wrapper's own record proves gone
+  (`SPEC.md`,
+  "The lock files a killed command left,
+  and the record that proves its holder gone"):
+  a lock of a command that was killed no longer makes a landing wait for a process that will never let go.
   At the bound the batch is withdrawn before the branch
   moved:
   its intent is removed from the journal,
@@ -7665,6 +7801,11 @@ on the commit path:
   the name still refers to it,
   and only then is it unlinked),
   and the merge goes on.
+  A lock whose holder the wrapper's own record proves gone is removed before the merge looks at it
+  (`SPEC.md`,
+  "The lock files a killed command left,
+  and the record that proves its holder gone"),
+  on the identity that record names rather than on the number alone.
   A holder that runs,
   one nothing proves alive,
   and a lock the proof of disuse does not cover (one that holds content,
@@ -7690,7 +7831,12 @@ on the commit path:
   `HEAD` is read again immediately before the branch moves,
   and a worktree that changed branch by then keeps the record as well.
   The record and the side ref go when the merge lands,
-  and the side ref is deleted only while it still holds the merge's commit.
+  and the side ref is deleted only while it still holds the merge's commit;
+  a kept ref that is already gone,
+  pruned by age or removed by another command,
+  counts as deleted,
+  so a record never waits for a name nothing can remove
+  (`drop_side_ref_awaiting` in `src/native/merge/merge_isolation_recovery_cleanup.rs`).
   and everything the merge does not change is left as it is,
   so an edit made meanwhile to such a file is carried forward.
   Staged content is never written over:
@@ -9452,7 +9598,13 @@ in-process reader can) gives every value of the multi-valued keys.
   A claim read before the stop from the pid file beside the lock rests on the same number as the rule above,
   and a Git of a sibling namespace that shares the repository makes a lock at the same path look the same,
   so no claim is made and nothing is removed on one.
-  A lock of a stopped child therefore stays,
+  A lock of a stopped child is named in the repository's record of the processes its commands started,
+  so a later command clears it on the identity that record carries
+  (`SPEC.md`,
+  "The lock files a killed command left,
+  and the record that proves its holder gone");
+  the sweep itself still removes nothing,
+  and a lock the record does not name stays,
   with the command that clears it,
   and so does one whose pid file went first (Git removes a lock's pid file and then the lock,
   so a kill between the two leaves a lock nothing names).
@@ -9820,6 +9972,275 @@ with arguments,
 and reads each range commit's delta with its own `git diff-tree` process;
 the handover lists this as an
 open divergence.
+
+### The lock files a killed command left, and the record that proves its holder gone
+
+A process on this machine can be killed at any instruction
+(an audit of 0.6.1-alpha.14 ended a merge's process group while its checkout waited on a stalled download),
+so a wrapper command or a Git it started can end between creating a lock and renaming it over its target.
+The lock then stands with a PID file naming a process that no longer exists,
+and the next commit waited `LANDING_LOCK_CEILING` for a process that would never let go and then withdrew the person's change
+(`SPEC.md`,
+"Every wait has a bound").
+A lock whose holder the wrapper can prove gone protects nothing,
+so the wrapper keeps the one record that can prove it,
+and the command that meets such a lock removes it and goes on.
+
+#### The record
+
+The wrapper writes one file per process under `<common-git-dir>/cli-git-lock-holders/`
+(`src/native/lock/lock_holder_records.rs`),
+named by that process's number and a digest of its identity,
+and holding one line per process:
+`self <pid> <identity>` for the wrapper itself,
+and `child <pid> <identity>` for every Git it starts and waits for
+(`src/native/invocation/forwarding.rs`,
+`src/native/push/child_watch_one_shot_run.rs`,
+`src/native/push/child_watch_output_watched_on_the_runtime.rs`,
+`src/native/landing/service_hold_retry.rs`).
+The record is written before the first Git of the command starts,
+so a kill at any later instruction leaves it behind,
+and a command that replaces itself with real Git
+(`exec`) is named by its `self` line,
+which the replaced process keeps,
+because the replacement keeps the number and the birth identity.
+
+An identity is the one the commit service's index lock marker already writes
+(`src/native/landing/service_index_identity.rs`):
+the birth identity the kernel reports for that process,
+then the boot ID,
+the PID namespace and the machine ID.
+A part that cannot be read is left out,
+which makes the judgement unknown instead of wrong.
+
+#### The proof
+
+A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_proving.rs`):
+
+- its PID file names a number,
+  and it was born **strictly after** the lock,
+  so it is this lock's holder rather than an earlier one's
+  (`Judge::pid_file_state`,
+  `PidFile::Unproven`).
+  A birth time the file system does not record,
+  or one both files share because the file system's clock is coarse,
+  proves neither order and keeps the lock:
+  a review of `d189162e3e` found a live Git's editor-phase lock removed when a PID file and a lock
+  carried one tick of this volume's clock,
+  and the same stamps are what one Git gives the two files it writes at once,
+  so nothing local tells those two states apart
+  (`lock_birth_times.rs`);
+  a control states a file system of one-second ticks,
+  and one of no birth times,
+  through `CLI_GIT_TEST_ONLY_BIRTH_TIME`;
+- **no live process has that number**.
+  A number a process has now is no proof of anything:
+  it may be the recorded process that still runs,
+  or a later program that reused the number and wrote this very PID file,
+  and nothing tells the two apart.
+  A process table read that fails answers the same way,
+  and the lock stays.
+- every record of this repository naming that number judges `gone`:
+  a process of this boot,
+  this PID namespace and this machine that has ended
+  (`proved_gone_writer`,
+  `holder_state`,
+  `src/native/landing/service_index_identity.rs`).
+  A birth of another boot is gone,
+  because a boot that ends ends every process in it;
+  one record of another boot,
+  namespace or machine is unknown and keeps the lock,
+  because a Git of that namespace or machine may be the writer;
+- the file sits on one of this machine's file systems
+  (the list `stale_ref_lock_judge.rs` already keeps for reference locks);
+- **nothing can write into it**:
+  the kernel's own read lease is taken and refused while any program has the file open for writing,
+  whatever account owns it and whether or not it is dumpable
+  (`the_proof_that_nothing_can_write_into`,
+  `merge_isolation_take_asides_proof.rs`,
+  the proof a merge's asides are removed under).
+  Holding the lease keeps a later writer out until both names are gone.
+  A platform without leases keeps the scan of every readable process,
+  where another account's refusal is the only reason a removal acts through
+  (`OTHER_ACCOUNTS_PROCESS_REASON`),
+  and a refusal of this account's keeps the lock;
+- the name still refers to the very file that was judged,
+  and its device,
+  inode and change time are the ones read before the removal;
+- the PID file is still the very one that was judged when its own name goes,
+  so a Git that took the freed name between the two unlinks keeps its own PID file.
+
+No time decides anything,
+so a correction of the clock moves no verdict.
+A process number alone decides nothing:
+numbers are reused,
+and a record of a process that ended says nothing about the program that has its number now.
+
+The ways the three facts can disagree,
+and what each does:
+
+- a number used again:
+  the lock stays,
+  because the live program may have written the PID file.
+- two records for one number:
+  all must be gone;
+  one of another boot,
+  namespace or machine keeps the lock.
+- a record written after the lock:
+  it names a later process,
+  so its number is live or its record is another
+  machine's,
+  and the lock stays either way.
+- a lock made by a process that then became another program:
+  the same number and the same birth,
+  alive,
+  so it stays.
+- a holder in another PID namespace or on another machine:
+  its record is unknown,
+  so the lock stays.
+- the wrapper's own forwarded command:
+  its `self` record carries the birth the `exec` keeps,
+  so it stays.
+- a zombie,
+  or a process that ended:
+  it has no birth to compare and cannot have written anything since,
+  so the records decide.
+- a program holding the lock open for writing:
+  the lease is refused,
+  so the lock stays,
+  and a reader alone does not keep it,
+  because a reader cannot write into the file.
+
+#### What cannot be proven, and is therefore kept
+
+- A lock the wrapper did not take,
+  by real Git run directly,
+  an editor or an IDE,
+  carries no record,
+  so nothing proves its holder gone and it stays,
+  with the bounded wait and the report it always had.
+- A record of another PID namespace or another machine is unknown:
+  a Git in a container that shares the repository,
+  or one on a machine that mounts it over a network file system,
+  writes a number and a namespace this process cannot interpret,
+  so nothing is cleared.
+- A lock on a network or user-space file system is kept,
+  whatever its record says,
+  because a Git on another machine holds it.
+- A lock carrying the commit service's marker is not judged by this proof:
+  it is handed to the service's own reclaimer
+  (`service_index_reclaim.rs`,
+  `StaleMark::HolderIsGone`),
+  which takes its claim on the file and removes it only when the holder the marker names is gone,
+  so a live service's lock is waited for and a killed one's is removed by its owner.
+- A lock a command has open is a live writer whatever the record says,
+  so it is kept.
+
+The cost of looking at other processes is bounded as the reference lock judgement bounds it:
+the scan runs only when a lock exists and its record is already proven dead,
+it looks at no `/proc/<pid>/fdinfo/<n>` of a process this wrapper did not start,
+and a descriptor the kernel refuses is read as a holder that may live,
+which keeps the lock.
+
+#### The removal, and why two commands cannot both take the lock
+
+The sequence is one file,
+one claim and no repository-wide lock:
+
+1. The lock is judged by its metadata alone,
+   so this process holds no descriptor on it while the scan looks for a holder:
+   a second command's own look is therefore not mistaken for a live writer.
+2. The marker and the PID file are read and closed.
+3. The scan looks for a holder.
+4. The file is opened without following a link and without waiting,
+   and the exclusive `flock` of it is taken,
+   waiting at most two seconds for another command that is removing the same lock.
+   The kernel gives that lock to one holder;
+   a command that cannot take it inside the bound removes nothing.
+5. The device,
+   inode and change time are read again and must be the ones judged,
+   the name must still refer to the opened file,
+   no marker may have appeared,
+   and the PID file must still name the number the record explained.
+6. The lock is unlinked,
+   then its PID file.
+
+Two commands that meet the same abandoned lock therefore cannot both remove it and both take it:
+each must hold the `flock` to reach the unlink,
+exactly one does,
+and the other either finds the name gone before its own last look
+(it removes nothing and goes on with a clear repository)
+or takes the `flock` after that unlink,
+when its identity check refuses the removal.
+Taking the lock afterwards is Git's own exclusive creation,
+so a second writer cannot take a lock the first has taken.
+A file system without `flock` answers something other than a lock,
+and then nothing is removed,
+which is the safe side.
+
+#### What each lock holds
+
+Nothing of the repository is lost,
+because Git never writes its state in place:
+every lock is a new file that Git fills and renames over its target,
+so a lock that never reached its rename holds only the dead holder's unfinished copy.
+For `index.lock` that copy is a new index that was never renamed into place,
+and the index file that is really there is the one the repository had before the kill.
+It is the same for `HEAD.lock`,
+`shallow.lock`,
+`packed-refs.lock`,
+`refs/**/*.lock` and the reftable backend's `reftable/tables.list.lock`:
+the target keeps the content it had,
+and the next command reads it.
+A person who removes such a lock by hand does exactly what this removal does,
+which is why the removal needs no repair afterwards.
+
+#### Where it runs, and what it costs
+
+The pass runs once in the wrapper's own process before the command reaches Git
+(`entry.rs`,
+`meet_the_locks_of_the_working_directory`),
+so every command of any kind meets a clear repository,
+and the commit service runs it before its landing waits for the index
+(`service_land_take_index_lock.rs`),
+so a commit is not withdrawn over a lock the service can prove dead.
+The walk reads directory entries by their own file type,
+skips the object store and the logs,
+and stops at `MOST_ENTRIES` entries,
+which reads about 8,192 entries of a Git directory.
+A repository with no lock pays that walk and one failed lookup of its record folder,
+and starts no Git.
+A command that removed a lock prints one line naming the file,
+the number its PID file held,
+and what the record proved,
+so a person needs no other command to understand what happened.
+A lock that stands and whose number no process of this table has and no record explains gets one line too:
+the lock,
+the number,
+the fact that a Git in another PID namespace or on another machine writes such a number,
+and the `rm` that clears it,
+because that lock can never release itself and nothing here may remove it.
+
+#### A hold that never ends no longer runs Git fifty times
+
+A forwarded index writer (`git add`,
+`git rm`,
+`git mv`) ran Git again while it lost the index to the commit service.
+Behind a hold that never ended,
+that loop ran the command once per attempt and printed the holder's notice once per attempt:
+a second audit of 0.6.1-alpha.14 measured 50 notices in 110 ms for one `git add`
+(`src/native/landing/service_hold_retry.rs`,
+`run_again_within`).
+The wait's own answer now decides:
+a hold that was released,
+or that was never the service's,
+is one another run can meet,
+and a hold proven a dead service's leftover,
+one that outlasted its ceiling,
+is not.
+Such a command shows one attempt's words,
+one notice,
+and its own status.
 
 ### Reference locks left by a Git that was killed
 
@@ -18938,36 +19359,39 @@ and leave one audit line each
 
 #### Conflicted files during a merge, rebase, cherry-pick or revert
 
-The owner's decision of 2026-11-02 (choice "save,
-then allow") is one exception to the rule above.
-While a merge,
+A conflicted path is where the person's own resolution of it lives,
+and nothing else holds it:
+the index holds the three sides,
+and the wrapper keeps no copy
+("What never discarding a person's data means").
+So a `checkout` or a `restore` that writes a worktree file is refused while a merge,
 a rebase of either backend,
 a cherry-pick or a revert is in progress,
-a `checkout` or `restore` command line that takes a side of conflicted files is let through,
-in the main worktree and in a linked worktree,
-after the wrapper copies the current worktree file of each path.
+and the refusal names every file it would replace,
+says that no copy is kept,
+offers the way to settle the conflict that loses nothing
+(edit the file and commit the result,
+with `git show :1:<path>`,
+`:2:<path>` and `:3:<path>` for the base and the two sides),
+and names `--no-enforce-worktree`,
+which runs the command exactly as real Git runs it and copies nothing.
+The wording is `conflicted_files_message` (`rule_linked_worktree_messages.rs`).
+
 In progress means `MERGE_HEAD`,
 `CHERRY_PICK_HEAD` or `REVERT_HEAD` in the worktree's Git directory,
 a `rebase-merge` directory,
 or a `rebase-apply` directory that holds `rebasing`
 (with `applying` it is `git am`,
-whose conflicts are not covered).
+whose conflicts this reading does not cover).
 A conflicted path is a path with an unmerged index entry (stage 1,
 2 or 3),
 read from the index file in process:
-no Git process runs for the decision.
-An index that cannot be read in process (split,
-sparse,
-carrying an extension the readers cannot vouch for,
-unreadable,
-or chosen by `GIT_INDEX_FILE`)
-shows no path as conflicted,
-and the usual rejection stays.
+no Git process runs for the reading.
 
-The forms covered are:
+The forms read are:
 
-- `checkout [<tree-ish>] -- <path>...`,
-  with `--ours`,
+- `checkout [<tree-ish>] -- <path>...` with the options that choose a side or how a file is written:
+  `--ours`,
   `--theirs`,
   `-2`,
   `-3`,
@@ -18985,119 +19409,73 @@ The forms covered are:
   and the quiet,
   progress,
   overlay and ignore options.
-  Abbreviated `restore` options are not read and keep the rejection.
+  Abbreviated `restore` options are not read.
   `-W`,
   `--worktree`,
   `-S` and `--staged` count only where Git parses them as options:
   the token after `--source`,
   `-s` or `--conflict` is that option's value,
   so in `restore --source -W --staged -- f`
-  (a tag can be named `-W`) the `-W` is a revision,
-  the restore is index-only,
-  and the rejection stays.
-The rejection reads the line the same way and names `git restore --staged` (the policy's own classification of an
-index-only restore skips those values and reads `-sW` as `-s` with the value `W`).
+  (a tag can be named `-W`) the `-W` is a revision and the line is an index-only restore,
+  which the policy refuses as that form.
 
-Every other line keeps the rejection:
+Every other line keeps the rejection without a sentence about a conflict:
 a force,
 a patch,
 a path list read from a file,
 a branch option,
-a form without `--`
-before the paths,
+a form without `--` before the paths,
 an index-only `restore --staged`,
-and any `reset` or other guarded command
-(the abort forms of `merge`,
-`rebase`,
-`cherry-pick`,
-`revert` and `am` are decided by the carve-out above,
-which lets one run only where the operation it undoes waits).
-A path is read by its literal spelling below the working directory.
-A directory,
+a directory,
 a trailing slash,
 a wildcard,
-pathspec magic or a path outside the worktree is not a conflicted file.
-A global pathspec mode changes which files a pathspec names (`--icase-pathspecs` and `GIT_ICASE_PATHSPECS` match `A.rs`
-for `a.rs`;
-the glob,
-noglob and literal forms change the reading of the characters),
-so a line under one keeps the
-rejection:
-the layout reader declines every global option except `-C` and every `GIT_` variable it does not tolerate,
-and `core.ignorecase` does not widen a pathspec.
-The rejection of such a line stays,
-and when the line qualifies,
-an operation is in progress,
-the index is readable and
-every path it names is a conflicted file,
-the message gains one sentence:
-it names the mode (`--icase-pathspecs`,
-`--glob-pathspecs`,
-`--noglob-pathspecs`,
-`--literal-pathspecs`,
-`--no-literal-pathspecs`,
-`GIT_ICASE_PATHSPECS`,
-`GIT_GLOB_PATHSPECS`,
-`GIT_NOGLOB_PATHSPECS`,
-`GIT_LITERAL_PATHSPECS`)
-and says the same command without it would be saved first and then allowed.
-The layout reader is asked a second time,
-without the mode,
-only for such a line.
-Pathspec magic on a conflicted file's name (`:(icase)a.rs`,
-`:(glob)a.rs`,
-`:(literal)a.rs`,
-`:(top)a.rs`,
-`:(exclude)a.rs`,
-`:!a.rs`,
-`:^a.rs`,
-`:/a.rs`) is rejected the same way,
-and when every token that is not a plain conflicted file is such magic
-the message names the magic and the file and says that naming the file itself is saved first and then allowed.
-Other magic (`:(attr:...)`,
-`:(prefix:...)`),
-a wildcard,
-a clean file,
-a mix,
-a form the carve-out does not cover and a
-repository with no operation in progress get no such sentence,
-because the carve-out would refuse those anyway.
-A line that names a path that is not conflicted is rejected whole,
-with the rejection text of the form
-followed by a sentence that names every such path.
-A path that Git resolves in the index as the command runs (`checkout <tree-ish> -- <path>` stages it) stops being conflicted,
-so a later line that names it is judged by the rules again.
+pathspec magic,
+a path outside the worktree,
+and a global pathspec mode.
+A path is read by its literal spelling below the working directory:
+`.` and `..` are folded,
+and a path that leaves the worktree names nothing.
+An index that cannot be read in process (split,
+sparse,
+carrying an extension the readers cannot vouch for,
+unreadable,
+or chosen by `GIT_INDEX_FILE`)
+shows no path as unmerged,
+so the refusal names none;
+the command is refused all the same,
+because it is a discarding form.
+So is a line under a `GIT_` variable that the in-process layout reader does not tolerate,
+such as `GIT_CONFIG_GLOBAL`:
+the layout is not read and no file is named.
 
-The copy is written and synced before Git starts.
-It goes to `<common-git-dir>/monochromatic-git-policy-cli/discarded/<UTC time as YYYY-MM-DDTHH-MM-SS>/<path from the top of the worktree>`,
+The refusal is the one `linked-worktree-only` makes,
+decided before the worktree's status is asked,
+so the main worktree,
+a linked worktree that holds uncommitted work and an exempt repository all refuse the line,
+and so would a linked worktree that held an unmerged entry while its status read as clean.
+That holds when the index can be read:
+a reading that declines names no file,
+and the line then falls back to what was there before,
+which still refuses in the main worktree and in a dirty linked worktree but runs under the exemption.
+So an exempt repository whose index this reader cannot read still runs a conflict-side line with no refusal and
+no copy.
+`--no-enforce-worktree` skips it as it skips every other guarded form,
+and the record then says `hatch`.
+
+#### The folder of saved copies
+
+A clean that would delete a nested Git repository
+("Nested Git repositories a clean would delete")
+copies what it would otherwise discard into
+`<common-git-dir>/monochromatic-git-policy-cli/discarded/<UTC time as YYYY-MM-DDTHH-MM-SS>/<path from the top of the worktree>`,
 next to `monochromatic-git-policy-cli-audit.jsonl`;
 a second invocation in the same second gets `-1`,
 `-2` and so on after the time.
 The directories are private (`0700`),
 and the copy has the file's content and permission bits
 or the symbolic link's target.
-The wrapper prints,
-before Git runs,
-for each path:
-
-```text
-monochromatic-git-policy-cli: saved your copy of a.rs to
-  /path/to/repo/.git/monochromatic-git-policy-cli/discarded/2026-11-02T14-01-07/a.rs
-  before this command replaces it (a.rs was conflicted).
-```
-
-A conflicted path with no file in the worktree has nothing to copy:
-the wrapper says so in one line and allows the command.
-A file another program is still writing is copied up to the size it had when the copy opened it,
-that copy is kept,
-and the wrapper says so before Git runs:
-
-```text
-monochromatic-git-policy-cli: a.rs was still being written while the wrapper copied it, so the copy holds what stood when the wrapper opened the file and nothing written after that. This command runs now, and a write that lands after the copy is not saved. Keep it another way if the later bytes matter.
-```
-
-The copy loop reads at most that size,
-so a writer that never stops cannot hold the command for good.
+The command prints where each copy went before Git runs.
+A path with no file in the worktree has nothing to copy and is named as such.
 If a copy cannot be written (a full disk,
 a refused permission,
 a place that is not a directory,
@@ -19106,6 +19484,9 @@ regular file nor a symbolic link),
 the command is rejected with a finding that names the path or place and the system's reason,
 no cut-short copy is left,
 and nothing is changed.
+
+An abort that lists a path with no file in the worktree is refused instead,
+because that content stands only in the index.
 
 The file is found without following a symbolic link.
 Each directory in front of the name is opened one component at a time below the worktree's top level,
@@ -19243,7 +19624,6 @@ with `schemaVersion`,
 `exempt`,
 `hatch`,
 `logged`,
-`saved-conflict` or
 `saved-nested-repository`),
 `dirty`,
 `cwd` and `arguments`.
@@ -19255,14 +19635,16 @@ the two-field form every other record of a path takes (`path_bytes_in_records.rs
 so a command whose working directory or argument is not UTF-8 is still the command the line names:
 the line exists to attribute a loss to it.
 The text fields hold what a reader of an earlier release read.
-A `saved-conflict` line also has `copies`,
+A `saved-nested-repository` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy),
-and so does a `saved-nested-repository` line,
 whose places hold the repositories a clean would have deleted.
-No outcome of this release copies anything before an abort or a skip:
+No outcome of this release copies anything before an abort,
+a skip or a conflict-side line:
 those forms are refused instead.
-A file an earlier release wrote may still hold `saved-abort` and `saved-skip` lines with their own `copies`,
-because the record is append-only.
+A file an earlier release wrote may still hold `saved-conflict`,
+`saved-abort` and `saved-skip` lines with their own `copies`,
+because the record is append-only,
+and the retention reader below still honours them.
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
 `dirty` is whether the worktree or the repository held what the form could destroy,

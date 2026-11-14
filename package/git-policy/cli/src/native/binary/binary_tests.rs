@@ -683,6 +683,12 @@ mod push_trigger;
 #[path = "binary_stale_ref_lock_tests.rs"]
 mod stale_ref_lock;
 
+/// The lock files a killed wrapper command leaves:
+/// cleared when the wrapper's own record proves the holder gone,
+/// kept when it does not.
+#[path = "binary_killed_holder_lock_tests.rs"]
+mod killed_holder_lock;
+
 
 /// The message and identity options through the service,
 /// compared with native Git field by field.
