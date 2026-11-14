@@ -285,6 +285,7 @@ fn a_crate_whose_binaries_would_take_a_name_the_plan_uses_is_refused() {
     let error = add_named_tools(&fixture.context(), &arguments(&["cargo:tokei"]), None, nothing_stops_the_run).expect_err("refused");
     assert_eq!(error.kind, ErrorKind::Config);
     assert!(error.message.contains("tokei"), "{error}");
+    assert!(error.message.contains("is already there"), "the refusal names the collision rather than the JSON parser: {error}");
     assert_eq!(fixture.plan_text(), before, "nothing was written");
 }
 
