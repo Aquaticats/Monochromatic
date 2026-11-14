@@ -74,7 +74,9 @@ and `DEPOT_CACHE_TOKEN`.
 The experiment must isolate the CLI home and configuration and remove those alternatives from its
 child-process environment,
 rather than treating token presence as proof of the credential actually used.
-The source is retained in the [platform source archive][sources].
+The source is retained in the platform source archive (`../audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz`).
+`depot-platform-surface-sources-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 `pkg/buildx/commands/build.go` authenticates before beginning a build.
 `pkg/registry/cli.go:WithDepotSave` preserves a local exporter and appends an image exporter for `--save`.
@@ -410,6 +412,5 @@ or a measured combined-platform bill.
 
 [native-builds]: https://depot.dev/docs/container-builds/integrations/depot-ci
 [github-builds]: https://depot.dev/docs/container-builds/integrations/github-actions
-[sources]: ../audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz
 [exporters]: ../troubleshooting/depot-buildkit-exporters.md
 [receipt]: ../audit/depot-native-buildkit-job-auth-2026-10-18.evidence.json

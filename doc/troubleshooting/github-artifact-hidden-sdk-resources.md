@@ -22,7 +22,9 @@ a deliberately corrupted extracted fixture was rejected.
 This establishes an output-membership gap.
 It does not establish that a runtime consumer needs that resource or fails without it.
 The evidence and verification implementation are retained in
-[`depot-complete-coverage-node-host-receipts.json.gz`](../planning/depot-complete-coverage-node-host-receipts.json.gz).
+`depot-complete-coverage-node-host-receipts.json.gz`.
+`depot-complete-coverage-node-host-receipts.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Root cause
 

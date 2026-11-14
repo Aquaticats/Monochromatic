@@ -23589,7 +23589,19 @@
               }
             ]
           },
-          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz"
+          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         }
       ],
       "selected": {
@@ -24232,7 +24244,19 @@
           "reusedDeviceInodeCount": 64,
           "clockObservationCount": 50,
           "observedNonzeroMillisecondFraction": true,
-          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy."
+          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy.",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         },
         "tmpfs-filesystem-fields.json": {
           "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
@@ -24273,7 +24297,19 @@
           "reusedDeviceInodeCount": 0,
           "clockObservationCount": 50,
           "observedNonzeroMillisecondFraction": true,
-          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy."
+          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy.",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         },
         "tmpfs-mounted.json": {
           "path": "/home/runner/temp/agent/monochromatic-lock-portability-native-depot/tmpfs",
@@ -24688,7 +24724,19 @@
               }
             ]
           },
-          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz"
+          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         },
         {
           "provider": "github-hosted",
@@ -24901,7 +24949,19 @@
               }
             ]
           },
-          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz"
+          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         }
       ],
       "selected": {
@@ -25588,7 +25648,19 @@
           "reusedDeviceInodeCount": 64,
           "clockObservationCount": 50,
           "observedNonzeroMillisecondFraction": true,
-          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy."
+          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy.",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         },
         "tmpfs-filesystem-fields.json": {
           "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
@@ -25629,7 +25701,19 @@
           "reusedDeviceInodeCount": 0,
           "clockObservationCount": 50,
           "observedNonzeroMillisecondFraction": true,
-          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy."
+          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy.",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         },
         "tmpfs-mounted.json": {
           "path": "/home/runner/temp/agent/monochromatic-lock-portability-github-hosted/tmpfs",
@@ -26219,7 +26303,19 @@
               }
             ]
           },
-          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz"
+          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         }
       ],
       "selected": {
@@ -26906,7 +27002,19 @@
           "reusedDeviceInodeCount": 64,
           "clockObservationCount": 50,
           "observedNonzeroMillisecondFraction": true,
-          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy."
+          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy.",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         },
         "tmpfs-filesystem-fields.json": {
           "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
@@ -26947,7 +27055,19 @@
           "reusedDeviceInodeCount": 0,
           "clockObservationCount": 50,
           "observedNonzeroMillisecondFraction": true,
-          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy."
+          "interpretation": "Source-derived filesystem observations only. The native lock identity compares file/device/inode; metadata evidence separately rounds ctime. These probes do not establish a provider defect or a source remedy.",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         },
         "tmpfs-mounted.json": {
           "path": "/home/runner/temp/agent/monochromatic-lock-portability-depot-github/tmpfs",
@@ -38595,7 +38715,19 @@
             "ubuntu-24.04"
           ],
           "runner_name": "GitHub Actions 1000002179",
-          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz"
+          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         },
         {
           "id": 117634976855,
@@ -38607,7 +38739,19 @@
             "depot-ubuntu-24.04-4"
           ],
           "runner_name": "depot-zzw89r0td9",
-          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz"
+          "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
+          ]
         }
       ]
     },
@@ -38816,7 +38960,19 @@
             }
           ]
         },
-        "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz"
+        "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       {
         "provider": "mirror",
@@ -38854,7 +39010,19 @@
             }
           ]
         },
-        "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz"
+        "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       {
         "provider": "depot-github",
@@ -39067,7 +39235,19 @@
             }
           ]
         },
-        "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz"
+        "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       {
         "provider": "github-hosted",
@@ -39280,7 +39460,19 @@
             }
           ]
         },
-        "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz"
+        "rawSource": "doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       }
     ],
     "cleanup": {
@@ -39326,7 +39518,19 @@
       "compressedBytes": 45098,
       "compressedSha256": "2e2a331991486c50af1fac361f04f99dcd964c4deb7b4b4dc599cd936b5f5609",
       "uncompressedBytes": 999962,
-      "uncompressedSha256": "468f3cb8cad5795519e2eb8cca2d861ecb182185a98fc0270b0494b6a65a8853"
+      "uncompressedSha256": "468f3cb8cad5795519e2eb8cca2d861ecb182185a98fc0270b0494b6a65a8853",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show c2263298da6eb50370ee9f1da7649d86ccad3047:doc/audit/depot-reuse-lock-portability-2026-10-18.receipts.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     "finalVerification": {
       "recordedAt": "2026-10-18T09:18:09.581Z",

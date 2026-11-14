@@ -1,0 +1,10 @@
+# The recheck image plus one runner, for one question the five timing rounds left inside their own spread: whether
+# the multiple() state fix costs time on alternating input near its threshold. A tag of its own.
+#
+#   podman build --tag localhost/optique-two-remaining-copies-recheck-mixed-threshold:2026-11-13 --file Containerfile.mixed-threshold .
+
+FROM localhost/optique-two-remaining-copies-recheck:2026-11-13
+
+COPY image/run-mixed-threshold.ts /run-mixed-threshold.ts
+
+ENTRYPOINT ["node", "/run-mixed-threshold.ts"]

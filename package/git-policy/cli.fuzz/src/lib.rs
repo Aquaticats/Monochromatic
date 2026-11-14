@@ -26,6 +26,9 @@ mod control_tables;
 /// Control-bearing argument vectors and the invariants of removal and of the refusal frontier.
 pub mod controls;
 
+/// Every seed of `seed/wrapper_controls/`, as the answers each one asks for and the arguments it spells.
+pub mod seeds;
+
 /// Raw and generated D-Bus replies and the session bus client's reply reader invariants.
 pub mod dbus_reply;
 

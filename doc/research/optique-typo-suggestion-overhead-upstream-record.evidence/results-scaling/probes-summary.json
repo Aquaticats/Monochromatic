@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-11-12T16:56:17.782Z",
+  "tokenCounts": [
+    1000,
+    2000,
+    4000,
+    8000
+  ],
+  "tokenProbe": [
+    {
+      "arm": "1.1.1",
+      "minimaMs": [
+        23.89,
+        95.513,
+        343.889,
+        1365.601
+      ],
+      "microsecondsPerToken": [
+        23.89,
+        47.76,
+        85.97,
+        170.7
+      ],
+      "exponentOnMinima": 1.936
+    },
+    {
+      "arm": "1.4.0-dev.2971",
+      "minimaMs": [
+        26.761,
+        101.693,
+        368.759,
+        1404.529
+      ],
+      "microsecondsPerToken": [
+        26.76,
+        50.85,
+        92.19,
+        175.57
+      ],
+      "exponentOnMinima": 1.9
+    }
+  ],
+  "sizes": [
+    {
+      "arm": "1.3.6",
+      "tokenCount": 1000,
+      "parseMsPerParse": 37.647,
+      "inputTraceMsPerParse": 19.432,
+      "inputTraceShare": 0.5162,
+      "setShare": 0.5101
+    },
+    {
+      "arm": "1.3.6",
+      "tokenCount": 4000,
+      "parseMsPerParse": 447.248,
+      "inputTraceMsPerParse": 351.685,
+      "inputTraceShare": 0.7863,
+      "setShare": 0.7827
+    }
+  ],
+  "sizeExponents": {
+    "parseExponent": 1.785,
+    "inputTraceExponent": 2.089
+  }
+}

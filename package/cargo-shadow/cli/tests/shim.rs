@@ -302,7 +302,7 @@ fn cargo_update_is_answered_as_pnpm_update_and_cargos_own_resolver_never_sees_th
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
     let lines: Vec<String> = log_lines(&world);
     assert!(lines.iter().any(|line| { return line.contains("generate-lockfile"); }), "{lines:?}");
-    assert!(!lines.contains(&"update".to_string()), "the bare cargo update must not reach cargo: {lines:?}");
+    assert!(!lines.iter().any(|line| { return line == "update"; }), "the bare cargo update must not reach cargo: {lines:?}");
 }
 
 #[test]

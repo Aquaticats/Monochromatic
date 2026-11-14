@@ -65,12 +65,14 @@ CLI help invocation,
 official repository,
 release entry,
 and context-index entry.
-The [compressed source receipt](../audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz)
+The compressed source receipt (`../audit/depot-platform-surface-sources-2026-10-18.evidence.json.gz`)
 retains exact public responses and pinned integration source.
 Its first checkpoint contained 295 source files from 28 official repositories.
 The expanded checkpoint contains 542 source files from those repositories,
 including the complete installed CLI implementation and additional SDK and integration source.
 Retrieval state and substantive review state are separate fields.
+`depot-platform-surface-sources-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 A further source pass captures metadata for all 93 enumerated official repositories
 and 142 additional root README,
@@ -344,7 +346,7 @@ The timed-out optional probe does not settle that narrower discrepancy.
 
 ## Live plan eligibility and autoscaling boundary
 
-The [live public pricing capture](../audit/depot-live-public-pricing-2026-10-18.evidence.json.gz)
+The live public pricing capture (`../audit/depot-live-public-pricing-2026-10-18.evidence.json.gz`)
 retains every feature row's SVG,
 every FAQ answer,
 and each compute tab from an isolated unauthenticated browser session.
@@ -353,6 +355,8 @@ The capture did not inspect account state,
 cookies,
 invoices,
 or subscriptions.
+`depot-live-public-pricing-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 Developer includes Linux and Windows GitHub runners,
 multi-platform builds,
@@ -1354,9 +1358,11 @@ The source archive and public metadata are reconciled.
 No SSH job was dispatched by this preflight failure or its repair.
 
 The [SSH proposal receipt](../audit/depot-native-ssh-acceptance-2026-10-18.evidence.json)
-and [source archive](../audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz)
+and source archive (`../audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz`)
 separate source review and local controls from provider execution.
 No native SSH job has been allocated under this proposal.
+`depot-native-ssh-acceptance-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The deployed debugger guide distinguishes raw sandbox access from a paused workflow environment.
 The CLI interactive terminal uses `OpenPtySession`;
