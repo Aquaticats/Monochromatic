@@ -503,7 +503,7 @@ const TWO_PLACES: usize = 2;
 /// The work a person waits for,
 /// as one job of the blocking pool:
 /// a push's own read of its child is one.
-fn fn_seven() -> u8 {
+fn fn_seven((): ()) -> u8 {
     return 7;
 }
 
@@ -549,7 +549,7 @@ fn a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_job
     assert!(has_inside.recv_timeout(PATIENCE).is_ok(), "the slow job never took its place");
     // The work a person waits for: one blocking job, which a push's own read of its child is.
     let began: std::time::Instant = std::time::Instant::now();
-    let answered: Result<u8, BlockingJobError> = run_on_runtime(async { return run_blocking_job_within_the_budget(fn_seven).await; }).expect("the runtime");
+    let answered: Result<u8, BlockingJobError> = run_on_runtime(async { return run_blocking_job_within_the_budget(|| { return fn_seven(()); }).await; }).expect("the runtime");
     let waited: Duration = began.elapsed();
     assert_eq!(answered, Ok(7), "the work a person waits for ran");
     assert!(waited < PATIENCE, "the work a person waits for ran beside the slow job, in {waited:?}");
@@ -567,4 +567,99 @@ fn a_reserved_place_keeps_the_work_a_person_waits_for_out_of_a_queue_of_slow_job
     let took_the_reserve: bool = started.load(Ordering::SeqCst);
     let _let_go = release.send(());
     assert!(!took_the_reserve, "a second slow job took the place the gate keeps for the work a person waits for");
+}
+
+/// The places this control gives the process,
+/// which is what the commit service gives itself (`service_main.rs`, `SERVICE_WORKER_CAP`).
+const FOUR_PLACES: usize = 4;
+
+/// The longest the control lets one ask of the work a person waits for take.
+/// It is the ceiling the two asks are granted, and it is short so a run whose second ask never gets a place fails in a
+/// moment instead of waiting out the shipped `LANDING_STATE_CEILING`.
+const A_SHORT_CEILING: Duration = Duration::from_secs(3);
+
+/// What:
+///  Two asks of the work a person waits for both run at once while slow work holds every place it may take.
+/// Why:
+///  A place is not a lane: the ask that says whose a commit's request is and the step that begins its landing are two
+/// asks, and a reserve of one place serves one of them.
+/// On `2026-11-12` the main checkout's service answered a commit thirteen minutes late while its four places were held by
+/// slow work and by jobs of the pool that took a thread without a place
+/// (`doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`);
+/// with one place kept free, the routing ask and the landing's step took turns waiting for each other behind it.
+/// The control states the reserve's whole job:
+/// slow work holds every place it may take,
+/// the first ask holds the place it took,
+/// and a second ask of the person's path still runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdEverySlowPlace(); const first = ask(holdIt); await first.took; expect(await ask()).toBe('ran')
+/// ```
+#[test]
+fn two_asks_of_the_work_a_person_waits_for_run_while_slow_work_holds_every_place_it_may() {
+    hold_blocking_jobs_to(FOUR_PLACES);
+    assert_eq!(budgeted_blocking_jobs(), FOUR_PLACES, "the cap the process asked for is the bound in force");
+    // Every place slow work may take, held on a thread of the pool with the place of slow work held for it, which is a
+    //  trash of a removed worktree's one entry removal.
+    let held: usize = places_a_round_may_take();
+    let (inside, has_inside) = std::sync::mpsc::channel::<()>();
+    let (release_slow, slow_held) = std::sync::mpsc::channel::<()>();
+    let the_slow_places_are_held: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(slow_held));
+    let mut holders: Vec<tokio::task::JoinHandle<()>> = Vec::new();
+    for _ in 0..held {
+        let told = inside.clone();
+        let release = Arc::clone(&the_slow_places_are_held);
+        let holder = crate::lazy_runtime::spawn_on_runtime(async move {
+            let _held: Result<(), BlockingJobError> = run_a_slow_job_within_the_budget(move || {
+                let _said = told.send(());
+                let _ = release.lock().expect("the control's release").recv();
+            })
+            .await;
+        });
+        holders.push(holder.expect("the runtime has a worker, so slow work can take its place"));
+    }
+    for _ in 0..held {
+        assert!(has_inside.recv_timeout(PATIENCE).is_ok(), "a slow job never took its place");
+    }
+    // The first ask of the person's path, which holds the place it takes until the control lets it go.
+    let (took, has_taken) = std::sync::mpsc::channel::<()>();
+    let (release_first, first_held) = std::sync::mpsc::channel::<()>();
+    let first = crate::lazy_runtime::spawn_on_runtime(async move {
+        return run_a_job_awaited_no_longer_than(PATIENCE, (took, Arc::new(Mutex::new(first_held))), take_and_hold_a_place).await;
+    })
+    .expect("the runtime has a worker, so the first ask can take its place");
+    assert!(has_taken.recv_timeout(PATIENCE).is_ok(), "the first ask of the person's path never took its place");
+    // The second ask, at the same time, granted the same ceiling a landing's own step is.
+    let second: TheAnswerOfAJobAwaited<u8> = run_on_runtime(async { return run_a_job_awaited_no_longer_than(A_SHORT_CEILING, (), fn_seven).await }).expect("the runtime");
+    let _let_slow_go = release_slow.send(());
+    let _let_first_go = release_first.send(());
+    assert!(
+        matches!(second, TheAnswerOfAJobAwaited::Ran(7)),
+        "a second ask of the work a person waits for did not run while slow work held every place it may take and the \
+         first ask held the place it took: {second:?}"
+    );
+    first.abort();
+    for holder in holders {
+        holder.abort();
+    }
+}
+
+/// What:
+///  Take a place of the process's bound,
+///  say so,
+///  and hold it until the control lets it go.
+/// Why:
+///  The place is what a second ask waits for,
+/// so the ask must hold its place while the second asks;
+/// a job that only ran would give its place back before the control could ask.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// (took, held) => { took.send(); held.recv(); return 1 }
+/// ```
+fn take_and_hold_a_place((took, held): (std::sync::mpsc::Sender<()>, Arc<Mutex<std::sync::mpsc::Receiver<()>>>)) -> u8 {
+    let _said = took.send(());
+    let _ = held.lock().expect("the control's release").recv();
+    return 1;
 }

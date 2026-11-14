@@ -32,6 +32,9 @@ pub(crate) enum WhyWithdrawn {
         /// The signal the person sent.
         signal: i32,
     },
+    /// Every send of the request met a service that said nothing, and the request is given up so that the person is told
+    ///  what became of it instead of a silence.
+    ServiceGone,
 }
 
 impl WhyWithdrawn {
@@ -49,6 +52,7 @@ impl WhyWithdrawn {
         return match self {
             Self::Ceiling { minutes } => ClientFailure::StillWithService { minutes: *minutes, blocker },
             Self::Interrupted { signal } => ClientFailure::Interrupted { signal: *signal, blocker },
+            Self::ServiceGone => ClientFailure::ServiceGoneNotLanded { blocker },
         };
     }
 
@@ -67,6 +71,7 @@ impl WhyWithdrawn {
         return match self {
             Self::Ceiling { .. } => ClientFailure::WithdrawalUnconfirmed { blocker },
             Self::Interrupted { signal } => ClientFailure::InterruptedNotKnown { signal: *signal, blocker },
+            Self::ServiceGone => ClientFailure::ServiceGoneUnconfirmed { blocker },
         };
     }
 }

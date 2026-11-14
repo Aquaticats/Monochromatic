@@ -86,6 +86,10 @@ pub mod service_journal_record_age;
 /// Test-only fault points of the commit service.
 pub mod service_fault;
 
+/// Steps of the service a control can hold open,
+/// named by an environment variable the fixture's service is started with.
+pub mod service_hold_a_step_for_a_control;
+
 /// The native journal protocol and the standard error fallback the service's entries go through.
 pub mod journald_native;
 

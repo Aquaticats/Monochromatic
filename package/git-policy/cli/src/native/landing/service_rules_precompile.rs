@@ -33,7 +33,7 @@ use crate::scanner_selection::{rules_candidate_paths, rules_source};
 use crate::config_file::load_repository_config;
 /// The blocking pool,
 /// for the compile.
-use crate::blocking_job::run_blocking_job;
+use crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget;
 /// The process's runtime,
 /// for the task that waits for the pool.
 use crate::lazy_runtime::spawn_on_runtime;
@@ -240,7 +240,7 @@ fn spawn_warm(repository_root: PathBuf, first: bool, changed: Vec<String>) {
         return;
     }
     let started = spawn_on_runtime(async move {
-        let _ended = run_blocking_job(move || { warm_job(repository_root.as_path(), first, changed.as_slice()); }).await;
+        let _ended = run_a_slow_job_within_the_budget(move || { warm_job(repository_root.as_path(), first, changed.as_slice()); }).await;
         RUNNING.store(false, Ordering::SeqCst);
     });
     if started.is_none() {

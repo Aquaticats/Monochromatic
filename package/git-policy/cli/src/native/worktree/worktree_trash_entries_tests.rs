@@ -300,3 +300,49 @@ fn a_trash_removal_leaves_one_place_for_a_step_that_answers_a_client() {
     assert!(left.is_empty(), "{left:?}");
     remove(root.as_path());
 }
+
+/// What:
+///  A wave of a trash's entries removes the entries it names and leaves the others where they are,
+///  so a trash whose bound ran out between two waves is finished by the next one.
+/// Why:
+///   The service empties one trash within a bound of its own (`TRASH_ITEM_CEILING`),
+/// and a bound can only stop what an item has not started:
+/// the entries are handed over a wave at a time,
+/// each is removed only while it is the object the manifest recorded,
+/// and the trash directory keeps the identity its record proves it by,
+/// so the next wave finds exactly the entries the last one left
+/// (`worktree_trash_dispose.rs`).
+/// A trash of a removed worktree is hundreds of thousands of entries
+/// (`doc/planning/cli-git-worktree-add-cost-of-its-trash.md`),
+/// and one that could not be left between two entries was the item a round spent fifty times its budget on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await removeTheseEntries(request, [0, 1]); expect([0, 1].every(gone)); expect([2, 3].every(here)); await removeTheseEntries(request, [2, 3]); expect(all(gone))
+/// ```
+#[test]
+fn a_wave_removes_the_entries_it_names_and_leaves_the_rest_for_the_next_one() {
+    let _room: usize = room_for("a_wave_removes_the_entries_it_names_and_leaves_the_rest_for_the_next_one", a_place_over(ENTRIES));
+    let (root, held, manifest) = trash_with_entries("trash-entries-waves");
+    let one_removal: Arc<RemoveOne> = Arc::new(remove_tree_beneath);
+    let request = request(root.as_path(), &held, &manifest, &LARGE_HOST, &one_removal);
+    let half: usize = ENTRIES / 2;
+    assert!(half > 0 && half < ENTRIES, "the control needs a wave between one entry and all of them: {half}");
+    let first: Vec<usize> = (0..half).collect();
+    let later: Vec<usize> = (half..ENTRIES).collect();
+    let first_wave = crate::lazy_runtime::run_on_runtime(remove_these_entries_awaiting(&request, first.as_slice())).expect("the runtime removes the first wave");
+    assert!(first_wave.is_empty(), "{first_wave:?}");
+    for index in &first {
+        assert!(!root.join("trash").join(entry_name(*index)).exists(), "d{index} of the first wave is gone");
+    }
+    for index in &later {
+        assert!(root.join("trash").join(entry_name(*index)).exists(), "d{index} of the later wave is still there for it");
+    }
+    // The identity the manifest recorded still holds for what is left, so the next wave removes exactly those entries.
+    let next_wave = crate::lazy_runtime::run_on_runtime(remove_these_entries_awaiting(&request, later.as_slice())).expect("the runtime removes the next wave");
+    assert!(next_wave.is_empty(), "{next_wave:?}");
+    for index in 0..ENTRIES {
+        assert!(!root.join("trash").join(entry_name(index)).exists(), "d{index} is gone after the two waves");
+    }
+    remove(root.as_path());
+}

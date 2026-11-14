@@ -163,6 +163,14 @@ Read-only commands,
   "Retry after a moved branch").
   Concurrent commits from several worktrees or sessions therefore never overwrite each other,
    and none waits for another.
+  Nor does one wait for the work nobody asked for:
+   the service does that work (housekeeping, the repair of a new worktree's package state, pushes, the sync of a landing's
+   records) on places of its blocking bound that slow work may take,
+   keeps two places free of it,
+   and answers a commit's own asks from those,
+  so a commit lands while a housekeeping round, a repair and a push run beside it
+   (`SPEC.md`,
+  "The resident commit service").
   The wrapper takes no lock of its own:
   a commit meets only Git's `index.lock`,
    which the service holds for the branch move and the index build only (a median of 5 ms in the measurement in `SPEC.md`).

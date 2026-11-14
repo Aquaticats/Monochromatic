@@ -895,3 +895,13 @@ mod kept_references;
 /// measured for the record and not asserted as a control.
 #[path = "binary_housekeeping_beside_a_commit_tests.rs"]
 mod housekeeping_beside_a_commit;
+
+/// A commit made while every other kind of work the service does is held open:
+/// two prewarm clones, the background sync of a landing, the removal of a scratch tree and a push.
+#[path = "binary_a_commit_lands_while_every_kind_of_work_is_held_tests.rs"]
+mod a_commit_lands_while_every_kind_of_work_is_held;
+
+/// A trash left by the ceiling of its item, taken up again when its claim's lease ends:
+/// what the first wave removed, what the later round removes, and a commit through both.
+#[path = "binary_a_trash_left_by_its_ceiling_comes_back_after_its_lease_tests.rs"]
+mod a_trash_left_by_its_ceiling_comes_back_after_its_lease;

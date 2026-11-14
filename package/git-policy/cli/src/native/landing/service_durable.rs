@@ -51,7 +51,7 @@ use std::fs::File;
 use std::thread::Scope;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
-use crate::blocking_job::run_blocking_job;
+use crate::blocking_jobs_within_the_budget::run_a_slow_job_within_the_budget;
 use crate::service_durable_syncs::SyncFigure;
 use crate::lazy_runtime::spawn_on_runtime;
 use std::sync::mpsc::{Sender, channel};
@@ -191,7 +191,11 @@ async fn background(mut jobs: UnboundedReceiver<Job>) {
     while let Some(job) = jobs.recv().await {
         match job {
             Job::Batch(batch) => {
-                if let Err(error) = run_blocking_job(move || { sync_batch(batch); }).await {
+                let holding_and_syncing = move || {
+                    crate::service_hold_a_step_for_a_control::hold_blocking(crate::service_hold_a_step_for_a_control::INSIDE_A_SYNC);
+                    sync_batch(batch);
+                };
+                if let Err(error) = run_a_slow_job_within_the_budget(holding_and_syncing).await {
                     // Nobody waits for this: the records are as a power cut leaves them, which the next landing or restart handles.
                     crate::service_warn!("the background sync of a landing's records could not run: {error}");
                 }

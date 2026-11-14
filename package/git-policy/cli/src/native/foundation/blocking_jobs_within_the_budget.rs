@@ -107,8 +107,8 @@ pub fn budgeted_blocking_jobs() -> usize {
 }
 
 /// What:
-///  How many of the process's places a round's own long work may take:
-/// every place but one,
+///  How many of the process's places a round's own slow work may take:
+/// every place but those kept for the work a person waits for,
 /// and at least one.
 /// Why:
 ///   A round of the after-commit work removes trash entries side by side,
@@ -120,15 +120,16 @@ pub fn budgeted_blocking_jobs() -> usize {
 /// all run there,
 /// and the measurement of 2026-11-10 shows what that cost (`clients_keep_a_place_of_the_pool`,
 /// `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`).
-/// The one place kept back is small (a read of one directory's name or of a few journal files)
-/// and never idle while a client waits.
+/// The number is the places slow work itself may take, not one less than the whole budget:
+/// a round that removed with more places than `slow_places` offers would queue behind its own lane for them,
+/// and the promise that the places of a person's work stay free is kept by one figure, not two.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const places = Math.max(1, budgetedBlockingJobs() - 1);
+/// const places = Math.max(1, budgetedBlockingJobs() - SLOW_WORK_RESERVE);
 /// ```
 pub fn places_a_round_may_take() -> usize {
-    return budget().allowed.saturating_sub(1).max(1);
+    return budget().allowed.saturating_sub(SLOW_WORK_RESERVE).max(1);
 }
 
 /// What:
@@ -261,7 +262,7 @@ where
 static SLOW_PLACES: OnceLock<Arc<Semaphore>> = OnceLock::new();
 
 /// How many of the process's places stay free of slow work:
-/// 1.
+/// 2.
 /// Why:
 ///  A job queues in the process's bound in the order it asked,
 /// so a queue of slow jobs stands between the work a person waits for and the place it needs:
@@ -274,19 +275,26 @@ static SLOW_PLACES: OnceLock<Arc<Semaphore>> = OnceLock::new();
 /// the measurement for the record).
 /// The pushes of a repository are never claimed by the slow lane,
 /// so what held them was the pool and not the work:
-/// one place kept free of slow work is what makes the lane's own promise true
+/// a place kept free of slow work is what makes the lane's own promise true
 /// (`landing/service_work_slow_lane.rs`).
-/// One is the owner's rule about waits,
+/// Two and not one, because a place is not a lane:
+/// the place a commit's landing needs and the place the ask that routes its request needs are two asks,
+/// and one free place let either of them wait behind the other.
+/// The service that answered a commit thirteen minutes late on `2026-11-12` held all four of its places in slow work
+/// or in unbudgeted jobs of the pool (the journals and the analysis are in
+/// `doc/troubleshooting/git-policy-cli-service-answers-a-commit-late-while-a-round-is-busy.md`),
+/// and one free place would have been enough for neither the ask nor the landing.
+/// The owner's rule about waits,
 /// "nothing should ever wait forever or indefinitely",
-/// read as the smallest number that finishes the round's own steps while slow work runs;
+/// read as the smallest number that leaves the path that begins a landing its own two places while slow work runs;
 /// the coordinator's pick under the owner's delegation,
 /// open to the owner's veto.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const SLOW_WORK_RESERVE = 1;
+/// const SLOW_WORK_RESERVE = 2;
 /// ```
-pub(crate) const SLOW_WORK_RESERVE: usize = 1;
+pub(crate) const SLOW_WORK_RESERVE: usize = 2;
 
 /// What:
 ///  The places slow work may take at once:
@@ -309,7 +317,7 @@ fn slow_places() -> &'static Arc<Semaphore> {
 /// The places slow work may take,
 /// made by the first slow job that asks for one.
 fn the_places_slow_work_may_take() -> Arc<Semaphore> {
-    return Arc::new(Semaphore::new(budget().allowed.saturating_sub(SLOW_WORK_RESERVE).max(1)));
+    return Arc::new(Semaphore::new(places_a_round_may_take()));
 }
 
 /// What:
@@ -462,6 +470,7 @@ fn a_refused_thread_start(failed: BlockingJobError, claimed: &TheClaimOnAJobsWor
 /// ```ts
 /// type AnswerOfAJob<T> = { ran: T } | 'notRun' | 'noAnswer';
 /// ```
+#[derive(Debug)]
 pub enum TheAnswerOfAJobAwaited<T> {
     /// The job ran and gave this.
     Ran(T),
