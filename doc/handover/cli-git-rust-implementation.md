@@ -1230,6 +1230,97 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow `0.2.7-alpha.11` is released, in the toolchain lock and installed; the first minutes of `0.6.1-alpha.29` are clean (2026-11-14T12:37:49-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **mpm-shadow `0.2.7-alpha.11`**:
+  published at 12:35:14 as archives on GitHub
+  (crates.io skipped for the alpha label);
+  local `main` fast-forwarded to the release commit `76cc96469e`.
+  `toolchain:outdated` named one tool that would move,
+  mpm-shadow from `0.2.7-alpha.10`,
+  and every other as unchanged or pinned;
+  `toolchain:update` then moved that one.
+  The lock's diff,
+  read line by line,
+  is ten lines changed:
+  the version,
+  four archive addresses with their checksums,
+  and the lock's digest.
+  Committed as `02bd785765` at 12:37:40.
+  `toolchain:install` ended with status 0 at 12:37:49
+  (fetched and verified by its SHA-256;
+  66 other tools unchanged),
+  and `mpm-shadow --version` answers `0.2.7-alpha.11`.
+  The outputs are in `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/`.
+- **`0.6.1-alpha.29`**,
+  the user journal from 12:30:30 until 12:36:30:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  two services saying `0.6.1-alpha.29` at their start.
+- **A correction to earlier sections**:
+  the counting script reads the whole user journal of its window,
+  every unit of this account,
+  and not the wrapper's units alone.
+  The totals of lines given for earlier releases
+  (356 for alpha.26,
+  266 for alpha.27,
+  215 for alpha.28,
+  2,487 here)
+  are therefore totals of everything logged and say nothing of the wrapper alone;
+  the four checks are what each count stands on.
+
+##### `0.6.1-alpha.29` is installed; mpm-shadow's `0.2.7-alpha.11` is dispatched (2026-11-14T12:31:09-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **`0.6.1-alpha.29`** (pass 39):
+  published at 12:30:46,
+  installed here from 12:30:51 to 12:30:58,
+  sample commit 1,200 ms,
+  `--version` answering `0.6.1-alpha.29`.
+  The count of the wrapper units' journal for its first minutes is still to run.
+  The next wrapper release is `0.6.1-alpha.30`.
+- **mpm-shadow `0.2.7-alpha.11`**
+  (an install takes a tool,
+  issue 6300;
+  the Clippy fix):
+  dispatched at 12:31:09 from `main` with the wrapper's release commit in it
+  (run 43621534396).
+  An alpha label is released as archives on GitHub and is not published to crates.io,
+  as the wrapper's alphas are.
+  `toolchain:update` follows when the run has ended.
+- Of the inbox notes this session sent today,
+  none stands refused:
+  five `.failed-*` files exist under the run folders' inboxes and none was written on 2026-11-14.
+
+##### The driver's empty last answer goes back with three reproduced defects (2026-11-14T12:29:33-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+and what the coordinating session queued.
+
+- **The driver's empty last answer** (`ad5e48ef93`),
+  second review,
+  which drove the real `watchUntilEnded` with a scripted connection:
+  three reproduced,
+  each with a control arm.
+  A turn that begins and settles on a transient model error inside the read of work ends the run with a retryable error and no attempt,
+  which the tip commit brought against its own parent.
+  A wake refused by a turn that began ends the run `prompt-rejected` and aborts that turn,
+  in code the change moved.
+  And an inbox message refused the same way is kept as `.failed-<name>` and never delivered while the run ends `idle`,
+  which is older than the change.
+  The last is how a note from this session to a going run can go undelivered with no sign of it.
+  The author is resumed second,
+  asked for one rule for every send to Pi and not three patches
+  (`~/temp/agent/pi-runs/driver-empty-last-answer-answers-its-second-review-of-2026-11-14-prompt.md`).
+- The queue held 61 entries at 12:29:33.
+
 ##### Pass 39 and the mpm-shadow integration are in `main`; `0.6.1-alpha.29` is dispatched; the landed removal goes back; the fuzz seeds go to review (2026-11-14T12:23:45-05:00)
 
 Not final and not approved:
