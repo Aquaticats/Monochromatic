@@ -1121,6 +1121,62 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The index-lock author answered its third review; a lock a killed Git leaves is still never cleared on this volume (2026-11-13T20:47:05-05:00)
+
+Not final and not approved:
+the coordinating session's reading of a run that ended at 20:41:04.
+
+- Tip `e7474d6803` on `fix/git-policy-cli-index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone`,
+  `main` merged in
+  (report in `~/temp/agent/index-lock-left-by-a-killed-wrapper-is-cleared-when-its-holder-is-proven-gone-scratch/keep/report-of-the-third-review.md`).
+- The author ran each of the review's reproductions against the reviewed build and against its own.
+  Three findings are answered,
+  each with controls shown failing first:
+  the record a command writes of itself reads back
+  (eight forwarded commands left eight records, now one);
+  a pipe at a PID file's name no longer holds a command
+  (15 s at the probe's bound before, 11 ms after);
+  the sweep takes no record when its walk was not whole.
+  Clippy clean;
+  381 unit tests and 16 binary tests of its modules pass.
+  Cost of twenty warm `git status`:
+  142 ms before, 131 ms after,
+  inside the spread.
+- **The fourth finding stands, as measured:**
+  on this volume real Git creates `index.lock` and `index~pid.lock` with equal birth stamps,
+  so the pass proves nothing by their order and clears no non-empty lock through the PID file.
+  After a killed Git the lock stands,
+  the next `git status` removes nothing,
+  and the next commit waited 61 s and failed.
+  The author tried eight proofs from what is on disk and gives the sequence that breaks each;
+  it found none and changed nothing of the gate.
+  It names one route:
+  a record the wrapper writes when its Git takes the lock,
+  carrying that Git's identity and the lock's device, inode and change time.
+- Routed:
+  the fourth review of the answer, over `main...e7474d6803`, is queued at the head.
+  The fourth finding gets a fresh run that starts at that tip
+  (`~/temp/agent/pi-runs/lock-a-killed-git-left-is-cleared-on-a-volume-where-births-are-equal-by-a-record-the-wrapper-wrote-prompt.md`),
+  queued near the head because it is a commit that fails behind a lock nobody holds.
+  Its first item is to say whether the route holds in every sequence,
+  and to stop at the report if a sequence clears a live holder's lock.
+  The wording of the advice
+  (remove the PID file with the lock)
+  is in the same brief.
+- Adopted while the owner was away,
+  open to veto:
+  starting that run without asking.
+  The record behind it is the owner's order of 2026-11-13 that jams come first
+  and that an issue found in the wrapper is fixed by the coordinating session or a run it starts;
+  the author's own question was whether the coordinating session wants it as a round of its own.
+- From that author's report,
+  now in the rules every brief carries
+  (`package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`):
+  a fixture's own `HOME` and `XDG_RUNTIME_DIR` do not keep a program off this machine's session bus,
+  because `DBUS_SESSION_BUS_ADDRESS` is inherited.
+  Its measurement script had this machine's user manager start two commit service units for throwaway repositories;
+  it stopped and removed them.
+
 ##### `0.6.1-alpha.21` is installed; the main checkout's commit service was left failed at the start limit (2026-11-13T20:37:32-05:00)
 
 Not final and not approved:
