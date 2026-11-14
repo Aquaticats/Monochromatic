@@ -1198,6 +1198,35 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The warm request's controls leave no process behind: reviewed with no defect, and pass 39 with the five library controls (2026-11-14T09:53:23-05:00)
+
+Not final and not approved:
+what one review reports of itself and what the coordinating session queued.
+
+- **The warm request's stand-in** (`ff914e456e`, two test files):
+  its review ended at 09:48:11 with no defect
+  (`~/temp/agent/change-reviews/git-policy-cli-warm-request-controls-leave-no-stand-in-process-behind/review.md`).
+  By its report it ran the three controls the change touches (all pass),
+  the race control eight times (all pass),
+  and three probes of the mechanism:
+  the stand-in ends when its pipe closes,
+  a helper ends when its parent is killed outright,
+  and the group is still readable for a stand-in that was killed and not yet reaped.
+  It ran the two controls that use a socket with the real, short `HOME`,
+  since its disposable one was too long for a socket address.
+- **Integration pass 39**,
+  queued first:
+  the five library controls with the guards true again (`5e0075af31`) and the warm request's controls (`ff914e456e`)
+  (`~/temp/agent/pi-runs/integration-pass-39-with-the-guards-true-again-and-the-warm-request-controls-that-leave-nothing-behind-prompt.md`).
+  Three passes are then going or queued beside each other
+  (37, 38, 39);
+  each merges `main` again when another reaches it.
+- Going at 09:53:23:
+  twenty-seven Pi runs,
+  three over the cap,
+  for the reason in the section of 09:46:21.
+  The queue held 55 entries.
+
 ##### Three reviews: the drawn tree and add-never-skips go back, the five controls pass; twenty-eight agents going against a cap of twenty-four (2026-11-14T09:46:21-05:00)
 
 Not final and not approved:
