@@ -1248,6 +1248,169 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### No run started for four hours and forty minutes: a queue entry that fails every start; thirty-one runs read; `0.6.1-alpha.26` and `0.6.1-alpha.27` are installed (2026-11-14T08:50:39-05:00)
+
+Not final and not approved:
+what the coordinating session measured,
+merged and queued,
+and what thirty-one runs report of themselves,
+which this session has not checked unless a line says so.
+The owner wrote "Continue." at about 08:38 after a login;
+the session had been logged out since about 03:09.
+
+- **The jam, and it was this session's doing.**
+  From 04:00:14 to 08:40:02 the filling unit started nothing:
+  108 lines `a start failed and the filling goes on` in its journal,
+  about 153 s apart,
+  each for the same first entry.
+  That entry was the range review of cargo-shadow's Clippy fix (`353d5e06d7`),
+  queued by this session at 03:08:40.
+  The change is tests alone,
+  and the package's writer of review briefs answers such a range with `nothing to review` and a failing status
+  (`package/pi-shared/subagent-driver/src/material-of-a-review.ts`:
+  it reads `.rs` and `.ts` that are not `_tests.rs`,
+  `.test.ts`,
+  `test_support` or `stand-in-`).
+  The start fails before anything starts,
+  the entry stays first,
+  and the loop tries nothing else.
+  The last run going ended at 05:59:02,
+  so the machine ran no agent for two hours and forty minutes with fifty-seven entries standing.
+  That such a change is answered as nothing to review was on record here as a question kept for the owner;
+  that a refused entry blocks the queue was not known.
+  Ended by taking the entry out at 08:40:02
+  (`take-one-entry-out-of-the-resume-queue-by-name.ts`);
+  the unit started runs again at 08:41:36.
+  Since then every range review is checked against the writer's own rule before it is queued,
+  and three changes the writer cannot take have hand-written review briefs in its form.
+  A fresh run is queued third for the defect itself:
+  the filling moves into the driver package,
+  an entry whose start fails is set aside with its reason,
+  and a filling that starts nothing says so where it is seen
+  (`~/temp/agent/pi-runs/queue-of-runs-is-filled-from-the-driver-package-and-an-entry-whose-start-fails-never-holds-the-entries-behind-it-prompt.md`).
+- **`0.6.1-alpha.26`** (pass 31) was published and installed at 03:08:08 to 03:08:48;
+  its sample commit took 1,635 ms;
+  the journal from 03:07:30 to 03:14:30 read 356 lines with no manager-wide reload,
+  no failed start and no start limit,
+  and one service said `0.6.1-alpha.26` at its start.
+- **Pass 32** (the reload fix: an upgrade leaves no instance failing its start) reported fit at 04:39:21
+  (`~/temp/agent/pi-integration-pass-32-reload-fix-scratch/keep/report.md`):
+  by its report build,
+  both test compiles and Clippy pass,
+  its seven controls pass at four CPUs,
+  and the container proof passes where the released wrapper before the fix fails it on the same fixture.
+  Measured by this session:
+  its tip `29963f60d8` held `main` as it stood (`git log 29963f60d8..main` empty).
+  Merged as `cd8620710b` at 08:42:03,
+  released as **`0.6.1-alpha.27`** (run `43601095249`),
+  installed at 08:50:27 to 08:50:39,
+  sample commit 1,105 ms.
+  The journal count after this install is not taken yet.
+  That pass notes the package's repository linter red on `main`'s own files;
+  not looked at by this session.
+- **Passes 33, 35 and 36 each reported fit**,
+  each against `main` at `07e27dc24a` and none against another
+  (33: `4240d89e80`, the journal's start tests;
+  35: `8af9c679ba`, the merge that never waits and its two controls;
+  36: `e5a34692cd`, the pending push,
+  with a wrapper killed between promote and wake pushed by the running service 4,952 ms later,
+  once).
+  All three ran their controls at four CPUs.
+  Nobody has built the tree that holds them and pass 32 together,
+  so they are **integration pass 37**,
+  queued first
+  (`~/temp/agent/pi-runs/integration-pass-37-with-three-passes-that-each-reported-fit-brought-together-prompt.md`).
+  Pass 35 says the defect its review reproduced
+  (a merge the wrapper completes exits with a failure when a lock appears between its look and its settle)
+  is still in the tree;
+  its fix is written (`ce51914d2a`) and its review is queued.
+- **Pass 34 is not fit**,
+  for the reason pass 29 gave:
+  the two controls of the landing branch fail at four CPUs
+  (tip `5ca7b7cc9c`, everything else green).
+  The landing branch's author answered at 04:03
+  (tip `95de6573c6`:
+  it reproduced the reading with a probe of `available_parallelism` under 200, 400 and 500 percent);
+  the review of that answer is queued second.
+  Passes 29 and 34 are resumed when it has passed.
+- **Reviews that ended, each built and run by its reviewer.**
+  No defect:
+  the five library controls (`ec658fd836`:
+  the five controls and both guard modules pass,
+  a planted break under each rewritten test is caught,
+  each inventory entry and exception fails its guard when taken out).
+  One finding that is `main`'s and has its own run:
+  issue 6300's answer (`01c60626b8`;
+  the scope lock's wait has no deadline),
+  so that answer has passed.
+  Back to their authors,
+  each resumed in its own session with a brief that names the review:
+  the lock a killed Git left (`f8f5cba090`:
+  a finishing command removes another command's binding record,
+  reproduced);
+  the long runtime directory (`7e572bd30d`:
+  the retirement ask never reaches a service at an abstract name,
+  so every commit waits 10 s,
+  reproduced;
+  `service status` outside a worktree says no service answers);
+  the commit that does not land (`4bc6db7533`:
+  a commit under `nohup` is now killed by a hang-up real Git ignores,
+  reproduced);
+  the commit service without a manager (`55f236a0a8`:
+  a kill of a process group by a bare number with no proof of birth,
+  read;
+  with it the one-second `MANAGER_START_EXTRA`,
+  which cites no measurement,
+  and the claim file nothing removes);
+  the package state of a new worktree (`b84db0f4de`:
+  four reproduced,
+  among them a fresh launcher deleted in a race and a give-up that never settles);
+  removal refuses (`06d1652da9`:
+  a rename's old path cut short in the refusal and the log,
+  reproduced);
+  mpm-shadow's removal of old versions (`86bf09f20e`:
+  three reproduced,
+  the first that a version a live process runs is deleted when the store's path goes through a symlink,
+  which `/home` is on this machine).
+- **Adopted from the record, open to veto**:
+  a signal the caller set to ignored stays ignored while a commit waits for its service,
+  as it does during preparation.
+  The review asked whether losing `nohup`'s protection is an accepted price for a hang-up record;
+  `SPEC.md`,
+  "Merges and commits never fail",
+  and the relay's own rule
+  ("A signal the parent ignores stays ignored")
+  answer it.
+- **Authors that finished, with a review queued for each**
+  (range `main...<tip>` unless said):
+  add never skips (`2c47989cad`, both findings of its sixth review answered);
+  the push of a branch that is not checked out (`c15fc5a7b1`);
+  the landed removal's guard under the opt-out (`bab700404d`);
+  the discarding commands (`588ed1a936`);
+  the five library controls after merging `main` (`5e0075af31`);
+  the merge that ends saved (`ce51914d2a`);
+  the drawn shadow tree (`fb9d0b6d74`;
+  its author's run of the sequence is in its report,
+  not read by this session);
+  the warm request's stand-in (`ff914e456e`);
+  the fuzz sidecar's type check (`ea4ef7e019`);
+  issue 6293's answer (`71d52acb9a`, on the no-manager branch);
+  the driver's start-again (`8eb74428c0`) and its empty last answer (`bb279c8356`);
+  and by hand-written brief:
+  the lock shim (`7ec2fd422d`, a `.cjs` file),
+  cargo-shadow's Clippy fix (`353d5e06d7`, tests alone) and cargo-shadow's test task (`c68faed843`, tests and `mise.toml`).
+  Held and not queued:
+  mpm-shadow's install that removes no version a lock names or a process runs (`e51ae27709`),
+  which stands on the removal branch's tip before its three defects;
+  it is reviewed when that author has answered.
+- **Read once more and not run**:
+  cargo-shadow's test task is red in a scope that is not delegated
+  (four containment tests);
+  its author's branch is the one under review.
+- The queue held 75 entries at 08:50.
+  The filling unit at sixteen starts about two runs every two and a half minutes,
+  so the places fill over about twenty minutes.
+
 ##### The add-never-skips answer loses a person's lock bytes two ways; what the drawn-tree sweep's code says (2026-11-14T03:02:22-05:00)
 
 Not final and not approved:

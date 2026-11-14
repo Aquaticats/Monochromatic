@@ -922,3 +922,43 @@ No cause is claimed.
   and `snapper-timeline.service` too
   (since 01:00:55).
   So no reading yet comes from after the cleanup's end.
+
+#### The stalls end within seven minutes of the snapshot cleanup's end, 2026-11-14T02:48:16-05:00 to 08:38:18-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+No cause is claimed:
+two things changed in the same hours.
+
+- **The readings at level sixteen**,
+  one a minute,
+  340 of them from 02:48:16 to 08:38:18.
+  Slow ones
+  (home drive write-and-sync over 5,000 ms)
+  by hour:
+  02:48 to 03:00 one of twelve (13,843 ms);
+  03:00 to 04:00 eight of 54 (the longest 49,518 ms);
+  04:00 to 05:00 ten of 56 (33,815 ms);
+  05:00 to 06:00 one of 59,
+  the last of all at 05:08:45 (10,608 ms);
+  06:00 to 08:38 none of 159,
+  the longest 106 ms.
+- **`snapper-cleanup.service` ended at 05:15:35**,
+  five hours and fifteen minutes after its start at 00:00:07
+  (`systemctl show`, `InactiveEnterTimestamp`).
+  The last slow reading is six minutes and fifty seconds before that.
+- **What also changed**:
+  no Pi run was started from 04:00:14 on
+  (a queue entry that failed every start;
+  `doc/handover/cli-git-rust-implementation.md`,
+  the section of 2026-11-14T08:50:39-05:00),
+  so the count of agents fell through those hours and was nothing from 05:59:02.
+  The hour from 04:00 to 05:00 had the most slow readings of the night's last three with the count already falling,
+  which speaks for the cleanup and against the count;
+  it does not separate them.
+- **What would separate them**:
+  sixteen agents going with no cleanup running,
+  which the day gives once the places are full again;
+  and the next cleanup,
+  which the system starts by its timer.
+  The probe records until 10:48 and is started again then.
