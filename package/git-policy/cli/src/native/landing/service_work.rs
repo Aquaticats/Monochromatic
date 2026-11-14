@@ -477,7 +477,13 @@ impl WorkHandlers for GitHandlers {
         //  record is what keeps the tip where the gate has not answered yet (`work_item_holding.rs`).
         let undecided: Vec<String> = crate::work_item_holding::undecided_commits(work.as_path(), newest.branch_ref.as_str());
         let mut output: Vec<u8> = Vec::new();
-        return match push_once_awaiting(&git, newest.branch_ref.as_str(), sent_up_to.as_str(), blocked.as_slice(), undecided.as_slice(), &mut output).await {
+        // What: The commit every record of this push is named for: the tip this push read from the branch and sent.
+        // Why:  A commit that landed after the drain claimed its work item is what the push sends (`sent_up_to`), so the claimed
+        //       item's own `oid` may be an older commit. Naming a record for the claimed one labels words about this commit as that
+        //       one's, and replaces an unread record of that commit with them. Both arms that write a record for a push that
+        //       reached an address use this one binding, so they cannot drift apart.
+        let sent: String = sent_up_to;
+        return match push_once_awaiting(&git, newest.branch_ref.as_str(), sent.as_str(), blocked.as_slice(), undecided.as_slice(), &mut output).await {
             // A skip sent nothing: with words they are told; with none (no upstream and no origin) the repository has nowhere
             //  to back up to and there is nothing to say, but an earlier failure of the branch is still true.
             Ok(result) if result.outcome == AutoPushOutcome::Skipped => Verdict::Skipped(result.shown),
@@ -496,10 +502,7 @@ impl WorkHandlers for GitHandlers {
                 //  that the local view stayed behind. The command that ran the push returned long before it ended, so those words
                 //  go to a record the next command shows once, which the step that settles this verdict writes. A push that simply
                 //  landed says nothing and leaves no record.
-                // The record is named for the commit this push sent, never for the newest record the drain claimed: a commit that
-                //  landed after that claim is what the push sends (`sent_up_to`, read from the branch), so naming the record for the
-                //  claimed commit would overwrite an unread record of that commit with words about another one, and label them as its.
-                Verdict::Delivered { commit: sent_up_to, said: result.shown }
+                Verdict::Delivered { commit: sent, said: result.shown }
             }
             // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
             //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
@@ -518,10 +521,10 @@ impl WorkHandlers for GitHandlers {
                 // What: A push that reached an address is a push that landed, whatever another address did.
                 // Why:  The branch is backed up, so nothing is retried and nothing failed; what is left to say is where the commit is and
                 //       which address was given up, and that goes where every accepted push's words go: a record the next command shows
-                //       once, which the step that settles this verdict writes.
-                match settled.report {
-                    Some(said) => Verdict::Delivered { commit: newest.oid.clone(), said },
-                    None => settled.verdict,
+                //       once, which the step that settles this verdict writes, named for the commit this push sent.
+                match settled {
+                    crate::service_work_failed_push_verdict::SettledFailedPush::Reached(said) => Verdict::Delivered { commit: sent, said },
+                    crate::service_work_failed_push_verdict::SettledFailedPush::Unreached(verdict) => verdict,
                 }
             }
             Err(error) => Verdict::Retry(format!("{error}")),

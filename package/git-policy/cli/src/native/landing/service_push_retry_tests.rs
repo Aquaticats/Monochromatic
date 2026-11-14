@@ -155,6 +155,108 @@ fn notices(stage: &Stage) -> usize {
     return std::fs::read_dir(notice_directory(stage.repo.join(".git").as_path())).map_or(0, |entries| { return entries.flatten().count(); });
 }
 
+/// What:
+///  The names of the records the repository holds for the person,
+///  which say what kind each record is and which commit it is named for.
+/// Why:
+///   A report is named for the commit the push sent (`report+<key>+<commit>.txt`),
+///  so its name is what says whether the record was labelled with the claimed commit or with the one that went.
+fn record_names(git_dir: &Path) -> Vec<String> {
+    return std::fs::read_dir(notice_directory(git_dir))
+        .map(|entries| {
+            return entries
+                .flatten()
+                .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+                .collect();
+        })
+        .unwrap_or_default();
+}
+
+/// What:
+///  A commit that lands after the drain claimed its item is the commit a delivered push's record is named for.
+/// Why:
+///  The second review of issue 6293 (finding 1) measured the opposite:
+/// the record was named for the claimed item's `oid`, so a commit that landed after the claim was recorded as the older
+/// one, and an unread report of the older commit was replaced by words about another.
+/// The push sends the branch's tip at its reading (`sent_up_to`), so the record must be named for that.
+#[test]
+fn a_delivered_pushs_record_is_named_for_the_tip_it_sent_not_the_item_it_claimed() {
+    let stage: Stage = stage_without_a_hook("push-report-named-for-the-sent-tip");
+    // The drain's item names the commit the stage landed; a commit that lands now is the tip the push will read and send.
+    let claimed: String = stage.landed.clone();
+    std::fs::write(stage.repo.join("later.txt"), b"later\n").expect("a later file");
+    git(stage.repo.as_path(), &["add", "--", "later.txt"]);
+    git(stage.repo.as_path(), &["commit", "--quiet", "--message=later"]);
+    let sent: String = git_text(stage.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_owned();
+    assert_ne!(sent, claimed, "a commit landed after the claim");
+    // The address that receives comes first, so the commit is delivered there, and the reserved word second, so Git exits non-zero.
+    let addresses: Vec<String> = vec![stage.remote.to_str().expect("a UTF-8 path").to_owned(), String::from("DISABLED")];
+    for address in &addresses {
+        git(stage.repo.as_path(), &["config", "--add", "remote.origin.pushurl", address.as_str()]);
+    }
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let _ran: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(remote_tip(&stage), sent, "the push delivered the tip it read, not the claimed commit");
+    let names: Vec<String> = record_names(git_dir.as_path());
+    assert_eq!(names.len(), 1, "one record for the person: {names:?}");
+    let name: &str = names[0].as_str();
+    assert!(name.starts_with("report"), "the record says the branch was backed up, so it is a report: {name}");
+    assert!(name.contains(sent.as_str()), "it is named for the commit the push sent: {name}");
+    assert!(!name.contains(claimed.as_str()), "and not for the claimed item's commit, which would label these words as its: {name}");
+    let shown: Vec<String> = crate::test_support::shown_notices(push_failures(git_dir.as_path()));
+    assert!(shown[0].contains(stage.remote.to_str().expect("a UTF-8 path")), "the words name the address that holds the commit: {shown:?}");
+    let due_after_any_pause: Vec<Due> = retries.take_due(git_dir.as_path(), Instant::now() + Duration::from_secs(3600));
+    assert!(due_after_any_pause.is_empty(), "the branch is backed up, so no later try is due");
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  A push delivered to the first address and declined at the second ends its plan, once.
+/// Why:
+///  The second review of issue 6293 (finding 2) measured the opposite:
+/// every round delivered nothing new to the first address, was declined at the second, and planned another try,
+/// with pauses growing to the longest pause and no last one.
+/// A decline is a failure no retry can mend, so the plan ends and the person reads one report.
+#[test]
+fn a_push_delivered_then_declined_ends_its_plan_with_one_report() {
+    let stage: Stage = stage_without_a_hook("push-delivered-then-declined");
+    let declining: PathBuf = stage.root.join("declines.git");
+    git(stage.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", declining.to_str().expect("a UTF-8 path")]);
+    let hook: PathBuf = declining.join("hooks").join("pre-receive");
+    std::fs::write(hook.as_path(), "#!/bin/sh\necho 'the hook says no' >&2\nexit 1\n").expect("hook");
+    std::fs::set_permissions(hook.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the hook is executable");
+    let receiving: String = stage.remote.to_str().expect("a UTF-8 path").to_owned();
+    let refusing: String = declining.to_str().expect("a UTF-8 path").to_owned();
+    for address in [receiving.as_str(), refusing.as_str()] {
+        git(stage.repo.as_path(), &["config", "--add", "remote.origin.pushurl", address]);
+    }
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let first: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the first address received the commit");
+    assert_eq!(first, None, "the plan ends at once: the round asks for no later look at this directory");
+    let due_after_any_pause: Vec<Due> = retries.take_due(git_dir.as_path(), Instant::now() + Duration::from_secs(3600));
+    assert!(due_after_any_pause.is_empty(), "and no try of the branch is planned");
+    let names: Vec<String> = record_names(git_dir.as_path());
+    assert_eq!(names.len(), 1, "one record for the person: {names:?}");
+    assert!(names[0].starts_with("report"), "the branch is backed up, so the record is a report: {names:?}");
+    // A later round finds nothing to do: the declined address is not tried again by itself, and no second record appears.
+    let second: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(second, None, "a later round has nothing to try");
+    assert_eq!(record_names(git_dir.as_path()), names, "and it adds no record: {names:?}");
+    let shown: Vec<String> = crate::test_support::shown_notices(push_failures(git_dir.as_path()));
+    let said: &str = shown[0].as_str();
+    assert!(said.contains(receiving.as_str()) && said.contains(refusing.as_str()), "both addresses are named: {said}");
+    assert!(said.contains("is not trying that branch through it again"), "the words promise no retry: {said}");
+    assert!(said.contains("a hook on the server"), "the cause is a decline: {said}");
+    assert!(said.contains("the hook says no"), "and the hook's own words follow: {said}");
+    assert_eq!(notices(&stage), 0, "the record was the only one, and showing it removed it");
+    remove(stage.root.as_path());
+}
+
 /// A push the service stopped is tried again by the service alone,
 /// after a pause,
 /// with no new commit:

@@ -21,13 +21,22 @@
 //!    that address is given up for itself,
 //!    the plan ends because there is nothing left to push,
 //!    and the person reads one line saying the commit is on the address that holds it
-//!    (the review of issue 6293,
+//!    (the first review of issue 6293,
 //!    finding 2,
 //!    which found the notice saying the commit was only on this computer
 //!    while a remote held it);
 //!    when the address it failed at may come back,
 //!    the plan is kept,
 //!    so that address still gets the commit when it returns;
+//!    and when what Git said there is a failure no retry can mend
+//!    (a server hook's decline,
+//!    a login the service does not have,
+//!    a conflict),
+//!    the plan ends with one report that says where the commit is and which address refused it,
+//!    because that refusal repeats on every try
+//!    (the second review of issue 6293,
+//!    finding 2,
+//!    which found the plan retrying a declined address for ever);
 //!  - otherwise what a failed push's own words mean decides it (`push_retry_failure.rs`):
 //!    a conflict,
 //!    a login the service does not have and a server hook's decline need the person,
@@ -40,7 +49,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! verdictOfAFailedPush(result, branchRef, repository) // { verdict, report? }
+//! verdictOfAFailedPush(result, branchRef, repository) // { reached: words } | { unreached: verdict }
 //! ```
 
 /// The push that failed,
@@ -52,35 +61,45 @@ use crate::push_address_that_cannot_be_a_remote::{CannotBeARemote, cannot_be_a_r
 /// What one failed push did,
 /// address by address.
 use crate::push_attempts_of_a_failed_push::{FailedPushByAddress, failed_push_by_address};
-/// What a failed push's own words mean.
-use crate::push_retry_failure::{final_failure, plain_words, unrecognised_rejection};
+/// What a failed push's own words mean,
+/// and which of those failures no retry can mend.
+use crate::push_retry_failure::{FinalFailure, final_failure, plain_words, unrecognised_rejection};
 /// The verdicts a push's settlement reads.
 use crate::service_work::Verdict;
 use std::path::Path;
 
 /// What:
-///  What one refused push comes to,
-///  and the words the next command shows once when the push delivered.
+///  What one refused push comes to:
+///  a branch that reached an address, with the words the next command shows once,
+///  or a branch that reached none, with the verdict for the item.
 /// Why:
 ///   A failure the service gives up on forgets the branch's plan and writes one record,
 /// and a retry keeps the plan and promises it in the record;
 /// the caller settles the item with the answer this function gives.
-/// A push that reached an address has nothing to retry and nothing to fail,
-/// so its words are a report,
+/// A push that reached an address has nothing to retry and nothing to fail:
+/// the branch is backed up,
+/// so its item is done and its words are a report,
 /// which the notice directory keeps apart from failures
 /// (`push_failure_notice_reports.rs`).
+/// The two answers are separate variants rather than a verdict beside an optional report,
+/// so that no caller can settle a branch that reached an address as failed,
+/// or a branch that reached nothing as landed.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type SettledFailedPush = { verdict: Verdict; report?: string };
+/// type SettledFailedPush = { reached: string } | { unreached: Verdict };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct SettledFailedPush {
-    /// What the drain settles the item as.
-    pub(crate) verdict: Verdict,
-    /// The words the next command shows once,
-    /// and nothing for a push that reached no address.
-    pub(crate) report: Option<String>,
+pub(crate) enum SettledFailedPush {
+    /// The branch reached at least one address,
+    /// so its item is done;
+    /// these are the words the next command shows once,
+    /// which say where the commit is and what became of the address that failed,
+    /// and they are never empty.
+    Reached(String),
+    /// The branch reached no address,
+    /// and this is what the item settles as.
+    Unreached(Verdict),
 }
 
 /// What:
@@ -90,16 +109,19 @@ pub(crate) struct SettledFailedPush {
 /// and what the push reached decides whether a failure is reported at all:
 /// a branch a remote holds is not a branch to retry or to fail.
 /// The configuration's other addresses never decide anything on their own,
-/// which is what the review of this branch found wrong twice
+/// which is what the first review of this branch found wrong twice
 /// (findings 2 and 3).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const read = failedPushByAddress({ output: result.shown, destinationRef: branchRef, configured: result.pushAddresses });
 /// const failing = read.failing && cannotBeARemote(read.failing);
-/// if (read.arrived) return failing ? { verdict: Done, report: wordsAfterDelivery(...) } : { verdict: Retry(reachedThenFailed(read, result.shown)) };
-/// if (failing) return { verdict: Failed(words(...) + result.shown) };
-/// return { verdict: fromWords(result.shown), report: undefined };
+/// if (read.arrived) {
+///   if (failing) return { reached: wordsAfterDelivery(...) };
+///   return finalFailure(shown) ? { reached: deliveredThenGivenUp(...) } : { unreached: { retry: reachedThenFailed(...) } };
+/// }
+/// if (failing) return { unreached: { failed: words(...) } };
+/// return { unreached: fromWords(shown) };
 /// ```
 pub(crate) fn verdict_of_a_failed_push(result: AutoPushResult, branch_ref: &str, repository: &Path) -> SettledFailedPush {
     let read: FailedPushByAddress = failed_push_by_address(result.shown.as_str(), branch_ref, result.push_addresses.as_slice());
@@ -111,18 +133,30 @@ pub(crate) fn verdict_of_a_failed_push(result: AutoPushResult, branch_ref: &str,
         None => None,
     };
     if read.arrived {
-        return match failing {
-            Some((address, reason)) => SettledFailedPush {
-                verdict: Verdict::Done,
-                report: Some(format!("{}\n{}", words_after_delivery(address, reason, read.arrived_at().as_slice()), result.shown)),
-            },
-            None => SettledFailedPush { verdict: Verdict::Retry(reached_then_failed(&read, result.shown.as_str())), report: None },
+        if let Some((address, reason)) = failing {
+            return SettledFailedPush::Reached(format!(
+                "{}\n{}",
+                words_after_delivery(address, reason, read.arrived_at().as_slice()),
+                result.shown
+            ));
+        }
+        // What: A failure no retry can mend at the address that failed ends the plan here too, with one report.
+        // Why:  The branch is backed up at another address, so nothing is retried; and the refusal repeats on every try (a hook that
+        //       declines, a login the service does not have), so a plan that kept it would retry for ever while the person was told
+        //       nothing new. The words say where the commit is, which address refused it, and what to do about it.
+        return match final_failure(result.shown.as_str()) {
+            Some(cause) => SettledFailedPush::Reached(format!(
+                "{}\n{}",
+                delivered_then_given_up(&read, cause, result.shown.as_str()),
+                result.shown
+            )),
+            None => SettledFailedPush::Unreached(Verdict::Retry(reached_then_failed(&read, result.shown.as_str()))),
         };
     }
     if let Some((address, reason)) = failing {
-        return SettledFailedPush { verdict: Verdict::Failed(format!("{}\n{}", words(address, reason), result.shown)), report: None };
+        return SettledFailedPush::Unreached(Verdict::Failed(format!("{}\n{}", words(address, reason), result.shown)));
     }
-    return SettledFailedPush { verdict: verdict_from_the_words(result.shown.as_str(), repository), report: None };
+    return SettledFailedPush::Unreached(verdict_from_the_words(result.shown.as_str(), repository));
 }
 
 /// What:
@@ -158,6 +192,39 @@ fn verdict_from_the_words(shown: &str, repository: &Path) -> Verdict {
 }
 
 /// What:
+///  The words of a push that reached an address and was refused for good at another.
+/// Why:
+///   The person is told what is true:
+/// the commit is backed up on the addresses that took it,
+/// the address named is the one that refused it,
+/// nothing tries that address again by itself,
+/// and what to do about it is the words this release already uses for that cause
+/// (`plain_words`),
+/// with Git's own words under both.
+/// A conflict arrives here only if another address took the commit first,
+/// and then its words say that only a person can settle the two histories.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// deliveredThenGivenUp(read, cause) // 'monochromatic-git-policy-cli: the push of this branch reached ...'
+/// ```
+fn delivered_then_given_up(read: &FailedPushByAddress, cause: FinalFailure, shown: &str) -> String {
+    let holders: String = read.arrived_at().join(", ");
+    let failed_at: &str = read.failing.as_deref().unwrap_or("another address");
+    // What: The cause's own advice, which already says the service stops pushing this branch until the next commit.
+    // Why:  A conflict is the one cause whose advice is not written there, because a reconcile that conflicts never reaches an
+    //       address; it is named here so that no cause arrives without one.
+    let why: &str = plain_words(cause).unwrap_or(
+        "this failure is one no retry can mend: the remote's commits and this branch cannot be merged without a person deciding how",
+    );
+    return format!(
+        "monochromatic-git-policy-cli: the push of this branch reached {holders}, so the commit is backed up there, and the push to \
+         {failed_at} is the one that failed. No retry can mend it, so the commit service is not trying that branch through it again.\n{why}\n\
+         {shown}"
+    );
+}
+
+/// What:
 ///  The words of a retried push that reached an address before it failed at another.
 /// Why:
 ///   The retry's record says the branch is backed up,
@@ -184,3 +251,8 @@ fn reached_then_failed(read: &FailedPushByAddress, shown: &str) -> String {
          {failed_at} is the one that failed.\n{shown}"
     );
 }
+
+/// The answers and the words above are controlled beside them.
+#[cfg(test)]
+#[path = "service_work_failed_push_verdict_tests.rs"]
+mod tests;
