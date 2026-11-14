@@ -481,9 +481,11 @@ fn wait_for(child: &mut std::process::Child, deadline: std::time::Duration) -> O
 }
 
 #[test]
-fn an_install_waits_for_the_scope_lock_no_longer_than_it_says_and_names_the_holder() {
+fn an_install_neither_waits_for_the_scope_lock_nor_says_anything_about_it() {
     let fixture = EmptyPlan::new();
-    // Another process holds the guard; the note it leaves names it, as every holder's note does.
+    // Another process holds the guard. The passes that write this checkout's links and launchers take no lock: a
+    // launcher's record is written after its program, and every removal moves the entry aside and removes it only when
+    // it is still the entry the proof read, so this install must not wait for that holder at all.
     let guard: fs::File = fs::OpenOptions::new()
         .write(true)
         .create(true)
@@ -491,29 +493,35 @@ fn an_install_waits_for_the_scope_lock_no_longer_than_it_says_and_names_the_hold
         .open(fixture.guard_file())
         .expect("open the guard file");
     guard.lock().expect("hold the scope lock");
-    let mut note: &fs::File = &guard;
-    std::io::Write::write_all(&mut note, format!("{}\n", std::process::id()).as_bytes()).expect("write the holder's note");
 
     let mut child: std::process::Child = fixture.command(&["install", "--frozen-lockfile"]).spawn().expect("start mpm-shadow");
+    let started: std::time::Instant = std::time::Instant::now();
     let waited: Option<std::process::ExitStatus> = wait_for(&mut child, std::time::Duration::from_secs(30));
+    let elapsed: std::time::Duration = started.elapsed();
     let Some(status) = waited else {
         let _ = child.kill();
         let _ = child.wait();
         panic!(
-            "the install was still waiting on {} 30 s after it started, so a wait on the scope lock has no bound",
+            "the install was still waiting on {} 30 s after it started, although the passes need no lock",
             fixture.guard_file().display()
         );
     };
     let output: Output = child.wait_with_output().expect("read the install's output");
     let report: String = format!("{}{}", text(&output.stdout), text(&output.stderr));
 
-    assert_eq!(status.code(), Some(0), "an install that cannot take the lock loses this run's retirement, not the run: {report}");
-    assert!(report.contains(&fixture.guard_file().display().to_string()), "the sentence names the file it waited on: {report}");
+    assert_eq!(status.code(), Some(0), "the install finishes while the lock is held: {report}");
     assert!(
-        report.contains(&format!("process {}", std::process::id())),
-        "the sentence names the holder the note names: {report}"
+        elapsed < std::time::Duration::from_secs(3),
+        "the install waited {elapsed:?} for a lock it does not need: {report}"
     );
-    assert!(report.contains("left the retirement"), "the sentence says what this run did without the lock: {report}");
+    assert!(
+        !report.contains("toolchain.guard"),
+        "the install says nothing about a lock it never asks for: {report}"
+    );
+    assert!(
+        fixture.work().join(".cache").join("toolchain-bin").is_dir(),
+        "the install still made the links it declares"
+    );
 }
 
 //endregion

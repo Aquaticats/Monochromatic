@@ -8,7 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::cargo_installs::{older_lock_message, older_lock_message_for};
-use super::fakes::Rig;
+use super::fakes::{Rig, write_executable};
 use super::launcher::{LaunchRecord, ensure_launcher, parse_record, prepare_launch, record_path, render_record, warning_naming_program};
 use super::scope::ScopeKind;
 
@@ -424,4 +424,24 @@ fn a_launcher_is_a_copy_of_the_newest_installed_mpm_shadow() {
             "a launcher is the program's own file, never a link whose relative target resolves beside the launcher"
         );
     }
+}
+
+#[test]
+fn a_launcher_that_cannot_be_placed_leaves_no_record_behind() {
+    let rig = Rig::new();
+    // A name a launcher cannot be renamed onto: a directory of a person's, which stands where the launcher would go.
+    let blocked: PathBuf = rig.scope.launcher_dir.join("cli-git-native");
+    fs::create_dir_all(blocked.join("content")).expect("make the directory in the launcher's way");
+    let source: PathBuf = rig.scope.root.join("store").join("cli-git-native");
+    write_executable(&source);
+
+    let outcome = ensure_launcher(&rig.scope, TOOL, "cli-git-native", &source);
+
+    assert!(outcome.is_err(), "a launcher cannot be placed over a directory: {outcome:?}");
+    let record: PathBuf = record_path(&rig.scope.launcher_dir.join("cli-git-native"));
+    assert!(
+        fs::symlink_metadata(&record).is_err(),
+        "a record with no launcher is what an install running beside this one would delete as a leftover ({} is there)",
+        record.display()
+    );
 }

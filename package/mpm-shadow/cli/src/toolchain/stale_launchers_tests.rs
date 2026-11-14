@@ -23,6 +23,8 @@ use super::exposure::rebuild_exposure;
 use super::fakes::{Rig, write_executable};
 /// Imports what this module uses from `super::launcher`.
 use super::launcher::{LaunchRecord, ensure_launcher, record_path, render_record};
+/// Imports what this module uses from `super::model`.
+use super::model::{Postinstall, PostinstallLink};
 /// Imports `ScopeKind` from `super::scope`.
 use super::scope::ScopeKind;
 /// Imports what this module uses from `super::stale_launchers`.
@@ -368,6 +370,65 @@ fn a_broken_link_that_names_nothing_in_a_launcher_folder_is_left_alone() {
     assert!(exists_at(&link), "the link named a path in no launcher folder, so nothing proves mpm-shadow made it: {notices:?}");
     assert_eq!(fs::read_link(&link).expect("still the person's link"), elsewhere);
     assert!(!exists_at(&launcher), "the launcher itself is still retired; the person's own broken link is not");
+}
+
+//endregion
+
+//region Judgement sets: what the lock declares, and what belongs to a tool's own postinstall command
+// The third review found a declared postinstall link retired in the very install that made it, a person's broken link
+// removed because its folder only shared a basename with a launcher folder, and warnings for links the lock's own
+// postinstall command keeps.
+
+#[test]
+fn a_postinstall_link_the_lock_declares_inside_the_farm_stays() {
+    let mut rig = rig_with_installed_shadow();
+    // A postinstall link may name the farm as its link directory; the path, not a bin name, is then what declares it.
+    let tool = rig.lock.tools.iter_mut().find(|tool| return tool.declaration.id == SHADOW_TOOL).expect("the sample lock holds the tool");
+    tool.declaration.options.postinstall = Some(Postinstall::Link(PostinstallLink {
+        source_bin: DECLARED_BIN.to_string(),
+        link_name: "mpm".to_string(),
+        link_dir: Some(".cache/toolchain-bin".to_string()),
+    }));
+    let launcher: PathBuf = make_launcher(&rig, DECLARED_BIN, SHADOW_TOOL);
+    let declared: PathBuf = make_link(&rig, "mpm", &launcher);
+
+    let notices = retire(&rig);
+
+    assert!(exists_at(&declared), "the lock declares this link at this path, so nothing decides about it: {notices:?}");
+    assert!(exists_at(&launcher) && exists_at(&record_path(&launcher)));
+}
+
+#[test]
+fn a_broken_link_to_a_folder_only_shaped_like_a_launcher_folder_stays() {
+    let rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    // A folder named like the launcher folder but somewhere else is not one this tool keeps.
+    let elsewhere: PathBuf = rig.scope.root.join("elsewhere").join("toolchain-launchers").join(RENAMED_BIN);
+    let link: PathBuf = make_link(&rig, RENAMED_BIN, &elsewhere);
+
+    let notices = retire(&rig);
+
+    assert!(exists_at(&link), "the stated folder only shares the basename, so nothing proves the link named a launcher: {notices:?}");
+    assert_eq!(fs::read_link(&link).expect("still the person's link"), elsewhere);
+    assert!(!exists_at(&launcher), "the launcher itself is still retired");
+}
+
+#[test]
+fn a_link_a_tools_own_postinstall_command_keeps_is_neither_removed_nor_warned_about() {
+    let rig = rig_with_installed_shadow();
+    // The search shadow's postinstall command links `rg`, `grep` and seven more at the store program; nothing the
+    // retirement can prove, and nothing a person can act on.
+    let program: PathBuf = rig.scope.root.join("store").join("search-shadow");
+    write_executable(&program);
+    let directory: PathBuf = rig.scope.root.join(".cache").join("search-shadow-bin");
+    fs::create_dir_all(&directory).expect("make the folder the postinstall command links into");
+    let link: PathBuf = directory.join("rg");
+    symlink(&program, &link).expect("the link that command keeps");
+
+    let notices = retire(&rig);
+
+    assert!(exists_at(&link), "the link is the postinstall command's, and it stays");
+    assert!(notices.warnings.is_empty(), "no warning for a link its own postinstall command keeps: {notices:?}");
 }
 
 //endregion

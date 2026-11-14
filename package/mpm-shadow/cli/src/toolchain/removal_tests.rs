@@ -103,3 +103,23 @@ fn a_directory_that_took_the_judged_entrys_name_is_put_back_too() {
     assert_eq!(remove_if_still(&entry, judged).expect("the removal runs"), Removal::Replaced);
     assert!(fs::symlink_metadata(&entry).expect("still there").is_dir());
 }
+
+#[test]
+fn a_removal_whose_hidden_names_are_all_taken_refuses_to_move_the_entry_aside() {
+    let directory = scratch();
+    let (link, _target) = a_link(directory.path());
+    let judged = judged_of(&link).expect("the link is inspected");
+    // Kept files of earlier runs at every hidden name a removal may reach for.
+    let persons_text = "a person's own kept file\n";
+    for attempt in 0..64 {
+        fs::write(directory.path().join(format!(".link.{}.{attempt}.retired", std::process::id())), persons_text).expect("keep a file");
+    }
+    fs::write(directory.path().join(format!(".link.{}.retired", std::process::id())), persons_text).expect("keep the fallback file");
+
+    let outcome = remove_if_still(&link, judged);
+
+    assert!(outcome.is_err(), "with every hidden name taken the entry must not be moved aside at all: {outcome:?}");
+    assert!(fs::symlink_metadata(&link).is_ok(), "the entry that was judged is still where it was");
+    let fallback: PathBuf = directory.path().join(format!(".link.{}.retired", std::process::id()));
+    assert_eq!(fs::read_to_string(&fallback).expect("the kept file stays"), persons_text);
+}
