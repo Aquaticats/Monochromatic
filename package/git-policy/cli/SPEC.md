@@ -4581,7 +4581,21 @@ of which the two that rewrite link layouts in place are the service's work whene
   whatever stood there at that instant is returned and compared with the bytes the filling read before
   its clean began,
   and anything else is a person's write,
-  which is put back while the resolution is taken away and the repair gives way for that workspace.
+  which is put back and the repair gives way for that workspace.
+  The resolution's bytes are the only ones this step ever deletes:
+  the exchange that puts a person's write back displaces whatever stood at the lock at that instant,
+  and that is read the bounded way and then either recognised as the resolution, which is this step's
+  own, or kept where the exchange left it under a name the answer gives,
+  because a save of theirs may land in that very window.
+  A kill at any step of the placing leaves every byte somewhere:
+  before the exchange the person's lock is untouched and only the resolution lies beside it,
+  and after it their bytes are at the staged name until the rollback puts them back,
+  so the next filling finds what this one left and never deletes it.
+  The lock is read the way the wrapper reads any regular file:
+  a pipe, a link, a directory or a file past the byte limit that step names is refused at once,
+  and a lock that is not a regular file is the person's:
+  nothing is placed over it and nothing of it is removed,
+  the workspace gives way with the reason, and the add's own clean leaves the file as it is found.
   So no moment exists in which a write a person made to that file is replaced:
   a write made before the placement is handed back,
   a write made after it makes the file differ from the resolution and the checked-out bytes never go
