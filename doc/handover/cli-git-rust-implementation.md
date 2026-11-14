@@ -1288,8 +1288,14 @@ from three last messages kept under
   So each tip is looked for in this repository when its pass reports,
   and the work of four passes is on this machine alone until then.
 - **Release `0.6.1-alpha.25`** dispatched at once,
-  run 43570940280;
-  its waiter is going.
+  run 43570940280.
+  Published by 02:31:39 and installed at 02:31:57
+  (`~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/install-of-0-6-1-alpha-25-output.txt`).
+  Its sample commit took 1,463 ms:
+  530 ms preparing,
+  605 ms waiting for the service's answer,
+  145 ms holding the landing's lock.
+  The journal count of the minutes after it follows.
   The six passes still going were told at 02:24:41
   (`~/temp/agent/notes-to-send/note-for-the-passes-still-going-that-main-holds-pass-30-2026-11-14T0225.md`),
   with what pass 30 met from the dependency-lock update:
