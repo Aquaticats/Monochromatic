@@ -227,17 +227,25 @@ pub(crate) async fn bring_the_checkout_to_its_branch_awaiting(
     let mut refusal: String = String::new();
     for _attempt in 0..2 {
         let shows: Option<String> = shows_awaiting(git).await?;
-        let (from, to): (String, String) = match shows.as_deref() {
-            Some(named) if named == branch_ref => (local.to_owned(), merge_oid.to_owned()),
-            _ => (merge_oid.to_owned(), String::from("HEAD")),
+        // What: the pushed tip and the merge, in the order that puts this checkout's paths right.
+        // Why: these two commits differ on exactly the paths the move wrote, so the write cannot reach any other path
+        //      (a person's staged change elsewhere stays theirs), and `read-tree` requires the index to hold the
+        //      from-tree's content on each of them, which is the proof that the bytes written are the move's own.
+        //      A checkout still on the pushed branch holds the old tip's content there and needs the merge written in;
+        //      one a switch took to another branch holds the merge's carried content and needs the old tip's written
+        //      out, which is that branch's own content on those paths, because a switch only carries the difference
+        //      onto a branch whose tree matches the old tip there.
+        let (from, to): (&str, &str) = match shows.as_deref() {
+            Some(named) if named == branch_ref => (local, merge_oid),
+            _ => (merge_oid, local),
         };
-        let written = run_query_awaiting(git, &argv(&["read-tree", "-u", "-m", from.as_str(), to.as_str()])).await?;
+        let written = run_query_awaiting(git, &argv(&["read-tree", "-u", "-m", from, to])).await?;
         if written.code != Some(0) {
             refusal = crate::auto_push_reconcile_branch_advance::refusal_of(&written.stderr);
             break;
         }
         // The fast-forward carries no `--quiet`, so what Git said is kept in the journal (the service's log, or the wrapper's entry).
-        crate::inner_git_words::record_streams(&["read-tree", "-u", "-m", from.as_str(), to.as_str()], &written.stdout, &written.stderr);
+        crate::inner_git_words::record_streams(&["read-tree", "-u", "-m", from, to], &written.stdout, &written.stderr);
         if the_paths_held_unlike_the_branch_awaiting(git, paths.as_slice()).await?.is_empty() {
             return Ok(Brought::Right);
         }
