@@ -128,6 +128,7 @@ fn request_for(fixture: &Fixture, repo: &Path, id: &str, path: &str, content: &s
         cleanup: None,
         index: git_dir.join("index"),
         scratch: git_dir.join("monochromatic-git-policy-cli-scratch").join(format!("monochromatic-git-policy-cli-service-{id}-0")),
+        shadow: None,
         captured: 0,
         holder: String::new(),
     };
@@ -150,7 +151,6 @@ fn config_for(fixture: &Fixture, name: &str, answer_ceiling: Duration) -> Client
         waiting_notice_after: PATIENCE,
         extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: PATIENCE,
-        units_record_dir: None,
     };
 }
 

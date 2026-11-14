@@ -15,7 +15,6 @@ import { join, } from 'node:path';
 import { setTimeout as wait, } from 'node:timers/promises';
 import {
   FEED_PREVIEW_CHARACTERS,
-  MILLISECONDS_PER_SECOND,
   POLL_MILLISECONDS,
   STOP_FILE_NAME,
 } from './driver-constants.ts';
@@ -30,7 +29,12 @@ import {
 } from './answer-a-model-error.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
+import {
+  askAboutItsWorkOrReportAFailure,
+  type WorkWaitedFor,
+} from './kept-while-work-runs.ts';
 import type { WatchRequest, } from './watch-request.ts';
+import { mayEndIdle, } from './when-a-run-may-end.ts';
 
 /**
  The code the operating system gave a failure, when it gave one.
@@ -392,46 +396,6 @@ async function readyMessages(inbox: string,): Promise<readonly string[]> {
 }
 
 /**
- Tells whether Pi has rested for long enough that the run is over.
-
- @param watch - watch request
-
- @returns whether the idle wait has passed
- */
-function idleLongEnough(watch: WatchRequest,): boolean {
-  return (!watch.record
-    .isRunning())
-    && (watch.record
-      .settledCount()
-      >= 1)
-    && (watch.record
-      .silentMilliseconds()
-      > (watch.options
-        .idleSeconds
-        * MILLISECONDS_PER_SECOND));
-}
-
-/**
- Tells whether the run may end as one that came back with nothing to report: Pi has rested long enough, and no failure it settled
- on is still unanswered.
-
- A failure stays until a reply succeeds, so a prompt Pi only handled leaves the run ending on that failure rather than making it
- look like a run that finished its task with nothing to say.
-
- @param watch - watch request
-
- @returns whether the run ends here
- */
-function mayEndIdle(watch: WatchRequest,): boolean {
-  /**
-   The failure the run settled on, when nothing after it recovered.
-   */
-  const failure = watch.record
-    .unrecoveredModelError();
-  return (!failure.failed) && idleLongEnough(watch,);
-}
-
-/**
  Checks the limits and delivers the next inbox message, on every tick, until something ends the run. One message per tick keeps
  them in order, each after Pi has answered the one before. A message is waited for only as long as the run has left, so a
  stalled answer cannot keep the stop file or the wall clock from being seen.
@@ -450,6 +414,10 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
    Where the watch stands with the model error it last answered, so one error is answered by one attempt.
    */
   const retry: RetryWaiting = {};
+  /**
+   The work this run left running, once the driver has seen it and is waiting for it to end; nothing until then.
+   */
+  const waited: WorkWaitedFor = {};
   /* oxlint-disable eslint/no-await-in-loop -- a look at the limits, then one message and Pi's answer before the next look; two
      deliveries at once would reorder the inbox. See doc/lint/sequential-awaits.md. */
   for (;;) {
@@ -463,6 +431,16 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       wallDeadline: watch.deadline,
     },);
     if (progress !== 'still-running') {
+      // A run the wall clock ended while it waited for work it left running did not end with nothing to do, and its summary
+      // must not read as one that did.
+      if ((progress === 'wall-clock') && (waited.work !== undefined)) {
+        watch.record
+          .note({
+            kind: 'problem',
+            problem: `the run ended on its wall clock while it waited for the work it left running: ${waited.work
+              .join(', ',)}`,
+          },);
+      }
       return progress;
     }
     /**
@@ -487,7 +465,28 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       },);
     }
     // A run waiting out a delay before another attempt is not idle: it is about to answer the error it settled on.
-    else if ((retry.owed === undefined) && mayEndIdle(watch,)) {
+    else if ((retry.owed === undefined)
+      && (mayEndIdle({
+        watch,
+        ...(waited.wokenAtSettle === undefined ? {} : { wokenAtSettle: waited.wokenAtSettle, }),
+      },))) {
+      /**
+       What the run left running, asked before it may end as a run that finished its turn: an agent that ended its turn while a
+       build compiled is waiting for that build, so the run is kept, and sent back to it once it is over. A read of that work that
+       fails is reported beside the end reason, which stays `idle`: the agent finished its turn either way.
+       */
+      const asked = await askAboutItsWorkOrReportAFailure({
+        watch,
+        waited,
+      },);
+      if (asked === 'refused') {
+        // Pi would not take the message that sends the agent back to work it left, so the run cannot go on and must not read as
+        // one that finished.
+        return 'prompt-rejected';
+      }
+      if (asked !== 'nothing') {
+        continue;
+      }
       return 'idle';
     }
   }

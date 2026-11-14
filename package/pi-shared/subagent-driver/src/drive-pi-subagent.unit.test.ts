@@ -40,9 +40,14 @@ import {
   FEED_PREVIEW_CHARACTERS,
   NESTED_RUN_VARIABLE,
   POLL_MILLISECONDS,
+  PROCESSES_RECORD_KIND,
+  recordsIn,
   type RunSummary,
   VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
 } from '../dist/final/node/index.mjs';
+import {
+  REPORTED_PROCESS_ID,
+} from './stand-in-pi-scenario-plays-fixture.ts';
 import {
   LONG_REPLY,
   MODEL_ERROR_TEXT,
@@ -122,6 +127,11 @@ const CLEAN_STATUS = 0;
 const FAILED_STATUS = 1;
 /** Seconds a test allows a driver beyond the run's own wall limit, so a stalled driver fails rather than hangs it. */
 const TEST_TEARDOWN_ALLOWANCE_SECONDS = 120;
+/**
+ Seconds a run may last when its subject is work that outlives it: above the start-up and the turn that leaves the work, and
+ short so the test is quick. The work itself is set far beyond this, so only the wall clock can end the run.
+ */
+const WORK_OUTLASTED_WALL_SECONDS = 3;
 /** Characters in a file name that leave no room for a prefix, which most file systems cap at 255 bytes. */
 const LONGEST_FILE_NAME_CHARACTERS = 250;
 /**
@@ -222,12 +232,6 @@ type RunRequest = {
   readonly extraOptions?: readonly string[];
   readonly environment?: Readonly<Record<string, string>>;
   readonly withoutPi?: boolean;
-
-  /**
-   Whether the `git` this run would find answers as this repository's policy wrapper, which it does in every test but the one that
-   asks what happens when it does not.
-   */
-  readonly gitIsTheWrapper?: boolean;
 
   /**
    Text of the prompt file, which no test leaves empty.
@@ -439,34 +443,6 @@ async function installStandIn(folder: string,): Promise<void> {
   await chmod(launcher, 0o700,);
 }
 
-/**
- Installs the `git` a run's session finds on its `PATH`: this repository's policy wrapper, or a program that answers as the system
- git does when nothing installs the wrapper.
-
- @param folder - the folder `PATH` searches, which holds the program
-
- @param isTheWrapper - whether the program prints the policy namespace help, which is the wrapper's own answer
- */
-async function installStandInGit({
-  folder,
-  isTheWrapper,
-}: {
-  readonly folder: string;
-  readonly isTheWrapper: boolean;
-},): Promise<void> {
-  /**
-   The program's file.
-   */
-  const program = join(folder, 'git',);
-  await writeFile(
-    program,
-    isTheWrapper
-      ? `#!/bin/sh\nprintf '%s\\n' 'Usage: git monochromatic-git-policy-cli <command> [options]'\nexit 0\n`
-      : `#!/bin/sh\nprintf '%s\\n' "git: 'monochromatic-git-policy-cli' is not a git command. See 'git --help'." >&2\nexit 1\n`,
-  );
-  await chmod(program, 0o700,);
-}
-
 async function exitOf(running: ReturnType<typeof execFileAsync>,): Promise<readonly [number, string,]> {
   try {
     const result = await running;
@@ -511,6 +487,56 @@ async function stopBounded(child: ChildProcess,): Promise<void> {
 }
 
 /**
+ Ends the work a stand-in left running, by the number the stand-in logged, so no fixture outlives its test.
+
+ A process the test did not start is never signalled: the number is only acted on when the process folder still names `sleep`
+ under it, which is what the play started.
+
+ @param markers - the markers the stand-in wrote
+ */
+async function endTheWorkLeftRunning(markers: readonly string[],): Promise<void> {
+  /**
+   The numbers the plays logged, which is one per play that left work running.
+   */
+  const pids = markers.map(function numberLogged(marker,) {
+    return Number(marker.replace('work ', '',),);
+  },)
+    .filter(function isANumber(number,) {
+      return Number.isInteger(number,);
+    },);
+  await Promise.all(pids.map(async function endOne(pid,) {
+    /**
+     What the process folder says that process runs.
+     */
+    const named = await nameOfProcess(pid,);
+    // Only the `sleep` a play started is signalled: a number that names anything else belongs to somebody else.
+    if (named !== 'sleep') {
+      return;
+    }
+    process.kill(pid, 'SIGKILL',);
+  },),);
+}
+
+/**
+ Reads what a process runs, by its number.
+
+ @param pid - the process's number
+
+ @returns the program's name, or empty text when the process folder no longer holds it
+ */
+async function nameOfProcess(pid: number,): Promise<string> {
+  try {
+    return (await readFile(`/proc/${String(pid,)}/comm`, 'utf8',)).trim();
+  }
+  catch (error) {
+    if (isMissingFile(error,)) {
+      return '';
+    }
+    throw error;
+  }
+}
+
+/**
  Owns a driver process a test started, so every way out of a test ends it before its folder goes.
 
  @param running - the driver's own promise, which holds its process
@@ -537,7 +563,6 @@ async function runDriver(
     extraOptions = [],
     environment = {},
     withoutPi = false,
-    gitIsTheWrapper = true,
     promptText = 'hello',
     withoutPrompt = false,
     wallSeconds = RUN_WALL_SECONDS,
@@ -562,12 +587,6 @@ async function runDriver(
   if (!withoutPi) {
     await installStandIn(folder.path,);
   }
-  // The driver asks the git the session would run whether it is the policy wrapper before it starts Pi, so every run needs one to
-  // answer that question: the folder `PATH` starts with, and the folder that holds nothing when a test takes Pi away.
-  await installStandInGit({
-    folder: withoutPi ? withoutExecutables : folder.path,
-    isTheWrapper: gitIsTheWrapper,
-  },);
   await prepare?.({
     runFolder,
     promptFile,
@@ -726,6 +745,99 @@ await describe({
       },
     },),
     it({
+      name: 'keeps a run whose agent ended its turn with a build still running, sends the agent back when the build ends, and'
+        + ' reads its reply',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'leaves-work-running', },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        // The agent was woken, and its reply is what the run ended with rather than the turn it had already finished.
+        expect(run.summary.lastAssistantText,).toBe('the build finished and the task goes on',);
+        /**
+         The messages the driver sent Pi, in order.
+         */
+        const prompts = run.sentCommands.filter((command,) => command.type === 'prompt',)
+          .map((command,) => String(command.message,),);
+        expect(prompts.length,).toBe(2,);
+        expect(prompts[1],).toContain('The work you left running when your turn ended has ended:',);
+        expect(prompts[1],).toContain('native-build',);
+        /**
+         The feed's own record of the wait and of the wake, in the order the driver wrote them.
+         */
+        const waiting = run.feed.findIndex((entry,) => entry.kind === 'waiting',);
+        const woke = run.feed.findIndex((entry,) => entry.kind === 'wake',);
+        expect(waiting,).toBeGreaterThanOrEqual(0,);
+        expect(String(run.feed[waiting]?.problem,),).toContain('native-build',);
+        expect(woke,).toBeGreaterThan(waiting,);
+        expect(run.feed[woke]?.success,).toBe(true,);
+      },
+    },),
+    it({
+      name: 'a run whose tool answered with more than a feed line keeps of it ends idle, with the answer whole on the feed',
+      fn: async () => {
+        const run = await runDriver({ scenario: 'process-answer-longer-than-a-line', },);
+        // The end reason is the subject: the tool's answer was longer than a feed line keeps, and the run still did its work.
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.piExit?.code,).toBe(0,);
+        // Nothing was read badly: the whole answer sits on the feed as a record of its own, which is what the driver reads to
+        // tell whether work of the run's still runs.
+        expect(run.summary.workProblem,).toBeUndefined();
+        /**
+         The record that keeps the tool's answer whole.
+         */
+        const answered = run.feed.find((entry,) => entry.kind === PROCESSES_RECORD_KIND,);
+        expect(answered,).toBeDefined();
+        expect(recordsIn(answered?.processes,).map((process,) => process.id,),).toEqual([REPORTED_PROCESS_ID,],);
+      },
+    },),
+    it({
+      name: 'a run that settled and whose Pi exited 0 ends idle when the read of its work fails, and the failure sits beside that ending',
+      fn: async () => {
+        // The process folder is a file, so the driver's read of it fails as a damaged process table would. That read is the last
+        // thing between a settled run and its end, and it fails after the agent did its work and Pi exited 0: the run must still
+        // end as the run it was, and the failure is what a reader finds beside that ending.
+        const run = await runDriver({
+          scenario: 'normal',
+          environment: { PI_RUNS_PROCESS_FOLDER: '/dev/null', },
+        },);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.piExit?.code,).toBe(0,);
+        expect(run.summary.settled,).toBe(1,);
+        // The summary says what could not be read, and never that the driver failed.
+        expect(String(run.summary.workProblem,),).toContain('ENOTDIR',);
+        expect(run.summary.driverError,).toBeUndefined();
+        /**
+         The feed's own line for that failure, under a name of its own.
+         */
+        const unreadable = run.feed.filter((entry,) => entry.kind === 'work-unreadable',);
+        expect(unreadable.length,).toBe(1,);
+        expect(String(unreadable[0]?.failure,),).toContain('ENOTDIR',);
+      },
+    },),
+    it({
+      name: 'ends a run at its wall clock while the build it left still runs, and says on the feed what it waited for',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'leaves-work-running-past-its-wall-clock',
+          wallSeconds: WORK_OUTLASTED_WALL_SECONDS,
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('wall-clock',);
+        // Nothing was sent after the prompt: the work never ended, so no message woke the agent.
+        expect(run.sentCommands.filter((command,) => command.type === 'prompt',).length,).toBe(1,);
+        /**
+         The feed's own record of the wait, and of why the run ended while it waited.
+         */
+        const waiting = run.feed.find((entry,) => entry.kind === 'waiting',);
+        expect(String(waiting?.problem,),).toContain('native-build',);
+        expect(run.feed.some((entry,) => String(entry.problem,).includes('waited for the work it left running',)),)
+          .toBe(true,);
+        await endTheWorkLeftRunning(run.markers,);
+      },
+    },),
+    it({
       name: 'a rejected first prompt fails at once instead of waiting for the wall clock',
       fn: async () => {
         const run = await runDriver({ scenario: 'reject', },);
@@ -761,19 +873,6 @@ await describe({
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('pi-exited',);
         expect(String(run.summary.piExit?.processError,),).toContain('ENOENT',);
-      },
-    },),
-    it({
-      name: 'a session whose git is not the policy wrapper is refused before Pi starts, and the refusal names what it found',
-      fn: async () => {
-        const run = await runDriver({ scenario: 'normal', gitIsTheWrapper: false, },);
-        expect(run.status,).toBe(FAILED_STATUS,);
-        expect(run.standardError,).toContain('GitWrapperPreflightError',);
-        expect(run.standardError,).toContain('is not a git command',);
-        expect(run.standardError,).toContain('.cache/monochromatic-git-policy-cli-bin',);
-        expect(run.logWasWritten,).toBe(false,);
-        expect(run.runFolderWasMade,).toBe(false,);
-        expect(run.summary.endReason,).toBe(ABSENT_SUMMARY.endReason,);
       },
     },),
     it({

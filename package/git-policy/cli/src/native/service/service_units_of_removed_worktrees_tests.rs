@@ -6,6 +6,7 @@
 
 use super::*;
 use crate::service_instance::{instance_of, socket_path};
+use crate::service_provision_loaded_unit_texts::{record, record_path};
 use crate::service_unit_manager_recorder_test_support::Recorder;
 use crate::service_units_fixture_test_support::{Machine, age_a_journal, machine};
 use crate::test_support::{git, remove, repository};
@@ -259,6 +260,10 @@ fn the_sweep_stops_the_units_of_gone_worktrees_only() {
     for (instance, git_dir) in [(&kept_instance, &kept), (&gone_instance, &gone)] {
         record_worktree(machine.runtime.as_path(), instance.as_str(), git_dir.as_path()).expect("note");
         machine.socket_of(instance.as_str());
+        // What: The record of the unit texts the manager was told about, which the sweep forgets with the note.
+        // Why:  It says what the manager read for an instance whose units no longer exist, and a worktree that is gone never
+        //       comes back at that Git directory.
+        record(machine.runtime.as_path(), instance.as_str(), [].as_slice()).expect("record of the unit texts");
     }
     machine.socket_of(unknown.as_str());
     let mut recorder: Recorder = Recorder::default();
@@ -272,6 +277,11 @@ fn the_sweep_stops_the_units_of_gone_worktrees_only() {
     assert!(socket_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's socket file stays");
     assert_eq!(survey(&machine.folders()), Survey { gone: Vec::new(), unmapped: vec![unknown], present: 1 });
     assert!(note_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's note stays");
+    assert!(
+        !record_path(machine.runtime.as_path(), gone_instance.as_str()).exists(),
+        "the record of the unit texts the manager was told about goes with the instance"
+    );
+    assert!(record_path(machine.runtime.as_path(), kept_instance.as_str()).exists(), "a present worktree's record stays");
     remove(machine.root.as_path());
 }
 
@@ -385,14 +395,19 @@ fn a_deleted_repository_under(machine: &Machine, name: &str) -> (PathBuf, PathBu
 
 /// What:
 ///  The pushes a service kept for a repository that is gone end with it,
-///  and the journal goes once nothing else is in it.
+///  and the journal stays for the sweep that follows the service's own end.
 /// Why:
 ///   A plan that stayed would be read by a service of this instance started later,
-/// which would spend a try on a directory nothing can reach,
-/// and a journal holding only the records of landed batches no client may still read is the memory of a service that never
-/// runs again.
+/// which would spend a try on a directory nothing can reach.
+/// The journal is not removed here,
+/// because the service that stops its own socket is still one of its writers:
+/// its after-commit work publishes records on a thread of its own,
+/// and a record published between a listing and a removal goes with the tree
+/// (`service_files_of_a_stopped_instance.rs`).
+/// The sweep proves the service gone before it removes the journal,
+/// so the records of landed batches no client may still read are removed later and never discarded now.
 #[test]
-fn a_service_of_a_gone_worktree_ends_the_plan_of_that_repository_and_the_journal_goes() {
+fn a_service_of_a_gone_worktree_ends_the_plan_of_that_repository_and_keeps_the_journal_for_the_sweep() {
     let machine: Machine = machine("units-own-gone-plans");
     let (git_dir, repository) = a_deleted_repository_under(&machine, "repository-a");
     let instance: String = instance_of(git_dir.as_path());
@@ -401,8 +416,16 @@ fn a_service_of_a_gone_worktree_ends_the_plan_of_that_repository_and_the_journal
     let journal: PathBuf = a_journal_with_a_plan(&machine, instance.as_str(), git_dir.as_path(), repository.as_path(), "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
     let mut recorder: Recorder = Recorder::default();
     let gone: Option<PathBuf> = stop_own_socket_of_a_gone_worktree(&machine.folders(), instance.as_str(), &mut recorder).expect("stopped");
-    assert_eq!(gone, Some(git_dir));
-    assert!(!journal.exists(), "the journal held nothing but the records of landed batches that no client may still read and the ended plan, so it goes with the units");
+    assert_eq!(gone, Some(git_dir.clone()));
+    assert!(crate::push_retry_store::load(journal.join(crate::push_retry::PLAN_DIRECTORY).as_path()).is_empty(), "the plan of the gone repository ended");
+    assert!(journal.exists(), "the journal stays, because this service is still one of its writers");
+    assert!(note_path(machine.runtime.as_path(), instance.as_str()).exists(), "the note stays, so the sweep that follows this process's end finds the instance");
+    assert!(socket_path(machine.runtime.as_path(), instance.as_str()).exists(), "the socket file stays with the note, and the sweep removes both");
+    // The sweep is a later process, and the manager there reports the service gone, which is what lets the journal go.
+    let swept: SweepOutcome = stop_units_of_gone_worktrees(&mut recorder, &machine.folders());
+    assert_eq!(swept.stopped, vec![instance.clone()]);
+    assert!(swept.journals_kept.is_empty(), "{:?}", swept.journals_kept);
+    assert!(!journal.exists(), "the sweep removed the journal once the manager reported the service gone");
     remove(machine.root.as_path());
 }
 

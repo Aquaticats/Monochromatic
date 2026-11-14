@@ -28,6 +28,8 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: Some(String::from("/work/repo/.git/monochromatic-git-policy-cli-saved-message-ab12")) },
         ClientFailure::BranchSwitched { branch: String::from("main"), now: String::from("side"), file: None },
         ClientFailure::ServiceSilent,
+        ClientFailure::ServiceNotReading { took_nothing: true },
+        ClientFailure::ServiceNotReading { took_nothing: false },
         ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::Made },
         ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::NotMade },
         ClientFailure::ServiceSilentAfterPreparing { shows: crate::service_messages::WhatTheBranchShows::Unread },
@@ -110,7 +112,8 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::NothingAnswered { .. } => 32,
         ClientFailure::Interrupted { .. } => 30,
         ClientFailure::InterruptedNotKnown { .. } => 31,
-        ClientFailure::ManagerDidNotAnswer { .. } => 33,
+        ClientFailure::ServiceNotReading { .. } => 33,
+        ClientFailure::ManagerDidNotAnswer { .. } => 34,
     };
 }
 
@@ -289,10 +292,39 @@ fn messages_quote_their_constants_and_facts() {
     let unsaved: String = render(&ClientFailure::BranchSwitched { branch: String::from("topic"), now: String::from("side"), file: None });
     assert!(!unsaved.contains("saved in"), "{unsaved}");
     assert!(render(&ClientFailure::RepositoryFull(String::from("/work/repo"))).contains("/work/repo"));
-    let silent: String = render(&ClientFailure::ServiceSilent);
-    for command in CHECK_COMMANDS.into_iter().chain([LOG_COMMAND, RESTART_COMMAND]) {
-        assert!(silent.contains(command), "{silent}");
+    // What a service that stopped leaves a person to do: read the state of this worktree's service, restart the one unit it
+    //  names, and read whether the commit was made. A restart of every service of the account is what these words must never
+    //  ask for, and what the wildcard `RESTART_COMMAND` of the other failures still does.
+    for failure in [
+        ClientFailure::ServiceSilent,
+        ClientFailure::ServiceNotReading { took_nothing: true },
+        ClientFailure::ServiceNotReading { took_nothing: false },
+        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
+    ] {
+        let words: String = render(&failure);
+        for command in [STATUS_COMMAND, RESTART_ONE_UNIT_COMMAND] {
+            assert!(words.contains(command), "{failure:?} names {command}: {words}");
+        }
+        assert!(!words.contains(RESTART_COMMAND), "{failure:?} must not restart every service of the account: {words}");
+        assert!(!words.contains(LOG_COMMAND), "{failure:?} must not read the journal of every service: {words}");
     }
+    // A commit that was not made says so and says the staged work is untouched; one whose result nobody knows yet names the
+    //  read that shows it.
+    for not_made in [
+        ClientFailure::ServiceNotReading { took_nothing: true },
+        ClientFailure::ServiceNotReading { took_nothing: false },
+        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
+    ] {
+        let words: String = render(&not_made);
+        assert!(words.contains(NOTHING_CHANGED), "{not_made:?} says nothing in the repository changed: {words}");
+        assert!(words.contains("was not made"), "{not_made:?} says the commit was not made: {words}");
+    }
+    for not_known in [ClientFailure::ServiceSilent, ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Unread }] {
+        let words: String = render(&not_known);
+        assert!(words.contains(CHECK_COMMANDS[0]), "{not_known:?} names what shows whether the commit was made: {words}");
+        assert!(!words.contains(NOTHING_CHANGED), "{not_known:?} must not claim nothing changed: {words}");
+    }
+    let silent: String = render(&ClientFailure::ServiceSilent);
     assert!(!silent.contains("raise") && !silent.contains("setting"), "the text must not name a setting that does not exist: {silent}");
     assert!(render(&ClientFailure::IndexInUse(String::from("the editor"))).contains("the editor"));
 }
@@ -307,12 +339,47 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
             failure,
             ClientFailure::MayNotHaveLanded
                 | ClientFailure::ServiceSilent
-                | ClientFailure::ServiceSilentAfterPreparing { .. }
+                // The branch was read afterwards. `Made` says the commit was made; `Unread` does not know; and `NotMade`
+                //  says the branch holds no commit of this command's yet, which a service that wakes may still land, so
+                //  none of the three may claim that nothing changed.
+                | ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Made | WhatTheBranchShows::Unread | WhatTheBranchShows::NotMade }
                 | ClientFailure::WithdrawalUnconfirmed { .. }
                 | ClientFailure::InterruptedNotKnown { .. }
                 | ClientFailure::WorkNotHandedOver(_)
         );
         assert_eq!(!claims, may_have_landed, "{failure:?}");
+    }
+}
+
+/// What:
+///  A commit whose whole request did reach the service is not described as one that can never land.
+/// Why:
+///  The review of this change showed the landing's client-gone check losing to the connection writer's heartbeat,
+///  so a service that wakes can land a request whose command is gone:
+/// the branch read shows "not made" only at the moment it was read, and the words may say no more than that.
+///  A commit whose request never arrived whole is the other case, and its words say the reason that is true.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(render({ kind: 'silent-after-preparing', shows: 'not-made' })).toMatch(/may still land it/)
+/// ```
+#[test]
+fn a_request_that_reached_the_service_is_not_described_as_one_that_never_can_land() {
+    let not_made: String =
+        render(&ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::NotMade });
+    assert!(not_made.contains("may still land it"), "the words allow a service that wakes to land it: {not_made}");
+    assert!(not_made.contains(CHECK_COMMANDS[0]), "they name the read that shows whether it has: {not_made}");
+    assert!(!not_made.contains("dropped before it lands"), "they do not claim a drop the landing does not promise: {not_made}");
+    assert!(not_made.contains("once `git log -1` has shown that it was not made"), "and the step that runs it again waits for that read: {not_made}");
+    // The other way round: a request that never reached the service whole says the reason that is true.
+    for never_arrived in [
+        ClientFailure::ServiceNotReading { took_nothing: true },
+        ClientFailure::ServiceNotReading { took_nothing: false },
+        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
+    ] {
+        let words: String = render(&never_arrived);
+        assert!(words.contains("framing newline"), "{never_arrived:?} says a request is read only when its newline arrived: {words}");
+        assert!(!words.contains("dropped before it lands"), "{never_arrived:?} claims no drop: {words}");
     }
 }
 

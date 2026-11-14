@@ -200,21 +200,23 @@ fn a_hand_over_waits_the_greeting_bound_and_never_the_commits_start_wait() {
 }
 
 /// What:
-///  A unit the manager reports as running is given less than the start ceiling before it is asked to restart.
+///  A unit the manager reports as running is restarted only once the whole start ceiling has passed,
+/// and the client asks the
+///  manager for nothing but this worktree's own unit while it waits.
 /// Why:
-///   A service greets a connection before it restores anything,
-/// so a running unit that greets nothing is one that stopped
-///  inside its own process;
-/// the wait for it is bounded by the greeting silence and never by the whole start ceiling,
-/// which
-///  would hold the commit for a minute.
+///   A greeting three seconds late was read as a service stopped inside its own process on 2026-11-12,
+/// and the
+///  restart and reload that followed ended a desktop session that had nothing to do with the commit
+///  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+/// The silence
+///  that is not evidence of a stopped service is no bound at all.
 #[test]
-fn a_running_unit_that_greets_nothing_is_restarted_within_the_start_ceiling() {
-    assert!(SERVICE_GREETING_SILENCE < START_CEILING, "{SERVICE_GREETING_SILENCE:?} must end before {START_CEILING:?}");
-    assert_eq!(SERVICE_GREETING_SILENCE, Duration::from_secs(3), "nearly three times the slowest of 52 measured cold starts, and under 5 s");
+fn a_running_unit_that_greets_nothing_is_restarted_only_at_the_start_ceiling() {
     let reach: &str = include_str!("service_client_reach_service.rs");
-    assert!(reach.contains("SERVICE_GREETING_SILENCE"), "the client is what asks for the restart");
-    assert!(reach.contains("(watch.restart)("), "and the restart is a call of the service manager");
+    assert!(reach.contains("(watch.restart)("), "the client is what asks for the restart");
+    assert!(reach.contains("started.elapsed() >= config.start_ceiling"), "and the start ceiling is what ends the wait for a greeting");
+    assert!(!reach.contains("SERVICE_GREETING_SILENCE"), "nothing shorter than the start ceiling may stand in for it");
+    assert!(!reach.contains("Reload") && !reach.contains("reload"), "and nothing here asks the manager to read every unit it holds");
 }
 
 /// What:
@@ -235,21 +237,43 @@ fn a_repair_tool_is_announced_well_before_its_bounds_end_it() {
 }
 
 /// What:
-///  The wait for a snapshot made ahead is the owner's 60 s bound for an add,
-/// and the snapshot rung names it.
+///  Every add takes its own snapshot and claims no copy the service made ahead,
+/// so no ceiling bounds a wait an add no longer makes.
 /// Why:
-///   The ceiling covers the whole wait for a btrfs call the add does not make itself,
-/// so it is the one number that
-///  decides when Git's own checkout makes the worktree instead;
-/// a ceiling that drifted from the owner's bound,
-/// or a
-///  rung that stopped taking it,
-/// would leave an add waiting with no end again.
+///   The copy a service made ahead of an add was open to the owner's veto,
+/// and when he was asked on 2026-11-11 to keep it or to take a fresh snapshot on every add he answered
+/// "Fresh snapshot every add".
+/// A ceiling that stayed here would bound a wait no code makes,
+/// which is what this control reported at the alpha.11 gate:
+/// it asserted that the snapshot rung names the ceiling,
+/// and the rung no longer takes one.
 #[test]
-fn the_wait_for_a_snapshot_made_ahead_is_the_owners_bound_for_an_add() {
-    assert_eq!(SNAPSHOT_AHEAD_CEILING, Duration::from_secs(60), "the owner, 2026-11-10: \"60s is fine for adding worktrees\"");
+fn an_add_takes_its_own_snapshot_and_waits_for_none_made_ahead() {
     let rung: &str = include_str!("../worktree/worktree_ladder_finish.rs");
-    assert!(rung.contains("SNAPSHOT_AHEAD_CEILING"), "the snapshot rung takes this ceiling");
+    assert!(rung.contains("take_snapshot("), "the snapshot rung takes the add's own snapshot");
+    assert!(!rung.contains("look_for_a_snapshot_ahead"), "the add claims no copy the service made ahead");
+    assert!(!rung.contains("SNAPSHOT_AHEAD_CEILING"), "nothing bounds a wait the add does not make");
+    let ceilings: &str = include_str!("wait_ceilings.rs");
+    assert!(!ceilings.contains("SNAPSHOT_AHEAD_CEILING"), "no ceiling of an add's wait for a copy made ahead is left to bound nothing");
+}
+
+/// What:
+///  The write that says what a repair tool waits for is bounded,
+///  and the repair's run takes that bound.
+/// Why:
+///   That line is written by the loop that reads the quiet window and the ceiling,
+/// and a stream whose reader stopped draining
+///  waits in the kernel:
+/// an unbounded write there held the loop,
+/// so neither bound fired and the tool the repair owns was never
+///  stopped.
+/// The bound is the commit warning's,
+/// because it is the same kind of line at the same measured pace.
+#[test]
+fn the_notice_of_a_repair_tool_gives_up_its_stream_at_the_warnings_bound() {
+    assert_eq!(REPAIR_NOTICE_WRITE_CEILING, WARNING_WRITE_CEILING, "one measured pace of a line to a stream serves both");
+    let command: &str = include_str!("../repair/package_repair_command.rs");
+    assert!(command.contains("write_within(REPAIR_NOTICE_WRITE_CEILING, StandardErrorDescriptor"), "the repair's notice is written within this bound, through the descriptor that holds no lock");
 }
 
 /// The start of one repair tool is bounded by the wait a client grants a service's own start:

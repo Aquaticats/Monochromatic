@@ -13,11 +13,11 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! type ProvisionHost = { runtimeDir: string; userUnitDir?: string; bus: string; serviceBinary: string; git: string; instance: string; retirementWait: number };
-//! interface Manager { reload(): void; start(unit: string): void; stop(unit: string): void; activeState(unit: string): string | undefined }
+//! interface Manager { within(wait: number): void; resetFailed(unit: string): void; start(unit: string): void; stop(unit: string): void; stopAlone(unit: string): void; activeState(unit: string): string | undefined; listen(unit: string): string[] | undefined }
 //! ```
 
 use crate::service_messages::{ClientFailure, Platform};
-use crate::systemd_dbus::{Bus, CallError, manager_is_absent};
+use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, manager_is_absent};
 use std::path::{Path, PathBuf};
 
 /// File name of the socket unit of the single service every worktree shared until one service per worktree.
@@ -54,23 +54,6 @@ pub struct ProvisionHost {
     pub retirement_wait: std::time::Duration,
 }
 
-/// What:
-///  The runtime directory whose record of the unit texts the manager was told about belongs to this host,
-/// for the
-///  client that drops it when the manager and the files disagree.
-/// Why:
-///   The client is built from this host,
-/// and a closure at the construction site would say the same thing in
-///  every one of them.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const unitsRecordDirOf = (host: ProvisionHost): string => host.runtimeDir;
-/// ```
-pub fn units_record_dir_of(host: &ProvisionHost) -> PathBuf {
-    return host.runtime_dir.clone();
-}
-
 /// How long the earlier single service may take to stop;
 /// it finishes the batch it holds first.
 /// The wait and every question to
@@ -101,12 +84,14 @@ pub const STOP_TIMEOUT_SECONDS: u64 = crate::stop_of_the_service_noticed_by_its_
 
 /// What the manager is asked to do,
 /// so a control can record it instead of reaching a manager.
+/// Nothing here reloads the manager:
+/// every call names one unit of this wrapper,
+/// so its cost is that unit's own
+/// (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
 pub trait Manager {
     /// Gives the calls that follow `wait` from now in all,
     /// so that each phase of provisioning has a time of its own.
     fn within(&mut self, wait: std::time::Duration);
-    /// Reloads the unit files.
-    fn reload(&mut self) -> Result<(), CallError>;
     /// Clears a unit's failed state and start-rate counter.
     fn reset_failed(&mut self, unit: &str) -> Result<(), CallError>;
     /// Starts a unit.
@@ -137,10 +122,6 @@ pub trait Manager {
 impl Manager for Bus {
     fn within(&mut self, wait: std::time::Duration) {
         Bus::within(self, wait);
-    }
-
-    fn reload(&mut self) -> Result<(), CallError> {
-        return Bus::reload(self);
     }
 
     fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
@@ -191,19 +172,20 @@ pub fn runtime_unit_dir(runtime_dir: &Path) -> PathBuf {
 /// the manager's own words,
 /// or a plain statement;
 /// its error name is internal vocabulary.
-/// `waited` is the time that call was given,
-/// which a call that ran out of it names.
-pub(crate) fn refusal(error: CallError, waited: std::time::Duration) -> ClientFailure {
+pub(crate) fn refusal(error: CallError) -> ClientFailure {
     return match error {
         // A bus with no user manager on it cannot start anything, and the remedy is the one for an account without user
         //  services; its own words name a bus name, which says nothing to the person.
         CallError::Manager { name, .. } if manager_is_absent(name.as_str()) => ClientFailure::NoActivation(platform_without_manager()),
         CallError::Manager { text, .. } if text.is_empty() => ClientFailure::CouldNotStart(String::from("the service manager refused the request")),
         CallError::Manager { text, .. } => ClientFailure::CouldNotStart(format!("the service manager refused the request ({text})")),
-        // What: An exchange that ran out names its own time, and never the platform's lack of a manager.
-        // Why:  The bus may be there and busy, which is what three of the seven stopped records of 2026-11-12 met; the
-        //       remedy for an account without user services sends the person after the wrong thing.
-        CallError::TimedOut => ClientFailure::ManagerDidNotAnswer { waited },
+        // What: An exchange that ran out says so with the time it was given, and never the platform's lack of a manager.
+        // Why:  The bus is there and busy, or the manager is stopped inside itself; which of the two is not known, and neither
+        //       is an account without user services. Three of the seven stopped records of 2026-11-12 met this after twenty
+        //       seconds in one exchange while the person was told to turn user services on. Every call whose timeout arrives
+        //       here was given the exchange's own time before it was made (`EXCHANGE_WAIT`), and a call that was given less
+        //       answers its own shorter wait elsewhere (`service_provision_earlier_service_retirement.rs`).
+        CallError::TimedOut => ClientFailure::ManagerDidNotAnswer { waited: EXCHANGE_WAIT },
         CallError::Connection(_) | CallError::Authentication(_) | CallError::Malformed(_) => {
             ClientFailure::NoActivation(platform_without_manager())
         }

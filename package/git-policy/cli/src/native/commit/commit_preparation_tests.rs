@@ -875,7 +875,7 @@ fn the_number_in(file: &Path, bound: std::time::Duration) -> i32 {
 fn a_scratch_commit_the_kernel_holds_past_its_ceiling_lands_exactly_one_commit() {
     let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
     let _notice_window: std::sync::MutexGuard<'_, ()> = crate::native_commit_waiting_notice::the_controls_window::take_the_window();
-    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_STALL_BOUND * 10);
+    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_LONGER_STALL_BOUND);
     let root: PathBuf = fixture("commit-preparation-a-disk-wait");
     let (fixture, global_args, commit_args, number_file): (Fixture, Vec<OsString>, Vec<OsString>, PathBuf) =
         a_signer_that_reports_itself(root.as_path(), "2");
@@ -1010,4 +1010,205 @@ fn a_scratch_commit_whose_notice_thread_was_refused_still_says_the_step_was_wait
     assert!(lasted >= A_STALL_BOUND, "the step was ended at its ceiling instead of the bound it is waited for: {lasted:?}");
     assert!(said.contains("held it in a disk wait"), "a stop with no notice thread does not say the step was waited for: {said}");
     remove(root.as_path());
+}
+
+/// How many looks a control refuses before the ceiling of the wait that owns the step comes:
+/// more than the notice's thread makes that early, so the look that decides the ceiling cannot succeed.
+const A_FEW_LOOKS_THAT_CANNOT_BE_MADE: usize = 6;
+
+/// A ceiling long enough that the notice's own planted ceiling comes well first,
+/// so the wait that owns the step decides after it.
+const A_CEILING_THE_NOTICE_DECIDES_FIRST: std::time::Duration = std::time::Duration::from_secs(6);
+
+/// The longer ceiling a control gives a step that ends by itself,
+/// far enough above the step that a loaded host cannot reach it and fail the control by time alone.
+///  The shipped bound is five minutes;
+///  a control whose bound is close to the step's own length fails on ordinary load,
+///  because a commit under a busy host takes longer than the step alone.
+const A_LONGER_STALL_BOUND: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// What:
+///  A commit whose scratch step the kernel holds, and whose look at its ceiling could not be made,
+///  lands when the step ends.
+/// Why:
+///   Finding 1 of the 2026-11-12 review of the stand-aside:
+///  a look that failed was read as "not held",
+///  so the wait killed a step the kernel held at the usual ceiling,
+///  and a commit that would have landed failed.
+///  A look that failed decides nothing, and the look is made again.
+///  What a control states is the kernel's answer about the signer,
+///  which is the whole of what a stalled disk gives the step,
+///  and the commit, the signer and the shadow repository are real.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const { fixture, ... } = aSignerThatReportsItself(root, 2); plantLooksThatCannotBeMade(6); theKernelHolds(number); const code = runNativeCommitWithin({ ceiling: 300 }); expect(code).toBe(0)
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_scratch_commit_whose_ceiling_look_failed_lands_when_the_step_ends() {
+    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = crate::native_commit_waiting_notice::the_controls_window::take_the_window();
+    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_LONGER_STALL_BOUND);
+    let root: PathBuf = fixture("commit-preparation-a-look-that-failed");
+    let (fixture, global_args, commit_args, number_file): (Fixture, Vec<OsString>, Vec<OsString>, PathBuf) =
+        a_signer_that_reports_itself(root.as_path(), "2");
+    let base: String = git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]);
+    let request: PreparationRequest = PreparationRequest {
+        capture: &fixture.capture,
+        shadow: fixture.shadow.as_path(),
+        commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
+        global_args: global_args.as_slice(),
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    // Every look before the ceiling of the wait that owns the step fails, as `/proc` under a descriptor or memory limit does.
+    crate::scratch_step_look_below::the_controls_window::plant_looks_that_cannot_be_made(A_FEW_LOOKS_THAT_CANNOT_BE_MADE);
+    let planting = {
+        let watched: PathBuf = number_file.clone();
+        std::thread::spawn(move || {
+            let number: i32 = the_number_in(watched.as_path(), A_SIGNER_STARTS);
+            crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "gpg");
+        })
+    };
+    let outcome: Result<i32, PreparationError> = run_native_commit_within(&git_context(), fixture.repo.as_path(), &request, A_CEILING_A_STEP_OUTLASTS);
+    planting.join().expect("the control's thread");
+    assert_eq!(outcome.expect("a look that failed decides nothing, so a step the kernel held is waited for and lands"), 0);
+    assert_eq!(git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]).trim(), base, "the person's branch is where it was");
+    remove(root.as_path());
+}
+
+/// What:
+///  A commit whose notice stood aside for a step the kernel held, and whose wait then did not find the kernel holding it,
+///  lands, and no stop claims a wait that did not happen.
+/// Why:
+///   Finding 2 of the 2026-11-12 review of the stand-aside:
+///  the two enforcers decided separately, so one could stand aside while the other ended the step at the usual ceiling,
+///  and the words then named the longer bound and said the step was waited for to it.
+///  The stand-aside is one decision both enforcers read,
+///  so the wait may not undo it, and the step lands when its signer ends.
+///  The kernel's hold is stated and then taken away, which is a step that leaves that state and comes back to its work,
+///  and no run on this host can make a real process do either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // const { fixture, ... } = aSignerThatReportsItself(root, 8); theKernelHolds(number); plantTheCeiling(0); await sleep(2_000); theKernelLetsGo(); const code = runNativeCommitWithin({ ceiling: 4_000 }); expect(code).toBe(0)
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_ceiling_that_stood_aside_is_not_undone_by_the_other_enforcer() {
+    let _look_window: std::sync::MutexGuard<'_, ()> = crate::scratch_step_look_below::the_controls_window::take_the_window();
+    let _notice_window: std::sync::MutexGuard<'_, ()> = crate::native_commit_waiting_notice::the_controls_window::take_the_window();
+    crate::native_commit_waiting_notice::the_controls_window::plant_the_stall_ceiling(A_LONGER_STALL_BOUND);
+    let root: PathBuf = fixture("commit-preparation-enforcers-that-met-different-states");
+    let (fixture, global_args, commit_args, number_file): (Fixture, Vec<OsString>, Vec<OsString>, PathBuf) =
+        a_signer_that_reports_itself(root.as_path(), "8");
+    let base: String = git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]);
+    let request: PreparationRequest = PreparationRequest {
+        capture: &fixture.capture,
+        shadow: fixture.shadow.as_path(),
+        commit_index: fixture.commit_index.as_path(),
+        scratch: fixture.scratch.as_path(),
+        global_args: global_args.as_slice(),
+        commit_args: commit_args.as_slice(),
+        object_directory: None,
+    };
+    let planting = {
+        let watched: PathBuf = number_file.clone();
+        std::thread::spawn(move || {
+            let number: i32 = the_number_in(watched.as_path(), A_SIGNER_STARTS);
+            crate::scratch_step_look_below::the_controls_window::the_kernel_holds(number, "gpg");
+            // The notice's own ceiling comes at its next look, while the kernel is still said to hold the signer,
+            // so the notice stands aside before the wait's ceiling.
+            crate::native_commit_waiting_notice::the_controls_window::plant_the_ceiling(std::time::Duration::ZERO);
+            std::thread::sleep(A_CEILING_THE_NOTICE_DECIDES_FIRST / 2);
+            // The signer is at work again when the wait's own ceiling comes, so the two enforcers meet different states.
+            crate::scratch_step_look_below::the_controls_window::the_kernel_lets_go();
+        })
+    };
+    let outcome: Result<i32, PreparationError> = run_native_commit_within(&git_context(), fixture.repo.as_path(), &request, A_CEILING_THE_NOTICE_DECIDES_FIRST);
+    planting.join().expect("the control's thread");
+    assert_eq!(outcome.expect("a ceiling that stood aside is honoured by the other enforcer, and the step lands"), 0);
+    assert_eq!(git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]).trim(), base, "the person's branch is where it was");
+    remove(root.as_path());
+}
+
+/// How many branches the reference-count control adds to its larger repository.
+///
+/// The number is the fixture's,
+/// and the control's claim is that no Git child a preparation starts is asked about it.
+const MANY_REFS_ABOVE_THE_FIXTURE: usize = 700;
+
+/// What:
+///  How many branches one repository lists,
+///  which is the size the control varies.
+///
+/// Why:
+///   The count is derived from the repository,
+/// so a fixture that grows keeps the control honest instead of pinning a number.
+fn reference_count(repo: &Path) -> usize {
+    return git_text(repo, &["for-each-ref", "--format=%(refname)"]).lines().count();
+}
+
+/// What:
+///  The preparation of one fixture under a recording context:
+///  the Git starts it made,
+///  and how many refs its repository holds.
+///
+/// Why:
+///   Both halves of the claim are read from the fixture itself,
+/// so neither is a wall-clock assertion.
+#[cfg(unix)]
+fn preparation_starts(root: &Path, above_the_fixture: usize) -> (Vec<String>, usize) {
+    let repo: PathBuf = prepared_repository(root);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    for index in 0..above_the_fixture {
+        let name: String = format!("refs/heads/measured-{index:04}");
+        git(repo.as_path(), &["update-ref", name.as_str(), head.as_str()]);
+    }
+    git(repo.as_path(), &["pack-refs", "--all"]);
+    let (context, log) = crate::recording_git::recording_context(root);
+    let prepared: Fixture = preparation_fixture_with(&context, root, repo.clone());
+    prepare_with(&context, &prepared, &["--message=measured"]).expect("the shadow builds the commit");
+    return (crate::recording_git::recorded_starts(log.as_path()), reference_count(repo.as_path()));
+}
+
+/// A commit of one branch starts the same Git children whatever the repository's ref count,
+/// and none of them is asked about the repository's references.
+///
+/// On 2026-11-12 one `git for-each-ref` over every ref was a child of every commit and took 3.8 to 26.4
+/// seconds on a busy host while real Git answered the same question in 4 to 5 milliseconds;
+/// this control holds the count of starts,
+/// and what they are asked,
+///  to the fixture rather than to the clock.
+#[cfg(unix)]
+#[test]
+fn a_commit_starts_no_git_child_over_the_whole_ref_store() {
+    let small_root: PathBuf = fixture("commit-preparation-refs-small");
+    let large_root: PathBuf = fixture("commit-preparation-refs-large");
+    let (small_starts, small_refs) = preparation_starts(small_root.as_path(), 0);
+    let (large_starts, large_refs) = preparation_starts(large_root.as_path(), MANY_REFS_ABOVE_THE_FIXTURE);
+    // The starts are compared by the step each one is, never by a path of its fixture.
+    let labels = |starts: &[String]| -> Vec<String> {
+        return starts
+            .iter()
+            .map(|start| {
+                let words: Vec<OsString> = start.split(' ').map(OsString::from).collect();
+                return crate::add_timing::git_step_label(words.as_slice());
+            })
+            .collect();
+    };
+    let over_every_ref: Vec<&String> = large_starts
+        .iter()
+        .chain(small_starts.iter())
+        .filter(|start| {
+            return start.starts_with("for-each-ref") || start.contains(" for-each-ref") || start.contains(" rev-list ") || start.starts_with("rev-list ");
+        })
+        .collect();
+    assert!(over_every_ref.is_empty(), "{over_every_ref:?}");
+    assert!(large_refs > small_refs + MANY_REFS_ABOVE_THE_FIXTURE - 1, "{small_refs} then {large_refs}");
+    assert_eq!(labels(&small_starts), labels(&large_starts), "a repository of {large_refs} refs against one of {small_refs}");
+    remove(small_root.as_path());
+    remove(large_root.as_path());
 }

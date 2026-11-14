@@ -208,6 +208,15 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the bounded build of the multi-thread runtime on a helper thread, which the plan's open choice 9 requires so a refused build cannot hang the process",
     },
     Allowed {
+        file: "foundation/lazy_runtime.rs",
+        rule: "blocking-sleep",
+        why: "two pauses where no worker can be held: the fault injector's pause on that same helper thread, which runs \
+              before any runtime exists, and `await_a_worker_within`, which waits for a build on the service's own start \
+              thread because a task cannot run before that build arrives; `tokio::time::sleep` needs a runtime, so neither \
+              is a wait the runtime can end, and the entry goes when the injector does and when that start is a task that \
+              awaits the build",
+    },
+    Allowed {
         file: "foundation/log_generations_kept_to_a_bound.rs",
         rule: "thread-start",
         why: "one thread trims the log generations; a job of the blocking pool replaces it",
@@ -221,6 +230,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         file: "foundation/scoped_start.rs",
         rule: "thread-start",
         why: "the helper that starts a thread and runs the work in turn where no thread can start; this is the one thread the runtime step replaces last",
+    },
+    Allowed {
+        file: "service/service_provision_slow_manager_notice.rs",
+        rule: "thread-start",
+        why: "the line about a service manager that has not answered is said by a thread of its own, because the D-Bus call that waits for it blocks the thread provisioning runs on and nothing else can count those seconds; a timeout around awaited manager calls replaces it when the provisioning is a task",
     },
     Allowed {
         file: "foundation/scratch_entry_removal.rs",
@@ -374,6 +388,13 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the pause between attempts at the push lock",
     },
     Allowed {
+        file: "push/push_tracking_ref_repair.rs",
+        rule: "blocking-sleep",
+        why: "the same pause between attempts at a reference lock, on the push a command outside the runtime makes; the \
+              service's push takes its awaited twin `bring_up_to_date_awaiting`, which pauses on the runtime's clock, and \
+              the entry goes when the synchronous face's last caller is converted",
+    },
+    Allowed {
         file: "push/bounded_query_input.rs",
         rule: "blocking-sleep",
         why: "the pause between feeds of a query's standard input",
@@ -402,6 +423,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         file: "service/service_provision_earlier_service_retirement.rs",
         rule: "blocking-sleep",
         why: "the pause between looks at an earlier service's retirement",
+    },
+    Allowed {
+        file: "service/service_provision_instance_unloaded.rs",
+        rule: "blocking-sleep",
+        why: "the pause between looks at whether the manager dropped this worktree's units, on the synchronous face of provisioning",
     },
     Allowed {
         file: "transaction/transaction_phase.rs",

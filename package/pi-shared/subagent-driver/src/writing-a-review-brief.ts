@@ -2,8 +2,9 @@
  Writes what a review of one change reads: the diff of its ranges under the reviewed source folder, the brief that names its
  files, and the folder its reproductions go in.
 
- A change that leaves no code under the source folder writes nothing and answers one line, because a reviewer given no file
- reports nothing, which reads as a clean review although nothing was reviewed.
+ A change that leaves nothing to read under the source folder writes nothing and answers one line, because a reviewer given no
+ file reports nothing, which reads as a clean review although nothing was reviewed. What a change leaves to read is the code
+ under that folder and the files that decide how that code is built, checked or run.
 
  @module
  */
@@ -16,12 +17,14 @@ import { dirname, } from 'node:path';
 import type { BriefOfOneReview } from './reviews-of-finished-branches.ts';
 import {
   type GitQuestion,
+  type ReviewReading,
   materialOfAReview,
 } from './material-of-a-review.ts';
 import { briefOfAReview, } from './review-brief.ts';
 import {
   briefFileOfAReview,
   diffFileOfAReview,
+  readingFileOfAReview,
   reproductionsFolderOfAReview,
   reviewFolderOf,
   runNameOfAReview,
@@ -149,6 +152,25 @@ export async function writeReviewBrief({
       runsFolder,
       rulesFile,
     },),
+    'utf8',
+  );
+  // What the review read is kept beside its files: a branch moves on as soon as anyone commits to it, and a fix that answers
+  // this review has to start at the commit the review actually read.
+  await writeFile(
+    readingFileOfAReview({
+      reviewsFolder,
+      review,
+    },),
+    `${JSON.stringify(
+      {
+        review,
+        commit,
+        ranges,
+        source,
+      } satisfies ReviewReading,
+      undefined,
+      2
+    )}\n`,
     'utf8',
   );
   return {

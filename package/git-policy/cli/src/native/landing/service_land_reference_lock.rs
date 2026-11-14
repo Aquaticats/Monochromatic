@@ -34,10 +34,11 @@
 
 /// The reference locks of the repository,
 /// judged and cleared by the one module that owns the proofs.
-use crate::stale_ref_locks::{Judge, clear_stale_ref_locks};
+use crate::stale_ref_locks::{Judge, clear_stale_ref_locks, clear_stale_ref_locks_of};
 /// The files that are candidates at all,
-/// so a wait knows whether anything stands.
-use crate::stale_ref_lock_walk::ref_lock_candidates;
+/// so a wait knows whether anything stands,
+/// and which of them a caller names when it knows what can refuse its own write.
+use crate::stale_ref_lock_walk::{Candidate, ref_lock_candidates};
 /// What a pass over the locks found,
 /// and how one of them was judged.
 use crate::stale_ref_lock_found::Outcome;
@@ -123,6 +124,67 @@ pub(crate) fn wait_out_the_reference_locks(roots: &[PathBuf], judge: &Judge, dea
         }
         std::thread::sleep(REFERENCE_LOCK_POLL);
     }
+}
+
+/// What:
+///  Waits until the reference locks that can refuse one write are gone or provably stale,
+///  and names the ones that are neither.
+/// Why:
+///   A caller that knows which locks can refuse its write asks about those and no others:
+///  a lock on another reference refuses nothing it does,
+///  and waiting for one holds the work behind a lock that is not in its way.
+///  The judgement,
+/// the poll and the words for what stands are the walk's own,
+/// so a wait over one write and a wait over the whole repository answer the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// while (true) { const standing = candidates.filter(exists); if (!standing.length) return { gone: true }; const outcome = clearStaleRefLocksOf(candidates, judge); if (outcome.cleared.length) return { gone: true }; if (outcome.left.length || outcome.displaced.length) return { blocked: wordsOf(outcome) }; if (now() >= deadline) { ... } await sleep(POLL) }
+/// ```
+pub(crate) fn wait_out_the_reference_locks_of(candidates: &[Candidate], judge: &Judge, deadline: Instant) -> Waiting {
+    loop {
+        let standing: Vec<PathBuf> = the_locks_that_stand(candidates);
+        if standing.is_empty() {
+            return Waiting::Gone;
+        }
+        let outcome: Outcome = clear_stale_ref_locks_of(candidates, judge);
+        if !outcome.cleared.is_empty() {
+            return Waiting::Gone;
+        }
+        if !outcome.left.is_empty() || !outcome.displaced.is_empty() {
+            return Waiting::Blocked { words: words_of(&outcome, standing.as_slice()), locks: standing };
+        }
+        // Every lock standing is younger than the margin, so a live holder may still be at work: look again.
+        if Instant::now() >= deadline {
+            let last: Outcome = clear_stale_ref_locks_of(candidates, judge);
+            if !last.cleared.is_empty() {
+                return Waiting::Gone;
+            }
+            let left: Vec<PathBuf> = the_locks_that_stand(candidates);
+            return Waiting::Blocked { words: words_of(&last, left.as_slice()), locks: left };
+        }
+        std::thread::sleep(REFERENCE_LOCK_POLL);
+    }
+}
+
+/// What:
+///  The locks of `candidates` that are there now.
+/// Why:
+///  A lock a wait looked at may go between two looks,
+///  and a line that named one which is gone would name a cause that is not true.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const theLocksThatStand = (candidates) => candidates.map((c) => c.lock).filter(exists)
+/// ```
+fn the_locks_that_stand(candidates: &[Candidate]) -> Vec<PathBuf> {
+    let mut standing: Vec<PathBuf> = Vec::new();
+    for candidate in candidates {
+        if candidate.lock.symlink_metadata().is_ok() {
+            standing.push(candidate.lock.clone());
+        }
+    }
+    return standing;
 }
 
 /// What:

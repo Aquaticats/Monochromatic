@@ -108,13 +108,32 @@ export {
 } from './session-file-of-a-run.ts';
 export { nextRunNumber, } from './next-run-number.ts';
 export {
+  launcherEndedLineOf,
+  unitStateNow,
+} from './the-line-a-launcher-ends-with.ts';
+export {
+  askAboutItsWork,
+  askAboutItsWorkOrReportAFailure,
+  type WorkAsked,
+  type WorkWaitedFor,
+} from './kept-while-work-runs.ts';
+export {
   CHECKOUT_MARKER,
   CheckoutNotFoundError,
   checkoutFolderOf,
 } from './checkout-of-a-command.ts';
 export {
+  PI_LOAD_FAILURE_TEXT,
+  PI_START_CHECK_MEMORY_SECONDS,
+  type PiStartAnswer,
+  type PiStartCheckOutcome,
+  type PiStartCheckRecord,
+  type StartChecks,
   StartRefusedError,
+  answersIn,
   baseProblemIn,
+  piProblemIn,
+  piStartCheckFileIn,
   nameProblemIn,
   promptProblemIn,
   startRefusalsIn,
@@ -123,6 +142,12 @@ export {
   ENTRY_REASON_CHARACTERS,
   reasonInFailedStart,
 } from './reason-in-a-failed-start.ts';
+export {
+  PI_STANDARD_ERROR_TAIL_BYTES,
+  PI_STANDARD_ERROR_TAIL_LINES,
+  type PiStandardErrorTail,
+  lastOfPiStandardError,
+} from './last-of-pi-standard-error.ts';
 export {
   type FinishedRunTurns,
   NO_FINISHED_RUN,
@@ -147,6 +172,7 @@ export {
   type WorktreeOutcome,
   WorktreeFolderOccupiedError,
   branchExists,
+  WORKTREE_ADD_TIMEOUT_MILLISECONDS,
   makeWorktree,
   removeWorktree,
   worktreeOutcomeOf,
@@ -155,6 +181,7 @@ export {
   GATE_OUTPUT_TAIL_CHARACTERS,
   type RetriedStart,
   retryStartUntilAPoolHasRoom,
+  waitingLineOf,
 } from './retry-start.ts';
 export {
   RETRY_START_USAGE,
@@ -175,6 +202,7 @@ export {
   type BatchEntry,
   ENTRY_LINE_CHARACTERS,
   ENTRY_OUTPUT_KEPT_CHARACTERS,
+  type StartedBatch,
   type StartedEntry,
   batchEntriesIn,
   entryLineOf,
@@ -247,3 +275,31 @@ export {
   unitStateOf,
   waitForUnitToEnd,
 } from './wait-for-a-unit-to-end.ts';
+
+/**
+ Reading the runs of a machine: what a running run's feed says, what ended since a time, and waiting for a unit to come up. The
+ commands are `list-running-pi-runs-with-their-turns.ts`, `list-runs-that-ended-since.ts` and
+ `wait-for-a-unit-to-become-active.ts`.
+ */
+export {
+  type FeedOfARunningRun,
+  ageTextOf,
+  feedOfARunningRun,
+  runningRunLineOf,
+  runningRunLinesOf,
+  turnsInFeed,
+} from './turns-of-running-runs.ts';
+export {
+  type EndedRun,
+  endedRunIn,
+  endedRunLineOf,
+  endedRunsSince,
+  timeIn,
+} from './runs-that-ended-since.ts';
+export {
+  type UnitWaitForActive,
+  ACTIVATING_STATE,
+  waitedLineOf,
+  waitForUnitToBecomeActive,
+} from './waiting-for-a-unit-to-become-active.ts';
+export { SUMMARY_FILE_NAME, } from './runs-that-ended-since.ts';

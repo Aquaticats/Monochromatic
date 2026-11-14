@@ -213,16 +213,18 @@ fn every_abandoned_stage_is_removed() {
 /// A claim that names a path outside the stage container naming is refused,
 /// and the named path survives.
 #[test]
-fn a_claim_naming_another_directory_is_refused() {
+fn a_claim_naming_another_directory_is_no_claim_a_sweep_acts_on() {
     let (root, common, destination) = scene("claim-foreign-name");
     let victim: PathBuf = destination.parent().expect("parent").join("precious");
     std::fs::create_dir_all(victim.as_path()).expect("victim");
     let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::write(claim.path.as_path(), victim.to_string_lossy().as_bytes()).expect("rewrite claim");
-    let failure: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("refused");
-    assert!(failure.0.contains("does not name a stage container"), "{}", failure.0);
-    assert!(victim.exists());
-    assert!(claim.path.exists(), "an unproven claim stays for inspection");
+    // A claim whose lines are not a record this release writes names a folder no sweep may remove, so the sweep reads it
+    // as no claim at all and the command that met it settles the record.
+    assert_eq!(read_claim(claim.path.as_path()).expect("read"), None, "no sweep acts on it");
+    reap_abandoned_stages(common.as_path()).expect("the sweep settles nothing it cannot read");
+    assert!(victim.exists(), "the directory its line names is not this claim's to remove");
+    assert!(claim.path.exists(), "the record stays for the command that settles it");
     remove(root.as_path());
 }
 
@@ -231,7 +233,7 @@ fn a_claim_naming_another_directory_is_refused() {
 /// A line of bytes inside such a path is not where this release writes one,
 /// so the claim is refused and the private directory those bytes name survives.
 #[test]
-fn a_claim_that_names_other_bytes_inside_a_path_is_refused_and_what_it_names_survives() {
+fn a_claim_that_names_other_bytes_inside_a_path_removes_nothing_it_names() {
     let (root, common, destination) = scene("claim-path-lines");
     let target: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}keep"));
     create_private_directory(target.as_path()).expect("a private directory with the stage naming");
@@ -245,9 +247,10 @@ fn a_claim_that_names_other_bytes_inside_a_path_is_refused_and_what_it_names_sur
         dead_copy_owner().token()
     );
     crate::private_storage::write_private_file(claim.as_path(), text.as_bytes()).expect("claim");
-    reap_abandoned_stages(common.as_path()).expect_err("a claim of a shape this release does not write is refused");
+    assert_eq!(read_claim(claim.as_path()).expect("read"), None, "a claim of a shape this release does not write names no folder");
+    reap_abandoned_stages(common.as_path()).expect("the sweep settles nothing it cannot read");
     assert!(target.join("keep").exists(), "the directory those bytes name is not this claim's to remove");
-    assert!(claim.exists(), "a record that cannot be trusted is kept");
+    assert!(claim.exists(), "the record stays for the command that settles it");
     remove(root.as_path());
 }
 
@@ -255,7 +258,7 @@ fn a_claim_that_names_other_bytes_inside_a_path_is_refused_and_what_it_names_sur
 /// Two lines that name different paths are refused,
 /// and the directory the bytes name survives.
 #[test]
-fn a_claim_whose_text_and_bytes_name_different_paths_is_refused() {
+fn a_claim_whose_text_and_bytes_name_different_paths_names_no_folder() {
     let (root, common, destination) = scene("claim-text-bytes-disagree");
     let target: PathBuf = destination.parent().expect("parent").join(format!("{STAGE_PREFIX}keep"));
     create_private_directory(target.as_path()).expect("a private directory with the stage naming");
@@ -270,20 +273,22 @@ fn a_claim_whose_text_and_bytes_name_different_paths_is_refused() {
         dead_copy_owner().token()
     );
     crate::private_storage::write_private_file(claim.as_path(), text.as_bytes()).expect("claim");
-    reap_abandoned_stages(common.as_path()).expect_err("a claim whose two lines name two paths is refused");
+    assert_eq!(read_claim(claim.as_path()).expect("read"), None, "a claim whose two lines name two paths names no folder");
+    reap_abandoned_stages(common.as_path()).expect("the sweep settles nothing it cannot read");
     assert!(target.join("keep").exists(), "the directory those bytes name is not this claim's to remove");
-    assert!(claim.exists(), "a record that cannot be trusted is kept");
+    assert!(claim.exists(), "the record stays for the command that settles it");
     remove(root.as_path());
 }
 
 /// A claim that names a relative path is refused even when its last component looks like a stage.
 #[test]
-fn a_claim_naming_a_relative_path_is_refused() {
+fn a_claim_naming_a_relative_path_is_no_claim_a_sweep_acts_on() {
     let (root, common, destination) = scene("claim-relative");
     let claim: StageClaim = claim_stage_for(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     std::fs::write(claim.path.as_path(), b".cli-git-worktree-copy-relative").expect("rewrite claim");
-    let failure: WorktreeCopyError = reap_abandoned_stages(common.as_path()).expect_err("refused");
-    assert!(failure.0.contains("does not name a stage container"), "{}", failure.0);
+    assert_eq!(read_claim(claim.path.as_path()).expect("read"), None, "a folder named relative is none a sweep removes");
+    reap_abandoned_stages(common.as_path()).expect("the sweep settles nothing it cannot read");
+    assert!(claim.path.exists(), "the record stays for the command that settles it");
     remove(root.as_path());
 }
 
@@ -777,13 +782,13 @@ fn unfinished_record_and_marker_writes_are_removed() {
 /// while a
 /// claim that is there and names no stage container is still refused.
 #[test]
-fn a_claim_that_vanished_is_skipped_and_a_malformed_one_is_refused() {
+fn a_claim_that_vanished_is_skipped_and_a_malformed_one_names_no_folder() {
     let (root, common, _destination) = scene("claim-vanished");
     let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
     assert_eq!(read_claim(journals.join("gone.stage").as_path()).expect("skipped"), None);
     let malformed: PathBuf = journals.join("malformed.stage");
     crate::private_storage::write_private_file(malformed.as_path(), b"relative/path\n").expect("claim");
-    read_claim(malformed.as_path()).expect_err("a claim that names no stage container is refused");
+    assert_eq!(read_claim(malformed.as_path()).expect("read"), None, "a claim that names no stage container names no folder");
     let owned: PathBuf = journals.join("owned.stage");
     let container: String = format!("/parent/{STAGE_PREFIX}owned");
     crate::private_storage::write_private_file(owned.as_path(), format!("{container}\nowner=7~linux:1~\n").as_bytes()).expect("claim");
@@ -1951,16 +1956,17 @@ fn the_record_of_a_binding_is_published_without_flushing() {
     remove(root.as_path());
 }
 
-/// A reaping that removed nothing flushes nothing;
-/// one that removed a dead owner's stage flushes the directory whose entries changed.
+/// A reaping that removed nothing flushes nothing,
+/// and one that removed a dead owner's stage flushes nothing either.
 ///
-/// The flush is the directory's,
-/// so an add that found other adds' live claims paid a filesystem commit for no removal at all:
-/// measured 2026-11-11 as 4,617 ms of one add and 4,619,
-/// 13,792 and 13,886 ms of three others,
-/// out of the `recover` step of five concurrent adds.
+/// A flush of the journal root is a commit of the whole filesystem on the path of every command of the
+/// repository, and what the removals settle is the wrapper's own bookkeeping of a command that died:
+/// its absence costs a repeated notice and never a byte of a person's. `SPEC.md`, "Local durability follows
+/// what the remote already holds", states it for every removal the recovery makes, and an add that found other
+/// adds' live claims paid a filesystem commit for no removal at all before: measured 2026-11-11 as 4,617 ms of
+/// one add and 4,619, 13,792 and 13,886 ms of three others, out of the `recover` step of five concurrent adds.
 #[test]
-fn a_reaping_flushes_the_journal_directory_only_when_it_changed_one() {
+fn a_reaping_flushes_no_directory_whether_it_changed_one_or_not() {
     let (root, common, destination) = scene("claim-reap-flush");
     // A live owner's claim is the shape concurrent adds leave for each other: nothing of it is removed.
     let live: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &current_copy_owner().expect("owner")).expect("claim");
@@ -1981,7 +1987,7 @@ fn a_reaping_flushes_the_journal_directory_only_when_it_changed_one() {
     let removed: Vec<String> = reap_abandoned_stages(dead_common.as_path()).expect("reap");
     assert!(removed.iter().any(|notice: &String| { return notice.contains("removed the stage"); }), "the dead owner's stage is removed: {removed:?}");
     assert!(!container.exists(), "the stage is gone");
-    assert_eq!(take_directory_syncs(), vec![std::fs::canonicalize(journal_root(dead_common.as_path())).expect("canonical")], "the directory whose entries changed is flushed");
+    assert_eq!(take_directory_syncs(), Vec::<PathBuf>::new(), "the removal is published and flushed by nobody");
     remove(dead_root.as_path());
 }
 
@@ -2289,6 +2295,12 @@ fn killed_snapshot_add_before_its_record(name: &str) -> Option<(PathBuf, PathBuf
     let claim: StageClaim = claim_stage_for_add_as(common.as_path(), destination.as_path(), &dead_copy_owner()).expect("claim");
     crate::test_support::git(repo.as_path(), &["worktree", "add", "--no-checkout", "-b", "topic", "../topic"]);
     let container: PathBuf = claim.container().to_path_buf();
+    // The repository subvolume was made in the transaction that still runs, and a subvolume made there reports
+    // that transaction as its generation until the transaction ends; a snapshot made before the end carries the
+    // same id, so the record's "followed" transaction and the snapshot's creation transaction could not be told
+    // apart. Every repository outside this control has been committed many times, so the control commits once,
+    // and the kill it stages is the one a person's repository can really leave.
+    crate::fs_btrfs_test_support::commit_the_filesystem(repo.as_path());
     // The record comes first, and then the creation: the kill follows the ioctl and comes before the identity is read.
     let origin = crate::worktree_copy_stage_snapshot_origin::origin_of_the_source(source.root.as_path(), common.as_path());
     record_creating_at(common.as_path(), container.as_path(), std::time::SystemTime::now(), origin.as_ref()).expect("the record of the creation");

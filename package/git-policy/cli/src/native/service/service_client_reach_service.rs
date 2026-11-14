@@ -16,8 +16,7 @@
 
 use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};use crate::service_client_listen_and_ask_to_retire::{Heard, connect, listen};
 use crate::commit_timing::ReachTrace;
-use crate::service_messages::{ClientFailure, UPDATING_NOTICE, restarting_notice, starting_notice};
-use crate::wait_ceilings::SERVICE_GREETING_SILENCE;
+use crate::service_messages::{ClientFailure, UPDATING_NOTICE, replacing_notice, restarting_notice, starting_notice};
 use crate::service_protocol::{
     PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_retire,
 };
@@ -65,7 +64,6 @@ pub(crate) fn reach(
     let mut cannot_ask: bool = false;
     let mut last_start_request: Option<Instant> = None;
     let mut repairs: u32 = 0;
-    let mut reloads: u32 = 0;
     let mut restarts: u32 = 0;
     // What the manager last answered about the unit, which the notice names and the restart is decided on: nothing until it
     //  is asked.
@@ -183,28 +181,35 @@ pub(crate) fn reach(
             };
             let _written = writeln!(notices, "{}", starting_notice(address.as_str(), who.as_str()));
         }
-        // What: A unit the manager reports as running that has greeted nothing for the greeting silence is asked to
+        // What: A unit the manager reports as running that has greeted nothing for the whole start ceiling is asked to
         //       restart, once.
-        // Why:  A service greets a connection before it restores anything, so a running unit that greets nothing is one whose
-        //       program stopped inside its own process (a frozen control group, a debugger, a suspended machine, a wait in
-        //       the kernel nothing ends), and no start of a unit the manager believes runs brings it back. The service
-        //       survives being ended by design: its journal, its held commits and its work records are durable, so a commit
-        //       that needs an answer gets one instead of failing (`wait_ceilings.rs`, `SERVICE_GREETING_SILENCE`).
+        // Why:  A service greets a connection before it restores anything, so a service that has run a whole start ceiling
+        //       with nothing to say is one whose program stopped inside its own process (a frozen control group, a debugger,
+        //       a suspended machine, a wait in the kernel nothing ends), and no start of a unit the manager believes runs
+        //       brings it back. The service survives being ended by design: its journal, its held commits and its work records
+        //       are durable, so a commit that needs an answer gets one. What the ceiling separates is the state from a start
+        //       that is merely slow, and nothing shorter may stand in for it: on 2026-11-12 a greeting three seconds late was
+        //       read as a service stopped inside its own process, and the restart that followed made a commit fail that would
+        //       have landed (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`). Three seconds is
+        //       not a measurement of a loaded machine, and nothing here may ask the manager for anything but this worktree's
+        //       own units.
         //
         // In TS you'd write (pseudocode):
         // ```ts
-        // if (restarts === 0 && !serviceSeen && lastState === 'active' && started.elapsed() >= SERVICE_GREETING_SILENCE) { restarts += 1; await restart(watch.unit); write(restartingNotice(watch.unit, started.elapsed())); continue; }
+        // if (restarts === 0 && lastState === 'active' && started.elapsed() >= config.startCeiling) { restarts += 1; await restart(watch.unit); write(restartingNotice(...)); started = Instant.now(); continue; }
         // ```
         if let Some(watch) = config.start_watch.as_ref()
             && restarts == 0
             && !service_seen
             && last_state.as_deref() == Some("active")
-            && started.elapsed() >= SERVICE_GREETING_SILENCE
+            && started.elapsed() >= config.start_ceiling
         {
             restarts += 1;
             let _restarted = (watch.restart)(watch.bus.as_path(), watch.unit.as_str());
             last_start_request = Some(Instant::now());
             let _written = writeln!(notices, "{}", restarting_notice(watch.unit.as_str(), started.elapsed()));
+            started = Instant::now();
+            last_state = None;
             continue;
         }
         match &config.start_watch {
@@ -212,31 +217,6 @@ pub(crate) fn reach(
             //  manager reports as under way is waited for until the start ceiling and no longer (owner, 2026-11-03: "nothing
             //  should ever wait forever or indefinitely").
             Some(_) if failed_answers >= 2 || (cannot_ask && started.elapsed() >= config.start_wait) || started.elapsed() >= config.start_ceiling => {
-                // What: A service that never greets, in a command that provisioned, is repaired by one reload of the
-                //       manager's units before the command gives up.
-                // Why:  The manager may hold a unit whose executable an upgrade or a downgrade removed: the files and
-                //       the record of what the manager was told can agree while the manager runs the other release, and
-                //       then no start brings a greeting, because the program the unit names is not there. Resetting the
-                //       failed state and starting again cannot repair that; only reading the units again replaces the
-                //       program the unit names. One reload, then one more ceiling, so a service that still does not greet
-                //       fails the command in a bounded time (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-                //       finding 2 of the round-4 review).
-                if reloads == 0
-                    && let (Some(asking), Some(directory)) = (&config.start_watch, config.units_record_dir.as_ref())
-                    && (asking.reload)(asking.bus.as_path())
-                {
-                    reloads += 1;
-                    // The record certified the files against a manager that holds another unit, so it is dropped: the
-                    // next command provisions and reloads instead of trusting the fast path.
-                    crate::service_provision_loaded_unit_texts::forget(directory.as_path());
-                    let _forgotten = (asking.reset)(asking.bus.as_path(), asking.unit.as_str());
-                    let _socket_forgotten = (asking.reset)(asking.bus.as_path(), asking.socket_unit.as_str());
-                    let _taken = (asking.start)(asking.bus.as_path(), asking.unit.as_str());
-                    started = Instant::now();
-                    last_start_request = Some(Instant::now());
-                    failed_answers = 0;
-                    continue;
-                }
                 return Err(ClientFailure::DidNotStart);
             }
             Some(_) => {}
@@ -317,6 +297,9 @@ fn nothing_answered(config: &ClientConfig, connected: bool, waited: Duration) ->
 /// A service of a newer protocol cannot be asked (it refuses a
 ///  message it cannot read as its own),
 /// so that ends the command.
+/// A service that is still there at the bound it was given is ended once there,
+/// so the manager starts the program this release installs,
+/// and the wait goes on under the start ceiling.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -332,13 +315,15 @@ pub(crate) fn reach_current(config: &ClientConfig, notices: &mut dyn Write, anno
 /// `reach_current` without the clock around it.
 pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<BufReader<UnixStream>, ClientFailure> {
     let mut give_up_at: Option<Instant> = None;
+    // Whether the service of another release that outlasted the bound was already ended, which happens once.
+    let mut restarted: bool = false;
     loop {
         let (mut reader, version, release) = reach(config, notices, announced, trace, service_seen)?;
         if version == PROTOCOL_VERSION && release.as_deref() == Some(RELEASE) {
             trace.answered_by = release;
             return Ok(reader);
         }
-        if version > PROTOCOL_VERSION {
+                if version > PROTOCOL_VERSION {
             return Err(ClientFailure::NoCommonVersion);
         }
         // The give-up time is fixed the first time an other-release service is met, and the person is told then.
@@ -346,24 +331,40 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
             Some(fixed) => fixed,
             None => {
                 let _written = writeln!(notices, "{UPDATING_NOTICE}");
-                // What: The record of the unit texts the manager was told about is dropped the moment another release
-                //       answers.
-                // Why:  That answer alone proves the unit the manager loaded and the files describe are not the same
-                //       (an interrupted downgrade, then an interrupted upgrade), whatever happens next: the service may
-                //       take the retire and leave, and the manager may then try a cached executable an upgrade removed,
-                //       which ends the wait with `DidNotStart` instead of the retirement deadline. Dropping the record
-                //       here makes the next commit write the units and reload instead of taking the fast path into that
-                //       same answer (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-                //       findings 2 of the round-2 review and 3 of the round-3 review).
-                if let Some(directory) = config.units_record_dir.as_ref() {
-                    crate::service_provision_loaded_unit_texts::forget(directory.as_path());
-                }
+                // What: Nothing is done to the manager here but the ending at the bound below.
+                // Why:  Another release's answer is repaired by that service's own retirement: it finishes its batch and
+                //       exits, the manager unloads the unit once nothing runs in it, and the next start reads the unit file as
+                //       it is now. A manager asked to re-read every unit it holds would stall for every other client of it,
+                //       which is the operation no Git command may ask for
+                //       (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
                 let fresh: Instant = Instant::now() + config.start_wait;
                 give_up_at = Some(fresh);
                 fresh
             }
         };
         if Instant::now() >= deadline {
+            // What: A service of another release that is still there at the bound is ended once,
+            //       said once,
+            //       and waited for again.
+            // Why:  The bound is the commit's, and a service that finishes a batch or a push it planned to try again outlasts
+            //       it; the commit that ended here left the person's change uncommitted (five of six changes of release in the
+            //       two-build reproduction of 2026-11-12, 10,032 to 10,052 ms of a wait that then failed, and 1 of 16 on
+            //       another agent's fixture). Ending it lets the manager start the program this release installs, because the
+            //       unit names the program link rather than an executable (`service_instance.rs`, `program_link`). One ending
+            //       only: a unit the manager starts from a text an upgrade left behind comes back as the other release again,
+            //       and the next commit's provisioning is what repairs that (`service_provision_instance_unloaded.rs`).
+            //       Ending a unit is this worktree's own stop and start; nothing here makes the manager read every unit it
+            //       holds, which no Git command may ask for
+            //       (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+            if !restarted
+                && let Some(watch) = config.start_watch.as_ref()
+            {
+                restarted = true;
+                let _written = writeln!(notices, "{}", replacing_notice(watch.unit.as_str(), config.start_wait));
+                let _ended = (watch.restart)(watch.bus.as_path(), watch.unit.as_str());
+                give_up_at = Some(Instant::now() + config.start_ceiling);
+                continue;
+            }
             return Err(ClientFailure::OtherRelease);
         }
         // Written in the version the service announced: a service of an earlier release reads a retire in no other.

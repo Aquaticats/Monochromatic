@@ -53,13 +53,26 @@ pub(crate) enum IndexWrite {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type FileWrite = { kind: 'leave' } | { kind: 'bytes'; bytes: Uint8Array; mode: string } | { kind: 'remove' };
+/// type FileWrite = { kind: 'leave' } | { kind: 'bytes'; bytes: Uint8Array; mode: string; thePersonsBits?: number } | { kind: 'remove' };
 /// ```
 pub(crate) enum FileWrite {
     /// The layer already holds it.
     Leave,
-    /// The file form and the mode to write.
-    Bytes(Vec<u8>, String),
+    /// One entry's file form,
+    /// the mode Git records for it,
+    /// and the permission bits it is given when the mode is not the one a checkout of Git decides.
+    Bytes {
+        /// The bytes of the entry:
+        /// a file's content or a link's target text.
+        bytes: Vec<u8>,
+        /// The mode Git records,
+        /// which says the kind of the entry and whether its owner may run it.
+        mode: String,
+        /// Every permission bit the person's own entry carried,
+        /// when the bytes are theirs and the merge wrote nothing at the path;
+        /// nothing when Git's own checkout decides the mode of the file.
+        the_persons_bits: Option<u32>,
+    },
     /// Nothing stands at the path.
     Remove,
 }
@@ -322,7 +335,9 @@ pub(crate) async fn write_steps_awaiting<W: std::io::Write + ?Sized>(
     out: &mut W,
 ) -> Result<StepResult, CarryFailure> {
     let waited = match wait {
-        LockWait::BeforeTheApply => crate::index_holder_wait::wait_for_index_release_before_a_merge_that_clears_a_dead_lock(git_dir.join("index").as_path(), out),
+        // The merge's own apply never waits for another program's command: one look names the dead owner whose lock it clears,
+        //  and a live one ends the step so the merge is saved for a later finish instead (a cross-vendor audit of alpha.12).
+        LockWait::BeforeTheApply => crate::index_holder_wait::look_at_the_index_before_a_merge(git_dir.join("index").as_path(), out),
         LockWait::WhileFinishing => crate::index_holder_wait::wait_for_index_release_while_finishing_a_merge(git_dir.join("index").as_path(), out),
     };
     if !matches!(

@@ -2,12 +2,15 @@
  What a review of a change reads: the range that names what changed, the diff of it under the reviewed source folder, and the
  files a reviewer is given.
 
- A reviewer given no file reports nothing, which reads as a clean review although it reviewed nothing, so a change that leaves no
- code under the source folder is answered as nothing to review rather than started.
+ A reviewer given no file reports nothing, which reads as a clean review although it reviewed nothing, so a change that leaves
+ nothing to read under the source folder is answered as nothing to review rather than started. A manifest or a configuration
+ that decides how the code beside it is built, checked or run is something to read, so a change of one is reviewed.
 
  @module
  */
 
+import { basename, } from 'node:path';
+import { isRecord, } from './read-pi-fields.ts';
 import type { CommandOutput, } from './run-command.ts';
 
 /**
@@ -41,6 +44,92 @@ const TEST_FILE_SUFFIXES: readonly string[] = [
 const TEST_FIXTURE_PATH_PARTS: readonly string[] = [
   'test_support',
   'stand-in-',
+];
+
+/**
+ The names of the files a review reads although no extension of theirs says they are code: the manifests and tool
+ configurations that decide how the code beside them is built, checked or run.
+
+ A change to one of them changes what a build, check or run of that folder produces or is allowed to do, while the code that
+ runs stays as it was, so a review that answered nothing to review for it left that decision unread. The names are listed instead
+ of the extensions they share (`.toml`, `.json`, `.jsonc`, `.yaml`, `.yml`), because an extension cannot tell a manifest from a
+ fixture: on 2026-11-13 this repository held 1345 files of those extensions under `package/`, 487 of them inside the fixture,
+ evidence, performance, design and witness folders, among them the 92 TOML specification cases named `sample`, and a review of a
+ change to one of those must still answer nothing to review.
+
+ A name list costs the manifest of a tool nobody has added here yet, which goes unread until its name is listed; each name below
+ is one this repository's packages or its root carry, or a standard manifest of a tool a package of this repository could run (a
+ pinned toolchain, `rustfmt`, `cargo-deny`, a Gradle build), listed so that its first appearance is reviewed rather than missed.
+ */
+const BUILD_FILE_NAME_LISTS: readonly (readonly string[])[] = [
+  // The folder's own manifest and task file, which say what it builds, from which dependencies, and how its tasks run.
+  [
+    'mise.toml',
+    'mise.local.toml',
+    'package.json',
+    'Cargo.toml',
+    'build.gradle.kts',
+    'settings.gradle.kts',
+    'gradle.properties',
+  ],
+  // The versions of a dependency every package is built against.
+  [
+    'pnpm-workspace.yaml',
+    'rust-catalog.toml',
+    'bunfig.toml',
+    'toolchain.plan.jsonc',
+  ],
+  // What the compiler, the linters, the tests and the mutation checks are told to do.
+  [
+    'clippy.toml',
+    'rust-toolchain.toml',
+    'rustfmt.toml',
+    'deny.toml',
+    'dprint.json',
+    'monochromatic-lint.config.jsonc',
+    'monochromatic-lint.prerequisites.jsonc',
+    'file-enforcer.config.jsonc',
+    'mutants.toml',
+  ],
+  // What the build produces beside the code, and what the program that runs it is allowed to do.
+  [
+    'about.toml',
+    'wrangler.toml',
+    'node.config.json',
+    'sea-config.json',
+  ],
+];
+
+/**
+ The words the name of a build decision begins with, which a variant extends after a dot (`tsconfig.json` and
+ `tsconfig.build.json`, `nextest.toml` and `nextest.windows-gnu.toml`, `Containerfile` and `Containerfile.release`), so a list of
+ whole names would miss the next variant. The word alone names a file too (`Containerfile`), and a note that merely begins with
+ the word (`ContainerfileREADME.md`) is not one of these.
+ */
+const BUILD_FILE_NAME_WORDS: readonly string[] = [
+  'Containerfile',
+  'Dockerfile',
+  'nextest',
+  'tsconfig',
+];
+
+/**
+ The ends of the names a review reads as build decisions: a container file named for what it builds
+ (`native-test-base.Containerfile`) ends with its tool rather than beginning with it.
+ */
+const BUILD_FILE_NAME_ENDINGS: readonly string[] = [
+  '.Containerfile',
+  '.Dockerfile',
+];
+
+/**
+ The ends of the paths a review reads as build decisions, each anchored to the folder that holds it: `.cargo/config.toml` is a
+ cargo configuration while a file inside a folder named `foo.cargo` is not, and the dprint package's `index.json` is the format
+ every file of this repository is checked against, which its own generic name would never say.
+ */
+const BUILD_FILE_PATH_ENDINGS: readonly string[] = [
+  '.cargo/config.toml',
+  'config/dprint/index.json',
 ];
 
 /**
@@ -112,6 +201,115 @@ export async function outputOfGit({
 }
 
 /**
+ What a review read, kept beside its own files so a fix that answers it knows where to start.
+
+ A review reads a commit, the ranges that named the change, and the source folder under it. The branch a review read moves on as
+ soon as anyone commits to it, and a fix started at the branch would answer a change nobody reviewed, so the commit itself is
+ what is kept.
+ */
+export type ReviewReading = {
+  /**
+   The change the review read.
+   */
+  readonly review: string;
+
+  /**
+   The commit under review, which a fix that answers it starts at.
+   */
+  readonly commit: string;
+
+  /**
+   What changed, each as `git diff` takes a range.
+   */
+  readonly ranges: readonly string[];
+
+  /**
+   The folder whose changes were reviewed, from the top of the checkout.
+   */
+  readonly source: string;
+};
+
+/**
+ A record of what a review read that cannot be read as one.
+ */
+export class ReviewReadingError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'ReviewReadingError';
+}
+
+/**
+ Reads what a review recorded it read.
+
+ @param shown - the record as it was written
+
+ @param file - the file the record came from, for the message
+
+ @returns what the review read
+
+ @throws ReviewReadingError when the record does not name a commit, its ranges and its source folder
+
+ @example
+ ```ts
+ const reading = readingIn({ shown: '{"review":"a","commit":"abc","ranges":["main...fix/a"],"source":"package/a/src"}', file: 'a/what-the-review-read.json', },);
+ ```
+ */
+export function readingIn({
+  shown,
+  file,
+}: {
+  readonly shown: string;
+  readonly file: string;
+}): ReviewReading {
+  /**
+   The record, of any shape.
+   */
+  const kept: unknown = JSON.parse(shown,);
+  if (!isRecord(kept,)) {
+    throw new ReviewReadingError(`${file} holds no JSON object naming what the review read`,);
+  }
+  /**
+   The fields the record was written with, kept as the record holds them.
+   */
+  const fields = {
+    review: kept.review,
+    commit: kept.commit,
+    source: kept.source,
+    ranges: kept.ranges,
+  };
+  if (
+    ((typeof fields.review) !== 'string') || ((typeof fields.commit) !== 'string')
+      || ((typeof fields.source) !== 'string')
+      || (!Array.isArray(fields.ranges,))
+  ) {
+    throw new ReviewReadingError(
+      `${file} names no review, commit, ranges and source folder, so where a fix for it would start cannot be read`,
+    );
+  }
+  /**
+   The ranges the record kept, which a fix reads the review against.
+   */
+  const ranges = fields.ranges
+    .filter(function isARange(range,): range is string {
+      return (typeof range) === 'string';
+    },);
+  if (ranges.length
+    !== fields.ranges
+      .length) {
+    throw new ReviewReadingError(
+      `${file} names a range that is no text, so where a fix for it would start cannot be read`,
+    );
+  }
+  return {
+    review: fields.review,
+    commit: fields.commit,
+    ranges,
+    source: fields.source,
+  };
+}
+
+/**
  Reads the range that names what a branch changed, from the integration branch that holds it.
 
  A branch the integration already merged has an empty `integration...branch`, and a reviewer given it reads nothing. Its own
@@ -162,34 +360,102 @@ export function rangeOfABranch({
 }
 
 /**
- Filters the paths a change touched down to the code a reviewer reads.
+ Says whether a path is a file a review reads because of the language it is written in.
 
- @param paths - the paths a change touched under the source folder
+ @param path - a path from the top of the checkout
 
- @returns the code files among them, in the order given
+ @returns whether the path is code a reviewer reads
 
  @example
  ```ts
- const files = codeFilesAmong({ paths: ['src/gate.rs', 'src/gate_tests.rs'], },);
+ const isCode = isCodeAReviewerReads('src/gate.rs',);
  ```
  */
-export function codeFilesAmong({ paths, }: { readonly paths: readonly string[] },): readonly string[] {
-  return paths.filter(function isCodeAReviewerReads(path,) {
-    return REVIEWED_EXTENSIONS.some(function endsWith(extension,) {
-      return path.endsWith(extension,);
-    },)
-      && (!TEST_FILE_SUFFIXES.some(function isATest(extension,) {
-        return path.endsWith(extension,);
-      },))
-      && (!TEST_FIXTURE_PATH_PARTS.some(function isAFixture(part,) {
-        return path.includes(part,);
-      },));
+function isCodeAReviewerReads(path: string,): boolean {
+  return REVIEWED_EXTENSIONS.some(function endsWith(extension,) {
+    return path.endsWith(extension,);
   },);
 }
 
 /**
- Reads what a review of one change reads: the diff of every range under the source folder, and the code files among what those
- ranges touched that the reviewed commit still holds.
+ Says whether a path is a manifest or a tool configuration that decides how the code beside it is built, checked or run.
+
+ @param path - a path from the top of the checkout
+
+ @returns whether the path is one of the build decisions a reviewer reads
+
+ @example
+ ```ts
+ const isABuildDecision = isABuildDecisionAReviewerReads('package/a/Cargo.toml',);
+ ```
+ */
+function isABuildDecisionAReviewerReads(path: string,): boolean {
+  /**
+   The file's own name, which the name lists are about.
+   */
+  const name = basename(path,);
+  return BUILD_FILE_NAME_LISTS.some(function holdsTheName(names,) {
+    return names.includes(name,);
+  },)
+    || BUILD_FILE_NAME_WORDS.some(function holdsTheWord(word,) {
+      return (name === word) || name.startsWith(`${word}.`,);
+    },)
+    || BUILD_FILE_NAME_ENDINGS.some(function endsWithTheEnding(ending,) {
+      return name.endsWith(ending,);
+    },)
+    || BUILD_FILE_PATH_ENDINGS.some(function endsWithThePathEnding(ending,) {
+      // A git path is separated by `/` alone, and the ending is anchored to the folder that holds it, so `.cargo/config.toml`
+      // matches `package/a/.cargo/config.toml` and not `package/a/foo.cargo/config.toml`; a review of the whole checkout reads
+      // paths from its top, where the same file carries no folder before its name.
+      return (path === ending) || path.endsWith(`/${ending}`,);
+    },);
+}
+
+/**
+ Says whether a path is one of the files a review leaves out beside the change: the tests that check it, which a reviewer cannot
+ judge as the change itself, and the fixtures and stand-in programs they use.
+
+ @param path - a path from the top of the checkout
+
+ @returns whether the path is a test or a fixture
+
+ @example
+ ```ts
+ const isATest = isATestOrAFixture('src/gate_tests.rs',);
+ ```
+ */
+function isATestOrAFixture(path: string,): boolean {
+  return TEST_FILE_SUFFIXES.some(function isATest(extension,) {
+    return path.endsWith(extension,);
+  },)
+    || TEST_FIXTURE_PATH_PARTS.some(function isAFixture(part,) {
+      return path.includes(part,);
+    },);
+}
+
+/**
+ Filters the paths a change touched down to the files a reviewer reads: the code, and the manifests and tool configurations that
+ decide how that code is built, checked or run.
+
+ @param paths - the paths a change touched under the source folder
+
+ @returns the files among them, in the order given
+
+ @example
+ ```ts
+ const files = codeFilesAmong({ paths: ['src/gate.rs', 'src/gate_tests.rs', 'Cargo.toml'], },);
+ ```
+ */
+export function codeFilesAmong({ paths, }: { readonly paths: readonly string[] },): readonly string[] {
+  return paths.filter(function isAFileAReviewerReads(path,) {
+    return (isCodeAReviewerReads(path,) || isABuildDecisionAReviewerReads(path,))
+      && (!isATestOrAFixture(path,));
+  },);
+}
+
+/**
+ Reads what a review of one change reads: the diff of every range under the source folder, and the code files and build
+ decisions among what those ranges touched that the reviewed commit still holds.
 
  @param git - how one git question is run
 

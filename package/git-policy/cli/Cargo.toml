@@ -1,6 +1,6 @@
 [package]
 name = "monochromatic-git-policy-cli"
-version = "0.6.1-alpha.13"
+version = "0.6.1-alpha.23"
 edition = "2024"
 description = "Repository-owned Git policy wrapper: forwards Git commands and checks commits against configured policies."
 license = "LGPL-3.0-or-later"
@@ -169,6 +169,23 @@ opt-level = 3
 [profile.dev.build-override]
 opt-level = 3
 
+# A build tree is what limits how many agents work on this package at once, so development and test builds
+# trade debug detail and incremental data for disk. Measured 2026-11-13 on this package, one clean tree at a
+# time, running the build and the two test compiles an agent of this package runs, under a scope capped at
+# 600% CPU, 12G of memory and IOWeight 1 (the whole table, the method and the backtrace each candidate
+# gives are in doc/development-profile-measurements.md):
+#   Cargo default profile          5885 MiB  build 124.8 s wall, 512.5 s CPU
+#   debug = "line-tables-only"     3516 MiB
+#   debug = false                  2648 MiB  but backtrace frames lose file and line
+#   incremental = false            2885 MiB
+#   both settings below            1562 MiB  build  83.2 s wall, 377.8 s CPU
+# Line tables keep file and line in every backtrace frame, which `debug = false` loses, so they stay.
+# Incremental data was the largest single part (2813 MiB of 5885 MiB): without it a first build is faster,
+# and only the rebuild after an edit loses, 23.5 s for the binary here. The release profile is untouched.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
+
 # The native implementation keeps the repository's standalone Cargo ownership convention.
 [workspace]
 
@@ -181,7 +198,7 @@ hyper = { version = ">=1.12.0", default-features = false }
 hyper-rustls = { version = ">=0.27.10", default-features = false }
 hyper-util = { version = ">=0.1.21", default-features = false }
 ignore = ">=0.4.34"
-jiff = { version = ">=0.2.42", default-features = false }
+jiff = { version = ">=0.2.43", default-features = false }
 libc = ">=0.2.191"
 miniz_oxide = { version = ">=0.9.1", default-features = false }
 rustix = ">=1.1.6"
@@ -190,7 +207,7 @@ serde_json = ">=1.0.154"
 sha1 = ">=0.11.0"
 sha2 = ">=0.11.1"
 similar = { version = ">=3.2.1", default-features = false }
-sysinfo = { version = ">=0.40.1", default-features = false }
+sysinfo = { version = ">=0.40.3", default-features = false }
 tempfile = ">=3.27.0"
 tokio = ">=1.54.1"
 tower-service = ">=0.3.3"

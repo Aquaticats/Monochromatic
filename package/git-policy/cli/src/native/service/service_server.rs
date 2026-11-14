@@ -34,8 +34,7 @@ use crate::service_server_land_group::{land_group, settle_open_batches};
 use crate::service_server_connection_handling::ConnectionShared;
 use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most};
 use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
-use crate::lazy_runtime::{LATE_BUILD_PATIENCE, spawn_on_runtime_within};
-use crate::service_runtime_build_report::no_worker_words;
+use crate::service_runtime_build_report::{no_worker_words, start_what_the_service_cannot_serve_without};
 use crate::stop_of_the_service_noticed_by_its_children::{begin_unfinished_work, is_stopping};
 use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
 use crate::service_index_lock::unsettled_locks;
@@ -218,7 +217,7 @@ impl ServeSettings {
 }
 
 /// Starts the after-commit work as a task of the process's runtime,
-/// waiting `LATE_BUILD_PATIENCE` for a build that missed its deadline,
+/// waiting `RUNTIME_BUILD_PATIENCE` for a build that missed its deadline,
 /// or ends the service with a plain line and status 4:
 /// a service that goes on
 ///  without its after-commit work never pushes the person's commits,
@@ -234,7 +233,7 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
         let mut wakes: UnboundedReceiver<Wake> = receiver;
         work_loop_awaiting(&mut wakes, &handlers, &busy, push_retries, watch).await;
     };
-    if spawn_on_runtime_within(LATE_BUILD_PATIENCE, work).is_none() {
+    if start_what_the_service_cannot_serve_without("the after-commit work", work).is_none() {
         crate::service_error!("{}", no_worker_words("the after-commit work"));
         std::process::exit(4);
     }
@@ -311,6 +310,9 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     let handlers: GitHandlers = GitHandlers::new(context.git.clone());
     let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
     let worker_busy: Arc<AtomicUsize> = Arc::clone(&busy);
+    // The finished shadows this service drew ahead of the commits that ask for one, and the answers that take them: memory of
+    //  this run only, so a restarted service hands out nothing it did not draw (`service_shadow_draw.rs`).
+    let drawn: Arc<crate::service_shadow_draw::DrawnShadows> = crate::service_shadow_draw::DrawnShadows::none_yet();
     // What this landing thread is inside, for the threads that talk to clients (`service_busy.rs`).
     let board: Arc<LandingBoard> = LandingBoard::new(context.journal.clone(), settings.stuck_after);
     crate::service_busy_step_record_on_this_thread::use_on_this_thread(Arc::clone(&board));
@@ -350,6 +352,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         ConnectionShared {
             queue: acceptor_queue,
             work: work_sender,
+            drawn: Arc::clone(&drawn),
             board: Arc::clone(&board),
             release: settings.release.clone(),
             instance: settings.instance.clone(),
@@ -363,8 +366,9 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
         crate::service_journal_restored_at_start::restored_within(settings.journal_restore_ceiling, plan_directory, watch_directory, watch_instance);
     start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
     let _reports = settle_open_batches(context, settings.instance.as_deref());
-    // The memory of landed requests is bounded: the oldest finished batches go before the rest are read.
-    let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED);
+    // The memory of landed requests is bounded: a finished record goes only when no client of it may still read it,
+    //  and only past the newest `DONE_RETAINED` of the journal, before the rest are read into that memory.
+    let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED, &crate::claim_time::ClaimTime::read());
     if pruned > 0 {
         crate::service_log!("removed the records of {pruned} old finished batches from {}", context.journal.display());
     }
@@ -497,6 +501,14 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 if let Some(tree) = crate::service_scratch_release_removal::the_tree_of(queued.0.scratch.as_path(), queued.0.git_dir.as_path()) {
                     trees.push((queued.0.id.clone(), tree));
                 }
+                // The finished shadow the service drew ahead of this commit, when it was handed one: it is a tree of the
+                //  wrapper's own in this worktree's drawn folder, and the landing that read it is the only place that says
+                //  when the commit is done with it.
+                if let Some(handed) = queued.0.shadow.as_deref()
+                    && crate::shadow_drawn::is_a_drawn_tree(handed, queued.0.common_dir.as_path(), queued.0.git_dir.as_path())
+                {
+                    trees.push((queued.0.id.clone(), handed.to_path_buf()));
+                }
             }
             // The shutdown waits for this landing and refuses one that would begin after the stop.
             let Ok(_landing_in_flight) = begin_unfinished_work(false, "a landing") else {
@@ -536,7 +548,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 continue;
             }
             let mut handed_back: std::collections::HashSet<String> = std::collections::HashSet::new();
-            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, &mut handed_back);
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, &mut handed_back, &drawn);
             board.end_group(ids.as_slice());
             // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
             //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
@@ -579,9 +591,15 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
 ///  (2026-11-09,
 ///  `service_prepare.rs`,
 ///  `retry_of`).
-///  The service is done with every request of the group here,
-///  so no tree it named is held against the collection any more (`service_scratch_trees_of_queued_requests.rs`):
+///  The service is done with what it queued of every request of the group here,
+///  so no tree a send of this group named is held against the collection any more
+///  (`service_scratch_trees_of_queued_requests.rs`):
 /// a tree the client did not take back goes to the age rule once its removal is over.
+///  A release gives up one send of the request,
+///  never the identity:
+///  `land_group` answered this group inside its own call,
+///  so the same request can already be queued again with the next attempt's tree,
+///  and that send keeps its tree held beyond this release.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

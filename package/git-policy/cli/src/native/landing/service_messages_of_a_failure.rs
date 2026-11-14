@@ -57,6 +57,11 @@ pub fn failure_code(failure: &ClientFailure) -> &'static str {
         ClientFailure::BranchMovedMessageSaved { .. } => "branch-moved-message-saved",
         ClientFailure::BranchSwitched { .. } => "branch-switched",
         ClientFailure::ServiceSilent => "service-silent",
+        // The request never reached the service as one line, which is a different end from a service that greeted and stopped:
+        //  the one says whether it took any byte at all, because a request it took none of was never made and one it took part
+        //  of may still be read.
+        ClientFailure::ServiceNotReading { took_nothing: true } => "service-took-nothing",
+        ClientFailure::ServiceNotReading { took_nothing: false } => "service-stopped-reading",
         ClientFailure::ServiceSilentAfterPreparing { .. } => "service-silent-after-preparing",
         ClientFailure::StillWithService { .. } => "still-with-service",
         ClientFailure::WithdrawalUnconfirmed { .. } => "withdrawal-unconfirmed",

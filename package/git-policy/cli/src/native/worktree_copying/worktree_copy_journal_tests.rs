@@ -613,18 +613,23 @@ fn a_stage_with_many_subtrees_is_removed_whole() {
 }
 
 /// A journal named by a listing that is gone by the time it is read is skipped,
-/// while a journal that is there and corrupt is
-/// still an error:
-/// the skip is for a vanished file only.
+/// while one that is there and corrupt is named as a record this release cannot read:
+/// a journal is published whole by one rename, so a file at its name that does not parse is what an interrupted write
+/// leaves, and the command that found it moves it aside.
 #[test]
-fn a_vanished_journal_is_skipped_and_a_corrupt_one_is_not() {
+fn a_vanished_journal_is_skipped_and_a_corrupt_one_reads_as_unreadable() {
     let root: PathBuf = fixture("journal-vanished");
     let common: PathBuf = root.join("common");
     std::fs::create_dir(common.as_path()).expect("common");
     let journals: PathBuf = ensure_journal_root(common.as_path()).expect("root");
-    assert_eq!(read_listed_journal(journals.as_path(), "gone.json").expect("skipped"), None);
+    assert!(read_listed_journal(journals.as_path(), "gone.json").expect("skipped").is_none());
     crate::private_storage::write_private_file(journals.join("corrupt.json").as_path(), b"not json").expect("corrupt journal");
-    read_listed_journal(journals.as_path(), "corrupt.json").expect_err("a present corrupt journal is reported");
+    let reading: JournalFile = read_listed_journal(journals.as_path(), "corrupt.json").expect("read").expect("present");
+    let JournalFile::Unreadable { path, reason } = reading else {
+        panic!("a corrupt journal is not a pending one");
+    };
+    assert_eq!(path, journals.join("corrupt.json"));
+    assert!(reason.contains("JSON"), "{reason}");
     remove(root.as_path());
 }
 
@@ -889,7 +894,7 @@ fn an_earlier_release_reads_a_text_journal_and_refuses_one_that_names_other_byte
 /// reading it with replacement characters would name another directory,
 /// so it is refused by name and kept.
 #[test]
-fn a_journal_file_that_is_not_text_is_refused_and_kept() {
+fn a_journal_file_that_is_not_text_reads_as_a_record_nothing_can_read() {
     use crate::private_storage::write_private_file;
     let root: PathBuf = fixture("journal-not-text");
     let common: PathBuf = root.join("common");
@@ -898,9 +903,17 @@ fn a_journal_file_that_is_not_text_is_refused_and_kept() {
     let path: PathBuf = journals.join("id.json");
     let record: &[u8] = b"{\"createdEntries\":[],\"intendedEntries\":[],\"destinationRoot\":\"/w/a\xffb\",\"phase\":\"staged\",\"selectedRoots\":[],\"sourceRoot\":\"/w/s\",\"stageContainer\":\"/w/.cli-git-worktree-copy-x\",\"stageRoot\":\"/w/.cli-git-worktree-copy-x/payload\",\"version\":1}\n";
     write_private_file(path.as_path(), record).expect("journal");
-    let failure: WorktreeCopyError = read_pending_journals(common.as_path()).expect_err("not text");
-    assert!(failure.0.contains("it is not text"), "{}", failure.0);
-    assert!(path.exists(), "a journal that cannot be read is kept");
+    // A record a rename published before its bytes is what a crash leaves, so the reader names it and the command that
+    // found it moves it aside; it never fails a command and it is never deleted by a reader.
+    let listed: Vec<JournalFile> = read_listed_journals(common.as_path()).expect("listed");
+    assert_eq!(listed.len(), 1, "the record is listed");
+    let JournalFile::Unreadable { path: named, reason } = &listed[0] else {
+        panic!("a journal that is not text is not a pending one");
+    };
+    assert_eq!(named, &path);
+    assert_eq!(reason, "its bytes are not text");
+    assert!(read_pending_journals(common.as_path()).expect("pending").is_empty(), "no reader acts on it");
+    assert!(path.exists(), "a journal this release cannot read is still there for the command that settles it");
     remove(root.as_path());
 }
 

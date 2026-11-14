@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 /// The inode number btrfs gives the empty directory that stands for a nested subvolume in a snapshot (`BTRFS_EMPTY_SUBVOL_DIR_OBJECTID`):
 ///  it reports a device of its own,
 /// yet holds nothing and belongs to the snapshot being removed.
-const EMPTY_SUBVOLUME_PLACEHOLDER_INODE: u64 = 2;
+pub(crate) const EMPTY_SUBVOLUME_PLACEHOLDER_INODE: u64 = 2;
 
 /// What:
 ///  One boundary below a directory that a removal may not cross,
@@ -63,10 +63,10 @@ pub struct Boundary {
 }
 
 /// The words for a directory that holds another subvolume or another filesystem.
-const ANOTHER_FILESYSTEM: &str = "a nested subvolume or another filesystem";
+pub(crate) const ANOTHER_FILESYSTEM: &str = "a nested subvolume or another filesystem";
 
 /// The words for an entry this device cannot be crossed into.
-const A_MOUNT_POINT: &str = "a mount point";
+pub(crate) const A_MOUNT_POINT: &str = "a mount point";
 
 /// Which of the two passes is running.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -100,7 +100,7 @@ struct Frame {
 /// The entries of an open directory,
 /// each with whether it is a directory;
 /// only the directories when `directories_only`.
-fn list(directory: &File, directories_only: bool) -> std::io::Result<Vec<(OsString, bool)>> {
+pub(crate) fn list(directory: &File, directories_only: bool) -> std::io::Result<Vec<(OsString, bool)>> {
     let mut entries: Vec<(OsString, bool)> = Vec::new();
     for found in std::fs::read_dir(handle_path(directory))? {
         let item: std::fs::DirEntry = found?;
@@ -141,9 +141,16 @@ fn shown_path(frame: &Frame, name: &OsStr) -> PathBuf {
 
 /// The ways forward for a boundary,
 /// as the last sentence of a refusal.
+/// Why the order:
+///   Moving the entry out keeps every file it holds and is always a way on,
+/// a mount point is kept whole by `umount`,
+///  and a subvolume delete destroys everything inside the entry,
+/// which the command that refuses here cannot see.
+/// So the two commands that keep what stands there come first,
+/// and the one that destroys is named for what it does.
 fn ways_forward(top: &Path, found: &Path) -> String {
     return format!(
-        "To go on: move {found} out of {top}, or delete it yourself (for a subvolume `btrfs subvolume delete {found}`, for a mount `umount {found}`), then run the removal again; to keep it, remove the other entries of {top} by hand.",
+        "To go on: move {found} out of {top}, which keeps every file of it, and run the removal again; a mount point of it goes with `umount {found}`, which keeps its contents. `btrfs subvolume delete {found}` destroys everything inside that subvolume, so use it only for one you know holds nothing of yours; to keep it where it is, remove the other entries of {top} by hand.",
         found = found.display(),
         top = top.display()
     );
@@ -274,7 +281,7 @@ pub(crate) fn refused_because_not_empty(directory: &File, listed: &Path, top: &P
 /// ```ts
 /// const refusal = whatIsThereNow(dir, listed, top); // the entries that appeared, or the name that no longer leads to it
 /// ```
-fn what_is_there_now(directory: &File, listed: &Path, top: &Path) -> std::io::Error {
+pub(crate) fn what_is_there_now(directory: &File, listed: &Path, top: &Path) -> std::io::Error {
     let mut appeared: Vec<String> = Vec::new();
     match std::fs::read_dir(handle_path(directory)) {
         Ok(listing) => {

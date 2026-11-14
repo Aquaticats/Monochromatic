@@ -174,6 +174,17 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{problem}");
     }
+    // A removal a merge handed over that a commit service of an earlier release refused for good is queued once more,
+    // because that service could not read the record and nothing else would ever look at it again. The wake is the one
+    // a hand-over makes: a record this command queued must not wait for a command nobody runs.
+    let requeued: Vec<String> = crate::worktree_remove_hand_over::requeue_removals_an_earlier_release_refused(common_dir.as_path());
+    if !requeued.is_empty() {
+        let _woken: Result<(), String> = crate::worktree_remove_hand_over::wake_the_service(&context, common_dir.as_path());
+    }
+    for line in requeued {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
     // The trash of the worktree this command runs in is named here when no record accounts for it: an add hands it to the
     // commit service of the repository, whose records live under the common directory, so a trash nothing there accounts for
     // is one no service will empty, and nothing else mentions it.
@@ -207,10 +218,33 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }
+    // A relink the commit service gave up on is read here next: its record reached `failed`, which nothing scans, and the
+    //  worktree's links still name the checkout the copy came from. The line names the commands that finish it by hand.
+    for line in crate::package_repair_relink_notice::take_notices(git_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for.
+        let _written = writeln!(std::io::stderr(), "{line}");
+    }
     let objects: PathBuf = common_dir.join("objects");
     // The name Git gives the commit in this repository as it is now, asked of Git once per shown notice.
     let abbreviate: GitShortName<'_> = GitShortName { context: &context, cwd: cwd.as_path(), objects: objects.as_path() };
     for notice in &push_notices_for(git_dir.as_path(), common_dir.as_path(), &abbreviate) {
+        // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
+        //  written stays for the next command.
+        let _written = notice.show(&mut std::io::stderr());
+    }
+    // A worktree the commit service kept stands in the repository until the person decides about it, and the decision to
+    //  remove it was taken by a merge that has ended: the record is the only thing left that says so, and this is the
+    //  command that shows it. It lives in the common Git directory because the worktree it names is still registered, and
+    //  a person may never run anything in that worktree again.
+    for notice in &crate::worktree_kept_notices::kept_worktree_notices(common_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
+        //  written stays for the next command.
+        let _written = notice.show(&mut std::io::stderr());
+    }
+    // A worktree a removal went around is gone from Git's records while what someone else put inside it still stands at the
+    //  path, so no later command in that worktree would ever show anything: the record is the only thing that says the path is
+    //  still taken and what frees it, and this is the command that shows it.
+    for notice in &crate::worktree_removal_goes_around_a_foreign_volume::left_in_place_notices(common_dir.as_path()) {
         // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
         //  written stays for the next command.
         let _written = notice.show(&mut std::io::stderr());
@@ -272,10 +306,10 @@ pub(crate) fn show_held_commits<F: RepositoryFacts>(stripped: &StrippedInvocatio
             crate::held_commit_settle::Settled::Landed { commit } => lines.push(crate::held_commit_words::landed(held, commit, false)),
             crate::held_commit_settle::Settled::LandedTheIndexWaits { commit } => lines.push(crate::held_commit_words::landed(held, commit, true)),
             crate::held_commit_settle::Settled::AlreadyThere { commit } => lines.push(crate::held_commit_words::already_there(held, commit)),
-            crate::held_commit_settle::Settled::WaitsForLocks(_standing) => {
-                // The record names the locks it was held behind, which is what the words give; the ones that stand now are the
-                //  same set unless another program took one meanwhile, and the next command settles the commit either way.
-                waiting.push(crate::held_commit_words::waiting(held, commit_name_of(&context, held).as_str()));
+            crate::held_commit_settle::Settled::WaitsForLocks(standing) => {
+                // The settlement names the locks that stand now and can refuse this batch's branch write: a line worded from the
+                //  record would name the lock that held the commit, which is often gone by the time this command prints it.
+                waiting.push(crate::held_commit_words::waiting(held, commit_name_of(&context, held).as_str(), standing.as_slice()));
             }
             crate::held_commit_settle::Settled::Conflicts { commit, paths } => waiting.push(crate::held_commit_words::conflicts(held, commit, paths.as_slice())),
             crate::held_commit_settle::Settled::Cannot { commit, because } => waiting.push(crate::held_commit_words::cannot(held, commit, because.as_str())),
@@ -427,8 +461,8 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
 ///  The command is the named event that collects it,
 /// so the next command in the repository removes what the prune left,
 ///  and no timer and no age is needed for a folder that is provably dead.
-///  It reads the common directory and the pool folder and starts no Git,
-///  so a command that has no pool pays one `read_dir` that finds nothing.
+///  It reads the common directory, the pool folder and the folder of drawn shadows and starts no Git,
+///  so a command that has no pool pays two `read_dir`s that find nothing.
 ///  A folder that cannot be removed is left for the next command:
 ///  nothing here can fail the command the person asked for.
 ///
@@ -439,6 +473,11 @@ pub(crate) fn snapshot_before_worktree_removal<F: RepositoryFacts>(stripped: &St
 pub(crate) fn sweep_shadow_pools_of_gone_worktrees<F: RepositoryFacts>(checks: &mut ShippedChecks<F>) {
     let Some(common_dir) = checks.facts.known_common_dir() else { return };
     let _removed: Vec<PathBuf> = crate::shadow_pool::sweep_gone_worktrees(common_dir.as_path());
+    // What: The finished shadows the service drew ahead of commits and nothing renewed are collected by their age.
+    // Why:  A command killed after it was handed one leaves a tree no other rule reaches: a drawn tree is used where it
+    //       stands, and the pool's own removal takes the pool's folder and never this one. The command is the named event
+    //       that collects it, and a command whose repository has none pays one `read_dir` that finds nothing.
+    let _swept: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn(common_dir.as_path(), std::time::SystemTime::now());
 }
 
 /// What:

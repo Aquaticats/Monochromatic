@@ -65,6 +65,10 @@ pub struct CopyFacts {
     /// The directory of a `git worktree remove` in the plain form the wrapper may serve with a subvolume destroy;
     ///  absent for every other command.
     pub remove_plan: Option<RemovePlan>,
+    /// Whether the person asked a `git worktree add` for `--quiet`,
+    /// read from the words whether or not the ladder serves the form,
+    /// so a plainly run add prints no line a quiet one would suppress.
+    pub quiet: bool,
 }
 
 /// What:
@@ -407,7 +411,7 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
         global_prefix: Vec::new(),
         common_dir: None,
     };
-    match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir }) {
+    match remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look: None }) {
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed => {
             // Exact terminal output: the person runs a destroy that cannot be undone and accepts the risk that comes with it, which a forced removal words differently because nothing was checked for changes.
@@ -416,6 +420,13 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
                 false => crate::worktree_remove::DESTROY_NOTICE,
             };
             let _closed = writeln!(std::io::stderr(), "{notice}");
+            return Some(ForwardedRun::Ran(0));
+        }
+        RemoveOutcome::RemovedAround(left) => {
+            // The worktree is gone from Git's records and what was not this removal's stands where it was, so the command did
+            // what it was asked and says the rest in the same breath: the path is still taken, and this is what frees it.
+            let report: String = crate::worktree_removal_goes_around_a_foreign_volume::around_removal_report(plan.target.as_path(), left.as_slice());
+            let _closed = writeln!(std::io::stderr(), "{report}");
             return Some(ForwardedRun::Ran(0));
         }
         RemoveOutcome::Incomplete(report) => {
@@ -490,6 +501,7 @@ fn run_settled(
         short_circuit: false,
         context,
         add_plan: facts.add_plan.clone(),
+        quiet: facts.quiet,
         #[cfg(target_os = "linux")]
         repair: crate::package_repair::RepairSwitch::from_arguments(arguments),
     };
@@ -605,6 +617,20 @@ fn run_settled(
                 && let Some(signal) = run_git.signalled
             {
                 return ForwardedRun::Killed(signal);
+            }
+            // Git's own refusal of an occupied destination says only that the directory exists, and a person who removed the
+            // worktree there was told what a removal had to leave. The line names each volume and what frees the path, so
+            // "already exists" is answered by what stands there.
+            if settlement.copy_failure.is_none()
+                && settlement.git.code != Some(0)
+                && let Some(destination) = facts.destination.as_ref()
+            {
+                let left: Vec<crate::subvolume_remove_walk::Boundary> =
+                    crate::worktree_removal_goes_around_a_foreign_volume::volumes_below(destination.as_path());
+                if !left.is_empty() {
+                    let line: String = crate::worktree_removal_goes_around_a_foreign_volume::add_beside_a_volume_line(destination.as_path(), left.as_slice());
+                    let _written = writeln!(stderr, "{line}");
+                }
             }
             // A worktree Git just registered is recorded as one this program made, so a later merge that lands its branch
             // removes it by itself (`worktree_landed_removal.rs`). A record that cannot be written costs that one removal

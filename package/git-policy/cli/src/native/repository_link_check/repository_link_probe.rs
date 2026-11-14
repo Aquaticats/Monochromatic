@@ -146,7 +146,9 @@ impl RealLinkProbe {
         if self.table.get().is_none() {
             let text: Vec<u8> = match &self.table_text {
                 Some(given) => given.clone(),
-                None => std::fs::read(MOUNTINFO_PATH).unwrap_or_default(),
+                // The table's length is the system's state: a container's namespace can hold tens of thousands of mounts,
+                //  and a table past the bound is not read (`crate::plain_file::MOUNT_TABLE_LIMIT`).
+                None => crate::plain_file::read_plain_file(Path::new(MOUNTINFO_PATH), crate::plain_file::MOUNT_TABLE_LIMIT).unwrap_or_default(),
             };
             let _first: Result<(), Vec<MountFacts>> = self.table.set(parse_mount_table(text.as_slice()));
         }

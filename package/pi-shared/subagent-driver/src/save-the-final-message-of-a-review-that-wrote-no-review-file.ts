@@ -13,7 +13,22 @@ import {
   type SavedReview,
   saveTheLastMessage,
 } from './last-message-of-a-review.ts';
-import { parseSaveReviewOptions, } from './parse-save-review-options.ts';
+import {
+  SAVE_REVIEW_USAGE,
+  parseSaveReviewOptions,
+} from './parse-save-review-options.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: SAVE_REVIEW_USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  What this run of the command was asked for.

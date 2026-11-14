@@ -40,6 +40,9 @@ use std::path::Path;
 /// and the lease running out is what returns the record to `pending` with one more try
 /// (`work_item_recovery.rs`),
 /// which is the retry the answer asked for.
+///  The look that kept it answers that moment as when to look at this directory again
+/// (`service_work_drain_pending_claims.rs`),
+/// so the record is queued again and run without another request.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -48,6 +51,14 @@ use std::path::Path;
 pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed, verdict: Verdict, kind: &str) -> Option<HeldClaims> {
     match verdict {
         Verdict::Done => {
+            return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
+        }
+        Verdict::Delivered { said, .. } => {
+            // Only a push answers this, and a push is settled by `settle_after_the_push`, which records what it said before
+            //  the item moves. A kind that answers in words reaches this only if a handler is given a push's verdict shape,
+            //  which this module cannot make: the words are said rather than dropped, and the item is settled as done, because
+            //  nothing here may fail a person's work over the shape of an answer.
+            crate::service_warn!("a step that answers in words answered as a push did, and its words are said here: {said}");
             return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
         Verdict::Failed(reason) => {

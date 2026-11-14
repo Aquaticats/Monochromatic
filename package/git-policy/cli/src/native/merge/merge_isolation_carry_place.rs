@@ -32,7 +32,7 @@
 //! const placed = await placeFile({ context, root, path, judged, write }); // renameNoReplace take, check, place or put back
 //! ```
 
-use crate::merge_isolation_carry_permissions::keep_the_permissions_of_the_entry_it_replaces;
+use crate::merge_isolation_carry_place_write::write_entry;
 use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
 use crate::merge_isolation_changes::{FileIdentity, WorktreeState, file_identity, worktree_path};
 use crate::merge_isolation_take_aside_names::{CARRY_PREFIX, aside_name};
@@ -40,9 +40,6 @@ use crate::merge_isolation_take_asides::{are_the_file_form_of_awaiting, may_remo
 use crate::rename_that_never_replaces::rename_noreplace;
 use crate::transaction_git::GitContext;
 use std::path::{Path, PathBuf};
-
-/// The mode a symbolic link is recorded with.
-const SYMBOLIC_LINK_MODE: &str = "120000";
 
 /// What:
 ///  What stood at a worktree path when the write was judged.
@@ -158,36 +155,6 @@ fn private_name(location: &Path, transaction_id: &str) -> PathBuf {
 }
 
 /// What:
-///  The mode a written file carries,
-/// with the failure the attempt made.
-/// Why:
-///   A file whose mode could not be set is not the entry the write promised,
-/// so the attempt fails and is reported rather than
-///  placed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// async function setMode(file, mode): Promise<void>; // 0o755 for 100755, else 0o644
-/// ```
-fn set_mode(file: &Path, mode: &str) -> Result<(), String> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let bits: u32 = if mode == "100755" { 0o755 } else { 0o644 };
-        return match std::fs::set_permissions(file, std::fs::Permissions::from_mode(bits)) {
-            Ok(()) => Ok(()),
-            Err(error) => Err(error.to_string()),
-        };
-    }
-    // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-    #[cfg(not(unix))]
-    {
-        let _ = (file, mode);
-        return Ok(());
-    }
-}
-
-/// What:
 ///  Write the new entry under a private name beside its path,
 ///  so placing it is one rename.
 /// Why:
@@ -197,55 +164,15 @@ fn set_mode(file: &Path, mode: &str) -> Result<(), String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function writePrivate(location, bytes, mode): string; // throws on a write that failed
+/// function writePrivate(location, bytes, mode, bits): string; // throws on a write that failed
 /// ```
-fn write_private(location: &Path, bytes: &[u8], mode: &str, transaction_id: &str) -> Result<PathBuf, String> {
+fn write_private(location: &Path, bytes: &[u8], mode: &str, the_persons_bits: Option<u32>, transaction_id: &str) -> Result<PathBuf, String> {
     if let Some(parent) = location.parent() {
         let _made = std::fs::create_dir_all(parent);
     }
     let private: PathBuf = private_name(location, transaction_id);
-    write_entry(private.as_path(), bytes, mode)?;
+    write_entry(private.as_path(), bytes, mode, the_persons_bits)?;
     return Ok(private);
-}
-
-/// What:
-///  Write one entry's bytes or its link target under a name beside its path,
-///  with the mode it names.
-/// Why:
-///  The bytes of an entry are written where nothing else writes before they take a path,
-/// so a kill leaves either
-///  what was there or the whole entry;
-/// a copy kept beside a path is written the same way,
-/// and both go through
-///  one step so a link is made in both cases and never followed.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function writeEntry(named, bytes, mode): void; // symlink(target) for 120000, else write + chmod
-/// ```
-fn write_entry(named: &Path, bytes: &[u8], mode: &str) -> Result<(), String> {
-    if mode == SYMBOLIC_LINK_MODE {
-        #[cfg(unix)]
-        {
-            use std::os::unix::ffi::OsStrExt;
-            return match std::os::unix::fs::symlink(std::ffi::OsStr::from_bytes(bytes), named) {
-                Ok(()) => Ok(()),
-                Err(error) => Err(error.to_string()),
-            };
-        }
-        // UNTESTED ON WINDOWS: no gate compiles or runs this branch (the crate does not build for Windows; README, Requirements).
-        #[cfg(not(unix))]
-        {
-            let _ = (named, bytes);
-            return Err(String::from("a symbolic link cannot be made on this platform"));
-        }
-    }
-    if let Err(error) = std::fs::write(named, bytes) {
-        let _left = std::fs::remove_file(named);
-        return Err(error.to_string());
-    }
-    set_mode(named, mode)?;
-    return Ok(());
 }
 
 /// What:
@@ -323,7 +250,7 @@ fn put_back(location: &Path, aside: &Path) -> Result<Placed, CarryFailure> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// async function dropTheAside({ context, root, path, aside, judged, kept }): Promise<void>; // mayRemove ? unlink : kept.push(aside)
+/// async function dropTheAside({ context, root, path, aside, judged, kept }): Promise<void>; // proof ? unlink : kept.push(aside)
 /// ```
 async fn drop_the_aside_awaiting(
     context: &GitContext,
@@ -337,11 +264,11 @@ async fn drop_the_aside_awaiting(
         kept.push(aside.to_path_buf());
         return Ok(());
     };
-    if !may_remove_the_aside_awaiting(context, root, path, aside, taken, expected).await {
+    let Some(proof) = may_remove_the_aside_awaiting(context, root, path, aside, taken, expected).await else {
         kept.push(aside.to_path_buf());
         return Ok(());
-    }
-    return match std::fs::remove_file(aside) {
+    };
+    return match proof.remove(aside) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(CarryFailure::Failed(format!("{} could not be removed: {error}", aside.display()))),
@@ -502,7 +429,7 @@ async fn place_bytes_awaiting(
     transaction_id: &str,
     set_asides: &mut SetAsides<'_>,
 ) -> Result<Placed, CarryFailure> {
-    let FileWrite::Bytes(bytes, mode) = write else {
+    let FileWrite::Bytes { bytes, mode, the_persons_bits } = write else {
         return Err(CarryFailure::Failed(format!("{} was planned as bytes and is not", crate::path_bytes::path_message_text(path))));
     };
     let location: PathBuf = worktree_path(root, path);
@@ -512,7 +439,7 @@ async fn place_bytes_awaiting(
         //  bytes this carry would have written are kept beside it under a name that names the merge, and the caller records and
         //  names them, so the person's bytes exist whichever of the two the file was.
         let aside: PathBuf = aside_name(location.as_path(), transaction_id);
-        return match write_entry(aside.as_path(), bytes, mode) {
+        return match write_entry(aside.as_path(), bytes, mode, *the_persons_bits) {
             Ok(()) => {
                 set_asides.unproven.push(aside);
                 Ok(Placed::Nothing)
@@ -520,7 +447,7 @@ async fn place_bytes_awaiting(
             Err(error) => Err(CarryFailure::Failed(format!("{} could not be kept beside {}, which was left as it is: {error}", location.display(), location.display()))),
         };
     }
-    let private: PathBuf = match write_private(location.as_path(), bytes, mode, transaction_id) {
+    let private: PathBuf = match write_private(location.as_path(), bytes, mode, *the_persons_bits, transaction_id) {
         Ok(made) => made,
         Err(error) => return Err(CarryFailure::Failed(format!("{} could not be written: {error}", location.display()))),
     };
@@ -542,17 +469,6 @@ async fn place_bytes_awaiting(
             return Ok(Placed::Changed { kept: stranded });
         }
     };
-    // The entry that made way for this write is the person's own mode as well as its bytes, and Git records only the
-    //  executable bit of it.
-    if let Err(error) = keep_the_permissions_of_the_entry_it_replaces(private.as_path(), aside.as_path()) {
-        let _left = std::fs::remove_file(private.as_path());
-        // Nothing was written at the path, so the entry the take moved aside goes back where it was found; one that cannot
-        //  go back stays under its private name, which the failure names.
-        return match rename_noreplace(aside.as_path(), location.as_path()) {
-            Ok(()) => Err(CarryFailure::Failed(format!("{error}; nothing was written to {}", location.display()))),
-            Err(_stayed) => Err(CarryFailure::Failed(format!("{error}; the file it held before is at {}", aside.display()))),
-        };
-    }
     let placed: Placed = match rename_noreplace(private.as_path(), location.as_path()) {
         Ok(()) => Placed::Written,
         // Another write took the path in the gap; the entry put aside is kept and named, and the bytes this write
@@ -608,7 +524,7 @@ pub(crate) async fn place_file_awaiting(
     return match write {
         FileWrite::Leave => Ok(Placed::Nothing),
         FileWrite::Remove => remove_judged_awaiting(&rooted, root, path, location.as_path(), judged, transaction_id, set_asides.held_open).await,
-        FileWrite::Bytes(_, _) => place_bytes_awaiting(&rooted, root, path, judged, write, transaction_id, set_asides).await,
+        FileWrite::Bytes { .. } => place_bytes_awaiting(&rooted, root, path, judged, write, transaction_id, set_asides).await,
     };
 }
 

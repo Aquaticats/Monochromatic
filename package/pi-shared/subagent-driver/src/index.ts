@@ -82,6 +82,7 @@ export {
   type RecordOfPiRunRequest,
   startRecordOfPiRun,
 } from './record-of-pi-run.ts';
+export { END_REASONS, } from './driver-types.ts';
 export {
   CLEAN_END_REASONS,
   endReasonOfPromptWait,
@@ -218,6 +219,13 @@ export {
   wakeResumeWordsOf,
   workWaitMillisecondsOf,
 } from './wake-a-run-whose-work-outlives-its-turn.ts';
+export {
+  cgroupOf,
+  unitNamedBy,
+  wakeMessageOf,
+  workOutlivingTheTurnIn,
+  workTheToolReportedIn,
+} from './work-the-run-left-running.ts';
 
 /**
  A batch started as its own systemd user unit, so it outlives the process that asked for it: `start-a-batch-in-its-own-unit.ts`.
@@ -333,6 +341,11 @@ export {
   startLineSplitter,
   type SplitPiOutputRequest,
 } from './split-pi-output.ts';
+
+/**
+ The library surface of reading a run's own records, kept in a file of its own for the same reason.
+ */
+export * from './index-of-reading-a-run.ts';
 
 /**
  The library surface of starting a run, kept in a file of its own so that neither list outgrows the line budget.

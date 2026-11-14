@@ -76,3 +76,27 @@ pub(crate) fn removal_allowed(root: &std::path::Path) -> bool {
         .flatten()
         .is_some_and(|facts| { return facts.has_option("user_subvol_rm_allowed"); });
 }
+
+/// What:
+///  End the filesystem's running transaction, so every write made before this call is committed.
+/// Why:
+///   A subvolume created in the transaction that still runs already reports that transaction's id as its
+/// generation,
+/// and a snapshot made before the transaction ends carries the same id,
+/// so a control that reads a generation and later compares a snapshot's creation transaction against
+///  it can prove nothing at all.
+/// A repository outside a control has been committed many times,
+/// and a control that kills a
+///  worktree add inside its first transaction is testing a state no repository is in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// syncfs(openSync(path, 'r')) // btrfs commits its running transaction
+/// ```
+pub(crate) fn commit_the_filesystem(path: &std::path::Path) {
+    use std::os::fd::AsRawFd;
+    let directory: std::fs::File = std::fs::File::open(path).expect("the directory whose filesystem is committed");
+    // SAFETY: `directory` holds an open descriptor for the mount `syncfs` is asked about, and the call neither reads nor writes through it.
+    let result: libc::c_int = unsafe { libc::syncfs(directory.as_raw_fd()) };
+    assert_eq!(result, 0, "the filesystem holding {} is committed: {}", path.display(), std::io::Error::last_os_error());
+}

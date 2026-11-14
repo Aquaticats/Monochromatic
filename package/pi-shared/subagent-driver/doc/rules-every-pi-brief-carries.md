@@ -10,6 +10,30 @@ Each rule is the project's own requirement.
 - Rule `ATH`:
   scratch goes in `${HOME}/temp/agent`,
   never `/tmp`.
+- The run has one scratch folder,
+  `${HOME}/temp/agent/<the run's name>-scratch`,
+  and everything it writes outside its worktree goes there.
+  That folder is deleted when the run ends,
+  except its `keep/` subfolder:
+  put the report,
+  the logs and the measurements a reader of the report needs in `keep/`,
+  and nothing that a build or a clone recreates
+  (build folders,
+  checkouts,
+  fixture repositories,
+  binaries,
+  dependency folders).
+  Name every folder inside it for what it holds,
+  so someone who was not there needs no context
+  (`twenty-commits-timed-against-real-git`,
+  never `runs` or `r3-before`).
+  Make one fixture repository and reuse it,
+  or make a copy-on-write copy (`cp --reflink=always`),
+  instead of a full copy for each round.
+  On 2026-11-13 the scratch folder held about 64 GiB of its own from two days of runs
+  (`btrfs filesystem du`;
+  `du` read 232 GiB because it counts data shared between copies once for each copy),
+  and a full home drive had ended twenty runs the day before.
 - Never generate synthetic host load in any session or subagent:
   no `stress-ng`,
   busy loops,
@@ -46,6 +70,31 @@ Each rule is the project's own requirement.
   and every `systemctl --user` and `systemd-run --user` call in that time went to it.
   A guard now kills any process that takes that name,
   and the run that started it ends with it.
+- A fixture's own `HOME` and `XDG_RUNTIME_DIR` do not keep a program off this machine's session bus:
+  `DBUS_SESSION_BUS_ADDRESS` is inherited from the run's environment and still names it.
+  Unset it,
+  or point it at a private `dbus-daemon` of the run's own,
+  for every command that runs a wrapper,
+  a service or any program that asks a service manager for something.
+  On 2026-11-13 a measurement script that set the two directories and left the address
+  had this machine's user manager start two commit service units for throwaway repositories;
+  the run noticed,
+  stopped and removed them.
+- A program built in a worktree cannot open connections to outside hosts on this machine.
+  Its application firewall (OpenSnitch) refuses a program it has no rule for:
+  each `connect` ends with `ECONNABORTED`,
+  and the firewall keeps a rule that rejects that program's path from then on.
+  `curl`,
+  `node`,
+  `python3`,
+  `cargo` and the installed tools are allowed.
+  So a test or a probe of a built program takes what it needs from disk or from a server the test starts itself,
+  and a report says so where a path through the network was left unrun for this reason.
+  The firewall and its rules are not a run's to change.
+  On 2026-11-13 a freshly built `mpm-shadow` could reach neither crates.io,
+  the npm registry nor go.dev,
+  while `curl` reached the same addresses from the same environment;
+  `/var/log/opensnitchd.log` holds the two rules saved for its debug and release paths.
 - The run has its own Git worktree on its own branch.
   Other agents work in other worktrees,
   and the main checkout holds other sessions' uncommitted changes.
@@ -111,6 +160,21 @@ Each rule is the project's own requirement.
   run a build,
   a test or any other step whose result the next step needs as a foreground command with a bound of its own,
   and end a turn only when nothing of yours that matters is still running.
+- A workaround for a defect of the Git wrapper that is fixed in the installed release (0.6.1-alpha.15) and in `main`
+  since commit `afc0545123`,
+  and that a wrapper built from a branch without that commit still has:
+  such a wrapper,
+  when it looks for the holder of a file,
+  reads the descriptor record of every process of the account,
+  and one such read can cost hundreds of megabytes of kernel memory and minutes while an IDE's file watcher runs
+  (on 2026-11-12 a wrapper in a scope capped at 512 MB was killed by the kernel for it,
+  which raised a low-memory alarm on the desktop).
+  So a scope or container that runs a wrapper built from your branch gets a memory cap of at least 4G
+  until your branch holds that commit
+  (`git merge-base --is-ancestor afc0545123 HEAD` answers);
+  the installed wrapper needs no such cap.
+  To be removed when no branch in work is older than that commit.
+  And nobody reads `/proc/<pid>/fdinfo/<n>` of a process they did not start.
 - Bound every read of the journal:
   `journalctl` gets `--since` and `--lines`,
   and one unit instead of a pattern where the unit is known.

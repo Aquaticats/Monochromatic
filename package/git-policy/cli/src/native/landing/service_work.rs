@@ -49,7 +49,6 @@ use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::Retrying;
 use crate::push_retry_failure::{final_failure, plain_words, unrecognised_rejection};
-use crate::push_failure_notice::record_push_report;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review::{options_for, review_item, review_item_awaiting, review_variables};
 use crate::service_review_key::ReviewKey;
@@ -89,6 +88,15 @@ use std::time::Duration;
 /// batch size and claim lease,
 /// option B).
 pub const CLAIM_LEASE: Duration = Duration::from_secs(120);
+
+/// The thread name one removal of a whole worktree carries in a process listing,
+/// so a removal that gave no answer is recognisable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const REMOVAL_THREAD_NAME = 'cli-git-worktree-removal';
+/// ```
+const REMOVAL_THREAD_NAME: &str = "cli-git-worktree-removal";
 
 /// What:
 ///  Runs everything pending for one repository:
@@ -487,18 +495,12 @@ impl WorkHandlers for GitHandlers {
                 // A push that exits 0 still holds words the person needs: the server's own `remote:` lines, the account of a
                 //  reconcile it made, and the refusal of a remote-tracking reference it could not update, which is the only sign
                 //  that the local view stayed behind. The command that ran the push returned long before it ended, so those words
-                //  go to a record the next command shows once. A push that simply landed says nothing and leaves no record.
-                let report: String = result.shown;
-                if !report.is_empty()
-                    && let Err(reason) = record_push_report(newest.git_dir.as_path(), newest.branch_ref.as_str(), newest.oid.as_str(), report.as_str())
-                {
-                    crate::service_error!(
-                        "what the push of {} {} did could not be recorded for the person: {reason}",
-                        newest.oid,
-                        crate::service_timing::in_the_repository_at(newest.repository.as_path())
-                    );
-                }
-                Verdict::Done
+                //  go to a record the next command shows once, which the step that settles this verdict writes. A push that simply
+                //  landed says nothing and leaves no record.
+                // The record is named for the commit this push sent, never for the newest record the drain claimed: a commit that
+                //  landed after that claim is what the push sends (`sent_up_to`, read from the branch), so naming the record for the
+                //  claimed commit would overwrite an unread record of that commit with words about another one, and label them as its.
+                Verdict::Delivered { commit: sent_up_to, said: result.shown }
             }
             // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
             //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
@@ -605,6 +607,47 @@ impl WorkHandlers for GitHandlers {
     }
 
     /// What:
+    ///  The same delete,
+    ///  run on a thread of its own that no runtime owns.
+    /// Why:
+    ///  The removal of a whole worktree starts Git,
+    ///  and a step the wrapper watches is waited for through the runtime,
+    ///  which refuses a call made from inside itself,
+    ///  while a thread of the blocking pool still carries that runtime with it.
+    ///  So the removal gets a thread of its own,
+    ///  and the round awaits its answer no longer than a bulk Git step may take:
+    ///  a thread the system refuses, and one that gives no answer at the ceiling, are both a removal that did not run,
+    ///  and the record keeps its lease for the next round.
+    ///  Before this, every removal the service made answered "the runtime that runs this command's waits was asked for
+    ///  from inside itself",
+    ///  which read as ignored files nothing could vouch for,
+    ///  and the service kept every worktree it was handed.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// subvolumeDeleteAwaiting(item) { return await withAnOwnThreadWithin(OBJECT_STEP_CEILING, () => deleteSubvolumeOf(item)); }
+    /// ```
+    fn subvolume_delete_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
+        return Box::pin(async move {
+            let held: WorkItem = item.clone();
+            let (sender, receiver): (tokio::sync::oneshot::Sender<Verdict>, tokio::sync::oneshot::Receiver<Verdict>) = tokio::sync::oneshot::channel::<Verdict>();
+            let started = std::thread::Builder::new().name(String::from(REMOVAL_THREAD_NAME)).spawn(move || {
+                // A round that stopped waiting is gone with its receiver, and the verdict goes with the send.
+                let _sent = sender.send(crate::worktree_remove_hand_over::delete_subvolume_of(&held));
+            });
+            if started.is_err() {
+                return Verdict::Retry(format!("the system refused a thread for the removal of {}", item.repository.display()));
+            }
+            return match tokio::time::timeout(crate::wait_ceilings::OBJECT_STEP_CEILING, receiver).await {
+                Ok(Ok(verdict)) => verdict,
+                // The thread went without a verdict, which a removal cannot do while it runs.
+                Ok(Err(_dropped)) => Verdict::Retry(format!("the removal of {} gave no verdict", item.repository.display())),
+                Err(_expired) => Verdict::Retry(format!("the removal of {} gave no answer within {:?}", item.repository.display(), crate::wait_ceilings::OBJECT_STEP_CEILING)),
+            };
+        });
+    }
+
+    /// What:
     ///  Make one snapshot of a worktree ahead of the next add,
     /// where the caller has no runtime to hand a job to.
     /// Why:
@@ -660,11 +703,16 @@ impl WorkHandlers for GitHandlers {
 
     fn maintenance_awaiting<'a>(&'a self, item: &'a WorkItem) -> std::pin::Pin<Box<dyn std::future::Future<Output = Verdict> + Send + 'a>> {
         return Box::pin(async move {
-            return match run_auto_maintenance_with_awaiting(&self.context, item.repository.as_path(), None).await {
+            let answer: Verdict = match run_auto_maintenance_with_awaiting(&self.context, item.repository.as_path(), None).await {
                 Ok(AutoMaintenanceOutcome::Exited(code)) if code != 0 => Verdict::Failed(format!("it exited with status {code}")),
                 Ok(_) => Verdict::Done,
                 Err(error) => Verdict::Failed(format!("{error:?}")),
             };
+            // The upkeep is where the wrapper prunes the references it keeps built commits on, by age and by size: the
+            //  person's commit has returned, and nothing a command waits for is behind this step
+            //  (`kept_reference_pass.rs`).
+            crate::kept_reference_pass::prune_after_a_commit(&self.context, item.git_dir.as_path()).await;
+            return answer;
         });
     }
 

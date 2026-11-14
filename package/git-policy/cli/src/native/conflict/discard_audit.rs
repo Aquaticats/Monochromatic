@@ -91,15 +91,15 @@ pub enum AuditOutcome {
     Exempt,
     /// The person or agent passed `--no-enforce-worktree`.
     Hatch,
-    /// The command took a side of conflicted files after the wrapper saved a copy of each.
+    /// The command took one side of conflicted files after a release before 0.6.1-alpha.14 had copied each file.
+    /// No command writes this word now,
+    /// and a repository an earlier release ran still holds the lines:
+    ///  `discard_audit_pins.rs` keeps a generation whose copy is still on disk.
     SavedConflict,
     /// The command would have deleted a nested Git repository,
     ///  and the wrapper moved it whole beside the audit log first.
     SavedNestedRepository,
 
-    /// The command undid an operation that waited for its conflicts,
-    /// after the wrapper saved a copy of the work that was not the operation's own.
-    SavedAbort,
     /// The form is recorded and was never refused:
     ///  it runs as Git runs it,
     ///  by the owner's decision,
@@ -119,7 +119,6 @@ impl AuditOutcome {
             AuditOutcome::SavedConflict => return "saved-conflict",
             AuditOutcome::SavedNestedRepository => return "saved-nested-repository",
 
-            AuditOutcome::SavedAbort => return "saved-abort",
             AuditOutcome::Logged => return "logged",
         }
     }

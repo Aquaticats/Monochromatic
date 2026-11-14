@@ -683,7 +683,8 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
         (vec!["switch", "--discard-changes", "topic"], GuardedCommand::SwitchForce, Some("Tracked"), Some("topic")),
         (vec!["reset"], GuardedCommand::ResetMixed, Some("Tracked"), None),
         (vec!["rm", "-rf", "dir"], GuardedCommand::Remove, Some("Tracked"), None),
-        (vec!["merge", "--abort"], GuardedCommand::AbortMerge, Some("Tracked"), None),
+        // The five abort forms are not judged by the status: the operation they undo is read instead, which is what
+        //  `an_abort_in_a_linked_worktree_is_judged_by_the_operation_it_undoes` controls.
         (vec!["clean", "-fd"], GuardedCommand::Clean, Some("TrackedAndUntracked"), None),
         (vec!["clean", "-fdx"], GuardedCommand::CleanIgnored, Some("TrackedAndUntracked"), None),
         // `-X` deletes ignored files only, so a linked worktree holds nothing this policy protects and it asks
@@ -754,6 +755,48 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
             ),
             "{values:?} linked dirty"
         );
+    }
+}
+
+/// linked-worktree-only:
+///  an abort form is judged by the operation it undoes,
+/// in the main worktree and in a linked one alike,
+/// so the status is never asked and a dirty worktree answers as a clean one does.
+/// Why:
+///   An operation that stopped with conflicts makes `git status` report its own state,
+/// so the rule above refused every abort form for exactly as long as it was the command a person needed;
+/// the work it would discard decides the abort instead,
+/// and the owner decided on 2026-11-13 that the rule is the same in the main worktree
+/// ("Same rule everywhere"),
+/// which ends the older rule that every abort there is refused.
+///  `SPEC.md` records it under "The abort and skip forms while their operation waits".
+/// What it asks:
+///  where the worktree is,
+/// and which operation waits,
+///  and nothing else.
+#[test]
+fn an_abort_is_judged_by_the_operation_it_undoes_wherever_it_runs() {
+    for (values, command) in [
+        (vec!["merge", "--abort"], GuardedCommand::AbortMerge),
+        (vec!["rebase", "--abort"], GuardedCommand::AbortRebase),
+        (vec!["cherry-pick", "--abort"], GuardedCommand::AbortPick),
+        (vec!["revert", "--abort"], GuardedCommand::AbortPick),
+        (vec!["am", "--abort"], GuardedCommand::AbortAm),
+    ] {
+        let abort_question: String = format!("abort-discard:{command:?}");
+        for (where_it_runs, facts) in [
+            ("main", main_worktree("/r", "")),
+            ("linked", linked_worktree("/r", "/w")),
+            ("outside", outside_worktree()),
+        ] {
+            for dirty in [false, true] {
+                assert_eq!(
+                    pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), dirty_in(facts.clone(), dirty)),
+                    (clean(), asked(&["location", abort_question.as_str()])),
+                    "{values:?} {where_it_runs} dirty={dirty}"
+                );
+            }
+        }
     }
 }
 

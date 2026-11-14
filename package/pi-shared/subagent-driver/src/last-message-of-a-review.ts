@@ -16,6 +16,9 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import {
+  endedOnItsOwnTerms,
+} from './end-reasons.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import { isDigitsOnly, } from './text-of-an-option.ts';
 import {
@@ -30,6 +33,7 @@ import {
   SessionFileUnreadableError,
   sessionFileInSummary,
 } from './session-file-of-a-run.ts';
+import { wholeLinesOf, } from './whole-lines-of-a-feed.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -66,6 +70,9 @@ export type SavedReview = {
 /**
  Reads the text of the last assistant message in a session's records.
 
+ The session file is Pi's own, and it is read while a resumed Pi may still be appending to it, so the record it ends with may be
+ one the writer has not finished: that cut text is no record and is left alone rather than parsed.
+
  @param shown - the session file, one JSON record per line
 
  @returns the message's text parts joined, or empty text when the session holds no assistant message
@@ -80,7 +87,7 @@ export function lastAssistantTextIn({ shown, }: { readonly shown: string },): st
    The last assistant message found so far.
    */
   const parts: string[][] = [];
-  for (const line of shown.split('\n',)) {
+  for (const line of wholeLinesOf({ shown, },)) {
     if (line === '') {
       continue;
     }
@@ -352,18 +359,40 @@ export async function saveTheLastMessage({
     };
   }
   /**
+   What that run's summary says.
+   */
+  const summaryShown = await readFile(
+    join(
+      runsFolder,
+      newest.run,
+      'summary.json',
+    ),
+    'utf8',
+  );
+  /**
+   What the summary holds, of any shape.
+   */
+  const summary: unknown = JSON.parse(summaryShown,);
+  /**
+   Why that run ended, as its summary says.
+   */
+  const { endReason, } = isRecord(summary,) ? fieldsOf(summary,) : { endReason: undefined, };
+  // A run a cap, a wall clock or an abort ended stopped before it wrote its findings, so its last message is the sentence it
+  // was at, and writing that as the review would hide that the review is missing. On 2026-11-11 two reviews that ended turn-cap
+  // left one such sentence standing where a review is expected.
+  if (!endedOnItsOwnTerms(endReason,)) {
+    return {
+      review,
+      saved: false,
+      line: `${review}: no review.md, and its newest run ended ${((typeof endReason) === 'string') ? endReason : 'without a reason its summary names'}, so it wrote no review and its last message is not one`,
+    };
+  }
+  /**
    The session file that run's summary names, or the line to answer when it names none: a run that never started Pi has no last
    message, and the command that reads several reviews must not end on it.
    */
   const session = sessionFileOfARun({
-    shown: await readFile(
-      join(
-        runsFolder,
-        newest.run,
-        'summary.json',
-      ),
-      'utf8',
-    ),
+    shown: summaryShown,
     runFolder: newest.run,
     review,
   },);

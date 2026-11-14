@@ -9,11 +9,10 @@
 //! Then:
 //! "Systemd units are fine."):
 //! the unit texts carry no install line,
-//! provisioning links nothing and writes only in the
-//!  runtime unit directory (it may remove the earlier releases' files in the user's own unit directory),
-//! and the manager is asked
-//!  only to reload,
-//! reset,
+//! provisioning links nothing that
+//!  enables a unit and writes only in the runtime directory (it may remove the earlier releases' files in the user's own
+//!  unit directory),
+//! and the manager is asked only to reset,
 //! start,
 //! stop and report a state.
 //! Why:
@@ -29,13 +28,24 @@
 //! each is guarded
 //!  here,
 //! beside the scan of the source (`source_guard/no_start_at_login_tests.rs`).
+//! The one link provisioning makes is the program link the service runs (`service_instance.rs`,
+//! `program_link`):
+//! it
+//!  sits directly in the runtime directory,
+//! which the session empties at logout,
+//! it names the wrapper's own executable and
+//!  never a unit,
+//! and the manager reads nothing of the runtime directory but its unit folder.
+//! Per-worktree file records
+//!  live beside it for the same reason.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! expect(linesThatStartAtLogin(unitText)).toEqual([]); expect(created(afterProvisioning)).toAllBeBelow(runtimeUnitDir);
+//! expect(linesThatStartAtLogin(unitText)).toEqual([]); expect(created(afterProvisioning)).toAllBeBelow(runtimeDir);
 //! ```
 
 use super::tests::{Machine, Recorder, add_socket, earlier_service_files, machine};
+use crate::service_instance::program_link;
 use super::*;
 use crate::no_start_at_login_tests::lines_that_start_at_login;
 use crate::test_support::remove;
@@ -153,14 +163,18 @@ fn runs() -> Vec<(Machine, BTreeMap<PathBuf, Entry>, BTreeMap<PathBuf, Entry>, V
     return all;
 }
 
-/// Provisioning creates or changes entries only below the runtime unit directory,
-/// and creates no link and no `*.wants` or
-///  `*.requires` folder anywhere.
-/// The one allowed exception is removal:
-/// the earlier releases' files in the user's own unit
-///  directory (and the earlier socket file in the runtime directory) may go.
+/// What:
+///  Provisioning creates or changes entries only below the runtime directory,
+/// and the one link it makes is the program
+///  link the service runs.
+/// It creates no enabling link and no `*.wants` or `*.requires` folder anywhere.
+/// The one allowed exception to
+///  the removals is the earlier releases' files in the user's own unit directory
+/// (and the earlier socket file in the
+///  runtime directory),
+/// which may go.
 #[test]
-fn provisioning_writes_only_in_the_runtime_unit_directory_and_links_nothing() {
+fn provisioning_writes_only_in_the_runtime_directory_and_links_nothing_that_starts_a_unit() {
     for (machine, before, after, _calls) in runs() {
         let runtime_units: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
         let user_units: PathBuf = machine.host.user_unit_dir.clone().expect("a user unit directory");
@@ -170,13 +184,29 @@ fn provisioning_writes_only_in_the_runtime_unit_directory_and_links_nothing() {
                 continue;
             }
             let ancestors_of_runtime_units: bool = runtime_units.starts_with(path);
-            assert!(path.starts_with(&runtime_units) || ancestors_of_runtime_units, "{} was created or changed outside {}", path.display(), runtime_units.display());
-            assert!(!matches!(entry, Entry::Link(_)), "{} is a link", path.display());
+            assert!(
+                path.starts_with(&runtime_units) || ancestors_of_runtime_units || path.starts_with(machine.host.runtime_dir.as_path()),
+                "{} was created or changed outside {}",
+                path.display(),
+                machine.host.runtime_dir.display()
+            );
             let name: String = path.file_name().map(|text| { return text.to_string_lossy().into_owned(); }).unwrap_or_default();
             assert!(!name.ends_with(".wants") && !name.ends_with(".requires"), "{} is an enabling folder", path.display());
+            if let Entry::Link(target) = entry {
+                // The one link is the program the service runs, directly in the runtime directory, naming the wrapper's own
+                //  executable: it starts nothing at login, and the manager never reads it.
+                assert_eq!(path, &program_link(machine.host.runtime_dir.as_path()), "{} is a link the wrapper does not make", path.display());
+                assert_eq!(target, &machine.host.service_binary, "{} does not name this release", path.display());
+                continue;
+            }
+            assert!(!path.starts_with(machine.host.runtime_dir.as_path()) || path.starts_with(&runtime_units), "{} is not the program link and lies outside the unit folder", path.display());
         }
         for path in before.keys().filter(|path| { return !after.contains_key(*path); }) {
-            assert!(path.starts_with(&user_units) || path.starts_with(&runtime_units) || path.starts_with(machine.host.runtime_dir.as_path()), "{} was removed from outside the unit directories", path.display());
+            assert!(
+                path.starts_with(&user_units) || path.starts_with(&runtime_units) || path.starts_with(machine.host.runtime_dir.as_path()),
+                "{} was removed from outside the unit directories",
+                path.display()
+            );
         }
         remove(machine.root.as_path());
     }
@@ -202,24 +232,30 @@ fn an_earlier_releases_enabling_link_is_removed() {
     remove(machine.root.as_path());
 }
 
-/// The manager is asked only to reload,
-/// reset a failed unit,
+/// What:
+///  The manager is asked only to reset a failed unit,
 /// start,
+/// restart,
 /// stop and report a state:
 /// no call enables,
-/// links,
+///  links,
 /// presets,
-///  masks or changes the default target,
-/// whatever the run.
+/// masks or changes the default target,
+/// and no call makes the manager read every unit it holds.
 #[test]
-fn provisioning_asks_the_manager_for_nothing_that_enables_a_unit() {
-    let allowed: [&str; 6] = ["reload", "reset-failed", "start", "stop", "stop-alone", "state"];
+fn provisioning_asks_the_manager_for_nothing_that_enables_a_unit_and_for_no_reload() {
+    let allowed: [&str; 6] = ["reset-failed", "start", "restart", "stop", "stop-alone", "state"];
+    // What: The calls of every run, counted together.
+    // Why:  A run that found everything as it would write it asks nothing at all, which is the fast path this release added;
+    //       the list is still checked against the calls a run that does have work to do makes.
+    let mut asked: usize = 0;
     for (machine, _before, _after, calls) in runs() {
-        assert!(!calls.is_empty(), "the run asked the manager for something");
         for call in &calls {
             let verb: &str = call.split(' ').next().unwrap_or("");
             assert!(allowed.contains(&verb), "{call}: not a call that provisioning may make");
         }
+        asked += calls.len();
         remove(machine.root.as_path());
     }
+    assert!(asked > 0, "one of the runs asked the manager something, so the list is checked against real calls");
 }

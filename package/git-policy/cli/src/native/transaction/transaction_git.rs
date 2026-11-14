@@ -415,7 +415,7 @@ fn run_git_watched(context: &GitContext, request: &GitRequest, terms: WatchTerms
     // A stop of the service lets the branch write finish (owner, 2026-11-08, "B: let a branch write finish (Recommended)").
     let a_stop_lets_it_finish: bool = matches!(bound, StepBound::Unbounded) && is_branch_write(request);
     let watched = output_watched_within_for_a_stop(&mut command, subject.as_str(), ledger_step.as_str(), terms, may_be_rerun(request), bound, a_stop_lets_it_finish);
-    crate::transaction_step_durations::note_step(ledger_step.as_str(), began, began.elapsed());
+    crate::transaction_step_durations::note_step_asked(ledger_step.as_str(), request.arguments.as_slice(), began, began.elapsed());
     let output: std::process::Output = watched?;
     return Ok(GitOutput {
         code: output.status.code(),

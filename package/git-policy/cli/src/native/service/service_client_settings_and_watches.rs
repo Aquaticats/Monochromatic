@@ -17,7 +17,6 @@ use crate::service_instance::{service_unit_instance, socket_unit_instance};
 use crate::service_provision::ProvisionHost;
 use crate::systemd_dbus::{Bus, EXCHANGE_WAIT};
 use crate::service_server::Bind;
-use std::path::PathBuf;
 use std::time::Duration;
 /// How long a start takes before the client says it is starting the service.
 pub const START_NOTICE_GRACE: Duration = Duration::from_secs(1);
@@ -79,20 +78,6 @@ pub struct ClientConfig {
     pub extra_wait: Duration,
     /// The longest a start is waited for when the service manager can be asked.
     pub start_ceiling: Duration,
-    /// What:
-    ///  The runtime directory whose record of the unit texts the manager was told about is dropped when a service of
-    ///  another release will not retire,
-    /// or nothing where this client did not provision.
-    /// Why:
-    ///   A service of another release that will not stop is proof that the unit the manager loaded and the files on disk
-    ///  disagree,
-    /// whatever a record says;
-    /// dropping the record makes the next commit set the units up again,
-    /// which is
-    ///  the only repair of an interrupted downgrade followed by an interrupted upgrade
-    ///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
-    /// finding 2 of the round-2 review).
-    pub units_record_dir: Option<PathBuf>,
 }
 
 /// What:
@@ -163,10 +148,6 @@ pub struct ManagerWatch {
     /// which is the one repair of a unit it reports `active` whose program stopped inside its own process;
     /// whether the manager took the request.
     pub restart: fn(&std::path::Path, &str) -> bool,
-    /// Asks the manager to read the unit files again,
-    /// which is what makes it forget a unit whose executable is gone;
-    /// whether the manager took the request.
-    pub reload: fn(&std::path::Path) -> bool,
 }
 
 /// How often the service manager is asked whether the service unit failed,
@@ -185,13 +166,6 @@ pub(crate) fn unit_state(bus: &std::path::Path, unit: &str) -> Option<String> {
 pub(crate) fn start_unit(bus: &std::path::Path, unit: &str) -> bool {
     let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
     return connection.start_unit(unit).is_ok();
-}
-
-/// Asks the manager to read the units again;
-/// whether the request was taken.
-pub(crate) fn reload_units(bus: &std::path::Path) -> bool {
-    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return false };
-    return connection.reload().is_ok();
 }
 
 /// Asks the manager to forget that `unit` failed;
@@ -231,6 +205,5 @@ pub fn manager_watch_for(host: &ProvisionHost) -> ManagerWatch {
         start: start_unit,
         reset: reset_failed_unit,
         restart: restart_unit,
-        reload: reload_units,
     };
 }

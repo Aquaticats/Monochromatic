@@ -23,7 +23,7 @@ use crate::json_record::quote;
 use crate::private_storage::{sync_directory, write_exclusive_scratch, write_exclusive_synced};
 use crate::random_id::random_uuid;
 use crate::worktree_copy_error::{WorktreeCopyError, failure_with_cause, raw_failure, raw_failure_of};
-use crate::worktree_copy_journal_encoding_and_validation::{JOURNAL_PARENT_NAME, JOURNAL_SUFFIX, JOURNAL_VERSION_NAME, Journal, PendingJournal, Phase, TEMPORARY_SUFFIX, encode_journal, parse_journal};
+use crate::worktree_copy_journal_encoding_and_validation::{JOURNAL_PARENT_NAME, JOURNAL_SUFFIX, JOURNAL_VERSION_NAME, Journal, JournalRefusal, PendingJournal, Phase, TEMPORARY_SUFFIX, encode_journal, parse_journal_reading};
 use crate::worktree_copy_owner::{CopyOwner, current_copy_owner, token_owner_is_dead};
 use crate::worktree_copy_selection::by_js_order;
 use crate::worktree_copy_stage::StagedSnapshot;
@@ -146,7 +146,7 @@ pub fn journal_root(common_dir: &Path) -> PathBuf {
 /// ```ts
 /// await mkdir(path, { mode: 0o700 }) // EEXIST accepted; then assertPrivateWorktreeCopyPath
 /// ```
-fn ensure_private_directory(path: &Path) -> Result<(), WorktreeCopyError> {
+pub(crate) fn ensure_private_directory(path: &Path) -> Result<(), WorktreeCopyError> {
     use std::os::unix::fs::DirBuilderExt;
     // `match` accepts an existing directory and reports every other creation failure.
     match std::fs::DirBuilder::new().mode(0o700).create(path) {
@@ -400,7 +400,15 @@ pub fn create_journal_for(
 pub fn journal_items_exist(common_dir: &Path) -> Result<bool, WorktreeCopyError> {
     // `match` treats an absent root as holding nothing, and every other failure as fatal.
     return match std::fs::read_dir(journal_root(common_dir).as_path()) {
-        Ok(mut listing) => Ok(listing.next().is_some()),
+        Ok(mut listing) => Ok(listing.any(|listed| {
+            // A record the command that found it moved aside is not work any later command does: the folder that keeps
+            // those records stands until the repository is gone, and a look at it would make every command pay for a
+            // sweep they have nothing to do.
+            return match listed {
+                Ok(entry) => entry.file_name() != std::ffi::OsStr::new(crate::worktree_copy_unreadable_records::UNREADABLE_FOLDER),
+                Err(_unreadable) => true,
+            };
+        })),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
         Err(error) => Err(raw_failure(&error)),
     };
@@ -458,22 +466,6 @@ pub fn journal_owner_is_dead(pending: &PendingJournal) -> Result<bool, WorktreeC
 }
 
 /// What:
-///  Check that a listed journal file is private,
-/// read it and parse it.
-/// Why:
-///   Only a journal this user owns and can prove is its own may be acted on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// parseJournal(readJournalText(path), path, root) // after assertPrivatePath
-/// ```
-fn load_listed_journal(path: &Path, root: &Path) -> Result<Journal, WorktreeCopyError> {
-    assert_private_path(path, Role::JournalFile)?;
-    let text: String = read_journal_text(path)?;
-    return parse_journal(text.as_str(), path, root);
-}
-
-/// What:
 ///  Rename a written temporary file over `path`,
 /// and make the directory durable when the flush mode asks.
 /// Why:
@@ -493,47 +485,96 @@ fn publish_written(temporary: &Path, path: &Path, flush: Flush) -> std::io::Resu
 }
 
 /// What:
+///  One journal file as a listing found it:
+/// a record this release reads,
+/// or one it cannot read.
+/// Why:
+///   The record a copy writes is published whole,
+/// so a file at a journal's name that does not parse is the mark of a write a crash cut short;
+/// the command that found it settles it
+/// (`worktree_copy_unreadable_records`)
+/// and the commands that only need the readable journals never see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type JournalFile = { kind: 'pending'; pending: PendingJournal } | { kind: 'unreadable'; path: string; reason: string };
+/// ```
+pub enum JournalFile {
+    /// A journal this release reads.
+    Pending(PendingJournal),
+    /// A file at a journal's name whose bytes are not the record this release writes.
+    Unreadable {
+        /// The file.
+        path: PathBuf,
+        /// What one line says about why it does not read.
+        reason: String,
+    },
+}
+
+/// What:
 ///  Reads one journal a listing named,
 /// or nothing when the file is gone by the time it is read.
 /// Why:
 ///   Another command finishes or takes over a journal at any moment,
-/// which is no fault of this reader;
-/// every other failure,
-///  a corrupt or unsafe journal included,
-/// is reported.
+/// which is no fault of this reader.
+/// A file whose bytes are not the record this release writes is reported as unreadable rather than
+///  refused,
+/// because the record a copy writes is published whole and a file that does not read is what a crash leaves;
+/// a file another account owns,
+/// or a link or a pipe at the name,
+/// stays a refusal,
+/// because no crash writes one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const pending = await readListedJournal(root, name); // undefined when it vanished
+/// const reading = await readListedJournal(root, name); // undefined when it vanished
 /// ```
-fn read_listed_journal(root: &Path, name: &str) -> Result<Option<PendingJournal>, WorktreeCopyError> {
+fn read_listed_journal(root: &Path, name: &str) -> Result<Option<JournalFile>, WorktreeCopyError> {
     let path: PathBuf = root.join(name);
-    let loaded: Result<Journal, WorktreeCopyError> = load_listed_journal(path.as_path(), root);
-    // `match` on the load: a vanished journal is skipped; any other failure is reported.
-    match loaded {
-        Ok(journal) => return Ok(Some(PendingJournal { path, journal })),
-        Err(error) => {
-            let vanished: bool = matches!(std::fs::symlink_metadata(path.as_path()), Err(ref lookup) if lookup.kind() == std::io::ErrorKind::NotFound);
-            if vanished {
-                return Ok(None);
-            }
-            return Err(error);
-        }
+    // `match` on the lookup: a journal another command settled is nobody's fault, and every other refusal is a fault.
+    match std::fs::symlink_metadata(path.as_path()) {
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(raw_failure(&error)),
     }
+    assert_private_path(path.as_path(), Role::JournalFile)?;
+    let bytes: Vec<u8> = match std::fs::read(path.as_path()) {
+        Ok(read) => read,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            let message: String = format!(
+                "monochromatic-git-policy-cli: could not read worktree-copy journal {}.",
+                quote(path.to_string_lossy().as_ref())
+            );
+            return Err(failure_with_cause(message.as_str(), Some(&error)));
+        }
+    };
+    // A journal is text this wrapper wrote; bytes that are not UTF-8 are damage, and no path is read from them.
+    let Ok(text) = String::from_utf8(bytes) else {
+        return Ok(Some(JournalFile::Unreadable { path, reason: String::from("its bytes are not text") }));
+    };
+    // `match` on the parse: damage is settled by its finder, and a record whose paths no writer writes stays a refusal.
+    return match parse_journal_reading(text.as_str(), path.as_path(), root) {
+        Ok(journal) => Ok(Some(JournalFile::Pending(PendingJournal { path, journal }))),
+        Err(JournalRefusal::Unsafe(error)) => Err(error),
+        Err(refusal) => Ok(Some(JournalFile::Unreadable { path, reason: refusal.reason() })),
+    };
 }
 
 /// What:
 ///  Lists the journal files of a common directory,
 /// validated,
-/// in journal-name order.
+/// in journal-name order,
+/// with the ones this release cannot read named.
 /// Why:
-///   Recovery and the pending check read the same validated set.
+///   The settle pass moves an unreadable journal aside;
+/// every other reader asks only for the journals it can act on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await readPendingWorktreeCopyJournals(commonDir);
+/// await readListedWorktreeCopyJournals(commonDir);
 /// ```
-pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, WorktreeCopyError> {
+pub fn read_listed_journals(common_dir: &Path) -> Result<Vec<JournalFile>, WorktreeCopyError> {
     let root: PathBuf = journal_root(common_dir);
     // `match` treats an absent root as having no journals, and every other failure as fatal.
     match std::fs::symlink_metadata(root.as_path()) {
@@ -565,47 +606,37 @@ pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, W
         }
     }
     names.sort_by(by_js_order);
-    let mut pending: Vec<PendingJournal> = Vec::new();
+    let mut journals: Vec<JournalFile> = Vec::new();
     for name in names {
         if let Some(found) = read_listed_journal(root.as_path(), name.as_str())? {
+            journals.push(found);
+        }
+    }
+    return Ok(journals);
+}
+
+/// What:
+///  Lists the journal files of a common directory,
+/// validated,
+/// in journal-name order.
+/// Why:
+///   Recovery and the pending check read the same validated set.
+/// An unreadable journal is not among them:
+///  the command that found it settles it first,
+/// and a reader that meets one anyway has nothing it may act on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await readPendingWorktreeCopyJournals(commonDir);
+/// ```
+pub fn read_pending_journals(common_dir: &Path) -> Result<Vec<PendingJournal>, WorktreeCopyError> {
+    let mut pending: Vec<PendingJournal> = Vec::new();
+    for journal in read_listed_journals(common_dir)? {
+        if let JournalFile::Pending(found) = journal {
             pending.push(found);
         }
     }
     return Ok(pending);
-}
-
-/// What:
-///  The text of one journal file,
-/// read as UTF-8 with replacement,
-/// as the incumbent reads it.
-/// Why:
-///   An unreadable journal is named,
-/// not skipped.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await readFile(path, 'utf8')
-/// ```
-fn read_journal_text(path: &Path) -> Result<String, WorktreeCopyError> {
-    let bytes: Vec<u8> = match std::fs::read(path) {
-        Ok(read) => read,
-        Err(error) => {
-            let message: String = format!(
-                "monochromatic-git-policy-cli: could not read worktree-copy journal {}.",
-                quote(path.to_string_lossy().as_ref())
-            );
-            return Err(failure_with_cause(message.as_str(), Some(&error)));
-        }
-    };
-    // A journal is text this wrapper wrote; bytes that are not UTF-8 are damage, and no path is read from them.
-    let Ok(text) = String::from_utf8(bytes) else {
-        let message: String = format!(
-            "monochromatic-git-policy-cli: could not read worktree-copy journal {}: it is not text.",
-            quote(path.to_string_lossy().as_ref())
-        );
-        return Err(failure_with_cause(message.as_str(), None));
-    };
-    return Ok(text);
 }
 
 /// Journal controls stay out of the release executable.

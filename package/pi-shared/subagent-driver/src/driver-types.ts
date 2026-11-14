@@ -28,7 +28,9 @@ export type PiExit = {
 /**
  Why a run ended. `idle` and `stop-file` are the ends a run chooses; the others fail the driver.
 
- `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from, `pi-not-stopped`
+ `idle` means the agent ended its turn with nothing of its own still running: a run whose work is still going when the agent
+ settles is kept, and ends on its wall clock instead if the work outlasts it. `model-error` means Pi settled on a last assistant
+ message that ended in an error nothing recovered from, `pi-not-stopped`
  means Pi was still alive when every bound on ending it ran out, `compaction-failed` means a compaction Pi reported failing left
  it silent instead of taking the prompt, and `driver-failed` covers the driver's own failures.
  */
@@ -43,6 +45,22 @@ export type EndReason =
     | 'driver-failed'
     | 'model-error'
     | 'pi-not-stopped';
+
+/**
+ Every reason a run can end with, so a reader of summaries can ask about all of them without naming any twice.
+ */
+export const END_REASONS: readonly EndReason[] = [
+  'idle',
+  'stop-file',
+  'prompt-rejected',
+  'compaction-failed',
+  'pi-exited',
+  'turn-cap',
+  'wall-clock',
+  'driver-failed',
+  'model-error',
+  'pi-not-stopped',
+];
 
 /**
  Where a run stands: over for a reason, or still going.
@@ -212,6 +230,13 @@ export type RunSummary = {
   readonly driverError?: string;
 
   /**
+   What the driver failed to read when it asked what the run left running, which is why it cannot say whether anything of the
+   run's still runs. It sits beside the end reason rather than in its place: the agent had ended its turn and Pi had exited by the
+   time it was asked, so the run did its work whether or not the answer could be read.
+   */
+  readonly workProblem?: string;
+
+  /**
    What Pi reported of the compaction it could not finish while the run waited for its prompt: the failure, or the compaction
    still running when the run's own bound ended it. Absent when the run never waited on a compaction.
    */
@@ -338,6 +363,12 @@ export type RecordOfPiRun = {
    Keeps what went wrong in the driver itself, for the summary.
    */
   readonly noteDriverFailure: (failure: string,) => void;
+
+  /**
+   Keeps what the driver failed to read when it asked what the run left running, which the feed notes under its own name and the
+   summary carries beside the end reason.
+   */
+  readonly noteWorkProblem: (failure: string,) => void;
 
   /**
    Why the feed is incomplete, when writing it failed. A run whose feed failed did not end clean.

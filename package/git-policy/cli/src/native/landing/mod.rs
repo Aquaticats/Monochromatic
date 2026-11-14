@@ -88,6 +88,11 @@ pub mod service_messages_of_an_interrupted_commit;
 /// and that the service is restarted or the commit built again.
 pub mod service_messages_of_a_wait_for_the_service;
 
+/// The words for a commit whose service said nothing,
+/// stopped reading its request,
+/// or stopped answering it.
+pub mod service_messages_of_a_service_that_stopped;
+
 /// The one branch write of a settlement,
 /// and what the batch owes around it.
 pub mod held_commit_settle_move;
@@ -159,6 +164,18 @@ pub mod service_land_branch_move_transaction;
 /// The Git steps of a landing,
 /// the import stream of a batch and the overlap tests of its requests.
 pub mod service_land_git_steps_and_import_stream;
+
+/// The write of a landing's own side reference:
+/// made once more only when the wait for it ended without an answer,
+/// never replacing a reference another command wrote,
+/// answered by the reference's own value,
+/// and what the landing does with a commit whose reference it could not prove.
+pub mod service_land_side_reference_write;
+
+/// The batch whose own scratch reference the write did not prove:
+/// it lands as real Git lands a commit,
+/// and the person is told once that the extra protection was not in place.
+pub mod service_land_without_its_scratch_reference;
 
 /// The objects a batch lands:
 /// the commit Git built,
