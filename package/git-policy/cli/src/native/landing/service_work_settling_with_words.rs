@@ -74,7 +74,7 @@ pub(crate) struct Settling {
 pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed, verdict: Verdict, kind: &str) -> Option<Settling> {
     match verdict {
         Verdict::Done => {
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await.map(|held| { return Settling { held, look_again: false }; });
+            return settle_all_awaiting(held, work_dir, vec![item], DONE).await.map(|back| { return Settling { held: back, look_again: false }; });
         }
         Verdict::Delivered { said, .. } => {
             // Only a push answers this, and a push is settled by `settle_after_the_push`, which records what it said before
@@ -82,11 +82,11 @@ pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, ite
             //  which this module cannot make: the words are said rather than dropped, and the item is settled as done, because
             //  nothing here may fail a person's work over the shape of an answer.
             crate::service_warn!("a step that answers in words answered as a push did, and its words are said here: {said}");
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await.map(|held| { return Settling { held, look_again: false }; });
+            return settle_all_awaiting(held, work_dir, vec![item], DONE).await.map(|back| { return Settling { held: back, look_again: false }; });
         }
         Verdict::Failed(reason) => {
             say_it_failed(kind, &item, reason.as_str());
-            return settle_all_awaiting(held, work_dir, vec![item], FAILED).await.map(|held| { return Settling { held, look_again: false }; });
+            return settle_all_awaiting(held, work_dir, vec![item], FAILED).await.map(|back| { return Settling { held: back, look_again: false }; });
         }
         // What:
         //  A step that ran out of its own bound with work left is queued again here,
@@ -99,7 +99,7 @@ pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, ite
         //  the round it asks for is the next look, not a retry after a pause a failure waits.
         Verdict::Deferred(reason) => {
             say_it_went_as_far_as_its_bound(kind, &item, reason.as_str());
-            return settle_all_awaiting(held, work_dir, vec![item], PENDING).await.map(|held| { return Settling { held, look_again: true }; });
+            return settle_all_awaiting(held, work_dir, vec![item], PENDING).await.map(|back| { return Settling { held: back, look_again: true }; });
         }
         Verdict::Retry(reason) => {
             say_it_failed(kind, &item, format!("{reason}; this is tried again when its claim runs out").as_str());
@@ -113,7 +113,7 @@ pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, ite
                 "subvolume delete" => crate::service_log!("the subvolume {} was left as it is: {reason}", item.item.parent),
                 _ => crate::service_log!("the review of {} was skipped: {reason}", item.item.oid),
             }
-            return settle_all_awaiting(held, work_dir, vec![item], DONE).await.map(|held| { return Settling { held, look_again: false }; });
+            return settle_all_awaiting(held, work_dir, vec![item], DONE).await.map(|back| { return Settling { held: back, look_again: false }; });
         }
     }
 }

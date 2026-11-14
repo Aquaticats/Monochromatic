@@ -38,7 +38,9 @@ use std::time::{Duration, Instant};
 
 /// How many entries the trash holds:
 /// more than the rounds a trash may need, at one wave an entry, than the tries a failure is given.
-const ENTRIES: usize = 2 * (MAX_TRIES as usize + 1);
+/// How many rounds the trash must need to prove the point:
+/// one more than the tries a failure is given.
+const ROUNDS_NEEDED: usize = MAX_TRIES as usize + 1;
 
 /// One trash item's ceiling, as this control states it:
 /// a second, so a wave held past it ends that round in a moment.
@@ -47,7 +49,7 @@ const THE_CEILING: Duration = Duration::from_secs(1);
 /// The longest this control waits for a state it expects within a moment.
 const PATIENCE: Duration = Duration::from_secs(30);
 
-/// A worktree with a planted trash of `ENTRIES` entries under its common directory's work directory,
+/// A worktree with a planted trash of as many entries as the rounds need at this host's wave width,
 /// the record the leave-out would have written,
 /// and the directory a hold of this control goes in.
 struct Staged {
@@ -65,11 +67,13 @@ struct Staged {
     name: String,
     /// Where the hold of this control says it was reached and is let go.
     holds: PathBuf,
+    /// How many entries the trash holds.
+    entries: usize,
 }
 
 /// What:
 ///  A linked worktree of a common directory,
-///  with a trash of `ENTRIES` entries,
+///  with a trash of as many entries as the rounds need,
 ///  and the record of that trash in the common directory's work directory.
 /// Why:
 ///   The emptying proves the worktree's `.git` pointer, the trash's identity and each entry's identity, and this is the
@@ -83,7 +87,14 @@ fn stage(label: &str) -> Staged {
     std::fs::create_dir_all(worktree.as_path()).expect("the worktree");
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", git_dir.display())).expect("the .git file");
     let name: String = "7".repeat(40);
-    for index in 0..ENTRIES {
+    // What:
+    //  Enough entries that the trash needs more rounds than the tries a failure is given at the wave width this process
+    //  has.
+    // Why:
+    //  A wave is `places_a_round_may_take()` entries at most and that width follows the CPUs a run is given,
+    // so a fixed count would prove nothing on a host whose wave is wide: the count is the width times the rounds.
+    let entries: usize = crate::blocking_jobs_within_the_budget::places_a_round_may_take().max(1) * ROUNDS_NEEDED;
+    for index in 0..entries {
         let entry: PathBuf = worktree.join(TRASH_PARENT).join(name.as_str()).join(entry_name(index));
         std::fs::create_dir_all(entry.join("payload")).expect("a trash entry");
         std::fs::write(entry.join("payload/credentials"), b"another worktree's token\n").expect("an entry file");
@@ -92,7 +103,7 @@ fn stage(label: &str) -> Staged {
     let names = plain_components(Path::new(TRASH_PARENT)).expect("a plain parent");
     let parent: std::fs::File = open_directory_beneath(&held, names.as_slice()).expect("the trash parent");
     let trash: std::fs::File = open_directory_at(&parent, OsStr::new(name.as_str())).expect("the trash");
-    let identities: Vec<ObjectId> = (0..ENTRIES)
+    let identities: Vec<ObjectId> = (0..entries)
         .map(|index: usize| { return identity_at(&trash, OsStr::new(entry_name(index).as_str())).expect("an entry identity"); })
         .collect();
     let manifest: TrashManifest = TrashManifest { name: name.clone(), trash: identity_of(&trash).expect("the trash identity"), entries: identities };
@@ -107,14 +118,14 @@ fn stage(label: &str) -> Staged {
     unsafe {
         std::env::set_var(crate::wait_ceilings::TRASH_ITEM_CEILING_VARIABLE, THE_CEILING.as_secs().to_string());
     }
-    return Staged { root, worktree, work, common, id: format!("trash-{name}"), name, holds };
+    return Staged { root, worktree, work, common, id: format!("trash-{name}"), name, holds, entries };
 }
 
 impl Staged {
     /// How many of the trash's entries are still there.
     fn entries_present(&self) -> usize {
         let trash: PathBuf = self.worktree.join(TRASH_PARENT).join(self.name.as_str());
-        return (0..ENTRIES).filter(|index| { return trash.join(entry_name(*index)).exists(); }).count();
+        return (0..self.entries).filter(|index| { return trash.join(entry_name(*index)).exists(); }).count();
     }
 
     /// Where the record stands now,
@@ -211,7 +222,7 @@ fn a_round(staged: &Staged, now: &ClaimTime, ceiling_reached: &std::sync::Arc<st
 ///  This is the review's finding 1 as a control:
 /// before the repair every round answered `Retry`, the recovery gave the record one more try each time it ran out its
 /// lease, and the record reached `failed` at `MAX_TRIES` with entries still on the disk, where nothing reads it again.
-/// The control drives five rounds of a trash of `ENTRIES` entries, holding each past its ceiling, and asserts the three
+/// The control drives a trash of more entries than the tries cover, holding each round past its ceiling, and asserts the three
 /// things the repair makes true: the rounds were more than the tries, the record is `done`, and its tries stayed zero.
 #[test]
 fn a_trash_of_more_rounds_than_the_tries_is_emptied_and_never_given_up_on() {
