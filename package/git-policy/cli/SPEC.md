@@ -7629,9 +7629,20 @@ on the commit path:
   so an interrupted commit left no record at all.
   The sender is what tells a keyboard's interrupt from the stop a caller sends at its own bound,
   which is the same `SIGTERM`.
+  The signal and its sender are kept as one word
+  (`src/native/process/stop_word.rs`),
+  and the wait takes them in one read:
+  a stop that arrives while the first is being answered can never rename the first one's sender,
+  which is what a record pairs when it states one stop's signal with another stop's process.
   A second signal ends the command at once,
-  and a `SIGKILL` is caught by nobody,
-  so that command leaves no record:
+  where it is,
+  and it is the second signal that ends it:
+  the command leaves no record at all,
+  because the record of the first stop is written after the withdrawal is answered and the process is gone before that,
+  and the person who sent the second signal gets what they asked for,
+  the command ending now rather than waiting out the answer it had already asked to withdraw.
+  A `SIGKILL` is caught by nobody,
+  so that command leaves no record either:
   the next command in the worktree finds the branch where it was and everything the person staged still staged.
   A commit that landed before the signal came stays landed and says so,
   and the next command reads the landing from the branch.
