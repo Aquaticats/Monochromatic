@@ -74,16 +74,22 @@ fn samples() -> Vec<ClientFailure> {
     return all;
 }
 
-//region One line for each variant of `ClientFailure`: the name this file knows it by, and the pattern that matches it.
+//region One line for each variant of `ClientFailure`: the name this file knows it by, and the path of the variant.
 
 /// What:
 ///  Every variant of `ClientFailure` on a line of its own:
 ///  the name this file knows it by,
-/// and the pattern that matches it.
+/// and the path of the variant.
 /// Why:
-///   The compiler checks that the lines cover every variant of the enum,
-/// so a variant added to `ClientFailure` breaks this file until it has a line here,
-/// and the name sits on the line of the pattern it names,
+///   The macro writes the pattern around that path,
+/// so `ClientFailure::RepositoryFrozen` becomes `ClientFailure::RepositoryFrozen { .. }`,
+/// and a line can only ever match one variant:
+///  neither an or-pattern (`A | B`) nor a catch-all (`_`) is a path,
+/// so `each_failure_variant!` does not accept one,
+/// and counting two variants as one does not compile.
+/// The compiler also checks that the lines cover every variant of the enum,
+/// so a variant added to `ClientFailure` breaks this file until it has a line here.
+/// The name sits on the line of the path it names,
 /// so there is no number,
 /// and no second list,
 /// to keep in step.
@@ -91,12 +97,16 @@ fn samples() -> Vec<ClientFailure> {
 ///  with the sample of `RepositoryFrozen` taken away (measured 2026-11-14).
 ///  Writing the name out keeps a repeated name expressible,
 /// which is the mistake that test has to catch.
+///  The two forms the path closes were reproduced against the pattern-taking macro on 2026-11-14:
+///  folding two lines into one or-pattern arm passed the test,
+///  and so did a catch-all,
+///  because neither repeated a name and the match stayed exhaustive.
 macro_rules! each_failure_variant {
-    ( $( $name:literal => $pattern:pat ),* $(,)? ) => {
+    ( $( $name:literal => $variant:path ),* $(,)? ) => {
         /// The name of `failure`'s variant.
         fn variant_name(failure: &ClientFailure) -> &'static str {
             return match failure {
-                $( $pattern => $name, )*
+                $( $variant { .. } => $name, )*
             };
         }
 
@@ -108,39 +118,39 @@ macro_rules! each_failure_variant {
 
 each_failure_variant! {
     "DidNotStart" => ClientFailure::DidNotStart,
-    "NothingAnswered" => ClientFailure::NothingAnswered { .. },
-    "NoActivation" => ClientFailure::NoActivation(_),
+    "NothingAnswered" => ClientFailure::NothingAnswered,
+    "NoActivation" => ClientFailure::NoActivation,
     "OtherAccount" => ClientFailure::OtherAccount,
     "MayNotHaveLanded" => ClientFailure::MayNotHaveLanded,
     "NoCommonVersion" => ClientFailure::NoCommonVersion,
     "OtherRelease" => ClientFailure::OtherRelease,
-    "RepositoryFull" => ClientFailure::RepositoryFull(_),
-    "RepositoryReadOnly" => ClientFailure::RepositoryReadOnly(_),
-    "PermissionDenied" => ClientFailure::PermissionDenied(_),
-    "RepositoryFrozen" => ClientFailure::RepositoryFrozen(_),
-    "BranchKeepsChanging" => ClientFailure::BranchKeepsChanging { .. },
-    "BranchMoved" => ClientFailure::BranchMoved { .. },
-    "ConclusionStateChanged" => ClientFailure::ConclusionStateChanged { .. },
-    "BranchMovedMessageSaved" => ClientFailure::BranchMovedMessageSaved { .. },
-    "BranchSwitched" => ClientFailure::BranchSwitched { .. },
+    "RepositoryFull" => ClientFailure::RepositoryFull,
+    "RepositoryReadOnly" => ClientFailure::RepositoryReadOnly,
+    "PermissionDenied" => ClientFailure::PermissionDenied,
+    "RepositoryFrozen" => ClientFailure::RepositoryFrozen,
+    "BranchKeepsChanging" => ClientFailure::BranchKeepsChanging,
+    "BranchMoved" => ClientFailure::BranchMoved,
+    "ConclusionStateChanged" => ClientFailure::ConclusionStateChanged,
+    "BranchMovedMessageSaved" => ClientFailure::BranchMovedMessageSaved,
+    "BranchSwitched" => ClientFailure::BranchSwitched,
     "ServiceSilent" => ClientFailure::ServiceSilent,
-    "ServiceNotReading" => ClientFailure::ServiceNotReading { .. },
-    "ServiceSilentAfterPreparing" => ClientFailure::ServiceSilentAfterPreparing { .. },
-    "StillWithService" => ClientFailure::StillWithService { .. },
-    "WithdrawalUnconfirmed" => ClientFailure::WithdrawalUnconfirmed { .. },
-    "Interrupted" => ClientFailure::Interrupted { .. },
-    "InterruptedNotKnown" => ClientFailure::InterruptedNotKnown { .. },
+    "ServiceNotReading" => ClientFailure::ServiceNotReading,
+    "ServiceSilentAfterPreparing" => ClientFailure::ServiceSilentAfterPreparing,
+    "StillWithService" => ClientFailure::StillWithService,
+    "WithdrawalUnconfirmed" => ClientFailure::WithdrawalUnconfirmed,
+    "Interrupted" => ClientFailure::Interrupted,
+    "InterruptedNotKnown" => ClientFailure::InterruptedNotKnown,
     "StepTooSlow" => ClientFailure::StepTooSlow,
     "Refused" => ClientFailure::Refused,
-    "IndexInUse" => ClientFailure::IndexInUse(_),
-    "ReferenceLocked" => ClientFailure::ReferenceLocked { .. },
+    "IndexInUse" => ClientFailure::IndexInUse,
+    "ReferenceLocked" => ClientFailure::ReferenceLocked,
     "Unavailable" => ClientFailure::Unavailable,
-    "ProgramMissing" => ClientFailure::ProgramMissing(_),
-    "CouldNotStart" => ClientFailure::CouldNotStart(_),
-    "SocketPathTooLong" => ClientFailure::SocketPathTooLong { .. },
-    "ServiceElsewhere" => ClientFailure::ServiceElsewhere { .. },
-    "UnitInTheWay" => ClientFailure::UnitInTheWay(_),
-    "WorkNotHandedOver" => ClientFailure::WorkNotHandedOver(_),
+    "ProgramMissing" => ClientFailure::ProgramMissing,
+    "CouldNotStart" => ClientFailure::CouldNotStart,
+    "SocketPathTooLong" => ClientFailure::SocketPathTooLong,
+    "ServiceElsewhere" => ClientFailure::ServiceElsewhere,
+    "UnitInTheWay" => ClientFailure::UnitInTheWay,
+    "WorkNotHandedOver" => ClientFailure::WorkNotHandedOver,
     "ContentPruned" => ClientFailure::ContentPruned,
 }
 
@@ -189,7 +199,8 @@ fn contains_whole(text: &str, word: &str) -> bool {
 /// The names,
 /// and how many there are,
 /// come from the one line each variant has above:
-/// nothing here is a number or a list kept in step by hand.
+/// nothing here is a number or a list kept in step by hand,
+/// and since a line matches one variant only the count is the number of variants.
 ///  Measured 2026-11-14:
 ///  with the sample of `RepositoryFrozen` taken away,
 ///  the numbered form of this test passed.
