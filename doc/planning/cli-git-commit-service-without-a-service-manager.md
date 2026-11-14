@@ -1580,3 +1580,21 @@ abstract), `ask_to_retire`, `service_warm_request`, `service_server_socket_bindi
 `service_route::service_answers` (through `answered`), `service_server_start_by_the_wrapper::answered`
 and `accepts`, `service_client_shadow_hand_out` (main's `connect_within`), and the binary
 fixture's readiness probes. No release path connects to a service socket any other way.
+
+## The review of `3d5c1a0d8c`, third round: what the merge added
+
+`main` landed its own answer to the same finding while this branch was answering it:
+`service_client_connect_within_a_bound` bounds the client's connect (path and abstract
+address), and `service_route.rs` gained an `Answered` enum so the status tells a greeting, a
+silence and nothing. Both are kept. What this branch still adds on top, and what the merge
+settled:
+
+- The takeover probe in `bind_path` now uses the bound too (main left it a plain connect).
+- `CONNECT_CEILING` is one constant, **one second**, not main's five: a look at a service
+  costs this plus `GREETING_READ`, and a command's whole wait is `START_WAIT` (ten seconds),
+  so five seconds left room for one look and no second one. Main's control asserted the old
+  reason; it now asserts that a look fits three times in the whole wait.
+- Main's `service_messages_of_a_service_that_stopped.rs` and the status text named a unit and
+  `journalctl`; they name `service stop` and the log folder now, as finding 9 requires.
+- A module main added for the manager path (`service_provision_instance_unloaded.rs`) and its
+  control go with that path.
