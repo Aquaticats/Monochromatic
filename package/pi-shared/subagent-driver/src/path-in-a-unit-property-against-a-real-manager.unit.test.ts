@@ -294,44 +294,39 @@ async function askOneAwkwardPath({
   expect(await readFile(protectedFile, 'utf8',),).toBe('seed\n',);
 }
 
+/**
+ Why every test here is skipped when this machine's manager does not answer, which is asked once for the whole file.
+ */
+const { reason: NO_MANAGER_REASON, } = await noManagerReason();
+
 await describe({
   name: '',
   children: [
     describe({
       name: 'the paths a unit is given on this machine',
       children: [
-        it({
-          name: 'starts one capped unit per awkward path, with the property words this package builds, and writes only where the unit may',
-          fn: async () => {
-            /**
-             Why this test is skipped when this machine's manager does not answer.
-             */
-            const { reason, } = await noManagerReason();
-            if (reason !== undefined) {
-              console.log(`[the paths a unit is given on this machine] skipped: ${reason}`,);
-              return;
-            }
-            await using folder = await makeFolder();
-            // One unit per awkward name, all at once: each is capped by its own unit and ends at once, and a name's answer does
-            // not depend on another name's.
-            await Promise.all(AWKWARD_NAMES.map(async function askOne([caseName, insideName,],): Promise<void> {
+        ...AWKWARD_NAMES.map(function aTestForOneName([caseName, insideName,],) {
+          return it({
+            name: `starts one capped unit for a checkout path whose writable folder carries a ${caseName}, and the unit writes there and not in the checkout`,
+            fn: async () => {
+              if (NO_MANAGER_REASON !== undefined) {
+                console.log(`[the paths a unit is given on this machine] ${caseName}: skipped: ${NO_MANAGER_REASON}`,);
+                return;
+              }
+              await using folder = await makeFolder();
               await askOneAwkwardPath({
                 folder: folder.path,
                 caseName,
                 insideName,
               },);
-            },),);
-          },
+            },
+          },);
         },),
         it({
           name: 'starts a unit whose dash-prefixed writable path is not there, which is the checkout cache a run may find absent',
           fn: async () => {
-            /**
-             Why this test is skipped when this machine's manager does not answer.
-             */
-            const { reason, } = await noManagerReason();
-            if (reason !== undefined) {
-              console.log(`[the paths a unit is given on this machine] skipped: ${reason}`,);
+            if (NO_MANAGER_REASON !== undefined) {
+              console.log(`[the paths a unit is given on this machine] dash-prefixed-missing: skipped: ${NO_MANAGER_REASON}`,);
               return;
             }
             await using folder = await makeFolder();
