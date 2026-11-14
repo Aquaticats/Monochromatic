@@ -1236,6 +1236,48 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's stale launchers go back a third time, with the design to be weighed first; two wrapper answers go to review; the lock shim's reviewer runs (2026-11-14T13:24:01-05:00)
+
+Not final and not approved:
+what one review and two authors report of themselves,
+and what the coordinating session queued.
+
+- **mpm-shadow's stale launchers** (`649a45b459`),
+  third review:
+  five things,
+  four by a run.
+  The highest:
+  when the 5 s wait on the scope's guard runs out the install goes on without it,
+  and the holder's pass deletes the fresh record of the install beside it in the middle of its placement;
+  after a kill at the link's move a `git commit` through the postinstall link ends with status 2,
+  and the stale launcher can never be retired,
+  which is the bug the branch began with.
+  The others:
+  a postinstall link whose folder is the farm is retired by the install that makes it;
+  a person's broken link is deleted when its target's folder merely shares a basename;
+  a fallback temporary name is unchecked (by reading);
+  and every install warns about links its own postinstall command maintains.
+  Each of three reviews found the next thing in the same place,
+  installs beside each other in one scope,
+  so the author is resumed second and asked to weigh the design first
+  (lock-free by an atomic rename and one owner for each item,
+  as the project's rule on concurrency reads)
+  (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **The merge that ends saved** (tip `1e04fc59d0`, ended 13:19:15):
+  the author reports both findings answered,
+  the review's scripts no longer reproducing either,
+  and a list of words on neighbouring refusals it left alone.
+  Review queued third (fifteen code files).
+- **A commit that does not land** (tip `f7fe3be7ee`, ended 13:21:55):
+  the author reports the signal and its sender recorded as one fact,
+  195 tests of the changed modules and five binary controls passing.
+  Review queued fourth (29 code files).
+- **The lock shim's reviewer**,
+  put back at 13:15,
+  is going:
+  its run folder `…-2` exists and its unit is active at 13:24.
+- The queue held 62 entries at 13:24:01.
+
 ##### A queue entry was lost for an hour and three quarters behind a launcher that outlived its run; the queue-filling change goes to review (2026-11-14T13:15:42-05:00)
 
 Not final and not approved:
