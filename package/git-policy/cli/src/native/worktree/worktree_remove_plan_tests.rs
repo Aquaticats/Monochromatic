@@ -46,13 +46,22 @@ fn a_forced_removal_names_the_directory_and_the_force() {
     let root: PathBuf = fixture("remove-plan-forced");
     std::fs::create_dir(root.join("wt")).expect("directory");
     let canonical: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical");
-    for values in [vec!["worktree", "remove", "-f", "wt"], vec!["worktree", "remove", "--force", "wt"], vec!["worktree", "remove", "--force", "--", "wt"], vec!["worktree", "remove", "-f", "--", "wt"]] {
+    // Every spelling Git's `OPT__FORCE` reads as a force, the second one and the abbreviations included: the ladder
+    // serves them as Git does, and a locked worktree is still Git's (`lock_state` leaves it to Git).
+    for values in [
+        vec!["worktree", "remove", "-f", "wt"],
+        vec!["worktree", "remove", "--force", "wt"],
+        vec!["worktree", "remove", "--force", "--", "wt"],
+        vec!["worktree", "remove", "-f", "--", "wt"],
+        vec!["worktree", "remove", "-f", "-f", "wt"],
+        vec!["worktree", "remove", "-ff", "wt"],
+        vec!["worktree", "remove", "--forc", "wt"],
+    ] {
         let plan = parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None);
         assert_eq!(plan, Some(RemovePlan { target: canonical.clone(), operand: OsString::from("wt"), force: true }), "{values:?}");
     }
-    // A second force is Git's: it is what removes a locked worktree, and a spelling the wrapper does not read is not one
-    // force.
-    for values in [vec!["worktree", "remove", "-f", "-f", "wt"], vec!["worktree", "remove", "-ff", "wt"], vec!["worktree", "remove", "--forc", "wt"], vec!["worktree", "remove", "-fq", "wt"], vec!["worktree", "remove", "-f"]] {
+    // An option Git does not know, and a switch with no directory, name no removal: Git answers those with its usage.
+    for values in [vec!["worktree", "remove", "-fq", "wt"], vec!["worktree", "remove", "-f"]] {
         assert_eq!(parse_remove_plan(os_arguments(values.as_slice()).as_slice(), 0, root.as_path(), None), None, "{values:?}");
     }
     remove(root.as_path());
