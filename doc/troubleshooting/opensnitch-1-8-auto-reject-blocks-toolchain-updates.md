@@ -167,7 +167,9 @@ retains the build state and remaining native validation work.
 
 ## Homebrew and Codex allowances at 2026-11-14T09:00:44-05:00
 
-Status: agent-verified host repair; owner approval remains open.
+Status:
+agent-verified host repair;
+owner approval remains open.
 Codex installed the rules and ran the checks described here.
 
 ### Observed failures and correction
@@ -229,6 +231,17 @@ No future software update or reboot was performed as part of this verification.
 
 OpenSnitch logged live reloads for both final filenames at `2026-11-14T14:00:44Z`.
 The existing precedence-selection explanation in this document applies to these `000-` rules.
+The selecting predicate was re-read in
+[`daemon/rule/loader.go:497 to 515`](https://github.com/evilsocket/opensnitch/blob/b404c4c6316760fa7bc415509d3f8d747f7dc9cc/daemon/rule/loader.go#L497-L515):
+
+```go
+// daemon/rule/loader.go
+if rule.Action == Reject || rule.Action == Deny || rule.Precedence == true {
+    return rule
+}
+```
+
+`agent-browser` confirmed that the pinned selection contains this predicate.
 
 ### Cleanup and verification
 
@@ -245,6 +258,7 @@ permanent precedence allows before any deletion.
 The original download probe was:
 
 ```sh
+# /home/linuxbrew/.linuxbrew/opt/curl/bin/curl
 /home/linuxbrew/.linuxbrew/opt/curl/bin/curl \
   --fail --silent --show-error \
   --connect-timeout 10 --max-time 25 \
@@ -266,6 +280,21 @@ Only response field names were logged;
 account identities and credentials were not printed.
 This verified the reported account-read boundary and an authenticated network read.
 It did not run a model request or restart the user's active Codex session.
+
+After deleting the superseded rules,
+the download probe again returned HTTP `200`,
+and both Codex account methods again succeeded.
+The daemon log recorded deletion of every superseded file at `2026-11-14T14:03:46Z`.
+The updater's stale `start-limit-hit` state was cleared with
+`systemctl reset-failed uupd-manual.service`.
+The full system updater was not rerun.
+
+The saved JSON copies matched the installed files by SHA-256.
+The Markdown record passed the scoped `lint:monochromatic-lint` task.
+Its CommonMark rendering through Pandoc preserved the incident headings,
+rule links,
+account method names,
+and download URL.
 
 ### Upstream filing decision
 

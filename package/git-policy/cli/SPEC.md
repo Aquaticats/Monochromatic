@@ -1673,7 +1673,7 @@ and never fails the add,
 because the worktree is whole either way.
 The wake waits `HAND_OVER_GREETING_WAIT` for the service's greeting and never the commit's `START_WAIT`:
 the record is written before the wake and the add needs no answer to it,
-so a service that greets nothing costs one later wake and never the add's work
+so a service that greets nothing costs the record one look or one later wake and never the add's work
 (`src/native/worktree/worktree_trash_hand_over.rs`).
 A path that is not valid UTF-8 cannot be named by a work item,
 so the hand-over writes none,
@@ -2958,7 +2958,7 @@ and the worktree was proven clean and unlocked before either step.
 The wake waits `HAND_OVER_GREETING_WAIT` for the service's greeting and never the commit's `START_WAIT`:
 the record is written before the wake,
 and a person removing a worktree waits for none of what the service does with it,
-so a service that greets nothing costs one later wake and never the removal.
+so a service that greets nothing costs the record one look or one later wake and never the removal.
 
 The snapshots the wrapper made ahead of an add are taken before that hand-over,
 with everything else this program keeps in that registration
@@ -3575,6 +3575,12 @@ reads the record, asks Git whether anything is reported about the tree but the e
 (leaving out what stands inside the volumes it leaves,
 because the pass often deletes the ignore rule that hid one),
 and finishes the removal when nothing else stands there.
+The record is published over its name in one rename,
+so the same command run again after a kill writes the same record instead of failing on the one that is
+already there,
+a kill at any instruction leaves either the record that was there or this complete one,
+and a record a reused registration name left behind is replaced by the identities of the worktree this
+pass emptied.
 A record this build cannot read proves nothing and is left for the build that wrote it,
 a record whose registration is gone is dropped by the next removal,
 and a record that cannot be written costs that finish and never the removal.
@@ -3596,6 +3602,12 @@ it is `RemovedAround`, which carries every volume that was left,
 and `src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs` words it.
 A removal that stopped halfway is `Incomplete` with its own words:
 files it removed are gone, the worktree is still registered, and the report says which of the two happened.
+A pass that found the volume gone when it ended is reported as its own ending:
+the worktree's entries went one by one in this command,
+the empty root went with one `rmdir`,
+and nothing was handed to the commit service,
+so no delete waits behind the command,
+and the line says that instead of the destroy's words.
 A pass that emptied the tree but could not remove the registration is reported in the around route's own words:
 the worktree was emptied around what was left, the path still stands with it, Git still lists the worktree, and
 `git worktree prune` or another run of the same removal finishes it.
@@ -5491,6 +5503,13 @@ so the merge commit is kept on `refs/cli-git/kept/<n>` beside a record and the n
 a cross-vendor audit of alpha.12,
 "A merge waits for another agent's live index holder",
 found the minute of waiting this replaces).
+A lock no process is proven to hold counts as another program's command too,
+because it is exactly as likely to be one:
+native Git keeps the whole index in `index.lock` through its hooks and editor with no descriptor open,
+and writes no PID file unless `core.lockfilePid` is on,
+so a person's own `git commit` at its editor leaves the evidence a killed Git leaves,
+and a merge that waited for it would wait a minute for the person sitting at the machine
+(`look_at_the_index_before_a_merge` in `src/native/lock/index_holder_wait.rs`).
 
 A merge whose paths hold the person's own work carries it forward
 (owner's answer "Carry edits forward (Recommended)",
@@ -7252,8 +7271,10 @@ in `src/native/service/wait_ceilings.rs` with the measurement beside each:
   a removed worktree's subvolume,
   a push record,
   and the work after a landing).
-  The record is durable and every later command of the repository wakes the same service,
-  so an answer that does not come costs one later wake and never the work.
+  The record is durable,
+  a running service looks at it by itself every `LOOK_AGAIN_AFTER` (five seconds),
+  and every later command of the repository wakes the same service,
+  so an answer that does not come costs one look or one later wake and never the work.
   Twice the slowest of the 52 measured cold starts,
   where `START_WAIT` (ten seconds) is what a command whose next step needs the answer keeps.
 - `LANDING_LOCK_CEILING` 1 minute:
@@ -8831,7 +8852,8 @@ nothing over.
   because it is a file of this worktree's own Git directory:
   a context with no route (a non-systemd session,
   a container,
-  another `XDG_RUNTIME_DIR`) therefore leaves the push on disk for the next wake instead of losing it with the message,
+  another `XDG_RUNTIME_DIR`) therefore leaves the push on disk for the look of a running service or the next wake
+  instead of losing it with the message,
   and the line the person reads says the push is queued.
   A service that cannot be reached is said plainly,
   and the command's exit
@@ -13053,15 +13075,36 @@ A `blocked` record is not asked about at all:
 the question of whether a commit the gate refused should ever be pushed is open with the owner.
 
 A push record in `pending` is a push no service has taken yet.
-When the wrapper is killed between promoting its record and waking the service,
-or a service goes away before it looks,
-the command that would have said "the push is queued" is gone,
-so every command says it from the record:
+A running service finds it without a wake:
+it looks at every repository its journal names once every `LOOK_AGAIN_AFTER` (five seconds,
+`service_claim_watch.rs`) and lists the records waiting in each (`look_again`),
+so a record that exists and is due is found whether or not anything woke the service.
+A wrapper killed between promoting its record and waking the service,
+a message the service never read,
+and a service that was starting at that instant therefore cost the record at most that bound
+(`look_awaiting` in `service_server_work_loop_awaiting.rs`).
+The look reads no finished record:
+a repository whose records were all settled costs one listing of an empty directory,
+a look is not counted as work,
+and a service with nothing to do still ends at its idle bound.
+Nothing looks while no service runs,
+and the next command that shows the repository's notices wakes one
+(`queued_push_notices`),
+which then looks within the same bound.
+
+A record that waits is named by every command,
+because the command that would have said "the push is queued" is gone:
 the oldest such record is named,
 the rest are counted,
-and the words claim only that the push has not been made and that the service makes it the next time it
-looks at the repository,
-which needs no further commit.
+and the words say that the push has not been made,
+that a running service looks at the repository's records by itself every five seconds,
+and how long the record has waited when that is longer than the bound,
+which is the case in which no service looked at that repository at all.
+A record whose commit Git already holds in the branch's upstream ref is not named:
+the same proof that settles a held record settles it into `done`,
+where the queue keeps a push that was made,
+because the person's own `git push` may have made it after the record was left
+(`held_push_commit_on_the_remote.rs`).
 A record younger than `PUSH_QUEUED_AFTER` (15 seconds) is a push in flight and is not named;
 the wait measured on this host at 2026-11-09T16:40-05:00 from a landing to the claim of its push record
 was 15 ms to 3.9 s with the service idle between commits and up to 10.7 s with commits made back to back
@@ -13069,13 +13112,23 @@ was 15 ms to 3.9 s with the service idle between commits and up to 10.7 s with c
 local bare remote),
 so a record that outlasts the bound has outlasted any service that was merely busy.
 The line is the record's,
-so it goes when a claim moves the record.
+so it goes when a claim or a settlement moves the record.
 
 The service writes the repository it lands for into the journal's claim watch before it answers
 (`note_for_the_next_service` in `service_claim_watch.rs`),
-so a service that starts looks at it even though no client ever woke it for that repository,
+so both a service that starts and a service that keeps running look at it even though no client ever woke it for that
+repository,
 and a kill is followed by the work being run with no commit needed
 (`service_server_work_loop.rs`).
+A service whose worktree is known,
+which every service the manager starts is,
+writes that worktree's own Git directory into the notes before the loop starts,
+so a record a client left for it is found even when no landing of that process wrote a note.
+A service started without that note,
+which only a development run is,
+knows no repository until a landing or a wake names one,
+so a record left for a repository it never heard of waits for the next wake that names it or for a start that reads the
+notes again.
 
 No lock of the wrapper's own exists.
 The only lock a commit meets is Git's `index.lock`,
@@ -13133,6 +13186,24 @@ each with its reason in the code and here:
   finishes it are one critical section of one non-blocking write;
   the waiter waits for one system call,
   never for the journal.
+- The mutex on the stock of drawn shadows (`service_shadow_draw.rs`):
+  the draw's own thread records a tree and every connection's answer takes one,
+  so two threads reach the list,
+  and a list of paths is not one word an atomic could hold.
+  Under it the list is changed and nothing else:
+  one `push` on the draw's thread and one `pop` where a commit's question is answered,
+  with no Git process,
+  no file and no other lock,
+  so a commit's question is answered from memory and never waits for a volume.
+- The mutex and the condition of the service's own log lines (`service_log_lines_off_the_calling_thread.rs`):
+  a caller hands a line and goes on,
+  and one thread takes lines and may wait on the stream as long as the reader takes,
+  so the hand and the take are the two ends of one queue;
+  under it one line is pushed or popped and the writer is handed out or given back,
+  and the write itself runs outside it.
+  A queue of `QUEUED_LINES` (256,
+  measured over the six slowest commits of 2026-11-12)
+  is what keeps a handed line from waiting for the stream at all.
 - The reclaim of a stale `index.lock`:
   one reclaimer at a time,
   by the claim chain of placed files and process-identity judgements on every file system

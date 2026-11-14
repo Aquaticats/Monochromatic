@@ -64,6 +64,9 @@ pub mod service_claim_watch;
 /// The wait a landing gives the note that names its repository to the next service.
 pub mod service_claim_watch_note_within_a_ceiling;
 
+/// Whether a Git directory is the repository of the instance whose journal a note is written into.
+pub mod service_claim_watch_whose_repository_it_is;
+
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 
@@ -474,6 +477,10 @@ pub mod service_round;
 /// The wrapper's side of after-commit work:
 /// records and the wake.
 pub mod service_handoff;
+
+/// The words a waiting push record is named with:
+/// the bound a running service looks in and how long the record has waited.
+pub mod service_handoff_queued_push_words;
 
 /// Whether Git's own record of a branch's remote says a held push's commit has reached it.
 pub mod held_push_commit_on_the_remote;
