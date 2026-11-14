@@ -334,11 +334,11 @@ source image identity remained unchanged.
 Final scoped containers and process groups were empty.
 
 The complete provider artifact is retained in
-[the primary ZIP](../audit/depot-toml-full-mutation-2026-10-17.evidence.zip),
+the primary ZIP (`../audit/depot-toml-full-mutation-2026-10-17.evidence.zip`),
 `12057855` bytes with SHA-256
 `31e45cf2ad99de72d9253c70e1057f050f985c617c1d69a2ee3402f5ec1fa5e3`.
 Its `2337` member hashes are retained in the structured audit.
-[The compressed reconciliation](../audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz)
+The compressed reconciliation (`../audit/depot-toml-full-reconciliation-2026-10-17.evidence.json.gz`)
 retains every identity,
 assignment,
 report mapping,
@@ -348,6 +348,11 @@ resource sample,
 cleanup receipt,
 exact provider usage,
 and the reconciliation code.
+`depot-toml-full-mutation-2026-10-17.evidence.zip` left the tree on 2026-11-13.
+Its cited records are in `doc/audit/depot-toml-full-mutation-2026-10-17.evidence.cited-records.md`.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+`depot-toml-full-reconciliation-2026-10-17.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The independent file-carrier classifier control `699f9lg5zm` failed an ancillary
 hardcoded NanoSpawn metadata lookup before mutation assertions.
@@ -399,8 +404,11 @@ The unchanged bounded source prerequisite remains a single compiler outcome with
 The first three unsuccessful control attempts and their provider usage remain retained.
 Terminal wait `43521` is reaped with exit zero.
 The actual-source control artifact is retained in
-[the primary control ZIP](../audit/depot-toml-spawn-control-2026-10-17.evidence.zip).
+the primary control ZIP (`../audit/depot-toml-spawn-control-2026-10-17.evidence.zip`).
 No application source was changed.
+`depot-toml-spawn-control-2026-10-17.evidence.zip` left the tree on 2026-11-13.
+Its cited records are in `doc/audit/depot-toml-spawn-control-2026-10-17.evidence.cited-records.md`.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Original selected-check terminal accounting
 

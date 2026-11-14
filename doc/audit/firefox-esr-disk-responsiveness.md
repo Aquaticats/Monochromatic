@@ -90,12 +90,20 @@ They are not counts of blockers.
 Evidence artifacts:
 
 - [Scan parameters, counts, and directory coverage](firefox-esr-disk-responsiveness.scan.json).
-- [Tracked paths and Git object identities](firefox-esr-disk-responsiveness.inventory.json.gz).
-- [Complete matching lines and ripgrep events](firefox-esr-disk-responsiveness.candidates.jsonl.gz).
-- [Pinned source selections supporting the citations](firefox-esr-disk-responsiveness.sources.json.gz).
-- [Browser checks of Firefox source selections](firefox-esr-disk-responsiveness.browser.json.gz).
+- Tracked paths and Git object identities (`firefox-esr-disk-responsiveness.inventory.json.gz`).
+- Complete matching lines and ripgrep events (`firefox-esr-disk-responsiveness.candidates.jsonl.gz`).
+- Pinned source selections supporting the citations (`firefox-esr-disk-responsiveness.sources.json.gz`).
+- Browser checks of Firefox source selections (`firefox-esr-disk-responsiveness.browser.json.gz`).
 - [Native-library source selections and browser checks](firefox-esr-disk-responsiveness.external.json).
 - [Markdown rendering receipts](firefox-esr-disk-responsiveness.render.json).
+  `firefox-esr-disk-responsiveness.browser.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `firefox-esr-disk-responsiveness.candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `firefox-esr-disk-responsiveness.inventory.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `firefox-esr-disk-responsiveness.sources.json.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The scan searched every tracked file;
 the reachability audit followed the candidate families described in this report.

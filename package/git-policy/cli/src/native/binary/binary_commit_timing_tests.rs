@@ -1,7 +1,8 @@
 //! What:
 //!  The timing record a wrapped commit appends to the repository and the lines the commit service writes to its log,
 //! run as
-//!  the real programs against a real repository.
+//!  the real programs against a real repository,
+//!  and the request a command makes to that service without waiting for an answer (the `warm` request).
 //! Why:
 //!  After a slow commit,
 //! its time has to be split by phase from logs that exist without anyone having switched anything on.
@@ -22,15 +23,20 @@ use super::service_commit::runtime_for;
 use super::service_landing_lock::foreign_commit_until_released;
 use super::service_landing_selection::base_repository;
 use super::strace::{strace_available, strace_program};
-use super::support::{Fixture, fixture, observe};
+use super::support::{Fixture, Observed, bounded_for, fixture, git, kill_with_everything_it_started, observe, own_group, repository, spawn_owned, wrapper_first_path};
 use super::wait_notice::{Watched, watch_notices};
 use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::landing::service_index_prestage::MARKERS_MADE_AHEAD;
 use git_policy_cli::service_client::ask_to_retire;
 use git_policy_cli::service_server::Bind;
 use git_policy_cli::service_instance::{instance_of, socket_for};
+use git_policy_cli::wait_ceilings::WARM_REQUEST_CONNECT_CEILING;
 use git_policy_cli::service_protocol::RELEASE;
+use std::ffi::OsStr;
+use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::fs::PermissionsExt as _;
+use std::io::BufRead as _;
+use std::os::unix::net::{UnixListener, UnixStream};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -383,11 +389,21 @@ fn slow_commit_git(fixture: &Fixture, seconds: u64) -> PathBuf {
 /// so only the stop ends the step.
 const BEYOND_THE_CEILING_SECONDS: u64 = 60;
 
+/// How long the stand-in Git sleeps in the control of a step that outlasts the ceiling it really runs under,
+/// in seconds:
+/// twice that ceiling, so only the stop can end the step.
+///  The 60 a sleep equal to the ceiling was cannot tell the stop from the step's own end:
+/// the ceiling reached 60 s in `wait_ceilings.rs`
+/// (`SCRATCH_COMMIT_STEP_CEILING_FLOOR`),
+/// and the notice counts it from the first look that found the step,
+/// which is up to `LOOK_INTERVAL` (250 ms) after the step started
+/// (`native_commit_waiting_notice.rs`),
+/// so the sleep ended first and the commit landed.
+const BEYOND_THE_PRODUCTION_CEILING_SECONDS: u64 = git_policy_cli::wait_ceilings::SCRATCH_COMMIT_STEP_CEILING.as_secs() * 2;
+
 /// A commit whose message came with the command and whose scratch `git commit` outlasts the ceiling
-/// (16,332 ms,
-/// owner,
-/// 2026-11-08,
-/// "About 16 seconds")
+/// the step really runs under (`wait_ceilings.rs`,
+/// `SCRATCH_COMMIT_STEP_CEILING`)
 /// is stopped,
 /// says that nothing was committed and that the same command can be run again,
 /// and changes neither the branch nor the person's files.
@@ -403,7 +419,7 @@ fn a_scratch_commit_that_outlasts_the_ceiling_is_stopped_and_nothing_is_committe
     let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
     let mut command: Command = commit_a_command(&fixture, &repo, runtime_for(name.as_str()).as_path());
     let edited: Vec<u8> = std::fs::read(repo.join("a.txt")).expect("a.txt");
-    let mut path: std::ffi::OsString = slow_commit_git(&fixture, BEYOND_THE_CEILING_SECONDS).into_os_string();
+    let mut path: std::ffi::OsString = slow_commit_git(&fixture, BEYOND_THE_PRODUCTION_CEILING_SECONDS).into_os_string();
     path.push(":");
     path.push(fixture.root.join("bin"));
     command.env("PATH", path);
@@ -412,7 +428,7 @@ fn a_scratch_commit_that_outlasts_the_ceiling_is_stopped_and_nothing_is_committe
     let lasted: Duration = began.elapsed();
     let stderr: String = String::from_utf8_lossy(&served.stderr).into_owned();
     assert_eq!(served.code, Some(1), "{stderr}");
-    assert!(lasted < Duration::from_secs(BEYOND_THE_CEILING_SECONDS), "the stop did not end the step: {lasted:?}");
+    assert!(lasted < Duration::from_secs(BEYOND_THE_PRODUCTION_CEILING_SECONDS), "the stop did not end the step: {lasted:?}");
     assert!(stderr.contains("was stopped after") && stderr.contains("nothing was committed"), "{stderr}");
     assert!(stderr.contains("Run the same `git commit` command again"), "{stderr}");
     assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing was committed");
@@ -1627,5 +1643,359 @@ fn a_checkout_that_changes_the_rules_text_asks_the_running_service_to_compile_it
     switch("main", false);
     std::thread::sleep(NO_WARM_FOR);
     assert_eq!(compiled_rules_in(&cache), 0, "a service that was not running compiled the rules");
+    remove_settled(&fixture);
+}
+
+/// The name of the repository configuration the wrapper reads.
+const CONFIG_FILE_NAME: &str = "monochromatic-git-policy-cli.config.jsonc";
+
+/// The wall-clock bound of the commit these controls run, in seconds,
+/// as the text `timeout` takes.
+/// Why not the landing commit's bound:
+///  the commit here is refused by a policy the command itself applies,
+///  so no landing and no rebuild can make it slow,
+///  and a bound this short only catches a wait nothing ends.
+const REFUSAL_BOUND_SECONDS: &str = "20";
+
+/// How many ceilings the commit with a given-up warm request may take over the same commit with a made one.
+/// Why two:
+///  the first ceiling is the connect's whole wait,
+///  and the second is what the command does instead of the request:
+///  it compiles the rules itself and publishes them (`cache_access`).
+const GIVE_UP_SLACK_CEILINGS: u32 = 2;
+
+/// The rules of one control's repository, written where its configuration names them.
+fn configuration_naming_the_rules_file(rules_file: &str) -> String {
+    return format!("{{ \"policies\": {{ \"security/forbidden-strings\": [\"error\", {{ \"builtinRules\": false, \"rulesFile\": {rules_file:?} }}] }} }}\n");
+}
+
+/// A repository whose own rules file holds `needle`,
+/// with a staged change that matches it.
+/// Why real Git stages it:
+///  the policy reads the index, and the wrapper's own `add` would refuse the same text first.
+fn repository_with_a_staged_match(fixture: &Fixture, name: &OsStr, needle: &str) -> PathBuf {
+    let repo: PathBuf = repository(fixture, name);
+    std::fs::write(repo.join(WARM_RULES_FILE), format!("{needle}\n")).expect("the rules text");
+    std::fs::write(repo.join(CONFIG_FILE_NAME), configuration_naming_the_rules_file(WARM_RULES_FILE)).expect("the configuration");
+    std::fs::write(repo.join("a.txt"), format!("first\n{needle}\n")).expect("the staged text");
+    git(fixture, repo.as_path(), &["add", "--", "a.txt"]);
+    return repo;
+}
+
+/// Whether a command's standard error carries the forbidden-strings refusal of `a.txt`.
+fn refused_the_match(observed: &Observed) -> bool {
+    let text: String = String::from_utf8_lossy(observed.stderr.as_slice()).into_owned();
+    return text.contains("\"code\":\"security/forbidden-strings/forbidden-string\"") && text.contains("\"path\":\"a.txt\"");
+}
+
+/// What:
+///  A listening socket of this control at `path`,
+///  with the queue depth it is given,
+///  which nothing in the control accepts from.
+/// Why:
+///  `std::os::unix::net::UnixListener::bind` asks the kernel for the largest queue it allows
+/// (`/proc/sys/net/core/somaxconn`, 4,096 here),
+/// and a control of a connect that waits fills a queue of its own making instead of thousands of descriptors.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listener = aListenerThatNeverAccepts(path, 0);
+/// ```
+fn a_listener_that_never_accepts(path: &Path, backlog: libc::c_int) -> OwnedFd {
+    use std::os::unix::ffi::OsStrExt as _;
+    let bytes: &[u8] = path.as_os_str().as_bytes();
+    // SAFETY: `sockaddr_un` is plain data, and all zero bytes of it are a valid value.
+    let mut address: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+    assert!(bytes.len() < address.sun_path.len(), "the control's socket path fits one socket address");
+    address.sun_family = libc::AF_UNIX as libc::sa_family_t;
+    for (slot, byte) in address.sun_path.iter_mut().zip(bytes) {
+        *slot = *byte as libc::c_char;
+    }
+    let length: libc::socklen_t = (size_of::<libc::sa_family_t>() + bytes.len() + 1) as libc::socklen_t;
+    // SAFETY: `socket` creates a descriptor of the family and type it is given and touches no memory of this process.
+    let made: libc::c_int = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0) };
+    assert!(made >= 0, "the control's socket: {}", std::io::Error::last_os_error());
+    // SAFETY: `made` is an open descriptor of this process and nothing else owns it.
+    let listener: OwnedFd = unsafe { OwnedFd::from_raw_fd(made) };
+    // SAFETY: `bind` reads the address it is given and the length says how much of it; the descriptor is this process's.
+    let bound: libc::c_int = unsafe { libc::bind(listener.as_raw_fd(), std::ptr::from_ref(&address).cast::<libc::sockaddr>(), length) };
+    assert_eq!(bound, 0, "the control's socket is bound: {}", std::io::Error::last_os_error());
+    // SAFETY: `listen` reads the descriptor and the number it is given and touches no memory.
+    let listening: libc::c_int = unsafe { libc::listen(listener.as_raw_fd(), backlog) };
+    assert_eq!(listening, 0, "the control's socket listens: {}", std::io::Error::last_os_error());
+    return listener;
+}
+
+/// What:
+///  A process whose start arguments are a commit service's of `instance`,
+///  and which runs nothing of one.
+/// Why:
+///   The client asks the process table whether a service of the worktree runs before it connects,
+///  so a socket of a service that stopped is never touched;
+///  a control of the connect therefore needs a process that looks like that service and is not it.
+///  The shell holds the words and runs a sleep,
+///  and the group guard of `spawn_owned` ends it however the control ends.
+///  The fixture starts a service of every worktree under it when a wrapped command runs (`bounded_for`,
+///  `service_runtime`),
+///  so this process says the same thing on the control's own runtime directory,
+///  where the service it is not has left no socket.
+fn a_process_that_looks_like_the_service(instance: &str) -> Held {
+    let mut command: Command = Command::new("/bin/sh");
+    command.args(["-c", "sleep 600; :", "service", "run", "--instance", instance]);
+    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    return Held(spawn_owned(&mut command).expect("the stand-in process starts"));
+}
+
+/// One run of the refusing commit,
+/// and how long it took.
+struct Refusal {
+    observed: Observed,
+    elapsed: Duration,
+}
+
+/// The refusing commit of `repo`, under `runtime` and `cache`.
+fn refusing_commit(fixture: &Fixture, repo: &Path, runtime: &Path, cache: &Path) -> Refusal {
+    return refusing_commit_with(fixture, repo, runtime, cache, &[]);
+}
+
+/// `refusing_commit` with more variables in the commit's otherwise fixed environment,
+/// for a control that arms one of the request's own points.
+fn refusing_commit_with(fixture: &Fixture, repo: &Path, runtime: &Path, cache: &Path, environment: &[(&str, String)]) -> Refusal {
+    let mut command: Command = bounded_for(fixture, fixture.root.join("bin/git").as_path(), wrapper_first_path(fixture).as_os_str(), REFUSAL_BOUND_SECONDS);
+    command.current_dir(repo).args(["commit", "--no-enforce-only", "--message", "a change the rules refuse"]);
+    command.env("XDG_RUNTIME_DIR", runtime).env("FORBIDDEN_STRINGS_CACHE_DIR", cache);
+    for (name, value) in environment {
+        command.env(name, value);
+    }
+    let began: Instant = Instant::now();
+    let observed: Observed = observe(&mut command, b"");
+    return Refusal { observed, elapsed: began.elapsed() };
+}
+
+/// The path a control holds the request's look at the processes at,
+/// and the two files it leaves and waits for there.
+struct HeldLook {
+    /// Where the control named its hold.
+    where_the_control_holds_it: PathBuf,
+}
+
+/// What:
+///  Where a control holds the look's answer,
+///  and waits for the request to say the answer is there.
+/// Why:
+///   The answer is computed in a thread of the commit,
+///  so the control has to see it before it does its own work,
+///  and neither a sleep nor a race decides the order.
+impl HeldLook {
+    /// The name of this control's hold under the fixture root.
+    fn named(fixture: &Fixture, name: &str) -> Self {
+        return Self { where_the_control_holds_it: fixture.root.join(name) };
+    }
+
+    /// The value the commit's environment carries to arm the hold.
+    fn armed(&self) -> String {
+        return self.where_the_control_holds_it.display().to_string();
+    }
+
+    /// The file the answer was left in.
+    fn answered(&self) -> PathBuf {
+        return beside(self.where_the_control_holds_it.as_path(), "answered");
+    }
+
+    /// The file that lets the request go on.
+    fn release(&self) -> PathBuf {
+        return beside(self.where_the_control_holds_it.as_path(), "release");
+    }
+
+    /// Waits until the request says its look has its answer,
+    /// and fails naming the wait when it never does.
+    fn wait_until_answered(&self) {
+        let began: Instant = Instant::now();
+        while !self.answered().exists() {
+            assert!(began.elapsed() < PATIENCE, "the request never reached the point the control holds: {}", self.answered().display());
+            std::thread::sleep(Duration::from_millis(10));
+        }
+    }
+
+    /// Lets the request go on.
+    fn let_it_go_on(&self) {
+        std::fs::write(self.release(), b"").expect("the control's release file");
+    }
+}
+
+/// The file a control leaves beside the one it named,
+/// with its own suffix.
+fn beside(where_the_control_holds_it: &Path, what: &str) -> PathBuf {
+    let mut path: PathBuf = where_the_control_holds_it.to_path_buf();
+    path.set_file_name(format!("{}.{what}", where_the_control_holds_it.file_name().unwrap_or_default().to_string_lossy()));
+    return path;
+}
+
+/// What:
+///  A commit whose rules are not compiled yet answers at its usual time when the service of its worktree takes no
+///  connection:
+///  the warm request is given up at its bound,
+///  the command compiles and publishes the rules itself,
+///  and the person reads the same refusal.
+/// Why:
+///   The forbidden-strings load asks a running service to compile the rules,
+///  and a service stopped inside its own process leaves a queue of unaccepted connections:
+///  a plain connect into that queue waits until the service resumes,
+///  which for a stopped one is never (`wait_ceilings.rs`,
+///  `WARM_REQUEST_CONNECT_CEILING`).
+///  The request is a help, so the commit's own time must not grow by more than that ceiling.
+#[test]
+fn a_commit_whose_rules_are_cold_answers_at_its_usual_time_when_the_service_takes_no_connection() {
+    let fixture: Fixture = fixture("warm-request-full-queue");
+    // The usual time: the same commit with a service that accepts, so the warm request is made and the service compiles.
+    let served_name: String = format!("warm-request-served-{}", std::process::id());
+    let served_repo: PathBuf = repository_with_a_staged_match(&fixture, OsStr::new("served"), "SERVED_PLANTED_RULE_TEXT");
+    let served_cache: PathBuf = fixture.root.join("cache-served");
+    let (_served, _served_socket): (Held, PathBuf) = service_with_cache(&fixture, served_repo.as_path(), served_name.as_str(), served_cache.as_path());
+    let served: Refusal = refusing_commit(&fixture, served_repo.as_path(), runtime_for(served_name.as_str()).as_path(), served_cache.as_path());
+    assert_eq!(served.observed.code, Some(1), "the policy refuses the change: {}", String::from_utf8_lossy(served.observed.stderr.as_slice()));
+    assert!(refused_the_match(&served.observed), "the refusal names the match: {}", String::from_utf8_lossy(served.observed.stderr.as_slice()));
+    // The service that answered compiled the rules, so the commit never published them itself.
+    assert!(artifact_appears(served_cache.as_path()), "the service compiled the rules a warm request asked for");
+    // The queue nothing accepts: one connection fills a listener of depth zero, and a process that looks like the service
+    //  of this worktree is what lets the request out of the process-table guard.
+    let blocked_name: String = format!("warm-request-blocked-{}", std::process::id());
+    let blocked_repo: PathBuf = repository_with_a_staged_match(&fixture, OsStr::new("blocked"), "BLOCKED_PLANTED_RULE_TEXT");
+    let blocked_cache: PathBuf = fixture.root.join("cache-blocked");
+    let blocked_runtime: PathBuf = runtime_for(blocked_name.as_str());
+    let blocked_socket: PathBuf = socket_for(blocked_runtime.as_path(), blocked_repo.join(".git").as_path());
+    std::fs::create_dir_all(blocked_socket.parent().expect("the socket's directory")).expect("the socket directory");
+    let _listener: OwnedFd = a_listener_that_never_accepts(blocked_socket.as_path(), 0);
+    let _filling: UnixStream = UnixStream::connect(blocked_socket.as_path()).expect("a queue of no depth takes one connection");
+    let _stand_in: Held = a_process_that_looks_like_the_service(instance_argument(blocked_repo.as_path()).as_str());
+    assert_eq!(compiled_rules_in(blocked_cache.as_path()), 0, "the cold cache of the blocked commit holds nothing yet");
+    let blocked: Refusal = refusing_commit(&fixture, blocked_repo.as_path(), blocked_runtime.as_path(), blocked_cache.as_path());
+    assert_eq!(blocked.observed.code, Some(1), "the policy refuses the change: {}", String::from_utf8_lossy(blocked.observed.stderr.as_slice()));
+    assert!(refused_the_match(&blocked.observed), "the refusal names the match: {}", String::from_utf8_lossy(blocked.observed.stderr.as_slice()));
+    // The stand-in takes no connection and compiles nothing, so an artifact here is the command's own publication,
+    //  which happens only when the request was given up (`cache_access`).
+    assert!(compiled_rules_in(blocked_cache.as_path()) > 0, "the command published the rules itself, because its warm request was given up");
+    let allowed: Duration = served.elapsed + WARM_REQUEST_CONNECT_CEILING * GIVE_UP_SLACK_CEILINGS;
+    assert!(
+        blocked.elapsed < allowed,
+        "the commit answers within its usual time ({:?}) plus {} ceilings of {:?}, and it took {:?}",
+        served.elapsed,
+        GIVE_UP_SLACK_CEILINGS,
+        WARM_REQUEST_CONNECT_CEILING,
+        blocked.elapsed
+    );
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A commit whose look at the processes does not answer gives the warm request up at the look's own ceiling,
+///  and publishes the rules itself.
+/// Why:
+///   Finding 1 of the review of 2026-11-13:
+///  a read of a stuck process's command line waited without end,
+///  so a commit with cold rules waited with it,
+///  for a request the file calls a help and never a part of the command.
+///  The control holds the look where the request's own point lets it
+///  (`service_warm_request_control_window.rs`),
+///  which is this machine's own hand:
+///  the state the ceiling exists for is built by another session's process and may not be built here
+///  (`rules-every-pi-brief-carries.md`, the FUSE incident),
+///  and a held answer ends at the ceiling exactly as a read that never returns does.
+#[test]
+fn a_commit_whose_look_at_the_processes_does_not_answer_gives_the_request_up_and_publishes_the_rules() {
+    let fixture: Fixture = fixture("warm-scan-held");
+    let name: String = format!("warm-scan-held-{}", std::process::id());
+    let repo: PathBuf = repository_with_a_staged_match(&fixture, OsStr::new("repo"), "HELD_LOOK_PLANTED_RULE_TEXT");
+    let cache: PathBuf = fixture.root.join("cache");
+    let runtime: PathBuf = runtime_for(name.as_str());
+    let socket: PathBuf = socket_for(runtime.as_path(), repo.join(".git").as_path());
+    std::fs::create_dir_all(socket.parent().expect("the socket's directory")).expect("the socket directory");
+    // A listener with room, so a request that were sent would be sent in full: only the look's ceiling can give it up.
+    let _listener: OwnedFd = a_listener_that_never_accepts(socket.as_path(), 8);
+    // A process whose start arguments are the service's, so the look would find one if it answered.
+    let _stand_in: Held = a_process_that_looks_like_the_service(instance_argument(repo.as_path()).as_str());
+    let held: HeldLook = HeldLook::named(&fixture, "the-look-is-held");
+    let armed: [(&str, String); 1] = [(git_policy_cli::service_warm_request_control_window::PARK_VARIABLE, held.armed())];
+    let refusal: Refusal = refusing_commit_with(&fixture, repo.as_path(), runtime.as_path(), cache.as_path(), &armed);
+    assert_eq!(refusal.observed.code, Some(1), "the policy refuses the change: {}", String::from_utf8_lossy(refusal.observed.stderr.as_slice()));
+    assert!(refused_the_match(&refusal.observed), "the refusal names the match: {}", String::from_utf8_lossy(refusal.observed.stderr.as_slice()));
+    // The look is held for a minute, so a commit that waited for its answer could not finish inside the bound at all.
+    let allowed: Duration = Duration::from_secs(REFUSAL_BOUND_SECONDS.parse::<u64>().expect("the bound's seconds") / 2);
+    assert!(refusal.elapsed < allowed, "the look's ceiling ends the request, and the commit took {:?}", refusal.elapsed);
+    // Nothing accepted at the listener, so an artifact here is the command's own publication,
+    //  which happens only when the request was given up (`cache_access`).
+    assert!(compiled_rules_in(cache.as_path()) > 0, "the command published the rules itself, because its look did not answer");
+    held.let_it_go_on();
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A service killed between the look that found it and the connection is started by that connection,
+///  which is the one thing this request cannot promise not to do.
+/// Why:
+///   Finding 2 of the review of 2026-11-13:
+///  the socket unit keeps listening after its service was killed,
+///  so the connection is accepted by the manager and starts the service.
+///  The control gives the request a peer that behaves as socket activation does,
+///  because no service manager may be started on this machine,
+///  and it kills the service the look found while the request waits at the point its own seam offers,
+///  so the order is the control's and not a race.
+///  What it shows is the promise this file may keep:
+///  the client writes no unit, asks no manager and starts no process,
+///  and a start by the manager is not something a check before the connection can prevent.
+#[test]
+fn a_service_killed_between_the_look_and_the_connection_is_started_by_the_connection() {
+    let fixture: Fixture = fixture("warm-service-killed-after-the-look");
+    let name: String = format!("warm-service-killed-{}", std::process::id());
+    let repo: PathBuf = repository_with_a_staged_match(&fixture, OsStr::new("repo"), "KILLED_SERVICE_PLANTED_RULE_TEXT");
+    let cache: PathBuf = fixture.root.join("cache");
+    let runtime: PathBuf = runtime_for(name.as_str());
+    let socket: PathBuf = socket_for(runtime.as_path(), repo.join(".git").as_path());
+    std::fs::create_dir_all(socket.parent().expect("the socket's directory")).expect("the socket directory");
+    let instance: String = instance_argument(repo.as_path());
+    // The service the look finds, and which the control kills while the request waits.
+    let stand_in: Held = a_process_that_looks_like_the_service(instance.as_str());
+    let stand_in_pid: i32 = i32::try_from(stand_in.0.id()).expect("a process ID fits");
+    // The peer that behaves as socket activation does: it starts a service when a connection arrives, and that service reads
+    //  the request. No manager is started on this machine; this listener is the control's own stand-in for one.
+    let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("the control's listening socket");
+    let (started_told, started_heard) = std::sync::mpsc::channel::<Child>();
+    let (alive_told, alive_heard) = std::sync::mpsc::channel::<bool>();
+    let (line_told, line_heard) = std::sync::mpsc::channel::<String>();
+    let serving_instance: String = instance.clone();
+    std::thread::spawn(move || {
+        let Ok((accepted, _address)) = listener.accept() else { return };
+        // SAFETY: `kill` with signal 0 asks whether the process is there and sends nothing.
+        let _sent_alive = alive_told.send(unsafe { libc::kill(stand_in_pid, 0) } == 0);
+        let mut successor: Command = Command::new("/bin/sh");
+        successor.args(["-c", "sleep 600; :", "service", "run", "--instance", serving_instance.as_str()]);
+        successor.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+        let Ok(child) = successor.spawn() else { return };
+        let _sent_started = started_told.send(child);
+        let mut line: String = String::new();
+        let _read = std::io::BufReader::new(accepted).read_line(&mut line);
+        let _sent_line = line_told.send(line);
+    });
+    let held: HeldLook = HeldLook::named(&fixture, "the-look-is-held");
+    let armed: [(&str, String); 1] = [(git_policy_cli::service_warm_request_control_window::PARK_VARIABLE, held.armed())];
+    let refusal: Refusal = std::thread::scope(|scope| {
+        let committing = scope.spawn(|| return refusing_commit_with(&fixture, repo.as_path(), runtime.as_path(), cache.as_path(), &armed));
+        held.wait_until_answered();
+        // The look has its answer and has not given it: the service it found dies here, by this control's own hand.
+        let mut dying: Held = stand_in;
+        kill_with_everything_it_started(&mut dying.0);
+        held.let_it_go_on();
+        return committing.join().expect("the commit's thread ends");
+    });
+    assert_eq!(refusal.observed.code, Some(1), "the policy refuses the change: {}", String::from_utf8_lossy(refusal.observed.stderr.as_slice()));
+    let started: Child = started_heard.recv_timeout(PATIENCE).expect("the connection was accepted and started a service");
+    let alive_when_accepted: bool = alive_heard.recv_timeout(PATIENCE).expect("the control knows whether the found service was there");
+    assert!(!alive_when_accepted, "the connection was accepted after the service the look found was killed");
+    let line: String = line_heard.recv_timeout(PATIENCE).expect("the started service read the request line");
+    assert_eq!(line, format!("{}\n", git_policy_cli::service_protocol_encode_messages_to_lines::encode_client(&git_policy_cli::service_protocol_messages_and_name_checks::ClientMessage::Warm { git_dir: repo.join(".git"), repository: repo.clone() })), "the line is the client's warm request");
+    // The started service is this control's own stand-in: it sleeps a long time like a service does,
+    //  so it is ended by the module's guard and by the thread's group whatever ends the test.
+    own_group(&started);
+    let _started: Held = Held(started);
     remove_settled(&fixture);
 }

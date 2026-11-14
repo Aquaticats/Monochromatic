@@ -105,7 +105,10 @@ use crate::service_provision_refusals_before_the_wait::{
 use crate::service_provision_loaded_unit_texts::{record as record_loaded_texts, remembers as manager_was_told};
 use crate::earlier_unix_sockets_that_listen::earlier_socket_of_instance_listens;
 use crate::service_address_of_a_worktree::{listen_stream_of, socket_address_of, the_address_is_in, the_address_is_there};
-use crate::service_instance::{LEGACY_SOCKET_RELATIVE, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, program_link, service_unit_instance, socket_unit_instance};
+use crate::service_instance::{
+    LEGACY_SOCKET_RELATIVE, earlier_releases_program_pointer, earlier_service_unit_instance, earlier_socket_path, earlier_socket_unit_instance, program_link, service_unit_instance,
+    socket_unit_instance,
+};
 use crate::service_units_of_removed_worktrees::note_worktree;
 use crate::systemd_dbus::{Bus, CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::{Path, PathBuf};
@@ -175,32 +178,136 @@ pub fn unit_texts(host: &ProvisionHost) -> [(&'static str, String); 2] {
 ///  (after its idle exit,
 /// or after a restart) must run the release of the commit that needed it.
 /// A link that cannot
-///  be written never fails the commit:
+///  be written does not end the commit by itself:
 /// the unit files are still written,
-/// and a start then runs whatever the link named
-///  before,
-/// which the client asks to retire in the ordinary way;
-/// one line names the link and what a start will run
-///  instead,
+/// the commit goes on,
+/// one line
+///  names the link,
 /// and the next commit points it again.
+/// Whether the commit lands is then decided by whatever the link
+///  still names,
+/// because the unit starts the link and nothing else.
+/// A program of this release
+///  (which a link a build of the same release left at another path is)
+/// greets as this release,
+/// and the
+///  commit lands through it.
+/// A program of another release answers as that release,
+/// and the client's own repair for it
+///  (`service_client_reach_service.rs`) ends the commit with its message when it will not step aside.
+/// A path that cannot
+///  be executed at all (a directory,
+/// an executable an upgrade removed) starts nothing,
+/// and the commit ends with "The
+///  commit service did not start".
+/// Nothing smaller is safe:
+/// the commit service is the only writer of a commit,
+/// this release will not
+///  hand one to another release's service,
+/// and the manager reads the link from the text it holds,
+/// which this release cannot
+///  change without writing that text.
+/// The remedy when it repeats is the runtime directory:
+/// the link must sit where this account can
+///  write,
+/// which is what the line and the failure that follows both name.
+/// The link the releases before this one named is pointed too
+///  (`service_instance.rs`,
+/// `EARLIER_RELEASES_PROGRAM_POINTER`),
+/// at the same cost:
+/// an instance whose loaded text is
+///  theirs starts this release from it,
+/// instead of failing at the EXEC step because the install removed the release that
+///  program belonged to.
+/// An older command that meets this release's service still asks it to retire,
+/// and the service stops
+///  its own socket when it is retired before it has served anything
+/// (`service_server.rs`),
+/// so that cannot burn the manager's
+///  start limit.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// pointProgramLink(host) // the link names host.serviceBinary, or a line says it does not
+/// pointProgramLink(host) // the link names host.serviceBinary, or a line says what it still names
 /// ```
 fn point_program_link(host: &ProvisionHost) {
-    let link: PathBuf = program_link(host.runtime_dir.as_path());
-    if matches!(std::fs::read_link(&link), Ok(current) if current == host.service_binary) {
-        return;
-    }
-    if let Err(error) = link_atomically(link.as_path(), host.service_binary.as_path()) {
+    point_a_link(program_link(host.runtime_dir.as_path()).as_path(), host, true);
+}
+
+/// What:
+///  Points the path the releases before this release named in every unit text they wrote at this release's executable,
+///  making the notes folder when it is not there yet.
+/// Why:
+///   The manager keeps starting such an instance from the text it loaded,
+/// and the install that replaced that release removed
+///  the directory the link named,
+/// so without this its next start fails at the EXEC step,
+/// is retried to the manager's start limit,
+///  and leaves the unit failed until a command in that worktree repairs it
+/// (`doc/troubleshooting/`,
+/// the install of
+///  `0.6.1-alpha.20`).
+/// It is pointed after every refusal of this provisioning,
+/// because a refused one writes nothing,
+/// and
+///  the folder it sits in is made here for the same reason:
+/// it is the folder the worktree note and the record are written
+///  into just after.
+/// A link that cannot be written only warns:
+/// no commit waits on the instance it serves,
+/// and the
+///  next commit points it again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pointEarlierReleasesPointer(host) // <notes>/service-program -> host.serviceBinary
+/// ```
+fn point_earlier_releases_pointer(host: &ProvisionHost) {
+    let pointer: PathBuf = earlier_releases_program_pointer(host.runtime_dir.as_path());
+    let Some(folder) = pointer.parent() else { return };
+    if let Err(error) = crate::private_storage::create_private_directory_all(folder) {
         crate::service_warn!(
-            "{} cannot be pointed at {} ({}), so the commit service starts whatever the link names, which is not the release of this commit; the units are still written and this commit goes on, and the next commit points the link again",
-            link.display(),
-            host.service_binary.display(),
+            "{} cannot be made ({}), so a service the manager loaded under an earlier release cannot be started until the next commit makes it; this commit goes on",
+            folder.display(),
             in_plain_words(&error)
         );
+        return;
     }
+    point_a_link(pointer.as_path(), host, false);
+}
+
+/// What:
+///  Points one link at the running executable,
+/// unless it already names it,
+/// and says in the log when it cannot.
+/// Why:
+///   Both links cost one read and,
+/// when the program moved,
+/// one rename;
+/// neither asks the manager anything,
+/// and neither
+///  ends a commit,
+/// which is why the failure is a line and not a `ClientFailure`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pointALink(link, host, namesThisRelease) // link -> host.serviceBinary, or one line
+/// ```
+fn point_a_link(link: &Path, host: &ProvisionHost, names_this_release: bool) {
+    if matches!(std::fs::read_link(link), Ok(current) if current == host.service_binary) {
+        return;
+    }
+    let Err(error) = link_atomically(link, host.service_binary.as_path()) else { return };
+    // What: The consequence named depends on which link it is.
+    // Why:  The link this release's own units name decides what this commit's service runs; the one an earlier release's
+    //       loaded texts name decides whether such an instance can start at all, and this release's next commit is what
+    //       points it again.
+    let consequence: &str = if names_this_release {
+        "so this commit's service is started from whatever the link still names; the units are still written and this commit goes on, and it lands if that program is this release, and ends with that program's own message if it is another release or none at all; set XDG_RUNTIME_DIR to a runtime directory this account can write, and the next commit points the link again"
+    } else {
+        "so another worktree's service the manager loaded under an earlier release cannot start until the next commit points it; this commit goes on, and set XDG_RUNTIME_DIR to a runtime directory this account can write"
+    };
+    crate::service_warn!("{} cannot be pointed at {} ({}), {consequence}", link.display(), host.service_binary.display(), in_plain_words(&error));
 }
 
 /// What:
@@ -333,6 +440,11 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       that exists and needs no manager, so writing it first costs nothing; a refused provisioning leaves a note whose units
     //       never started, which no service reads and the next provisioning writes again.
     note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
+    // What: The link the earlier releases named is pointed before this call asks the manager to start anything.
+    // Why:  An instance the manager loaded under one of them is started from that path, and a start of it before this line
+    //       fails at the EXEC step; every refusal of this call has already happened, so a refused provisioning still writes
+    //       nothing but the folders it makes here and below.
+    point_earlier_releases_pointer(host);
     // What: The record of the texts the manager was told about, read once: it says whether the manager holds this instance at
     //       what is on disk, which is the one question both the fast path and the repairing path turn on.
     // Why:  A file that matches says what this release would write, not what the manager loaded. A process killed between
@@ -381,8 +493,11 @@ pub fn provision_with(host: &ProvisionHost, manager: &mut dyn Manager) -> Result
     //       manager does not hold it, so anything a manager that could not be asked leaves behind is a text the record must
     //       not claim it read.
     let mut holds_these_texts: bool = told;
+    // What: A repair that could not be finished leaves the record unwritten and the commit going.
+    // Why:  Nothing it asks the manager for is needed for the commit to land, so nothing it fails to get may end one
+    //       (`unload_instance` answers what it found and never a failure).
     if stale {
-        let unloaded: Unloaded = unload_instance(host, manager)?;
+        let unloaded: Unloaded = unload_instance(host, manager);
         holds_these_texts = unloaded == Unloaded::Dropped;
     }
     manager.within(EXCHANGE_WAIT);
@@ -544,6 +659,12 @@ pub fn provision(host: &ProvisionHost) -> Result<(), ClientFailure> {
     if in_place(host) {
         // Units set up before this release have no note of their worktree yet.
         note_worktree(host.runtime_dir.as_path(), host.instance.as_str(), host.git_dir.as_path());
+        // What: A command that finds everything in place still keeps the link the earlier releases named pointed at this
+        //       release.
+        // Why:  An install whose unit text did not change (two releases of this design name the same link) leaves every
+        //       instance the manager loaded under the release before it naming that path, and only a command keeps it alive;
+        //       the first command of any worktree does it here, before any start can need it.
+        point_earlier_releases_pointer(host);
         return Ok(());
     }
     let mut bus: Bus = match Bus::connect(host.bus.as_path(), EXCHANGE_WAIT) {

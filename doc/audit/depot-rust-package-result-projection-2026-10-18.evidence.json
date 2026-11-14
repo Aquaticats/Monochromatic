@@ -15,28 +15,76 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 0,
         "misePath": "package/cli/forbidden-strings.fuzz/mise.toml",
-        "miseSha256": "f7ae4d402d191b48f39636544e2d2ab345c46e31decb66939a7e2d448892aa9a"
+        "miseSha256": "f7ae4d402d191b48f39636544e2d2ab345c46e31decb66939a7e2d448892aa9a",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/cli/forbidden-strings.fuzz:smoke:embedding:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/0/mise/tasks/smoke:embedding:container"
+            "pointer": "/owners/0/mise/tasks/smoke:embedding:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/forbidden-strings.fuzz:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/0/mise/tasks/test"
+            "pointer": "/owners/0/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/forbidden-strings.fuzz:smoke",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/0/mise/tasks/smoke"
+            "pointer": "/owners/0/mise/tasks/smoke",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -174,12 +222,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/extensions/0/selected",
-              "member": ".research-rust-fuzz-small/receipts/nextest/default/package-cli-forbidden-strings.fuzz.xml"
+              "member": ".research-rust-fuzz-small/receipts/nextest/default/package-cli-forbidden-strings.fuzz.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/8/junit/0"
+            "pointer": "/runs/8/junit/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -288,12 +360,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/extensions/0/selected",
-              "member": ".research-rust-fuzz-tails/receipts/nextest/default/package-cli-forbidden-strings.fuzz.xml"
+              "member": ".research-rust-fuzz-tails/receipts/nextest/default/package-cli-forbidden-strings.fuzz.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/12/junit/0"
+            "pointer": "/runs/12/junit/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -332,7 +428,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/9"
+            "pointer": "/consumerSummaries/fuzz/targets/9",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -371,7 +479,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/10"
+            "pointer": "/consumerSummaries/fuzz/targets/10",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -410,7 +530,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/11"
+            "pointer": "/consumerSummaries/fuzz/targets/11",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -449,7 +581,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/12"
+            "pointer": "/consumerSummaries/fuzz/targets/12",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -488,7 +632,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/31"
+            "pointer": "/consumerSummaries/fuzz/targets/31",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         }
@@ -504,63 +660,171 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 1,
         "misePath": "package/cli/forbidden-strings/mise.toml",
-        "miseSha256": "8efe3fc5ba0f61519f293078606bd54ec8f9bce2a580112455f268de6f1814a5"
+        "miseSha256": "8efe3fc5ba0f61519f293078606bd54ec8f9bce2a580112455f268de6f1814a5",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/cli/forbidden-strings:test:release:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/1/mise/tasks/test:release:container"
+            "pointer": "/owners/1/mise/tasks/test:release:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/forbidden-strings:test:guards:observe:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/1/mise/tasks/test:guards:observe:container"
+            "pointer": "/owners/1/mise/tasks/test:guards:observe:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/forbidden-strings:test:guards:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/1/mise/tasks/test:guards:container"
+            "pointer": "/owners/1/mise/tasks/test:guards:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/forbidden-strings:test:mutation:startup:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/1/mise/tasks/test:mutation:startup:container"
+            "pointer": "/owners/1/mise/tasks/test:mutation:startup:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/forbidden-strings:test:mutation:pathname:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/1/mise/tasks/test:mutation:pathname:container"
+            "pointer": "/owners/1/mise/tasks/test:mutation:pathname:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/forbidden-strings:test:mutation:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/1/mise/tasks/test:mutation:container"
+            "pointer": "/owners/1/mise/tasks/test:mutation:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/forbidden-strings:test:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/1/mise/tasks/test:container"
+            "pointer": "/owners/1/mise/tasks/test:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/forbidden-strings:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/1/mise/tasks/test"
+            "pointer": "/owners/1/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -1277,7 +1541,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
-            "pointer": "/scannerTargetReuse/freshAllocations/0"
+            "pointer": "/scannerTargetReuse/freshAllocations/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 2144758,
+                "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "qualification": "Compiler-flag, dependency-feature and planted stale-source controls in the same producer are separate controls, not extra ordinary cases."
         },
@@ -1778,7 +2054,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
-            "pointer": "/scannerTargetReuse/freshAllocations/1"
+            "pointer": "/scannerTargetReuse/freshAllocations/1",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 2144758,
+                "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "qualification": "Compiler-flag, dependency-feature and planted stale-source controls in the same producer are separate controls, not extra ordinary cases."
         }
@@ -1794,35 +2082,95 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 2,
         "misePath": "package/cli/nested-wayland-session/mise.toml",
-        "miseSha256": "8341cf1da6cbedadf2a97600b374bb49fc1c3f7ceda2ebd14bdc8ecde47b852b"
+        "miseSha256": "8341cf1da6cbedadf2a97600b374bb49fc1c3f7ceda2ebd14bdc8ecde47b852b",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/cli/nested-wayland-session:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/2/mise/tasks/test"
+            "pointer": "/owners/2/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/nested-wayland-session:test:all",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/2/mise/tasks/test:all"
+            "pointer": "/owners/2/mise/tasks/test:all",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/nested-wayland-session:test:cli:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/2/mise/tasks/test:cli:container"
+            "pointer": "/owners/2/mise/tasks/test:cli:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/nested-wayland-session:test:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/2/mise/tasks/test:container"
+            "pointer": "/owners/2/mise/tasks/test:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -1838,28 +2186,76 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 3,
         "misePath": "package/cli/wg-quicker-exempt/mise.toml",
-        "miseSha256": "1a765e259cccdc7166e303dbfc5f1a2ea28c29bbcb3fc197a20c1b69a68d40ac"
+        "miseSha256": "1a765e259cccdc7166e303dbfc5f1a2ea28c29bbcb3fc197a20c1b69a68d40ac",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/cli/wg-quicker-exempt:test:unit",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/3/mise/tasks/test:unit"
+            "pointer": "/owners/3/mise/tasks/test:unit",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/wg-quicker-exempt:test:functional:protocols",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/3/mise/tasks/test:functional:protocols"
+            "pointer": "/owners/3/mise/tasks/test:functional:protocols",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/cli/wg-quicker-exempt:test:functional",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/3/mise/tasks/test:functional"
+            "pointer": "/owners/3/mise/tasks/test:functional",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -2047,12 +2443,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/raw/1/selected",
-              "member": "nextest/default/wg.xml"
+              "member": "nextest/default/wg.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/1/junit/3"
+            "pointer": "/runs/1/junit/3",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -2149,12 +2569,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/extensions/0/selected",
-              "member": ".research-rust-wg-privileged/receipts/nextest/default/wg-privileged.xml"
+              "member": ".research-rust-wg-privileged/receipts/nextest/default/wg-privileged.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/25/junit/0"
+            "pointer": "/runs/25/junit/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         }
@@ -2170,21 +2614,57 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 4,
         "misePath": "package/codex-plugin/bash-limit/mise.toml",
-        "miseSha256": "1d8e9ed0652f47824af3f4d02f5513349d29976047b6fb7c380954a33881113d"
+        "miseSha256": "1d8e9ed0652f47824af3f4d02f5513349d29976047b6fb7c380954a33881113d",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/codex-plugin/bash-limit:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/4/mise/tasks/test"
+            "pointer": "/owners/4/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/codex-plugin/bash-limit:test:host",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/4/mise/tasks/test:host"
+            "pointer": "/owners/4/mise/tasks/test:host",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -2372,12 +2852,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/raw/1/selected",
-              "member": "nextest/default/bash-limit.xml"
+              "member": "nextest/default/bash-limit.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/1/junit/0"
+            "pointer": "/runs/1/junit/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -2445,12 +2949,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/extensions/0/selected",
-              "member": ".research-rust-codex-host/receipts/nextest/default/codex-host.xml"
+              "member": ".research-rust-codex-host/receipts/nextest/default/codex-host.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/22/junit/0"
+            "pointer": "/runs/22/junit/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -2471,7 +2999,19 @@
           ],
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/installedCodex/stderrRetainingRepeat"
+            "pointer": "/consumerSummaries/installedCodex/stderrRetainingRepeat",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Functional consumer or bounded benchmark repetitions, never unit-test case totals."
         }
@@ -2487,21 +3027,57 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 5,
         "misePath": "package/desktop-app/file-manager-gtk-sticky/mise.toml",
-        "miseSha256": "49940aae01463b9fc65dbcb801a12bfadf6ba56c041666e9b73d402041912d77"
+        "miseSha256": "49940aae01463b9fc65dbcb801a12bfadf6ba56c041666e9b73d402041912d77",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/desktop-app/file-manager-gtk-sticky:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/5/mise/tasks/test"
+            "pointer": "/owners/5/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/file-manager-gtk-sticky:test:wayland",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/5/mise/tasks/test:wayland"
+            "pointer": "/owners/5/mise/tasks/test:wayland",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -2517,14 +3093,38 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 6,
         "misePath": "package/desktop-app/file-manager-qt/mise.toml",
-        "miseSha256": "0f37e932caf3c82c6a8569b0a0ee8bb7ad789e2aa5948c67f83e8ffc0eeba2dc"
+        "miseSha256": "0f37e932caf3c82c6a8569b0a0ee8bb7ad789e2aa5948c67f83e8ffc0eeba2dc",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/desktop-app/file-manager-qt:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/6/mise/tasks/test"
+            "pointer": "/owners/6/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -2540,14 +3140,38 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 7,
         "misePath": "package/desktop-app/file-manager/mise.toml",
-        "miseSha256": "81166da55bba68ded0b73b54d18b4f1ec18b6b6161ccbc57d7bfccf0d197fd5e"
+        "miseSha256": "81166da55bba68ded0b73b54d18b4f1ec18b6b6161ccbc57d7bfccf0d197fd5e",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/desktop-app/file-manager:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/7/mise/tasks/test"
+            "pointer": "/owners/7/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -2563,126 +3187,342 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 8,
         "misePath": "package/desktop-app/ide/mise.toml",
-        "miseSha256": "c924b511f9dbed0cacd9591164d85ae4b5bb413f899471564f67d6b0781b0a32"
+        "miseSha256": "c924b511f9dbed0cacd9591164d85ae4b5bb413f899471564f67d6b0781b0a32",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/desktop-app/ide:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test"
+            "pointer": "/owners/8/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:wrap",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:wrap"
+            "pointer": "/owners/8/mise/tasks/test:wrap",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:minimap",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:minimap"
+            "pointer": "/owners/8/mise/tasks/test:minimap",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:native",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:native"
+            "pointer": "/owners/8/mise/tasks/test:native",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:fonts",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:fonts"
+            "pointer": "/owners/8/mise/tasks/test:fonts",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:search",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:search"
+            "pointer": "/owners/8/mise/tasks/test:search",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:reader-lifecycle",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:reader-lifecycle"
+            "pointer": "/owners/8/mise/tasks/test:reader-lifecycle",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:open",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:open"
+            "pointer": "/owners/8/mise/tasks/test:open",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:cli",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:cli"
+            "pointer": "/owners/8/mise/tasks/test:cli",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:ignored",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:ignored"
+            "pointer": "/owners/8/mise/tasks/test:ignored",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:tree",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:tree"
+            "pointer": "/owners/8/mise/tasks/test:tree",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:raster",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:raster"
+            "pointer": "/owners/8/mise/tasks/test:raster",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:find",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:find"
+            "pointer": "/owners/8/mise/tasks/test:find",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:annotations",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:annotations"
+            "pointer": "/owners/8/mise/tasks/test:annotations",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:annotations-native",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:annotations-native"
+            "pointer": "/owners/8/mise/tasks/test:annotations-native",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:syntax",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:syntax"
+            "pointer": "/owners/8/mise/tasks/test:syntax",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/ide:test:language",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/8/mise/tasks/test:language"
+            "pointer": "/owners/8/mise/tasks/test:language",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -2698,21 +3538,57 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 9,
         "misePath": "package/desktop-app/terminal/mise.toml",
-        "miseSha256": "1f50ab3c41ee0cbbc574ebe19fee73cda2d416661688d4732c69791b3f5fb8fc"
+        "miseSha256": "1f50ab3c41ee0cbbc574ebe19fee73cda2d416661688d4732c69791b3f5fb8fc",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/desktop-app/terminal:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/9/mise/tasks/test"
+            "pointer": "/owners/9/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/desktop-app/terminal:test:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/9/mise/tasks/test:container"
+            "pointer": "/owners/9/mise/tasks/test:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -2728,28 +3604,76 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 10,
         "misePath": "package/git-policy/cli.fuzz/mise.toml",
-        "miseSha256": "737413731635af058c7b6f8bfdb5bef83e99a28b203555b071eb421fc3472d49"
+        "miseSha256": "737413731635af058c7b6f8bfdb5bef83e99a28b203555b071eb421fc3472d49",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/git-policy/cli.fuzz:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/10/mise/tasks/test"
+            "pointer": "/owners/10/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/git-policy/cli.fuzz:test:planted",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/10/mise/tasks/test:planted"
+            "pointer": "/owners/10/mise/tasks/test:planted",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/git-policy/cli.fuzz:smoke",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/10/mise/tasks/smoke"
+            "pointer": "/owners/10/mise/tasks/smoke",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -2831,12 +3755,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/extensions/1/selected",
-              "member": ".research-rust-fuzz-git/receipts/nextest/default/package-git-policy-cli.fuzz.xml"
+              "member": ".research-rust-fuzz-git/receipts/nextest/default/package-git-policy-cli.fuzz.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/10/junit/0"
+            "pointer": "/runs/10/junit/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -2945,12 +3893,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/extensions/0/selected",
-              "member": ".research-rust-fuzz-tails/receipts/nextest/default/package-git-policy-cli.fuzz.xml"
+              "member": ".research-rust-fuzz-tails/receipts/nextest/default/package-git-policy-cli.fuzz.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/12/junit/1"
+            "pointer": "/runs/12/junit/1",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -2989,7 +3961,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/13"
+            "pointer": "/consumerSummaries/fuzz/targets/13",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3028,7 +4012,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/14"
+            "pointer": "/consumerSummaries/fuzz/targets/14",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3067,7 +4063,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/15"
+            "pointer": "/consumerSummaries/fuzz/targets/15",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3106,7 +4114,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/16"
+            "pointer": "/consumerSummaries/fuzz/targets/16",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3145,7 +4165,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/17"
+            "pointer": "/consumerSummaries/fuzz/targets/17",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3184,7 +4216,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/18"
+            "pointer": "/consumerSummaries/fuzz/targets/18",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3223,7 +4267,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/19"
+            "pointer": "/consumerSummaries/fuzz/targets/19",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3262,7 +4318,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/20"
+            "pointer": "/consumerSummaries/fuzz/targets/20",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3301,7 +4369,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/21"
+            "pointer": "/consumerSummaries/fuzz/targets/21",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3340,7 +4420,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/22"
+            "pointer": "/consumerSummaries/fuzz/targets/22",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3379,7 +4471,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/23"
+            "pointer": "/consumerSummaries/fuzz/targets/23",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3418,7 +4522,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/24"
+            "pointer": "/consumerSummaries/fuzz/targets/24",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3457,7 +4573,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/25"
+            "pointer": "/consumerSummaries/fuzz/targets/25",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3496,7 +4624,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/26"
+            "pointer": "/consumerSummaries/fuzz/targets/26",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -3535,7 +4675,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/32"
+            "pointer": "/consumerSummaries/fuzz/targets/32",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         }
@@ -3551,63 +4703,171 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 11,
         "misePath": "package/git-policy/cli/mise.toml",
-        "miseSha256": "e901587437cf5db594e4472c796e6c81acb7f2b1f3fa9dc64fe464d58af5b848"
+        "miseSha256": "e901587437cf5db594e4472c796e6c81acb7f2b1f3fa9dc64fe464d58af5b848",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/git-policy/cli:native:test:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/11/mise/tasks/native:test:container"
+            "pointer": "/owners/11/mise/tasks/native:test:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/git-policy/cli:native:test:host",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/11/mise/tasks/native:test:host"
+            "pointer": "/owners/11/mise/tasks/native:test:host",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/git-policy/cli:native:test:binary:host",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/11/mise/tasks/native:test:binary:host"
+            "pointer": "/owners/11/mise/tasks/native:test:binary:host",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/git-policy/cli:test:git-image",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/11/mise/tasks/test:git-image"
+            "pointer": "/owners/11/mise/tasks/test:git-image",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/git-policy/cli:test:unit",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/11/mise/tasks/test:unit"
+            "pointer": "/owners/11/mise/tasks/test:unit",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/git-policy/cli:test:e2e:concurrent:image",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/11/mise/tasks/test:e2e:concurrent:image"
+            "pointer": "/owners/11/mise/tasks/test:e2e:concurrent:image",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/git-policy/cli:test:e2e:concurrent:native:image",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/11/mise/tasks/test:e2e:concurrent:native:image"
+            "pointer": "/owners/11/mise/tasks/test:e2e:concurrent:native:image",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/git-policy/cli:test:e2e:concurrent:native",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/11/mise/tasks/test:e2e:concurrent:native"
+            "pointer": "/owners/11/mise/tasks/test:e2e:concurrent:native",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -3741,7 +5001,19 @@
           ],
           "evidence": {
             "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
-            "pointer": "/rustFullConsumer/repeatedNativeConsumers/0"
+            "pointer": "/rustFullConsumer/repeatedNativeConsumers/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 2144758,
+                "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "qualification": "Failures remain actual source outcomes in each repetition; the repeated case population is not summed."
         },
@@ -4021,7 +5293,19 @@
           ],
           "evidence": {
             "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
-            "pointer": "/rustFullConsumer/repeatedNativeConsumers/1"
+            "pointer": "/rustFullConsumer/repeatedNativeConsumers/1",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 2144758,
+                "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "qualification": "Failures remain actual source outcomes in each repetition; the repeated case population is not summed."
         },
@@ -4300,7 +5584,19 @@
           ],
           "evidence": {
             "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
-            "pointer": "/rustFullConsumer/repeatedNativeConsumers/2"
+            "pointer": "/rustFullConsumer/repeatedNativeConsumers/2",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 2144758,
+                "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "qualification": "Failures remain actual source outcomes in each repetition; the repeated case population is not summed."
         }
@@ -4316,28 +5612,76 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 12,
         "misePath": "package/linter/monochromatic-lint.fuzz/mise.toml",
-        "miseSha256": "c8442f8db62838094a927a46289d63f65d411a057cb1db226c770f12ee0cc962"
+        "miseSha256": "c8442f8db62838094a927a46289d63f65d411a057cb1db226c770f12ee0cc962",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/linter/monochromatic-lint.fuzz:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/12/mise/tasks/test"
+            "pointer": "/owners/12/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/linter/monochromatic-lint.fuzz:test:planted",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/12/mise/tasks/test:planted"
+            "pointer": "/owners/12/mise/tasks/test:planted",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/linter/monochromatic-lint.fuzz:smoke",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/12/mise/tasks/smoke"
+            "pointer": "/owners/12/mise/tasks/smoke",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -4419,12 +5763,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/extensions/0/selected",
-              "member": ".research-rust-fuzz-linter/receipts/nextest/default/package-linter-monochromatic-lint.fuzz.xml"
+              "member": ".research-rust-fuzz-linter/receipts/nextest/default/package-linter-monochromatic-lint.fuzz.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/13/junit/0"
+            "pointer": "/runs/13/junit/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -4463,7 +5831,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/27"
+            "pointer": "/consumerSummaries/fuzz/targets/27",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -4502,7 +5882,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/28"
+            "pointer": "/consumerSummaries/fuzz/targets/28",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -4541,7 +5933,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/29"
+            "pointer": "/consumerSummaries/fuzz/targets/29",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -4580,7 +5984,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/30"
+            "pointer": "/consumerSummaries/fuzz/targets/30",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -4619,7 +6035,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/33"
+            "pointer": "/consumerSummaries/fuzz/targets/33",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -4658,7 +6086,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/34"
+            "pointer": "/consumerSummaries/fuzz/targets/34",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         }
@@ -4674,63 +6114,171 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 13,
         "misePath": "package/linter/monochromatic-lint/mise.toml",
-        "miseSha256": "fe40ab66aef4b0bcf138269a0878f6a4fc0f8b65cbfa48e989bbba7bade46087"
+        "miseSha256": "fe40ab66aef4b0bcf138269a0878f6a4fc0f8b65cbfa48e989bbba7bade46087",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/linter/monochromatic-lint:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/13/mise/tasks/test"
+            "pointer": "/owners/13/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/linter/monochromatic-lint:test:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/13/mise/tasks/test:container"
+            "pointer": "/owners/13/mise/tasks/test:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/linter/monochromatic-lint:test:rust-style",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/13/mise/tasks/test:rust-style"
+            "pointer": "/owners/13/mise/tasks/test:rust-style",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/linter/monochromatic-lint:test:markdown",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/13/mise/tasks/test:markdown"
+            "pointer": "/owners/13/mise/tasks/test:markdown",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/linter/monochromatic-lint:test:inferred-constants",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/13/mise/tasks/test:inferred-constants"
+            "pointer": "/owners/13/mise/tasks/test:inferred-constants",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/linter/monochromatic-lint:test:processors",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/13/mise/tasks/test:processors"
+            "pointer": "/owners/13/mise/tasks/test:processors",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/linter/monochromatic-lint:test:processors:anchor-control",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/13/mise/tasks/test:processors:anchor-control"
+            "pointer": "/owners/13/mise/tasks/test:processors:anchor-control",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/linter/monochromatic-lint:test:processors:slice",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/13/mise/tasks/test:processors:slice"
+            "pointer": "/owners/13/mise/tasks/test:processors:slice",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -4838,12 +6386,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/raw/0/selected",
-              "member": "nextest/default/linter.xml"
+              "member": "nextest/default/linter.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/0/junit/0"
+            "pointer": "/runs/0/junit/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -4864,7 +6436,19 @@
           ],
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/4/consumer"
+            "pointer": "/runs/4/consumer",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Functional consumer or bounded benchmark repetitions, never unit-test case totals."
         }
@@ -4880,35 +6464,95 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 14,
         "misePath": "package/music-player/android-app/mise.toml",
-        "miseSha256": "799d5123e422ae5a2ee16f7c6f2aacbbe6da3af584dce2b4c3f3ebdb60cf9780"
+        "miseSha256": "799d5123e422ae5a2ee16f7c6f2aacbbe6da3af584dce2b4c3f3ebdb60cf9780",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/music-player/android-app/rust:test:unit",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/14/mise/tasks/test:unit"
+            "pointer": "/owners/14/mise/tasks/test:unit",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/music-player/android-app/rust:test:instrumented:build",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/14/mise/tasks/test:instrumented:build"
+            "pointer": "/owners/14/mise/tasks/test:instrumented:build",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/music-player/android-app/rust:test:instrumented",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/14/mise/tasks/test:instrumented"
+            "pointer": "/owners/14/mise/tasks/test:instrumented",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/music-player/android-app/rust:test:instrumented:device",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/14/mise/tasks/test:instrumented:device"
+            "pointer": "/owners/14/mise/tasks/test:instrumented:device",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -4924,42 +6568,114 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 15,
         "misePath": "package/music-player/desktop-app/mise.toml",
-        "miseSha256": "81af3277931161e603c47c3516cc6fdc6066ab5520fe19248369dabf5b368667"
+        "miseSha256": "81af3277931161e603c47c3516cc6fdc6066ab5520fe19248369dabf5b368667",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/music-player/desktop-app:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/15/mise/tasks/test"
+            "pointer": "/owners/15/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/music-player/desktop-app:test:windows-gnu",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/15/mise/tasks/test:windows-gnu"
+            "pointer": "/owners/15/mise/tasks/test:windows-gnu",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/music-player/desktop-app:test:e2e",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/15/mise/tasks/test:e2e"
+            "pointer": "/owners/15/mise/tasks/test:e2e",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/music-player/desktop-app:test:container",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/15/mise/tasks/test:container"
+            "pointer": "/owners/15/mise/tasks/test:container",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/music-player/desktop-app:test:alpine",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/15/mise/tasks/test:alpine"
+            "pointer": "/owners/15/mise/tasks/test:alpine",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -4975,21 +6691,57 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 16,
         "misePath": "package/music-player/truepeak-core.bench/mise.toml",
-        "miseSha256": "72841eecc917d94b1629d94c921af1f5dfe4c58208d8176901d91833f78d90fe"
+        "miseSha256": "72841eecc917d94b1629d94c921af1f5dfe4c58208d8176901d91833f78d90fe",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/music-player/truepeak-core.bench:run",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/16/mise/tasks/run"
+            "pointer": "/owners/16/mise/tasks/run",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/music-player/truepeak-core.bench:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/16/mise/tasks/test"
+            "pointer": "/owners/16/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -5123,12 +6875,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/extensions/0/selected",
-              "member": ".research-rust-benchmarks/receipts/nextest/default/truepeak-bench.xml"
+              "member": ".research-rust-benchmarks/receipts/nextest/default/truepeak-bench.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/20/junit/0"
+            "pointer": "/runs/20/junit/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -5149,7 +6925,19 @@
           ],
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/benchmarks"
+            "pointer": "/consumerSummaries/benchmarks",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Functional consumer or bounded benchmark repetitions, never unit-test case totals."
         },
@@ -5170,7 +6958,19 @@
           ],
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/benchmarks/positiveFixtureRepeat"
+            "pointer": "/consumerSummaries/benchmarks/positiveFixtureRepeat",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Two unchanged-source bounded repetitions; synthetic flat peak bins, no real audio or disk durability claim."
         }
@@ -5186,21 +6986,57 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 17,
         "misePath": "package/music-player/truepeak-core/mise.toml",
-        "miseSha256": "65716df42846db5dc37055da168b8207a6cc93cd6564cee9ffde1baf12955991"
+        "miseSha256": "65716df42846db5dc37055da168b8207a6cc93cd6564cee9ffde1baf12955991",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/music-player/truepeak-core:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/17/mise/tasks/test"
+            "pointer": "/owners/17/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/music-player/truepeak-core:test:debug",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/17/mise/tasks/test:debug"
+            "pointer": "/owners/17/mise/tasks/test:debug",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -5265,12 +7101,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/extensions/0/selected",
-              "member": ".research-rust-truepeak-all/receipts/nextest/default/truepeak-all.xml"
+              "member": ".research-rust-truepeak-all/receipts/nextest/default/truepeak-all.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/15/junit/0"
+            "pointer": "/runs/15/junit/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         }
@@ -5286,14 +7146,38 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 18,
         "misePath": "package/rust-module/forbidden-regex.bench/mise.toml",
-        "miseSha256": "1541416d2b6ec3494da75b9b7e457f794b1b9a5107880ae983eb8c5b5c59c659"
+        "miseSha256": "1541416d2b6ec3494da75b9b7e457f794b1b9a5107880ae983eb8c5b5c59c659",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/rust-module/forbidden-regex.bench:run",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/18/mise/tasks/run"
+            "pointer": "/owners/18/mise/tasks/run",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -5315,7 +7199,19 @@
           ],
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/benchmarks"
+            "pointer": "/consumerSummaries/benchmarks",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Functional consumer or bounded benchmark repetitions, never unit-test case totals."
         }
@@ -5331,14 +7227,38 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 19,
         "misePath": "package/rust-module/forbidden-regex.fuzz/mise.toml",
-        "miseSha256": "75978d5321c6e07c0d9726fb04da8451fab3ca29fa580e2645260acb806bf0f7"
+        "miseSha256": "75978d5321c6e07c0d9726fb04da8451fab3ca29fa580e2645260acb806bf0f7",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/rust-module/forbidden-regex.fuzz:smoke",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/19/mise/tasks/smoke"
+            "pointer": "/owners/19/mise/tasks/smoke",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -5476,12 +7396,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/extensions/0/selected",
-              "member": ".research-rust-fuzz-small/receipts/nextest/default/package-rust-module-forbidden-regex.fuzz.xml"
+              "member": ".research-rust-fuzz-small/receipts/nextest/default/package-rust-module-forbidden-regex.fuzz.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/8/junit/1"
+            "pointer": "/runs/8/junit/1",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -5520,7 +7464,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/4"
+            "pointer": "/consumerSummaries/fuzz/targets/4",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -5559,7 +7515,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/5"
+            "pointer": "/consumerSummaries/fuzz/targets/5",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -5598,7 +7566,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/6"
+            "pointer": "/consumerSummaries/fuzz/targets/6",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -5637,7 +7617,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/7"
+            "pointer": "/consumerSummaries/fuzz/targets/7",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -5676,7 +7668,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/8"
+            "pointer": "/consumerSummaries/fuzz/targets/8",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         }
@@ -5692,35 +7696,95 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 20,
         "misePath": "package/rust-module/forbidden-regex/mise.toml",
-        "miseSha256": "6900c19cd92753f8fcd8f3ffc0948eaf36162fe1208ef6f7924b2b55015aa7e5"
+        "miseSha256": "6900c19cd92753f8fcd8f3ffc0948eaf36162fe1208ef6f7924b2b55015aa7e5",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/rust-module/forbidden-regex:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/20/mise/tasks/test"
+            "pointer": "/owners/20/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/rust-module/forbidden-regex:test:debug",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/20/mise/tasks/test:debug"
+            "pointer": "/owners/20/mise/tasks/test:debug",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/rust-module/forbidden-regex:test:mutation:image",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/20/mise/tasks/test:mutation:image"
+            "pointer": "/owners/20/mise/tasks/test:mutation:image",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/rust-module/forbidden-regex:test:mutation",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/20/mise/tasks/test:mutation"
+            "pointer": "/owners/20/mise/tasks/test:mutation",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -5908,12 +7972,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/raw/1/selected",
-              "member": "nextest/default/regex.xml"
+              "member": "nextest/default/regex.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/1/junit/2"
+            "pointer": "/runs/1/junit/2",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         }
@@ -5929,21 +8017,57 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 21,
         "misePath": "package/rust-module/jsonc-edit.fuzz/mise.toml",
-        "miseSha256": "ab7c9f5443f8fdb7d727ee9fe6c67575e6743a2770a610875a43d815633c33d7"
+        "miseSha256": "ab7c9f5443f8fdb7d727ee9fe6c67575e6743a2770a610875a43d815633c33d7",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/rust-module/jsonc-edit.fuzz:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/21/mise/tasks/test"
+            "pointer": "/owners/21/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/rust-module/jsonc-edit.fuzz:smoke",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/21/mise/tasks/smoke"
+            "pointer": "/owners/21/mise/tasks/smoke",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -6081,12 +8205,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/extensions/0/selected",
-              "member": ".research-rust-fuzz-small/receipts/nextest/default/package-rust-module-jsonc-edit.fuzz.xml"
+              "member": ".research-rust-fuzz-small/receipts/nextest/default/package-rust-module-jsonc-edit.fuzz.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/8/junit/2"
+            "pointer": "/runs/8/junit/2",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         },
@@ -6125,7 +8273,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/0"
+            "pointer": "/consumerSummaries/fuzz/targets/0",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -6164,7 +8324,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/1"
+            "pointer": "/consumerSummaries/fuzz/targets/1",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -6203,7 +8375,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/2"
+            "pointer": "/consumerSummaries/fuzz/targets/2",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         },
@@ -6242,7 +8426,19 @@
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/consumerSummaries/fuzz/targets/3"
+            "pointer": "/consumerSummaries/fuzz/targets/3",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "One bounded target consumer, not one unit-test case or a completeness proof."
         }
@@ -6258,28 +8454,76 @@
         "catalogPath": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
         "ownerIndex": 22,
         "misePath": "package/rust-module/jsonc-edit/mise.toml",
-        "miseSha256": "5cdbf72ac92db1080c9e196a9f898489856614ff3bd41e5bb321298e0086cfb2"
+        "miseSha256": "5cdbf72ac92db1080c9e196a9f898489856614ff3bd41e5bb321298e0086cfb2",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": null,
+            "sha256": null,
+            "removedFromTree": true,
+            "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "declaredOwningTasks": [
         {
           "task": "//package/rust-module/jsonc-edit:test",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/22/mise/tasks/test"
+            "pointer": "/owners/22/mise/tasks/test",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/rust-module/jsonc-edit:test:debug",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/22/mise/tasks/test:debug"
+            "pointer": "/owners/22/mise/tasks/test:debug",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         },
         {
           "task": "//package/rust-module/jsonc-edit:test:shared-fixtures",
           "definition": {
             "archive": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
-            "pointer": "/owners/22/mise/tasks/test:shared-fixtures"
+            "pointer": "/owners/22/mise/tasks/test:shared-fixtures",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           }
         }
       ],
@@ -6467,12 +8711,36 @@
             "rawReceipt": {
               "archive": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
               "objectPointer": "/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/previous/raw/1/selected",
-              "member": "nextest/default/jsonc.xml"
+              "member": "nextest/default/jsonc.xml",
+              "inTreeNow": [
+                {
+                  "measuredOn": "2026-11-13",
+                  "bytes": null,
+                  "sha256": null,
+                  "removedFromTree": true,
+                  "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+                  "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                  "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+                  "note": null
+                }
+              ]
             }
           },
           "evidence": {
             "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-            "pointer": "/runs/1/junit/1"
+            "pointer": "/runs/1/junit/1",
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": 13527538,
+                "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+                "removedFromTree": false,
+                "historyCommand": null,
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
+            ]
           },
           "countingQualification": "Repeated profiles, ignored helper cases, privileged filters and generator cases are separate contexts; never sum as distinct package cases."
         }
@@ -6485,22 +8753,70 @@
     {
       "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
       "bytes": 13526147,
-      "sha256": "2029eca3c85114de70598297f7e8d2d263ca9e84e497012f60c981a72ed03ff1"
+      "sha256": "2029eca3c85114de70598297f7e8d2d263ca9e84e497012f60c981a72ed03ff1",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 13527538,
+          "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
       "bytes": 538476,
-      "sha256": "6dda590c2b8cfe131ade20f2368cc366f2ef92e294a6b380b4f9ac5c8327d1ff"
+      "sha256": "6dda590c2b8cfe131ade20f2368cc366f2ef92e294a6b380b4f9ac5c8327d1ff",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show 0c80930f4d1a714087b619644d3e19173d608a28:doc/audit/depot-rust-coverage-2026-10-18.catalog.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
       "bytes": 11483893,
-      "sha256": "a6ef79bb57f66ffb891ff54dba0aa2744eb435bb6735a323cd2ccecfe51f650f"
+      "sha256": "a6ef79bb57f66ffb891ff54dba0aa2744eb435bb6735a323cd2ccecfe51f650f",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": null,
+          "sha256": null,
+          "removedFromTree": true,
+          "historyCommand": "git show f4ea52b61326f9b00d7a0971b1e467aeb7c159ff:doc/audit/depot-rust-coverage-2026-10-18.receipts.json.gz",
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": "doc/audit/depot-rust-coverage-2026-10-18.receipts.cited-records.json",
+          "note": null
+        }
+      ]
     },
     {
       "path": "doc/audit/depot-reuse-strategy-2026-10-18.evidence.json",
       "bytes": 2136385,
-      "sha256": "953c19261abc6502610dd3bb5388eb2bc9282e5e6b095d0028e926fd3c3a7d85"
+      "sha256": "953c19261abc6502610dd3bb5388eb2bc9282e5e6b095d0028e926fd3c3a7d85",
+      "inTreeNow": [
+        {
+          "measuredOn": "2026-11-13",
+          "bytes": 2144758,
+          "sha256": "33161a116b042c1559f3df1a46fb766e6fcbab72415fa04fc69ee553d9bb0d25",
+          "removedFromTree": false,
+          "historyCommand": null,
+          "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+          "keptAs": null,
+          "note": null
+        }
+      ]
     }
   ],
   "executionClosure": {
@@ -6525,7 +8841,19 @@
       "harnessSha": "21883c2409b5bb9a7556f869a37cfd43b6045f12",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/0"
+        "pointer": "/runs/0",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6536,7 +8864,19 @@
       "harnessSha": "3a7e85d395cb67a5d189224963782c9b45527c71",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/1"
+        "pointer": "/runs/1",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6547,7 +8887,19 @@
       "harnessSha": "b652d9abb95c720d2dfdadab5fdaadaa728b7120",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/2"
+        "pointer": "/runs/2",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6558,7 +8910,19 @@
       "harnessSha": "908bc3488a3ea6b161c9c11852e707ebe5143b2d",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/3"
+        "pointer": "/runs/3",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6569,7 +8933,19 @@
       "harnessSha": "ee873be6f753c611b15cbfd0e925d0048a631dbb",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/4"
+        "pointer": "/runs/4",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6580,7 +8956,19 @@
       "harnessSha": "a0b78b86a0c4ade4c9f34431f781af1875bde366",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/5"
+        "pointer": "/runs/5",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6591,7 +8979,19 @@
       "harnessSha": "a0b78b86a0c4ade4c9f34431f781af1875bde366",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/6"
+        "pointer": "/runs/6",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6602,7 +9002,19 @@
       "harnessSha": "ecacdf9e31810fa5961f3fe4351141a7dbf9f8c1",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/7"
+        "pointer": "/runs/7",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6613,7 +9025,19 @@
       "harnessSha": "1e1c0054e35771d957762f6118d7e2d1f23c8ff8",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/8"
+        "pointer": "/runs/8",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6624,7 +9048,19 @@
       "harnessSha": "beb2dc6b50ce732876e46aee69251df50708e954",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/9"
+        "pointer": "/runs/9",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6635,7 +9071,19 @@
       "harnessSha": "ecacdf9e31810fa5961f3fe4351141a7dbf9f8c1",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/10"
+        "pointer": "/runs/10",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6646,7 +9094,19 @@
       "harnessSha": "28465cf9ba7f6c9df8329f6b254e7b36c2c815d6",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/11"
+        "pointer": "/runs/11",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6657,7 +9117,19 @@
       "harnessSha": "28465cf9ba7f6c9df8329f6b254e7b36c2c815d6",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/12"
+        "pointer": "/runs/12",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6668,7 +9140,19 @@
       "harnessSha": "28465cf9ba7f6c9df8329f6b254e7b36c2c815d6",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/13"
+        "pointer": "/runs/13",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6679,7 +9163,19 @@
       "harnessSha": "e423daf85c8779ab13d22840a47d72b2700c3d45",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/14"
+        "pointer": "/runs/14",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6690,7 +9186,19 @@
       "harnessSha": "a85e204f078db540c2a292342000ce5423bb8338",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/15"
+        "pointer": "/runs/15",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6701,7 +9209,19 @@
       "harnessSha": "43a51584d0f3ab389490fbe010ec733aafc05cc9",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/16"
+        "pointer": "/runs/16",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6712,7 +9232,19 @@
       "harnessSha": "df00ddbcdfdc9e67759890873c9ca911923a727e",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/17"
+        "pointer": "/runs/17",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6723,7 +9255,19 @@
       "harnessSha": "b2397bbd1192214bb1a4407e2e40f1fef5254e3a",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/18"
+        "pointer": "/runs/18",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6734,7 +9278,19 @@
       "harnessSha": "d9127f3a9f1d92e09820703bf5844e73a86adb1b",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/19"
+        "pointer": "/runs/19",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6745,7 +9301,19 @@
       "harnessSha": "111910f0352b0e65e8f3f0befa61282915b90e2c",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/20"
+        "pointer": "/runs/20",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6756,7 +9324,19 @@
       "harnessSha": "a9515d9cfa9ab67e327b7c4738743d86fa625db4",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/21"
+        "pointer": "/runs/21",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6767,7 +9347,19 @@
       "harnessSha": "a9515d9cfa9ab67e327b7c4738743d86fa625db4",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/22"
+        "pointer": "/runs/22",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6778,7 +9370,19 @@
       "harnessSha": "7861d87ac6a93d33b0636b4aeea34e5b2929cad6",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/23"
+        "pointer": "/runs/23",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6789,7 +9393,19 @@
       "harnessSha": "e93bd31aac690b919a85fd7c2b76c8812094c14d",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/24"
+        "pointer": "/runs/24",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6800,7 +9416,19 @@
       "harnessSha": "d569ca3b16f3e7ef66519fd86939728df7cebcfc",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/25"
+        "pointer": "/runs/25",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     },
@@ -6811,7 +9439,19 @@
       "harnessSha": "29c841d899d475e55f959b10cecad0d925e4f2d0",
       "evidence": {
         "path": "doc/audit/depot-rust-coverage-2026-10-18.evidence.json",
-        "pointer": "/runs/26"
+        "pointer": "/runs/26",
+        "inTreeNow": [
+          {
+            "measuredOn": "2026-11-13",
+            "bytes": 13527538,
+            "sha256": "bb6eb694034e04f5ebf948b34e05ce97f8a68324efd77a32eb5691df7a18625d",
+            "removedFromTree": false,
+            "historyCommand": null,
+            "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+            "keptAs": null,
+            "note": null
+          }
+        ]
       },
       "qualification": "Profile failure does not erase individually retained assertion outcomes; prerequisite, harness and source failure distinctions remain in the canonical record."
     }

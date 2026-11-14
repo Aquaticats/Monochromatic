@@ -4504,7 +4504,19 @@
     "bytes": 37381,
     "sha256": "00d0a6c49fecef1874b044527658e17a2c2ad0cce90a8cf88811d46d8ad96991",
     "originalEvidenceZipCount": 5,
-    "originalInputBinaryWrapperPublished": false
+    "originalInputBinaryWrapperPublished": false,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show b2b1aa427b624eba065acfd5b3192eb4a98307a7:doc/audit/depot-physical-test-shards-2026-10-18.archives.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "selectorControls": {
     "producerArtifactId": "01a14e1d-1935-7a2b-9b89-c63429fec7c7",

@@ -19,9 +19,9 @@ No account-wide usage,
 invoice,
 subscription or settings endpoint was inspected.
 
-The [live browser capture](../audit/depot-live-public-pricing-2026-10-18.evidence.json.gz)
+The live browser capture (`../audit/depot-live-public-pricing-2026-10-18.evidence.json.gz`)
 retains the expanded pricing FAQs and all compute tabs at `2026-10-18T09:35:35.469Z`.
-The [fresh source archive](../audit/depot-included-allowance-2026-10-18.sources.json.gz)
+The fresh source archive (`../audit/depot-included-allowance-2026-10-18.sources.json.gz`)
 adds the unauthenticated pricing HTML and rendered text at `2026-10-18T12:23:28.074Z`,
 current deployed deciding Markdown,
 and the public schema inspection.
@@ -29,6 +29,10 @@ The [machine-readable reconciliation](../audit/depot-included-allowance-2026-10-
 provides exact members,
 selectors,
 source hashes and arithmetic boundaries.
+`depot-included-allowance-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+`depot-live-public-pricing-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Separate named monthly entitlements
 
