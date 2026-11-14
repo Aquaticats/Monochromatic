@@ -720,15 +720,26 @@ by the rules that already stand:
   and no change to the pools:
   about twenty-five agents stays the most.
 - The units this depends on and when each ends by itself:
-  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-32-20261113T1712`
-  (started 17:12:16 for eight hours,
-  so it is started again by 01:12 on 2026-11-14),
+  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-20-20261114T0123`
+  (started 2026-11-14T01:21:35-05:00 for eight hours,
+  so it is started again by 09:21;
+  the one of 17:12:16 at level thirty-two ended at 01:12:16),
   and the waiter of the moment
   (eight hours from its start,
   started again each time it reports).
 
 Questions kept for the owner's return:
 
+- May an hour in which `toolchain-daily-update.service` runs judge a level of the agent search?
+  Twenty to twenty-two agents held the judged hour of 2026-11-13 18:51 to 19:49;
+  the same count failed the drive half of the criterion twice between 01:07 and 01:19 on 2026-11-14,
+  with the daily update running since 00:16:48,
+  and the cap went from thirty-two to twenty by the rule
+  (`doc/handover/agents-at-once-on-this-machine.md`,
+  "Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00").
+  Nothing measured shows the daily update is the cause.
+  At twenty the queue starts nothing new while twenty or more runs are going;
+  until then about twenty-two went at once.
 - Two folders owned by root stand in what is left of `/var/mnt/encrypted/cargo-build/toolchain/nightly-2026-11-11`
   (`3d/ff5cdb8b411452/debug/build/wg-quicker-exempt/test-scratch/wg-quicker-sweep-real-1626078`
   and `b6/f40fb50bf1a32c/debug/build/wg-quicker-exempt/test-scratch/wg-quicker-watch-stop-397956`,
@@ -1202,6 +1213,47 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The home drive stalls for up to 133 s; levels thirty-two and twenty-four fail and the cap is twenty (2026-11-14T01:24:15-05:00)
+
+Not final and not approved;
+measured by the coordinating session.
+The whole record is in `doc/handover/agents-at-once-on-this-machine.md`,
+"Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00".
+
+- A 4 KiB write-and-sync on the home drive took 111 s at 00:59:04,
+  133 s at 01:07:17,
+  10 s at 01:10:30,
+  29 s,
+  102 s,
+  37 s and 40 s between 01:12 and 01:19,
+  with readings of 1 to 128 ms between them and the build volume never over 2.6 s.
+  Twice two slow readings came in a row,
+  which fails a level by the criterion.
+- The cap went from thirty-two to twenty-four at 01:16:46 and to twenty at 01:21:35,
+  by the search's own rule.
+  No run was stopped.
+  The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-20-20261114T0123`
+  (eight hours from 01:21:35,
+  no successor),
+  the probe `disk-ceiling-probe-level-20-since-the-filler-is-at-20-20261114T0122`.
+  If the probe ends with status 3,
+  the rule gives eighteen.
+- The count of agents was the same as in the hour that held
+  (twenty to twenty-two),
+  so the count does not explain it.
+  `toolchain-daily-update.service` has run since 00:16:48 and was still running at 01:20:49;
+  it is one thing that differs and is not shown to be the cause.
+  In one sampled minute that held a stall of 37 s the user's units together wrote about 2 MiB to the home device.
+- What this does to the work:
+  the handover commits of this session since 00:20 each printed the wrapper's ten-second waiting notice,
+  and the four passes at the head of the queue start only as going runs end.
+- Open:
+  the control reading once the daily update has ended;
+  whether its pre-checks,
+  many of which failed with `TS2305` and `TS2307`,
+  show `main` red or links gone stale under it.
+  The question for the owner is in "Questions kept for the owner's return".
+
 ##### The merge that meets a held lock never waits again and goes to review; the cargo fetch's second review has three findings (2026-11-14T01:06:10-05:00)
 
 Not final and not approved:
@@ -1327,14 +1379,21 @@ Causes are named only where a line shows them.
   (unit `disk-ceiling-probe-level-32-while-reviews-and-four-passes-build-20261114T0100`,
   eight hours,
   ending early with status 3 when a drive takes over five seconds twice in a row).
-  Nothing is stopped and the level stands until a criterion fails.
+  Nothing is stopped and the level stands until a criterion fails
+  (one did at 01:10:30 and again at 01:18:45;
+  the level is twenty since 01:21:35,
+  see the section of 2026-11-14T01:24:15-05:00).
 - What differs from the judged hour is not measured.
   Not ruled out:
   reviews that build the crate cold
   (asked for since 23:44,
   and several did before),
   four integration passes building at once,
-  and a `cargo-shadow-lean.service` that ran 56 minutes until 00:31.
+  a `cargo-shadow-lean.service` that ran 56 minutes until 00:31,
+  and `toolchain-daily-update.service`,
+  whose timer fired at 00:16:25,
+  two seconds before the first of those slow answers was asked
+  (found at 01:18).
 - No new run for the second and third shapes yet:
   with the manager answering in tens of seconds,
   a commit that waits for a unit to start waits on the manager,
