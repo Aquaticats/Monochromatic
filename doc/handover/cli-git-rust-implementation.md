@@ -1202,6 +1202,39 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The rate-limit plugin's author bounded the proof's harness (2026-11-13T23:38:08-05:00)
+
+Not final and not approved:
+read by the coordinating session from the run's last message.
+
+- Run `qwen-plan-token-rate-limit-answer-is-retried-by-pi-itself-2`,
+  ended 23:33:26,
+  tip `0e62c1df44`,
+  `main` merged.
+  The review's three reproductions shown first,
+  and one measurement of its own that sharpened the first finding:
+  a `timeout` with the default `SIGTERM` never settled against a command that traps that signal,
+  where `SIGKILL` ended it at 304 ms.
+  Every command the proof's builder runs now has a bound of 60 s and is ended with `SIGKILL`;
+  a run past its bound gets its own signal,
+  a second `SIGTERM` after two seconds,
+  `SIGKILL` after two more,
+  and its pipes are let go.
+  Three controls,
+  each failing without its fix.
+  The proof on the merged tree:
+  ten checks,
+  exit 0,
+  10.1 s.
+  The three product files the first review passed are untouched.
+- Its review is queued at the head
+  (`review-pi-plugin-qwen-token-plan-individual-token-rate-limit-proof-is-bounded-answers-after-its-review`,
+  range `main...0e62c1df44`).
+- Unchanged:
+  merging it and building it in the main checkout is kept for the owner,
+  since it changes every Pi run on that provider,
+  other sessions' too.
+
 ##### The push of a branch that is not checked out: three defects, one of them a loss its last answer brought in; the driver's test: one gap (2026-11-13T23:34:15-05:00)
 
 Not final and not approved:
