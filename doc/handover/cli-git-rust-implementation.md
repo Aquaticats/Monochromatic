@@ -1263,6 +1263,40 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The drive probe held level 24 for its eight hours, with 28 slow readings and not the four this file said; it is started again (2026-11-14T16:55:07-05:00)
+
+Not final and not approved:
+what the coordinating session measured,
+and a correction of its own earlier count.
+
+- **The probe of both drives at level 24**,
+  started 08:54:35,
+  ended at its bound with status 0:
+  "level 24 held 28800 s on the probe; slowest write-and-sync 10405 ms".
+  It never read two slow in a row.
+  Of its 532 readings,
+  28 took a second or more.
+  The slowest was on the build drive at 12:06:02 with 20 agent units going (10,405 ms);
+  others on the build drive of 9,633 ms at 15:24:00,
+  8,350 ms at 16:07:14,
+  7,557 ms at 15:07:50 and 5,921 ms at 16:42:30;
+  on the home drive 7,754 ms at 08:55:36 with eight units going and 5,536 ms at 12:48:16.
+  The agent units going at those readings were 19 to 24,
+  the providers' pools and not the cap holding the count.
+- **Correction.**
+  The sections of 14:37:32 and 14:41:29 in this file,
+  and what was told to the owner at 14:27 and 14:41,
+  said that four of 266 readings from 10:00 to 14:27 took a second or more.
+  That count was read through `tail`,
+  which cut the list;
+  the same span holds more,
+  the 10,405 ms reading among them.
+  The count of this section is taken with no cap on its output.
+- **Started again** at 16:54:54 at level 24 for another 28,800 s
+  (`disk-ceiling-probe-level-24-20261114T165454`).
+  The level stays at 24 by the owner's answer of 08:54;
+  the search for the ceiling is done again when the new drive is in.
+
 ##### Pass 38 is in `main` and `0.6.1-alpha.33` is dispatched; pass 44 reported fit and goes on to hold the new `main`; the brief writer's second answer goes to review (2026-11-14T16:54:04-05:00)
 
 Not final and not approved:
