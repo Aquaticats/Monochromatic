@@ -1198,6 +1198,204 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### cargo-shadow's degraded test run counts tests that did not run as passed, back to its author; the brief writer's change for tests goes to review (2026-11-14T11:04:27-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session queued.
+
+- **cargo-shadow's test task** (`c68faed843`):
+  the review showed by a planted break that the time-bound test still fails when the bound is defeated.
+  One reproduced:
+  on a host that cannot give a delegated scope,
+  each scope test that did not execute prints `PASS` beside its `SKIPPED` line,
+  and the degraded task counted 66 such tests inside `868 passed`.
+  The README names it as a known tradeoff.
+  It is not kept:
+  the project's rule is that a green run counts only by the names of tests that ran.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/cargo-shadow-test-task-answers-its-review-of-2026-11-14-prompt.md`).
+- **The writer of review briefs takes a change of tests alone** (tip `1b6ea7748d`, ended 10:59:17;
+  the owner's answer of 08:54:33):
+  the author reports the change made with its controls.
+  Review queued third (range `main...1b6ea7748d`, five code files).
+  It measured that a range holding `.cjs` and `.d.cts` code is still answered "nothing to review",
+  which is outside that decision.
+  That is a defect of the driver and has a fresh run,
+  queued fourth and started from that tip:
+  the writer never answers "nothing to review" for a range that changes code of any kind the repository tracks
+  (`~/temp/agent/pi-runs/review-brief-writer-reads-every-kind-of-code-file-the-repository-holds-prompt.md`).
+- **Scratch and the home drive**:
+  that run measured `${HOME}/temp/agent` at 330 GiB at about 10:59;
+  pass 37 measured 308 GB by `du` at 09:47.
+  `df` gave 501 G free on `/var/home` at 11:03,
+  71% used.
+- 23 Pi runs were going at 11:04:27;
+  the queue held 56 entries.
+
+##### The failure variants' test goes back for one form it lets by; the long runtime directory's answer goes to review (2026-11-14T10:58:58-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session queued.
+
+- **The failure variants' test** (`8480dea6b4`):
+  by the review's runs a missing sample,
+  two lines sharing a name and a sample of the wrong variant each fail the test,
+  and a new variant stops the file from compiling.
+  One reproduced:
+  two variants folded into one arm by an or-pattern,
+  or a catch-all arm,
+  leave the test passing,
+  and the catch-all would swallow a later variant.
+  The reviewer weighs it below critical,
+  since it takes an edit of the guard's own list.
+  Weighed here as worth its fix:
+  the catch-all undoes the compile-time notice the change exists for,
+  and the fix is confined to one macro.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/failure-variant-test-answers-its-review-of-2026-11-14-prompt.md`).
+- **The long runtime directory** (tip `eafd1e9a24`, ended 10:55:22):
+  the author reports both findings of its second review answered
+  (the repair path's wait gone from 10,016 ms to 51 ms and from 10,018 ms to 3 ms by its probe;
+  `service status` outside a worktree finds a service at an abstract name;
+  116 tests of the touched modules passing at four CPUs).
+  It names one thing left alone in another agent's file:
+  `Address::named` cuts a name that is too long instead of refusing it,
+  and no caller passes one after this change.
+  Review queued third (range `main...eafd1e9a24`).
+- Both runs say no credential's value reached a tool result of theirs.
+- 23 Pi runs were going at 10:58:58;
+  the queue held 55 entries.
+
+##### The credential scan has ended and a list of names to rotate is written; mpm-shadow's cleanup answer goes to review (2026-11-14T10:51:00-05:00)
+
+Not final and not approved:
+what the coordinating session measured and queued,
+and what one author reports of itself.
+
+- **The wider scan ended at 10:47:07**:
+  3,775 Pi session files (6,046 MiB) and the 1,799 Claude Code transcripts of this repository (20,425 MiB).
+  23 Pi sessions and 13 Claude Code transcripts hold a value that is current today
+  (a fourteenth transcript holds only OAuth metadata the matcher mistook).
+  Found:
+  31 of the 35 names of `.env.local.json`,
+  three provider keys of Pi's `auth.json`,
+  the key of Pi's `models.json`.
+  `MISE_GITHUB_TOKEN` stands in seventeen files,
+  `HCLOUD_TOKEN` in two.
+  Found in no file:
+  the `gh` login token,
+  the sops age key,
+  the two real token strings of `mcp-auth.json`.
+  This session's own Claude Code transcript holds `CLAUDE_CODE_TEST_CLAUDE_API_KEY` since 2026-11-07.
+- **The list for the owner's rotation**,
+  names alone:
+  `~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/credentials-to-rotate-names-only.txt`,
+  with what the scan does not cover.
+- **`PNPR_SECRET`**:
+  three of the four strings sessions show after it stand in tracked files and are stand-ins.
+  The fourth,
+  eighteen times,
+  stands in no tracked file and equals no value read;
+  its shape is being read from the Claude Code transcripts,
+  the Pi sessions holding none.
+  Read at 10:53:13:
+  all eighteen stand in one Claude Code transcript that began 2026-09-15,
+  and the string is three hyphenated lowercase words followed by ten digits and six letters.
+  That reads like a made-up stand-in,
+  and this session cannot tell whether a deployed pnpr server uses it;
+  it is in the list for the owner to recognise.
+- **The masking run** was going at 10:49:45.
+- **mpm-shadow's cleanup** (tip `3a96da6dbf`, ended 10:44:30):
+  the author reports the review's three findings answered with controls,
+  46 tests of the changed modules and 780 of the whole suite passing,
+  judging grown by about 2 ms over 118 candidates.
+  The package's `lint:types` ends with status 101 on eighteen findings in files equal to `main`'s
+  (the Clippy fix `682b1072df`,
+  reviewed and in the mpm-shadow integration,
+  is what answers them).
+  The run's summary says `pi-not-stopped`:
+  Pi was still alive when every bound on ending it ran out.
+  Its unit is gone and its worktree is clean,
+  so nothing of it is left;
+  the ending itself is a driver matter to look at when it shows again.
+  Review queued second (range `main...3a96da6dbf`).
+  Its two questions for the owner
+  (one year and one hundred years as the largest work limit and age floor;
+  whether a global pass looks for a repository above the working folder)
+  join the kept question on mpm-shadow's cleanup bounds.
+- **mpm-shadow's install that removes no version a lock names or a process runs** (`e51ae27709`):
+  held until the cleanup author had answered;
+  review queued third.
+  Its author's session is one of those that hold credentials,
+  so findings go to a fresh run and never to a resume.
+- 24 Pi runs were going at 10:49:45;
+  the queue held 56 entries.
+
+##### `0.6.1-alpha.28` is installed and its first minutes are clean; the archive's kept files are in `main`; the credential scan widens to April (2026-11-14T10:45:14-05:00)
+
+Not final and not approved:
+what the coordinating session measured and merged,
+and what one review reports of itself.
+
+- **`0.6.1-alpha.28`**:
+  published at 10:34:55
+  (run 43610349286 of the publish workflow,
+  both Linux archives),
+  installed here from 10:36:00 to 10:36:09,
+  sample commit 1,636 ms.
+  The wrapper units' journal from 10:35:30 until 10:41:00:
+  215 lines,
+  no manager-wide reload,
+  no start failing at the EXEC step,
+  no service at its start limit,
+  three services saying `0.6.1-alpha.28` at their start.
+  Passes 38 and 39 were told at 10:36 that `main` holds pass 37.
+  The next release is `0.6.1-alpha.29`.
+- **The archive's kept files** (`a43768a87d`):
+  the branch's reviewer,
+  resumed,
+  checked the author's answer with its own scripts and found no defect in seven checks
+  (79 added files against the archive member by digest,
+  77 identical and two equal as parsed JSON;
+  239 kept rows against 239 tree files in both directions;
+  its own scan for non-text,
+  large files,
+  home paths and credentials finding none;
+  the records rendering).
+  It says of `agent-final-report.md` that it is the agent's own closing narrative and none of the four kinds the sentence names,
+  so the file stays in history alone,
+  listed.
+  Merged as `32ddfffc09` at 10:45:07;
+  the handover was not changed by the merge.
+- **The credential scan, wider and not finished**
+  (`~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/wider-scan-of-pi-sessions-and-claude-code-transcripts-with-values-from-every-source.txt`):
+  every `.jsonl` under Pi's sessions folder,
+  3,775 files and 6,046 MiB,
+  so the runs still going are in it;
+  values from `.env.local.json`,
+  Pi's `models.json`,
+  `auth.json` and `mcp-auth.json`,
+  and the `gh` token.
+  **23 Pi session files hold a value that is still current**,
+  the oldest from 2026-04-28,
+  most of them not started by this session.
+  Beyond the first scan's names:
+  three provider keys of `auth.json` in the session of 2026-11-09,
+  the `models.json` key in two sessions of September and October,
+  `HCLOUD_TOKEN` in a session of 2026-08-03,
+  `MISE_GITHUB_TOKEN` in at least ten sessions since June.
+  Some `mcp-auth.json` hits are the matcher's own mistake
+  (OAuth metadata strings read as credentials)
+  and are to be taken out before any list is given.
+  No Pi session holds this machine's sops age key
+  (`scan-for-the-sops-age-secret-key.txt`).
+  The Claude Code transcripts of this repository are still being read by both scans;
+  fourteen held a hit at 10:45:14,
+  not yet sorted from the false ones.
+- The owner's three answers of 10:38:24 are under "Owner decisions in force".
+
 ##### Real credentials reached model providers in six Pi sessions; pass 37 is in `main` and `0.6.1-alpha.28` is dispatched (2026-11-14T10:31:58-05:00)
 
 Not final and not approved:
