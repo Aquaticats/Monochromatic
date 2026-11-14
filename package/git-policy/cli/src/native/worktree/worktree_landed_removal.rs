@@ -298,6 +298,10 @@ pub struct LandedSweep {
     /// What it removed and left something in,
     /// which the notice says in its own words.
     pub removed_around: Vec<RemovedAroundWorktree>,
+    /// What it removed while the volume it went around had gone,
+    /// so the emptied root went with one `rmdir`,
+    /// which the notice says in its own words.
+    pub removed_emptied: Vec<RemovedWorktree>,
     /// What it handed to the commit service to remove,
     /// because that removal is Git's own read of every tracked file and may not be run twice.
     pub handed_over: Vec<HandedOverWorktree>,
@@ -591,6 +595,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         match examine_and_remove(place, &told, one, registered.as_slice(), &LinuxOperations) {
             Examined::Removed(went) => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: branch.clone(), went }),
             Examined::RemovedAround(left, went) => sweep.removed_around.push(RemovedAroundWorktree { worktree: one.worktree.clone(), branch: branch.clone(), left, went }),
+            Examined::EmptiedAround(went) => sweep.removed_emptied.push(RemovedWorktree { worktree: one.worktree.clone(), branch: branch.clone(), went }),
             Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: branch.clone(), report }),
             Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: branch.clone(), why: report }),
             Examined::Handed(record, went) => sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: branch.clone(), record, went }),
@@ -634,6 +639,10 @@ enum Attempt {
     /// and what someone else put inside it stands where it was,
     /// with the words for what went besides the files Git tracks.
     RemovedAround(Vec<Boundary>, Vec<String>),
+    /// The worktree and its registration are gone,
+    /// and the volume it went around had gone by the time its pass ended,
+    /// with the words for what went besides the files Git tracks.
+    EmptiedAround(Vec<String>),
 }
 
 /// What:
@@ -679,9 +688,12 @@ fn remove_here_or_hand_over(
         RemoveOutcome::Incomplete(report) => return Attempt::Unfinished(report),
         RemoveOutcome::Refused(report) => return Attempt::Refused(report),
         RemoveOutcome::RemovedAround(left) => return Attempt::RemovedAround(left, went),
-        // The volume went away during the pass, so the emptied root went with one `rmdir` and the worktree is gone: the line the
-        // sweep prints for a removal says what became of the worktree, and no line of it promises a queued delete.
-        RemoveOutcome::RemovedAroundNothingLeft => return Attempt::Removed(went),
+        // This command destroyed the subvolume itself, because another command took the hand-over first: the files are gone
+        // when it returns, and the words for what went are the same.
+        RemoveOutcome::DestroyedInPlace => return Attempt::Removed(went),
+        // The volume went away during the pass, so the emptied root went with one `rmdir` and nothing of this removal's
+        // deleted files is what freed the space its snapshot held: the sweep says so in its own line.
+        RemoveOutcome::RemovedAroundNothingLeft => return Attempt::EmptiedAround(went),
         RemoveOutcome::LeftToGit => {}
     }
     let record: WorkItem = match hand_over_worktree_removal(place.context, place.git_dir, one.worktree.as_path(), one.admin.as_path(), place.current_root, told) {
@@ -718,6 +730,9 @@ enum Examined {
     /// It is gone and something someone else put inside it stayed,
     /// with the words for what went besides the files Git tracks.
     RemovedAround(Vec<Boundary>, Vec<String>),
+    /// It is gone and the volume it went around had gone by the time its pass ended,
+    /// with the words for what went besides the files Git tracks.
+    EmptiedAround(Vec<String>),
     /// Nothing proves the wrapper made it.
     Unproven,
 }
@@ -793,6 +808,7 @@ fn examine_and_remove(
         Attempt::Handed(record, went) => Examined::Handed(record, went),
         Attempt::Kept(why) => Examined::Kept(why),
         Attempt::RemovedAround(left, went) => Examined::RemovedAround(left, went),
+        Attempt::EmptiedAround(went) => Examined::EmptiedAround(went),
     };
 }
 

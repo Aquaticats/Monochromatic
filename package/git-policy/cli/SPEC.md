@@ -3608,6 +3608,12 @@ reads the record, asks Git whether anything is reported about the tree but the e
 (leaving out what stands inside the volumes it leaves,
 because the pass often deletes the ignore rule that hid one),
 and finishes the removal when nothing else stands there.
+The record is published over its name in one rename,
+so the same command run again after a kill writes the same record instead of failing on the one that is
+already there,
+a kill at any instruction leaves either the record that was there or this complete one,
+and a record a reused registration name left behind is replaced by the identities of the worktree this
+pass emptied.
 A record this build cannot read proves nothing and is left for the build that wrote it,
 a record whose registration is gone is dropped by the next removal,
 and a record that cannot be written costs that finish and never the removal.
@@ -3629,6 +3635,12 @@ it is `RemovedAround`, which carries every volume that was left,
 and `src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs` words it.
 A removal that stopped halfway is `Incomplete` with its own words:
 files it removed are gone, the worktree is still registered, and the report says which of the two happened.
+A pass that found the volume gone when it ended is reported as its own ending:
+the worktree's entries went one by one in this command,
+the empty root went with one `rmdir`,
+and nothing was handed to the commit service,
+so no delete waits behind the command,
+and the line says that instead of the destroy's words.
 A pass that emptied the tree but could not remove the registration is reported in the around route's own words:
 the worktree was emptied around what was left, the path still stands with it, Git still lists the worktree, and
 `git worktree prune` or another run of the same removal finishes it.
@@ -13207,6 +13219,24 @@ each with its reason in the code and here:
   finishes it are one critical section of one non-blocking write;
   the waiter waits for one system call,
   never for the journal.
+- The mutex on the stock of drawn shadows (`service_shadow_draw.rs`):
+  the draw's own thread records a tree and every connection's answer takes one,
+  so two threads reach the list,
+  and a list of paths is not one word an atomic could hold.
+  Under it the list is changed and nothing else:
+  one `push` on the draw's thread and one `pop` where a commit's question is answered,
+  with no Git process,
+  no file and no other lock,
+  so a commit's question is answered from memory and never waits for a volume.
+- The mutex and the condition of the service's own log lines (`service_log_lines_off_the_calling_thread.rs`):
+  a caller hands a line and goes on,
+  and one thread takes lines and may wait on the stream as long as the reader takes,
+  so the hand and the take are the two ends of one queue;
+  under it one line is pushed or popped and the writer is handed out or given back,
+  and the write itself runs outside it.
+  A queue of `QUEUED_LINES` (256,
+  measured over the six slowest commits of 2026-11-12)
+  is what keeps a handed line from waiting for the stream at all.
 - The reclaim of a stale `index.lock`:
   one reclaimer at a time,
   by the claim chain of placed files and process-identity judgements on every file system

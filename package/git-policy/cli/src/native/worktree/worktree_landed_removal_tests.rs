@@ -1464,6 +1464,7 @@ fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the
         Examined::Handed(record, _went) => format!("handed: {}", record.oid),
         Examined::Kept(why) => format!("kept: {why}"),
         Examined::RemovedAround(left, _went) => format!("removed-around {}", left.len()),
+        Examined::EmptiedAround(_went) => String::from("emptied-around"),
         Examined::Unproven => String::from("unproven"),
     };
     assert!(
@@ -2059,5 +2060,52 @@ fn the_service_goes_around_a_volume_that_appeared_after_the_hand_over() {
     assert_eq!(notices.len(), 1, "the person reads what was left once: {notices:?}");
     assert!(notices[0].contains(volume.to_str().expect("a UTF-8 fixture path")), "the notice names the volume: {}", notices[0]);
     assert!(notices[0].contains("free for `git worktree add`"), "and what frees the path: {}", notices[0]);
+    remove(landed.root.as_path());
+}
+
+/// What:
+///  A landed removal whose volume went away during its pass says what that path did,
+///  and never that the ignored files that went with the worktree are what freed the space its snapshot held.
+/// Why:
+///   On that path the subvolume had already gone by another command's delete,
+/// so the space went with that
+///  delete and not with this removal's own deletions;
+/// a person told otherwise looks for a freeing that this command did
+///  not make (left for later in my report of 2026-11-13,
+/// and read again in the third review).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = lines.find((one) => one.includes(worktree));
+/// expect(line).toContain('the emptied root went with one `rmdir`');
+/// expect(line).not.toContain('which is what frees the space its snapshot held');
+/// ```
+#[test]
+fn btrfs_a_landed_removal_whose_volume_went_away_says_what_that_path_did() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-around-emptied", "snap/\n");
+    if !a_btrfs_fixture_root(landed.root.as_path(), "landed-around-emptied") {
+        remove(landed.root.as_path());
+        return;
+    }
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let volume: PathBuf = landed.worktree.join("snap");
+    crate::fs_btrfs_ioctl::subvolume_create_at(volume.as_path()).expect("a subvolume the removal did not make");
+    std::fs::write(volume.join("precious.txt"), b"what I put there\n").expect("a file the person put there");
+    age_what_the_worktree_holds(landed.worktree.as_path());
+    let emptied: PathBuf = volume.clone();
+    crate::subvolume_remove_listing_test_support::act_after_the_around_pass(move |_target: &Path| {
+        // Another command deletes the volume while the pass runs: its file first, then the empty root.
+        std::fs::remove_file(emptied.join("precious.txt")).expect("the file the person put there");
+        std::fs::remove_dir(emptied.as_path()).expect("an empty subvolume root goes with rmdir");
+    });
+    let sweep: LandedSweep = land_feature(&landed);
+    crate::subvolume_remove_listing_test_support::stop_acting();
+    let lines: Vec<String> = crate::worktree_landed_sweep_notice::landed_sweep_lines(&sweep);
+    let about: &String = lines.iter().find(|line| return line.contains(landed.worktree.to_str().expect("a UTF-8 fixture path"))).expect("a line says what became of the worktree");
+    assert!(about.contains("the emptied root went with one `rmdir`"), "the line says how the emptied root went: {about}");
+    assert!(about.contains("had gone by the time"), "and that the volume was gone when its pass ended: {about}");
+    assert!(!about.contains("which is what frees the space its snapshot held"), "and never that this removal's deletions freed the space the snapshot held: {about}");
+    assert!(!landed.worktree.exists(), "the emptied root is gone");
+    assert_eq!(registrations_under(landed.common.as_path()), Vec::<String>::new(), "and its registration is gone");
     remove(landed.root.as_path());
 }
