@@ -332,3 +332,110 @@ fn entries_of(folder: &Path) -> Vec<PathBuf> {
     found.sort();
     return found;
 }
+
+/// What:
+///  A runtime directory too long for a socket path, with a note naming one instance of a worktree,
+/// and a service standing at the address that instance takes.
+/// Why:
+///   The status command without a worktree counts the services of the account at the runtime directory it is given,
+/// and under a long runtime directory a service has no socket file to be counted by:
+/// its instance has to be learned from the note provisioning writes (`note_worktree`),
+/// which is where the sweep and the stopped-instance files read the instances of an account from too.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const runtime = runtimeDirectoryTooLongForAPath('route-status-abstract'); noteWorktree(runtime, instance, gitDir);
+/// ```
+#[cfg(target_os = "linux")]
+fn a_runtime_directory_too_long_for_a_path(tag: &str) -> PathBuf {
+    let base: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
+    std::fs::create_dir_all(&base).expect("the scratch directory");
+    let holder: PathBuf = base.join(format!("{tag}-{}", std::process::id()));
+    std::fs::create_dir_all(&holder).expect("the holder of the runtime directory");
+    crate::test_support::track_for_this_thread(holder.as_path());
+    let longest: usize = crate::service_instance::longest_runtime_directory(&instance_of(Path::new("/nonexistent/instance-vector")));
+    let room: usize = (longest + 1).saturating_sub(holder.as_os_str().len() + 1);
+    let runtime: PathBuf = holder.join("r".repeat(room.max(1)));
+    std::fs::create_dir_all(&runtime).expect("the runtime directory");
+    assert!(runtime.as_os_str().len() > longest, "the runtime directory is too long for a socket path: {} bytes", runtime.as_os_str().len());
+    return runtime;
+}
+
+/// What:
+///  A stand-in at an abstract address that greets a connection and closes it.
+/// Why:
+///   The status command greets a service to tell one that runs from one that stopped inside itself,
+/// so a listener that answers with its greeting is a service that runs,
+/// and the name it stands at is the one the wrapper computes.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const listener = greetingAtAddress('monochromatic-git-policy-cli/1000/<digest>/<instance>');
+/// ```
+#[cfg(target_os = "linux")]
+fn greeting_at_an_abstract_address(address: &Bind) -> (std::os::unix::net::UnixListener, std::thread::JoinHandle<bool>) {
+    use std::os::linux::net::SocketAddrExt;
+    let Bind::Abstract(name) = address else { panic!("this control stands a service at an abstract name") };
+    let socket_address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("the name fits an address");
+    let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind_addr(&socket_address).expect("a listener at the abstract name");
+    let stand_in: std::os::unix::net::UnixListener = listener.try_clone().expect("a second handle for the control's own end");
+    let thread: std::thread::JoinHandle<bool> = std::thread::spawn(move || {
+        // The accept itself is bounded, so a control whose status never connects says so in its assertions instead of holding
+        // the suite in a thread.
+        let Ok(()) = listener.set_nonblocking(true) else { return false };
+        let began: std::time::Instant = std::time::Instant::now();
+        let mut stream = loop {
+            match listener.accept() {
+                Ok((stream, _where)) => break stream,
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(_refused) => return false,
+            }
+            if began.elapsed() > Duration::from_secs(5) {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        };
+        let _back_to_blocking = stream.set_nonblocking(false);
+        let _timeout = stream.set_read_timeout(Some(Duration::from_secs(10)));
+        let mut welcome: String = crate::service_protocol_encode_messages_to_lines::encode_service(&crate::service_protocol::ServiceMessage::Welcome {
+            version: crate::service_protocol::PROTOCOL_VERSION,
+            release: None,
+        });
+        welcome.push('\n');
+        return std::io::Write::write_all(&mut stream, welcome.as_bytes()).is_ok();
+    });
+    return (stand_in, thread);
+}
+
+/// What:
+///  The status command without a worktree finds the account's service where it stands at an abstract name.
+/// Why:
+///   The status is what a failed commit's message sends a person to,
+/// so "does not answer" while a service runs and answers
+///  contradicts the machine.
+/// Under a long runtime directory the service has no socket file,
+/// and its name cannot be guessed without the
+///  instance, which the note provisioning writes names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(serviceStatus(runtimeTooLongForAPath, undefined).code).toBe(0);
+/// ```
+#[test]
+#[cfg(target_os = "linux")]
+fn a_status_without_a_worktree_finds_a_service_at_an_abstract_name() {
+    let runtime: PathBuf = a_runtime_directory_too_long_for_a_path("route-status-abstract");
+    let git_dir: PathBuf = runtime.join("worktree/.git");
+    std::fs::create_dir_all(&git_dir).expect("a directory the note names");
+    let instance: String = instance_of(git_dir.as_path());
+    crate::service_units_of_removed_worktrees::note_worktree(runtime.as_path(), instance.as_str(), git_dir.as_path());
+    let address: Bind = socket_address_of(runtime.as_path(), instance.as_str());
+    assert!(matches!(address, Bind::Abstract(_)), "the runtime directory is served at an abstract name");
+    let (listener, stand_in) = greeting_at_an_abstract_address(&address);
+    let report: StatusReport = service_status(Some(runtime.as_path()), None);
+    let greeted: bool = stand_in.join().expect("the stand-in ends");
+    drop(listener);
+    assert!(greeted, "the status command greeted the service at the abstract name");
+    assert_eq!(report.code, 0, "the service answers, so the status says so: {}{}", report.stdout, report.stderr);
+    remove(runtime.as_path());
+}
