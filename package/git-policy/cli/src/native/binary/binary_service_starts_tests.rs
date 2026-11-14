@@ -311,3 +311,96 @@ fn a_client_keeps_a_service_of_a_newer_release_and_asks_it_to_leave_not_once() {
     drop(newer);
     finish(&fixture, runtime.as_path());
 }
+
+/// The most a control waits for the service it started to reach the state it is about,
+/// far beyond what the state needs, so only a service that never gets there reaches it.
+const SETTLED: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// What:
+///  A service of this worktree that is alive and has not greeted yet is waited for by the next command and never started
+///  over, and a commit reaches it once its recovery ends.
+/// Why:
+///  The fourth review of issue 6293 (finding 1):
+/// a service in its recovery before its first greeting answered nothing,
+/// so the next start took its address away,
+/// the worktree had two live services,
+/// and the one that ended first deleted the other's address and note.
+/// The recovery is held by the service's own hold, which this control releases,
+/// so nothing here is a wait made of load.
+#[test]
+fn a_live_service_that_has_not_greeted_yet_is_waited_for_and_never_started_over() {
+    let (fixture, repo, runtime) = prepared("starts-prepares");
+    let socket: PathBuf = socket_for(runtime.as_path(), repo.join(".git").as_path());
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let note: PathBuf = pid_note(instance_folder(runtime.as_path()).as_path(), instance.as_str());
+    std::fs::create_dir_all(instance_folder(runtime.as_path()).as_path()).expect("the folder of the address");
+    let hold: PathBuf = instance_folder(runtime.as_path()).join("before-serving.pipe");
+    let made: std::ffi::CString = std::ffi::CString::new(hold.as_os_str().as_encoded_bytes()).expect("no NUL in the pipe's path");
+    // SAFETY: `mkfifo` takes a path this control made and a mode, and touches no memory of this process.
+    let created: libc::c_int = unsafe { libc::mkfifo(made.as_ptr(), 0o600) };
+    assert_eq!(created, 0, "the control's pipe is made: {}", std::io::Error::last_os_error());
+    // A service of this build, started by hand, held in the window between its address being bound and its first greeting.
+    let mut service: std::process::Child = {
+        let words: Vec<&str> = git_policy_cli::service_main::SERVICE_WORDS.to_vec();
+        let mut command = std::process::Command::new(service_executable());
+        command
+            .args(words)
+            .arg("--path")
+            .arg(socket.as_path())
+            .arg("--journal")
+            .arg(fixture.root.join("journal"))
+            .arg("--instance")
+            .arg(instance.as_str())
+            .env(git_policy_cli::service_fault::HOLD_BEFORE_SERVING_VARIABLE, hold.as_os_str())
+            .env_remove("XDG_RUNTIME_DIR")
+            .env_remove("DBUS_SESSION_BUS_ADDRESS")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        command.spawn().expect("the service starts")
+    };
+    let service_pid: i32 = i32::try_from(service.id()).expect("a process number fits");
+    let settled: std::time::Instant = std::time::Instant::now();
+    while !(note.exists() && socket.exists()) && settled.elapsed() < SETTLED {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(read_note(note.as_path()).expect("the service claimed the instance").pid, service_pid, "the instance was claimed before the address was bound");
+    assert!(!git_policy_cli::service_server_start_by_the_wrapper::answered(socket.as_path()), "the premise: the service has bound its address and has not greeted yet");
+    let address_before: u64 = {
+        use std::os::unix::fs::MetadataExt as _;
+        std::fs::metadata(socket.as_path()).expect("the address").ino()
+    };
+    // The next command starts the service, which is what a commit does first.
+    let to_start = ServerToStart {
+        socket: socket.clone(),
+        instance: instance.clone(),
+        journal: fixture.root.join("journal"),
+        git: PathBuf::from("/usr/bin/git"),
+        program: PathBuf::from(service_executable()),
+        manager: None,
+    };
+    let attempt = start(&to_start);
+    assert!(
+        matches!(attempt, StartAttempt::ServiceIsPreparing { .. }),
+        "a live service that has not greeted is waited for, not started over: {attempt:?}"
+    );
+    let address_after: u64 = {
+        use std::os::unix::fs::MetadataExt as _;
+        std::fs::metadata(socket.as_path()).expect("the address is still there").ino()
+    };
+    assert_eq!(address_after, address_before, "the address was not taken over");
+    assert_eq!(read_note(note.as_path()).expect("the note still reads").pid, service_pid, "and the service at the address is still the one that was there");
+    // The hold is released: the service that was already there greets, so a command that waited is served by it.
+    {
+        use std::io::Write as _;
+        let mut writing: std::fs::File = std::fs::OpenOptions::new().write(true).open(hold.as_path()).expect("the control holds the pipe's other end");
+        let _released = writing.write_all(b"go");
+    }
+    assert!(
+        git_policy_cli::service_server_start_by_the_wrapper::waits_for_a_greeting(socket.as_path(), PATIENCE),
+        "the service that was preparing answers once it has finished"
+    );
+    let _killed = service.kill();
+    let _reaped = service.wait();
+    finish(&fixture, runtime.as_path());
+}

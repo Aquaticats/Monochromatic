@@ -120,6 +120,17 @@ pub enum Platform {
 pub enum ClientFailure {
     /// The service was started and did not come up.
     DidNotStart,
+    /// The service of this worktree is alive at its address and has not greeted yet:
+    /// it is still preparing the batches an earlier service left open.
+    ServiceIsPreparing {
+        /// The address the service was asked at.
+        address: String,
+        /// The process the note beside the address names,
+        /// which is the service that is preparing.
+        pid: i32,
+        /// How long the wait lasted.
+        waited: Duration,
+    },
     /// Something accepted the connection at the service's address and nothing answered;
     /// no service manager could be asked to start or restart it.
     NothingAnswered {
@@ -304,6 +315,7 @@ pub fn render(failure: &ClientFailure) -> String {
              Run the commit again after fixing that. {NOTHING_CHANGED}"
         ),
         ClientFailure::NothingAnswered { address, waited } => crate::service_messages_of_a_service_that_stopped::nothing_answered(address.as_str(), *waited),
+        ClientFailure::ServiceIsPreparing { address, pid, waited } => crate::service_messages_of_a_service_that_stopped::service_is_preparing(address.as_str(), *pid, *waited),
         ClientFailure::NoActivation(platform) => format!(
             "This computer cannot start the commit service on demand, so this commit was not made. {} {NOTHING_CHANGED}",
             platform_remedy(*platform)

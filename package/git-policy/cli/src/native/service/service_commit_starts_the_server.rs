@@ -67,7 +67,7 @@ pub(crate) fn ensure_a_server(named: Option<&ServiceHost>, provisioned: bool, ti
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// ensurePrivate(host.socketDirectory); switch (startTheServer(host.server)) { hidden: case greeted, another-command: ok; case did-not-greet: fail }
+/// ensurePrivate(host.socketDirectory); switch (startTheServer(host.server)) { hidden: case greeted, another-command, service-is-preparing: ok; case did-not-greet: fail }
 /// ```
 pub fn make_sure_a_server_exists(host: &ServiceHost) -> Result<(), ClientFailure> {
     let directory: std::path::PathBuf = host.socket_directory();
@@ -87,7 +87,11 @@ pub fn make_sure_a_server_exists(host: &ServiceHost) -> Result<(), ClientFailure
     }
     let server = host.server();
     return match start(&server) {
-        StartAttempt::Greeted | StartAttempt::AnotherCommandStartsIt => Ok(()),
+        // What: A service that is alive and still preparing is not a failure: the submit's own connect wait takes over.
+        // Why:  A service recovers the batches an earlier service left open before it greets, and that recovery may outlast this start's
+        //       wait; the wait that has the ceiling for it is the connect wait, which says a service was preparing when it ends
+        //       (the fourth review of issue 6293, finding 1).
+        StartAttempt::Greeted | StartAttempt::AnotherCommandStartsIt | StartAttempt::ServiceIsPreparing { .. } => Ok(()),
         StartAttempt::DidNotGreet(log) => Err(ClientFailure::CouldNotStart(format!(
             "the commit service was started and sent no greeting within {} seconds. Its output is in {}; if it says nothing, remove \
              that file and the address beside it and run the commit again",

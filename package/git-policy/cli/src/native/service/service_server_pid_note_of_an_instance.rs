@@ -48,8 +48,12 @@ pub fn path(socket_directory: &Path, instance: &str) -> PathBuf {
 /// What:
 ///  Writes the note that names this process.
 /// Why:
-///   Only the service itself can say which process bound the socket,
+///   Only the service itself can say which process is its own,
 /// and only its own birth identity is certainly its own.
+/// The text is written beside the note and renamed onto it,
+/// so a reader never sees half of a note,
+/// and the temporary file carries this process's number,
+/// so two processes writing at once never write into one file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -61,9 +65,67 @@ pub fn write(note: &Path, pid: i32) -> std::io::Result<()> {
         // A platform without an identity source cannot make a note a later command may trust, so none is made.
         Err(_unsupported) => return Ok(()),
     };
-    let temporary: PathBuf = note.with_extension("pid.writing");
+    let temporary: PathBuf = note.with_extension(format!("{pid}.pid.writing"));
     std::fs::write(&temporary, format!("{pid} {identity}\n"))?;
     return std::fs::rename(&temporary, note);
+}
+
+/// What:
+///  Claims one instance for this process:
+/// writes the note that names it,
+/// unless another process that is still that process holds the instance.
+/// Why:
+///   The note is what a starter,
+/// a second service and the sweep all read to learn whose an address is,
+/// so it is written before the address is bound,
+/// and a service that is alive keeps its instance from the moment it claims it,
+/// whether or not it has greeted yet.
+/// A note that names a process which is gone is the leftovers of a killed service,
+/// and the birth identity is what tells the two apart,
+/// so the claim is taken over then and never otherwise.
+/// Two services claiming at the same moment both write and both read the note back:
+/// the one that does not read its own writing has lost the instance and does not bind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claim(note, pid) // throws when another live process holds it
+/// ```
+pub fn claim(note: &Path, pid: i32) -> std::io::Result<()> {
+    for _round in 0..2 {
+        if let Some(held) = held_by_another_live_process(note) {
+            return Err(std::io::Error::other(format!(
+                "the commit service of this instance is process {} and is still that process, so this one does not claim it",
+                held.pid
+            )));
+        }
+        write(note, pid)?;
+        // The note is believed only once it reads back as this process's: another claimer may have written it after this one.
+        if matches!(read(note), Some(written) if written.pid == pid && is_still_the_process(&written)) {
+            return Ok(());
+        }
+    }
+    return Err(std::io::Error::other("another process claimed this instance at the same moment, so this one does not claim it"));
+}
+
+/// What:
+///  The process that holds this instance and is still that process,
+/// when it is not this one.
+/// Why:
+///   A note whose process is gone is a killed service's leftovers,
+/// which the next service claims;
+/// a note whose process is alive is the service of this instance,
+/// and neither a second service nor a bind may take its address away.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// heldByAnotherLiveProcess(note) // the note's server when its pid is not this process's and it is still that process
+/// ```
+pub fn held_by_another_live_process(note: &Path) -> Option<ServerProcess> {
+    let held: ServerProcess = read(note)?;
+    if held.pid == i32::try_from(std::process::id()).unwrap_or(0) || !is_still_the_process(&held) {
+        return None;
+    }
+    return Some(held);
 }
 
 /// The note as text, or nothing when it is not there.

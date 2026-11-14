@@ -53,7 +53,7 @@ use crate::wrapper_names_old_and_new::COMMAND_WORD;
 use crate::service_land::{LandContext, recover_instance};
 use crate::service_protocol::PROTOCOL_VERSION;
 use crate::service_timing::{log, started_line};
-use crate::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
+use crate::service_server::{Bind, IDLE_EXIT, ServeSettings, address_text, bind, serve};
 use crate::service_units_of_removed_worktrees::{OwnWorktree, own_worktree_state, stop_own_socket_when_the_worktree_is_gone};
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
@@ -312,35 +312,44 @@ pub fn run(arguments: &[String]) -> i32 {
         crate::service_error!("cannot create the journal directory {}: {error}", journal.display());
         return EXIT_REFUSED;
     }
-    // What: The folder an address sits in must exist and be private before the address is bound.
-    // Why:  The bind fails in a folder that is not there, and a folder others may enter would let them connect to a service
-    //       that carries a review credential.
-    if let Bind::Path(socket) = &address
+    // What: The folder an address sits in is made private, and the instance is claimed for this process, before the address is
+    //       bound.
+    // Why:  The bind fails in a folder that is not there, a folder others may enter would let them connect to a service that carries a
+    //       review credential, and the note is what tells a starter and a second service that this instance's service is alive. The
+    //       claim is made before the bind because the bind is the moment a second service could take the address over: a note written
+    //       after it would leave that moment unnamed (the fourth review of issue 6293, finding 1).
+    let mut own_files: Option<crate::service_server_files_of_a_running_instance::OwnFiles> = None;
+    if let (Bind::Path(socket), Some(instance)) = (&address, named_instance.as_deref()) {
+        match crate::service_server_files_of_a_running_instance::claim(socket.as_path(), instance) {
+            Ok(claimed) => own_files = Some(claimed),
+            Err(error) => {
+                crate::service_error!("cannot claim the instance of this worktree at {}: {error}", socket.display());
+                return EXIT_NOT_LISTENING;
+            }
+        }
+    } else if let Bind::Path(socket) = &address
         && let Some(directory) = socket.parent()
         && let Err(error) = crate::service_socket_directory_only_this_account_may_open::ensure_private(directory)
     {
         crate::service_error!("cannot make the folder of the address {} private: {error}", socket.display());
         return EXIT_NOT_LISTENING;
     }
-    let listener = match bind(&address) {
+    let listener = match bind(&address, own_files.as_ref().and_then(crate::service_server_files_of_a_running_instance::OwnFiles::note)) {
         Ok(listener) => listener,
         Err(error) => {
             crate::service_error!("cannot listen: {error}");
             return EXIT_NOT_LISTENING;
         }
     };
-    // What: The address is this process's once it is bound, and the note that names this process is written now.
-    // Why:  A note written before the bind could name a process nothing can reach, and the folder's mode and the address's
-    //       mode are what keeps the review credential this service carries to this account.
-    let mut own_files: Option<crate::service_server_files_of_a_running_instance::OwnFiles> = None;
-    if let (Bind::Path(socket), Some(instance)) = (&address, named_instance.as_deref()) {
-        match crate::service_server_files_of_a_running_instance::take(socket.as_path(), Some(instance)) {
-            Ok(taken) => own_files = Some(taken),
-            Err(error) => {
-                crate::service_error!("cannot keep the address {} to this account alone: {error}", socket.display());
-                return EXIT_NOT_LISTENING;
-            }
-        }
+    // What: The address's mode is kept to this account once it is bound: the folder's mode and the address's mode are what keeps the
+    //       review credential this service carries to this account.
+    // Why:  The file exists only after the bind, so its mode is set here and not with the claim.
+    if let Some(files) = own_files.as_ref()
+        && let Err(error) = files.keep_the_address_to_this_account()
+    {
+        crate::service_error!("cannot keep the address {} to this account alone: {error}", address_text(&address));
+        files.remove();
+        return EXIT_NOT_LISTENING;
     }
     let context: LandContext = LandContext {
         git: GitContext { real_git: git, overlay: crate::child_environment::service_child_overlay(std::env::vars_os().collect::<Vec<_>>().as_slice()), global_prefix: Vec::new(), common_dir: None },
@@ -372,6 +381,9 @@ pub fn run(arguments: &[String]) -> i32 {
         let _pruned = prune_done(shared, DONE_RETAINED, &crate::claim_time::ClaimTime::read());
     }
     crate::service_log!("ready");
+    // A control holds this service in the window between its address being bound and its first greeting, which is where a slow
+    //  recovery of the batches an earlier service left open holds it; nothing else arms this.
+    crate::service_fault::hold_before_serving();
     // The repository this service served before warms its compiled rules now, on the blocking pool, so an upgrade's new cache is
     //  filled before the first commit that would compile it.
     crate::service_rules_precompile::warm_remembered(context.journal.as_path());

@@ -64,6 +64,34 @@ pub(crate) fn nothing_answered(address: &str, waited: Duration) -> String {
     );
 }
 
+/// What:
+///  What a person reads about a commit whose service is alive and has not greeted yet.
+/// Why:
+///   The service of this worktree was recovering the batches an earlier service left open,
+/// and the command waited for it rather than starting a second one;
+/// the person is told which process that is,
+/// at which address,
+/// and what the wait was,
+/// because the next step is to let it finish rather than to start anything.
+/// Nothing of the request was sent,
+/// so nothing of it can land later by itself,
+/// and the staged work is as they left it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceIsPreparing('/run/user/1000/x.sock', 4711, 60) // the sentence and the steps
+/// ```
+pub(crate) fn service_is_preparing(address: &str, pid: i32, waited: Duration) -> String {
+    return format!(
+        "The commit service of this worktree is alive at {address} (process {pid}) and has no greeting yet: it is still preparing \
+         the batches an earlier service left open, and it has not finished in {} seconds, the longest a command waits for it. This \
+         command started no second service, because one service of this worktree is already there. This commit was not made, and \
+         nothing of its request was sent. {NOTHING_CHANGED_AND_THE_STAGED_WORK} {NOTHING_CHANGED}\n{}",
+        whole_seconds(waited),
+        steps_for_a_commit_that_was_not_made()
+    );
+}
+
 /// What a person reads about a commit whose service answered nothing after the request was sent,
 /// where `shows` is what the branch showed when the command looked afterwards.
 /// It is what tells a commit that was made from one that was not.

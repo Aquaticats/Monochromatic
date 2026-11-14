@@ -4,6 +4,7 @@
 //! and the descriptor the service manager passed in.
 
 use super::*;
+use std::os::unix::fs::MetadataExt as _;
 use std::path::PathBuf;
 
 /// What:
@@ -35,6 +36,37 @@ fn every_kind_of_address_is_named_in_words_a_person_can_act_on() {
 }
 
 /// What:
+///  A bind never takes the address of a service that is alive, whether or not it has greeted yet.
+/// Why:
+///  The fourth review of issue 6293 (finding 1):
+/// a service that is alive but still in its recovery before its first greeting answered nothing,
+/// so a second binder treated it as a leftover,
+/// unlinked its socket and bound its own,
+/// and the instance had two live services and an address the first had lost.
+/// The note names the process that owns the instance,
+/// and while that process is alive the address is that service's.
+#[test]
+fn a_socket_of_a_live_service_that_greets_nothing_is_never_taken_over() {
+    let root: PathBuf = crate::test_support::short_directory_for_sockets("bind-over-live-silent");
+    let socket: PathBuf = root.join("3f9a.sock");
+    let note: PathBuf = crate::service_server_pid_note_of_an_instance::path(root.as_path(), "3f9a");
+    // The service itself: a socket that accepts and says nothing, as a service before its first greeting is.
+    let silent: UnixListener = UnixListener::bind(socket.as_path()).expect("the preparing service's address");
+    let other = crate::test_support::a_live_process_that_is_not_this_one();
+    let theirs: String = crate::process_identity::process_birth_identity(i64::from(other.pid())).expect("a live process's birth").expect("it is there");
+    std::fs::write(note.as_path(), format!("{} {theirs}\n", other.pid())).expect("the preparing service's note");
+    let before: u64 = std::fs::metadata(socket.as_path()).expect("the address").ino();
+    let refused: std::io::Error = bind_path(socket.as_path(), Some(note.as_path())).expect_err("a live service keeps its address");
+    assert_eq!(refused.kind(), std::io::ErrorKind::AddrInUse, "the refusal is the address being in use: {refused}");
+    assert_eq!(std::fs::metadata(socket.as_path()).expect("the address is still there").ino(), before, "the address was not replaced");
+    // And the same socket is taken over once its note names a process that is gone: the leftovers of a killed service.
+    std::fs::write(note.as_path(), format!("{} linux:000000\n", other.pid())).expect("a killed service's note");
+    let taken: UnixListener = bind_path(socket.as_path(), Some(note.as_path())).expect("the leftovers of a killed service are replaced");
+    drop(taken);
+    drop(silent);
+}
+
+/// What:
 ///  A bind takes the address over from a socket that accepts a connection and greets nothing,
 ///  which is a service that is exiting.
 /// Why:
@@ -56,7 +88,7 @@ fn a_socket_that_greets_nothing_is_taken_over() {
         }
     });
     let began: std::time::Instant = std::time::Instant::now();
-    let taken: UnixListener = bind_path(path.as_path()).expect("the next server takes the address");
+    let taken: UnixListener = bind_path(path.as_path(), None).expect("the next server takes the address");
     assert!(began.elapsed() < std::time::Duration::from_secs(5), "the takeover is one greeting's read, not a wait on the dying process");
     // The new server is the one a connection reaches now.
     let _connected: UnixStream = UnixStream::connect(path.as_path()).expect("a connection to the new address");

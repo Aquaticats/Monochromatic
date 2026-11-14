@@ -150,6 +150,65 @@ pub fn fails(point: &str) -> bool {
     };
 }
 
+/// Environment variable naming a pipe the service waits on in the window between its address being bound and its first greeting,
+/// which is what holds it where a slow recovery of the batches an earlier service left open holds it.
+/// Why:
+///   To a command, a service in that window is a service that is alive and greets nothing yet,
+/// and that is the state the fourth review of issue 6293 (finding 1) read its chain in.
+/// A control that waited for a recovery of more than the start wait would be a wait made of load:
+/// the step it needs held is a kernel read, which the control holds and releases.
+/// The hold ends when the control writes one byte,
+/// and at `HOLD_PATIENCE` in any case,
+/// so a stale variable cannot wedge a service.
+pub const HOLD_BEFORE_SERVING_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_HOLD_BEFORE_SERVING";
+
+/// The longest a service waits on the pipe a control holds, and what it waits in all.
+pub const HOLD_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// How often the hold looks whether the control wrote its byte.
+pub const HOLD_POLL: std::time::Duration = std::time::Duration::from_millis(10);
+
+/// What:
+///  Holds the service before its first greeting, while the control named by the variable holds the other end of a pipe.
+/// Why:
+///   The pre-greeting window is where a service is alive with an address and nothing answering,
+/// and no control can make a recovery last by itself without manufacturing load.
+/// The pipe is the control's own: the byte it writes ends the hold,
+/// and the patience ends it if the control never does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdBeforeServing(); // reads one byte from the named pipe, or returns at the patience
+/// ```
+pub fn hold_before_serving() {
+    let Some(path) = std::env::var_os(HOLD_BEFORE_SERVING_VARIABLE) else { return };
+    let began: std::time::Instant = std::time::Instant::now();
+    let deadline: std::time::Instant = began + HOLD_PATIENCE;
+    // The pipe is opened without waiting for its writer, so a control that never opens it costs one look and nothing more.
+    use std::os::unix::fs::OpenOptionsExt as _;
+    let pipe: std::fs::File = loop {
+        match std::fs::OpenOptions::new().read(true).custom_flags(libc::O_NONBLOCK).open(std::path::Path::new(&path)) {
+            Ok(pipe) => break pipe,
+            // A pipe nobody made yet is a control that has not started its service yet: the hold waits for it as it waits for the byte.
+            Err(_not_there_yet) if std::time::Instant::now() < deadline => std::thread::sleep(HOLD_POLL),
+            Err(_not_there) => return,
+        }
+    };
+    crate::service_log!("test hold before serving at {}: a control holds this service where a slow recovery holds it", std::path::Path::new(&path).display());
+    use std::io::Read;
+    let mut one: [u8; 1] = [0u8; 1];
+    while std::time::Instant::now() < deadline {
+        let mut source: &std::fs::File = &pipe;
+        // Only the byte ends the hold: a read of nothing is a control that has not released it yet, and a pipe whose writer is not
+        //  there yet reads the same.
+        if matches!(source.read(&mut one), Ok(released) if released > 0) {
+            break;
+        }
+        std::thread::sleep(HOLD_POLL);
+    }
+    crate::service_log!("the hold before serving ended after {} ms", began.elapsed().as_millis());
+}
+
 /// Environment variable naming a directory in which the service leaves one file for each commit request it has queued.
 pub const QUEUED_DIRECTORY_VARIABLE: &str = "CLI_GIT_TEST_ONLY_SERVICE_QUEUED_DIRECTORY";
 

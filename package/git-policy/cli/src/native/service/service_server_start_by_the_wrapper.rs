@@ -53,8 +53,17 @@ pub enum StartAttempt {
     /// Another command of this worktree holds the starter marker,
     /// so this one waits for the service that command is starting.
     AnotherCommandStartsIt,
-    /// This command started the service and it sent no greeting within `START_WAIT`;
-    /// the file the service's output went to.
+    /// A service of this worktree is alive at its address and has not greeted yet,
+    /// which is a service still recovering the batches an earlier service left open.
+    /// Nothing was started here: the service is its own, and the wait for it is the caller's.
+    ServiceIsPreparing {
+        /// The service the note beside the address names,
+        /// which is the process that is still that process.
+        service: crate::service_server_pid_note_of_an_instance::ServerProcess,
+    },
+    /// This command started the service and it sent no greeting within `START_WAIT`,
+    /// and no process holds the instance any more.
+    /// The file the service's output went to.
     DidNotGreet(PathBuf),
 }
 
@@ -165,6 +174,14 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     if answered(server.socket.as_path()) {
         return StartAttempt::Greeted;
     }
+    // What: A service of this worktree that is alive is waited for and never started over, whether or not it has greeted yet.
+    // Why:  Its note names the process that holds the instance, so this command can tell a service that is still preparing from the
+    //       leftovers of one that was killed. Starting a second service here is what took a recovering service's address away and left
+    //       two services of one worktree (the fourth review of issue 6293, finding 1); the wait for the one that is there is the
+    //       caller's, which has its own ceiling and says why it ended.
+    if let Some(preparing) = live_service_that_is_preparing(server.pid_note().as_path()) {
+        return StartAttempt::ServiceIsPreparing { service: preparing };
+    }
     let log: PathBuf = server.log();
     if let Err(_cannot_truncate) = log_file::truncate_when_past_its_cap(log.as_path()) {
         // A log that cannot be shortened still takes the server's lines, and the start is worth making.
@@ -197,7 +214,17 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     if spawn(&detached).is_err() {
         return StartAttempt::DidNotGreet(log);
     }
-    return if waits_for_a_greeting(server.socket.as_path(), START_WAIT) { StartAttempt::Greeted } else { StartAttempt::DidNotGreet(log) };
+    if waits_for_a_greeting(server.socket.as_path(), START_WAIT) {
+        return StartAttempt::Greeted;
+    }
+    // What: A service that did not greet but holds the instance is preparing, and one that left no process behind did not come up.
+    // Why:  A recovery of the batches an earlier service left open runs before the first greeting, and it may outlast the start wait;
+    //       what reports that is the note's process being alive, and the words that follow say a service is preparing rather than that
+    //       one failed to start.
+    return match live_service_that_is_preparing(server.pid_note().as_path()) {
+        Some(preparing) => StartAttempt::ServiceIsPreparing { service: preparing },
+        None => StartAttempt::DidNotGreet(log),
+    };
 }
 
 /// What:
@@ -301,6 +328,27 @@ impl Drop for StarterMarker {
     fn drop(&mut self) {
         let _removed = std::fs::remove_file(&self.path);
     }
+}
+
+/// What:
+///  The service of this worktree that holds the instance and has not greeted yet.
+/// Why:
+///   The note is written before the address is bound,
+/// so a live process that is still that process is the service of this instance,
+/// whatever its address answers;
+/// a note whose process is gone is a killed service's leftovers,
+/// which the next start claims and replaces.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// liveServiceThatIsPreparing(pidNote) // the note's server when it is still that process
+/// ```
+fn live_service_that_is_preparing(note: &Path) -> Option<crate::service_server_pid_note_of_an_instance::ServerProcess> {
+    let named: crate::service_server_pid_note_of_an_instance::ServerProcess = crate::service_server_pid_note_of_an_instance::read(note)?;
+    if !crate::service_server_pid_note_of_an_instance::is_still_the_process(&named) {
+        return None;
+    }
+    return Some(named);
 }
 
 /// Whether the marker's owner is still a process with that birth identity.

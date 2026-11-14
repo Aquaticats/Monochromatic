@@ -56,6 +56,10 @@ use std::time::{Duration, Instant};
 pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &mut bool, trace: &mut ReachTrace, service_seen: bool) -> Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure> {
     let started: Instant = Instant::now();
     let mut connected: bool = false;
+    // What: The service that said it is alive and still preparing, kept for the words of a wait that ends.
+    // Why:  A wait that ends because a service was recovering must say so: "nothing answered" is not the reason when a live service
+    //       holds the address and is preparing it (the fourth review of issue 6293, finding 1).
+    let mut preparing: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> = None;
     loop {
         trace.tries += 1;
         match connect(&config.address) {
@@ -89,6 +93,7 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
             match start(server) {
                 StartAttempt::Greeted => continue,
                 StartAttempt::AnotherCommandStartsIt => {}
+                StartAttempt::ServiceIsPreparing { service } => preparing = Some(service),
                 StartAttempt::DidNotGreet(log) => return Err(not_greeted(log)),
             }
         }
@@ -101,9 +106,14 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
         }
         match &config.starter {
             // One start is bounded by its own wait, so reaching this bound means a start is still under way in another command, or
-            //  a service keeps answering with something that is not this protocol: both fail the command in a known time.
+            //  a service keeps answering with something that is not this protocol, or a live service is still preparing: all three
+            //  end the command in a known time, and the last says what it waited for.
             Some(_) if started.elapsed() >= config.start_ceiling => {
-                return Err(if connected { nothing_answered(config, started.elapsed()) } else { ClientFailure::DidNotStart });
+                return Err(match (connected, preparing.as_ref()) {
+                    (_, Some(service)) => searching_where_a_live_service_prepares(config, service, started.elapsed()),
+                    (true, None) => nothing_answered(config, started.elapsed()),
+                    (false, None) => ClientFailure::DidNotStart,
+                });
             }
             Some(_) => {}
             // Without an executable to start, nothing can start the service: what the wait comes to is the truth about the address.
@@ -153,6 +163,22 @@ fn greeting_patience(config: &ClientConfig, started: Instant) -> Duration {
 /// ```
 fn nothing_answered(config: &ClientConfig, waited: Duration) -> ClientFailure {
     return ClientFailure::NothingAnswered { address: crate::service_server::address_text(&config.address), waited };
+}
+
+/// What:
+///  The end of a wait where the service of this worktree is alive and has not greeted yet.
+/// Why:
+///  "Nothing has answered" was printed here where a live service was recovering the batches an earlier service left open,
+/// which reads as a service that is not there and sends the person to start one;
+/// a service that is preparing is a service the command waited for and did not start again,
+/// and what it needs is the time it is taking.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// searchingWhereALiveServicePrepares(config, service, waited) // { service-is-preparing } with the process and the wait
+/// ```
+fn searching_where_a_live_service_prepares(config: &ClientConfig, service: &crate::service_server_pid_note_of_an_instance::ServerProcess, waited: Duration) -> ClientFailure {
+    return ClientFailure::ServiceIsPreparing { address: crate::service_server::address_text(&config.address), pid: service.pid, waited };
 }
 
 /// What:

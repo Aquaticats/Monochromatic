@@ -58,11 +58,14 @@ pub fn address_text(address: &Bind) -> String {
 /// which is the normal way;
 /// the others serve tests and development runs.
 ///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const listener = bind(address)
-/// ```
-pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
+/// What:
+///  `holder_note` names the note of the instance the caller is binding for,
+///  which is what keeps a bind from taking over the address of a service that is alive.
+///  In TS you'd write (pseudocode):
+///  ```ts
+///  const listener = bind(address, noteOfThisInstance)
+///  ```
+pub fn bind(address: &Bind, holder_note: Option<&std::path::Path>) -> std::io::Result<UnixListener> {
     return match address {
         #[cfg(target_os = "linux")]
         Bind::Abstract(name) => {
@@ -72,7 +75,7 @@ pub fn bind(address: &Bind) -> std::io::Result<UnixListener> {
         }
         #[cfg(not(target_os = "linux"))]
         Bind::Abstract(_) => Err(std::io::Error::other("abstract sockets need Linux")),
-        Bind::Path(path) => bind_path(path),
+        Bind::Path(path) => bind_path(path, holder_note),
         Bind::Inherited => {
             use std::os::fd::FromRawFd;
             ensure_socket_passed_in(std::env::var("LISTEN_PID").ok().as_deref(), std::env::var("LISTEN_FDS").ok().as_deref(), std::process::id())?;
@@ -124,10 +127,18 @@ pub(crate) fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Opti
 ///   A service that was killed leaves its socket file behind,
 /// and the next bind of the same path then fails with
 ///  "Address already in use" although nothing answers there.
-/// Only a socket that refuses a connection is replaced:
-/// one that
-///  answers belongs to a running service,
-/// and any other file is the person's.
+/// A socket is taken over only when its instance has no service:
+/// the note beside it names no process that is still that process,
+/// so the file is a killed service's leftovers,
+/// or the note names this very process,
+/// which claimed the instance and now binds it.
+/// A socket whose note names another live process is that service's,
+/// whether or not it has greeted yet:
+/// it may still be recovering the batches an earlier service left open,
+/// and the address taken from it would leave two services of one instance
+/// (the fourth review of issue 6293, finding 1).
+/// Any other file is the person's,
+/// and a connection that answers belongs to a running service.
 /// Two services started on one path at the same
 ///  moment are the caller's to avoid (the service manager's socket,
 /// which production uses,
@@ -135,9 +146,9 @@ pub(crate) fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Opti
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// try { return listen(path) } catch (inUse) { if (await refusesConnections(path)) { unlink(path); return listen(path) } throw inUse }
+/// try { return listen(path) } catch (inUse) { if (!isSocket(path) || heldByAnotherLiveProcess(note)) throw inUse; if (!(await refusesConnections(path) || greetsNothing(path))) throw inUse; unlink(path); return listen(path) }
 /// ```
-pub(crate) fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener> {
+pub(crate) fn bind_path(path: &std::path::Path, holder_note: Option<&std::path::Path>) -> std::io::Result<UnixListener> {
     use std::os::unix::fs::FileTypeExt;
     let first: std::io::Error = match UnixListener::bind(path) {
         Ok(listener) => return Ok(listener),
@@ -148,13 +159,21 @@ pub(crate) fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener>
         Ok(meta) => meta.file_type().is_socket(),
         Err(_missing) => false,
     };
-    // What: A socket file is taken over when nothing greets on it: a connection refused, or accepted and answered with nothing in
-    //       the time a greeting takes.
-    // Why:  A killed service leaves a socket that refuses, and a service that is exiting keeps listening while it finishes
-    //       (measured 2026-11-12: an instance that was stopped 287 ms after it started kept its address for 33 s, and a commit
-    //       waited 37 s on it). The second kind answers neither, and waiting for it to close is a wait on a process that is
-    //       already leaving. Unlinking the name is safe whoever holds it: the old instance keeps its own socket until it ends,
-    //       and every new connection comes here.
+    // What: A live service of this instance keeps its address, whether or not it has greeted yet.
+    // Why:  The note names the process that owns the instance; while that process is alive the socket is its own, and the service it
+    //       belongs to may be in its recovery before its first greeting. Taking the address then is what put two live services of one
+    //       instance in the fourth review's finding 1.
+    if !is_socket || holder_note.is_some_and(|note| { return crate::service_server_pid_note_of_an_instance::held_by_another_live_process(note).is_some(); }) {
+        return Err(first);
+    }
+    // What: With no live service of the instance holding it, a socket is taken over when nothing greets on it: a connection refused,
+    //       or accepted and answered with nothing in the time a greeting takes.
+    // Why:  A killed service leaves a socket that refuses, and a service of an earlier release, or one of this release that was stopped
+    //       and is finishing, keeps listening while it answers nothing (measured 2026-11-12: an instance that was stopped 287 ms
+    //       after it started kept its address for 33 s, and a commit waited 37 s on it). Neither is this release's live service of
+    //       the instance, whose note the check above reads. What makes taking the name safe is the other half of the same rule: an
+    //       instance that ends removes only the files that still name it (`service_server_files_of_a_running_instance.rs`), so the
+    //       process that answered nothing never deletes the name taken here.
     let replaced: bool = match UnixStream::connect(path) {
         Err(error) => error.kind() == std::io::ErrorKind::ConnectionRefused,
         Ok(stream) => {
@@ -163,7 +182,7 @@ pub(crate) fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener>
             !matches!(crate::service_client_listen_and_ask_to_retire::listen(&mut reader), crate::service_client_listen_and_ask_to_retire::Heard::Message(crate::service_protocol::ServiceMessage::Welcome { .. }))
         }
     };
-    if !is_socket || !replaced {
+    if !replaced {
         return Err(first);
     }
     std::fs::remove_file(path)?;

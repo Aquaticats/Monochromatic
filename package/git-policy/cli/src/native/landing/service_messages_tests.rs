@@ -13,6 +13,7 @@ fn samples() -> Vec<ClientFailure> {
         ClientFailure::DidNotStart,
         ClientFailure::NothingAnswered { address: String::from("/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"), waited: Duration::from_secs(10) },
         ClientFailure::OtherAccount,
+        ClientFailure::ServiceIsPreparing { address: String::from("/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"), pid: 4711, waited: Duration::from_secs(60) },
         ClientFailure::MayNotHaveLanded,
         ClientFailure::NoCommonVersion,
         ClientFailure::OtherRelease,
@@ -112,6 +113,7 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::Interrupted { .. } => 30,
         ClientFailure::InterruptedNotKnown { .. } => 31,
         ClientFailure::ServiceNotReading { .. } => 33,
+        ClientFailure::ServiceIsPreparing { .. } => 34,
     };
 }
 
@@ -157,7 +159,7 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::ServiceNotReading { took_nothing: false }) + 1;
+    let expected: usize = variant_index(&ClientFailure::ServiceIsPreparing { address: String::new(), pid: 1, waited: Duration::ZERO }) + 1;
     assert_eq!(covered.len(), expected);
 }
 

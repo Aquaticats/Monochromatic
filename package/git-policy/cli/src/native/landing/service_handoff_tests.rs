@@ -146,7 +146,7 @@ fn the_wake_message_carries_the_key_to_the_service() {
     let name: String = format!("cli-git-test-wake-key-{}", std::process::id());
     let mut config: ServiceHandoff = handoff(root.as_path(), Activation::Unsupported(Platform::LinuxWithoutUserServices));
     config.config.address = Bind::Abstract(name.clone());
-    let listener: std::os::unix::net::UnixListener = crate::service_server::bind(&Bind::Abstract(name)).expect("fake service socket");
+    let listener: std::os::unix::net::UnixListener = crate::service_server::bind(&Bind::Abstract(name), None).expect("fake service socket");
     let received: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let sink: std::sync::Arc<std::sync::Mutex<Vec<String>>> = std::sync::Arc::clone(&received);
     let server: std::thread::JoinHandle<()> = std::thread::spawn(move || {

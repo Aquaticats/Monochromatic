@@ -36,7 +36,7 @@ fn stale_socket(directory: &std::path::Path) -> std::path::PathBuf {
 fn a_path_whose_socket_file_is_stale_is_bound_again() {
     let root = short_directory("stale");
     let path = stale_socket(root.as_path());
-    let listener: UnixListener = bind(&Bind::Path(path.clone())).expect("a stale socket file does not stop the bind");
+    let listener: UnixListener = bind(&Bind::Path(path.clone()), None).expect("a stale socket file does not stop the bind");
     assert!(UnixStream::connect(&path).is_ok(), "the new listener answers");
     drop(listener);
     remove_short(root.as_path());
@@ -56,7 +56,7 @@ fn a_socket_a_service_greets_on_is_kept_and_one_that_greets_nothing_is_taken_ove
     let root = short_directory("live");
     let path = root.join("service.sock");
     // A service that greets: the second bind fails and the first keeps answering.
-    let live: UnixListener = bind(&Bind::Path(path.clone())).expect("first bind");
+    let live: UnixListener = bind(&Bind::Path(path.clone()), None).expect("first bind");
     let greeting: String = format!("{}\n", crate::service_protocol_encode_messages_to_lines::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION, release: Some(String::from("test")) }));
     let greeter = std::thread::spawn(move || {
         let mut greeted: usize = 0;
@@ -67,7 +67,7 @@ fn a_socket_a_service_greets_on_is_kept_and_one_that_greets_nothing_is_taken_ove
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
     });
-    assert!(bind(&Bind::Path(path.clone())).is_err(), "a socket a service greets on stays with that service");
+    assert!(bind(&Bind::Path(path.clone()), None).is_err(), "a socket a service greets on stays with that service");
     std::mem::forget(greeter);
     // A socket that accepts and greets nothing: the next bind takes it over.
     let silent_path = root.join("silent.sock");
@@ -81,7 +81,7 @@ fn a_socket_a_service_greets_on_is_kept_and_one_that_greets_nothing_is_taken_ove
             }
         }
     });
-    let taken: UnixListener = bind(&Bind::Path(silent_path.clone())).expect("a socket nothing greets on is taken over");
+    let taken: UnixListener = bind(&Bind::Path(silent_path.clone()), None).expect("a socket nothing greets on is taken over");
     assert!(UnixStream::connect(&silent_path).is_ok(), "the address reaches the new server");
     drop(taken);
     std::mem::forget(holder);
@@ -94,7 +94,7 @@ fn a_path_that_holds_a_regular_file_is_left_alone() {
     let root = short_directory("file");
     let path = root.join("service.sock");
     std::fs::write(&path, b"mine").expect("write");
-    assert!(bind(&Bind::Path(path.clone())).is_err(), "a regular file is not a socket to replace");
+    assert!(bind(&Bind::Path(path.clone()), None).is_err(), "a regular file is not a socket to replace");
     assert_eq!(std::fs::read(&path).expect("read"), b"mine", "the file is untouched");
     remove_short(root.as_path());
 }
