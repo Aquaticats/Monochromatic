@@ -3590,7 +3590,12 @@ fn a_ref_only_move_records_the_repair_a_kill_would_leave_half_done() {
         );
         let directory: PathBuf = git_dir.join(MERGE_INTENT_DIRECTORY);
         let mut found: Vec<String> = Vec::new();
-        for entry in std::fs::read_dir(directory.as_path()).expect("the record directory") {
+        // A repair that writes no record leaves no directory: the control reports that as the empty record it is.
+        let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
+            *watched.borrow_mut() = Some(found.join("\n"));
+            return;
+        };
+        for entry in entries {
             let path: PathBuf = entry.expect("an entry").path();
             let bytes: Vec<u8> = std::fs::read(path.as_path()).expect("the record");
             let intent = parse_merge_intent(bytes.as_slice()).expect("a record this release wrote");
