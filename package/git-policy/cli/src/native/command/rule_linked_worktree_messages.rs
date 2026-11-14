@@ -24,6 +24,9 @@
 use crate::rule_linked_worktree::GuardedCommand;
 /// The paths a message names before it counts the rest.
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
+/// The operation that is waiting for its conflicts,
+/// whose own state `git status` reports.
+use crate::conflict_sides::Operation;
 use std::ffi::OsStr;
 use std::path::Path;
 
@@ -185,6 +188,76 @@ fn describe(command: GuardedCommand) -> (&'static str, &'static str, &'static st
             "To stop and keep your index and files as they are, use git am --quit (allowed). To finish the patch instead, resolve the conflicts and use git am --continue.",
         ),
     }
+}
+
+/// What:
+///  The rejection text for a `git checkout` or `git restore` that would replace a path the index marks as unmerged
+///  while a merge,
+/// a rebase,
+/// a cherry-pick or a revert waits for its conflicts.
+///  `&[String]` borrows the repository-relative paths the command would replace;
+///  `bool` is whether the command runs in the main worktree.
+/// Why:
+///   The file of a conflict is where the person's own resolution of it lives,
+///  and nothing else holds it:
+///  the index holds the three sides,
+///  and this program keeps no copy.
+///  So the text names every such file,
+///  says that no copy is kept either way,
+///  offers the way to settle the conflict that loses nothing,
+///  and names the opt-out that runs the command as real Git runs it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// conflictedFilesMessage({ command, operation, inMainWorktree, paths });
+/// ```
+pub fn conflicted_files_message(command: GuardedCommand, operation: Operation, in_main_worktree: bool, paths: &[String]) -> String {
+    let (name, risk, _instead): (&str, &str, &str) = describe(command);
+    let place: &str = if in_main_worktree {
+        "in the main git worktree"
+    } else {
+        "because this worktree has uncommitted changes to tracked files"
+    };
+    let mut named: Vec<String> = Vec::<String>::with_capacity(SHARED_PATHS_NAMED.min(paths.len()) + 1);
+    for path in paths.iter().take(SHARED_PATHS_NAMED) {
+        named.push(format!("`{path}`"));
+    }
+    let mut listed: String = named.join(", ");
+    if paths.len() > SHARED_PATHS_NAMED {
+        listed.push_str(format!(", and {} more", paths.len() - SHARED_PATHS_NAMED).as_str());
+    }
+    let (subject, pronoun, them): (&str, &str, &str) = if paths.len() == 1 { ("it holds", "its", "it") } else { ("they hold", "their", "them") };
+    return format!(
+        "monochromatic-git-policy-cli: {name} is rejected {place}: {risk}. The {} in progress left {listed} with an \
+         unmerged index entry, and {subject} the resolution you have written so far, which exists nowhere else: this \
+         command replaces {pronoun} content, and it keeps no copy of {them}. To settle the conflict and keep what you \
+         wrote, edit the file, stage it (`git add -- <paths>`) and commit the result with no paths (`git commit --message \
+         <message>`); `git show :1:<path>`, `git show :2:<path>` and `git show :3:<path>` print the base \
+         and the two sides, and `git diff -- <path>` prints the file as it stands. If you have decided to replace {them} on purpose, copy the file first \
+         (`cp -- <path> <path>.before-the-opt-out`) and pass `--no-enforce-worktree` directly after the subcommand: the \
+         command then runs exactly as real Git runs it, and no copy is kept; `cp -- <path>.before-the-opt-out <path>` puts \
+         your file back afterwards, and you can delete the copy then.",
+        operation_name(operation)
+    );
+}
+
+/// What:
+///  How a message names the operation that waits for its conflicts.
+/// Why:
+///   The person typed one of Git's own words,
+/// so the sentence uses that word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// operationName(Operation.CherryPick) === 'cherry-pick'
+/// ```
+fn operation_name(operation: Operation) -> &'static str {
+    return match operation {
+        Operation::Merge => "merge",
+        Operation::Rebase => "rebase",
+        Operation::CherryPick => "cherry-pick",
+        Operation::Revert => "revert",
+    };
 }
 
 /// What:

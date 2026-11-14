@@ -241,6 +241,14 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         //  written stays for the next command.
         let _written = notice.show(&mut std::io::stderr());
     }
+    // A worktree a removal went around is gone from Git's records while what someone else put inside it still stands at the
+    //  path, so no later command in that worktree would ever show anything: the record is the only thing that says the path is
+    //  still taken and what frees it, and this is the command that shows it.
+    for notice in &crate::worktree_removal_goes_around_a_foreign_volume::left_in_place_notices(common_dir.as_path()) {
+        // A closed terminal is not a reason to stop the command the person asked for, and a record whose words could not be
+        //  written stays for the next command.
+        let _written = notice.show(&mut std::io::stderr());
+    }
 }
 
 /// What:

@@ -411,7 +411,9 @@ fn moved_paths(repository: &Path, sources: &[&str], destination: &str) -> Result
             directory: None,
         },
     );
-    return answered.map(|paths| paths.iter().map(|path| return String::from_utf8_lossy(path).into_owned()).collect());
+    return answered.map(|paths| {
+        return paths.iter().map(|path| return String::from_utf8_lossy(path).into_owned()).collect::<Vec<String>>();
+    });
 }
 
 /// What:

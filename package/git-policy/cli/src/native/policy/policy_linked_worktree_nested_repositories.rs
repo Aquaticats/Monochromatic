@@ -25,8 +25,7 @@ use crate::command_clean::{clean_dry_run_arguments, parse_clean_region};
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
 /// The bound on the folder of saved copies applied after a save,
 ///  and the place saved copies live.
-use crate::conflict_side_guard::prune_after_save;
-use crate::conflict_sides::{SAVED_DIRECTORY, SavedCopy};
+use crate::conflict_sides::{SAVED_DIRECTORY, SavedCopy, prune_after_save};
 /// The record of every decision.
 use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies};
 /// The limits of the folder of saved copies.
