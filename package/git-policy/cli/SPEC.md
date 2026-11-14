@@ -8090,15 +8090,12 @@ on the commit path:
   What provisioning already knows before that wait ends it at once instead,
   and the message names the cause and every way to change it
   (`src/native/service/service_provision_refusals_before_the_wait.rs`):
-  an address longer than one socket address can hold
-  (the runtime directory,
-  the folder of the sockets,
-  the instance and `.sock` take at most 107 bytes,
-  so the runtime directory may take 40),
-  which is counted on the spelling the commit's own connect uses and is asked before the fast path reads a thing,
-  and a service the manager made listen at another address than the one this command waits at,
+  a service the manager made listen at another address than the one this command waits at,
   which happens when the command's `XDG_RUNTIME_DIR` is not the one the account's service manager runs with,
-  because the unit names its address with `%t` and `%t` is the manager's runtime directory.
+  because the unit names its address from the manager's own runtime directory.
+  A runtime directory too long for a socket path is not such a cause:
+  the service is listened at an abstract name there, and the commit is made (`SPEC.md`,
+  "Where the service listens").
   A socket unit the manager already holds at another address is asked about before this command starts anything,
   so a runtime directory of its own leaves no unit listening for a worktree it never looks at.
   Two spellings of one folder are one address there:
@@ -14586,6 +14583,59 @@ it never settles it on a guess.
 The note that names an instance's worktree,
 written beside the socket,
 holds the directory the same way.
+
+### Where the service listens
+
+One commit service runs per worktree,
+and its address is made from the runtime directory (`XDG_RUNTIME_DIR`) and the instance name of the worktree
+(`src/native/service/service_address_of_a_worktree.rs`):
+
+- A runtime directory whose socket path fits one socket address keeps the socket file:
+  `<runtime directory>/monochromatic-git-policy-cli/<instance>.sock`.
+  One socket address carries 107 bytes of name (`sun_path` less the zero that ends the name),
+  so this form serves a runtime directory of at most 40 bytes,
+  which is every session whose runtime directory is the one its login gave it.
+  The socket unit names it with `%t`,
+  the manager's own runtime directory,
+  and nothing about this form changed.
+- A runtime directory whose socket path does not fit is listened at under a Linux abstract name:
+  `@monochromatic-git-policy-cli/<user id>/<digest digits>/<instance>`,
+  where the digest is sixteen hexadecimal digits of the runtime directory's real path.
+  In pieces:
+  the service's own name,
+  the account,
+  the digest,
+  and the instance.
+  The socket unit names it with `ListenStream=@…/%i`,
+  a client computes the same name for itself,
+  and both reach it whatever working directory they run in.
+  Measured against systemd 262 in a container:
+  the unit is accepted,
+  the manager binds the name,
+  and the `Listen` property of the socket unit answers `@` and the name,
+  as systemd prints an abstract address (`sockaddr_pretty` in `src/basic/socket-util.c`).
+  A name leaves nothing behind when its process dies,
+  so a killed service leaves no address to clear away.
+  Two other ways of naming a long address each lost:
+  an address relative to a held-open directory (`/proc/self/fd/<n>/<name>`) reaches a socket only from the process
+  that holds the descriptor,
+  so a socket unit cannot name it;
+  and a name relative to a working directory reaches it only from the directory the two processes share,
+  which the manager's own working directory is not.
+- The name is an abstract address and has no permission bits,
+  and what stands in for the directory's mode is the kernel's own word about who took a connection (`SO_PEERCRED`):
+  the service reads it before it says a word to any client,
+  and a client refuses a connection another account's process took (`ClientFailure::OtherAccount`).
+  The name carries the user id,
+  so two accounts never bind one name;
+  the name carries the digest of the directory's real path and never of its spelling,
+  so two spellings of one runtime directory are one service and two runtime directories are two,
+  exactly as two socket files are.
+- A system whose unix sockets have no abstract namespace has only the path form,
+  and a runtime directory that leaves no room for it is refused before anything is waited for,
+  with the length named,
+  the longest runtime directory that works,
+  and the setting that decides it (`ClientFailure::SocketPathTooLong`).
 
 ### Machines with no way to reach the service
 

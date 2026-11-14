@@ -28,6 +28,7 @@ use super::wait_notice::{Watched, watch_notices};
 use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::landing::service_index_prestage::MARKERS_MADE_AHEAD;
 use git_policy_cli::service_client::ask_to_retire;
+use git_policy_cli::service_server::Bind;
 use git_policy_cli::service_instance::{instance_of, socket_for};
 use git_policy_cli::wait_ceilings::WARM_REQUEST_CONNECT_CEILING;
 use git_policy_cli::service_protocol::RELEASE;
@@ -1090,7 +1091,7 @@ fn the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_lef
     println!("SERVICE ANSWERS (prestage): {answered:#?}");
     assert!(answered[0].contains(" lock_stage_kind=cold "), "the first commit has nothing made ahead: {}", answered[0]);
     assert!(answered[1].contains(" lock_stage_kind=pre ") && answered[2].contains(" lock_stage_kind=pre "), "{answered:?}");
-    ask_to_retire(places.socket.as_path());
+    ask_to_retire(&Bind::Path(places.socket.clone()));
     let status = exit_of(&mut service, PATIENCE);
     assert!(status.success(), "{status:?}");
     assert!(marker_files(&repo).is_empty(), "the markers made ahead are removed when the service ends: {:?}", marker_files(&repo));
@@ -1160,7 +1161,7 @@ fn a_service_says_it_retires_when_asked() {
     let name: String = format!("timing-retire-{}", std::process::id());
     let places: Places = Places { socket: runtime_for(name.as_str()).join("monochromatic-git-policy-cli/retire.sock"), log: fixture.root.join("retire.log") };
     let mut service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &[]);
-    ask_to_retire(places.socket.as_path());
+    ask_to_retire(&Bind::Path(places.socket.clone()));
     let status = exit_of(&mut service, PATIENCE);
     assert!(status.success(), "{status:?}");
     println!("SERVICE RETIRE: {}", std::fs::read_to_string(&places.log).expect("log"));

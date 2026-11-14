@@ -4176,18 +4176,19 @@ none is waited out or retried on the moved head yet:
    a start it reports failed ends the wait at once ("commit service did not start"),
    and a unit it reports inactive is asked
    to start after `START_WAIT`.
-  Two causes end the commit at once instead of after that wait,
-  because the command knows them before it waits,
-  and each message names the setting that has to change and every way to change it:
-  a runtime directory that leaves no room for the service's address
-  (that address takes at most 107 bytes,
-  so `XDG_RUNTIME_DIR` may take 40),
-  and a service the account's manager started at another address than the one this command waits at,
+  One cause ends the commit at once instead of after that wait,
+  because the command knows it before it waits,
+  and its message names the setting that has to change and every way to change it:
+  a service the account's manager started at another address than the one this command waits at,
   which happens when `XDG_RUNTIME_DIR` is not the runtime directory the manager runs with
   (a unit,
   a container or a script with one of its own):
   run the commit from your login session,
   or set `XDG_RUNTIME_DIR` to the manager's.
+  A runtime directory whose path leaves no room for the service's socket file is not such a cause:
+  the service is listened at an abstract name derived from that directory instead,
+  and the commit is made (`SPEC.md`,
+  "Where the service listens").
   An account without user services is still told `loginctl enable-linger`,
   which is also what a session bus with no user manager behind it says.
   The commit service remains the only writer of a commit,
