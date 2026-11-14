@@ -1387,6 +1387,35 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   because the machine-wide `mpm` is the real mpm and refuses `-g`).
   An unreadable lock or link leaves out the version it would have named.
   A file that vanishes between the check and the start still gets the `could not start` line and the same sentence.
+- The next `install` in a checkout retires a launcher,
+  its `<name>.launch` record and its exposed link when the lock declares no bin of that name.
+  The launcher folder is what an earlier install wrote and nothing else ever pruned,
+  so a bin renamed at its release left all three in every checkout for good
+  (`cli-git-native` after the 0.6.0 rename of the git wrapper).
+  A new worktree is a copy of its checkout with `.cache` included,
+  so each one arrived with a record naming the other checkout's lock,
+  and the commit wrapper counted it as stale after every relink
+  (measured 2026-11-13: 142 of 160 worktrees and the main checkout,
+  and 352 relinks in one day given up on it).
+  Nothing is removed on the strength of a name.
+  A launcher goes only when a record this tool can read stands beside it whose tool the lock still declares,
+  and its own bytes are one of `mpm-shadow`'s own programs:
+  the identity text every shadow carries inside its own file,
+  the bytes of the running program or of the newest installed `mpm-shadow`,
+  or the bytes of a launcher beside a record of its own in this checkout's launcher folder or the machine-global one
+  (two copies of one installer build are one file, which is how a launcher placed by an installer version the store no
+  longer keeps is still proven).
+  An exposed link goes only when its target is such a launcher,
+  and a file whose bytes are none of those stays where it is while the install prints its path and why.
+  The order is the exposed links,
+  then the launcher,
+  then its record,
+  so no link ever names a launcher that is gone,
+  and a run killed between two of the three leaves a state the next install finishes.
+  An install that cannot read the lock stops before any of this.
+  What the record's `real` names is left alone:
+  it is a program in the store,
+  and a bin renamed inside one version keeps its old file in the version directory.
 - The launcher never reads `PATH` or the working directory,
   so which tree's launcher runs depends only on the path it was started by.
   Mise puts the tree's own `.cache/*-bin` directories first on `PATH` for `mise run`,

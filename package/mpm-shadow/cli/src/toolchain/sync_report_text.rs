@@ -57,6 +57,9 @@ pub fn format_sync_report(report: &SyncReport) -> String {
     for line in &report.retired_links {
         text.push_str(&format!("toolchain install: {line}\n"));
     }
+    for line in &report.retired_launchers {
+        text.push_str(&format!("toolchain install: {line}\n"));
+    }
     if !report.exported_env.is_empty() {
         text.push_str(&format!("toolchain install: exported to mise: {}\n", report.exported_env.join(", ")));
     }

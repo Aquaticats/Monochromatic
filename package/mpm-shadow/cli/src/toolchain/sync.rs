@@ -41,6 +41,8 @@ use super::error::ToolchainError;
 use super::exposure::{rebuild_exposure, run_postinstall_commands, unresolvable_bins};
 /// Imports `sync_postinstall_links` from `super::postinstall_links`.
 use super::postinstall_links::sync_postinstall_links;
+/// Imports `retire_undeclared_launchers` from `super::stale_launchers`.
+use super::stale_launchers::retire_undeclared_launchers;
 /// Imports `HttpGet` from `super::http`.
 use super::http::HttpGet;
 /// Imports `install_tool` from `super::install`.
@@ -158,6 +160,9 @@ pub struct SyncReport {
     /// One sentence per postinstall link an earlier run made and this run removed
     /// because the lock no longer declares it.
     pub retired_links: Vec<String>,
+    /// One sentence per launcher, launcher record and exposed link an earlier run made and this run removed
+    /// because the lock declares no bin of that name any more.
+    pub retired_launchers: Vec<String>,
     /// The environment variable names the generated mise fragment holds after this run
     /// (empty when the lock declares none,
     /// or for a partial sync that leaves the fragment alone).
@@ -266,9 +271,17 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
         }
         Err(error) => report.failed.push(("postinstall links".to_string(), error.message)),
     }
-    if let Err(error) = rebuild_exposure(ctx, &entries) {
-        report.failed.push(("exposure directory".to_string(), error.message));
+    let mut linked_bins: Vec<String> = Vec::new();
+    match rebuild_exposure(ctx, &entries) {
+        Ok(exposure) => linked_bins = exposure.linked,
+        Err(error) => report.failed.push(("exposure directory".to_string(), error.message)),
     }
+    // A bin the plan renamed or dropped leaves a launcher, its record and an exposed link that no later install rewrites;
+    // the pass retires what it can prove mpm-shadow made, and names what it cannot. It runs after the links of the lock are made,
+    // so a name this run linked is never taken for a leftover.
+    let notices = retire_undeclared_launchers(ctx, &linked_bins);
+    report.retired_launchers = notices.retired;
+    report.warnings.extend(notices.warnings);
     // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync
     // (which installs just the tools its lookups need) must not rewrite it from a subset.
     if only.is_none() {

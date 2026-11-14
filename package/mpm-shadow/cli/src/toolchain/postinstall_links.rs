@@ -120,6 +120,25 @@ fn declared_link_paths(ctx: &Context) -> BTreeSet<PathBuf> {
     return declared;
 }
 
+/// What:
+/// Every path a postinstall link of this scope can stand at:
+/// the paths the record names,
+/// and the paths the lock's postinstall links declare.
+/// Why:
+/// The retirement of a launcher asks which links point at it,
+/// and a postinstall link of a name the lock dropped can outlive its declaration.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function recordedLinkPaths(ctx: Context): string[]
+/// ```
+pub fn recorded_link_paths(ctx: &Context) -> Vec<PathBuf> {
+    let (recorded, _unreadable) = read_record(&record_file(ctx));
+    let mut paths: Vec<PathBuf> = recorded.into_keys().collect();
+    paths.extend(declared_link_paths(ctx));
+    return paths;
+}
+
 /// The path with symbolic links resolved when it exists,
 /// otherwise as given.
 fn resolved(path: &Path) -> PathBuf {

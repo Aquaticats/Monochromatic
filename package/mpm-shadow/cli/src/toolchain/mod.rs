@@ -112,6 +112,10 @@ pub mod launcher_current_link;
 /// or the running program when it belongs to no install.
 pub mod launcher_source;
 
+/// The retirement of the launchers,
+/// records and exposed links of names the lock declares nowhere.
+pub mod stale_launchers;
+
 /// Where tools install and how their binaries are found.
 pub mod layout;
 
@@ -390,6 +394,10 @@ mod launcher_tests;
 /// The unit tests of which `mpm-shadow` a launcher is a copy of.
 #[cfg(test)]
 mod launcher_source_tests;
+
+/// The unit tests of the retirement of launchers the lock declares nowhere.
+#[cfg(all(test, unix))]
+mod stale_launchers_tests;
 
 /// The unit tests of the cleanup of unnamed cargo versions.
 #[cfg(test)]
