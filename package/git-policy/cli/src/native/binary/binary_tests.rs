@@ -449,6 +449,13 @@ mod worktree_checkout_workers;
 #[path = "binary_worktree_removal_held_commit_tests.rs"]
 mod worktree_removal_held_commit;
 
+/// The opt-out of the guard that refuses a removal taking Git work:
+/// the refusal names it,
+/// every spelling the wrapper reads runs the removal as real Git runs it,
+/// and a sweep and a service keep the worktree because nobody typed one.
+#[path = "binary_worktree_removal_git_work_escape_tests.rs"]
+mod worktree_removal_git_work_escape;
+
 /// The environment of the Git children the auto-push and the manual-push probe start.
 #[path = "binary_push_environment_tests.rs"]
 mod push_environment;

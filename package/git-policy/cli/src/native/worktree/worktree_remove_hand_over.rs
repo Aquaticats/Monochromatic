@@ -1001,7 +1001,7 @@ fn remove_around_what_is_not_this_removals(item: &WorkItem, target: &Path, regis
         Err(reason) => return Verdict::Retry(reason),
     };
     let plan: RemovePlan = RemovePlan { target: target.to_path_buf(), operand: target.as_os_str().to_os_string(), force: false };
-    let request: RemoveRequest<'_> = RemoveRequest { context: &context, plan: &plan, common_dir: item.git_dir.as_path(), last_look: None };
+    let request: RemoveRequest<'_> = RemoveRequest { context: &context, plan: &plan, common_dir: item.git_dir.as_path(), last_look: None, escaped_by_the_person: false };
     match crate::worktree_remove::remove_with(&crate::worktree_remove::LinuxOperations, &request) {
         RemoveOutcome::Removed => {
             // The record that says which worktree a half-done removal of this id was belongs to that removal, and the

@@ -138,7 +138,7 @@ fn a_removal_hands_the_subvolume_over_and_does_not_destroy_it_here() {
     let context = crate::test_support::git_context();
     let plan = RemovePlan { target: target.clone(), operand: target.as_os_str().to_os_string(), force: false };
     let common_dir: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
-    let outcome: RemoveOutcome = remove_with(&stand, &RemoveRequest { context: &context, plan: &plan, common_dir: common_dir.as_path(), last_look: None });
+    let outcome: RemoveOutcome = remove_with(&stand, &RemoveRequest { context: &context, plan: &plan, common_dir: common_dir.as_path(), last_look: None, escaped_by_the_person: false });
     assert!(stand.handed.get(), "the removal handed the subvolume over");
     assert!(!stand.destroyed.get(), "and did not destroy it on the person's path");
     assert_eq!(outcome, RemoveOutcome::Removed, "{outcome:?}");
@@ -625,6 +625,40 @@ fn the_service_removes_the_worktree_a_record_names_and_a_gone_one_is_done() {
 ///  Git's reading of every tracked and untracked file of the worktree is the whole proof of the removal;
 ///  a person's edit or an untracked file is what it keeps,
 ///  and the sentence it answers is what a person reads.
+/// What:
+///  The commit service keeps a worktree whose `HEAD` names a commit nothing else names,
+///  when that commit appeared after the removal was handed over,
+///  and says why on the person's next command.
+/// Why:
+///  The sweep's proof is spent when the record is written,
+///  and this destruction happens later:
+///  a person who detached and committed in the worktree in between made Git work
+///  the owner's rule keeps ("Git work is never destroyed by a removal"),
+///  and no typed command carried an opt-out, so nothing here stands it down.
+#[test]
+fn the_service_keeps_a_worktree_whose_head_names_a_commit_nothing_else_names() {
+    let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-stranded-commit");
+    let item: WorkItem = handed_over(&linked, Some(linked.repo_root().as_path()));
+    let head: String = crate::test_support::git_text(linked.worktree.as_path(), &["rev-parse", "HEAD"]);
+    crate::test_support::git(linked.worktree.as_path(), &["checkout", "--quiet", "--detach"]);
+    std::fs::write(linked.worktree.join("more.txt"), b"more work\n").expect("a file in the worktree");
+    crate::test_support::git(linked.worktree.as_path(), &["add", "more.txt"]);
+    crate::test_support::git(linked.worktree.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+    let commit: String = crate::test_support::git_text(linked.worktree.as_path(), &["rev-parse", "HEAD"]);
+    assert_ne!(commit, head, "the commit is a new one");
+    match delete_subvolume_of(&item) {
+        Verdict::Failed(words) => assert!(words.contains(&commit[..12]), "the service names the commit it kept: {words}"),
+        other => panic!("the service must keep a worktree whose HEAD names a commit nothing else does: {other:?}"),
+    }
+    assert!(linked.worktree.exists(), "the worktree is still there");
+    let notices: Vec<String> = kept_notice_texts(linked.common.as_path());
+    assert!(
+        notices.iter().any(|notice| return notice.contains(&commit[..12])),
+        "and the notice names it: {notices:?}"
+    );
+    remove(linked.root.as_path());
+}
+
 #[test]
 fn the_service_leaves_a_worktree_git_would_keep_and_says_whose_sentence_refused_it() {
     let linked: Linked = a_repository_with_a_linked_worktree("worktree-hand-over-refused");

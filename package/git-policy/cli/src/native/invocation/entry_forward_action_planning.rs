@@ -65,6 +65,7 @@ pub(crate) fn forward_action(
     stderr: String,
     environment: &[(OsString, OsString)],
     copy_bypassed: bool,
+    removal_escaped: bool,
     checks: &mut ShippedChecks<GitFacts>,
 ) -> Action {
     let context: GitContext = GitContext {
@@ -133,6 +134,7 @@ pub(crate) fn forward_action(
                 add_plan,
                 remove_plan,
                 quiet,
+                removal_escaped,
             })
         } else {
             None

@@ -162,6 +162,12 @@ pub struct RemoveRequest<'a> {
     /// immediately before anything is destroyed,
     /// whose refusal is why nothing is removed.
     pub last_look: Option<&'a dyn LastLook>,
+    /// Whether the person typed the opt-out of the guard that refuses a removal taking Git work,
+    /// answered once by `wrapper_controls::worktree_removal_escaped`.
+    ///
+    /// A typed removal that carries it runs as real Git runs it, so the guard stands down, and no command
+    /// of the automatic routes can set it: nobody typed anything there.
+    pub escaped_by_the_person: bool,
 }
 
 /// The question a removal's caller asks again as the removal runs,
@@ -387,8 +393,11 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     // removal hands to Git: a commit only the worktree's own state names, and an edit a mark hides from Git, are states
     // Git's own `worktree remove` deletes without a word, so a command that goes on to Git would destroy them
     // (`worktree_removal_keeps_git_work.rs`, `worktree_removal_hidden_edits.rs`).
-    // A forced removal is Git's own `--force`, which deletes both, and the person asked for exactly that.
-    if !request.plan.force {
+    // Two states ask nothing of this guard: a removal the person forced, which is Git's own `--force` and deletes the
+    // same set, and one that carries the opt-out of `linked-worktree-only`, which runs as real Git runs it
+    // ("What never discarding a person's data means", `SPEC.md`). No command of the automatic routes can carry the
+    // opt-out: nobody typed anything there, so their worktree is kept as before.
+    if !request.plan.force && !request.escaped_by_the_person {
         let mut reasons: Vec<String> = match git_work_a_removal_would_strand(request.context, request.common_dir, target, registration.admin.as_path()) {
             Ok(stranded) => stranded,
             Err(reason) => vec![format!("nothing proves no commit of this worktree is named by nothing, so nothing is removed: {reason}")],
@@ -399,9 +408,10 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         }
         if !reasons.is_empty() {
             let report: String = format!(
-                "{PREFIX}{} keeps Git work that a removal would destroy, or that nothing here proves it would not, so nothing was removed: {}. `git worktree remove --force` runs as Git runs it and deletes all of it.",
+                "{PREFIX}{} keeps Git work that a removal would destroy, or that nothing here proves it would not, so nothing was removed: {}. If this worktree must go anyway, `git worktree --no-enforce-worktree remove {}` runs as real Git runs it and deletes all of it.",
                 target.display(),
-                reasons.join(". ")
+                reasons.join(". "),
+                target.display()
             );
             warn(TAG, report.as_str());
             return RemoveOutcome::Refused(report);

@@ -253,6 +253,38 @@ pub fn no_controls() -> Controls {
 }
 
 /// What:
+///  Whether this invocation carries the opt-out of `linked-worktree-only`,
+///  which is the guard of a removal that would take Git work,
+///  so that guard stands down and the command runs as real Git runs it.
+/// Why:
+///  The rule a guard of a removal follows is the owner's
+///  ("What never discarding a person's data means", `SPEC.md`):
+///  a command that could destroy a person's data is refused,
+///  and the person who means it runs it with the guard's opt-out,
+///  which then runs exactly as real Git runs it.
+///  One function answers it,
+///  so the policy stage,
+///  which refuses a typed removal before it is forwarded,
+///  and the removal's own guard,
+///  which runs after that stage and again in the process that destroys,
+///  read the same answer for the same invocation.
+///  The spellings are the wrapper's own:
+///  `--no-enforce-worktree` and `--no-enforce-linked-worktree-only`,
+///  each in a position the wrapper reads for `git worktree remove`
+///  (directly after `worktree`,
+///  or before it in global-option position;
+///  the position after `remove` reaches real Git,
+///  which refuses it).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const escaped = worktreeRemovalEscaped(controls); // boolean
+/// ```
+pub fn worktree_removal_escaped(controls: &Controls) -> bool {
+    return controls.escaped.iter().any(|policy| return *policy == PolicyId::LinkedWorktreeOnly);
+}
+
+/// What:
 ///  The meaning of a token that is exactly a control spelling,
 ///  or nothing.
 ///  `&[u8]`
