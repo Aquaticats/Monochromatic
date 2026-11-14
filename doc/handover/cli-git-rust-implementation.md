@@ -1121,6 +1121,258 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Commit forms and the landing that never waits each passed a review; pass 29 carries both (2026-11-13T21:41:57-05:00)
+
+Not final and not approved:
+read by the coordinating session from the two review files,
+nothing here rerun by it.
+
+- **Commit forms real Git refuses**
+  (review `~/temp/agent/change-reviews/git-policy-cli-commit-forms-answers-after-its-first-review/review.md`,
+  ended 21:37:24,
+  on `b631f80970`):
+  no defect found.
+  Twelve refused forms through the built wrapper beside real Git:
+  the same status and the same words byte for byte,
+  the repository's `HEAD`,
+  references and index unchanged,
+  no lock left.
+  A kill at nine moments of a refusal left nothing behind and the next commit landed;
+  eight refusals at once beside a real commit landed that commit once.
+  The rule is exactly as wide as Git 2.56.0,
+  the only Git measured.
+  Two things it names and does not count as defects:
+  a question that hangs is waited for about 607 s before the wrapper answers in its own words;
+  and `--pathspec-from-file` beside `-i` or `-o` is not asked about,
+  as before the change,
+  where real Git refuses an empty or missing file.
+- **The landing that never waits**
+  (review `~/temp/agent/change-reviews/git-policy-cli-landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service/review.md`,
+  ended 21:36:21,
+  on `08d7a82212`):
+  no defect found.
+  The branch's controls pass,
+  a commit landed in 42 ms with every kind of slow work held,
+  and six candidates were dismissed by reading with the lines that dismiss them
+  (double removal of trash,
+  a wave with no worker,
+  a permit held across sub-steps,
+  a withdrawn request that later lands,
+  heartbeats under a full pool,
+  hold points in a shipped run).
+  Its limit,
+  which the author's report names too:
+  the path from an item of trash at its ceiling to the round that takes it up again has no control from end to end.
+- **Pass 29** is queued at the head for both,
+  commit forms first
+  (`integration-pass-29-with-commit-forms-and-the-landing-that-never-waits`,
+  branch `integrate/git-policy-cli-pass-29-commit-forms-git-refuses-and-landing-never-waits-behind-slow-work`).
+  The landing branch stands on `main` before four releases;
+  the brief says where it meets `main` (`service/service_client.rs`:
+  every connect bounded,
+  and a withdrawal before the client gives up)
+  and that a branch that cannot be merged with both meanings kept is left out while the other still makes a pass.
+- The landing author is resumed for the missing control and nothing else
+  (`landing-never-waits-gets-a-control-of-an-item-of-trash-that-reaches-its-ceiling-prompt.md`,
+  queued near the head):
+  a commit after `08d7a82212`,
+  reviewed and merged after the pass.
+- The two things the commit-forms review names are open with no run:
+  the size of the bound on a hung question,
+  and the pathspec-file forms.
+  The second is a difference from real Git that the change did not make;
+  it belongs with the next change to `commit/rule_commit_region_git_refuses.rs`.
+
+##### The index-lock fix passed its fourth review and is pass 28; the issue 6293 answer has two reproduced defects (2026-11-13T21:36:20-05:00)
+
+Not final and not approved:
+read by the coordinating session from the two review files,
+nothing here rerun by it.
+
+The index-lock fix
+(review `~/temp/agent/change-reviews/git-policy-cli-index-lock-fix-answers-after-its-third-review/review.md`,
+ended 21:29:51,
+on `e7474d6803`):
+
+- No defect found.
+  It read eighteen files and the modules they lean on,
+  ran eight reproduction scripts of its own through the built wrapper and 36 tests of the proof.
+  A dead holder's lock was cleared with the staged content unchanged;
+  a live holder's lock stayed,
+  with and without the file open for writing;
+  a reused process number kept the lock;
+  eight commands at once cleared it exactly once;
+  a service killed at a fault point left no lock and its commit landed once.
+- **Pass 28** is queued at the head for that branch at that commit
+  (`integration-pass-28-with-the-index-lock-fix`,
+  branch `integrate/git-policy-cli-pass-28-index-lock-left-by-a-killed-wrapper-is-cleared`).
+  Its brief names no release number;
+  the number is given when it is released.
+- What the review named beside its verdict,
+  each weighed:
+  - Read and not run:
+    the repair looks at the repository of the working directory,
+    so `git -C <other>` would not clear a lock in the repository it names.
+    Agents here run most commands that way,
+    so a fresh run from `e7474d6803` is queued
+    (`abandoned-lock-is-cleared-in-the-repository-a-commands-own-options-name`),
+    which first tests the claim by running each form.
+  - Seen once in an eight-way race:
+    a command that gives up on a lock another command is clearing prints the notice for a standing lock.
+    The end state was right and no commit or wait was touched.
+    No run is started for it;
+    it is open,
+    and belongs with the next change to `lock/abandoned_lock_proving.rs`.
+- The case of equal birth stamps on this volume stays with its queued run from the same tip.
+
+The issue 6293 answer
+(review `~/temp/agent/change-reviews/git-policy-cli-issue-6293-answers-after-its-first-review/review.md`,
+ended 21:33:10,
+on `6db694c52c`):
+
+- Every resolved place of the merge `541f5e3ec7` keeps both sides' meaning,
+  the manager probe's retry is bounded,
+  and the session boundary is sound.
+- Two findings,
+  both reproduced with a crate that links the library and calls the real functions on real Git's output,
+  both weighed as standing:
+  - A push that delivered and then failed is recorded under the newest claimed commit and not under the commit it sent
+    (`landing/service_work.rs` near line 523,
+    where the arm for exit 0 a few lines before uses `sent_up_to`).
+    A commit that lands between the claim and the push gets its words filed under another commit's name,
+    over an unread report of that commit.
+  - Once one address delivered,
+    a failure the project treats as final on another address (a hook's decline,
+    a login the service lacks) is retried without end
+    (`landing/service_work_failed_push_verdict.rs` near lines 113 to 119 never asks `final_failure`).
+    Before the change the verdict was `Failed` once.
+- Both go back to the author,
+  resumed in its own session,
+  queued behind pass 28
+  (`issue-6293-answers-its-second-review-of-2026-11-13-prompt.md`).
+
+##### The no-manager author answered two findings; the archives run stopped at four archives (2026-11-13T21:20:50-05:00)
+
+Not final and not approved:
+read by the coordinating session from each run's last message and report,
+nothing here rerun by it except where a command is named.
+
+The commit service that needs no service manager
+(run `commit-service-is-started-by-the-wrapper-itself-and-needs-no-service-manager-6`,
+ended 21:13:31,
+tip `76a08c9fac`,
+`main` merged four times,
+the last as `baa64cb13a`):
+
+- It reproduced the first finding with the review's own script on the tip before its change:
+  a commit against a stopped service with a full queue was still running after 30 s,
+  in the kernel's `unix_wait_for_peer`.
+  At its tip the same commit ends with exit 1 after 15.8 s and says the service did not start and that nothing changed.
+- Every connect in release code now goes through `connect_within`;
+  the probe's child is ended and reaped on a thread of its own,
+  so the probe answers at its bound.
+  Each control was shown failing without its guard
+  (three by running to nextest's kill at about 200 s,
+  one at 32 s against its bound).
+- Two things it decided against `main`,
+  open to veto:
+  `CONNECT_CEILING` is one second where `main` has five
+  (its reason:
+  a command's whole wait is ten seconds and a look has to fit several times;
+  one second is 16 times the slowest of `main`'s 2,000 measured connects),
+  and `main`'s `service_provision_instance_unloaded.rs` with its control is deleted with the units it serves.
+- Its whole library suite:
+  7,588 of 7,598 passed;
+  the ten red ones it places in files equal to `main`'s.
+- Its review is queued at the head
+  (`review-git-policy-cli-commit-service-needs-no-service-manager-answers-of-2026-11-13`,
+  range `main...76a08c9fac`).
+  The issue 6293 branch stands on this one and lands after it.
+
+The tracked archives
+(run `tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text-and-archive-formats-are-ignored-1`,
+ended 21:13:59,
+six commits pushed,
+report `~/temp/agent/tracked-archives-removed-and-their-data-kept-as-plain-files-2026-11-13/keep/report.md`):
+
+- 132 archives removed in five families;
+  `.gitignore` carries one block of archive shapes with the three Java archives kept;
+  a record of every removed archive with its bytes,
+  digest,
+  last commit and the command that prints it from history
+  (`doc/audit/removed-archives-and-where-history-holds-each.md`);
+  all 132 printed from history and matched by digest.
+  Of 337 pairs of an archive and a file naming it,
+  328 needed a pointer alone and nine kept data.
+- **Four archives are still tracked**,
+  each a stop the brief asked for:
+  two where one record names bytes and a digest that are not the tracked blob's;
+  one whose naming file records its own digest;
+  one whose kept file the forbidden-strings guard refused
+  (`hashicorp-tf-password`,
+  on fixture markers of `SCCACHE_WEBDAV_PASSWORD`),
+  so the author restored the archive and bypassed nothing.
+- **Adopted while the owner was away**,
+  from the owner's "remove anything already committed from the repo.
+  If something would break,
+  represent the data another way." and the recorded answer that what is kept is trimmed to what documents cite:
+  all four are removed.
+  For the two with a disagreeing record,
+  the removal record states both pairs and which commit of history,
+  if any,
+  holds the one the record names.
+  For the self-recording file,
+  its note says the digest it carries cannot be current.
+  For the refused one,
+  the kept file is trimmed to the two cited Dockerfile records;
+  if those two carry what the guard refuses,
+  the archive stays and the lines come back for a decision.
+  The author's own session continues with that
+  (`tracked-archives-run-finishes-the-four-archives-it-stopped-at-prompt.md`,
+  queued near the head);
+  then a hand-written review and the merge.
+- Its open questions,
+  neither acted on:
+  whether `doc/planning`,
+  `doc/research` and `doc/handover` get family indexes
+  (they have none),
+  and whether digest notes in the last commit and not in each family's commit is acceptable.
+- The run ended as `driver-failed`
+  (`SyntaxError: Unterminated string in JSON at position 509`)
+  after its report was written and pushed.
+  That message,
+  character for character,
+  is issue 6295's
+  ("Issue 6295: the Pi driver records a finished run as failed"):
+  the driver parsed a `process` tool result out of the feed,
+  which keeps only a cut-short preview of it.
+  The run's feed holds ten `process` results.
+  Its driver was started at 17:56:40;
+  the driver in `main` since `47a403a0e2` (19:36:16) catches that parse
+  (`package/pi-shared/subagent-driver/src/work-the-run-left-running.ts`,
+  the `try` around the parse of `record.result`),
+  and runs started after it have ended `idle`.
+
+Retracted at 21:24:
+a commit written without a deletion it named.
+
+- The archives author reported that the wrapper's commit of named paths "wrote a commit without the archive deletion when the same pathspec list also named a new directory".
+  The first version of this section took that as a possible wrapper defect and queued a fresh run for it.
+- Read whole from the run's Pi session file
+  (`~/temp/agent/archives-run-commit-that-left-out-a-deletion-read-from-its-pi-session-2026-11-13/keep/the-two-commit-commands-and-their-results.txt`):
+  the first commit named the new folder and the `.zip`,
+  and the wrapper refused it before anything landed,
+  as real Git does,
+  because the new folder was untracked
+  (`explicit-path-commit/pathspec-matches-nothing`,
+  with the advice to `git add` it).
+  The author then added the folder and committed again with a list that no longer held the `.zip`.
+  Commit `e1b703cd03` holds exactly what its command named.
+- So no defect of the wrapper is shown.
+  The run was taken out of the queue before it started and its brief deleted.
+  The archives author's continuation brief says what happened,
+  so its next commits name deleted paths too.
+
 ##### Pass 26, the smaller build tree, is in `main`; no release is made for it alone (2026-11-13T21:14:18-05:00)
 
 Not final and not approved:
@@ -1192,7 +1444,20 @@ written by the coordinating session from the pass's report and its own commands'
   was not relinked after 3 tries.
   The run in that worktree was told by a note in its inbox at 21:13,
   with the remedy the wrapper printed.
-  The run for relinks that are given up is in the queue.
+  Two more came during the commit of 21:21,
+  for the worktrees of the two reviews started together
+  (landing-never-waits and the commit-forms answer).
+  The run for relinks that are given up is going
+  (`package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not`,
+  since 17:25)
+  and was told of all three by a note in its inbox.
+  The commit of 21:22:23 printed two more,
+  for the worktrees of two authors resumed minutes before
+  (add-never-skips and the warm request),
+  sent to the same run by a second note:
+  five in ten minutes.
+  Corrected at 21:22:
+  this line first said that run was in the queue.
 
 ##### The commit-forms author answered its first review; the landing that never waits is written; both go to review (2026-11-13T21:11:17-05:00)
 
