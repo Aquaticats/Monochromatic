@@ -445,7 +445,7 @@ fn a_message_named_separator_is_refused_with_gits_words_and_lands_nothing() {
     refuses_as_git_does_arranged(
         "commit-form-message-separator",
         |_fixture, root| { a_staged_change_and_a_staged_file_named(root, "-i"); },
-        |_root| { vec!["commit".to_owned(), "-m".to_owned(), "--".to_owned(), "-i".to_owned()] },
+        |_root| { return vec!["commit".to_owned(), "-m".to_owned(), "--".to_owned(), "-i".to_owned()] },
         |root| { return root.to_path_buf(); },
         &[],
     );
@@ -462,7 +462,7 @@ fn a_message_file_named_separator_is_refused_with_gits_words() {
             a_staged_change_and_a_staged_file_named(root, "-i");
             std::fs::write(root.join("--"), "a message\n").expect("the message file");
         },
-        |_root| { vec!["commit".to_owned(), "-F".to_owned(), "--".to_owned(), "-i".to_owned()] },
+        |_root| { return vec!["commit".to_owned(), "-F".to_owned(), "--".to_owned(), "-i".to_owned()] },
         |root| { return root.to_path_buf(); },
         &[],
     );
@@ -481,7 +481,7 @@ fn a_pathspec_file_named_separator_is_refused_with_gits_words() {
             git_at(root, &["add", "--", "a.txt"]);
             std::fs::write(root.join("--"), "a.txt\n").expect("the pathspec file");
         },
-        |_root| { vec!["commit".to_owned(), "--pathspec-from-file".to_owned(), "--".to_owned(), "-a".to_owned()] },
+        |_root| { return vec!["commit".to_owned(), "--pathspec-from-file".to_owned(), "--".to_owned(), "-a".to_owned()] },
         |root| { return root.to_path_buf(); },
         &[],
     );
@@ -495,7 +495,7 @@ fn a_relative_directory_option_is_applied_once() {
     refuses_as_git_does_arranged(
         "commit-form-relative-c",
         |_fixture, root| { a_repository_at(&root.join("sub")); },
-        |_root| { vec!["-C".to_owned(), "sub".to_owned(), "commit".to_owned(), "-i".to_owned(), "-o".to_owned(), "-m".to_owned(), "x".to_owned()] },
+        |_root| { return vec!["-C".to_owned(), "sub".to_owned(), "commit".to_owned(), "-i".to_owned(), "-o".to_owned(), "-m".to_owned(), "x".to_owned()] },
         |root| { return root.to_path_buf(); },
         &[],
     );
@@ -510,7 +510,7 @@ fn a_chain_of_directory_options_is_applied_once() {
         "commit-form-chain-of-c",
         |_fixture, root| { a_repository_at(&root.join("one").join("two")); },
         |_root| {
-            vec![
+            return vec![
                 "-C".to_owned(),
                 "one".to_owned(),
                 "-C".to_owned(),
@@ -541,7 +541,7 @@ fn a_commit_under_a_relative_directory_option_never_lands_in_a_nested_repository
             a_repository_at(&root.join("sub"));
             a_staged_change_and_a_staged_file_named(&root.join("sub").join("sub"), "-i");
         },
-        |_root| { vec!["-C".to_owned(), "sub".to_owned(), "commit".to_owned(), "-m".to_owned(), "--".to_owned(), "-i".to_owned()] },
+        |_root| { return vec!["-C".to_owned(), "sub".to_owned(), "commit".to_owned(), "-m".to_owned(), "--".to_owned(), "-i".to_owned()] },
         |root| { return root.to_path_buf(); },
         &[],
     );
@@ -559,7 +559,7 @@ fn a_named_git_directory_is_asked_once() {
             std::fs::rename(root.join("work").join(".git"), root.join("elsewhere.git")).expect("a Git directory beside its work tree");
         },
         |root| {
-            vec![
+            return vec![
                 "--git-dir".to_owned(),
                 root.join("elsewhere.git").display().to_string(),
                 "--work-tree".to_owned(),
@@ -586,7 +586,7 @@ fn a_git_dir_in_the_environment_is_asked_once() {
             a_repository_at(&root.join("work"));
             std::fs::rename(root.join("work").join(".git"), root.join("elsewhere.git")).expect("a Git directory beside its work tree");
         },
-        |_root| { vec!["commit".to_owned(), "-i".to_owned(), "-o".to_owned(), "-m".to_owned(), "x".to_owned()] },
+        |_root| { return vec!["commit".to_owned(), "-i".to_owned(), "-o".to_owned(), "-m".to_owned(), "x".to_owned()] },
         |root| { return root.join("work"); },
         &[],
     );
