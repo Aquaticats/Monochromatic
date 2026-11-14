@@ -1324,6 +1324,13 @@ and what the coordinating session measured and queued.
   no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
   no launcher had outlived a run.
   That author measured `~/temp/agent` at 410 GiB.
+- Measured by this session at 18:51:10:
+  `/var/home` 496 G free at 72% used,
+  against 498 G at 16:54:04,
+  so the drive gave up about 2 G in two hours while runs' `du` counts of `~/temp/agent` rose from 306 to 331 GiB to 410 GiB;
+  `du` counts data that copy-on-write worktrees share once for each.
+  `change-reviews` 94 GiB and `pi-runs` 7 GiB by `du`,
+  the first unchanged since 17:00.
 
 ##### `0.6.1-alpha.34` is installed and its gate is running; the masking's review is going on Kimi (2026-11-14T18:32:42-05:00)
 
