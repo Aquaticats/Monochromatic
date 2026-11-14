@@ -2498,7 +2498,7 @@ fn a_clean_at_one_force_keeps_a_bare_nested_repository_whole() {
     // Git keeps the `.git` shape by itself at one force, so it stays and no copy of it was made.
     assert!(found.inner.join("untracked.txt").exists(), "one force must leave the `.git` shape alone");
     assert!(
-        lines.iter().all(|line| { return !line.contains("inner => "); }),
+        lines.iter().all(|saved| { return !saved.contains("inner => "); }),
         "a repository Git keeps was saved: {lines:?}"
     );
     remove(&fixture);

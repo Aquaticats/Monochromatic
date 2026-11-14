@@ -383,7 +383,7 @@ fn a_pipe_the_form_names_is_read() {
         .expect("mkfifo runs");
     assert!(made.success(), "mkfifo must create {}", pipe.display());
     // The writer waits for the read, as a process substitution's own writer does.
-    let writer: std::process::Child = std::process::Command::new("sh")
+    let mut writer: std::process::Child = std::process::Command::new("sh")
         .arg("-c")
         .arg(format!("printf 'b.txt\\n' > {}", pipe.display()))
         .spawn()
@@ -394,7 +394,6 @@ fn a_pipe_the_form_names_is_read() {
         PathspecTarget::Tree(Some(OsString::from("other"))),
         false,
     );
-    let mut writer: std::process::Child = writer;
     let _ = writer.wait();
     assert_eq!(answer, Ok(vec![b"b.txt".to_vec()]), "a pipe's bytes are the pathspecs Git reads");
     remove(directory.as_path());
