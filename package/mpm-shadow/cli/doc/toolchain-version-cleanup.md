@@ -61,7 +61,7 @@ the versions written longest ago go first,
 until they are inside it.
 Every version that stays says why it stays.
 
-A version is kept when any of these holds, cheapest check first:
+A version is kept when any of these holds, the most specific first:
 
 - **a lock names it**:
   this scope's lock,

@@ -470,4 +470,33 @@ fn an_install_that_cannot_list_the_worktrees_removes_nothing() {
     assert!(stale.exists(), "a version was removed although the worktrees could not be listed");
 }
 
+
+/// What:
+/// A version a tool's `current` link names stays,
+/// so removing an old version never leaves the link dangling.
+/// Why:
+/// Every worktree's exposed links resolve through `current`,
+/// and a link naming a version this pass removed would break them all.
+#[test]
+fn an_install_keeps_the_version_the_current_link_names() {
+    let mut rig = Rig::new();
+    keep_only(&mut rig, &["rust", "cargo-binstall", "cargo:fd-find"]);
+    finish_install(&version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3"), "fd-find", "1.2.3", &["fd"]);
+    let named: std::path::PathBuf = version_directory(&rig.scope.toolchain_root, "fd-find", "1.0.0");
+    fs::create_dir_all(&named).expect("make the old version");
+    fs::write(named.join("fd"), b"old program").expect("write the old program");
+    written_ago(&named, 24 * 60 * 60);
+    std::os::unix::fs::symlink("1.0.0", current_link(&rig.scope.toolchain_root, "fd-find"))
+        .expect("point the current link at the old version");
+    rig.env = rig
+        .env
+        .with("MPM_SHADOW_STORE_SIZE_BOUND", "0")
+        .with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
+
+    let report = sync_tools(&rig.context(), None);
+
+    assert!(report.failed.is_empty(), "{:?}", report.failed);
+    assert!(named.join("fd").exists(), "the version the current link names was removed");
+}
+
 //endregion the cleanup of old versions an install runs
