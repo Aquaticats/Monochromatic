@@ -1198,6 +1198,41 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The failure variants' test goes back for one form it lets by; the long runtime directory's answer goes to review (2026-11-14T10:58:58-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session queued.
+
+- **The failure variants' test** (`8480dea6b4`):
+  by the review's runs a missing sample,
+  two lines sharing a name and a sample of the wrong variant each fail the test,
+  and a new variant stops the file from compiling.
+  One reproduced:
+  two variants folded into one arm by an or-pattern,
+  or a catch-all arm,
+  leave the test passing,
+  and the catch-all would swallow a later variant.
+  The reviewer weighs it below critical,
+  since it takes an edit of the guard's own list.
+  Weighed here as worth its fix:
+  the catch-all undoes the compile-time notice the change exists for,
+  and the fix is confined to one macro.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/failure-variant-test-answers-its-review-of-2026-11-14-prompt.md`).
+- **The long runtime directory** (tip `eafd1e9a24`, ended 10:55:22):
+  the author reports both findings of its second review answered
+  (the repair path's wait gone from 10,016 ms to 51 ms and from 10,018 ms to 3 ms by its probe;
+  `service status` outside a worktree finds a service at an abstract name;
+  116 tests of the touched modules passing at four CPUs).
+  It names one thing left alone in another agent's file:
+  `Address::named` cuts a name that is too long instead of refusing it,
+  and no caller passes one after this change.
+  Review queued third (range `main...eafd1e9a24`).
+- Both runs say no credential's value reached a tool result of theirs.
+- 23 Pi runs were going at 10:58:58;
+  the queue held 55 entries.
+
 ##### The credential scan has ended and a list of names to rotate is written; mpm-shadow's cleanup answer goes to review (2026-11-14T10:51:00-05:00)
 
 Not final and not approved:
@@ -1230,6 +1265,12 @@ and what one author reports of itself.
   stands in no tracked file and equals no value read;
   its shape is being read from the Claude Code transcripts,
   the Pi sessions holding none.
+  Read at 10:53:13:
+  all eighteen stand in one Claude Code transcript that began 2026-09-15,
+  and the string is three hyphenated lowercase words followed by ten digits and six letters.
+  That reads like a made-up stand-in,
+  and this session cannot tell whether a deployed pnpr server uses it;
+  it is in the list for the owner to recognise.
 - **The masking run** was going at 10:49:45.
 - **mpm-shadow's cleanup** (tip `3a96da6dbf`, ended 10:44:30):
   the author reports the review's three findings answered with controls,
