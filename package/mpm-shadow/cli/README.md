@@ -963,13 +963,19 @@ without a command to remember.
 While the two stores keep more than 24 GiB of versions,
 the versions whose directories were written longest ago go first,
 until they are inside the bound.
-Three things keep a version whatever its age:
-a lock file that names it (this scope's, the lock of every worktree `git worktree list` reports,
-and the machine scope's),
-the tool's `current` link,
-and a running process of this user that runs it, works inside it, or has a file of it open.
-The version this run installed is kept as well,
-and so is a version written inside a one-hour floor.
+Four things keep a version whatever its age:
+
+- a lock file that names it:
+  this scope's lock,
+  the lock of every worktree `git worktree list` reports,
+  and the machine scope's lock;
+- the tool's `current` link;
+- a running process of this user that runs it,
+  works inside it,
+  or has a file of it open;
+- a write time inside a one-hour floor.
+
+The version this run installed is kept as well.
 
 A removal renames the version out of its name (`.mpm-shadow-removing.<version>`)
 before deleting anything,
@@ -980,7 +986,8 @@ so an install never waits on a long deletion.
 It prints one line per version removed and per version kept on standard error,
 and nothing on a pass that judges nothing.
 The bounds are set by `MPM_SHADOW_STORE_SIZE_BOUND`,
-`MPM_SHADOW_STORE_AGE_FLOOR` and `MPM_SHADOW_STORE_WORK_LIMIT`;
+`MPM_SHADOW_STORE_AGE_FLOOR`
+and `MPM_SHADOW_STORE_WORK_LIMIT`;
 `doc/toolchain-version-cleanup.md` gives the measurement each was sized from.
 
 ## Cargo tool installs
