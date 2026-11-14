@@ -314,6 +314,12 @@ fn remove_what_no_install_rewrites(destination: &Path, copies: &[CopyOfAnEarlier
     let declared_now: Option<HashSet<String>> = declared_launcher_names(destination);
     for copy in copies {
         let Some(aside) = take_aside(copy.record.as_path()) else { continue };
+        // A control's own kill, at the one instruction a record is out of its place: nothing after this line runs, which
+        //  is what a killed pass leaves. Only a control build has it.
+        #[cfg(test)]
+        if KILLED_AFTER_THE_RECORD_IS_ASIDE.with(std::cell::Cell::get) {
+            return;
+        }
         if !still_a_copy_of_an_earlier_layout(aside.as_path(), copy.name.as_deref(), &own, declared_now.as_ref()) {
             // Another command declared this name or wrote its own record there: the bytes are not a copy any more,
             //  and a name that holds a newer file keeps it.
@@ -456,11 +462,14 @@ fn sweep_what_a_kill_left(destination: &Path) {
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairToolchain";
 
-// What a control writes inside the removal pass, taken out when it runs so it runs once, and absent in a release build.
+// What a control writes inside the removal pass, taken out when it runs so it runs once, and absent in a release build;
+// and a control's own kill at the one instruction a record is out of its place.
 #[cfg(test)]
 thread_local! {
     /// The writer a control stands in the classification-to-removal window with.
     pub(crate) static WHEN_THE_REMOVAL_BEGINS: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
+    /// Whether this thread's removal stops once a record is aside, which no release build can do.
+    pub(crate) static KILLED_AFTER_THE_RECORD_IS_ASIDE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 /// Where mpm-shadow keeps the launchers and their records,
