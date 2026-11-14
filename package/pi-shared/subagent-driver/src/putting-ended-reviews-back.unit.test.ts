@@ -11,6 +11,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  stat,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -260,13 +261,17 @@ await describe({
               attempt: 1,
             },);
             /**
+             The bound, taken as the moment after the last summary was written, so every summary here is older than it.
+             */
+            const bound = (await stat(join(folder.runs, 'review-old-1', 'summary.json',),)).mtimeMs + 1;
+            /**
              What putting the ended reviews back answered.
              */
             const putBack = await putEndedReviewsBack({
               queueFile: folder.queueFile,
               runsFolder: folder.runs,
               reviewsFolder: folder.reviews,
-              since: Date.now(),
+              since: bound,
               going: new Set(['review-going',],),
               now: Date.now,
             },);
