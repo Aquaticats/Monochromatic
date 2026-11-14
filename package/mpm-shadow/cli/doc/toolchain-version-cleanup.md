@@ -71,8 +71,10 @@ in the files named above.
   (136 version directories and leftover downloads,
    59 of them removed,
   33 851 MiB):
-  166 ms before the second look was added to the removals,
-  and 319 ms with it.
+  158 to 173 ms before the second look was added to the removals,
+  and 300 to 349 ms with it,
+  over runs that alternated the two on one machine
+  (its process count moved between 1082 and 1103).
   A real store's deletion costs more than the replay's sparse files do,
   so the share the second look adds there is
   smaller than it looks here.
@@ -88,7 +90,7 @@ in the files named above.
   and 0.15 s for the process table.
 - The process table,
   once for the plan and once more after the versions of a pass are moved out of their names:
-  161 ms and 153 ms,
+  145 to 192 ms per look,
   measured on the replay of the real listing below.
   The second look is per pass,
   not per version:
@@ -176,13 +178,17 @@ The marker in the store root goes only once the store holds no `.mpm-shadow-remo
 
 ## The window that is left
 
-Nothing can start using a version once it is renamed,
+Nothing can start using a version by its own name once it is renamed,
 so the second look at the process table sees every process that holds one:
 a program,
 a working directory,
 an open file,
 or a mapping that entered the version before its rename is still there to be seen,
 and one that tries afterwards meets a name that no longer exists.
+No lock,
+link,
+launcher or exposure path names a removal marker,
+so the marker's own name is the only way into a version after its rename.
 Two cases remain,
 and neither can be closed from this side:
 
@@ -195,6 +201,13 @@ Both are handled the same way as before:
 the name such a process calls itself is compared with the tool's directory name,
 and a version it may be running is kept only when that name matches.
 A version such a process holds without such a match can still be removed while it runs.
+
+One more case is left in principle:
+a process handed a removal marker's own name by something outside this program could enter the marker between the
+second look and the delete.
+Nothing mpm-shadow writes names a marker,
+and a marker stands for at most one pass,
+so this needs a program that reads the store for markers and starts work inside one.
 
 ## What it says
 
