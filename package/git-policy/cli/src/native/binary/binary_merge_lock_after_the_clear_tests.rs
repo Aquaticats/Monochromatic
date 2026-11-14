@@ -167,8 +167,8 @@ fn a_lock_taken_after_the_clear_and_held_past_the_bound_saves_the_merge() {
 /// "Merges and commits never fail" says it ends 0
 ///  (the review of `ce51914d2a`,
 /// its first finding).
-///  The side ref is made to fail the way that review made it fail: `refs/cli-git/kept` is a regular
-///  file,
+///  The side ref is made to fail the way that review made it fail:
+/// `refs/cli-git/kept` is a regular file,
 /// so every `update-ref refs/cli-git/kept/<n>` cannot create its lock.
 ///
 /// In TS you'd write (pseudocode):

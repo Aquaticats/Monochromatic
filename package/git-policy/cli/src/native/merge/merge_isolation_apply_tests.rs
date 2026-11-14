@@ -71,7 +71,8 @@ fn the_line_of_a_saved_merge_names_the_side_ref_and_what_finishes_the_checkout()
 /// so the merge cannot promise a later finish;
 /// the clear may already have written the branch's content over the person's edit,
 /// so "Nothing was changed" would be false
-///  (the review of `ce51914d2a`, its first finding).
+///  (the review of `ce51914d2a`,
+/// its first finding).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -96,7 +97,8 @@ fn the_line_of_a_merge_that_could_not_be_kept_says_what_stands() {
 /// Why:
 ///  The same reading of `IndexHeld` reached this instant,
 /// and the line it used to print claimed an unmoved branch and a finish the moved branch breaks
-///  (the review of `ce51914d2a`, its second finding).
+///  (the review of `ce51914d2a`,
+/// its second finding).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

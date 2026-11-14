@@ -21,7 +21,7 @@
 //! ```
 
 use crate::merge_isolation_changes::{Change, parse_raw_changes};
-use crate::merge_isolation_recovery_steps::{Judged, RecoveryPlace, Standing};
+use crate::merge_isolation_recovery_steps::{Judged, MergeRefusal, RecoveryPlace, Standing};
 use crate::recovery_error::RecoveryError;
 use crate::transaction_git::GitRequest;
 use crate::transaction_git_awaiting::{run_git_awaiting, run_git_checked_awaiting};
@@ -249,4 +249,40 @@ pub fn the_capture_holds_every_file_in_the_way(intent: &crate::merge_isolation_j
         found_one = true;
     }
     return found_one;
+}
+
+/// What:
+///  Whether one commit is an ancestor of another,
+/// which is what says a merge landed and a branch was built on it.
+/// Why:
+///   The two cases of a moved branch are unlike:
+/// a branch built on the merge holds its content,
+/// and one that was reset away does not.
+/// A merge whose own carry runs asks the same question about the branch it landed on
+///  (`merge_isolation_apply_moved.rs`).
+///  `git merge-base --is-ancestor` answers `0` for yes and `1` for no;
+/// any other exit,
+/// and a command that never started,
+/// is a read that failed.
+/// The exit status is read here rather than the failure's wording,
+/// as `ancestry_of` reads the
+///  same command (`push/auto_push_reconcile_basics_and_limits.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function isAncestor(place, root, ancestor, commit): boolean | undefined; // git merge-base --is-ancestor
+/// ```
+pub(crate) async fn is_ancestor_awaiting(place: &RecoveryPlace, root: &Path, ancestor: &str, commit: &str) -> Result<bool, MergeRefusal> {
+    let arguments: [&str; 4] = ["merge-base", "--is-ancestor", ancestor, commit];
+    // The status is read from the start itself: `git merge-base --is-ancestor` answers "no" with status 1 and nothing on standard
+    //  error, and a failure message carries only what Git printed, so a "no" read from that text was a refusal that stopped every
+    //  command in the worktree (a cross-vendor audit of alpha.10, its third finding).
+    return match run_git_awaiting(&place.git, &GitRequest::new(root, &arguments)).await {
+        Ok(found) if found.succeeded() => Ok(true),
+        // The one answer `--is-ancestor` gives for "no".
+        Ok(found) if found.code == Some(1) => Ok(false),
+        // Any other status is a failure to read, and the words name what Git said and the command that said it.
+        Ok(found) => Err(MergeRefusal { error: RecoveryError(format!("git merge-base --is-ancestor failed: {}", found.error_text())), began: true }),
+        Err(error) => Err(MergeRefusal { error: RecoveryError(format!("git merge-base --is-ancestor could not start: {error}")), began: true }),
+    };
 }
