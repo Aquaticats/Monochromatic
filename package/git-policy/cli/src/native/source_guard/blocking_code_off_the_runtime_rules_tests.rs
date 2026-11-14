@@ -259,9 +259,10 @@ pub(super) const ALLOWED: &[Allowed] = &[
     Allowed {
         file: "landing/service_work.rs",
         rule: "thread-start",
-        why: "the removal of a whole worktree starts Git, which asks for the runtime this command's waits run on, and a thread \
-              of the blocking pool still carries that runtime, so a job there answers that the runtime was asked for from inside \
-              itself and removes nothing (every removal did, until bd06020567); the round awaits the answer on a oneshot under \
+        why: "the removal of a whole worktree starts Git, which asks for the runtime this command's waits run on; the refusal is \
+              `run_on_runtime`'s `Handle::try_current`, which holds on a thread of the blocking pool, so a job there answers that \
+              the runtime was asked for from inside itself and removes nothing (every removal did, until bd06020567); the round \
+              awaits the answer on a oneshot under \
               `OBJECT_STEP_CEILING`, so no worker of the runtime is held, and that commit measured a removal at 128 ms from the \
               record to the worktree gone. The entry goes when the removal's Git step is awaited, which makes the removal a job of \
               the blocking pool",
