@@ -65,6 +65,8 @@ pub const INSIDE_A_SYNC: &str = "inside-a-sync";
 pub const INSIDE_A_SCRATCH_REMOVAL: &str = "inside-a-scratch-removal";
 /// The look that says whose a request is.
 pub const IN_THE_ROUTING_LOOK: &str = "in-the-routing-look";
+/// One trash's emptying, between its bound's check and the wave of entries it is about to hand over.
+pub const BEFORE_A_TRASH_WAVE: &str = "before-a-trash-wave";
 
 /// The variable that names the steps to hold,
 /// comma separated.

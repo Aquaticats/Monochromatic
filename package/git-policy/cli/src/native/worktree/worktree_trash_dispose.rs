@@ -591,6 +591,19 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
                 manifest.entries.len()
             )));
         }
+        // What:
+        //  The place a control holds an emptying at, between its bound's check and the wave it is about to hand over.
+        // Why:
+        //  The ceiling can only stop what an item has not started, so the one way to make an emptying unable to finish inside
+        //  its bound is to hold it here: a control then reaches the state with a small trash and no slow disk, which is what a
+        //  control of this path needs (`service/service_hold_a_step_for_a_control.rs`).
+        //  A hold that is not armed costs one scan of an empty list and awaits nothing.
+        //
+        // In TS you'd write (pseudocode):
+        // ```ts
+        // await holdAwaiting(BEFORE_A_TRASH_WAVE); const names = entries(done, wave); done += names.length; await removeTheseEntries(request, names);
+        // ```
+        crate::service_hold_a_step_for_a_control::hold_awaiting(crate::service_hold_a_step_for_a_control::BEFORE_A_TRASH_WAVE).await;
         let names: Vec<usize> = (done..manifest.entries.len().min(done + wave)).collect();
         done += names.len();
         left_behind.extend(remove_these_entries_awaiting(&request, names.as_slice()).await);
