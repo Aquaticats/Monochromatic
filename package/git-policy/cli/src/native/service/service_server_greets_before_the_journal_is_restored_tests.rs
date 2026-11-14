@@ -2,8 +2,7 @@
 //! the acceptor starts before the plan of the pushes waiting for a new try and the repositories an earlier
 //!  service was woken for are read,
 //! and those two are read on a thread of their own,
-//! so a journal that gave no answer delays a push and never a commit's client,
-//! and the service writes the journal it kept where the next start reads it.
+//! so a journal that gave no answer delays a push and never a commit's client.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -85,12 +84,6 @@ impl World {
         settings.journal_restore_ceiling = SHORT_CEILING;
         return settings;
     }
-
-    /// The directory the after-commit work keeps the repositories it was woken for,
-    /// which is the journal's own.
-    fn notes(&self) -> PathBuf {
-        return self.journal.join(WATCH_DIRECTORY);
-    }
 }
 
 impl Drop for World {
@@ -129,11 +122,6 @@ fn a_request(world: &World, id: &str) -> CommitRequest {
     };
 }
 
-/// Whether the after-commit work wrote a note in the journal the start kept.
-fn a_note_was_written(notes: &Path) -> bool {
-    return std::fs::read_dir(notes).is_ok_and(|mut listed| { return listed.next().is_some(); });
-}
-
 /// Reads the greeting of the service on `reader`,
 /// and says whether it came.
 fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
@@ -142,8 +130,7 @@ fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
 
 /// What:
 ///  A client that connects while the journal's plan cannot be read is greeted and beaten,
-/// and the commit it sends is landed once the journal's ceiling passed,
-/// and the service writes the note of the repository it drains into the journal the fallback kept.
+/// and the commit it sends is landed once the journal's ceiling passed.
 /// Why:
 ///  The greeting and the beat are the proof of life a client's wait rests on,
 /// and a service that reads the journal of its after-commit work before it accepts a connection answers no one
@@ -155,11 +142,8 @@ fn greeted(reader: &mut BufReader<UnixStream>) -> bool {
 /// The read is held at its own fault point,
 /// so "while that read has not returned" is a state of the code and not a duration,
 /// and the beat is shown while it waits rather than because this machine is slow.
-///  The note the after-commit work leaves is the fallback's own promise kept:
-/// the start that gave no answer kept the journal's directory,
-/// so this service writes there and the next start looks at it
-/// (`SPEC.md`,
-/// "the plan's directory and the watch's directory are kept either way").
+///  What the ceiling leaves the start with is the journal's two directories and two reads it owes,
+/// which the controls of `service_journal_restored_at_start_tests.rs` hold it to.
 #[test]
 fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer() {
     let world: World = world("restore-stalled");
@@ -194,33 +178,11 @@ fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer
     }
     assert!(landed.is_some(), "the commit of a client that waited is landed once the journal's ceiling passed");
     assert!(beats >= 1, "a service whose journal gave no answer still proves it lives, once a second, before a commit lands");
-    // What a client sends once its commit is landed: the repository whose work items are now to be run.
-    wake_the_work(world.socket().as_path(), world.repo.join(".git").as_path());
-    let _written: bool = crate::test_support::wait_until(&|| { return a_note_was_written(world.notes().as_path()); });
-    let kept: Vec<PathBuf> = ClaimWatch::restored(world.notes().as_path(), None).directories();
-    assert_eq!(kept, vec![world.repo.join(".git")], "the repository the service drained is written in the journal the start kept, so the next start looks at it");
     // The service is told to retire on a connection of its own, so its thread ends here rather than at its idle exit.
     retire(world.socket().as_path());
     let joined: bool = join_within(serving);
     let _let_go = let_go.send(());
     assert!(joined, "the service ends when it is told to retire, so a read that gave no answer did not hold it");
-}
-
-/// Tells the service at `socket` that work items were written for `git_dir`,
-/// which is what wakes the after-commit work.
-/// Why:
-///  The service serves one line per connection and closes it once the line is read,
-/// so a wake is a connection of its own, as the wrapper's is
-/// (`service_client.rs`,
-/// `wake`).
-fn wake_the_work(socket: &Path, git_dir: &Path) {
-    let stream: UnixStream = UnixStream::connect(socket).expect("the service listens");
-    let _timeout = stream.set_read_timeout(Some(HEARTBEAT_EVERY * 5));
-    let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a second handle on the connection"));
-    let _greeted: bool = greeted(&mut reader);
-    let mut line: String = encode_client(&ClientMessage::Work { git_dir: git_dir.to_path_buf(), review_key: None });
-    line.push('\n');
-    (&stream).write_all(line.as_bytes()).expect("the client announces the work its commit left");
 }
 
 /// Tells the service at `socket` to retire,
