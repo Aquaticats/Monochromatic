@@ -18185,10 +18185,30 @@ so nothing can ask the person before Git deletes,
 and a repository moved before the menu is one the person never chose to delete,
 while a person who then quits has a worktree a command that deleted nothing has changed.
 Such a clean runs with `--no-force -f` written at the end of its own options when its menu would offer a nested repository,
-which lands Git on the one force at which it keeps every nested repository itself,
+which lands Git on the one force at which it keeps a repository with a `.git` entry,
 the menu then offers exactly what the clean deletes,
 and the notice names the repository that stayed,
 the same clean without `-i` (which saves it whole first) and the escape hatch (which deletes it with the rest).
+That one force does not keep a bare repository:
+`git clean -fXd` at one force prints `Skipping repository inner` for the `.git` shape and
+`Removing ignored/` for a bare one, which is then gone (measured on this host with native Git 2.56.0,
+2026-11-13).
+A menu that would offer a bare repository is therefore one no cap keeps,
+so that clean stops before Git starts, naming the repository and the two ways to run it:
+without `-i`, so it is moved whole to a saved copy first, or with `--no-enforce-worktree`,
+so the menu and the choice run as real Git runs them.
+The notice the `.git` shape gets says only what is true of it.
+The cap reads the words the policy decided on, which for a `!` shell alias are the words of the shell
+and not the alias word the wrapper forwards;
+an alias's own words are not the forwarded list,
+so a token inserted for the cap would land after any path the person typed,
+and an interactive clean a `!` alias runs is stopped the same way, naming the repository.
+The other fixed transforms read the typed words and add nothing on that route,
+each for its own reason:
+`--atomic` on `push`, `-o` on `commit` and `-c advice.statusHints=false` on `status` rewrite a start
+the wrapper makes, and a shell alias's `git` is real Git, which the wrapper never starts;
+`--no-overwrite-ignore` protects an ignored file against a write Git makes itself,
+which is the case the owner allowed to run, so it is left to Git rather than refusing the alias.
 The pair is not written where the person asked for the worktree enforcement to be skipped.
 A dry run that did not answer stops the command instead of reading as Git's refusal of the clean:
 a nonzero exit is no proof that the clean which runs afterwards refuses,
@@ -18265,9 +18285,27 @@ and a form that reads its pathspecs from a file
 with `--pathspec-file-nul` deciding the separator)
 writes the tree's or the index's paths those pathspecs match,
 which no other word of the command names.
-The file is read here, the way Git reads it:
-line ends or NUL bytes, a carriage return dropped,
-each entry passed to `ls-tree`/`ls-files` as a pathspec so its magic means what Git means by it,
+The file is read here, the way Git reads it,
+each rule measured on this host with native Git 2.56.0 on 2026-11-13:
+line ends, or NUL bytes when `--pathspec-file-nul` is written,
+a carriage return dropped (`b.txt\r\n` writes `b.txt`),
+and a line that begins with a double quote unquoted as a C string
+(`"a\tb.txt"` names the file with a tab, `"a\134b.txt"` the name with a backslash,
+`"a\150b.txt"` the name that octal byte makes, and text after the closing quote is ignored:
+`"plain.txt" junk` writes `plain.txt`).
+A line that does not begin with a quote is the name itself, so `a\b.txt` names a file with a backslash in it.
+Quoting is a line-ending rule only: with `--pathspec-file-nul` the quotes are part of the name.
+A zero-byte file is no pathspec at all to Git,
+which reads it as "none were given":
+`git checkout -f other --pathspec-from-file=<empty>` switches the branch by force and writes that
+whole tree,
+and `git checkout -f topic --pathspec-from-file=<empty>` guesses `origin/topic` and writes it,
+so the reading answers the whole tree the empty-list form writes, with that guess,
+and a `restore` with an empty list is Git's own `you must specify path(s) to restore`, which writes nothing.
+An empty entry is Git's `empty string is not a valid pathspec`,
+and a quote Git cannot read is its `line is badly quoted`,
+so both are refusals here too.
+Each entry is passed to `ls-tree`/`ls-files` as a pathspec so its magic means what Git means by it,
 and a file that cannot be read is a `fact-unavailable` refusal rather than an empty answer.
 The read is bounded by `PATHSPEC_FILE_READ_CEILING` (five seconds,
 `service/wait_ceilings.rs`, with the measurement it rests on):
@@ -18284,6 +18322,24 @@ which a guard cannot read without consuming it,
 so that spelling is refused with the reason and the opt-out,
 and a person who means it passes `--no-enforce-worktree`:
 the choice is recorded here because Git's own reading is the only other way to learn those paths.
+Every word whose meaning is a path or a revision keeps the bytes it was typed as:
+a `--prefix` of `read-tree` or `checkout-index`,
+a `--source` of `restore` in either spelling,
+the name `--pathspec-from-file=` carries,
+and the name a forced `mv` gives a source inside a directory destination.
+A conversion through text replaced each byte that is not UTF-8 with U+FFFD,
+which names another file:
+`p-<0xFF>/` became `p-<U+FFFD>/` for both prefixes,
+a branch `br-<0xFF>` became an unknown name for `restore --source=`,
+and a list file `n-<0xFF>` became `n-<U+FFFD>`, where a decoy at that name could stand in for the real list.
+What still converts to text is display only: the entries a refusal names,
+Git's own standard error, the repository's boolean settings, and the `@{-1}` literal.
+An option written twice keeps the last value, as Git's own parser does,
+so `restore -s main -s other -- f.txt` writes the content of `other`
+(`-s`, `-s<rev>`, `--source <rev>` and `--source=<rev>` alike);
+every other option these readings take is a flag whose last spelling already decided,
+and the pathspec file's own name and the two prefixes are read to their last occurrence.
+
 The name a forced `checkout`,
 a forced `switch`,
 a `reset` or a `restore` writes the tree of is resolved the way the command resolves it
@@ -18313,6 +18369,12 @@ A tree Git knows and cannot list (a removed object, a name that is a blob) is a 
 what could not be read,
 never an empty answer:
 an empty answer would be the same swallow in another dress.
+A child a signal ended answered nothing at all,
+which is neither "Git does not know this name" nor "this repository turned the guess off",
+so the listing, the `rev-parse --verify` question and the `checkout.guess` question each refuse then
+(`fatal: ... was ended by a signal ...` in the refusal's words):
+a killed `git config --get checkout.guess` once read as "guessing is off",
+which let a forced `checkout` guess a remote branch and write over an untracked file.
 The rule behind it holds for every probe of these guards:
 a probe that fails,
 is killed,
@@ -18360,7 +18422,14 @@ and a worktree that holds a file where one of them must go loses that file
 The question is two listings of the whole worktree,
 `git ls-files --others --exclude-standard --directory` and
 `git ls-files --others --ignored --exclude-standard --directory`,
-each asked once per command,
+each asked with `-- :(top)` so Git lists the whole worktree whatever directory the command runs in
+(a listing without a pathspec is scoped to that directory: run in `sub` it printed `sub/deep/` alone,
+measured on this host with native Git 2.56.0, 2026-11-13),
+and the tree reading asks `ls-tree` with `--full-tree` for the same reason,
+while a path form's answers are written below the directory Git runs in,
+which is the worktree root's own view of them.
+The guard therefore does not rest on `require-root` staying enabled to see the whole worktree.
+Each listing is asked once per command,
 with each answer intersected against the written paths in the wrapper's own process
 (`repo_read/repository_facts_paths_in_the_way.rs`).
 `--directory` names a directory the worktree holds whole as one entry (`nested/`),

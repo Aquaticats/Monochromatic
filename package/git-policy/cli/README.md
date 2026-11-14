@@ -2540,6 +2540,17 @@ The rule is:
   write over".
   A file named by `--pathspec-from-file` is read for at most five seconds: Git itself waits with no
   end for a pipe nobody writes to, and this wrapper's rule is that nothing waits forever.
+  It is read the way Git reads it: a line that begins with a double quote is C-unquoted,
+  a carriage return is dropped, and a zero-byte file is no pathspec at all, so the form becomes the
+  whole-tree form Git really runs (`checkout -f other --pathspec-from-file=<empty>` switches the
+  branch by force) and is refused over that tree.
+  A word that is a path or a revision keeps the bytes it was typed as, so a prefix or a
+  `--source` that is not text still names the file Git writes.
+  An option written twice keeps the last value, as Git does.
+  An interactive clean that would offer a bare Git repository is stopped instead of capped: one
+  force keeps a folder with a `.git` entry and deletes a bare repository, so the cap cannot keep it.
+  A `!` shell alias whose own words run an interactive clean is stopped the same way, because the
+  cap's token has no place in an alias's words.
   The refusal names each entry (five, then a count),
   says that nothing else holds them,
   that nothing in the worktree was changed,
