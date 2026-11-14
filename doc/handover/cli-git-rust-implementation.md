@@ -1184,6 +1184,49 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The long runtime directory's review found a first commit that fails under one spelling, and a number its author made wrong (2026-11-13T23:01:12-05:00)
+
+Not final and not approved:
+read by the coordinating session from the review file;
+the number in the second finding was computed by it from the constants at the tip,
+nothing else rerun.
+
+The review of `1032d1ec91`
+(`~/temp/agent/change-reviews/git-policy-cli-commit-is-made-when-the-runtime-directory-path-is-too-long-for-a-socket/review.md`,
+ended 22:54:12)
+found the abstract address's detection,
+the peer-credential checks at both ends,
+provisioning under concurrent commits and every wait's bound sound.
+It built no wrapper and ran no commit.
+Two findings,
+both weighed as standing:
+
+- A long runtime directory spelled with a `..` part over a directory that does not exist yet
+  gives the client one abstract name (from the spelling) and the socket unit another
+  (from the real path,
+  once provisioning has made the directory).
+  The two names differing is reproduced with the function compiled alone;
+  the commit ending "the commit service did not start" is read from the order of calls.
+  Rare,
+  and the first commit only,
+  but the project's rule is that a commit never fails.
+- The author's own commit `401297e28a` changed the longest runtime directory of the path form from 40 bytes to 39,
+  in the function's doc,
+  in `SPEC.md` and in three test files' comments.
+  40 was right:
+  the folder name is 28 bytes,
+  the part after the runtime directory 67,
+  and 107 less 67 is 40
+  (computed with `node` at 22:59:41).
+
+Back to the author in its own session
+(`long-runtime-directory-answers-its-review-of-1032d1ec91-prompt.md`,
+queued at 23:01:12,
+position 6 of 44),
+with an end-to-end control asked for,
+since the review ran none.
+The queue held 44 entries then.
+
 ##### Three authors answered, the add-never-skips answer has four reproduced defects, and the queue is longer than at 21:00 (2026-11-13T22:53:57-05:00)
 
 Not final and not approved:
