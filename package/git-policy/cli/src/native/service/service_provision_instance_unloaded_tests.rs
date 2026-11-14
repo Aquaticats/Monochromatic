@@ -87,7 +87,8 @@ impl Scripted {
         return self;
     }
 
-    /// What the service does when a stop job runs, which is after any start a concurrent command made.
+    /// What the service does when a stop job runs,
+    /// which is after any start a concurrent command made.
     fn state_when_the_stop_runs(&mut self) -> Option<String> {
         if let Some(answer) = self.after_the_socket_stop.clone() {
             return match answer {
