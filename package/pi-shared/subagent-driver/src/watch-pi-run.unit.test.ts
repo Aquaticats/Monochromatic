@@ -566,7 +566,21 @@ async function startRunThatAnsweredNothing(): Promise<RunUnderTest> {
 }
 
 /**
- A connection whose every message is taken at once, and whose Pi then answers with nothing again.
+ Starts a run whose Pi answered a turn with words, and then rested with nothing of its own running.
+
+ @returns the run, and the folder that goes with it
+ */
+async function startRunWhoseLastAnswerHadWords(): Promise<RunUnderTest> {
+  const run = await startRunAtWork();
+  observeFirstTurnWithWords(run.record,);
+  run.record.observe({
+    event: { type: 'agent_settled', },
+    declineDialog: refuseDialog,
+  },);
+  return run;
+}
+
+/**
 
  @param sent - where the messages the watch sends are recorded
 
@@ -601,7 +615,55 @@ function connectionWhosePiAnswersNothing({
 }
 
 /**
- A connection whose every message ends the wait before Pi answers it.
+ A connection whose every message is refused while the run's record says Pi is at work, as Pi refuses a prompt that reaches it
+ mid-turn, and taken while Pi rests.
+
+ @param sent - where the messages the watch sends are recorded
+
+ @param record - the run's record, which tells whether Pi is at work
+
+ @param beforeAnswer - what happens as the message arrives, before Pi answers it
+
+ @returns the connection a watch reads
+ */
+function connectionThatRefusesWhilePiWorks({
+  sent,
+  record,
+  beforeAnswer,
+}: {
+  readonly sent: string[];
+  readonly record: RecordOfPiRun;
+  readonly beforeAnswer?: () => void
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      const { message, } = command;
+      sent.push((typeof message) === 'string' ? message : '',);
+      beforeAnswer?.();
+      if (record.isRunning()) {
+        return {
+          ending: 'answered',
+          record: {
+            success: false,
+            error: 'agent is already running',
+          },
+        };
+      }
+      return {
+        ending: 'answered',
+        record: { success: true, },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
 
  @param ending - how the wait ends
 
@@ -1308,6 +1370,135 @@ await describe({
           sessionStats: null,
         },);
         expect(summary.emptyAnswer,).toEqual({ asked: 1, },);
+      },
+    },),
+    it({
+      name: 'a turn that begins while the work is being read is not asked to go on, and the run goes on',
+      fn: async () => {
+        await using run = await startRunThatAnsweredNothing();
+        /**
+         The messages the watch sent, which must not be one the turn interrupted.
+         */
+        const sent: string[] = [];
+        const endReason = await watchUntilEnded({
+          connection: connectionThatRefusesWhilePiWorks({
+            sent,
+            record: run.record,
+          },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async function workLeftRunning() {
+            // Pi begins a turn while the work is being read, as a steer delivered earlier fires after the settle that opened
+            // the window. The scan found no process, which is what made the old watch act on a Pi that had stopped resting.
+            run.record.observe({
+              event: { type: 'agent_start', },
+              declineDialog: refuseDialog,
+            },);
+            run.record.observe({
+              event: { type: 'turn_start', },
+              declineDialog: refuseDialog,
+            },);
+            return [];
+          },
+        },);
+        // The run was not ended on a refusal the working agent earned, and its turn was left alone.
+        expect(endReason,).toBe('wall-clock',);
+        expect(sent,).toEqual([],);
+        /**
+         What the summary says about the ending, and what the feed says of any ask.
+         */
+        const summary = run.record.summarize({
+          endReason: 'wall-clock',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.emptyAnswer,).toEqual({ asked: 0, },);
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.some((entry,) => entry.kind === 'asked-to-go-on'),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'a turn that begins while the work is being read is not ended as idle, and the run goes on',
+      fn: async () => {
+        await using run = await startRunWhoseLastAnswerHadWords();
+        /**
+         The messages the watch sent, which this ending sends none of.
+         */
+        const sent: string[] = [];
+        const endReason = await watchUntilEnded({
+          connection: answeringConnection({ sent, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async function workLeftRunning() {
+            run.record.observe({
+              event: { type: 'agent_start', },
+              declineDialog: refuseDialog,
+            },);
+            run.record.observe({
+              event: { type: 'turn_start', },
+              declineDialog: refuseDialog,
+            },);
+            return [];
+          },
+        },);
+        // Idle is the ending of a run whose agent rested; a turn that opened during the read is no rest.
+        expect(endReason,).toBe('wall-clock',);
+        expect(sent,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'a refusal that meets a Pi at work is no ask, so the run does not end on the empty answer',
+      fn: async () => {
+        await using run = await startRunThatAnsweredNothing();
+        /**
+         The messages the watch sent, which is the one the turn interrupted as it went.
+         */
+        const sent: string[] = [];
+        const endReason = await watchUntilEnded({
+          connection: connectionThatRefusesWhilePiWorks({
+            sent,
+            record: run.record,
+            beforeAnswer: function piBeginsATurn() {
+              // Pi began a turn as the message arrived, which is the one thing the driver cannot see before it sends.
+              run.record.observe({
+                event: { type: 'agent_start', },
+                declineDialog: refuseDialog,
+              },);
+              run.record.observe({
+                event: { type: 'turn_start', },
+                declineDialog: refuseDialog,
+              },);
+            },
+          },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          workLeftRunning: async () => [],
+        },);
+        expect(endReason,).toBe('wall-clock',);
+        expect(sent.length,).toBe(1,);
+        /**
+         What the summary counts, which is no ask, and what the feed says of the refusal.
+         */
+        const summary = run.record.summarize({
+          endReason: 'wall-clock',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.emptyAnswer,).toEqual({ asked: 0, },);
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.some((entry,) => entry.kind === 'asked-to-go-on'),).toBe(false,);
+        expect(
+          feed.some((entry,) => String(entry.problem,).includes('began a turn')),
+          'the feed should say why the message was no ask',
+        ).toBe(true,);
       },
     },),
     it({
