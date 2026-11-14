@@ -32,6 +32,9 @@ use crate::service_hold_retry::{may_run_again, run_again_while_service_holds};
 /// Running real Git,
 /// settling the linked-worktree copy around it when one applies.
 use crate::worktree_copy_forward::{CopyFacts, ForwardedRun, run_forwarded_git};
+/// The second measurement of an abort or a skip,
+/// owed immediately before Git starts.
+use crate::abort_recheck::recheck_before_the_command;
 /// The resolved forwarded command.
 use crate::forwarded_command::ResolvedCommand;
 /// The classification of index writers.
@@ -263,6 +266,11 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
     }
     // The paths that are unmerged before the command runs are not the second merge pass's to touch afterwards.
     let second_pass_watch: Option<Watch> = watch_before(forward);
+    // The second measurement of an abort or a skip, immediately before the command the person typed:
+    //  work that appeared after the policy pass stops the command.
+    if let Some(refusal) = recheck_before_the_command() {
+        return CoordinatedRun::Failed { stderr: refusal, code: crate::action::REJECTED_EXIT_CODE };
+    }
     // A command that takes the index lock before it changes anything is run again when the commit service took the index first.
     let outcome: ForwardedRun = if forward.copy.is_none() && may_run_again(forward.command.word(), forward.command.region()) {
         run_again_while_service_holds(

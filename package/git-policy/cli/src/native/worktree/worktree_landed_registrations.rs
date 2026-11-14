@@ -95,36 +95,6 @@ pub(crate) fn registrations_of(common_dir: &Path) -> Result<Vec<Registration>, S
 }
 
 /// What:
-///  The registration that names exactly `worktree` as its worktree,
-///  whatever its `HEAD` names.
-/// Why:
-///   A report about a worktree that stands below another one names it and the command that removes it,
-/// and a
-///  detached `HEAD` is a worktree the repository registers like any other:
-/// asking only the candidates
-///  of a landed sweep made it an unnamed volume,
-/// and the report then sent the person to delete its
-///  files with the btrfs tool (a review finding,
-/// F2).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const worktree = registrationNaming(commonDir, path); // RegisteredWorktree | undefined
-/// ```
-///
-/// # Errors
-///
-/// The words for a `worktrees` folder that cannot be listed.
-pub(crate) fn registration_naming(common_dir: &Path, worktree: &Path) -> Result<Option<RegisteredWorktree>, String> {
-    for one in registered_worktrees(common_dir)? {
-        if one.worktree == worktree {
-            return Ok(Some(one));
-        }
-    }
-    return Ok(None);
-}
-
-/// What:
 ///  Every registration of the repository,
 ///  in one listing of its `worktrees` folder,
 ///  with the branch each one's `HEAD` names when it names one.

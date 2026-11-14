@@ -57,6 +57,27 @@ pub const STOP_COMMAND: &str = "systemctl --user stop 'monochromatic-git-policy-
 /// The commands that show whether the commit was made.
 pub const CHECK_COMMANDS: [&str; 2] = ["git log -1", "git status"];
 
+/// The command that shows what the commit service of a worktree is doing,
+/// and names the unit that serves it.
+///  Why:
+///   The unit of one worktree is the one a restart may name,
+/// and the wrapper's own command is the one that reads the state of that service without asking for anything:
+/// a restart of every service of the account is what a commit must never ask for,
+/// because it stops the
+///  commits of every other worktree.
+pub const STATUS_COMMAND: &str = "git monochromatic-git-policy-cli service status";
+
+/// The command that restarts one unit of the service manager,
+/// followed by the unit the status named.
+pub const RESTART_ONE_UNIT_COMMAND: &str = "systemctl --user restart";
+
+/// What a failure says about the staged work when nothing in the repository changed,
+/// in the words these failures use.
+///  Why:
+///   A commit that stopped before it asked anything of the service changed nothing,
+/// and the person is owed that sentence in the words of the failure they read.
+pub const NOTHING_CHANGED_AND_THE_STAGED_WORK: &str = "Your staged changes and your working files are as they were.";
+
 
 
 /// What:
@@ -145,9 +166,16 @@ pub enum ClientFailure {
     /// is
     ///  saved in `file`.
     BranchSwitched { branch: String, now: String, file: Option<String> },
-    /// The service sent nothing for longer than it ever stays silent while it works,
-    /// on every try to ask it again.
+    /// The service, once it greeted, said nothing for longer than it ever stays silent while it works,
+    /// so the request is given up rather than asked again.
     ServiceSilent,
+    /// The service took no part of the request,
+    /// or not the whole of it in time,
+    /// so the request never reached it as one line and the commit was not made.
+    ServiceNotReading {
+        /// Whether the service took no byte of the request at all.
+        took_nothing: bool,
+    },
     /// The same silence after a commit was prepared,
     /// with the branch read afterwards so the message can state what it shows.
     ServiceSilentAfterPreparing {
@@ -282,16 +310,7 @@ pub fn render(failure: &ClientFailure) -> String {
             "The commit service did not start, so this commit was not made. Its log shows why: `{LOG_COMMAND}`. \
              Run the commit again after fixing that. {NOTHING_CHANGED}"
         ),
-        ClientFailure::NothingAnswered { address, waited } => format!(
-            "Nothing has answered at the commit service's address for this worktree ({address}) for {} seconds, so this \
-             commit was not made. A service that is stopped inside its own process (a frozen control group, a debugger, a \
-             suspended machine, or a wait in the kernel that never ends) looks like that, and this git had no user service \
-             manager to ask to start or restart it. See what the service of this worktree is doing with \
-             `git monochromatic-git-policy-cli service status`, let it run again the way it was stopped, and run the commit \
-             again; from a session whose user service manager this git can reach (`loginctl enable-linger` turns one on for \
-             an account that is not logged in), the service is started or restarted for you. {NOTHING_CHANGED}",
-            waited.as_secs().max(1)
-        ),
+        ClientFailure::NothingAnswered { address, waited } => crate::service_messages_of_a_service_that_stopped::nothing_answered(address.as_str(), *waited),
         ClientFailure::NoActivation(platform) => format!(
             "This computer cannot start the commit service on demand, so this commit was not made. {} {NOTHING_CHANGED}",
             platform_remedy(*platform)
@@ -312,8 +331,8 @@ pub fn render(failure: &ClientFailure) -> String {
         ),
         ClientFailure::OtherRelease => format!(
             "The commit service that is running was started from another release of this git wrapper and did not stop when \
-             asked, so this commit was not made. Run the commit again: the next commit sets the service up from the units it \
-             installs and asks the manager to reload them. A service that still will not stop can be restarted with \
+             asked twice, so this commit was not made. Run the commit again: the next commit stops this worktree's unit and \
+             starts it from the units it installs. A service that still will not stop can be restarted with \
              `{RESTART_COMMAND}`. {NOTHING_CHANGED}"
         ),
         ClientFailure::RepositoryFull(path) => format!(
@@ -360,31 +379,9 @@ pub fn render(failure: &ClientFailure) -> String {
                 None => String::new(),
             }
         ),
-        ClientFailure::ServiceSilent => format!(
-            "The commit service stopped answering while this commit waited, and it did not answer when asked again, so it is \
-             not known whether the commit was made. Run `{}` to see whether it was made, and `{}` to see what is still \
-             staged. If it was not made, look at why the service is stuck with `{LOG_COMMAND}`, restart it with \
-             `{RESTART_COMMAND}`, and run the commit again.",
-            CHECK_COMMANDS[0], CHECK_COMMANDS[1]
-        ),
-        ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Made } => String::from(
-            "The commit service stopped answering, and the commit was made: the branch is at the commit this command \
-             prepared. There is nothing to run.",
-        ),
-        ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::NotMade } => format!(
-            "The commit service stopped answering while this commit waited, and it did not answer when asked again. The \
-             branch is not at the commit this command prepared, so it was not made by this command; the service may still \
-             land it, so run `{}` to see. If it was not made, look at why the service is stuck with `{LOG_COMMAND}`, \
-             restart it with `{RESTART_COMMAND}`, and run the commit again. `{}` shows what is still staged.",
-            CHECK_COMMANDS[0], CHECK_COMMANDS[1]
-        ),
-        ClientFailure::ServiceSilentAfterPreparing { shows: WhatTheBranchShows::Unread } => format!(
-            "The commit service stopped answering while this commit waited, and the branch could not be read afterwards, so \
-             it is not known whether the commit was made. Run `{}` to see whether it was made, and `{}` to see what is still \
-             staged. If it was not made, look at why the service is stuck with `{LOG_COMMAND}`, restart it with \
-             `{RESTART_COMMAND}`, and run the commit again.",
-            CHECK_COMMANDS[0], CHECK_COMMANDS[1]
-        ),
+        ClientFailure::ServiceSilent => crate::service_messages_of_a_service_that_stopped::silent(),
+        ClientFailure::ServiceNotReading { took_nothing } => crate::service_messages_of_a_service_that_stopped::not_reading(*took_nothing),
+        ClientFailure::ServiceSilentAfterPreparing { shows } => crate::service_messages_of_a_service_that_stopped::silent_after_preparing(*shows),
         ClientFailure::StillWithService { minutes, blocker } => format!(
             "This commit waited {minutes} minutes for the commit service and was withdrawn, so it will not land later by itself.{} \
              Your staged changes and your worktree are as they were. Run the commit again; if the service is stuck, look at why with \
