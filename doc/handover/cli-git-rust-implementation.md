@@ -736,6 +736,33 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-14T11:41-05:00,
+  each from an author's report of that morning and none blocking work:
+  - A commit that waits and receives `SIGINT` or `SIGTERM`:
+    `main` replaces an ignore of those signals that the wrapper inherited from its caller.
+    Does an inherited ignore stay ignored during the wait
+    (this session's reading from the record,
+    adopted on 2026-11-14 and open to veto),
+    or is the replacement kept?
+    (`fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it`, tip `771d34e0fa`.)
+  - A watch note that names a directory of another repository is refused by the guard of tip `130519d862`.
+    Is refusing right,
+    or is such a note routed to that repository's own service?
+    And does `SPEC.md` state which repository a note may name?
+  - The commit service started by the wrapper itself (tip `77f5d525e3`):
+    does a scope's service that answers after `START_WAIT` get a grace period,
+    and is the claim file,
+    which is now transient,
+    given another name?
+  - mpm-shadow's cleanup (tip `3a96da6dbf`):
+    are one year for the work limit and one hundred years for the age floor the right largest values,
+    and does a global pass look for a repository above the working folder to read worktree locks?
+  - The lock shim of Pi under the adopted reading (tip `37287ade63`):
+    a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
+    Is that accepted for the time until every Pi was started under the new shim?
+  - One string after `PNPR_SECRET=` in a Claude Code transcript of 2026-09-15 that no tracked file holds:
+    is it a deployed server's secret?
+    (`~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/credentials-to-rotate-names-only.txt`.)
 - Is the lock of Pi's files to be cleared by hand again if it is left again before the shim is fixed?
   It was cleared once at 02:02:59 on 2026-11-14 after twenty minutes in which no Pi run could start
   (the section of 2026-11-14T02:05:16-05:00);
@@ -1197,6 +1224,53 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Removal-refuses passes its fifth review and goes into pass 41; the brief writer for tests goes back; two authors' answers go to review (2026-11-14T11:39:47-05:00)
+
+Not final and not approved:
+what two reviews and two authors report of themselves,
+and what the coordinating session queued.
+
+- **Removal refuses a worktree a process works in** (`52ddd94d5f`),
+  fifth review:
+  no defect.
+  It ran 165 tests of the changed modules and reproduced five behaviours through the built wrapper on disposable repositories
+  (a process inside refuses;
+  a nested worktree with a changed file,
+  a hidden edit or a commit no reference names refuses;
+  a clean worktree with ignored files is removed and its log names them;
+  a kill after the deletion leaves the `begun` line;
+  the way out steps aside).
+  Its limits:
+  the full sweep and the btrfs path end to end need a service manager its isolation removes,
+  and stand on unit tests.
+  Pass 40 was already going,
+  so **integration pass 41** is queued first with this branch alone
+  (`~/temp/agent/pi-runs/integration-pass-41-with-the-removal-that-refuses-a-worktree-a-process-works-in-prompt.md`);
+  it is told that passes 38 and 40 change the same files.
+- **The writer of review briefs for tests** (`1b6ea7748d`):
+  one reproduced:
+  a range that deletes or renames a code file and edits its test is called tests alone,
+  and the removed code gets no review.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/review-brief-writer-for-tests-answers-its-review-of-2026-11-14-prompt.md`).
+- **A commit that does not land says what stopped it** (tip `771d34e0fa`, ended 11:34:14):
+  the author reports its review answered
+  (156 tests of nine changed modules and nine binary controls passing).
+  It names as a question for the owner that `main` replaces an inherited ignore of `SIGINT` and `SIGTERM`.
+  Review queued third.
+- **A watch note of another repository** (tip `130519d862`, ended 11:37:12):
+  the author reports the guard made,
+  two small conflicts to expect with the branch that reads the note,
+  and that `service_claim_watch.rs` will need a split for its length when the two meet.
+  Its two questions for the owner
+  (refuse a foreign directory as now,
+  or route it to its own service;
+  whether `SPEC.md` states the rule)
+  are kept with the others.
+  Review queued fourth.
+- 21 Pi runs were going at 11:39:47;
+  the queue held 63 entries.
 
 ##### Two more mpm-shadow reviews with findings: an install that waits on its scope's lock with no bound, and removals that fail when another command removed first (2026-11-14T11:30:29-05:00)
 
