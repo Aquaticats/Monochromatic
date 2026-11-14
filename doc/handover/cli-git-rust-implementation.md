@@ -1239,6 +1239,47 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landing author answered its fourth review; its review is queued first (2026-11-14T14:37:32-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked,
+and what it queued and measured.
+
+- **A landing never waits behind housekeeping** (tip `4768e9e809`, ended 14:32:52):
+  the author reports the large trash that was abandoned after three tries answered:
+  a disposal that made progress is deferred and uses no try,
+  and one that made none is retried three times and then recorded as failed with a journal line.
+  It walked the other jobs that requeue the same way
+  (prewarm,
+  relink,
+  subvolume delete,
+  snapshot ahead,
+  push,
+  review and upkeep)
+  and lists each with its lines and its bound.
+  Clippy clean and 120 tests of the changed modules passing at the tip,
+  which holds `main` with `0.6.1-alpha.30`.
+  It deleted a binary control of many rounds that could not hold every round and kept the in-crate one,
+  with the deleted control's runs in its `keep/runs/`.
+  It notes nothing reads the `failed` state for a person besides the new journal line.
+  Review queued first (range `main...4768e9e809`, 27 code files);
+  passes 29 and 34 still wait on its verdict.
+- Drive probe,
+  10:00 to 14:27:
+  of 266 readings four took a second or more
+  (build drive 3,306 ms at 13:02,
+  2,247 ms at 13:45,
+  2,300 ms at 14:21;
+  home drive 1,057 ms at 14:11),
+  never two in a row,
+  with 20 agent units going.
+- The check of queued entries at 14:37:32:
+  67 names queued by this session since 08:54,
+  none missing,
+  none twice;
+  59 entries in the queue.
+
 ##### mpm-shadow's stale launchers are answered with the scope lock gone, at a cost not yet attributed; the brief writer for tests is answered; both go to review (2026-11-14T14:27:24-05:00)
 
 Not final and not approved:
