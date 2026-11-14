@@ -126,7 +126,7 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
     let parent: PathBuf = short_parent();
     let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
     // The name holds the tag and then padding, never nothing: a path that ends in the separator has one byte less than it
-    //  says it has when anything is joined to it. A runtime directory of forty bytes leaves a handful of bytes past this
+    //  says it has when anything is joined to it. A runtime directory of thirty-nine bytes leaves a handful of bytes past this
     //  process's own scratch folder, and a longer process number narrows that, so a tag that does not fit is replaced by a
     //  digest of itself: two controls still get two directories, whichever number this process runs as.
     // A tag of words needs room for itself; where a control's directory leaves none, a digest of the tag keeps two
@@ -527,12 +527,16 @@ fn a_runtime_directory_too_long_for_a_path_is_one_service_however_it_is_spelled(
             "the socket the manager made before answers this spelling too: {} is reached through it",
             spelled.display()
         );
-        let mut manager: Addressing = Addressing { addresses: Some(vec![format!("@{name}")]), ..Addressing::default() };
-        provision_with(&host_with(spelled.clone()), &mut manager).expect("the same installation under another spelling is used, not refused");
+        let mut spelled_manager: Addressing = Addressing { addresses: Some(vec![format!("@{name}")]), ..Addressing::default() };
+        provision_with(&host_with(spelled.clone()), &mut spelled_manager).expect("the same installation under another spelling is used, not refused");
         // The units name the program's link by the runtime directory's spelling, so a spelling that differs from the one the
         //  record was written under has the units written again and the manager asked to reload them: one write and one
         //  reload, and never a second service.
-        assert!(manager.calls.iter().any(|call| { return call.starts_with("start "); }), "the same socket unit is started, not another: {:?}", manager.calls);
+        assert!(
+            spelled_manager.calls.iter().any(|call| { return call.starts_with("start "); }),
+            "the same socket unit is started, not another: {:?}",
+            spelled_manager.calls
+        );
     }
 }
 

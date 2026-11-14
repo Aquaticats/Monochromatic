@@ -78,36 +78,59 @@ enum PathColumnMatch<'a> {
 }
 
 /// What:
+///  Whether a line's path column is held the way `wanted` says.
+/// Why:
+///   The question a line answers is decided from its path alone,
+/// and the flags column is parsed only for a line whose path is the one asked about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdsThePathColumn({ exactly: [name] }, path)
+/// ```
+fn holds_the_path_column(wanted: PathColumnMatch<'_>, path: &[u8]) -> bool {
+    return match wanted {
+        PathColumnMatch::EndsWith(endings) => endings.iter().any(|ending| { return path.ends_with(ending.as_slice()); }),
+        PathColumnMatch::Exactly(names) => names.iter().any(|name| { return path == name.as_slice(); }),
+    };
+}
+
+/// What:
 ///  Whether one line of `/proc/net/unix` is a socket that listens whose path column is held the way `wanted` says.
 ///  A flags column that is not hexadecimal counts as listening.
 /// Why:
 ///   A line the reader cannot understand must not hide a listener.
+/// The columns are walked where they are and nothing is allocated per line,
+/// because this scan is on a commit's waiting path under an abstract address,
+///  where the table of a busy machine holds thousands of lines.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// listensAt(line, wanted)
 /// ```
 fn is_listening_socket_matching(line: &[u8], wanted: PathColumnMatch<'_>) -> bool {
-    let mut columns: Vec<&[u8]> = Vec::new();
+    let mut columns: usize = 0;
+    let mut flags_column: Option<&[u8]> = None;
+    let mut path_column: Option<&[u8]> = None;
     for column in line.split(u8::is_ascii_whitespace) {
-        if !column.is_empty() {
-            columns.push(column);
+        if column.is_empty() {
+            continue;
         }
+        if columns == SOCKET_FLAGS_COLUMN {
+            flags_column = Some(column);
+        }
+        path_column = Some(column);
+        columns += 1;
     }
-    if columns.len() < SOCKET_TABLE_COLUMNS {
+    if columns < SOCKET_TABLE_COLUMNS {
         return false;
     }
-    let listens: bool = match socket_flags_of(columns[SOCKET_FLAGS_COLUMN]) {
+    let Some(path) = path_column else { return false };
+    if !holds_the_path_column(wanted, path) {
+        return false;
+    }
+    return match flags_column.and_then(socket_flags_of) {
         Some(flags) => flags & SOCKET_LISTENS_FLAG != 0,
         None => true,
-    };
-    if !listens {
-        return false;
-    }
-    let path: &[u8] = columns[columns.len() - 1];
-    return match wanted {
-        PathColumnMatch::EndsWith(endings) => endings.iter().any(|ending| path.ends_with(ending.as_slice())),
-        PathColumnMatch::Exactly(names) => names.iter().any(|name| path == name.as_slice()),
     };
 }
 
@@ -120,21 +143,19 @@ fn is_listening_socket_matching(line: &[u8], wanted: PathColumnMatch<'_>) -> boo
 /// because a connection to an earlier unit's
 ///  socket starts its helper,
 /// and a connection to an abstract name starts a service on a commit's build.
+/// It is read in one piece and walked where it lies,
+/// so a machine with thousands of listening sockets costs one read and no allocation per line.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// listeningSocketsWhere(procRoot, (path) => endings.some((ending) => path.endsWith(ending)))
 /// ```
 fn listening_sockets_where(proc_root: &Path, wanted: PathColumnMatch<'_>) -> ListeningSockets {
-    use std::io::BufRead;
-    let Ok(table) = std::fs::File::open(proc_root.join("net").join("unix")) else {
+    let Ok(table) = std::fs::read(proc_root.join("net").join("unix")) else {
         return ListeningSockets::Unreadable;
     };
-    for read in std::io::BufReader::new(table).split(b'\n') {
-        let Ok(line) = read else {
-            return ListeningSockets::Unreadable;
-        };
-        if is_listening_socket_matching(line.as_slice(), wanted) {
+    for line in table.split(|byte| { return *byte == b'\n'; }) {
+        if is_listening_socket_matching(line, wanted) {
             return ListeningSockets::Listens;
         }
     }

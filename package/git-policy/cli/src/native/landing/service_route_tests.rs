@@ -117,7 +117,7 @@ fn a_runtime_directory_too_long_for_a_socket_path_is_routed_at_its_abstract_name
     let bus: String = add_bus(&machine);
     add_program(&machine);
     match choose_route(&inputs(&machine, Some(bus.as_str()))) {
-        Some(Route { address, provision: Some(_host) }) => assert_eq!(address, Bind::Abstract(name), "a bus does not change the address"),
+        Some(Route { address: routed, provision: Some(_host) }) => assert_eq!(routed, Bind::Abstract(name), "a bus does not change the address"),
         other => panic!("the provisioning check is still handed back: {other:?}"),
     }
     remove(machine.root.as_path());

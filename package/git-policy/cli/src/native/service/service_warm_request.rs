@@ -30,7 +30,7 @@ use crate::service_client_listen_and_ask_to_retire::{Reached, connect};
 use crate::service_protocol_encode_messages_to_lines::encode_client;
 use crate::service_protocol_messages_and_name_checks::ClientMessage;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Whether a process of the table is the commit service of `instance`:
 /// its start arguments hold `service`,

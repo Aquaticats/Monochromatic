@@ -6,7 +6,7 @@
 //!  A Unix socket address carries 107 bytes of path (`service_instance.rs`),
 //! and a runtime directory is the person's to choose:
 //! a scratch folder under an agent's home,
-//! a container's private directory and a nested session's directory all reach past the 40 bytes a path form leaves,
+//! a container's private directory and a nested session's directory all reach past the 39 bytes a path form leaves,
 //! and the kernel then refuses both the address the manager would bind and the one a commit would connect to.
 //! A commit failed there where real Git made the commit,
 //! which the owner's rule "Commits should never fail" does not allow.
@@ -85,15 +85,15 @@ fn the_place_a_directory_names(directory: &Path) -> PathBuf {
     let mut above: &Path = directory;
     loop {
         // Nothing above the root is left to resolve, so the directory stands as it was spelled.
-        let (Some(parent), Some(name)) = (above.parent(), above.file_name()) else {
+        let (Some(parent), Some(step)) = (above.parent(), above.file_name()) else {
             return directory.to_path_buf();
         };
-        made_below.push(name);
+        made_below.push(step);
         above = parent;
         if let Ok(resolved) = std::fs::canonicalize(above) {
             let mut built: PathBuf = resolved;
-            for name in made_below.iter().rev() {
-                built = built.join(name);
+            for made in made_below.iter().rev() {
+                built = built.join(made);
             }
             return built;
         }

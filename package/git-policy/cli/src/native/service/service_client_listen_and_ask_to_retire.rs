@@ -73,7 +73,7 @@ pub fn connect(address: &Bind) -> Reached {
         Bind::Inherited => Err(std::io::Error::other("a client does not inherit the socket")),
     };
     return match stream {
-        Ok(stream) if connection_is_this_account(&stream) => Reached::Ours(stream),
+        Ok(accepted) if connection_is_this_account(&accepted) => Reached::Ours(accepted),
         Ok(_another_account) => Reached::OtherAccount,
         Err(_nothing) => Reached::Nothing,
     };

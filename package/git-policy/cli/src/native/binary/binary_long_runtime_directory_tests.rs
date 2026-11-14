@@ -7,7 +7,7 @@
 //!  A Unix socket address carries 107 bytes of path,
 //! and the runtime directory is the person's to choose:
 //! a scratch folder under an agent's home,
-//! a container's private directory and a nested session's directory all reach past the forty bytes a path form leaves.
+//! a container's private directory and a nested session's directory all reach past the thirty-nine bytes a path form leaves.
 //! Before the abstract form existed the commit failed there while real Git made the commit
 //! (owner's rule, "Commits should never fail").
 //! Each control runs the built wrapper through `git` on a fixture PATH,
@@ -41,7 +41,7 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
     std::fs::create_dir_all(&parent).expect("the scratch directory");
     let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
     // The name holds the tag where there is room for it and padding to the byte the control asks for. A runtime directory of
-    //  forty bytes leaves seven or eight bytes past this process's own scratch folder, and a process number with another
+    //  thirty-nine bytes leaves seven or eight bytes past this process's own scratch folder, and a process number with another
     //  digit narrows that, so a tag that does not fit is replaced by a digest of itself: two controls still get two
     //  directories, whichever number this process runs as.
     // A tag of words needs room for itself; where a control's directory leaves none, a digest of the tag keeps two

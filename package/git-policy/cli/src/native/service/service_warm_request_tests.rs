@@ -1,6 +1,7 @@
 //! Controls for the look at a running service's start arguments.
 
 use super::*;
+use std::path::PathBuf;
 
 /// The words of a start command line.
 fn words(text: &[&str]) -> Vec<Vec<u8>> {

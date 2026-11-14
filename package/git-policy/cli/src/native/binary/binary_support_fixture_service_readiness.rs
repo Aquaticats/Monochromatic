@@ -17,7 +17,6 @@
 
 use git_policy_cli::service_client_listen_and_ask_to_retire::{Reached, connect};
 use git_policy_cli::service_server::Bind;
-use std::path::Path;
 
 /// How long the fixture's service may show no sign of work before the fixture fails the control,
 /// so a service that never listens still ends the control instead of holding it.
