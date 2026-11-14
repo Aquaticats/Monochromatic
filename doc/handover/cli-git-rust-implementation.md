@@ -1279,11 +1279,27 @@ from three last messages kept under
   and `git log f375f95972..main` names no commit under `package/git-policy/`,
   `toolchain.lock.json` or `Cargo.lock`.
   Merged at 02:24:00 as `37d1c10b45`.
-  The other passes' branches are as likely unpushed;
-  each tip is checked for locally when its pass reports.
+  Measured at 02:27 for the passes still going
+  (`git for-each-ref` beside `git ls-remote`):
+  the branches of passes 32, 33, 34 and 35 have no upstream and are not on the remote;
+  pass 29's is there and level with its local tip;
+  pass 31's is there and behind its local tip
+  (`0b35ae25c1` against `03a6309cca`).
+  So each tip is looked for in this repository when its pass reports,
+  and the work of four passes is on this machine alone until then.
 - **Release `0.6.1-alpha.25`** dispatched at once,
-  run 43570940280;
-  its waiter is going.
+  run 43570940280.
+  Published by 02:31:39 and installed at 02:31:57
+  (`~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/install-of-0-6-1-alpha-25-output.txt`).
+  Its sample commit took 1,463 ms:
+  530 ms preparing,
+  605 ms waiting for the service's answer,
+  145 ms holding the landing's lock.
+  The journal from 02:31:30 to 02:38:30 holds 424 lines of the wrapper's units:
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at its start limit,
+  and two services that said `0.6.1-alpha.25` at their start.
   The six passes still going were told at 02:24:41
   (`~/temp/agent/notes-to-send/note-for-the-passes-still-going-that-main-holds-pass-30-2026-11-14T0225.md`),
   with what pass 30 met from the dependency-lock update:
@@ -1319,6 +1335,43 @@ from three last messages kept under
   the reviewer is resumed in its own session to check the answer at `091397b096` with its own scripts
   (`go-on-with-the-review-of-the-tracked-archives-and-check-the-answer-at-091397b096-prompt.md`).
 - The queue held 65 entries at 02:25:40.
+- **A commit that does not land says what stopped it**
+  (`fix/git-policy-cli-commit-that-does-not-land-says-what-stopped-it`,
+  tip `4bc6db7533`,
+  ended 02:23:37,
+  level with `main`):
+  the timing record of a commit the command itself stopped now says `client-failure` with one word of 37 for the reason,
+  where `main` says `unidentified`;
+  an interrupted commit writes its record before the signal ends it and names the signal's sender;
+  `SIGHUP` and `SIGQUIT` are answered by the wait.
+  One case was dropped in its merge with `main`:
+  a manager exchange that ran out during the start no longer fails the commit,
+  as pass 17 and the reload fix decided.
+  Each control was shown failing with its fix removed.
+  It names a sixth library test red on `main`
+  (`push::push_held_back_by_a_blocked_commit::…::a_commit_that_lands_after_the_verdicts_were_read_is_not_published`),
+  which is one of the five that `ec658fd836` answers.
+  Review queued at 02:28
+  (range `main...4bc6db7533`).
+- **A commit is made when the runtime directory's path is too long for a socket, the answer**
+  (`fix/git-policy-cli-commit-is-made-when-the-runtime-directory-path-is-too-long-for-a-socket`,
+  tip `7e572bd30d`,
+  ended 02:34:48):
+  the author reproduced both review findings.
+  A first commit under a runtime directory spelled through `..` over a part that is not there yet now reaches its service:
+  both ends fold the spelling the way the file system walks it
+  (the control failed after 12.8 s with "nothing has answered",
+  and passes in 2.4 s).
+  The stated longest runtime directory is 40 bytes,
+  and a control now holds the prose to the function.
+  `main` merged twice,
+  four conflicts resolved keeping both intents.
+  It says two of its own commit messages lost their backticked words to the shell and were not amended
+  (`d27808a7eb`,
+  `0ec44c9698`);
+  the corrections stand in a later commit's body.
+  Review of the answer queued at 02:39
+  (range `main...7e572bd30d`).
 
 ##### Two authors' work goes to review: issue 6300's answer and the lock of a killed Git where births are equal (2026-11-14T02:16:26-05:00)
 
