@@ -578,8 +578,9 @@ fn listing_of(
 ///  and the path, which needs no quoting because the NUL ends it.
 ///  A rename is two records: the new name with `R` before it,
 ///  and then the old name alone,
+///  which carries no status of its own and is therefore never stripped,
 ///  and both are the person's work,
-///  so both are named.
+///  so both are named whole.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -587,11 +588,18 @@ fn listing_of(
 /// ```
 fn from_status_listing(listing: &[u8]) -> DeletedEntries {
     let mut found: DeletedEntries = DeletedEntries::default();
+    let mut previous_was_a_rename_or_copy: bool = false;
     for record in listing.split(|byte: &u8| return *byte == 0).filter(|record: &&[u8]| return !record.is_empty()) {
-        let named: &[u8] = match record.get(2) {
-            Some(space) if *space == b' ' => &record[3..],
+        // The record after a rename or a copy is the path it came from, alone: it carries no `XY ` of its own, and three
+        // bytes taken off it would cut a path whose third byte is a space (`ab c.txt` into `c.txt`, a file that never was).
+        let names_the_path_it_came_from: bool = previous_was_a_rename_or_copy;
+        let named: &[u8] = match (names_the_path_it_came_from, record.get(2)) {
+            (false, Some(space)) if *space == b' ' => &record[3..],
             _ => record,
         };
+        // A record that is the path a rename came from carries no state of its own, so its own bytes never say what the
+        // next record is: only a record with a state in front of it can start a rename.
+        previous_was_a_rename_or_copy = !names_the_path_it_came_from && is_rename_or_copy(record);
         if named.is_empty() {
             continue;
         }
@@ -601,6 +609,25 @@ fn from_status_listing(listing: &[u8]) -> DeletedEntries {
         }
     }
     return found;
+}
+
+/// What:
+///  Whether one `status --porcelain` record names a rename or a copy,
+///  which means the record after it is the path it came from.
+/// Why:
+///   The two letters of the record are the index's state and the worktree's state,
+///  and either of them can be `R` (renamed) or `C` (copied):
+///  `R  new` is a rename staged in the index,
+///  ` R new` one Git worked out by comparing the worktree,
+///  and the record after either is the old path with nothing before it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isRenameOrCopy = (record) => record[0] === 0x52 || record[0] === 0x43 || record[1] === 0x52 || record[1] === 0x43
+/// ```
+fn is_rename_or_copy(record: &[u8]) -> bool {
+    let renamed = |tag: Option<&u8>| return matches!(tag, Some(letter) if *letter == b'R' || *letter == b'C');
+    return record.len() > 2 && (renamed(record.first()) || renamed(record.get(1)));
 }
 
 /// What one removal wrote down before it deleted anything,

@@ -1298,8 +1298,11 @@ Every worktree the sweep keeps is also remembered in
 The record answers only for the worktree it was written for:
  it holds that worktree's branch,
  its registration's device and inode and its root's,
- and the next sweep acts on it only when all three are the ones standing there now
- and that branch's work is on the branch the merge landed.
+ and the next sweep acts on it only when all three are the ones standing there now,
+ that branch's work is on the branch the merge landed,
+ and no other branch's own reflog names that tip,
+ which is the same witness the merge in front of it asks before it removes a branch it landed:
+ a branch reset onto another branch's commit was not moved by anyone's work, and its worktree stays.
 A path names whatever stands there when a later sweep reads it,
  so a worktree you removed and added again at that path,
  on another branch or on the same one,
@@ -1373,7 +1376,8 @@ with the files it held in the same shape (`files`,
 the tracked files it had changed (`changed`,
 `changedShown`,
 `changedTotal`,
-from one `git status --porcelain --untracked-files=no` there),
+from one `git status --porcelain --untracked-files=no` there,
+which names both paths of a rename, the old one whole),
 and a listing that could not be read says so in `unreadable` instead of naming nothing.
 A forced removal is written the same way,
 with `--force` in `command`.

@@ -568,7 +568,8 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
     // One list of what this merge may remove, from the two ways a worktree comes to it: the branches it just landed, and
     // the worktrees an earlier sweep kept whose branch's work is on the landed branch. Every one of them is then examined
     // by the same pass below, with the same conditions, so neither way can miss a guard the other has.
-    let removable: Vec<&Registration> = worktrees_this_merge_may_remove(place, &landed, &candidates, &earlier_kept, registered.as_slice());
+    let this_merge: ThisMerge<'_> = ThisMerge { branch: landed_branch, before, now };
+    let removable: Vec<&Registration> = worktrees_this_merge_may_remove(place, &landed, &candidates, &earlier_kept, registered.as_slice(), this_merge);
     for one in removable {
         // The worktree the merge runs in is never examined: `-C` names the repository a command works on, never a
         // worktree it may remove.
@@ -600,7 +601,10 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 ///  and by that branch's work still being on the landed branch,
 ///  which is what says its branch landed at all:
 ///  a worktree whose branch holds a commit made after the record was written is not qualified,
-///  and neither is one whose branch was reset.
+///  and neither is one whose branch was moved onto another branch's commit,
+///  which is the same `another_branch_took_the_tip` witness the candidate path asks:
+///  `git reset --hard main` in a kept worktree left it removable by the retry alone
+///  (a review of this change, finding 2).
 ///  A record that no longer answers for the worktree it names is dropped,
 ///  because the worktree it was written for is gone.
 ///  One worktree is examined once, whichever ways it qualifies by:
@@ -613,7 +617,7 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// worktreesThisMergeMayRemove(place, landed, candidates, earlierKept, registered)
+/// worktreesThisMergeMayRemove(place, landed, candidates, earlierKept, registered, thisMerge)
 /// ```
 fn worktrees_this_merge_may_remove<'a>(
     place: &LandedPlace<'_>,
@@ -621,6 +625,7 @@ fn worktrees_this_merge_may_remove<'a>(
     candidates: &HashSet<String>,
     earlier_kept: &[RememberedKept],
     registered: &'a [Registration],
+    this_merge: ThisMerge<'_>,
 ) -> Vec<&'a Registration> {
     let mut removable: Vec<&'a Registration> = Vec::with_capacity(candidates.len() + earlier_kept.len());
     let mut already: HashSet<&Path> = HashSet::with_capacity(candidates.len() + earlier_kept.len());
@@ -630,7 +635,7 @@ fn worktrees_this_merge_may_remove<'a>(
         }
     }
     for remembered in earlier_kept {
-        match kept_worktree_still_here(place, remembered, landed, registered) {
+        match kept_worktree_still_here(place, remembered, landed, registered, this_merge) {
             Some(one) => {
                 if already.insert(one.worktree.as_path()) {
                     removable.push(one);
@@ -650,7 +655,8 @@ fn worktrees_this_merge_may_remove<'a>(
 ///  the record names a worktree this repository registers,
 ///  that worktree has the branch the record names checked out,
 ///  the registration and the worktree root are the two directories the record was written for,
-///  and the branch's current tip is contained in the branch this merge landed.
+///  and the branch's current tip is contained in the branch this merge landed,
+///  with no other branch's reflog naming that tip.
 ///  The last one is the guard the first pass makes with its candidate set,
 ///  and it is what keeps a worktree whose branch holds a commit made since out of the removal:
 ///  such a commit is the person's work and no merge brought it in
@@ -667,6 +673,7 @@ fn kept_worktree_still_here<'a>(
     remembered: &RememberedKept,
     landed: &[Landing],
     registered: &'a [Registration],
+    this_merge: ThisMerge<'_>,
 ) -> Option<&'a Registration> {
     let one: &'a Registration = registered.iter().find(|one| return one.worktree == remembered.worktree)?;
     // The branch the removed worktree had, and no other: a worktree added again at this path for other work is not this
@@ -679,6 +686,11 @@ fn kept_worktree_still_here<'a>(
     }
     let landing: &Landing = landed.iter().find(|row| return row.reference == one.branch)?;
     if !holds_its_own_commits(place.common_dir, one.branch.as_str(), landing.tip.as_str()) {
+        return None;
+    }
+    // The same witness the candidate path asks: another branch's own reflog naming this tip is the proof that the branch
+    // was moved there rather than making it, and a worktree the fresh rule would keep stays here too.
+    if another_branch_took_the_tip(landed, place.common_dir, one.branch.as_str(), landing.tip.as_str(), this_merge) {
         return None;
     }
     return Some(one);

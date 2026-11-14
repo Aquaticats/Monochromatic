@@ -3242,8 +3242,11 @@ A worktree whose branch a merge landed is removed by those same routes,
  the branch it had checked out,
  and the identity of the two directories it was written for
  (the registration's device and inode, then the worktree root's),
- and a sweep acts on it only when all of them are the ones standing there now
- and that branch's work is contained in the branch the merge landed.
+ and a sweep acts on it only when all of them are the ones standing there now,
+ that branch's work is contained in the branch the merge landed,
+ and no other branch's own reflog names that tip
+ (`another_branch_took_the_tip`, the witness the candidate path asks as well:
+ a `git reset --hard main` in a kept worktree left it removable by the retry alone).
  The identity is what a path cannot be:
  a worktree a person removed and added again at the same path,
  on the same branch or another,
@@ -3276,7 +3279,8 @@ A worktree whose branch a merge landed is removed by those same routes,
  `nested` (each registered worktree that stood inside it,
  with `worktree`, `worktreeHex`, `files`, `filesShown` and `filesTotal` for the untracked and ignored files it held,
  and `changed`, `changedShown` and `changedTotal` for the tracked files it had changed,
- staged changes among them,
+ staged changes among them
+ (a rename names both of its paths, the old one whole: the record after a rename carries no status of its own),
  with `changedUnreadable` when that listing could not be read),
  and `unreadable` when a listing could not be read,
  which is not a failure of the removal;

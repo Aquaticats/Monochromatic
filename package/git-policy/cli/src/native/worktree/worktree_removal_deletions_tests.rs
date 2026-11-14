@@ -223,6 +223,38 @@ fn a_status_listing_names_the_paths_it_carries_and_both_sides_of_a_rename() {
 }
 
 /// What:
+///  The path a rename came from is named whole, even when its third byte is a space.
+/// Why:
+///  `git status --porcelain=v1 -z` writes a rename as the new path with `XY` before it and then the old path alone,
+///  and a parser that strips three bytes from any record whose third byte is a space turns `ab c.txt` into `c.txt`,
+///  a file that never was:
+///  the refusal then names it and the deletions log records it,
+///  which is the only thing left of the file (a review of this change, finding 1).
+#[test]
+fn the_path_a_rename_came_from_is_named_whole() {
+    let found: DeletedEntries = from_status_listing(b"R  renamed.txt\0ab c.txt\0");
+    assert_eq!(found.shown, vec![String::from("renamed.txt"), String::from("ab c.txt")], "the old path is named whole: {found:?}");
+    assert_eq!(found.total, 2, "both sides of the rename are counted: {found:?}");
+}
+
+/// What:
+///  The record after a rename's old path is read with its own state again,
+///  even when the old path's second byte is an `R` or a `C`.
+/// Why:
+///  A path is arbitrary bytes, so a bare old path can look like a rename record;
+///  a reader that read the old path's bytes as a state would then name the next file with its status in front of it
+///  (` M next.txt`).
+#[test]
+fn a_record_after_a_rename_is_read_with_its_own_state_again() {
+    let found: DeletedEntries = from_status_listing(b"R  renamed.txt\0aR.txt\0 M next.txt\0");
+    assert_eq!(
+        found.shown,
+        vec![String::from("renamed.txt"), String::from("aR.txt"), String::from("next.txt")],
+        "the old path and the record after it are each named as they are: {found:?}"
+    );
+}
+
+/// What:
 ///  An `ls-files -v -z` answer becomes the marked files and their marks,
 ///  and an entry with no mark is left out.
 /// Why:

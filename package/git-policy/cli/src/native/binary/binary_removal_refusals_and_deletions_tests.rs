@@ -446,6 +446,39 @@ fn a_removal_of_a_worktree_holding_a_clean_nested_worktree_is_not_refused_for_it
 }
 
 /// What:
+///  A kept worktree whose branch was reset onto another branch's commit stays,
+///  as the same worktree stays while it is a candidate of the merge in front of it.
+/// Why:
+///  The two ways a worktree comes to a sweep must ask the same questions,
+///  and this one did not: the retry asked whether the branch's work was on the landed branch,
+///  and after `git reset --hard main` it is,
+///  while the candidate path also asks whether another branch's own reflog names that commit,
+///  which is the witness that the move was nobody's work
+///  (`another_branch_took_the_tip`, round 208).
+///  Without it a worktree the fresh rule would keep was removed by the retry.
+#[test]
+fn a_kept_worktree_whose_branch_was_reset_onto_another_branch_stays() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-kept-then-reset", "build/\n");
+    git(&fixture, topic.as_path(), &["commit", "--quiet", "--allow-empty", "--message=feature work"]);
+    let mut child: std::process::Child = a_process_working_in(&fixture, topic.as_path());
+    let landed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-ff", "--message=land feature", "feature"]);
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the common Git directory");
+    assert_eq!(kept_records(common.as_path()), 1, "the busy worktree is kept and remembered");
+    let _ended = child.kill();
+    let _waited = child.wait();
+    // The person moves the branch the kept worktree has checked out onto the commit the merge landed, which is main's:
+    //  another branch's own reflog names that commit, and the branch made nothing since.
+    git(&fixture, topic.as_path(), &["reset", "--hard", "main"]);
+    let (_other, unrelated): (PathBuf, Observed) = a_merge_of_an_unrelated_branch(&fixture, &repo, "later");
+    assert_eq!(unrelated.code, Some(0), "{}", stderr_of(&unrelated));
+    settle_service_work(repo.as_path());
+    assert!(topic.is_dir(), "a kept worktree whose branch was reset onto another branch stays: {}", stderr_of(&unrelated));
+    assert_eq!(kept_records(common.as_path()), 0, "and its record no longer answers for it");
+    remove(&fixture);
+}
+
+/// What:
 ///  One sweep examines and hands over one worktree once,
 ///  though it is both a branch this merge landed and a worktree an earlier sweep kept.
 /// Why:
@@ -541,6 +574,39 @@ fn kept_record_path(common: &Path) -> PathBuf {
         .map(|entry| return entry.path())
         .next()
         .expect("one kept-worktree record");
+}
+
+/// What:
+///  A rename inside a nested worktree is named by both of its paths,
+///  the old one whole,
+///  in the refusal and in the record the escape writes.
+/// Why:
+///  `git status --porcelain -z` writes a rename as the new path with `XY` before it and then the old path alone,
+///  and a reader that took three bytes off any record cut `ab c.txt` down to `c.txt`,
+///  a file that never was:
+///  the refusal named a file that does not exist and the record misnamed the deleted one
+///  (a review of this change, finding 1).
+#[test]
+fn a_rename_of_a_nested_worktree_is_named_by_both_paths() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-nested-rename", "nested/\n");
+    let nested: PathBuf = topic.join("nested");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "nested", nested.to_str().expect("a UTF-8 fixture path")]);
+    // The third byte of the name is a space, which is what a reader that strips a status prefix cuts a path at.
+    std::fs::write(nested.join("ab c.txt"), b"content\n").expect("a file whose third byte is a space");
+    git(&fixture, nested.as_path(), &["add", "--", "ab c.txt"]);
+    git(&fixture, nested.as_path(), &["commit", "--quiet", "--message=a file of its own"]);
+    git(&fixture, nested.as_path(), &["mv", "--", "ab c.txt", "renamed.txt"]);
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+    assert_ne!(refused.code, Some(0), "a staged rename keeps the outer worktree: {}", stderr_of(&refused));
+    let said: String = stderr_of(&refused);
+    assert!(said.contains("`ab c.txt`"), "the refusal names the path the rename came from, whole: {said}");
+    assert!(!said.contains("`c.txt`"), "and never a path that was cut short: {said}");
+    assert!(said.contains("`renamed.txt`"), "the new path is named too: {said}");
+    let escaped: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "--no-enforce-worktree", "remove", "../topic"]);
+    assert_eq!(escaped.code, Some(0), "the escape runs the removal: {}", stderr_of(&escaped));
+    let record: String = deletion_record(repo.as_path()).expect("the record of what the removal deleted");
+    assert!(record.contains("\"changed\":[\"renamed.txt\",\"ab c.txt\"]"), "the record names both paths, the old one whole: {record}");
+    remove(&fixture);
 }
 
 /// What:
