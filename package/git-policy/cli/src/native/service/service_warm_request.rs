@@ -29,14 +29,15 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! if (serviceRuns(instanceOf(gitDir))) { connectWithin(socketFor(runtime, gitDir), WARM_REQUEST_CONNECT_CEILING).write(encode({ type: 'warm', gitDir, repository })); }
+//! if (serviceRuns(instanceOf(gitDir))) { connectWithinFor(Bind.Path(socketFor(runtime, gitDir)), WARM_REQUEST_CONNECT_CEILING).write(encode({ type: 'warm', gitDir, repository })); }
 //! ```
 
+use crate::service_client_connect_within_a_bound::connect_within_for;
 use crate::service_route::non_empty_path_variable;
 use crate::service_instance::{instance_of, socket_for};
 use crate::service_protocol_encode_messages_to_lines::encode_client;
 use crate::service_protocol_messages_and_name_checks::ClientMessage;
-use crate::unix_socket_connect_within_a_deadline::connect_within;
+use crate::service_server::Bind;
 use crate::wait_ceilings::WARM_REQUEST_CONNECT_CEILING;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -125,11 +126,14 @@ pub fn ask_running_service_to_warm(git_dir: &Path, repository: &Path) -> bool {
 /// Why:
 ///   A connect waits in the kernel while the listening socket's queue of unaccepted connections is full,
 ///  and a service stopped inside its own process accepts nothing,
-///  so the connection is the wait this request must not make without an end (`CONNECT_CEILING`'s
-///  sibling,
+///  so the connection is where this request must not wait without an end:
+///  it is made with the ceiling that belongs to a request whose answer the command does not need
+///  (`wait_ceilings.rs`,
 ///  `WARM_REQUEST_CONNECT_CEILING`).
 ///  The line that follows waits for nothing either:
-///  it is a few hundred bytes into a socket whose send buffer is 212,992 bytes on this host (2026-11-13),
+///  it is a few hundred bytes into a socket whose send buffer is 212,992 bytes
+///  (`wait_ceilings.rs`,
+///  `REQUEST_WRITE_SILENCE`),
 ///  so it is taken even by a service that reads nothing at all.
 ///
 /// In TS you'd write (pseudocode):
@@ -137,7 +141,7 @@ pub fn ask_running_service_to_warm(git_dir: &Path, repository: &Path) -> bool {
 /// askTheServiceAt(socket, gitDir, repository) // boolean
 /// ```
 fn ask_the_service_at(socket: &Path, git_dir: &Path, repository: &Path) -> bool {
-    let Ok(mut connection) = connect_within(socket, WARM_REQUEST_CONNECT_CEILING) else { return false };
+    let Ok(mut connection) = connect_within_for(&Bind::Path(socket.to_path_buf()), WARM_REQUEST_CONNECT_CEILING) else { return false };
     let mut line: String = encode_client(&ClientMessage::Warm { git_dir: git_dir.to_path_buf(), repository: repository.to_path_buf() });
     line.push('\n');
     return connection.write_all(line.as_bytes()).is_ok();
