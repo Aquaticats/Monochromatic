@@ -20,7 +20,10 @@ use crate::entry_forward_action_planning::forward_action;
 use crate::entry_push_stacking_and_lfs_upload::stack_if_push;
 use crate::exit_report_written::write_exit;
 use crate::entry_run_forwarded_actions::{finish_forwarded, run_announced, run_coordinated_action, write_stream};
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
+use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, REJECTED_EXIT_CODE, failure, with_leading_notice};
+/// The second measurement of an abort or a skip,
+/// owed immediately before Git starts.
+use crate::abort_recheck::recheck_before_the_command;
 use crate::announced_query::{WRAPPER_VERSION, announced_query, announcement};
 use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use crate::child_environment::{
@@ -372,8 +375,15 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
             overlay,
             stderr,
         } => {
+            // The second measurement of an abort or a skip, immediately before the command the person typed:
+            //  work that appeared after the policy pass stops the command here, and nothing was changed.
+            let refusal: Option<String> = recheck_before_the_command();
             // Warning events reach the caller before Git's own output.
             write_stream(&mut std::io::stderr(), stderr.as_str());
+            if let Some(text) = refusal.as_deref() {
+                write_stream(&mut std::io::stderr(), text);
+                return REJECTED_EXIT_CODE;
+            }
             let error: std::io::Error = replace_process_with_real_git(
                 real_git.as_path(),
                 forwarded.as_slice(),

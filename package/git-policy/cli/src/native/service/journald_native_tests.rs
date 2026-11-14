@@ -561,3 +561,46 @@ fn the_send_without_waiting_takes_a_page_and_refuses_a_full_pipe_and_a_full_sock
     }
     assert_eq!(send_without_waiting(writer_end.as_raw_fd(), line.as_slice()), Err(libc::EAGAIN));
 }
+
+/// What:
+///  A line the service cannot write at once is dropped, on a pipe as on the journal's stream, rather than waited for.
+/// Why:
+///   The audit of release 0.6.1-alpha.14 connected the commit service's standard error to a full FIFO and a landing was
+///   held 7.35 s longer than real Git took, until the auditor's own script drained it; by reading, a `write_all` there
+///   waits for as long as nothing reads.
+///   A service's standard error is a pipe, a FIFO or the journal, so every line of it is written the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const pipe = fullPipe(); expect(sink.deliver(line, pipe.writeEnd)).toBe('dropped') // and it returns at once
+/// ```
+#[test]
+fn a_line_a_full_pipe_cannot_take_is_dropped_rather_than_waited_for() {
+    let mut ends: [libc::c_int; 2] = [0; 2];
+    // SAFETY: `pipe` writes two descriptors into the array this test owns.
+    assert_eq!(unsafe { libc::pipe(ends.as_mut_ptr()) }, 0, "a pipe: {}", std::io::Error::last_os_error());
+    let (read_end, write_end) = (ends[0], ends[1]);
+    // Filled by a write that does not block, so the next write finds no room at all.
+    // SAFETY: `fcntl` with `F_SETFL` sets the flags of an open descriptor this test made.
+    let flags: libc::c_int = unsafe { libc::fcntl(write_end, libc::F_GETFL) };
+    let _nonblocking = unsafe { libc::fcntl(write_end, libc::F_SETFL, flags | libc::O_NONBLOCK) };
+    let block: [u8; PIPE_CHUNK] = [b'x'; PIPE_CHUNK];
+    loop {
+        // SAFETY: the buffer is this test's own, valid for its length for the call.
+        let taken: isize = unsafe { libc::write(write_end, block.as_ptr().cast(), block.len()) };
+        if taken <= 0 {
+            break;
+        }
+    }
+    let sink: Sink = Sink::choose(None, None, &Target::Abstract(format!("cli-git-test-full-pipe-{}", std::process::id())));
+    let began: std::time::Instant = std::time::Instant::now();
+    let delivery: Delivery = sink.deliver(Priority::Info, "a landing begins at_ms=1", &[], "a landing begins at_ms=1", &mut StreamWriter::on(write_end));
+    let took: std::time::Duration = began.elapsed();
+    // SAFETY: both descriptors are this test's own and are closed once.
+    unsafe {
+        libc::close(write_end);
+        libc::close(read_end);
+    }
+    assert_eq!(delivery, Delivery::Dropped, "a full pipe takes nothing, so the line is dropped");
+    assert!(took < std::time::Duration::from_millis(500), "and it returns at once rather than waiting: {took:?}");
+}

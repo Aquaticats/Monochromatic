@@ -16,8 +16,30 @@ On 2026-11-13 the owner pointed out that this machine is shared and no timing st
 and the timing figures here,
 the reply draft's among them,
 were rewritten as ratios between versions run in the same round,
-with absolute times kept only as scale;
-that rewrite is not reviewed either.
+with absolute times kept only as scale.
+A model from another vendor reviewed that rewrite as of commit `ce2cc36df5`,
+and its one finding on this document,
+a comparison described as one run each that was seven rounds,
+is corrected.
+The figures on pull request 1121 in the reply draft were measured again on Node and Bun after that.
+The timings in this document's own sections ran on Node,
+and the reply draft also carries figures taken on Node and on Bun.
+A second review by that vendor's model read the reply draft's new figures as of commit `2907e3a444`
+and recomputed them from the raw rounds;
+what it found on this document,
+an earlier form of this sentence that left Bun out
+and a line of the draft that said the core suite passes with the first patch "on Deno and Node"
+where the record has Bun as well,
+is corrected,
+and those corrections have had no review.
+The reply draft was then tightened on the owner's choice,
+as the note before it says.
+A fresh session of that vendor's model reviewed the tightened form as of commit `629e7b84d7`,
+and another the changes made for it as of commit `7771aa14fc`;
+the note before the draft says what each found.
+Deno appears only as one of the runtimes the reproduction scripts and the suite were run on;
+its maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
+with no new feature work.
 
 Status,
 2026-11-12:
@@ -272,7 +294,8 @@ and the profile of `1.4.0-dev.2971` shows what that costs with the suggestion wo
    "Short-path default/callback runs showed no improvement."
    On this repository's parser,
    a thousand tokens of one to three characters took 0.62 times as long on 1.3.2 as on 1.3.1,
-   in one comparison of one run each.
+   as a ratio of the two medians over the same seven rounds,
+   not paired round by round.
    The length check in step 4 rejects this parser's long option names against a short token;
    that explanation was read from the code and not tested on its own.
 
@@ -556,7 +579,8 @@ Tradeoffs:
    This was read from the source and not timed.
 - Shorter paths on 1.3.1 or earlier.
    A thousand tokens of one to three characters still took 1.6 times as long on 1.3.1 as on 1.3.2,
-   in one comparison of one run each.
+   as a ratio of the two medians over the same seven rounds,
+   not paired round by round.
 
 ## Upstream filing artifact
 
@@ -677,8 +701,9 @@ Readiness check,
     not done on 2026-11-12.
     Done since:
     `Aquaticat/optique-parse-cost-reproduction`,
-    private,
-    with three workflow runs that fail on their asserting steps;
+    created private and public when read on 2026-11-13,
+    whose workflow runs fail on their asserting steps as its README says they do,
+    the latest for its commit `d99a8aec` that day;
     the scripts were also run on Node,
     Deno and Bun on 2026-11-13.
 8.  Verdict:
@@ -747,6 +772,71 @@ in answer to questions put that morning:
    So the draft carries the patch paragraph,
    and nothing about the patch is filed or posted until the owner posts the reply.
 
+Tightened 2026-11-13T17:04:45-05:00,
+on two choices the owner made that afternoon when shown the Node and Bun timing of pull request 1121:
+
+- "Reply cut,
+   issue keeps":
+   the passage on the input-trace patch bringing the pull request level with 1.3.6 after `--`,
+   which holds on Node and not on Bun,
+   left this draft and stays in the draft issue at the end of
+   `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`.
+- "Tighten the reply first":
+   the draft went from 66 lines to 44,
+   and stands at 45 since a correction from its review took one more.
+   What left it,
+   with where each now lives:
+   the rounds that showed no difference,
+   under "Inputs that are slow" in this document;
+   the count of mismatches,
+   in the reproduction repository's README and under "How the cost grows" in
+   `doc/research/optique-typo-suggestion-overhead-upstream-record.md`;
+   `main` before the merge against 1.3.6,
+   in `doc/troubleshooting/optique-1-4-short-option-scoping-slows-every-option-probe.md`;
+   what the `Proxy` of the second patch costs a caller and the figures for the buffer attempt,
+   in the input-trace document under "Prototypes for the two further copies",
+   which the draft links;
+   and the paragraph on what 1.3.6 still does on every mismatch,
+   in step 4 of "Root cause" and under "Verified workarounds" in this document,
+   with the length check's two limits in the research record.
+   Shorter phrases left it too,
+   each of which stands in the documents named here:
+   that the parser was unchanged from the commit's parent,
+   the two-CPU container,
+   "faster in all seven",
+   that the arms were rotated,
+   that the first patch applies to `main` as of the merge,
+   that the core suite passes with the second patch,
+   and how the second patch was timed and what it does.
+   No figure in the tightened draft is new:
+   each stood in the longer one.
+   A model from another vendor,
+   in a fresh session,
+   reviewed the tightened form as of commit `629e7b84d7`.
+   It found no wrong figure and no new one,
+   and found the owner's choices reflected as recorded.
+   Folded in from it:
+   the second patch's ratio now names what it is a ratio to,
+   the first patch alone,
+   where a reader could have taken it as a ratio to `main`,
+   which no round measured at that size;
+   the buffer copy is again said of each primitive that consumes a token;
+   the opening speaks of the measurements and no longer of every number,
+   since the closing paragraph quotes two absolute times from the old commit message;
+   and this note's list of where each removed part lives is corrected.
+   Weighed and left as it is:
+   the second patch's figures are those of the patch before its last change,
+   to how a view answers a request for its `length` descriptor,
+   which the linked write-up says and the reply does not.
+   Another fresh session of that model read those corrections as of commit `7771aa14fc`,
+   recomputed the ratios they touch from the raw rounds,
+   and found each correction faithful to the records and no figure changed.
+   It pointed out that this note still gave the draft's length as 44,
+   and that the draft issue's count of places that slice the buffer could be read as fifteen
+   where the write-up says sixteen;
+   the issue now says two in `argument()` and fourteen more,
+   which was checked against upstream's source at the merge.
+
 ~~~md
 Thanks for #992 and #997, and for #1120 and #1121: you got to the short-option cost from the notes here before I
 had sent you any of it.
@@ -755,50 +845,31 @@ had sent you any of it.
 one parser only, the Git wrapper's, which has since been rewritten; the rest of the migration rests on the grammar
 and Valibot reasons you noticed.]
 
-The numbers behind that. The parser this commit removed, unchanged from its parent, one parse of
-`['--message', 'x', ...1000 paths]`, on Node 26 in a two-CPU container. The machine is shared, so I give ratios
-between versions run in the same round, seven rounds, with the range of the single rounds:
+My measurements, each a ratio between versions run in the same round because the machine is shared, with the range
+of the single rounds in brackets. The parser this commit removed, one parse of `['--message', 'x', ...1000 paths]` on
+Node 26, seven rounds: 1.3.2 took 0.065 times as long as 1.3.1 (0.061 to 0.070), and 1.4.0-dev.2971 took 0.51
+times as long as 1.3.6 (0.46 to 0.61). So #992 removed about 93% of it and #997 about half of what was left.
 
-- 1.3.2 over 1.3.1: 0.065 (0.061 to 0.070), faster in all seven
-- 1.4.0-dev.2971 over 1.3.6: 0.51 (0.46 to 0.61), faster in all seven
-- 1.1.1 against 1.3.1, and 1.3.2 against 1.3.6: no difference
+On #1121, as built packages on Node 26 and Bun 1.4, seven rounds, a thousand paths after `--`: its merge took 0.72
+times as long as main just before it on Node (0.62 to 0.77) and 0.73 on Bun (0.66 to 0.79). Against 1.3.6 it took
+1.37 times as long on Node (1.27 to 1.63), which agrees with your own figures, and 1.95 on Bun (1.62 to 1.99).
 
-So #992 removed about 93% of it and #997 about half of what was left. Counting mismatches with a function-valued
-`errors.noMatch`, a successful parse makes exactly tokens times options of them on 1.3.6 and none on main.
-
-On #1121: I measured its branch at a175cdb7, the same tree as its merge, from source on Deno only, seven rounds with
-the arms rotated, a thousand paths after `--`. It took 0.75 times as long as main before the merge (0.71 to 0.77)
-and 1.37 times as long as 1.3.6 (1.34 to 1.42), which agrees with your own figures. On the published builds,
-1.4.0-dev.2971 against 1.3.6 was 1.90 on Node, 1.85 on Deno and 2.61 on Bun.
-
-What #1121 leaves against 1.3.6 is still scope work, since 1.3.6 pays for everything else in this parse too. A cost
-both carry is about as large: the `InputTraceImpl.set()` copy you set aside in #1120. With a patch for that on top
-of #1121 the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07, two of seven rounds slower). On its own
-input, 8,000 positional arguments and one option, the patched build takes 0.11 times as long as main on Node (0.10
-to 0.12) and 0.30 times on Bun (0.15 to 0.33). It keeps the entries in
-an immutable hash trie in place of the copied `Map`; the core suite passes with it on Deno and Node, and it applies
-to main as of that merge. It does not make the parse linear: two more per-argument copies sit behind it, in
-`multiple()` (the state array) and in every primitive that consumes a token (the buffer slice). I tried both. A
-second patch removes the state copy by making a state of more than 1,024 items an array-shaped view over an
-immutable vector: on top of the first patch, 32,000 arguments take 0.16 times as long on Node and 0.43 times on Bun
-(built packages, five rounds with the arms taking turns), and the core suite passes on Deno, Node and Bun. Its cost
-is that such a state is a `Proxy`, which prints as an empty array and throws on `structuredClone()`,
-`Object.freeze()` and in-place edits. For the buffer I have nothing to offer: with the second patch in place, also
-cutting a view in `argument()` made a line that alternates options and arguments 13 to 18 times slower on Node and
-48 to 105 times slower on Bun.
-The write-up and both patches: [commit permalink to
-doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in Aquaticats/Monochromatic].
+On the `InputTraceImpl.set()` copy you set aside in #1120: I have a patch that keeps the entries in an immutable
+hash trie. With 8,000 positional arguments and one option the patched build takes 0.11 times as long as main on
+Node (0.10 to 0.12) and 0.30 times on Bun (0.15 to 0.33), over five rounds, and the core suite passes with it on
+Deno, Node and Bun. It does not make the parse linear: `multiple()` still rebuilds its state array for each item
+and each primitive that consumes a token still slices the rest of the buffer. A second patch removes the state
+copy (32,000 arguments take 0.16 times as long as with the first patch alone on Node, and 0.43 on Bun) at the cost
+of making a large state a `Proxy`; for the buffer I have nothing that works. The write-up, with both patches and
+what the `Proxy` costs:
+[commit permalink to doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in
+Aquaticats/Monochromatic].
 
 Both patches were written by an AI agent, so per AI_POLICY.md there is no pull request. Would you take an issue for
 the first, and is a proxy-backed state something you would want at all?
 
-One thing that is still true of 1.3.6: the default path collects the option names and searches them on every
-mismatch, and a profile puts about three quarters of the parse there. The length check skips a name only when its
-length differs from the token's by more than three or by more than half the token's length, so a token about as
-long as the option names pays in full. A literal `errors.noMatch` on every option avoids all of it.
-
-The reproducer you asked for: three scripts that run unchanged on Node, Deno and Bun, against an npm version or a
-checkout, and a workflow that runs them on pinned versions:
+The reproducer you asked for, three scripts that run unchanged on Node, Deno and Bun against an npm version or a
+checkout, with a workflow that runs them on pinned versions:
 https://github.com/Aquaticat/optique-parse-cost-reproduction
 
 One question: after #997 every token is still offered to every option parser, a constant cost per token and option.
@@ -836,3 +907,4 @@ put a commit permalink there on the day of posting.
 [no-match 1.3.6]: https://github.com/dahlia/optique/blob/d969c9f6014bb0dee510fb407efe3806d2636dcf/packages/core/src/primitives.ts#L1302-L1347
 [search 1.3.6]: https://github.com/dahlia/optique/blob/d969c9f6014bb0dee510fb407efe3806d2636dcf/packages/core/src/suggestion.ts#L184-L192
 [deferred failure]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/internal/failure.ts#L16-L39
+[deno state]: https://github.com/denoland/deno/issues/37030#:~:text=will%20continue%20maintain%20Deno%20until%20October%202027

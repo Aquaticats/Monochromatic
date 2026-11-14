@@ -125,7 +125,7 @@ fn config(name: &str) -> ClientConfig {
         activation: Activation::Managed,
         start_wait: PATIENCE,
         heartbeat_silence: QUICK_SILENCE,
-        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: QUICK_NOTICE, units_record_dir: None,
+        start_watch: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: QUICK_NOTICE,
     };
 }
 
@@ -482,13 +482,6 @@ fn fake_reset(_bus: &Path, _unit: &str) -> bool {
     return true;
 }
 
-/// The fake manager takes a request to read the units again,
-/// and nothing comes of it:
-/// these controls are about a service that never starts.
-fn fake_reload(_bus: &Path) -> bool {
-    return true;
-}
-
 /// How many times the fake manager was asked to restart the unit.
 static RESTART_REQUESTS: AtomicUsize = AtomicUsize::new(0);
 
@@ -511,7 +504,6 @@ fn watched(name: &str) -> ClientConfig {
         start: fake_start,
         reset: fake_reset,
         restart: fake_restart,
-        reload: fake_reload,
     };
     return ClientConfig { start_wait: OLD_START_WAIT, heartbeat_silence: PATIENCE, start_watch: Some(watch), ..config(name) };
 }
