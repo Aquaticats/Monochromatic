@@ -13669,6 +13669,40 @@ There is no other writer to fall back on:
 the service is the only writer,
 so a commit with no way to reach it changes nothing and stops.
 
+What a start owns, and what it leaves (`service_server_start_by_the_wrapper.rs`,
+`service_address_takeover_claim.rs`,
+`service_server_earlier_release_units.rs`):
+- One command starts one worktree's service, and the right to start it is a marker published whole:
+  made in a private file beside its name and put in place with one `link`,
+  so a second command reads a marker that names its owner or no marker at all,
+  never an empty one,
+  and the start that is over removes it only while the marker still holds its own text.
+  The hold is lock-free: one exclusive `link`, and no command waits on it.
+- A socket file a killed service left is taken over by one server at a time.
+  The takeover claims `<address>.taking-over` beside the address,
+  a file whose claim is the kernel's own (`flock`),
+  held for the three system calls the takeover takes: the kernel's refusal of a connection,
+  the unlink, and the bind.
+  The claim has no owner text to read and no stale state:
+  the kernel gives it up when the holder exits or is killed,
+  so it never needs taking over,
+  and a command that finds it held is one whose address another server is binding at that instant:
+  it leaves the address alone rather than waiting for a turn.
+  A zero-byte claim file stays beside the address; removing it would let two processes hold a claim on one address.
+- An earlier release's unit files and notes go, and nothing else does.
+  Its notes folder is emptied one entry at a time:
+  a note is this program's when its name is an instance name and its text is a Git directory as `gitdirHex=` bytes
+  or as the earlier release's path,
+  and the program link is this program's by its name and by being a link.
+  Anything else in the folder is left and named on the warning line,
+  and the folder itself goes only once nothing is in it.
+- The stop of an earlier release's socket units is asked for within `PROBE_WAIT`,
+  and a client the bound ended is ended and reaped on a thread of its own,
+  so a client inside an uninterruptible call costs the command nothing.
+  A scope of the manager's that reports no process number is waited for `MANAGER_START_EXTRA` before the base's start
+  is made beside it,
+  and the address's claim is what keeps a server the scope starts later from binding beside the one that is there.
+
 ### Invocation capture
 
 At invocation,

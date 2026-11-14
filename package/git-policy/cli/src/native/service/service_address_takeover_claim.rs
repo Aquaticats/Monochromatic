@@ -63,6 +63,11 @@ pub struct AddressTakeoverClaim {
 
 impl Drop for AddressTakeoverClaim {
     fn drop(&mut self) {
+        // Lock kept: the kernel's own claim on one worktree's address, held for the three system calls of a takeover.
+        // Why:  nothing in the filesystem can say "unlink this file only while it is still the inode I asked about", and two
+        //       servers that both unlinked and bound left one of them unreachable (the review of `76a08c9fac`, finding 3).
+        //       The kernel's claim has no owner text and no stale state, is taken without waiting, and covers a probe, an
+        //       unlink and a bind, which is the smallest unit a takeover has.
         // SAFETY: `flock` takes one descriptor of this claim's file and one number, and touches no memory. Closing the file
         // would give the claim up too; asking first is what says when it ended.
         let _released: libc::c_int = unsafe { libc::flock(self.file.as_raw_fd(), libc::LOCK_UN) };

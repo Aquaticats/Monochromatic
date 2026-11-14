@@ -148,7 +148,10 @@ impl ManagerStart {
     fn probe_with(&self, end_and_reap: Box<dyn FnOnce(std::process::Child) + Send>) -> bool {
         let mut command: std::process::Command = std::process::Command::new(&self.program);
         command.args(["--user", "--scope", "--quiet", "--", "/bin/true"]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
-        let Ok(mut child) = command.spawn() else { return false };
+        // What: The probe's program is started through the retry a shortage of processes rides out.
+        // Why:  A fork the system refuses for lack of processes is no answer from the manager, and the probe is what decides
+        //       whether the enhancement is used at all.
+        let Ok(mut child) = crate::start_retry::RetryStart::spawn_retrying(&mut command) else { return false };
         let deadline: std::time::Instant = std::time::Instant::now() + PROBE_WAIT;
         loop {
             match child.try_wait() {

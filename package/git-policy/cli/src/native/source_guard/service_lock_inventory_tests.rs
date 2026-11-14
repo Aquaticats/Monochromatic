@@ -108,6 +108,12 @@ const INVENTORY: &[&str] = &[
     //       so the order the trees were drawn in and the set still stocked are one value read and changed from both;
     //       the lock covers that vector and nothing else.
     "service/service_shadow_draw.rs",
+    // What: the right to replace the socket file at one worktree's address.
+    // Why:  a takeover is a question, an unlink and a bind, and nothing in the filesystem makes those one step: two servers
+    //       that both asked and both were refused both unlinked and bound, and the second unlink removed the first's live
+    //       socket (the review of `76a08c9fac`). The claim is the kernel's own on a file beside the address, it is taken
+    //       without waiting, and it covers those three system calls and nothing else.
+    "service/service_address_takeover_claim.rs",
 ];
 
 /// Every `.rs` file below `root`,

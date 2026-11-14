@@ -163,12 +163,14 @@ fn the_notes_folder_keeps_what_this_program_did_not_write() {
     std::fs::write(under_a_note_name.as_path(), "a person's notes, under a name like this program's\n").expect("a person's file under a note's name");
 
     let removed: Vec<PathBuf> = remove_earlier_unit_files(root.as_path());
-    assert!(removed.iter().any(|path| { return path.extension() == Some(std::ffi::OsStr::new("git-dir")) && path.file_name() != under_a_note_name.file_name(); }), "this program's notes are the ones that went: {removed:?}");
-    assert!(!notes.join(format!("{another_instance}{NOTE_ENDING}")).exists(), "and the earlier release's, whose text is a path");
-    assert!(!notes.join(PROGRAM_LINK).exists(), "and the link its units started the service through");
+    // What a person kept there is what the removal must not touch, so it is asked first: a removal that takes the folder
+    // whole fails here.
     assert!(precious.exists(), "a file a person kept there is left: {removed:?}");
     assert!(under_a_note_name.exists(), "and so is one whose name looks like a note and whose text is not one: {removed:?}");
     assert!(notes.exists(), "the folder itself stays while anything of a person's is in it");
+    assert!(removed.iter().any(|path| { return path.extension() == Some(std::ffi::OsStr::new("git-dir")) && path.file_name() != under_a_note_name.file_name(); }), "this program's notes are the ones that went: {removed:?}");
+    assert!(!notes.join(format!("{another_instance}{NOTE_ENDING}")).exists(), "and the earlier release's, whose text is a path");
+    assert!(!notes.join(PROGRAM_LINK).exists(), "and the link its units started the service through");
     assert_eq!(removed.len(), 3, "three entries went, and the folder did not: {removed:?}");
     // Once nothing of a person's is left, the folder goes with the last note of this program.
     std::fs::remove_file(precious.as_path()).expect("the person's file");

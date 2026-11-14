@@ -2,6 +2,7 @@
 //!  What an earlier release left running and on disk for this account's commit services,
 //!  and what this release does about it at the first command that meets it:
 //!  the earlier release's unit files are removed from the login's unit directory,
+//!  its notes folder loses the notes this program is shown to have written and keeps everything else,
 //!  and the socket unit that holds a worktree's address is stopped,
 //!  so this release's own server can own the address it was always meant to own.
 //! Why:
@@ -50,7 +51,8 @@ pub const STOP_PROGRAM: &str = "systemctl";
 /// Why:
 ///  They are the two templates of the release that gave each worktree an instance,
 /// the earlier single service's pair,
-/// and the folder of notes that went beside them.
+/// and the folder of notes that went beside them,
+/// whose own entries are removed one at a time (`remove_the_notes_of_this_program`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -274,7 +276,9 @@ pub(crate) fn stop_with_the_managers_client_seamed(instance: &str, end_and_reap:
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
-    let Ok(mut child) = command.spawn() else { return false };
+    // What: The client is started through the retry a shortage of processes rides out.
+    // Why:  A fork the system refuses for lack of processes fails here for good, while the next attempt would have worked.
+    let Ok(mut child) = crate::start_retry::RetryStart::spawn_retrying(&mut command) else { return false };
     let deadline: std::time::Instant = std::time::Instant::now() + PROBE_WAIT;
     loop {
         match child.try_wait() {
