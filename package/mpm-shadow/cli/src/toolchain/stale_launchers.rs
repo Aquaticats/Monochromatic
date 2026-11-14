@@ -305,25 +305,33 @@ impl<'a> Proofs<'a> {
         return Ok(self.own(&here, declared_tools)?.why);
     }
 
+    /// What:
     /// Whether `directory` is a folder this tool keeps launchers in:
     /// this checkout's launcher folder,
-    /// another checkout's,
-    /// or the machine-global one,
-    /// each of which is known by the name of the folder it sits in.
+    /// the machine-global one,
+    /// or another checkout's,
+    /// which cannot be resolved here because that checkout may be gone.
+    /// Why:
+    /// The last name alone is not enough:
+    /// a folder called `toolchain-launchers` anywhere would pass it,
+    /// and then a person's broken link to a folder of that name would be taken for a link mpm-shadow made.
+    /// A launcher folder is recognized by the two names it is made of
+    /// (`.cache/toolchain-launchers` below a checkout, `toolchain-global/launchers` below the data directory),
+    /// and a folder that resolves is compared as a folder with the two this tool knows.
     fn names_a_launcher_folder(&self, given: Option<&Path>) -> bool {
         let Some(folder) = given else {
             return false;
         };
-        let Some(name) = folder.file_name() else {
-            return false;
-        };
-        if Some(name) == self.scope.launcher_dir.file_name() {
+        if same_folder(folder, &self.scope.launcher_dir) {
             return true;
         }
-        return match global_scope(self.env) {
-            Ok(global) => Some(name) == global.launcher_dir.file_name(),
-            Err(_) => false,
+        let Ok(global) = global_scope(self.env) else {
+            return names_the_launcher_folder_of(folder, &self.scope.launcher_dir);
         };
+        if same_folder(folder, &global.launcher_dir) {
+            return true;
+        }
+        return names_the_launcher_folder_of(folder, &self.scope.launcher_dir) || names_the_launcher_folder_of(folder, &global.launcher_dir);
     }
 
     /// What:
@@ -442,6 +450,32 @@ impl<'a> Proofs<'a> {
         }
         return left;
     }
+}
+
+/// What:
+/// Whether two paths name the same existing folder, once their symbolic links are resolved.
+/// Why:
+/// A checkout reached through a symbolic link (`/home` to `/var/home` here) writes one spelling into a record and another
+/// into a link, and the text comparison would call the same folder two.
+fn same_folder(first: &Path, second: &Path) -> bool {
+    return match (fs::canonicalize(first), fs::canonicalize(second)) {
+        (Ok(one), Ok(two)) => one == two,
+        _ => false,
+    };
+}
+
+/// What:
+/// Whether `folder` is shaped like `known`: its last two components are the same.
+/// Why:
+/// Another checkout's launcher folder is not on this disk to compare as a folder,
+/// and the two names `.cache/toolchain-launchers` (or `toolchain-global/launchers`) are what makes one
+/// (`scope::repo_scope` and `scope::global_scope` build those two).
+fn names_the_launcher_folder_of(folder: &Path, known: &Path) -> bool {
+    let mut folder_names: Vec<&std::ffi::OsStr> = folder.components().rev().take(2).map(|component| return component.as_os_str()).collect();
+    let mut known_names: Vec<&std::ffi::OsStr> = known.components().rev().take(2).map(|component| return component.as_os_str()).collect();
+    folder_names.reverse();
+    known_names.reverse();
+    return folder_names.len() == 2 && folder_names == known_names;
 }
 
 /// The launchers of `folder` that stand beside a record whose tool is in `declared_tools`.
@@ -574,11 +608,17 @@ fn retire_one_link(
     declared_tools: &BTreeSet<&str>,
     proofs: &mut Proofs<'_>,
     notices: &mut LauncherNotices,
+    report_unproven: bool,
 ) {
     let why: String = match proofs.linked_launcher(path, declared_tools) {
         Ok(why) => why,
         Err(why) => {
-            notices.warnings.push(format!("left {} alone: {reason}, but {why}", path.display()));
+            // A link nothing proves in a folder the lock does not declare is what a tool's own postinstall command keeps
+            // there (the search shadow links `rg` and eight more), so the person reading the report is told only about
+            // the ones they can act on.
+            if report_unproven {
+                notices.warnings.push(format!("left {} alone: {reason}, but {why}", path.display()));
+            }
             return;
         }
     };
@@ -609,16 +649,19 @@ fn retire_one_link(
 fn retire_farm_links(
     entries: &[fs::DirEntry],
     declared: &BTreeSet<String>,
+    declared_paths: &BTreeSet<PathBuf>,
     declared_tools: &BTreeSet<&str>,
     proofs: &mut Proofs<'_>,
     notices: &mut LauncherNotices,
 ) {
     for entry in entries {
         let name: String = entry.file_name().to_string_lossy().to_string();
-        if declared.contains(&name) {
+        let path: PathBuf = entry.path();
+        // A postinstall link may be declared inside the farm (`linkDir` names it), and then the path, not the bin name,
+        // is what makes it the lock's own.
+        if declared.contains(&name) || declared_paths.contains(&path) {
             continue;
         }
-        let path: PathBuf = entry.path();
         let metadata = match fs::symlink_metadata(&path) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
@@ -647,6 +690,7 @@ fn retire_farm_links(
             declared_tools,
             proofs,
             notices,
+            true,
         );
     }
 }
@@ -666,10 +710,19 @@ fn retire_other_links(
     proofs: &mut Proofs<'_>,
     notices: &mut LauncherNotices,
 ) {
+    let mut declared_folders: BTreeSet<PathBuf> = BTreeSet::new();
+    for path in declared_paths {
+        if let Some(parent) = path.parent() {
+            declared_folders.insert(parent.to_path_buf());
+        }
+    }
     for folder in link_folders(ctx) {
         if folder == ctx.scope.exposure_dir {
             continue;
         }
+        // Only the scope's own link directory and the folders the lock declares a link in are places a person is told
+        // about; the other `-bin` folders belong to the tools' own postinstall commands.
+        let report_unproven: bool = folder == ctx.scope.link_dir || declared_folders.contains(&folder);
         for entry in sorted_entries(&folder, notices) {
             let path: PathBuf = entry.path();
             if declared_paths.contains(&path) {
@@ -696,6 +749,7 @@ fn retire_other_links(
                 declared_tools,
                 proofs,
                 notices,
+                report_unproven,
             );
         }
     }
@@ -945,7 +999,7 @@ pub fn retire_undeclared_launchers(ctx: &Context, made_links: &[String]) -> Laun
     let declared_tools: BTreeSet<&str> = ctx.tools.iter().map(|tool| return tool.declaration.id.as_str()).collect();
     let mut proofs: Proofs<'_> = Proofs::new(ctx);
     // The links go before the launchers they point at, so no link is ever left naming a file that is gone.
-    retire_farm_links(&farm, &declared_links, &declared_tools, &mut proofs, &mut notices);
+    retire_farm_links(&farm, &declared_links, &declared_paths, &declared_tools, &mut proofs, &mut notices);
     retire_other_links(ctx, &declared_paths, &declared_tools, &mut proofs, &mut notices);
     retire_launchers(ctx, &launchers, &declared_launchers, &declared_tools, &mut proofs, &mut notices);
     retire_records_without_launchers(&launchers, &declared_launchers, &declared_tools, &mut notices);

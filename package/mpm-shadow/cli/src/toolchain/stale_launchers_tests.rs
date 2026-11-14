@@ -416,6 +416,9 @@ fn a_broken_link_to_a_folder_only_shaped_like_a_launcher_folder_stays() {
 #[test]
 fn a_link_a_tools_own_postinstall_command_keeps_is_neither_removed_nor_warned_about() {
     let rig = rig_with_installed_shadow();
+    // A launcher folder with something in it, so the pass reaches the other link folders at all.
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    assert!(exists_at(&launcher));
     // The search shadow's postinstall command links `rg`, `grep` and seven more at the store program; nothing the
     // retirement can prove, and nothing a person can act on.
     let program: PathBuf = rig.scope.root.join("store").join("search-shadow");

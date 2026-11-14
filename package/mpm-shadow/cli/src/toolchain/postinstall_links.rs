@@ -50,6 +50,11 @@ use super::removal::{Judged, Removal, judged_of_metadata, remove_if_still};
 /// inside the scope's launcher directory.
 const RECORD_FILE_NAME: &str = ".postinstall-links.json";
 
+/// How many times a write of the record merges and checks before it gives up and says the next install records them.
+/// Delegated pick under the owner's rule that nothing waits without end;
+/// a lost write costs one pass's bookkeeping, never a link.
+const RECORD_WRITE_ATTEMPTS: usize = 8;
+
 /// The JSON key holding the links,
 /// as an object of link path to link target.
 const LINKS_KEY: &str = "links";
@@ -261,54 +266,111 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
         return Ok(notices);
     }
     let declared: BTreeSet<PathBuf> = declared_link_paths(ctx);
-    let mut kept: BTreeMap<PathBuf, PathBuf> = BTreeMap::new();
+    // The paths that leave the record: retired, gone, replaced by a person's file, or outside this scope's own checkout.
+    let mut leaving: BTreeSet<PathBuf> = BTreeSet::new();
     for (path, target) in &recorded {
         if declared.contains(path) {
-            kept.insert(path.clone(), target.clone());
             continue;
         }
         if !is_own_link(ctx, path) {
+            leaving.insert(path.clone());
             continue;
         }
         match inspect(path, target) {
-            Held::Nothing => {}
+            Held::Nothing => {
+                leaving.insert(path.clone());
+            }
             Held::OwnLink(judged) => match remove_if_still(path, judged) {
-                Ok(Removal::Retired) => notices.retired.push(format!(
-                    "retired the postinstall link {} (it pointed at {}) because the lock no longer declares it",
-                    path.display(),
-                    target.display()
-                )),
-                Ok(Removal::Gone) => {}
-                Ok(Removal::Replaced) => notices.warnings.push(format!(
-                    "left {} alone: the lock no longer declares a postinstall link there, but something replaced it between reading it \
-                     and removing it, so it was put back",
-                    path.display()
-                )),
-                Err(reason) => {
-                    notices.warnings.push(format!("cannot remove the stale postinstall link {}: {reason}", path.display()));
-                    kept.insert(path.clone(), target.clone());
+                Ok(Removal::Retired) => {
+                    leaving.insert(path.clone());
+                    notices.retired.push(format!(
+                        "retired the postinstall link {} (it pointed at {}) because the lock no longer declares it",
+                        path.display(),
+                        target.display()
+                    ));
                 }
+                Ok(Removal::Gone) => {
+                    leaving.insert(path.clone());
+                }
+                Ok(Removal::Replaced) => {
+                    leaving.insert(path.clone());
+                    notices.warnings.push(format!(
+                        "left {} alone: the lock no longer declares a postinstall link there, but something replaced it between reading it \
+                         and removing it, so it was put back",
+                        path.display()
+                    ));
+                }
+                // A link that could not be removed stays in the record, so the next install tries it once more.
+                Err(reason) => notices.warnings.push(format!("cannot remove the stale postinstall link {}: {reason}", path.display())),
             },
-            Held::Foreign(why) => notices.warnings.push(format!(
-                "left {} alone: the lock no longer declares a postinstall link there, but {why}, so mpm-shadow did not make what is there now; \
-                 remove it yourself if it is stale",
-                path.display()
-            )),
+            Held::Foreign(why) => {
+                leaving.insert(path.clone());
+                notices.warnings.push(format!(
+                    "left {} alone: the lock no longer declares a postinstall link there, but {why}, so mpm-shadow did not make what is there now; \
+                     remove it yourself if it is stale",
+                    path.display()
+                ));
+            }
         }
     }
-    for link in made {
-        kept.insert(link.path.clone(), link.target.clone());
+    let additions: BTreeMap<PathBuf, PathBuf> = made.iter().map(|link| return (link.path.clone(), link.target.clone())).collect();
+    match publish_record(&file, &additions, &leaving) {
+        Ok(RecordWrite::Settled) => {}
+        Ok(RecordWrite::Given) | Err(_) => notices.warnings.push(format!(
+            "could not record the postinstall links this run made in {} because another install kept changing it; the links stay where they \
+             are, and the next install records them",
+            file.display()
+        )),
     }
-    if kept == recorded {
-        return Ok(notices);
-    }
-    if let Some(parent) = file.parent()
-        && let Err(error) = fs::create_dir_all(parent)
-    {
-        return Err(ToolchainError::failure(format!("cannot create {}: {error}", parent.display())));
-    }
-    write_atomically(&file, &render_record(&kept)?)?;
     return Ok(notices);
+}
+
+/// What a write of the record settled to.
+enum RecordWrite {
+    /// The file holds this run's changes.
+    Settled,
+    /// The file kept changing under the write; this run's changes may be missing and the next install records them.
+    Given,
+}
+
+/// What:
+/// Writes the record of postinstall links by merging this run's changes into what the file holds now,
+/// and checks that they survived;
+/// after `RECORD_WRITE_ATTEMPTS` it gives up and says so.
+/// Why:
+/// The record is a map two installs can write at once,
+/// and a read-modify-write would let the later writer drop the other's entries.
+/// Each run adds only what it made and removes only what it retired,
+/// so merging is what the record means,
+/// and the check that the additions are still there catches a write that landed between the merge and the check.
+/// No lock is taken: the check and the retry are the whole mechanism,
+/// and what a lost write costs is one pass's bookkeeping, because the links themselves are what the retirement proves by.
+fn publish_record(file: &Path, additions: &BTreeMap<PathBuf, PathBuf>, leaving: &BTreeSet<PathBuf>) -> Result<RecordWrite, ToolchainError> {
+    for _attempt in 0..RECORD_WRITE_ATTEMPTS {
+        let (current, unreadable) = read_record(file);
+        if unreadable.is_some() {
+            return Ok(RecordWrite::Given);
+        }
+        let mut merged: BTreeMap<PathBuf, PathBuf> = current;
+        for path in leaving {
+            merged.remove(path);
+        }
+        for (path, target) in additions {
+            merged.insert(path.clone(), target.clone());
+        }
+        if let Some(parent) = file.parent()
+            && let Err(error) = fs::create_dir_all(parent)
+        {
+            return Err(ToolchainError::failure(format!("cannot create {}: {error}", parent.display())));
+        }
+        write_atomically(file, &render_record(&merged)?)?;
+        let (after, _) = read_record(file);
+        let mine: bool = additions.iter().all(|(path, target)| after.get(path) == Some(target)) && leaving.iter().all(|path| !after.contains_key(path));
+        if mine {
+            return Ok(RecordWrite::Settled);
+        }
+    }
+    return Ok(RecordWrite::Given);
 }
 
 /// What:

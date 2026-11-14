@@ -1413,15 +1413,17 @@ and its postinstall links (`.cache/monochromatic-git-policy-cli-bin/git`) point 
   so no link ever names a launcher that is gone,
   and a run killed between two of the three leaves a state the next install finishes.
   An install that cannot read the lock stops before any of this.
-  These passes run under the scope's lock,
-  the one the lockfile write takes,
-  because a record an install running beside this one is about to back with a launcher would otherwise be taken for a leftover.
-  The wait for it has a stated bound (five seconds, `publish::GUARD_WAIT`):
-  a run that cannot take it in that time makes the links this lock declares,
-  says which file it waited on and who the holder's note names,
-  and leaves the retirement to the next install, so the bound costs a pass and never any data.
-  The held region starts no program except the bounded check of the repository's link
-  (`repository_link_cause::CHECK_DEADLINE`).
+  These passes take no lock,
+  and two installs in one checkout cannot undo each other's steps:
+  a launcher's record is written after its program,
+  so a visible record with no launcher beside it is a leftover of a retirement and never an install still placing one,
+  and every removal moves the entry aside and removes it only when it is still the entry its proof read
+  (`src/toolchain/removal.rs`).
+  The record of postinstall links is written by merging this run's additions and retirements into what the file holds,
+  and checking they survived, retried a bounded number of times,
+  so neither install drops the other's entries.
+  The scope's lock stays on the one write that needs it (the lockfile's re-read and write, `publish`),
+  and its wait has a stated bound with the holder's note named when it runs out.
   What the record's `real` names is left alone:
   it is a program in the store,
   and a bin renamed inside one version keeps its old file in the version directory.

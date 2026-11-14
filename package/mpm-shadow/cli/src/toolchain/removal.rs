@@ -59,6 +59,11 @@ pub(crate) enum Removal {
     Replaced,
 }
 
+/// How many hidden names beside an entry are tried before a removal refuses to move it aside.
+/// Delegated pick under the owner's rule that nothing waits without end and never discards a person's file;
+/// each name is one earlier run's kept file, and a folder with every one of them taken is not one to guess in.
+const TEMPORARY_NAME_ATTEMPTS: usize = 64;
+
 /// The identity of an entry from its metadata.
 #[cfg(unix)]
 pub(crate) fn judged_of_metadata(metadata: &fs::Metadata) -> Judged {
@@ -85,20 +90,28 @@ pub(crate) fn judged_of(path: &Path) -> Result<Judged, String> {
 }
 
 /// What:
-/// A free hidden name beside `path`, for the one atomic step of a removal.
+/// A hidden name beside `path` that nothing stands at, for the one atomic step of a removal.
 /// Why:
 /// The passes never judge a hidden name,
 /// so a run killed between moving an entry aside and removing it leaves nothing a later pass takes for a launcher,
 /// a record or a link.
-fn temporary_name_beside(path: &Path) -> PathBuf {
+/// A name that is taken is never returned:
+/// the file standing there is a person's, kept by an earlier run's failed put-back or left by a killed one,
+/// and a rename onto it would overwrite it,
+/// so a folder where every name of the bound is taken is an error that removes nothing.
+fn temporary_name_beside(path: &Path) -> Result<PathBuf, String> {
     let name: String = path.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
-    for attempt in 0..8 {
+    for attempt in 0..TEMPORARY_NAME_ATTEMPTS {
         let candidate: PathBuf = path.with_file_name(format!(".{name}.{}.{attempt}.retired", std::process::id()));
         if fs::symlink_metadata(&candidate).is_err() {
-            return candidate;
+            return Ok(candidate);
         }
     }
-    return path.with_file_name(format!(".{name}.{}.retired", std::process::id()));
+    return Err(format!(
+        "every hidden temporary name beside it (from 0 to {}) is taken by a file this tool kept there, so nothing was moved aside \
+         and nothing removed",
+        TEMPORARY_NAME_ATTEMPTS - 1
+    ));
 }
 
 /// What:
@@ -135,7 +148,7 @@ pub(crate) fn could_not_put_back(path: &Path, temporary: &Path, error: &std::io:
 /// export function removeIfStill(path: string, judged: Judged): Removal  // throws
 /// ```
 pub(crate) fn remove_if_still(path: &Path, judged: Judged) -> Result<Removal, String> {
-    let temporary: PathBuf = temporary_name_beside(path);
+    let temporary: PathBuf = temporary_name_beside(path)?;
     match fs::rename(path, &temporary) {
         Ok(()) => {}
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Removal::Gone),

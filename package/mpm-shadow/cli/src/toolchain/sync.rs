@@ -37,8 +37,7 @@ use super::cargo_installs::{is_repository_published, older_lock_warnings, point_
 use super::context::{Context, Host};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
-/// Imports what this module uses from `super::publish`.
-use super::publish::{GUARD_WAIT, Guard, acquire_guard, holder_of};
+
 /// Imports what this module uses from `super::exposure`.
 use super::exposure::{rebuild_exposure, run_postinstall_commands, unresolvable_bins};
 /// Imports `sync_postinstall_links` from `super::postinstall_links`.
@@ -93,46 +92,6 @@ use super::util::find_tool;
 /// Node and `pnpm`.
 pub const STAGING_IDS: [&str; 9] = ["bin", "uv", "mpm", "rustup", "rust", "cargo-binstall", "go", "node", "pnpm"];
 
-/// What:
-/// The scope's lock, taken for the passes that write this checkout's launcher folder and link folders,
-/// or `None` with a warning saying why not.
-/// Why:
-/// The retirement reads the launcher folder and removes files in it and in the link folders,
-/// and two installs in one checkout must not interleave those writes
-/// (one of them would see the other's record before its launcher and take it for a leftover).
-/// The wait has a bound (`publish::GUARD_WAIT`),
-/// so a held lock costs the warning and this run's retirement, never the install and never a wait without end.
-/// What is held is link and launcher writing:
-/// the one program it can start is the bounded check of the repository's link (`repository_link_cause::CHECK_DEADLINE`),
-/// which `ensure_launcher` asks for before it places anything.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function lockForLinkWrites(ctx: Context, report: SyncReport): Guard | undefined
-/// ```
-fn lock_for_link_writes(ctx: &Context, report: &mut SyncReport) -> Option<Guard> {
-    return match acquire_guard(ctx.scope) {
-        Ok(Some(guard)) => Some(guard),
-        Ok(None) => {
-            report.warnings.push(format!(
-                "made the links this lock declares but left the retirement of the names it declares nowhere to the next install: {} is \
-                 held by {}, and this run waited {} s for it",
-                ctx.scope.guard_file.display(),
-                holder_of(ctx.scope),
-                GUARD_WAIT.as_secs()
-            ));
-            None
-        }
-        Err(error) => {
-            report.warnings.push(format!(
-                "the launcher and link passes ran without the scope lock, so an install running at the same time may have been seen \
-                 half done: {}",
-                error.message
-            ));
-            None
-        }
-    };
-}
 
 /// What:
 /// The tools in install order:
@@ -307,12 +266,10 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             Err(error) => report.failed.push((tool.declaration.id.clone(), error.message)),
         }
     }
-    // The passes below write this checkout's launcher folder and link folders, and one of them decides that a record with no
-    // launcher is a leftover of an earlier run. Another install in this checkout is between its record write and its launcher's
-    // placement in exactly that state (`launcher::ensure_launcher` writes the record first), so the scope's lock covers these
-    // writes. It is the lock the lockfile write already takes, it covers link and launcher writing only, and the wait for it has
-    // a bound: a run that cannot take it makes the links and leaves the retirement to the next install.
-    let guard: Option<Guard> = lock_for_link_writes(ctx, &mut report);
+    // These passes take no lock. A launcher's record is written after its program, so a visible record with no launcher is a
+    // leftover of a retirement and never an install still placing one, and every removal moves the entry aside and removes it
+    // only when it is still the entry the proof read. An install running beside this one therefore sees whole steps and can
+    // undo none of them, whether or not anything is locked.
     match sync_postinstall_links(ctx, &entries) {
         Ok(notices) => {
             report.retired_links = notices.retired;
@@ -327,14 +284,10 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     }
     // A bin the plan renamed or dropped leaves a launcher, its record and an exposed link that no later install rewrites;
     // the pass retires what it can prove mpm-shadow made, and names what it cannot. It runs after the links of the lock are made,
-    // so a name this run linked is never taken for a leftover. It needs the lock: without it a record another install is about to
-    // back with a launcher would be taken for a leftover, so a run that could not take the lock leaves it to the next install.
-    if guard.is_some() {
-        let notices = retire_undeclared_launchers(ctx, &linked_bins);
-        report.retired_launchers = notices.retired;
-        report.warnings.extend(notices.warnings);
-    }
-    drop(guard);
+    // so a name this run linked is never taken for a leftover.
+    let notices = retire_undeclared_launchers(ctx, &linked_bins);
+    report.retired_launchers = notices.retired;
+    report.warnings.extend(notices.warnings);
     // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync
     // (which installs just the tools its lookups need) must not rewrite it from a subset.
     if only.is_none() {

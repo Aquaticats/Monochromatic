@@ -175,9 +175,13 @@ fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
 
 /// What:
 /// Makes the launcher for binary `name` of a repository-published tool in this tree and returns its path.
-/// The record is written first,
-/// so a launcher never exists without one.
+/// The record is written after the launcher,
+/// so a visible record always has the launcher it describes.
 /// Why:
+/// The retirement asks that one question of a record: whose launcher is absent,
+/// and may it go? An install that is still placing its program would answer it wrongly if the record came first,
+/// and an install beside it must not be able to delete that fresh record
+/// (a killed placement leaves the launcher without its record, which the next install of that name rewrites).
 /// The tree's exposed links and postinstall links point here instead of at the real binary,
 /// and the launcher is a copy of the newest installed `mpm-shadow`
 /// (`launcher_source`),
@@ -199,9 +203,11 @@ pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) ->
     let launcher: PathBuf = scope.launcher_dir.join(name);
     let record: LaunchRecord =
         LaunchRecord { tool_id: tool_id.to_string(), lock_file: scope.lock_file.clone(), real: real.to_path_buf(), scope: scope.kind };
-    write_atomically(&record_path(&launcher), render_record(&record).as_bytes())?;
     let source: PathBuf = launcher_source(scope, running_program()?, cfg!(target_os = "linux"))?;
     place_binary(&source, &launcher)?;
+    // After the program, never before: the record is the proof a retirement may remove a launcher, so it must not name a
+    // program that is not there yet.
+    write_atomically(&record_path(&launcher), render_record(&record).as_bytes())?;
     return Ok(launcher);
 }
 
