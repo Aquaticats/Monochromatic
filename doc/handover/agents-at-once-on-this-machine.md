@@ -7,10 +7,16 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **16** agents run on this machine at once,
+At most **32** agents run on this machine at once,
 counted across every session
-(raised from 4 to 8 on 2026-11-13 at 11:57 and from 8 to 16 at 12:58:50,
+(raised from 4 to 8 on 2026-11-13 at 11:57,
+from 8 to 16 at 12:58:50
+and from 16 to 32 at 17:12,
 each time when the level before had held its hour).
+The branch `feat/pi-shared-subagent-driver-start-gate-holds-a-machine-wide-cap-on-agents-and-a-floor-for-the-runs-folder-drive`,
+not in `main`,
+carries the number in a file of its own that still reads sixteen;
+the number is brought to this one when that branch is merged.
 
 The owner,
 2026-11-13,
@@ -306,6 +312,33 @@ one line a minute:
   (unit `record-what-the-user-service-manager-waits-on-20261113`,
   log `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`).
   A manager that stops answering for a time is what `doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md` is about.
+- Readings of the probe started at 14:37,
+  14:37:21 to 15:13:14,
+  thirty-six of them with eight to sixteen units going
+  (sixteen once, at 14:57:08, and twelve to fourteen for most of it):
+  home drive over the bound once,
+  **5,756 ms at 15:00:08**,
+  with 65 ms the next slowest;
+  build volume over one second twice
+  (1,240 ms at 14:42:22 and 1,321 at 14:44:23)
+  and under 500 ms otherwise.
+  One reading over the bound and the one after it 2 ms,
+  so the criterion is not met.
+  This is no symptom at the counts there were,
+  and it is not sixteen held for an hour:
+  the count stood at sixteen for one reading.
+- From 15:18:02 the count is bounded by something other than the drives.
+  Eighteen reviews ended that afternoon on the reviewer's provider answering "429 … Allocated quota exceeded",
+  each with six to nine runs on the reviewer's model going,
+  and the script that fills free places now starts no run on that model while five are going
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section dated 2026-11-13T15:24:13-05:00).
+  So how many agents go now follows how many author runs the queue holds,
+  and a reading at sixteen or above needs that many runs that are not reviews.
+- Free room at 15:24:13: `/var/home` 513 GiB,
+  the build volume 1,529 GiB:
+  26 GiB less than at 14:37:39,
+  in forty-seven minutes.
 - Free room at 14:37:39: `/var/home` 514 GiB,
   the build volume 1,555 GiB:
   61 GiB less than at 13:15:18,
@@ -324,3 +357,189 @@ one line a minute:
   one of them waiting for the branch it builds on.
   Whether thirty-two can be reached with real work is not settled by that count:
   reviews of the branches that finish add entries.
+- **The hour that judges this level**:
+  probe readings from 16:11:15 to 17:10:33,
+  sixty of them,
+  one a minute,
+  with the queue holding enough author runs to keep the places filled.
+  Agents going at each reading:
+  thirteen once,
+  fourteen at five readings,
+  fifteen at eleven,
+  sixteen at twenty-four
+  and seventeen at nineteen.
+  - Home drive: median 1 ms;
+    one reading over one second and over the bound,
+    **7,819 ms at 16:57:24**,
+    the reading after it under the bound.
+  - Build volume: median 7 ms;
+    over one second twice
+    (4,464 ms at 16:13:15 and 2,020 ms at 16:38:21),
+    none over the bound.
+  - Never two readings in a row over the bound on either drive.
+  - Thirteen Pi runs were started in the hour
+    (by the creation time of each run's feed),
+    and each gave its first answer within the bound of 120 s:
+    slowest 76,930 ms,
+    four of them over 60 s
+    (`~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/time-to-first-answer-of-each-pi-run-started-in-the-hour-of-level-16-2026-11-13T1611.txt`).
+  - Thirteen runs ended in the hour
+    (`list-runs-that-ended-since`),
+    none on a disk error:
+    eight settled,
+    four ended `driver-failed` with Pi's exit code zero on the parse error of issue 6299,
+    and one review ended on the provider's rate limit.
+  - So the criterion is not met:
+    sixteen held its hour.
+  - No sizing walk ran during the hour.
+  - Free room at 17:11:42: `/var/home` 507 GiB,
+    the build volume 1,488 GiB
+    (41 GiB less than at 15:24:13,
+    in one hour and forty-seven minutes).
+
+### Level 32, started 2026-11-13T17:12:00-05:00
+
+- The unit that fills free places was stopped between two of its rounds and started again at the new level
+  (`fill-free-places-and-put-ended-reviews-back-at-level-32-20261113T1712`):
+  at most two starts every 150 s,
+  and no more than five runs on the reviewer's model at once,
+  which bounds how fast the count climbs and how far it gets with a queue that is mostly reviews.
+- Going at 17:14:28: seventeen Pi runs,
+  one of them another session's.
+- A sizing walk of the shared cargo build folder
+  (`btrfs filesystem du --summarize`,
+  disk weight 1,
+  unit `blocks-each-build-folder-holds-alone-20261113T1713`)
+  was started at 17:13,
+  after the hour of level sixteen and before this level's probe;
+  the probe of this level
+  (unit `disk-ceiling-probe-level-32-20261113`,
+  the same readings file)
+  starts when the walk ends,
+  so no reading of this level's hour falls in the walk.
+- The walk was still going at 17:21:02 with nothing printed,
+  and no probe had read since 17:10:33 while the count rose.
+  So a second probe reads while the walk runs,
+  from 17:22,
+  fifteen minutes at a time,
+  renewed while the walk goes
+  (unit `disk-ceiling-probe-level-32-while-the-build-folder-walk-runs-20261113T1722`,
+  the same readings file,
+  level field 32).
+  Its readings are there to catch a symptom,
+  and are read against the walk:
+  they do not count toward the hour that judges the level.
+- The hour counts from the first reading with the count above sixteen for good,
+  and is read by the counts it holds:
+  a count that stays near twenty is a reading at twenty,
+  not thirty-two held.
+- **The pools bound the count at about twenty-five, and the owner keeps it so.**
+  A run that names no model goes to one open pool,
+  `neuralwatt-flex`,
+  which takes twenty,
+  and reviews are held to five.
+  Asked at about 17:56 through the question tool whether to open more room for author runs,
+  the owner answered:
+  "Keep it.
+  I suspect any more would blow up the disk anyway."
+  So thirty-two stays the number that says when not to start one more,
+  the count does not pass about twenty-five,
+  and the search goes no higher until a pool changes or the new drive is in.
+- Readings from 17:21:32 to 18:06:06,
+  forty-four of them,
+  **every one taken while the sizing walk ran**:
+  agents going twenty at two readings,
+  twenty-one at one,
+  twenty-two at four,
+  twenty-three at four,
+  twenty-four at nineteen
+  and twenty-five at fourteen.
+  - Home drive: slowest 42 ms.
+  - Build volume: over one second eight times
+    (1,503 ms at 17:26:32,
+    2,179 at 17:32:34,
+    **5,764 at 17:37:13**,
+    3,326 at 17:50:19,
+    1,366 at 17:52:45,
+    4,264 at 17:53:47,
+    **9,820 at 17:57:53**,
+    2,860 at 18:03:03);
+    two over the bound,
+    never two in a row.
+  - By the criterion no symptom;
+    by the rule this file set on 2026-11-13 at 13:33,
+    readings taken during a sizing walk cannot be put down to the agents alone,
+    so these do not judge the level.
+  - The walk had run fifty-three minutes at 18:06 with nothing printed.
+- Free room at 18:06:54: `/var/home` 506 GiB,
+  the build volume 1.5 TiB by `df`'s rounding
+  (1,467 GiB by the launcher's count at 17:51).
+- The walk was stopped by hand at 18:24:20,
+  once it had printed what each toolchain's build folder holds.
+  The probe of this level started by itself at that moment and was stopped at 18:30,
+  because the owner had the build folders of two old toolchains deleted from 18:30:32
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section dated 2026-11-13T18:33:32-05:00),
+  and readings taken during that deletion cannot be put down to the agents alone.
+  The deletion takes its own write-and-sync reading of both drives before each shard,
+  recorded in the same readings file with a `during` field and no agent count.
+  **The hour that judges this level starts when the deletion has ended.**
+
+#### The hour that judges, 2026-11-13T18:51:10-05:00 to 19:49:23-05:00
+
+Not final and not approved:
+read by the coordinating session from the probe's own file
+(`~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/probe-readings.jsonl`,
+summarised by `summarise-the-probe-readings-between-two-times.ts` beside it).
+Neither the sizing walk nor the deletion ran in this hour.
+
+- **What was going was twenty to twenty-two agent units,
+  not thirty-two.**
+  59 readings,
+  one a minute;
+  the count of `pi-*.service` units at each:
+  least 20,
+  median 21,
+  most 22.
+  That count holds every session's Pi runs on this machine and no agent of another kind.
+  The cap of thirty-two was never reached,
+  because one author pool of twenty and the reviews held to five bound it,
+  which the owner chose to keep at 17:56.
+- Home drive write-and-sync:
+  median 1 ms,
+  slowest 91 ms.
+- Build volume write-and-sync:
+  median 7 ms,
+  slowest 3,361 ms;
+  the five slowest 1,288,
+  1,461,
+  2,395,
+  2,572 and 3,361 ms.
+  No reading over five seconds,
+  so never two in a row.
+- Load average over one minute:
+  least 5.27,
+  median 11.11,
+  most 20.27.
+- Runs started in the hour:
+  twelve,
+  each with a first answer;
+  the slowest first answer 75,032 ms,
+  none over 120 s
+  (`time-to-first-answer-of-each-pi-run-started-since.ts`).
+- Runs that ended in the hour:
+  ten;
+  none on a disk error.
+  Two ended `driver-failed` by the defect of issue 6299,
+  each with its work done,
+  before its fix reached `main` at 19:36:16.
+- **By the criterion,
+  twenty to twenty-two agents held for an hour on this disk.**
+  That is the highest count this file holds an undisturbed hour for.
+  The ceiling is not found:
+  no count above twenty-five can be reached while the pools stay as they are,
+  so the search rests here until the owner changes a pool or the new disk arrives,
+  when it is found again from four.
+- The cap in "The cap now" stays thirty-two:
+  it is a bound never to pass,
+  and nothing measured says it is too high or too low.

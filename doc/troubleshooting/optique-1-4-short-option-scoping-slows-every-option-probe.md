@@ -10,9 +10,20 @@ a model from another vendor reviewed the text as of commits `5a4e07d2e3` and `42
 and the corrections made after that as of commit `2d06b4ae60`,
 and its findings were folded in;
 the corrections made after that last pass are not reviewed.
+On 2026-11-13 the owner pointed out that this machine is shared and no timing stands on its own,
+and the timing figures here were rewritten as ratios between versions run in the same round,
+with absolute times kept only as scale;
+that rewrite is not reviewed either.
 Upstream merged pull request 1121 on 2026-11-13,
-after the measurements here were taken of its branch;
-`main` has not been measured again since.
+after the first measurement here was taken of its branch.
+The merge itself was then measured on Node and Bun the same day.
+A model from another vendor reviewed that second measurement as of commit `2907e3a444`,
+recomputed every ratio,
+range and count from the raw rounds and found them correct;
+its one finding on this document,
+a comparison with the same-code control worded more strongly than the control allows,
+is corrected,
+and that correction has had no review.
 
 Status,
 2026-11-12:
@@ -165,31 +176,32 @@ at the commit `1.4.0-dev.2664` was built from.
 
 ### What the profiles attribute
 
-Per parse,
-from `node --cpu-prof` on the input with paths after `--`:
+From `node --cpu-prof` on the input with paths after `--`,
+as shares of one profile,
+which do not depend on how busy the machine was:
 
 - 1.3.6:
-   41.2 ms in all;
    no `short-option.js`.
 - `1.4.0-dev.2664`:
-   72.1 ms in all;
-   `short-option.js` 25.9 ms,
-   of which `withParserOptionScope` 8.0,
-   `forkOptionScope` 6.1 and `withOptionScopeChild` 6.1.
+   `short-option.js` is 36% of the parse,
+   of which `withParserOptionScope` is 11%,
+   `forkOptionScope` 8% and `withOptionScopeChild` 8%.
 - `1.4.0-dev.2971`:
-   86.3 ms in all;
-   `short-option.js` 27.0 ms.
+   `short-option.js` is 31% of the parse.
 
-Of the 30.8 ms that 1.3.6 to `1.4.0-dev.2664` adds,
-`short-option.js` is 25.9 ms.
-These totals are not the untimed medians,
-from which they differ by a few milliseconds either way;
-the differences between versions are what the comparison rests on.
+Of the time per parse that the profile of `1.4.0-dev.2664` shows over the profile of 1.3.6,
+`short-option.js` is 84%.
+For scale only,
+since the three profiles were separate runs:
+the per-parse totals were 41.2,
+72.1 and 86.3 ms,
+with `short-option.js` at 25.9 and 27.0 ms in the two pre-releases.
 
 In a sweep over the number of options,
-the cost on `1.4.0-dev.2971` grew in a straight line,
-about 1.6 to 1.9 microseconds per token and option,
+the cost on `1.4.0-dev.2971` grew in a straight line with the number of options,
 so the scope work is a constant paid on every probe and does not itself grow with the grammar.
+For scale only,
+that constant came to about 1.6 to 1.9 microseconds per token and option in that run.
 
 ### A reading that turned out wrong
 
@@ -229,35 +241,31 @@ the script hands all thousand paths to `parseSync`.
 
 ### Input that is slower on the 1.4 line
 
-That script as written,
-two rounds,
-lowest and highest round median:
-
-- 1.1.1:
-   32.9 to 48.4 ms
-- 1.3.6:
-   38.2 to 47.1 ms
-- `1.4.0-dev.2971`:
-   73.7 to 80.5 ms
-
-The same shape in the measurement harness,
+The shape of that script in the measurement harness,
 seven rounds with the versions rotated,
-each process's median taken as one observation:
+each process's median taken as one observation and the versions paired by round,
+later version over earlier:
 
-- 1.1.1:
-   41.4 ms
-- 1.3.6:
-   41.3 ms
-- `1.4.0-dev.2664`:
-   75.1 ms
-- `1.4.0-dev.2971`:
-   79.4 ms
+- 1.3.6 to `1.4.0-dev.2664`:
+   1.80 (1.36 to 1.91),
+   slower in all seven rounds.
+- 1.3.6 to `1.4.0-dev.2971`:
+   1.73 (1.51 to 2.12),
+   slower in all seven.
+- 1.1.1 to 1.3.6:
+   1.05 (0.92 to 1.26),
+   four rounds one way and three the other:
+   no difference.
+- `1.4.0-dev.2664` to `1.4.0-dev.2971`:
+   1.06 (0.96 to 1.16),
+   which seven rounds cannot tell from no difference.
 
-1.1.1 against 1.3.6 gave 1.05 (0.92 to 1.26),
-four rounds one way and three the other:
-no difference.
-`1.4.0-dev.2664` against `1.4.0-dev.2971` gave 1.06 (0.96 to 1.16),
-which seven rounds cannot tell from no difference.
+The script as written,
+run twice,
+went the same way both times.
+For scale only:
+the medians per version in the seven rounds were about 41 ms for 1.1.1 and 1.3.6
+and 75 to 79 ms for the two pre-releases.
 
 ### Input where the cost is hidden
 
@@ -279,47 +287,92 @@ five alternating rounds each.
 - Bun 1.4.4:
    2.61 (2.51 to 2.75)
 
-Every round was slower on every runtime.
-Bun's 1.3.6 figure is lower than the others' (21.1 ms against 36.9 on Node),
-while its figure for the pre-release is about the same (55.2 against 70.5),
-so the scope work costs relatively more there.
+Every round was slower on every runtime,
+and the ratio is highest on Bun.
+The runtimes were not run against each other in the same rounds,
+so why Bun's is higher is not established here.
+Deno is being wound down:
+its maintainers [said on 2026-10-15][deno state] that it is maintained "until October 2027",
+with bug fixes and no new features.
+Its figure is kept because upstream supports it.
 
 ### Upstream's pull request 1121 as measured here
 
-Seven rounds with the order of the arms rotated,
-on Deno 2.9.8,
+Two measurements,
+each of seven rounds with the order of the arms rotated,
+a thousand paths after `--`,
+paired by round.
+
+The first ran on Deno 2.9.8,
 1.3.6 from npm and the other arms from source:
 `main` at `84f95710` and the pull request's head `a175cdb7`.
-A thousand paths after `--`:
 
-- 1.3.6:
-   30.8 ms
-- `main`:
-   56.5 ms,
-   1.87 times 1.3.6 (1.79 to 1.92)
-- Pull request 1121:
-   42.0 ms,
-   0.75 times `main` (0.71 to 0.77) and 1.37 times 1.3.6 (1.34 to 1.42)
+- `main` before the merge over 1.3.6:
+   1.87 (1.79 to 1.92).
+- Pull request 1121 over that `main`:
+   0.75 (0.71 to 0.77).
+- Pull request 1121 over 1.3.6:
+   1.37 (1.34 to 1.42).
 
-Every round went the same way in each comparison.
+The second ran on Node 26.13.1 and Bun 1.4.4 with every arm a built package,
+after the owner asked on 2026-11-13 why a timing was on Deno only.
+`main` before the merge is `84f95710`,
+the first parent of the merge `d26f1a24`,
+and the pull request is that merge,
+whose tree is the tree of `a175cdb7`.
+One more arm linked the merge's package a second time,
+to show how far the same code differs from itself.
+
+- `main` before the merge over 1.3.6:
+   Node 1.89 (1.67 to 2.29),
+   Bun 2.53 (2.11 to 3.00).
+- Pull request 1121 over that `main`:
+   Node 0.72 (0.62 to 0.77),
+   Bun 0.73 (0.66 to 0.79).
+- Pull request 1121 over 1.3.6:
+   Node 1.37 (1.27 to 1.63),
+   Bun 1.95 (1.62 to 1.99).
+- The merge's package over itself:
+   Node 1.00 (0.96 to 1.03),
+   Bun 1.06 (0.95 to 1.09).
+
+Every round went the same way in each of the first three comparisons,
+on each runtime.
 The pull request's own figures,
 on Node and another machine,
-are 37.0,
-77.6 and 54.3 ms,
-which is 0.70 times `main` and 1.47 times 1.3.6;
+come to 0.70 times `main` and 1.47 times 1.3.6;
 it says
 "the separator case remains slower than 1.3.6".
-The two measurements agree on the direction and roughly on the size.
+The measurements agree on the direction and roughly on the size.
+On Bun the pull request leaves about twice the time of 1.3.6,
+where on Node and Deno it leaves about 1.4 times.
+For scale only:
+the medians on Deno were 30.8 ms for 1.3.6,
+56.5 for `main` and 42.0 for the pull request,
+and the pull request's own were 37.0,
+77.6 and 54.3.
 
-With no separator the pull request took 0.80 times as long as `main` (0.79 to 0.81).
+With no separator the pull request over `main` was 0.80 on Deno (0.79 to 0.81),
+0.78 on Node (0.70 to 0.84) and 0.69 on Bun (0.61 to 0.89).
 
 What remains after it is still option-scope work,
 since 1.3.6 carries every other cost of this parse too.
-A separate cost that both carry happens to be about as large:
-with the input-trace patch of
+On Node and Deno a separate cost that both carry happens to be about as large.
+With the input-trace patch of
 `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md` on top of the pull request,
-the same parse took 0.94 times as long as 1.3.6 (0.86 to 1.07,
-two of seven rounds slower).
+the same parse over 1.3.6 was 0.94 on Deno (0.86 to 1.07,
+two of seven rounds slower)
+and 0.92 on Node (0.84 to 1.05,
+one of seven slower).
+On Bun it was 1.92 (1.84 to 2.28),
+slower in all seven:
+at a thousand paths that patch changes nothing measurable there,
+the patched merge over the merge being 1.07 (0.95 to 1.22),
+a median inside the range of the merge's package over itself (0.95 to 1.09).
+
+The records of the second measurement are in
+`doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`,
+folder `pull-request-1121-on-node-and-bun-2026-11-13`.
 
 ## Verified workarounds
 
@@ -470,6 +523,7 @@ and upstream issue 1120 now says what it said,
 with the maintainer's own reproduction.
 Nothing is to be filed from it.
 
+[deno state]: https://github.com/denoland/deno/issues/37030#:~:text=will%20continue%20maintain%20Deno%20until%20October%202027
 [upstream issue]: https://github.com/dahlia/optique/issues/1120#:~:text=was%20reported%20in%20Monochromatic%27s
 [child context]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/constructs.ts#L248-L260
 [parser scope]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/short-option.ts#L274-L299

@@ -186,14 +186,37 @@ export const NEURALWATT_KIMI_FLEX: ProviderPool = {
 
  The owner, 2026-11-11T16:3x-05:00: "qwen-token-plan-individual  qwen4-max-preview is now available in Pi. Check if it can
  replace Kimi or Sonnet." Then, 2026-11-11T19:27-05:00: "Make the Qwen 4 pool 18, and use it for reviews INSTEAD of Kimi."
- So the limit is the owner's number. The plan's own concurrency limit for it is not measured or stated, and a 429 that names
- one sets the real number.
+ So the limit was the owner's number, 18, until 2026-11-13.
+
+ The limit now is measured. On 2026-11-13, between 13:56:41 and 15:15:53 (-05:00), the plan answered eighteen runs on this
+ model "429 ... Allocated quota exceeded ... insufficient_quota", which its error-code page gives as a limit on tokens a second
+ or a minute, and Pi 1.5.2 never retries that answer (`@earendil-works/pi-ai/dist/utils/retry.js` lists `insufficient_quota`
+ and `quota exceeded` as not retryable), so each one ended its run. Counted from every run's feed and summary of that day:
+ each ending came with six to nine runs on this model going; by minute, none in the 278 minutes with five or fewer going, one
+ in the 40 minutes at six, five in the 21 at seven, one in the 5 at eight, one in the single minute at nine. Six to nine runs
+ on the plan's DeepSeek model were going beside them each time, and whether the plan counts those against the same limit is
+ not shown. The owner, 2026-11-13T15:2x-05:00: "You're responsible for the driver, the wrapper, mpm, cargo. If you find a
+ issue you or a subagent fix it."
+
+ Corrected the same day at 15:45: five does not prevent the answer. Between 15:36:05 and 15:41:05 it ended three more runs with
+ only two and three runs on this model going (by minute then: two of the 297 minutes at five or fewer held an ending, against
+ eight of the 67 at six or more), and the runs it ended had contexts from 27,598 to 523,600 tokens while runs of 118,179 to
+ 599,191 finished, so neither the count of runs nor the size of a run's context tells which request is refused.
+
+ What the provider says of the plan (its Token Plan FAQ, read 2026-11-13,
+ https://docs.modelstudio.console.alibabacloud.com/en/model-studio/token-plan-personal-faq): the rate limits "are adjusted
+ dynamically based on overall load" and "cannot be increased"; a caller that is limited should "wait about 1 minute before
+ retrying"; and the concurrency it recommends for the personal edition is "1-2 Agents" on its smallest tier and "6-8 Agents" on
+ its largest. So five stays as a number inside what the largest tier is recommended, where 18 was more than twice it, and what
+ lets a run live through the answer is a retry after about a minute, not this number. A first form of this comment said to
+ lower the number by one at each such ending; that rule is withdrawn, because the answer comes at any count and the rule would
+ only walk the pool down to nothing.
  */
 export const QWEN_PLAN_QWEN4_MAX_PREVIEW: ProviderPool = {
   name: 'qwen-token-plan',
   provider: 'qwen-token-plan-individual',
   model: 'qwen4-max-preview',
-  limit: 18,
+  limit: 5,
   wallFactor: 1,
   takesDefaultRuns: false,
 };

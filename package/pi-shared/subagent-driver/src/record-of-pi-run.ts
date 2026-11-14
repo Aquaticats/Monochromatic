@@ -163,6 +163,11 @@ export function startRecordOfPiRun({
     driverError?: string;
 
     /**
+     What the driver failed to read when it asked what the run left running.
+     */
+    workProblem?: string;
+
+    /**
      How many attempts after a model error the run made.
      */
     retries: number;
@@ -272,6 +277,13 @@ export function startRecordOfPiRun({
         failure,
       },);
     },
+    noteWorkProblem: function noteWorkProblem(failure,) {
+      state.workProblem = failure;
+      note({
+        kind: 'work-unreadable',
+        failure,
+      },);
+    },
     observe: function observe(observation,) {
       activity.at = now();
       observed.observe(observation,);
@@ -302,6 +314,7 @@ export function startRecordOfPiRun({
         ...piRetryOf(observed,),
         ...feedProblemOf(feed,),
         ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),
+        ...(state.workProblem === undefined ? {} : { workProblem: state.workProblem, }),
         ...compactionProblemOf(observed,),
       };
     },

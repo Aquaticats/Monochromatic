@@ -45,7 +45,7 @@ use crate::command_clean::{CleanRegion, clean_changes_worktree, parse_clean_regi
 use crate::command_worktree::worktree_removal;
 use crate::command_discard::{
     Discard, abort_discard, checkout_discard, force_discard, read_tree_discard, restore_discard,
-    restores_index_only, revision_before_paths, switch_discard,
+    restores_index_only, revision_before_paths, skip_discard, switch_discard,
 };
 use crate::command_options::{OptionError, OptionSpec};
 use crate::command_reset::{ResetMode, ResetRegion, RESET_TABLE, parse_reset_region};
@@ -100,7 +100,8 @@ pub const LINKED_WORKTREE_REQUIRED_CODE: &str = "linked-worktree-required";
 /// ```ts
 /// type GuardedCommand = 'stash' | 'clean' | 'reset-hard' | 'reset-mixed' | 'restore-staged' | 'restore-worktree'
 ///   | 'checkout-paths' | 'checkout-move' | 'switch-force' | 'switch-move' | 'rm' | 'mv' | 'checkout-index'
-///   | 'read-tree' | 'abort-merge' | 'abort-rebase' | 'abort-pick' | 'abort-am';
+///   | 'read-tree' | 'abort-merge' | 'abort-rebase' | 'abort-pick' | 'abort-am'
+///   | 'skip-rebase' | 'skip-pick' | 'skip-am';
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum GuardedCommand {
@@ -151,6 +152,15 @@ pub enum GuardedCommand {
     AbortPick,
     /// `git am --abort`.
     AbortAm,
+    /// `git rebase --skip`,
+    /// which drops the commit the rebase stopped at and goes on.
+    SkipRebase,
+    /// `git cherry-pick --skip` or `git revert --skip`,
+    /// which drop the commit a sequence stopped at and go on.
+    SkipPick,
+    /// `git am --skip`,
+    /// which drops the patch it stopped at and goes on.
+    SkipAm,
 }
 
 /// The enum's own lists.
@@ -170,7 +180,7 @@ impl GuardedCommand {
     /// ```ts
     /// const ALL_GUARDED_COMMANDS: readonly GuardedCommand[] = ['stash', 'clean', /* ... */ 'abort-am'];
     /// ```
-    pub const ALL: [GuardedCommand; 21] = [
+    pub const ALL: [GuardedCommand; 24] = [
         GuardedCommand::Stash,
         GuardedCommand::StashDrop,
         GuardedCommand::Clean,
@@ -192,6 +202,9 @@ impl GuardedCommand {
         GuardedCommand::AbortRebase,
         GuardedCommand::AbortPick,
         GuardedCommand::AbortAm,
+        GuardedCommand::SkipRebase,
+        GuardedCommand::SkipPick,
+        GuardedCommand::SkipAm,
     ];
 }
 
@@ -404,6 +417,47 @@ fn decided(command: GuardedCommand, reading: Discard) -> LinkedWorktreeDecision 
 }
 
 /// What:
+///  The form `git merge --abort` and its siblings are,
+///  or nothing for a word whose abort is not this policy's.
+/// Why:
+///   The abort reading and the skip reading are both decided from the same word,
+///  and each names its own form.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function abortingForm(word: Buffer): GuardedCommand | undefined;
+/// ```
+fn aborting_form(word: &[u8]) -> Option<GuardedCommand> {
+    return match word {
+        b"merge" => Some(GuardedCommand::AbortMerge),
+        b"rebase" => Some(GuardedCommand::AbortRebase),
+        b"cherry-pick" | b"revert" => Some(GuardedCommand::AbortPick),
+        b"am" => Some(GuardedCommand::AbortAm),
+        _ => None,
+    };
+}
+
+/// What:
+///  The form `git rebase --skip` and its siblings are,
+///  or nothing for a word that has no `--skip`.
+/// Why:
+///   `git merge` has no `--skip`,
+///  so a region that spelled it is Git's to refuse and nothing is discarded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function skippingForm(word: Buffer): GuardedCommand | undefined;
+/// ```
+fn skipping_form(word: &[u8]) -> Option<GuardedCommand> {
+    return match word {
+        b"rebase" => Some(GuardedCommand::SkipRebase),
+        b"cherry-pick" | b"revert" => Some(GuardedCommand::SkipPick),
+        b"am" => Some(GuardedCommand::SkipAm),
+        _ => None,
+    };
+}
+
+/// What:
 ///  Whether a guarded subcommand word and its region can discard,
 /// and in which way.
 ///  `&[u8]` borrows the subcommand word;
@@ -516,16 +570,20 @@ fn guarded_decision(
     if word == b"read-tree" {
         return Ok(decided(GuardedCommand::ReadTree, read_tree_discard(region)?));
     }
-    for (aborting, command) in [
-        (&b"merge"[..], GuardedCommand::AbortMerge),
-        (b"rebase", GuardedCommand::AbortRebase),
-        (b"cherry-pick", GuardedCommand::AbortPick),
-        (b"revert", GuardedCommand::AbortPick),
-        (b"am", GuardedCommand::AbortAm),
-    ] {
-        if word == aborting {
-            return Ok(decided(command, abort_discard(region)));
+    // The two forms that end the operation a conflict stopped are read before every other form of their word,
+    //  because both drop the hand resolution the operation is waiting on.
+    if let Some(aborting) = aborting_form(word) {
+        if matches!(abort_discard(region), Discard::Overwrites) {
+            return Ok(decided(aborting, Discard::Overwrites));
         }
+        // A `--skip` goes on with the next commit or patch after dropping this one, and the reset it makes
+        //  throws the hand resolution away just as the abort does (measured with Git 2.56.0), so it is guarded too.
+        if let Some(skipping) = skipping_form(word)
+            && matches!(skip_discard(region), Discard::Overwrites)
+        {
+            return Ok(decided(skipping, Discard::Overwrites));
+        }
+        return Ok(LinkedWorktreeDecision::Pass);
     }
     return Ok(LinkedWorktreeDecision::Pass);
 }

@@ -52,6 +52,12 @@ fn an_unanswered_submission_keeps_the_tree_and_a_definite_refusal_does_not() {
         ClientFailure::Refused,
         ClientFailure::DidNotStart,
         ClientFailure::NoActivation(crate::service_provision::platform_without_manager()),
+        // The request never reached the service as one line, and a line the service may have is never answered whole:
+        //  measured in a fixture whose service stopped with `SIGSTOP` in the write of a 652,332-byte request.
+        ClientFailure::ServiceNotReading { took_nothing: true },
+        ClientFailure::ServiceNotReading { took_nothing: false },
+        // Nothing answered at the service's address, so the request was never sent at all.
+        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: std::time::Duration::from_secs(10) },
     ] {
         assert!(the_service_never_took(&Err(refused.clone())), "the service never took the request: {refused:?}");
     }
