@@ -837,3 +837,37 @@ fn btrfs_a_resume_writes_no_warning_that_its_pass_is_not_recorded() {
     assert!(!written.contains("is not recorded"), "and says nothing about a pass that is not recorded, because the record stands: {written}");
     remove(root.as_path());
 }
+
+/// What:
+///  The four lines a destroy leaves are told apart:
+///  the two that wait for the commit service, and the two that say the files are gone now,
+///  each in its forced and unforced form.
+/// Why:
+///   A person looking for the files reads exactly one of them,
+/// and a line that names a queued delete where there is none
+///  sends them looking for a delete nobody will make.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(destroyNotice({ force: false, handedOver: false })).toContain('every file of it is gone now');
+/// expect(destroyNotice({ force: false, handedOver: false })).not.toContain('deletes the files after');
+/// ```
+#[test]
+fn the_four_destroy_lines_say_where_the_files_went() {
+    for (force, handed_over, ending) in [(false, true, "handed-over, unforced"), (true, true, "handed-over, forced"), (false, false, "here, unforced"), (true, false, "here, forced")] {
+        let notice: &str = destroy_notice(force, handed_over);
+        assert!(notice.contains("in one step"), "the line says the destroy is one step ({ending}): {notice}");
+        assert!(notice.contains("cannot be undone"), "and that it cannot be undone ({ending}): {notice}");
+        if handed_over {
+            assert!(notice.contains("the commit service deletes the files after this command returns"), "a hand-over says the service deletes them later ({ending}): {notice}");
+            assert!(!notice.contains("gone now"), "and never that they are gone now ({ending}): {notice}");
+        } else {
+            assert!(notice.contains("every file of it is gone now"), "a destroy made here says the files are gone now ({ending}): {notice}");
+            assert!(notice.contains("the commit service has nothing left to delete for it"), "and that nothing waits for the service ({ending}): {notice}");
+            assert!(!notice.contains("deletes the files after this command returns"), "and never that a delete waits ({ending}): {notice}");
+        }
+        if force {
+            assert!(notice.contains("without checking it for changes first"), "a forced removal says nothing was checked ({ending}): {notice}");
+        }
+    }
+}
