@@ -1174,6 +1174,15 @@ which ended at 20:45:35.
   after which the wrapper pushed every commit:
   a third sighting for the pending-push run,
   beside passes 23 and 24.
+- So that passes 23 and 26,
+  both still going at 20:52,
+  do not come back the same way,
+  each got a note in its inbox:
+  `main` holds two more releases,
+  a report of "fit" is taken only for a tip that holds `5fdce426c0`,
+  and both test targets are compiled again after that merge.
+  The note is kept as
+  `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/note-for-the-passes-still-going-that-main-holds-two-more-releases-2026-11-13T2052.md`.
 
 ##### The index-lock author answered its third review; a lock a killed Git leaves is still never cleared on this volume (2026-11-13T20:47:05-05:00)
 
