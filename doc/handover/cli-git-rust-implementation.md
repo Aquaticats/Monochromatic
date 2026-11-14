@@ -1202,6 +1202,32 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### 0.6.1-alpha.23 is published and installed (2026-11-13T23:14:59-05:00)
+
+Not final and not approved;
+run and read by the coordinating session.
+
+- Release run 43554797871 and its `cargo-publish.yml` run 43554888828 ended with success;
+  the release `monochromatic-git-policy-cli-v0.6.1-alpha.23` carries both archives.
+- Installed on this machine between 23:14:39 and 23:14:47
+  (`~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/install-of-0-6-1-alpha-23-output.txt`).
+  The wrapper answers `0.6.1-alpha.23`.
+- The sample commit of the lock took 993 ms
+  (its timing line:
+  187 ms preparing,
+  183 ms reaching the service across the change of release,
+  504 ms waiting for the answer;
+  answered by alpha.23).
+- The journal from 23:14:00 to 23:14:59,
+  67 lines:
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at its start limit.
+  That is the first minute alone;
+  the count over six minutes is taken at the next pass over the runs.
+- It holds pass 27 alone.
+  The next release is `0.6.1-alpha.24`.
+
 ##### Pass 27 is in main and alpha.23 is dispatched; the landed sweep keeps snapshot-made worktrees; two mpm-shadow runs read (2026-11-13T23:10:21-05:00)
 
 Not final and not approved:
