@@ -43,9 +43,11 @@ use crate::shadow_pool_member::refusal;
 /// One Git start.
 use crate::transaction_git::{GitContext, GitFailure};
 /// The renewal that keeps a tree a command holds from aging out,
+/// the call that marks a tree as used now,
 /// and the age it is written against.
 use crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER;
 use crate::service_scratch_renewal::ScratchRenewal;
+use crate::scratch_location::renew;
 /// What the folder beside the pool is called.
 use crate::wrapper_names_old_and_new::SHADOW_DRAWN_FOLDER;
 /// Paths,
@@ -168,6 +170,10 @@ pub fn is_a_drawn_tree(tree: &Path, common_dir: &Path, git_dir: &Path) -> bool {
 ///  A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
 ///  every member of theirs would be refused,
 ///  so a draw makes none (`shadow_pool.rs`, `fill`).
+///  The draw marks the tree it drew as used now,
+///  so the age a sweep goes by is the tree's time in the drawn folder and never the age it carried out of the pool:
+///  a `rename` keeps the modification time of the member,
+///  and a member that stood there longer than the sweep's bound would otherwise be abandoned from the moment it is drawn.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -202,6 +208,8 @@ pub fn draw(_context: &GitContext, template: &ShadowTemplate) -> Result<Option<P
         if std::fs::rename(member.as_path(), drawn.as_path()).is_err() {
             continue;
         }
+        // The tree is the stock's from now, and its age starts here: the member's old age says nothing about when it was drawn.
+        renew(drawn.as_path());
         match refusal(template, drawn.as_path()) {
             Ok(None) => return Ok(Some(drawn)),
             Ok(Some(reason)) => note_refusal(drawn.as_path(), reason.as_str()),
@@ -242,6 +250,14 @@ fn note_refusal(drawn: &Path, reason: &str) {
 ///  The age is the scratch tree's own (`SCRATCH_TREE_ABANDONED_AFTER`),
 ///  because a drawn tree is held exactly as long as the tree a commit would have made in its scratch:
 ///  a commit that runs for two hours is the bound both rules are written against.
+///  The tree is marked as used when it is drawn and again when it is handed out
+///  (`draw`,
+///  `service_shadow_draw.rs`,
+///  `hand_out`),
+///  and the command that holds it renews it every `SCRATCH_REFRESH_EVERY`,
+///  which is half this bound:
+///  so a tree that is somebody's is never this old,
+///  and a tree that stopped being anybody's goes a bound after its last mark.
 ///  Nothing else reaches a drawn tree:
 ///  no sweep of the repository scratch directory,
 ///  and no pool removal.
@@ -313,6 +329,7 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
 ///  Whether a drawn tree has gone longer than any commit holds one without being renewed.
 /// Why:
 ///   This is the whole of the question a tree in use is told from an abandoned one by:
+///  a tree is marked as used when it is drawn and when it is handed out,
 ///  a command renews what it holds,
 ///  and a command that stopped renews nothing,
 ///  so the answer needs no lock,

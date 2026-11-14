@@ -27,6 +27,9 @@
 /// One thread per draw,
 /// which the system may refuse.
 use crate::scoped_start::{refused_thread_sentence, spawn_named};
+/// The call that marks a tree as used now,
+/// which is the only thing that tells the sweep a drawn tree is somebody's.
+use crate::scratch_location::renew;
 /// What a commit request names.
 use crate::service_protocol::CommitRequest;
 /// The facts a creation is made from,
@@ -58,7 +61,8 @@ static DRAWING: AtomicBool = AtomicBool::new(false);
 ///  a listing of the drawn folder can wait on the volume,
 ///  and the answer must not.
 ///  The list is the whole of the service's own record of what it drew,
-///  so a stock a restart forgets is drawn again and the trees it dropped are left to the sweep by their age.
+///  so a stock a restart forgets is drawn again and the trees it dropped are left to the sweep by their age,
+///  which the draw marked with the moment it drew them.
 ///  The lock it is read under guards nothing on disk and dies with the process,
 ///  so it is never a lock a commit can be left waiting on.
 ///
@@ -112,14 +116,28 @@ impl DrawnShadows {
     ///  so two commits that ask at the same moment never get the same tree:
     ///  the second one is told the stock is empty and takes the pool's member or the creation,
     ///  which is the path it knows.
+    ///  The answer marks the tree it hands over as used now,
+    ///  because a drawn tree carries the pool member's modification time out of the one `rename` that drew it:
+    ///  a tree drawn from a member older than the sweep's bound is otherwise one the next sweep removes,
+    ///  before the commit holding it renews anything.
+    ///  The mark is made outside the lock,
+    ///  because the lock guards the list and never a volume.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// const tree = stock.handOut(); // the tree, or undefined
     /// ```
     pub fn hand_out(&self) -> Option<PathBuf> {
-        let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        return ready.pop();
+        let taken: Option<PathBuf> = {
+            let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            ready.pop()
+        };
+        // A tree marked as used now is one no sweep reaches until the commit that holds it has renewed it
+        //  (`shadow_drawn.rs`, `nothing_holds`).
+        if let Some(tree) = taken.as_ref() {
+            renew(tree.as_path());
+        }
+        return taken;
     }
 
     /// How many trees the stock holds now.

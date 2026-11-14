@@ -11,6 +11,7 @@ use crate::shadow_drawn::drawn_root_for;
 use crate::shadow_pool::{fill, members, pool_root_for};
 use crate::test_support::{fixture, git, git_context, repository, remove};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 /// A tree of this test's own,
 /// made where a drawn tree of the worktree would be.
@@ -18,6 +19,33 @@ fn a_tree(root: &Path, name: &str) -> PathBuf {
     let tree: PathBuf = root.join(name);
     std::fs::create_dir_all(tree.as_path()).expect("a tree to hand out");
     return tree;
+}
+
+/// Set an entry's modification time to `back` before now.
+fn age_tree(path: &Path, back: Duration) {
+    std::fs::File::open(path).expect("open").set_modified(SystemTime::now() - back).expect("set modification time");
+}
+
+/// What:
+///  A tree leaves the stock marked as used now.
+/// Why:
+///  A drawn tree carries the pool member's modification time out of the one `rename` that drew it,
+///  and the commit's own renewal beats for the first time an hour after it holds the tree,
+///  so an answer that marked nothing would hand a commit a tree the next sweep of the repository removes,
+///  before that commit writes anything into it (`shadow_drawn.rs`, `nothing_holds`).
+#[test]
+fn a_tree_leaves_the_stock_marked_as_used_now() {
+    let root: PathBuf = fixture("shadow-draw-marked");
+    let first: PathBuf = a_tree(root.as_path(), "drawn-00000000000000000000000000000002");
+    // The tree stood in the drawn folder as long as a member older than the sweep's bound would have.
+    age_tree(first.as_path(), crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
+    let aged: SystemTime = std::fs::symlink_metadata(first.as_path()).expect("metadata").modified().expect("a time");
+    let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
+    stock.note_ready(first.clone());
+    let handed: PathBuf = stock.hand_out().expect("the tree is handed out");
+    let marked: SystemTime = std::fs::symlink_metadata(handed.as_path()).expect("metadata").modified().expect("a time");
+    assert!(marked > aged, "the answer marked the tree it handed over as used now");
+    remove(root.as_path());
 }
 
 /// What:
