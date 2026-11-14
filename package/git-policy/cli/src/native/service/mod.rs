@@ -203,6 +203,9 @@ pub mod service_provision_earlier_service_retirement;
 /// The wrapper's own provisioning of the commit service's socket activation.
 pub mod service_provision;
 
+/// The socket a service stops when it was retired before it served anything.
+pub mod service_own_socket_of_a_retire_that_served_nothing;
+
 /// Dropping the service manager's copy of one worktree's units,
 /// so the next start reads the unit files as they are.
 pub mod service_provision_instance_unloaded;

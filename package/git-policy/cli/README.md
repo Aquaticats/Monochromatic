@@ -91,7 +91,14 @@ Every earlier name keeps working in this release:
    so an upgrade or a downgrade changes no unit text and nothing has to make the user manager re-read what it holds.
   A `systemctl --user status` of the service shows that link as its program.
   A unit the manager already holds at an older text is dropped and started again rather than reloaded,
-   which is this worktree's own unit and nobody else's.
+   which is this worktree's own unit and nobody else's,
+   and the socket is stopped in the mode that leaves the service alone,
+  so a landing another command began in the
+   meantime is never cut.
+  The link the releases before this one named (`service-program` in the notes folder) is pointed at the running
+   executable too,
+  so an instance whose loaded text is one of theirs starts this release instead of a program the
+   install removed.
   That repair never costs a commit:
   a service still landing a batch,
   a manager that stops answering,
@@ -3993,8 +4000,10 @@ none is waited out or retried on the moved head yet:
   A request is a JSON object and a framing newline,
   and the service takes it only when the whole line arrived:
   a line that ends with the connection instead of its newline is refused and never queued.
-  So a commit is called "not made, and it cannot land later" only when no attempt of it put one whole line on the wire;
-  after an attempt that did, the same give-up is reported as a result that is not known,
+  So a commit is called "not made,
+  and it cannot land later" only when no attempt of it put one whole line on the wire;
+  after an attempt that did,
+  the same give-up is reported as a result that is not known,
   and the commit's staged work and scratch tree stay where they are.
   A commit whose whole request did reach the service is never described as one a waking service cannot land:
   that message says the service may still make it and names `git log -1`.
@@ -4006,7 +4015,8 @@ none is waited out or retried on the moved head yet:
   whether the commit was made,
   that your staged changes and working files are as they were,
   and the three steps that end it.
-  Those steps are, in this order:
+  Those steps are,
+  in this order:
   `git monochromatic-git-policy-cli service status`,
   which says whether this worktree's service answers and names the unit that serves it;
   a restart of that one unit (`systemctl --user restart` and the name the status printed),
@@ -4017,7 +4027,8 @@ none is waited out or retried on the moved head yet:
   never the `@*` pattern of every service of the account,
   because restarting them all stops the commits of every other worktree.
   A service that wakes after the command ended makes no commit:
-  the request it still holds is dropped, because the command on that connection is gone.
+  the request it still holds is dropped,
+  because the command on that connection is gone.
 - The branch keeps changing:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with
@@ -5212,7 +5223,8 @@ and `native:perf` enforces both:
   a commit real Git takes 50 ms to make may gain five seconds,
   and one it takes 30 s to make under disk pressure may gain 60 s.
   The owner changed the rule on 2026-11-12:
-  "Change the 5s rule to max(5s, double what native git takes)",
+  "Change the 5s rule to max(5s,
+  double what native git takes)",
   read as the extra over real Git.
   A wrapper time alone says nothing under it,
   so every wrapper commit is measured beside a native Git commit of the same change set,

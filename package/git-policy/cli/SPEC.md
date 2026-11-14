@@ -7817,7 +7817,8 @@ now inside these bounds:
   A line is read in chunks under the bound the connection carries,
   because one `read_line` restarts the operating system's read timeout with every chunk a service sends,
   so a service that dribbles bytes and never ends its line held a client inside one call for ever.
-- A request is a JSON object and a framing newline, and the service takes it only when the whole line arrived.
+- A request is a JSON object and a framing newline,
+  and the service takes it only when the whole line arrived.
   A line that ends with the connection instead of its newline is not decoded,
   not queued,
   and refused in the service's log
@@ -7826,13 +7827,15 @@ now inside these bounds:
   and neither carries the proof alone:
   the client's chunked write can leave every byte of the object and only the newline unsent,
   and the service used to decode that at end of stream and land it
-  (the review of this change, finding 1).
+  (the review of this change,
+  finding 1).
 - The client says the service never took a request only when it never put one whole request line on the wire.
   A give-up on the write ends with `ClientFailure::ServiceNotReading`,
   which says the commit was not made and cannot land later
   (`landing/service_messages_of_a_service_that_stopped.rs`),
   only when no attempt of this command delivered a whole line;
-  after an attempt that did, a give-up ends with the "not known" failure,
+  after an attempt that did,
+  a give-up ends with the "not known" failure,
   whose commit's scratch tree stays with the service's claim on it.
   The failure that says the branch holds no commit of this command's yet does not say a waking service drops it:
   the landing's client-gone check races the connection writer's heartbeat,
@@ -8192,11 +8195,21 @@ and
   because the start that follows may be hours away:
   the service exits after three idle hours,
   and the manager starts it again from whatever the link names then.
+  The link the releases before this one named in every unit text they wrote
+  (`service_instance.rs`,
+  `EARLIER_RELEASES_PROGRAM_POINTER`,
+  `<runtime>/systemd/user/<notes>/service-program`)
+  is pointed at the running executable too,
+  so an instance whose loaded text is theirs starts this release instead of a
+  program the install removed,
+  which would fail every start at the EXEC step and end at the manager's start limit.
   The one thing left is a unit the manager holds at an older text,
   and it is dropped rather than reloaded (`service_provision_instance_unloaded.rs`):
   a service that runs is asked to retire first,
   so the batch it holds is finished,
-  the worktree's socket is stopped,
+  the worktree's socket is then stopped in the mode that leaves the service alone,
+  because a plain stop carries through `Requires=` to a service another command started meanwhile,
+  and such a service is asked to retire and waited for instead of ever being stopped,
   the manager is asked what it holds of the worktree's units until it holds neither,
   and the socket is started again,
   so the next start reads the file as it is now.
@@ -19257,7 +19270,8 @@ The bound holds for each commit,
 not for a percentile of them.
 It is the owner's change of 2026-11-12,
 "The five-second rule is changed":
-"Change the 5s rule to max(5s, double what native git takes)",
+"Change the 5s rule to max(5s,
+double what native git takes)",
 read as the extra over real Git.
 The requirements it replaces were the flat 5,000 ms,
 which is what the owner set on 2026-11-01:

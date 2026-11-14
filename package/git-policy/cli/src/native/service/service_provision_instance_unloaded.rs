@@ -123,35 +123,50 @@ enum ServiceLeft {
     NotAsked(CallError),
 }
 
+impl ServiceLeft {
+    /// Whether the service may still run something,
+    /// so nothing of it may be stopped.
+    fn is_running(&self) -> bool {
+        return !matches!(self, Self::Gone);
+    }
+
+    /// What a repair found,
+    /// for the line that says why it left the service alone.
+    fn why(&self) -> String {
+        return match self {
+            Self::Gone => String::from("nothing runs in it"),
+            Self::StillRunning => String::from("it is still running a batch, or will not leave"),
+            Self::NotAsked(error) => describe(error),
+        };
+    }
+}
+
 /// What:
 ///  Stops this worktree's service and socket units and waits until the manager no longer holds them.
 /// Why:
 ///   Until it holds neither,
 /// a start may run the text it read before the files changed.
-/// The socket is stopped in the mode
-///  that applies the job to it and to the units that require it,
-/// so the service goes with it and the socket cannot start
-///  it again meanwhile;
-/// a manager that holds no socket has the service stopped alone,
-/// which is what a manager that
-///  unloaded the socket on its own leaves.
-/// A service that runs is asked to retire first,
-/// and the wait for it to leave
-///  is the retirement wait of the host,
+/// A service that runs is asked to leave by itself,
+/// and given the
+///  retirement wait,
 /// because a batch it is landing is finished rather than cut.
-/// Nothing here ends a commit:
+/// The socket is then stopped with the mode that
+///  leaves what requires it alone
+/// (`stop_alone`):
+/// the service unit `Requires=` the socket,
+/// so a plain stop of the socket would
+///  end a service another command started between the look above and this call,
+/// in the middle of its landing,
+/// and that is
+///  the one thing this repair must not do.
+/// A service that is still there after that is asked to retire and waited for,
+///  and one that does not leave only ends this commit's repair:
+/// the commit goes on through it and the next commit asks again.
+/// Nothing here
+///  ends a commit:
 /// every wait it gives answers what it found,
-/// and the commit goes on through whatever the manager holds,
-/// with the
-///  record of what the manager read left unwritten so the next commit asks again.
-/// The one harm this repair turns away
-///  (a start running the release that replaced this one,
-/// from a unit held at a text older than the program link)
-/// is
-///  answered where it happens,
-/// by the client's own repair for a service of another release
-/// (`service_client_reach_service.rs`),
-/// not by failing the commit that found it.
+/// and the record of what the manager read stays unwritten
+///  whenever the units were not watched being dropped.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -190,56 +205,80 @@ pub(crate) fn unload_instance(host: &ProvisionHost, manager: &mut dyn Manager) -
     if service_state.is_none() && socket_state.is_none() {
         return Unloaded::Dropped;
     }
-    // A service that runs is asked to leave by itself before anything is stopped, so the batch it holds is finished.
+    // What: A service that runs is asked to leave by itself before anything is stopped, so the batch it holds is finished.
+    // Why:  Stopping its unit instead would cut a landing, and a landing may hold the index for longer than the retirement
+    //       wait (`wait_ceilings.rs`, `LANDING_LOCK_CEILING`); a service still there at that wait ends this repair and not this
+    //       commit (`stop_of_the_service_noticed_by_its_children.rs`).
     if !matches!(&service_state, Some(state) if is_at_rest(state.as_str())) {
-        ask_to_retire(socket_path(host.runtime_dir.as_path(), instance).as_path());
-        match wait_until_at_rest(host, manager, service.as_str()) {
-            ServiceLeft::Gone => {}
-            // What: A service still there at the wait is landing a batch, so nothing of it is stopped and the commit goes on
-            //       through it.
-            // Why:  A landing may hold the index for longer than this wait (`wait_ceilings.rs`, `LANDING_LOCK_CEILING`), and the
-            //       commit does not need the text to be fresh to land: the service is alive and answers it, the unit is left as
-            //       the manager holds it, and the record stays unwritten so the next commit drops the unit once it is at rest.
-            //       Stopping it here would cut the landing, which is the one thing this repair must not do
-            //       (`stop_of_the_service_noticed_by_its_children.rs`).
-            ServiceLeft::StillRunning => {
+        let left: ServiceLeft = retire_service(host, manager, instance);
+        if left.is_running() {
+            crate::service_warn!(
+                "the commit service of this worktree ({service}) did not leave after it was asked to retire ({}), so nothing of it is stopped, this commit goes on through it, and the next commit drops the unit once it is at rest",
+                left.why()
+            );
+            return Unloaded::NotAsked;
+        }
+    }
+    // What: The socket is stopped with the mode that leaves the service alone.
+    // Why:  A plain stop carries through the service unit's `Requires=` and ends a service another command started between
+    //       the look above and this call, which is a landing cut with no retire ask made
+    //       (`systemd_dbus.rs`, the `replace` mode; measured by the review of `575c585373`).
+    //       A service that such a start left running is asked to retire in the wait below, and never stopped.
+    if socket_state.is_some() {
+        match stop_alone(manager, socket.as_str()) {
+            Ok(()) => {}
+            // What: A stop the manager did not take leaves the units as they are and the commit going.
+            // Why:  The stop is part of a repair the next commit repeats; failing here would end a commit over a call that
+            //       changed nothing, and a line that names a missing user service manager would be false of a manager that just
+            //       refused one request.
+            Err(error) => {
                 crate::service_warn!(
-                    "the commit service of this worktree ({service}) is still running {:.0} seconds after it was asked to retire, which is a batch landing, so this commit goes on through it and the next commit drops the unit once it is at rest",
-                    host.retirement_wait.as_secs_f64()
-                );
-                return Unloaded::NotAsked;
-            }
-            // What: A manager that cannot say what the service does leaves the units as they are and the commit going.
-            // Why:  The answer only decides whether they have to be dropped; nothing can be dropped on a guess, the commit does
-            //       not need the repair to land, and the record is not written, so the next commit asks again.
-            ServiceLeft::NotAsked(error) => {
-                crate::service_warn!(
-                    "the service manager could not say whether the commit service of this worktree ({service}) is still running: {}; the units stay as they are and the commit goes on, and the next commit asks again",
+                    "the service manager did not take the stop of this worktree's own unit ({socket}): {}; the units stay as they are and the commit goes on, and the next commit asks again",
                     describe(&error)
                 );
                 return Unloaded::NotAsked;
             }
         }
     }
-    manager.within(crate::systemd_dbus::EXCHANGE_WAIT);
-    let stopped: Result<(), CallError> = if socket_state.is_some() { manager.stop(socket.as_str()) } else { manager.stop(service.as_str()) };
-    match stopped {
-        Ok(()) => {}
-        Err(CallError::Manager { name, .. }) if name == crate::systemd_dbus::NO_SUCH_UNIT => {}
-        // What: A stop the manager did not take leaves the units as they are and the commit going.
-        // Why:  The stop is part of a repair the next commit repeats; failing here would end a commit over a call that changed
-        //       nothing, and a line that names a missing user service manager would be false of a manager that just refused one
-        //       request.
-        Err(error) => {
-            crate::service_warn!(
-                "the service manager did not take the stop of this worktree's own unit ({socket}): {}; the units stay as they are and the commit goes on, and the next commit asks again",
-                describe(&error)
-            );
-            return Unloaded::NotAsked;
-        }
-    }
-    return wait_until_dropped(manager, [service.as_str(), socket.as_str()].as_slice());
+    return wait_until_dropped(host, manager, instance, service.as_str(), socket.as_str());
 }
+
+/// What:
+///  One stop of a unit through the manager,
+/// where a unit it does not hold is stopped already.
+/// Why:
+///   A unit the manager unloaded between the question and the stop is what a repair of two units leaves,
+/// and it is not a refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stopAlone(manager, unit) // StopUnit with ignore-dependencies, NO_SUCH_UNIT taken as done
+/// ```
+fn stop_alone(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
+    return match manager.stop_alone(unit) {
+        Err(CallError::Manager { name, .. }) if name == crate::systemd_dbus::NO_SUCH_UNIT => Ok(()),
+        other => other,
+    };
+}
+
+/// What:
+///  Asks this worktree's service to leave by itself and waits the retirement wait for it,
+/// and answers what it found.
+/// Why:
+///   A retire is what lets a batch finish;
+/// a service that does not leave is landing one,
+/// and neither this wait nor the caller's
+///  repair stops it (`service_client_listen_and_ask_to_retire.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// retireService(host, manager, instance) // { gone } | { stillRunning } | { notAsked }
+/// ```
+fn retire_service(host: &ProvisionHost, manager: &mut dyn Manager, instance: &str) -> ServiceLeft {
+    ask_to_retire(socket_path(host.runtime_dir.as_path(), instance).as_path());
+    return wait_until_at_rest(host, manager, service_unit_instance(instance).as_str());
+}
+
 /// Waits until the manager reports the unit `unit` at rest or not held,
 /// and answers what it found when the retirement wait runs out.
 /// Why:
@@ -280,30 +319,53 @@ fn wait_until_at_rest(host: &ProvisionHost, manager: &mut dyn Manager, unit: &st
 ///   A unit the manager unloaded is read from its file the next time it is started;
 /// one it still holds is started from
 ///  the text it read earlier.
-/// A unit it still holds when `UNLOAD_WAIT` runs out is one another command started again,
-/// or one whose
-///  collection the manager has not reached,
-/// and neither is a reason to end a commit:
-/// the commit goes on through whatever the manager
-///  runs,
-/// and the record stays unwritten so the next commit asks again.
-/// A question it cannot answer leaves the units as they
-///  are and the commit going,
-/// for the same reason.
+/// A service that a connection started inside this wait is landing a batch:
+/// it is asked to retire
+///  and waited for,
+/// and one that does not leave ends this repair without being stopped.
+/// A unit it still holds when
+///  `UNLOAD_WAIT` runs out is one whose collection the manager has not reached,
+/// and that is not a reason to end a commit
+///  either:
+/// the commit goes on through whatever the manager runs,
+/// and the record stays unwritten so the next commit asks
+///  again.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// await waitUntilDropped(manager, ['<service>', '<socket>'])
+/// await waitUntilDropped(host, manager, instance, '<service>', '<socket>')
 /// ```
-fn wait_until_dropped(manager: &mut dyn Manager, units: &[&str]) -> Unloaded {
+fn wait_until_dropped(host: &ProvisionHost, manager: &mut dyn Manager, instance: &str, service: &str, socket: &str) -> Unloaded {
     let deadline: std::time::Instant = std::time::Instant::now() + UNLOAD_WAIT;
+    // What: Whether a service started inside this wait was already asked to retire.
+    // Why:  One ask each, so a service that keeps answering is not asked in a loop inside this wait.
+    let mut asked: bool = false;
     loop {
         let mut held: Option<&str> = None;
-        for unit in units {
+        for unit in [service, socket] {
             manager.within(deadline.saturating_duration_since(std::time::Instant::now()).max(UNLOAD_POLL));
             match manager.active_state(unit) {
                 Ok(None) => {}
-                Ok(Some(_state)) => held = Some(unit),
+                Ok(Some(state)) => {
+                    held = Some(unit);
+                    // What: A service that a connection started inside this wait is landing a batch, so it is asked to leave
+                    //       by itself and waited for.
+                    // Why:  Nothing here may stop a landing: a stop carries through the socket's `Requires=` to the service,
+                    //       and cutting a batch is what leaves a commit "not known whether it landed"
+                    //       (`service_provision_instance_unloaded.rs`, the module doc).
+                    if unit == service && !is_at_rest(state.as_str()) && !asked {
+                        asked = true;
+                        let left: ServiceLeft = retire_service(host, manager, instance);
+                        if left.is_running() {
+                            crate::service_warn!(
+                                "the commit service of this worktree ({service}) started again while its units were being dropped and did not leave ({}), so nothing of it is stopped, this commit goes on through it, and the next commit drops the unit once it is at rest",
+                                left.why()
+                            );
+                            return Unloaded::NotAsked;
+                        }
+                        held = None;
+                    }
+                }
                 // What: A question the manager cannot answer leaves the units as they are and the commit going.
                 // Why:  It answered the stop and may still be dropping them; the record is not written, so the next commit asks
                 //       again, and a line that says this account has no user service manager would be false of a manager that
