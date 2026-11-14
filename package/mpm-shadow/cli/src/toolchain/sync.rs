@@ -266,10 +266,13 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             Err(error) => report.failed.push((tool.declaration.id.clone(), error.message)),
         }
     }
-    // These passes take no lock. A launcher's record is written after its program, so a visible record with no launcher is a
-    // leftover of a retirement and never an install still placing one, and every removal moves the entry aside and removes it
-    // only when it is still the entry the proof read. An install running beside this one therefore sees whole steps and can
-    // undo none of them, whether or not anything is locked.
+    // These passes take no lock. Three things keep an install running beside this one safe:
+    // a launcher's record is written after its program, so a visible record with no launcher is a leftover of a retirement
+    // and never a placement in progress; every removal moves the entry aside and removes it only when it is still the entry
+    // the proof read; and the retirement reads the lock on disk again at the instant of each removal, so an item a newer lock
+    // declares (one another install has just placed) is kept. What that does not cover is an item a newer lock does NOT
+    // declare and another install is placing right now: the move-aside then takes that install's new entry, finds it is not
+    // the one proved, and puts it back, so it is never deleted.
     match sync_postinstall_links(ctx, &entries) {
         Ok(notices) => {
             report.retired_links = notices.retired;

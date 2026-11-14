@@ -135,6 +135,51 @@ pub(crate) fn could_not_put_back(path: &Path, temporary: &Path, error: &std::io:
 }
 
 /// What:
+/// The sentence for a file that was moved aside and cannot be put back because something newer took the path.
+/// Why:
+/// Putting it back would overwrite what is there now, and both files are kept only if one of them stays where it is:
+/// the moved file is kept at the hidden name it was given,
+/// and nothing removes it,
+/// so the sentence has to say where it is and who can move it (the person it belongs to).
+fn kept_aside(path: &Path, temporary: &Path) -> String {
+    return format!(
+        "something newer was placed at {} while what stood there was moved aside, so that file was not put back and nothing was \
+         deleted: it is kept at {} and nothing removes it; `mv -- {} <where it belongs>` moves it",
+        path.display(),
+        temporary.display(),
+        shell_word(&temporary.to_string_lossy())
+    );
+}
+
+/// What:
+/// Puts the moved entry back at `path`,
+/// only if nothing stands at `path` now.
+/// Why:
+/// `rename` writes over whatever took the path in the window,
+/// discarding it without notice (the reviewed defect).
+/// A hard link is the atomic "make this name only if it is free": it fails with `EEXIST` instead,
+/// and the moved file then stays at its hidden name for the person to move.
+/// A directory cannot be hard-linked, and a directory is not an entry this tool removes,
+/// so that one is renamed back when the path is free (the only check-then-act left, and it moves nothing over).
+pub(crate) fn put_back(path: &Path, temporary: &Path) -> Result<(), String> {
+    match fs::hard_link(temporary, path) {
+        Ok(()) => {
+            let _ = fs::remove_file(temporary);
+            return Ok(());
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Err(kept_aside(path, temporary)),
+        Err(_) => {}
+    }
+    if fs::symlink_metadata(path).is_ok() {
+        return Err(kept_aside(path, temporary));
+    }
+    return match fs::rename(temporary, path) {
+        Ok(()) => Ok(()),
+        Err(error) => Err(could_not_put_back(path, temporary, &error)),
+    };
+}
+
+/// What:
 /// Removes `path` only when the entry standing there is still the one judged,
 /// and puts back whatever else stands there.
 /// Why:
@@ -156,9 +201,9 @@ pub(crate) fn remove_if_still(path: &Path, judged: Judged) -> Result<Removal, St
     }
     let moved: Option<Judged> = fs::symlink_metadata(&temporary).ok().map(|metadata| return judged_of_metadata(&metadata));
     if moved != Some(judged) {
-        return match fs::rename(&temporary, path) {
+        return match put_back(path, &temporary) {
             Ok(()) => Ok(Removal::Replaced),
-            Err(error) => Err(could_not_put_back(path, &temporary, &error)),
+            Err(reason) => Err(reason),
         };
     }
     return match fs::remove_file(&temporary) {

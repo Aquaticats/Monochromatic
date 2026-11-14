@@ -29,8 +29,10 @@
 //! The removal moves the entry it judged aside in one atomic step and compares what moved with what was judged
 //! (`super::removal`),
 //! so a file a person puts at the path while the proof runs is put back rather than deleted.
-//! An install that cannot read the lock never reaches here at all,
-//! the caller holds the scope's lock over these writes so no install running beside this one is seen half done,
+//! Nothing here is taken on the strength of a lock this run loaded earlier:
+//! the lock on disk is read again at the instant of every removal,
+//! and an item the lock declares then is left alone,
+//! so an install that published a newer lock and placed its launcher is not undone by this pass,
 //! and the removal order keeps a link from ever pointing at a launcher that is gone:
 //! the links go first,
 //! then the launcher,
@@ -64,10 +66,12 @@ use super::exposure::link_directory;
 use super::launcher::{RECORD_SUFFIX, parse_record, record_path};
 /// Imports what this module uses from `super::launcher_source`.
 use super::launcher_source::{launcher_source, newest_installed_shadow, program_name, running_program};
-/// Imports `Postinstall` from `super::model`.
-use super::model::Postinstall;
+/// Imports what this module uses from `super::lock`.
+use super::lock::{Lock, current_lock};
+/// Imports what this module uses from `super::model`.
+use super::model::{LockedTool, Postinstall};
 /// Imports what this module uses from `super::postinstall_links`.
-use super::postinstall_links::{declared_link_paths, recorded_link_paths};
+use super::postinstall_links::{declared_link_paths_of, recorded_link_paths};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, global_scope};
 /// Imports what this module uses from `super::removal`.
@@ -647,9 +651,10 @@ fn retire_one_link(
 /// (a person may have made it,
 /// and the lock says nothing about it).
 fn retire_farm_links(
+    ctx: &Context,
+    made_links: &[String],
     entries: &[fs::DirEntry],
-    declared: &BTreeSet<String>,
-    declared_paths: &BTreeSet<PathBuf>,
+    started: &Declared,
     declared_tools: &BTreeSet<&str>,
     proofs: &mut Proofs<'_>,
     notices: &mut LauncherNotices,
@@ -659,7 +664,7 @@ fn retire_farm_links(
         let path: PathBuf = entry.path();
         // A postinstall link may be declared inside the farm (`linkDir` names it), and then the path, not the bin name,
         // is what makes it the lock's own.
-        if declared.contains(&name) || declared_paths.contains(&path) {
+        if started.links.contains(&name) || started.paths.contains(&path) {
             continue;
         }
         let metadata = match fs::symlink_metadata(&path) {
@@ -683,6 +688,14 @@ fn retire_farm_links(
             ));
             continue;
         }
+        match still_undeclared(ctx, made_links, &name, Some(&path)) {
+            Some(true) => {}
+            Some(false) => continue,
+            None => {
+                notices.warnings.push(unreadable_lock_again(ctx));
+                return;
+            }
+        }
         retire_one_link(
             "the lock declares no bin of that name",
             &path,
@@ -705,13 +718,14 @@ fn retire_farm_links(
 /// anything but a symbolic link is a person's file and is not judged at all.
 fn retire_other_links(
     ctx: &Context,
-    declared_paths: &BTreeSet<PathBuf>,
+    made_links: &[String],
+    started: &Declared,
     declared_tools: &BTreeSet<&str>,
     proofs: &mut Proofs<'_>,
     notices: &mut LauncherNotices,
 ) {
     let mut declared_folders: BTreeSet<PathBuf> = BTreeSet::new();
-    for path in declared_paths {
+    for path in &started.paths {
         if let Some(parent) = path.parent() {
             declared_folders.insert(parent.to_path_buf());
         }
@@ -724,8 +738,9 @@ fn retire_other_links(
         // about; the other `-bin` folders belong to the tools' own postinstall commands.
         let report_unproven: bool = folder == ctx.scope.link_dir || declared_folders.contains(&folder);
         for entry in sorted_entries(&folder, notices) {
+            let name: String = entry.file_name().to_string_lossy().to_string();
             let path: PathBuf = entry.path();
-            if declared_paths.contains(&path) {
+            if started.paths.contains(&path) {
                 continue;
             }
             let metadata = match fs::symlink_metadata(&path) {
@@ -742,6 +757,14 @@ fn retire_other_links(
             // A hidden link here is the leftover of a killed atomic write (`atomic_symlink`'s `.<name>.<pid>.tmp` or this pass's
             // own `.<name>.<pid>.<n>.retired`); its target proves it, and leaving it would leave a link that later resolves to
             // nothing.
+            match still_undeclared(ctx, made_links, &name, Some(&path)) {
+                Some(true) => {}
+                Some(false) => continue,
+                None => {
+                    notices.warnings.push(unreadable_lock_again(ctx));
+                    return;
+                }
+            }
             retire_one_link(
                 "the lock declares no postinstall link there",
                 &path,
@@ -766,8 +789,9 @@ fn retire_other_links(
 /// a link that could not be removed keeps its launcher and is named in a warning.
 fn retire_launchers(
     ctx: &Context,
+    made_links: &[String],
     entries: &[fs::DirEntry],
-    declared: &BTreeSet<String>,
+    started: &Declared,
     declared_tools: &BTreeSet<&str>,
     proofs: &mut Proofs<'_>,
     notices: &mut LauncherNotices,
@@ -776,7 +800,7 @@ fn retire_launchers(
         let name: String = entry.file_name().to_string_lossy().to_string();
         // A record is judged with the launcher it stands beside, and a hidden name is the record of the postinstall links or a
         // write of a killed run, never a tool's launcher.
-        if name.ends_with(RECORD_SUFFIX) || name.starts_with('.') || declared.contains(&name) {
+        if name.ends_with(RECORD_SUFFIX) || name.starts_with('.') || started.launchers.contains(&name) {
             continue;
         }
         let launcher: PathBuf = entry.path();
@@ -797,6 +821,14 @@ fn retire_launchers(
                 reaching.iter().map(|link| return link.display().to_string()).collect::<Vec<String>>().join(", ")
             ));
             continue;
+        }
+        match still_undeclared(ctx, made_links, &name, None) {
+            Some(true) => {}
+            Some(false) => continue,
+            None => {
+                notices.warnings.push(unreadable_lock_again(ctx));
+                return;
+            }
         }
         match remove_if_still(&launcher, proven.judged) {
             Ok(Removal::Retired) => notices.retired.push(format!(
@@ -854,11 +886,14 @@ fn retire_launchers(
 /// so that state must not survive an install.
 /// Only the record itself is proven here:
 /// a record this tool can read whose tool this lock still declares is `mpm-shadow`'s own writing,
-/// and the caller holds the scope's lock,
-/// so a record an install beside this one has just written is always accompanied by its launcher by now.
+/// and a launcher's record is written by its install only after the program is in place (`launcher::ensure_launcher`),
+/// so a record with no launcher is a leftover of a retirement and never a placement in progress:
+/// an install beside this one has either not written the record yet or has already placed the program.
 fn retire_records_without_launchers(
+    ctx: &Context,
+    made_links: &[String],
     entries: &[fs::DirEntry],
-    declared: &BTreeSet<String>,
+    started: &Declared,
     declared_tools: &BTreeSet<&str>,
     notices: &mut LauncherNotices,
 ) {
@@ -867,7 +902,7 @@ fn retire_records_without_launchers(
         let Some(launcher_name) = record_name.strip_suffix(RECORD_SUFFIX) else {
             continue;
         };
-        if launcher_name.starts_with('.') || declared.contains(launcher_name) {
+        if launcher_name.starts_with('.') || started.launchers.contains(launcher_name) {
             continue;
         }
         let record: PathBuf = entry.path();
@@ -889,6 +924,14 @@ fn retire_records_without_launchers(
                 continue;
             }
         };
+        match still_undeclared(ctx, made_links, launcher_name, None) {
+            Some(true) => {}
+            Some(false) => continue,
+            None => {
+                notices.warnings.push(unreadable_lock_again(ctx));
+                return;
+            }
+        }
         match remove_if_still(&record, judged) {
             Ok(Removal::Retired) => notices
                 .retired
@@ -913,9 +956,9 @@ fn retire_records_without_launchers(
 /// as `rebuild_exposure` and the postinstall links ask for one:
 /// every bin of a repository-published tool,
 /// and the source bin of every postinstall link such a tool declares.
-fn declared_launcher_names(ctx: &Context) -> BTreeSet<String> {
+fn declared_launcher_names(tools: &[LockedTool]) -> BTreeSet<String> {
     let mut names: BTreeSet<String> = BTreeSet::new();
-    for tool in ctx.tools {
+    for tool in tools {
         if !is_repository_published(tool) {
             continue;
         }
@@ -937,9 +980,9 @@ fn declared_launcher_names(ctx: &Context) -> BTreeSet<String> {
 /// Why:
 /// The farm links the running shadow too when no plan row declares that bin,
 /// and that name is as much the lock's arrangement as a declared bin is.
-fn declared_link_names(ctx: &Context, made_links: &[String]) -> BTreeSet<String> {
+fn declared_link_names(ctx: &Context, tools: &[LockedTool], made_links: &[String]) -> BTreeSet<String> {
     let mut names: BTreeSet<String> = BTreeSet::new();
-    for tool in ctx.tools {
+    for tool in tools {
         for bin in &tool.declaration.bins {
             names.insert(bin.clone());
         }
@@ -954,6 +997,68 @@ fn declared_link_names(ctx: &Context, made_links: &[String]) -> BTreeSet<String>
         names.insert(name.to_string_lossy().to_string());
     }
     return names;
+}
+
+/// What:
+/// What the lock on disk declares at one instant,
+/// or `None` when it cannot be read then.
+/// Why:
+/// A removal is decided against the lock as it is when the removal happens:
+/// a lock this run loaded earlier is a guess by the time it is acted on,
+/// because another command can publish a newer lock in between,
+/// and the reviewed defect was exactly that (an install whose lock still named an old bin deleted the launcher a
+/// later-locked install had just placed for the new bin).
+/// The tool ids are kept so a record's proof can say whose record it is.
+struct Declared {
+    /// The names this scope would give a launcher.
+    launchers: BTreeSet<String>,
+    /// The names the farm is right to link.
+    links: BTreeSet<String>,
+    /// The postinstall link paths the lock declares.
+    paths: BTreeSet<PathBuf>,
+    /// The tool ids the lock declares.
+    tools: BTreeSet<String>,
+}
+
+/// The lock on disk, read now, as the retirement asks it.
+fn declared_at(ctx: &Context, made_links: &[String]) -> Option<Declared> {
+    let lock: Lock = current_lock(ctx.scope)?;
+    return Some(Declared {
+        launchers: declared_launcher_names(&lock.tools),
+        links: declared_link_names(ctx, &lock.tools, made_links),
+        paths: declared_link_paths_of(ctx.scope, &lock.tools),
+        tools: lock.tools.iter().map(|tool| return tool.declaration.id.clone()).collect(),
+    });
+}
+
+/// What:
+/// Whether the lock this pass started with still does not declare `name` (and `path`, for a link),
+/// asked of the lock on disk again at the instant before the removal.
+/// Why:
+/// That question at that instant is the whole ownership test of a removal:
+/// if a newer lock declares the item, it is not a leftover whatever this run's lock said.
+/// `None` means the lock cannot be read now, and then nothing may be removed.
+fn still_undeclared(ctx: &Context, made_links: &[String], name: &str, path: Option<&Path>) -> Option<bool> {
+    let now: Declared = declared_at(ctx, made_links)?;
+    if now.launchers.contains(name) || now.links.contains(name) {
+        return Some(false);
+    }
+    if let Some(path) = path
+        && now.paths.contains(path)
+    {
+        return Some(false);
+    }
+    return Some(true);
+}
+
+/// The one sentence for a lock that cannot be read at the instant a removal would happen:
+/// nothing is removed then, because what is stale and what is not cannot be told.
+fn unreadable_lock_again(ctx: &Context) -> String {
+    return format!(
+        "removed none of the names this lock declares nowhere: {} cannot be read now, so what a newer lock declares cannot be told \
+         (an install running beside this one may be placing a launcher this run would take for a leftover)",
+        ctx.scope.lock_file.display()
+    );
 }
 
 /// What:
@@ -978,8 +1083,9 @@ pub struct LauncherNotices {
 /// This is the one place `install` cleans up after a bin the plan renamed or dropped.
 /// `made_links` are the exposed names this run itself linked,
 /// so a name the running `mpm-shadow` owns is never taken for a leftover.
-/// The caller holds the scope's lock over this pass,
-/// which is what makes "a record with no launcher is a leftover" true while another install runs.
+/// Every removal asks the lock on disk again at that instant (`declared_at`),
+/// so an item a newer lock declares is kept whatever this run loaded,
+/// and a lock that cannot be read then removes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -993,16 +1099,18 @@ pub fn retire_undeclared_launchers(ctx: &Context, made_links: &[String]) -> Laun
     if launchers.is_empty() && farm.is_empty() {
         return notices;
     }
-    let declared_launchers: BTreeSet<String> = declared_launcher_names(ctx);
-    let declared_links: BTreeSet<String> = declared_link_names(ctx, made_links);
-    let declared_paths: BTreeSet<PathBuf> = declared_link_paths(ctx);
-    let declared_tools: BTreeSet<&str> = ctx.tools.iter().map(|tool| return tool.declaration.id.as_str()).collect();
+    // What the lock on disk declares now, for the cheap filtering; every removal asks it again (`still_undeclared`).
+    let Some(started) = declared_at(ctx, made_links) else {
+        notices.warnings.push(unreadable_lock_again(ctx));
+        return notices;
+    };
+    let declared_tools: BTreeSet<&str> = started.tools.iter().map(|id| return id.as_str()).collect();
     let mut proofs: Proofs<'_> = Proofs::new(ctx);
     // The links go before the launchers they point at, so no link is ever left naming a file that is gone.
-    retire_farm_links(&farm, &declared_links, &declared_paths, &declared_tools, &mut proofs, &mut notices);
-    retire_other_links(ctx, &declared_paths, &declared_tools, &mut proofs, &mut notices);
-    retire_launchers(ctx, &launchers, &declared_launchers, &declared_tools, &mut proofs, &mut notices);
-    retire_records_without_launchers(&launchers, &declared_launchers, &declared_tools, &mut notices);
+    retire_farm_links(ctx, made_links, &farm, &started, &declared_tools, &mut proofs, &mut notices);
+    retire_other_links(ctx, made_links, &started, &declared_tools, &mut proofs, &mut notices);
+    retire_launchers(ctx, made_links, &launchers, &started, &declared_tools, &mut proofs, &mut notices);
+    retire_records_without_launchers(ctx, made_links, &launchers, &started, &declared_tools, &mut notices);
     return notices;
 }
 

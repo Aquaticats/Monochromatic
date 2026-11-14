@@ -21,6 +21,9 @@
 //! export function lockDigest(lock: Lock): string { ... }
 //! ```
 
+/// Imports `fs` from `std`, for the read of the lock the scope holds now.
+use std::fs;
+
 /// Imports the JSON value types (see `model.rs`).
 use serde_json::{Map, Value};
 
@@ -28,6 +31,8 @@ use serde_json::{Map, Value};
 use super::error::ToolchainError;
 /// Imports `sha256_hex` from `super::hash`.
 use super::hash::sha256_hex;
+/// Imports `Scope` from `super::scope`.
+use super::scope::Scope;
 /// Imports what this module uses from `super::model`.
 use super::model::{LockedTool, decode_lock_entry, lock_entry_value};
 /// Imports the one pretty-JSON renderer the lock and `bin` share.
@@ -160,6 +165,23 @@ pub fn render_lock(lock: &Lock) -> String {
     let mut text: String = render_pretty_json(&Value::Object(document));
     text.push('\n');
     return text;
+}
+
+/// What:
+/// The lock the scope's file holds at this instant,
+/// or `None` when it cannot be read or does not decode.
+/// Why:
+/// A removal must be decided against the lock as it is when the removal happens:
+/// a lock loaded earlier is a guess by the time it is acted on,
+/// and another command may have published a newer one in between.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function currentLock(scope: Scope): Lock | undefined
+/// ```
+pub fn current_lock(scope: &Scope) -> Option<Lock> {
+    let source: String = fs::read_to_string(&scope.lock_file).ok()?;
+    return parse_lock(&source, &scope.lock_file.display().to_string()).ok().map(|parsed| return parsed.lock);
 }
 
 /// What:

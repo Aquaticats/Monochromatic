@@ -40,7 +40,7 @@ use super::exposure::{MadeLink, link_directory, make_postinstall_links};
 /// Imports `LockedTool` and `Postinstall` from `super::model`.
 use super::model::{LockedTool, Postinstall};
 /// Imports `ScopeKind` from `super::scope`.
-use super::scope::ScopeKind;
+use super::scope::{Scope, ScopeKind};
 /// Imports `write_atomically` from `super::publish`.
 use super::publish::write_atomically;
 /// Imports what this module uses from `super::removal`.
@@ -127,10 +127,25 @@ fn render_record(links: &BTreeMap<PathBuf, PathBuf>) -> Result<String, Toolchain
 /// export function declaredLinkPaths(ctx: Context): string[]
 /// ```
 pub fn declared_link_paths(ctx: &Context) -> BTreeSet<PathBuf> {
+    return declared_link_paths_of(ctx.scope, ctx.tools);
+}
+
+/// What:
+/// The full path of every postinstall link `tools` declares,
+/// for a caller that has read the lock it wants the answer for.
+/// Why:
+/// The retirement asks this of the lock on disk at the instant it removes a link,
+/// and `reconcile` of the lock this run loaded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function declaredLinkPathsOf(scope: Scope, tools: LockedTool[]): string[]
+/// ```
+pub fn declared_link_paths_of(scope: &Scope, tools: &[LockedTool]) -> BTreeSet<PathBuf> {
     let mut declared: BTreeSet<PathBuf> = BTreeSet::new();
-    for tool in ctx.tools {
+    for tool in tools {
         if let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall {
-            declared.insert(link_directory(ctx.scope, &link.link_dir).join(&link.link_name));
+            declared.insert(link_directory(scope, &link.link_dir).join(&link.link_name));
         }
     }
     return declared;
