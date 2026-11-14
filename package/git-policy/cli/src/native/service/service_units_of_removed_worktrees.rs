@@ -48,8 +48,10 @@
 use crate::diagnostic_log::warn;
 use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::{GITDIR_HEX_PREFIX, path_of_hex};
-use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, socket_path};
+use crate::service_address_of_a_worktree::socket_address_of;
+use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of};
 use crate::service_route::non_empty_path_variable;
+use crate::service_server::Bind;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use crate::service_is_gone_after_a_stop::service_is_gone;
 use crate::service_server_pid_note_of_an_instance::{path as pid_note_path, remove as remove_pid_note};
@@ -405,10 +407,10 @@ pub fn own_worktree_state(instance: &str, journal: &Path) -> OwnWorktree {
 /// await stopOne(dir, instance); // { asked } | { nothing-listens } then unlink what is stale
 /// ```
 pub fn stop_units(folders: &UnitFolders<'_>, instance: &str) -> Result<(), String> {
-    let socket: PathBuf = socket_path(folders.runtime_dir, instance);
-    if answered(socket.as_path()) {
+    let address: Bind = socket_address_of(folders.runtime_dir, instance);
+    if answered(&address) {
         // The service finishes its batch, removes its own files and exits.
-        crate::service_client_listen_and_ask_to_retire::ask_to_retire(socket.as_path());
+        crate::service_client_listen_and_ask_to_retire::ask_to_retire(&address);
         return Ok(());
     }
     // Nothing serves here; what is left is a file, and it goes when no process of the instance is left.
@@ -433,8 +435,10 @@ fn remove_what_a_stopped_instance_left(runtime_dir: &Path, instance: &str) {
     if !service_is_gone(directory.as_path(), instance) {
         return;
     }
-    let socket: PathBuf = socket_path(runtime_dir, instance);
-    let _removed = std::fs::remove_file(socket);
+    // The address is a socket file or an abstract name; a name has no file to remove and goes with the process that held it.
+    if let Bind::Path(socket) = socket_address_of(runtime_dir, instance) {
+        let _removed = std::fs::remove_file(socket);
+    }
     remove_pid_note(pid_note_path(directory.as_path(), instance).as_path());
 }
 
@@ -524,7 +528,10 @@ fn journal_folder_in_words(state_dir: Option<&Path>, instance: &str) -> String {
 /// after the pushes it kept for a repository that is gone have ended.
 fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str) {
     let directory: PathBuf = folders.runtime_dir.join(SOCKET_DIRECTORY);
-    let _removed = std::fs::remove_file(socket_path(folders.runtime_dir, instance));
+    // The address is a socket file or an abstract name; a name has no file to remove and goes with the process that held it.
+    if let Bind::Path(socket) = socket_address_of(folders.runtime_dir, instance) {
+        let _removed = std::fs::remove_file(socket);
+    }
     remove_pid_note(pid_note_path(directory.as_path(), instance).as_path());
 }
 

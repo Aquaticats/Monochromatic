@@ -57,7 +57,7 @@ use crate::service_server::{Bind, IDLE_EXIT, ServeSettings, address_text, bind, 
 use crate::service_units_of_removed_worktrees::{OwnWorktree, own_worktree_state, stop_own_socket_when_the_worktree_is_gone};
 use crate::transaction_git::GitContext;
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// The words,
@@ -312,27 +312,39 @@ pub fn run(arguments: &[String]) -> i32 {
         crate::service_error!("cannot create the journal directory {}: {error}", journal.display());
         return EXIT_REFUSED;
     }
+    // What: The folder the instance's files sit in, which the starter names: the address's own folder for a socket file, and the
+    //       runtime directory's socket folder for an abstract name.
+    // Why:  An abstract name has no folder to put a note in, and the note is what names the process that owns the instance.
+    let socket_directory: PathBuf = match option(arguments, "--instance-files").map(PathBuf::from) {
+        Some(named) => named,
+        None => match &address {
+            Bind::Path(socket) => socket.parent().map_or_else(|| { return PathBuf::from("."); }, Path::to_path_buf),
+            Bind::Abstract(_) | Bind::Inherited => PathBuf::from("."),
+        },
+    };
     // What: The folder an address sits in is made private, and the instance is claimed for this process, before the address is
     //       bound.
     // Why:  The bind fails in a folder that is not there, a folder others may enter would let them connect to a service that carries a
     //       review credential, and the note is what tells a starter and a second service that this instance's service is alive. The
     //       claim is made before the bind because the bind is the moment a second service could take the address over: a note written
     //       after it would leave that moment unnamed (the fourth review of issue 6293, finding 1).
+    if let Err(error) = crate::service_socket_directory_only_this_account_may_open::ensure_private(socket_directory.as_path()) {
+        crate::service_error!("cannot make the folder of the address {} private: {error}", address_text(&address));
+        return EXIT_NOT_LISTENING;
+    }
     let mut own_files: Option<crate::service_server_files_of_a_running_instance::OwnFiles> = None;
-    if let (Bind::Path(socket), Some(instance)) = (&address, named_instance.as_deref()) {
-        match crate::service_server_files_of_a_running_instance::claim(socket.as_path(), instance) {
+    if let Some(instance) = named_instance.as_deref() {
+        let address_path: PathBuf = match &address {
+            Bind::Path(socket) => socket.clone(),
+            Bind::Abstract(_) | Bind::Inherited => socket_directory.join(format!("{instance}.sock")),
+        };
+        match crate::service_server_files_of_a_running_instance::claim(address_path.as_path(), instance) {
             Ok(claimed) => own_files = Some(claimed),
             Err(error) => {
-                crate::service_error!("cannot claim the instance of this worktree at {}: {error}", socket.display());
+                crate::service_error!("cannot claim the instance of this worktree at {}: {error}", address_text(&address));
                 return EXIT_NOT_LISTENING;
             }
         }
-    } else if let Bind::Path(socket) = &address
-        && let Some(directory) = socket.parent()
-        && let Err(error) = crate::service_socket_directory_only_this_account_may_open::ensure_private(directory)
-    {
-        crate::service_error!("cannot make the folder of the address {} private: {error}", socket.display());
-        return EXIT_NOT_LISTENING;
     }
     let listener = match bind(&address, own_files.as_ref().and_then(crate::service_server_files_of_a_running_instance::OwnFiles::note)) {
         Ok(listener) => listener,
@@ -341,10 +353,9 @@ pub fn run(arguments: &[String]) -> i32 {
             return EXIT_NOT_LISTENING;
         }
     };
-    // What: The address's mode is kept to this account once it is bound: the folder's mode and the address's mode are what keeps the
-    //       review credential this service carries to this account.
-    // Why:  The file exists only after the bind, so its mode is set here and not with the claim.
-    if let Some(files) = own_files.as_ref()
+    // What: A socket file is kept to this account once it is bound; an abstract name has no file and no mode, and what protects it
+    //       is the kernel's word about who took a connection (`SO_PEERCRED`).
+    if let (Some(files), Bind::Path(_)) = (own_files.as_ref(), &address)
         && let Err(error) = files.keep_the_address_to_this_account()
     {
         crate::service_error!("cannot keep the address {} to this account alone: {error}", address_text(&address));

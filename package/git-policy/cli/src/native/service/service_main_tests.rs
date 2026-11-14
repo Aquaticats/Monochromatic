@@ -82,7 +82,8 @@ fn an_option_that_is_not_text_is_refused() {
 #[test]
 fn the_start_names_the_service_mode_words_and_the_worktrees_files() {
     let server = crate::service_server_start_by_the_wrapper::ServerToStart {
-        socket: std::path::PathBuf::from("/run/user/1000/monochromatic-git-policy-cli/3f9a.sock"),
+        address: crate::service_server::Bind::Path(std::path::PathBuf::from("/run/user/1000/monochromatic-git-policy-cli/3f9a.sock")),
+        directory: std::path::PathBuf::from("/run/user/1000/monochromatic-git-policy-cli"),
         instance: String::from("3f9a"),
         journal: std::path::PathBuf::from("/state/monochromatic-git-policy-cli/service/3f9a"),
         git: std::path::PathBuf::from("/usr/bin/git"),

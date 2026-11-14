@@ -74,8 +74,19 @@ pub enum StartAttempt {
 /// What one start needs.
 #[derive(Clone, Debug)]
 pub struct ServerToStart {
-    /// Where the service listens.
-    pub socket: PathBuf,
+    /// What:
+    ///  Where the service listens:
+    ///  a socket file,
+    ///  or an abstract name when the runtime directory leaves no room for one
+    ///  (`service_address_of_a_worktree.rs`).
+    /// Why:
+    ///  It is the address the route chose,
+    /// so the service this command starts binds exactly the address it and every other command of the worktree look at.
+    pub address: Bind,
+    /// The folder the instance's files sit in:
+    /// the address's own folder,
+    /// or the runtime directory's socket folder for a name.
+    pub directory: PathBuf,
     /// The worktree's instance name,
     /// which names its files beside the socket.
     pub instance: String,
@@ -99,14 +110,7 @@ pub struct ServerToStart {
 impl ServerToStart {
     /// The folder the instance's files sit in.
     pub fn directory(&self) -> PathBuf {
-        return self.socket.parent().map_or_else(
-            || {
-                return PathBuf::from(".");
-            },
-            |folder| {
-                return folder.to_path_buf();
-            },
-        );
+        return self.directory.clone();
     }
 
     /// The file the service's output is appended to.
@@ -129,20 +133,29 @@ impl ServerToStart {
     /// never inherited:
     /// nothing hands this process a socket.
     pub fn arguments(&self) -> Vec<std::ffi::OsString> {
-        // The three words that select the service mode, then the ones it needs to serve this worktree.
-        return vec![
-            text_argument("monochromatic-git-policy-cli"),
-            text_argument("service"),
-            text_argument("run"),
-            text_argument("--path"),
-            crate::service_server_start_spawns_a_detached_process::argument(self.socket.as_path()),
+        // The three words that select the service mode, then the address it serves and the ones it needs for this worktree.
+        let mut arguments: Vec<std::ffi::OsString> = vec![text_argument("monochromatic-git-policy-cli"), text_argument("service"), text_argument("run")];
+        arguments.extend(match &self.address {
+            Bind::Path(socket) => vec![text_argument("--path"), crate::service_server_start_spawns_a_detached_process::argument(socket.as_path())],
+            Bind::Abstract(name) => vec![text_argument("--abstract"), text_argument(name.as_str())],
+            // What: A start always names the address the route chose, and never adopts a descriptor another program opened.
+            // Why:  A socket another program passed in is the service a manager starts; a command that starts its own service names
+            //       the address itself, and the route it read gives a socket file or an abstract name, never a descriptor.
+            Bind::Inherited => Vec::new(),
+        });
+        arguments.extend([
+            // What: The folder the instance's files (its note, its log, its marker) sit in, which an abstract address has none of.
+            // Why:  The service claims its instance before it binds, and it needs the folder even when its address is a name.
+            text_argument("--instance-files"),
+            crate::service_server_start_spawns_a_detached_process::argument(self.directory.as_path()),
             text_argument("--journal"),
             crate::service_server_start_spawns_a_detached_process::argument(self.journal.as_path()),
             text_argument("--git"),
             crate::service_server_start_spawns_a_detached_process::argument(self.git.as_path()),
             text_argument("--instance"),
             text_argument(self.instance.as_str()),
-        ];
+        ]);
+        return arguments;
     }
 }
 
@@ -160,7 +173,7 @@ impl ServerToStart {
 /// start(server) // greeted | another-command-starts-it | did-not-greet
 /// ```
 pub fn start(server: &ServerToStart) -> StartAttempt {
-    if answered(server.socket.as_path()) {
+    if answered(&server.address) {
         return StartAttempt::Greeted;
     }
     // What: The folder the address and the marker live in is made before a marker is taken.
@@ -176,7 +189,7 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     };
     let _held = starter;
     // The command that held the marker before this one may have finished between the two looks.
-    if answered(server.socket.as_path()) {
+    if answered(&server.address) {
         return StartAttempt::Greeted;
     }
     // What: A service of this worktree that is alive is waited for and never started over, whether or not it has greeted yet.
@@ -201,7 +214,7 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     {
         // One scope is made for this start, never two: the leader is kept so a scope that made nothing answer can be ended.
         let leader: Option<i32> = manager.start(server).ok().flatten();
-        let greeted: bool = leader.is_some() && waits_for_a_greeting(server.socket.as_path(), START_WAIT + MANAGER_START_EXTRA);
+        let greeted: bool = leader.is_some() && waits_for_a_greeting(&server.address, START_WAIT + MANAGER_START_EXTRA);
         if greeted {
             return StartAttempt::Greeted;
         }
@@ -211,7 +224,7 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
         if let Some(process) = leader {
             crate::service_server_start_through_the_manager::end_the_group_of(process);
         }
-        if answered(server.socket.as_path()) {
+        if answered(&server.address) {
             return StartAttempt::Greeted;
         }
     }
@@ -219,7 +232,7 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     if spawn(&detached).is_err() {
         return StartAttempt::DidNotGreet(log);
     }
-    if waits_for_a_greeting(server.socket.as_path(), START_WAIT) {
+    if waits_for_a_greeting(&server.address, START_WAIT) {
         return StartAttempt::Greeted;
     }
     // What: A service that did not greet but holds the instance is preparing, and one that left no process behind did not come up.
@@ -243,9 +256,8 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
 /// ```ts
 /// answered(socket) // connect + read one line in 1 s
 /// ```
-pub fn answered(socket: &Path) -> bool {
-    let address: Bind = Bind::Path(socket.to_path_buf());
-    let Ok(stream) = connect(&address) else { return false };
+pub fn answered(address: &Bind) -> bool {
+    let Ok(stream) = connect(address) else { return false };
     let _timeout = stream.set_read_timeout(Some(GREETING_READ));
     let mut reader: BufReader<std::os::unix::net::UnixStream> = BufReader::new(stream);
     return matches!(listen(&mut reader), Heard::Message(crate::service_protocol::ServiceMessage::Welcome { .. }));
@@ -256,10 +268,10 @@ pub fn answered(socket: &Path) -> bool {
 /// for the service to greet.
 /// The wait has a deadline of its own rather than a count of tries,
 /// so a slow start is never cut short by a slow look.
-pub fn waits_for_a_greeting(socket: &Path, bound: Duration) -> bool {
+pub fn waits_for_a_greeting(address: &Bind, bound: Duration) -> bool {
     let deadline: Instant = Instant::now() + bound;
     loop {
-        if answered(socket) {
+        if answered(address) {
             return true;
         }
         if Instant::now() >= deadline {

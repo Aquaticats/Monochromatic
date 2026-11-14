@@ -38,9 +38,9 @@ fn a_marker_whose_owner_is_gone_is_taken_over() {
 fn only_a_service_that_greets_answers() {
     let root = folder("greeting");
     let socket = root.join("3f9a.sock");
-    assert!(!answered(socket.as_path()), "nothing at a path that is not there answers");
+    assert!(!answered(&Bind::Path(socket.clone())), "nothing at a path that is not there answers");
     let listener = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a socket");
-    assert!(!answered(socket.as_path()), "a connection nothing answers on is not a greeting");
+    assert!(!answered(&Bind::Path(socket.clone())), "a connection nothing answers on is not a greeting");
     let greeter = std::thread::spawn(move || {
         use std::io::Write;
         // Every connection is greeted, because the probes before the start left connections nobody read. The loop ends after
@@ -55,7 +55,7 @@ fn only_a_service_that_greets_answers() {
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
     });
-    assert!(waits_for_a_greeting(socket.as_path(), START_WAIT), "a service that greets answers");
+    assert!(waits_for_a_greeting(&Bind::Path(socket.clone()), START_WAIT), "a service that greets answers");
     // The greeter's thread ends by itself; a control that waited for it would wait on the socket it still holds.
     std::mem::forget(greeter);
 }
@@ -65,6 +65,6 @@ fn only_a_service_that_greets_answers() {
 fn a_wait_with_nothing_at_the_address_ends_at_its_bound() {
     let root = folder("wait");
     let began = std::time::Instant::now();
-    assert!(!waits_for_a_greeting(root.join("none.sock").as_path(), Duration::from_millis(50)));
+    assert!(!waits_for_a_greeting(&Bind::Path(root.join("none.sock")), Duration::from_millis(50)));
     assert!(began.elapsed() < Duration::from_secs(5), "the bound is the bound");
 }

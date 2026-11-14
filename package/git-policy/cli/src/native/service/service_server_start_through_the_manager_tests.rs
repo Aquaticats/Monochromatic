@@ -11,6 +11,7 @@
 //!  exactly the words `systemd-run` takes.
 
 use super::*;
+use crate::service_server::Bind;
 use std::os::unix::fs::PermissionsExt;
 
 /// A folder of this test's own,
@@ -159,7 +160,8 @@ fn the_start_through_the_manager_wraps_the_bases_own_words() {
     let recording: PathBuf = stand_in(root.join("run").as_path(), 0, "0");
     let manager: ManagerStart = ManagerStart { program: recording };
     let server: ServerToStart = ServerToStart {
-        socket: root.join("run/3f9a.sock"),
+        address: Bind::Path(root.join("run/3f9a.sock")),
+        directory: root.join("run"),
         instance: String::from("3f9a"),
         journal: root.join("run/journal"),
         git: PathBuf::from("/usr/bin/git"),

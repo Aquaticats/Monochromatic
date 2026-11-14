@@ -24,7 +24,7 @@
 //! ```
 
 use crate::commit_timing::ReachTrace;
-use crate::service_client_listen_and_ask_to_retire::{Heard, connect, listen};
+use crate::service_client_listen_and_ask_to_retire::{Heard, Reached, listen};
 use crate::service_client_settings_and_watches::{Activation, CONNECT_PAUSE, ClientConfig, START_NOTICE_GRACE};
 use crate::service_messages::{ClientFailure, UPDATING_NOTICE, starting_notice};
 use crate::service_protocol::{PROTOCOL_VERSION, RELEASE, ServiceMessage, encode_retire};

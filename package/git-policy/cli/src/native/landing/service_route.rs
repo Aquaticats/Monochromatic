@@ -37,6 +37,7 @@ use crate::repo_read_layout::{RepoLayout, read_layout_in};
 ///  and one answer without its terminating line feed.
 use crate::hooks_path_values::{path_answer, without_the_terminator};
 use crate::service_address_of_a_worktree::{socket_address_of, the_address_is_there};
+use crate::service_client_listen_and_ask_to_retire::Reached;
 use crate::service_host_of_a_worktree::{ServiceHost, state_dir_of_the_command};
 use crate::service_instance::{SOCKET_DIRECTORY, service_unit_instance, try_instance_of};
 use crate::service_server::Bind;
