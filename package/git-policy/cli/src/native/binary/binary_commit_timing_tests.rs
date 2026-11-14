@@ -1949,6 +1949,103 @@ fn a_commit_the_terminal_hangs_up_on_states_the_signal_and_who_sent_it() {
 }
 
 /// What:
+///  A commit whose caller shielded it from the hang-up and the quit, the way `nohup` shields a program, lands:
+///  the wait leaves the caller's own choice of disposition in place, so a hang-up is no stop of that commit.
+/// Why:
+///  `nohup` sets `SIGHUP` to `SIG_IGN` and runs the command, and a caller that does means the command to survive a
+///  closing terminal:
+///  native Git lands that commit,
+///  and the wrapper landed it until the wait began answering a hang-up.
+///  Answering it by replacing the caller's ignore withdrew the request and ended the process by the signal the caller
+///  shielded it from, which is a commit that fails where real Git lands one (`SPEC.md`,
+/// "Merges and commits never fail").
+///  The preparation's own relay already keeps an inherited ignore for the same reason
+///  (`process/signal_relay.rs`,
+/// "A signal the parent ignores stays ignored").
+///  Both signals this branch added to the wait are shielded here, and the commit is made after the lock it waits behind
+///  is released,
+/// so the control shows a landed commit and not only a command that survived.
+#[test]
+fn a_commit_the_caller_shielded_from_the_hang_up_and_the_quit_lands() {
+    use std::os::unix::process::CommandExt as _;
+    let fixture: Fixture = fixture("timing-shielded");
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("timing-shielded-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let instance: String = instance_argument(&repo);
+    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
+    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
+    std::fs::write(repo.join("a.txt"), b"edit by the shielded control\n").expect("a.txt");
+    // A foreign commit holds the repository's index, so this commit waits in the service's landing.
+    let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, 0);
+    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
+    // SAFETY: between fork and exec only `signal`, an async-signal-safe call, runs, and it sets the two dispositions
+    //  `nohup` sets for the command it starts.
+    unsafe {
+        command.pre_exec(|| {
+            libc::signal(libc::SIGHUP, libc::SIG_IGN);
+            libc::signal(libc::SIGQUIT, libc::SIG_IGN);
+            Ok(())
+        });
+    }
+    let running = super::fault_run::spawn_watched(&fixture, &mut command);
+    // The request is in the service's landing when its intent is in the journal, which is the hold point of the batch.
+    let journal: PathBuf = fixture.root.join("journal");
+    let intents: String = format!(".{}", git_policy_cli::service_journal::OPEN_EXTENSION);
+    let began: Instant = Instant::now();
+    while !open_intents(journal.as_path(), intents.as_str()) {
+        assert!(began.elapsed() < PATIENCE, "the request never reached the service's landing");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
+    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGHUP) }, 0, "the control hangs up on the shielded commit");
+    // SAFETY: as above; a quit the caller ignored is the same question.
+    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGQUIT) }, 0, "the control quits the shielded commit");
+    // A shielded signal reaches nothing, so the request is still the service's to land.
+    std::thread::sleep(Duration::from_millis(500));
+    std::fs::write(&release, b"").expect("the foreign commit is told to let go");
+    let held = holder.wait_with_output().expect("the foreign commit ends");
+    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    let finished = running.finish();
+    let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
+    println!("SHIELDED COMMIT: status {:?}: {stderr}", finished.status);
+    assert_eq!(finished.status.signal(), None, "the command does not end by a signal its caller ignored: {stderr}");
+    assert_eq!(finished.status.code(), Some(0), "the commit lands as real Git lands it: {stderr}");
+    assert_eq!(
+        git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]).trim(),
+        format!("foreign\n{MESSAGE}").as_str(),
+        "the shielded commit is on the branch after the foreign one"
+    );
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the shielded commit wrote no record: {stderr}") });
+    println!("TIMING RECORD (shielded): {record}");
+    assert_eq!(record["outcome"], "landed", "{record}");
+    assert_eq!(record["stop"], serde_json::Value::Null, "nothing stopped it: {record}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  Whether the journal holds an intent a batch is open with.
+/// Why:
+///  A request that reached the service's landing is what a control has to wait for before it sends a signal,
+///  and the intent is written before the batch waits for the index.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const open = readdir(journal).some((name) => name.endsWith(OPEN_EXTENSION));
+/// ```
+fn open_intents(journal: &Path, suffix: &str) -> bool {
+    return std::fs::read_dir(journal)
+        .map(|entries| {
+            return entries
+                .flatten()
+                .any(|entry| { return entry.file_name().to_string_lossy().ends_with(suffix); });
+        })
+        .unwrap_or(false);
+}
+
+/// What:
 ///  A commit whose client is killed while it waits is not made,
 ///  everything that was staged is still staged,
 ///  and nothing lands later by itself.

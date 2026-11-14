@@ -220,3 +220,54 @@ fn the_actions_in_place_come_back_when_the_watch_ends() {
     drop(watch);
     assert_eq!(action_of(libc::SIGTERM).sa_sigaction, before.sa_sigaction, "what was in place is back");
 }
+
+/// What:
+///  A signal this process started with ignored stays ignored for the whole wait,
+///  and is never taken for a stop.
+/// Why:
+///  `nohup` shields the command it starts by setting `SIGHUP` to `SIG_IGN`,
+///  and a caller that shields a commit that way means it to survive a closing terminal:
+///  native Git lands such a commit,
+///  and the wrapper landed it before the wait answered a hang-up at all.
+///  Replacing the caller's ignore with a handler withdrew the request and ended the process by the signal the caller
+///  shielded it from,
+///  which is a commit that fails where real Git lands one
+///  (`SPEC.md`,
+/// "Merges and commits never fail",
+/// and the preparation's own relay: "A signal the parent ignores stays ignored",
+/// `process/signal_relay.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ignore(SIGHUP); const watch = watchForAStop(); raise(SIGHUP); expect(stopRequested()).toBeUndefined();
+/// expect(actionOf(SIGHUP)).toEqual(ignore);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_signal_the_caller_ignored_stays_ignored_and_is_never_a_stop() {
+    // A stop another control of this process relayed is no stop of this one.
+    let _stale = crate::signal_relay_relayed_stop::take();
+    let ignored: libc::sigaction = action_of(libc::SIGHUP);
+    let quit: libc::sigaction = action_of(libc::SIGQUIT);
+    // SAFETY: `signal` takes a number and a disposition that outlives this statement; both are the caller's own choice of
+    //  `SIG_IGN`, put back at the end of this control.
+    let set_hup: usize = unsafe { libc::signal(libc::SIGHUP, libc::SIG_IGN) };
+    let set_quit: usize = unsafe { libc::signal(libc::SIGQUIT, libc::SIG_IGN) };
+    assert_eq!((set_hup, set_quit), (0, 0), "the ignore is in place before the watch");
+    let watch: StopWatch = watch_for_a_stop();
+    assert_eq!(action_of(libc::SIGHUP).sa_sigaction, libc::SIG_IGN, "the caller's ignore of the hang-up is left in place");
+    assert_eq!(action_of(libc::SIGQUIT).sa_sigaction, libc::SIG_IGN, "the caller's ignore of the quit is left in place");
+    // SAFETY: `raise` sends one signal to this thread; both signals are ignored, so neither can end this control.
+    let raised: (libc::c_int, libc::c_int) = unsafe { (libc::raise(libc::SIGHUP), libc::raise(libc::SIGQUIT)) };
+    assert_eq!(raised, (0, 0), "the shielded signals were sent");
+    assert_eq!(stop_requested(), None, "a signal the caller ignored is no stop of the commit");
+    // The other watched signals are still answered: the ignore is what is honoured, not the whole watch.
+    // SAFETY: `raise` sends one signal to this thread, whose watch notes it.
+    let stopped: libc::c_int = unsafe { libc::raise(libc::SIGTERM) };
+    assert_eq!(stopped, 0, "the stop was sent");
+    assert_eq!(stop_requested(), Some(libc::SIGTERM), "a signal the caller did not ignore is still a stop");
+    drop(watch);
+    // SAFETY: the two dispositions read at the start are the process's own; putting them back touches no memory.
+    let _hup = unsafe { libc::sigaction(libc::SIGHUP, &ignored, std::ptr::null_mut()) };
+    let _quit = unsafe { libc::sigaction(libc::SIGQUIT, &quit, std::ptr::null_mut()) };
+}
