@@ -617,9 +617,12 @@ impl WorkHandlers for GitHandlers {
     ///  while a thread of the blocking pool still carries that runtime with it.
     ///  So the removal gets a thread of its own,
     ///  and the round awaits its answer no longer than a bulk Git step may take:
-    ///  a thread the system refuses, and one that gives no answer at the ceiling, are both a removal that did not run,
+    ///  a thread the system refuses,
+    /// and one that gives no answer at the ceiling,
+    /// are both a removal that did not run,
     ///  and the record keeps its lease for the next round.
-    ///  Before this, every removal the service made answered "the runtime that runs this command's waits was asked for
+    ///  Before this,
+    /// every removal the service made answered "the runtime that runs this command's waits was asked for
     ///  from inside itself",
     ///  which read as ignored files nothing could vouch for,
     ///  and the service kept every worktree it was handed.

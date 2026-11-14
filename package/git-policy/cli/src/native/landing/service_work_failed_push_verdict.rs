@@ -70,8 +70,10 @@ use std::path::Path;
 
 /// What:
 ///  What one refused push comes to:
-///  a branch that reached an address, with the words the next command shows once,
-///  or a branch that reached none, with the verdict for the item.
+///  a branch that reached an address,
+/// with the words the next command shows once,
+///  or a branch that reached none,
+/// with the verdict for the item.
 /// Why:
 ///   A failure the service gives up on forgets the branch's plan and writes one record,
 /// and a retry keeps the plan and promises it in the record;

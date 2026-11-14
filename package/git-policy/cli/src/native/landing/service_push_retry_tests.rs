@@ -176,9 +176,12 @@ fn record_names(git_dir: &Path) -> Vec<String> {
 ///  A commit that lands after the drain claimed its item is the commit a delivered push's record is named for.
 /// Why:
 ///  The second review of issue 6293 (finding 1) measured the opposite:
-/// the record was named for the claimed item's `oid`, so a commit that landed after the claim was recorded as the older
-/// one, and an unread report of the older commit was replaced by words about another.
-/// The push sends the branch's tip at its reading (`sent_up_to`), so the record must be named for that.
+/// the record was named for the claimed item's `oid`,
+/// so a commit that landed after the claim was recorded as the older
+/// one,
+/// and an unread report of the older commit was replaced by words about another.
+/// The push sends the branch's tip at its reading (`sent_up_to`),
+/// so the record must be named for that.
 #[test]
 fn a_delivered_pushs_record_is_named_for_the_tip_it_sent_not_the_item_it_claimed() {
     let stage: Stage = stage_without_a_hook("push-report-named-for-the-sent-tip");
@@ -213,12 +216,16 @@ fn a_delivered_pushs_record_is_named_for_the_tip_it_sent_not_the_item_it_claimed
 }
 
 /// What:
-///  A push delivered to the first address and declined at the second ends its plan, once.
+///  A push delivered to the first address and declined at the second ends its plan,
+/// once.
 /// Why:
 ///  The second review of issue 6293 (finding 2) measured the opposite:
-/// every round delivered nothing new to the first address, was declined at the second, and planned another try,
+/// every round delivered nothing new to the first address,
+/// was declined at the second,
+/// and planned another try,
 /// with pauses growing to the longest pause and no last one.
-/// A decline is a failure no retry can mend, so the plan ends and the person reads one report.
+/// A decline is a failure no retry can mend,
+/// so the plan ends and the person reads one report.
 #[test]
 fn a_push_delivered_then_declined_ends_its_plan_with_one_report() {
     let stage: Stage = stage_without_a_hook("push-delivered-then-declined");
@@ -2419,7 +2426,8 @@ fn the_words_of_an_accepted_push_whose_record_was_refused_are_said_and_it_is_not
 }
 
 /// What:
-///  A push Git refused whose record the storage refused is not settled, so its refusal is not the last thing said to nobody.
+///  A push Git refused whose record the storage refused is not settled,
+/// so its refusal is not the last thing said to nobody.
 /// Why:
 ///  Nothing scans the `failed` records,
 /// so an item there is the end of it:
@@ -2521,7 +2529,9 @@ fn a_terminal_refusal_whose_record_was_refused_keeps_the_plan_and_says_its_words
 }
 
 /// What:
-///  A push the retry plan makes, which lands and has something to say, leaves the same record a round's push does.
+///  A push the retry plan makes,
+/// which lands and has something to say,
+/// leaves the same record a round's push does.
 /// Why:
 ///  A server's line about a push the service made after a failure reaches the person only through that record:
 ///  the command that would have printed it returned long before,
