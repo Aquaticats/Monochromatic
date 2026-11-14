@@ -21,13 +21,20 @@ pub enum PidFile {
     /// No pid file,
     /// or one that holds no readable number yet.
     Absent,
-    /// A pid file born before the lock:
+    /// A pid file born strictly before the lock:
     /// written by an earlier holder,
     /// so it names nobody who holds this lock.
     Older(i64),
-    /// A pid file born at or after the lock,
-    /// naming this process.
+    /// A pid file born strictly after the lock:
+    /// naming the process that took this lock.
     Names(i64),
+    /// A pid file whose birth cannot be told apart from the lock's,
+    /// or one whose time,
+    /// or the lock's,
+    /// the file system does not record:
+    /// nothing shows whether it was written for this lock,
+    /// so it proves nothing either way.
+    Unproven(i64),
 }
 
 /// One judged reference lock.
