@@ -108,9 +108,18 @@ fn render_record(links: &BTreeMap<PathBuf, PathBuf>) -> Result<String, Toolchain
     };
 }
 
+/// What:
 /// The full path of every postinstall link any locked tool declares,
 /// whatever its operating system.
-fn declared_link_paths(ctx: &Context) -> BTreeSet<PathBuf> {
+/// Why:
+/// The retirement of a launcher asks which links point at it,
+/// and a link the lock still declares is not a leftover whatever its target is now.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function declaredLinkPaths(ctx: Context): string[]
+/// ```
+pub fn declared_link_paths(ctx: &Context) -> BTreeSet<PathBuf> {
     let mut declared: BTreeSet<PathBuf> = BTreeSet::new();
     for tool in ctx.tools {
         if let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall {

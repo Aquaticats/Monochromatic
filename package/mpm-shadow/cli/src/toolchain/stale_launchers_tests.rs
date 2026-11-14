@@ -269,34 +269,24 @@ fn a_launcher_whose_installer_is_gone_is_proven_by_the_copy_the_other_scope_hold
 }
 
 #[test]
-fn a_launcher_a_postinstall_link_still_reaches_is_kept_until_that_link_is_retired() {
+fn a_launcher_a_link_still_reaches_is_kept_and_the_link_that_cannot_go_is_named() {
     let rig = rig_with_installed_shadow();
     let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
-    let link: PathBuf = make_link(&rig, RENAMED_BIN, &launcher);
-    // A postinstall link of a name the lock dropped, still in this scope's record: the postinstall pass retires it, and until
-    // it is gone the launcher it points at must stay.
+    // A link of a name the lock dropped, in a folder a tool's postinstall step links into, that this pass cannot remove:
+    // the launcher it points at must stay, and the link is named.
     let postinstall_dir: PathBuf = rig.scope.root.join(".cache").join("old-bin");
     fs::create_dir_all(&postinstall_dir).expect("make the postinstall link folder");
     let postinstall: PathBuf = postinstall_dir.join("git");
     symlink(&launcher, &postinstall).expect("the postinstall link");
-    let record_file: PathBuf = rig.scope.launcher_dir.join(".postinstall-links.json");
-    fs::write(
-        &record_file,
-        format!("{{\"links\": {{\"{}\": \"{}\"}}}}", postinstall.display(), launcher.display()),
-    )
-    .expect("record the postinstall link");
+    fs::set_permissions(&postinstall_dir, fs::Permissions::from_mode(0o555)).expect("take the right to remove away");
 
-    let first = retire(&rig);
+    let notices = retire(&rig);
 
-    assert!(!exists_at(&link), "the exposed link goes first");
+    fs::set_permissions(&postinstall_dir, fs::Permissions::from_mode(0o755)).expect("give it back");
+    assert!(exists_at(&postinstall), "the link is still there");
     assert!(exists_at(&launcher), "a launcher is never removed while a link points at it");
     assert!(exists_at(&record_path(&launcher)));
-    assert!(first.warnings.iter().any(|line| return line.contains(&postinstall.display().to_string())), "{first:?}");
-
-    // The postinstall pass retires that link, so the launcher is free on the next install.
-    fs::remove_file(&postinstall).expect("retire the postinstall link");
-    retire(&rig);
-    assert!(!exists_at(&launcher) && !exists_at(&record_path(&launcher)));
+    assert!(notices.warnings.iter().any(|line| return line.contains(&postinstall.display().to_string())), "{notices:?}");
 }
 
 #[test]
@@ -340,7 +330,7 @@ fn a_link_whose_launcher_is_gone_everywhere_stays() {
 
     assert!(exists_at(&link), "nothing proves what it named");
     assert_eq!(notices.warnings.len(), 1, "{notices:?}");
-    assert!(notices.warnings[0].contains("cannot be proven"), "{notices:?}");
+    assert!(notices.warnings[0].contains("in no launcher folder"), "{notices:?}");
 }
 
 //region Links no record knows about, and links that were never mpm-shadow's
@@ -381,3 +371,50 @@ fn a_broken_link_that_names_nothing_in_a_launcher_folder_is_left_alone() {
 }
 
 //endregion
+
+#[test]
+fn a_file_that_replaces_the_judged_one_between_judging_and_removing_it_is_put_back() {
+    let rig = rig_with_installed_shadow();
+    let directory: PathBuf = rig.scope.root.join("judged");
+    fs::create_dir_all(&directory).expect("make a directory");
+    let path: PathBuf = directory.join("a-link");
+    let target: PathBuf = rig.scope.root.join("the-expected-target");
+    fs::write(&target, "the judged target").expect("write the target");
+    symlink(&target, &path).expect("the link judged");
+    let judged = super::stale_launchers::judged_of(&path).expect("the entry is inspected");
+
+    // A person replaces the link with a file of their own while the proof of it runs.
+    fs::remove_file(&path).expect("take the judged link away");
+    let persons_text = "#!/bin/sh\necho a person's own script\n";
+    fs::write(&path, persons_text).expect("write the person's file");
+
+    let removal = super::stale_launchers::remove_if_still(&path, judged).expect("the removal runs");
+
+    assert_eq!(removal, super::stale_launchers::Removal::Replaced, "the entry that stood there was not the one judged");
+    assert_eq!(fs::read_to_string(&path).expect("the person's file is back in place"), persons_text);
+    let judged_now = super::stale_launchers::judged_of(&path).expect("the person's file is inspected");
+    assert_eq!(
+        super::stale_launchers::remove_if_still(&path, judged_now).expect("the removal runs"),
+        super::stale_launchers::Removal::Retired,
+        "the entry that was judged at that moment goes"
+    );
+    assert!(!exists_at(&path));
+}
+
+#[test]
+fn a_removal_of_something_already_gone_is_not_an_error() {
+    let rig = rig_with_installed_shadow();
+    let directory: PathBuf = rig.scope.root.join("judged");
+    fs::create_dir_all(&directory).expect("make a directory");
+    let target: PathBuf = directory.join("target");
+    fs::write(&target, "x").expect("write the target");
+    let link: PathBuf = directory.join("link");
+    symlink(&target, &link).expect("the link");
+    let judged = super::stale_launchers::judged_of(&link).expect("the link is inspected");
+    fs::remove_file(&link).expect("another install removed it first");
+
+    assert_eq!(
+        super::stale_launchers::remove_if_still(&link, judged).expect("the removal runs"),
+        super::stale_launchers::Removal::Gone
+    );
+}

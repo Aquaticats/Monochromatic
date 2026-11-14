@@ -37,6 +37,8 @@ use super::cargo_installs::{is_repository_published, older_lock_warnings, point_
 use super::context::{Context, Host};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports the scope's lock and the taken lock from `super::publish`.
+use super::publish::{Guard, acquire_guard};
 /// Imports what this module uses from `super::exposure`.
 use super::exposure::{rebuild_exposure, run_postinstall_commands, unresolvable_bins};
 /// Imports `sync_postinstall_links` from `super::postinstall_links`.
@@ -90,6 +92,33 @@ use super::util::find_tool;
 /// Go,
 /// Node and `pnpm`.
 pub const STAGING_IDS: [&str; 9] = ["bin", "uv", "mpm", "rustup", "rust", "cargo-binstall", "go", "node", "pnpm"];
+
+/// What:
+/// The scope's lock, taken for the passes that write this checkout's launcher folder and link folders,
+/// or `None` with a warning when it cannot be taken.
+/// Why:
+/// The retirement reads the launcher folder and removes files in it and in the link folders,
+/// and two installs in one checkout must not interleave those writes
+/// (one of them would see the other's record before its launcher and take it for a leftover).
+/// A lock that cannot be taken costs the warning and the safety, never the install.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function lockForLinkWrites(ctx: Context, report: SyncReport): Guard | undefined
+/// ```
+fn lock_for_link_writes(ctx: &Context, report: &mut SyncReport) -> Option<Guard> {
+    return match acquire_guard(ctx.scope) {
+        Ok(guard) => Some(guard),
+        Err(error) => {
+            report.warnings.push(format!(
+                "the launcher and link passes ran without the scope lock, so an install running at the same time may have been seen \
+                 half done: {}",
+                error.message
+            ));
+            None
+        }
+    };
+}
 
 /// What:
 /// The tools in install order:
@@ -264,6 +293,12 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
             Err(error) => report.failed.push((tool.declaration.id.clone(), error.message)),
         }
     }
+    // The three passes below write this checkout's launcher folder and link folders, and one of them decides that a record
+    // with no launcher is a leftover of an earlier run. Another install in this checkout is between its record write and its
+    // launcher's placement in exactly that state (`launcher::ensure_launcher` writes the record first), so the scope's lock
+    // covers these writes. It is the lock the lockfile write already takes, nothing inside starts a program, and the wait it
+    // can add is one other install's link work.
+    let guard: Option<Guard> = lock_for_link_writes(ctx, &mut report);
     match sync_postinstall_links(ctx, &entries) {
         Ok(notices) => {
             report.retired_links = notices.retired;
@@ -282,6 +317,7 @@ pub fn sync_tools(ctx: &Context, only: Option<&[String]>) -> SyncReport {
     let notices = retire_undeclared_launchers(ctx, &linked_bins);
     report.retired_launchers = notices.retired;
     report.warnings.extend(notices.warnings);
+    drop(guard);
     // Only a full sync writes the tool environment: it is built from the whole lock, and `update`'s partial sync
     // (which installs just the tools its lookups need) must not rewrite it from a subset.
     if only.is_none() {

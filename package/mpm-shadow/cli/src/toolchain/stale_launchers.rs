@@ -2,7 +2,7 @@
 //! The retirement of what `install` once made for a name the lock declares nowhere:
 //! a launcher in the checkout's launcher folder,
 //! the `<name>.launch` record beside it,
-//! and the exposed link in the checkout's link folder.
+//! and the links in the checkout's link folders that name it.
 //! Why:
 //! `install` writes a launcher and its record for each bin the lock declares,
 //! and touches no other name,
@@ -19,11 +19,19 @@
 //! a record this tool can read and whose tool this lock still declares,
 //! a launcher whose own bytes are one of `mpm-shadow`'s own programs,
 //! and a link whose target is such a launcher.
+//! A link is judged in every folder `mpm-shadow` keeps links in,
+//! not only in the farm and the places the record of postinstall links names,
+//! because a run killed between making those links and recording them leaves links nothing names.
+//! A link that does not resolve is proven only when it said its name was in a launcher folder,
+//! so a person's broken link that shares a name with a launcher stays.
 //! A file whose own bytes are not provably `mpm-shadow`'s stays where it is,
 //! and the install names it and why.
+//! The removal moves the entry it judged aside in one atomic step and compares what moved with what was judged,
+//! so a file a person puts at the path while the proof runs is put back rather than deleted.
 //! An install that cannot read the lock never reaches here at all,
+//! the caller holds the scope's lock over these writes so no install running beside this one is seen half done,
 //! and the removal order keeps a link from ever pointing at a launcher that is gone:
-//! the exposed links go first,
+//! the links go first,
 //! then the launcher,
 //! then its record.
 //!
@@ -37,7 +45,7 @@
 use std::collections::BTreeSet;
 /// Imports `fs` from `std`.
 use std::fs;
-/// Imports the read trait the block comparison fills its buffers with.
+/// Imports the read trait the block comparison and the record read fill their buffers with.
 use std::io::Read;
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
@@ -57,18 +65,25 @@ use super::launcher::{RECORD_SUFFIX, parse_record, record_path};
 use super::launcher_source::{launcher_source, newest_installed_shadow, program_name, running_program};
 /// Imports `Postinstall` from `super::model`.
 use super::model::Postinstall;
-/// Imports `recorded_link_paths` from `super::postinstall_links`.
-use super::postinstall_links::recorded_link_paths;
+/// Imports what this module uses from `super::postinstall_links`.
+use super::postinstall_links::{declared_link_paths, recorded_link_paths};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, global_scope};
 
-//region The crate mpm-shadow places, and how much of a file is read at a time
+//region The crate mpm-shadow places, the folders it links into, and how much of a file is read at a time
 
 /// The crate name this tool's own launchers carry in their identity text.
 /// A launcher is a copy of the `mpm-shadow` program,
 /// never of one of the repository's other shadows,
 /// whose identity text names them instead.
 const OWN_SHADOW_CRATE: &str = "monochromatic-mpm-shadow";
+
+/// The suffix of the directories under a checkout's `.cache` that a tool's postinstall step links into
+/// (`mpm-shadow-bin`,
+/// `monochromatic-git-policy-cli-bin`).
+/// The same suffix the cleanup of old copies searches for links,
+/// and the way to find a link that an unrecorded or damaged record does not name.
+const LINK_DIRECTORY_SUFFIX: &str = "-bin";
 
 /// The number of bytes two candidate files are compared in.
 /// A measured launcher is about 5 MiB,
@@ -78,7 +93,117 @@ const COMPARE_BLOCK: usize = 64 * 1024;
 
 //endregion
 
-//region One listing, one removal
+//region One judged entry and the one atomic step that removes it
+
+/// What:
+/// The entry at a path when it was judged:
+/// the file it was, by the two numbers every Unix file carries.
+/// Why:
+/// The proofs read a few hundred bytes of a record and up to five million of a program,
+/// and a person can put a file of their own at the path while they run.
+/// Keeping the identity of what was judged lets the removal tell the judged entry from a later one.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct Judged {
+    /// The device of the file system the entry is on.
+    #[cfg(unix)]
+    device: u64,
+    /// The entry's inode on that file system.
+    #[cfg(unix)]
+    inode: u64,
+}
+
+/// What a removal did.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Removal {
+    /// This call removed the entry that was judged.
+    Retired,
+    /// Nothing stood at the path any more.
+    Gone,
+    /// Something that was not judged stood there: it was put back and left alone.
+    Replaced,
+}
+
+/// The identity of an entry from its metadata.
+#[cfg(unix)]
+fn judged_of_metadata(metadata: &fs::Metadata) -> Judged {
+    /// Imports `MetadataExt` from `std::os::unix::fs`.
+    use std::os::unix::fs::MetadataExt;
+    return Judged { device: metadata.dev(), inode: metadata.ino() };
+}
+
+/// Without inodes nothing tells one file at a path from another,
+/// so the removal can only remove.
+#[cfg(not(unix))]
+fn judged_of_metadata(_metadata: &fs::Metadata) -> Judged {
+    return Judged {};
+}
+
+/// The identity of the entry at `path`, without following a symbolic link.
+/// The pass itself judges from the metadata it already holds, so this is the seam its tests judge by.
+#[cfg(test)]
+pub(super) fn judged_of(path: &Path) -> Result<Judged, String> {
+    return match fs::symlink_metadata(path) {
+        Ok(metadata) => Ok(judged_of_metadata(&metadata)),
+        Err(error) => Err(format!("it cannot be inspected: {error}")),
+    };
+}
+
+/// What:
+/// A free hidden name beside `path`, for the one atomic step of a removal.
+/// Why:
+/// The passes never judge a hidden name,
+/// so a run killed between moving an entry aside and removing it leaves nothing a later pass takes for a launcher,
+/// a record or a link.
+fn temporary_name_beside(path: &Path) -> PathBuf {
+    let name: String = path.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
+    for attempt in 0..8 {
+        let candidate: PathBuf = path.with_file_name(format!(".{name}.{}.{attempt}.retired", std::process::id()));
+        if fs::symlink_metadata(&candidate).is_err() {
+            return candidate;
+        }
+    }
+    return path.with_file_name(format!(".{name}.{}.retired", std::process::id()));
+}
+
+/// What:
+/// Removes `path` only when the entry standing there is still the one judged,
+/// and puts back whatever else stands there.
+/// Why:
+/// A check followed by a remove deletes a file a person put at the path in between,
+/// and the proof of a launcher reads megabytes while that can happen.
+/// Moving the entry aside is one atomic step,
+/// so whatever stood there is in hand and can be compared with the judged entry before anything is deleted;
+/// a file that arrived after the judgement goes back exactly where it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function removeIfStill(path: string, judged: Judged): Removal  // throws
+/// ```
+pub(super) fn remove_if_still(path: &Path, judged: Judged) -> Result<Removal, String> {
+    let temporary: PathBuf = temporary_name_beside(path);
+    match fs::rename(path, &temporary) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Removal::Gone),
+        Err(error) => return Err(format!("it cannot be removed: {error}")),
+    }
+    let moved: Option<Judged> = fs::symlink_metadata(&temporary).ok().map(|metadata| return judged_of_metadata(&metadata));
+    if moved != Some(judged) {
+        return match fs::rename(&temporary, path) {
+            Ok(()) => Ok(Removal::Replaced),
+            Err(error) => Err(format!(
+                "something replaced it while it was judged, and what replaced it cannot be put back: {error}"
+            )),
+        };
+    }
+    return match fs::remove_file(&temporary) {
+        Ok(()) => Ok(Removal::Retired),
+        Err(error) => Err(format!("it was moved aside as the entry judged and then could not be removed: {error}")),
+    };
+}
+
+//endregion
+
+//region One listing
 
 /// What:
 /// The entries of `directory`,
@@ -104,35 +229,21 @@ fn sorted_entries(directory: &Path, notices: &mut LauncherNotices) -> Vec<fs::Di
     return found;
 }
 
-/// What:
-/// Removes `path` and says whether it is gone:
-/// `Ok(true)` when this call removed it,
-/// `Ok(false)` when nothing was there,
-/// and the reason when it could not be removed.
-/// Why:
-/// Two installs run in one checkout at the same time,
-/// so a file the other one already retired is not an error.
-fn remove_if_present(path: &Path) -> Result<bool, String> {
-    return match fs::remove_file(path) {
-        Ok(()) => Ok(true),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(format!("it cannot be removed: {error}")),
-    };
-}
-
 //endregion
 
 //region The proofs
 
 /// What:
-/// Whether the `<name>.launch` record beside a launcher is this tool's own:
-/// a record `mpm-shadow` can read, whose tool this lock still declares.
+/// Whether the `<name>.launch` record beside a launcher is this tool's own,
+/// and the identity of the record the proof read.
 /// Why:
 /// The record names the tool it was written for,
 /// so a record naming a tool the lock has dropped is not proven and the file beside it stays.
-fn record_is_own(record: &Path, declared_tools: &BTreeSet<&str>) -> Result<(), String> {
-    let text: String = match fs::read_to_string(record) {
-        Ok(text) => text,
+/// The identity comes from the open record,
+/// because the content and the entry must be the same file for a removal to be safe.
+fn record_is_own(record: &Path, declared_tools: &BTreeSet<&str>) -> Result<Judged, String> {
+    let mut file: fs::File = match fs::File::open(record) {
+        Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Err(format!(
                 "no launcher record {} stands beside it, so mpm-shadow cannot tell it from a file someone put there",
@@ -141,6 +252,14 @@ fn record_is_own(record: &Path, declared_tools: &BTreeSet<&str>) -> Result<(), S
         }
         Err(error) => return Err(format!("{} cannot be read: {error}", record.display())),
     };
+    let judged: Judged = match file.metadata() {
+        Ok(metadata) => judged_of_metadata(&metadata),
+        Err(error) => return Err(format!("{} cannot be inspected: {error}", record.display())),
+    };
+    let mut text: String = String::new();
+    if let Err(error) = file.read_to_string(&mut text) {
+        return Err(format!("{} cannot be read: {error}", record.display()));
+    }
     let Some(parsed) = parse_record(&text) else {
         return Err(format!("{} is not a launcher record mpm-shadow wrote", record.display()));
     };
@@ -151,7 +270,7 @@ fn record_is_own(record: &Path, declared_tools: &BTreeSet<&str>) -> Result<(), S
             parsed.tool_id
         ));
     }
-    return Ok(());
+    return Ok(judged);
 }
 
 /// The crate a shadow's identity text names,
@@ -214,6 +333,16 @@ fn read_block(file: &mut fs::File, buffer: &mut [u8]) -> Result<usize, std::io::
     return Ok(filled);
 }
 
+/// What a proven launcher is:
+/// the sentence naming the proof,
+/// and the entry the proof was made about.
+struct Proven {
+    /// Why the file is `mpm-shadow`'s own.
+    why: String,
+    /// The entry the record and the bytes were read from.
+    judged: Judged,
+}
+
 /// What:
 /// The proofs a pass can bring for a launcher's bytes,
 /// gathered once and only when a name the lock declares nowhere is waiting.
@@ -246,17 +375,18 @@ impl<'a> Proofs<'a> {
     }
 
     /// What:
-    /// `Ok(why)` when the file the exposed link at `link` names is provably a launcher of this tool's own.
+    /// `Ok(why)` when the file a link names is provably a launcher of this tool's own.
     /// Why:
     /// The link names whatever it points at,
     /// which is this checkout's launcher for a tool this repository publishes,
     /// another checkout's launcher when `.cache` was copied from there,
     /// or the machine-global launcher.
-    /// A link whose file another install has already removed is judged by the launcher of the same name in this checkout:
-    /// that is what it pointed at before the copy, and the file itself must still prove it.
+    /// A link whose file another install has already removed is judged by the launcher of the same name in this checkout,
+    /// but only when the link said the name was in a launcher folder at all:
+    /// a person's broken link to somewhere else shares a name and nothing more.
     fn linked_launcher(&mut self, link: &Path, declared_tools: &BTreeSet<&str>) -> Result<String, String> {
         if let Ok(resolved) = fs::canonicalize(link) {
-            return self.own(&resolved, declared_tools);
+            return Ok(self.own(&resolved, declared_tools)?.why);
         }
         let stated: PathBuf = match fs::read_link(link) {
             Ok(stated) => stated,
@@ -265,18 +395,46 @@ impl<'a> Proofs<'a> {
         let Some(name) = stated.file_name() else {
             return Err(format!("the link does not resolve and names no file name: it stated {}", stated.display()));
         };
+        if !self.names_a_launcher_folder(stated.parent()) {
+            return Err(format!(
+                "the link does not resolve and it named {}, which is in no launcher folder, so nothing says it named a launcher",
+                stated.display()
+            ));
+        }
         let here: PathBuf = self.scope.launcher_dir.join(name);
         if fs::symlink_metadata(&here).is_err() {
             return Err(format!(
-                "the link does not resolve and this checkout's launcher folder holds no {} either, so what it pointed at cannot be proven",
+                "the link does not resolve, it named {}, and this checkout's launcher folder holds no {} either, so what it pointed at cannot be proven",
+                stated.display(),
                 name.to_string_lossy()
             ));
         }
-        return self.own(&here, declared_tools);
+        return Ok(self.own(&here, declared_tools)?.why);
+    }
+
+    /// Whether `directory` is a folder this tool keeps launchers in:
+    /// this checkout's launcher folder,
+    /// another checkout's,
+    /// or the machine-global one,
+    /// each of which is known by the name of the folder it sits in.
+    fn names_a_launcher_folder(&self, given: Option<&Path>) -> bool {
+        let Some(folder) = given else {
+            return false;
+        };
+        let Some(name) = folder.file_name() else {
+            return false;
+        };
+        if Some(name) == self.scope.launcher_dir.file_name() {
+            return true;
+        }
+        return match global_scope(self.env) {
+            Ok(global) => Some(name) == global.launcher_dir.file_name(),
+            Err(_) => false,
+        };
     }
 
     /// What:
-    /// `Ok(why)` when `launcher` is provably this tool's own,
+    /// `Ok(proven)` when `launcher` is provably this tool's own,
     /// and `Err(why not)` when it is not.
     /// Why:
     /// Both proofs the owner asked for are required:
@@ -284,11 +442,12 @@ impl<'a> Proofs<'a> {
     /// and bytes that are one of its own programs.
     /// The record comes first,
     /// because it is a few hundred bytes where the bytes are five million.
-    fn own(&mut self, launcher: &Path, declared_tools: &BTreeSet<&str>) -> Result<String, String> {
+    fn own(&mut self, launcher: &Path, declared_tools: &BTreeSet<&str>) -> Result<Proven, String> {
         let metadata = match fs::symlink_metadata(launcher) {
             Ok(metadata) => metadata,
             Err(error) => return Err(format!("it cannot be inspected: {error}")),
         };
+        let judged: Judged = judged_of_metadata(&metadata);
         if metadata.file_type().is_symlink() {
             return Err("it is a symbolic link, and mpm-shadow places a copy of its own program there, never a link".to_string());
         }
@@ -296,7 +455,8 @@ impl<'a> Proofs<'a> {
             return Err("it is not a regular file".to_string());
         }
         record_is_own(&record_path(launcher), declared_tools)?;
-        return self.own_bytes(launcher, declared_tools);
+        let why: String = self.own_bytes(launcher, declared_tools)?;
+        return Ok(Proven { why, judged });
     }
 
     /// What:
@@ -415,20 +575,69 @@ fn witness_launchers_in(folder: &Path, declared_tools: &BTreeSet<&str>, witnesse
 
 //region The links mpm-shadow manages
 
-/// The link paths `mpm-shadow` writes and remembers in this scope:
-/// the entries of the farm,
-/// the postinstall links the lock declares,
-/// and the postinstall links the record names.
-fn managed_link_paths(ctx: &Context) -> Vec<PathBuf> {
-    let mut paths: Vec<PathBuf> = Vec::new();
-    if let Ok(entries) = fs::read_dir(&ctx.scope.exposure_dir) {
+/// What:
+/// Every directory in which this scope's `mpm-shadow` keeps links:
+/// the farm,
+/// every `-bin` directory under the checkout's `.cache`,
+/// the scope's own link directory,
+/// and the directories the lock's postinstall links declare.
+/// Why:
+/// The record of postinstall links can be missing or unreadable
+/// (a run killed after it made the links and before it wrote the record,
+/// a damaged file),
+/// and then nothing names the links it made;
+/// a launcher whose link is invisible would be removed from under it.
+/// The `-bin` suffix is the convention the cleanup of old copies already reads a checkout's link folders by.
+fn link_folders(ctx: &Context) -> Vec<PathBuf> {
+    let mut folders: Vec<PathBuf> = vec![ctx.scope.exposure_dir.clone()];
+    let cache: PathBuf = ctx.scope.root.join(".cache");
+    if let Ok(entries) = fs::read_dir(&cache) {
+        let mut found: Vec<PathBuf> = Vec::new();
         for entry in entries.flatten() {
-            paths.push(entry.path());
+            let name: String = entry.file_name().to_string_lossy().to_string();
+            if name.ends_with(LINK_DIRECTORY_SUFFIX) && entry.path().is_dir() {
+                found.push(entry.path());
+            }
         }
+        found.sort();
+        folders.extend(found);
     }
+    folders.push(ctx.scope.link_dir.clone());
     for tool in ctx.tools {
         if let Some(Postinstall::Link(link)) = &tool.declaration.options.postinstall {
-            paths.push(link_directory(ctx.scope, &link.link_dir).join(&link.link_name));
+            folders.push(link_directory(ctx.scope, &link.link_dir));
+        }
+    }
+    let mut seen: BTreeSet<PathBuf> = BTreeSet::new();
+    let mut distinct: Vec<PathBuf> = Vec::new();
+    for folder in folders {
+        if seen.insert(folder.clone()) {
+            distinct.push(folder);
+        }
+    }
+    return distinct;
+}
+
+/// What:
+/// The link paths `mpm-shadow` manages in this scope:
+/// the entries of every folder it keeps links in,
+/// and the paths the record of postinstall links names.
+/// Why:
+/// A hidden name is skipped:
+/// a link of a tool's bin is never hidden,
+/// and a hidden entry is a write of a killed run
+/// (`atomic_symlink`'s `.<name>.<pid>.tmp` and this pass's `.<name>.<pid>.<n>.retired`),
+/// which would otherwise keep a launcher alive for ever because it still resolved to it.
+fn managed_link_paths(ctx: &Context) -> Vec<PathBuf> {
+    let mut paths: Vec<PathBuf> = Vec::new();
+    for folder in link_folders(ctx) {
+        if let Ok(entries) = fs::read_dir(&folder) {
+            for entry in entries.flatten() {
+                if entry.file_name().to_string_lossy().starts_with('.') {
+                    continue;
+                }
+                paths.push(entry.path());
+            }
         }
     }
     paths.extend(recorded_link_paths(ctx));
@@ -460,7 +669,42 @@ fn links_reaching(ctx: &Context, launcher: &Path) -> Vec<PathBuf> {
 //region The three passes
 
 /// What:
-/// Retires every exposed link whose name the lock declares nowhere and whose target is a launcher this tool can prove its own.
+/// Removes one link of a name the lock declares nowhere,
+/// when what it names is provably a launcher of this tool's own.
+/// Why:
+/// The proof is what the link points at, never the link's own name:
+/// the same rule and the same sentences serve the farm and the folders a tool's postinstall step links into.
+fn retire_one_link(
+    reason: &str,
+    path: &Path,
+    judged: Judged,
+    declared_tools: &BTreeSet<&str>,
+    proofs: &mut Proofs<'_>,
+    notices: &mut LauncherNotices,
+) {
+    let why: String = match proofs.linked_launcher(path, declared_tools) {
+        Ok(why) => why,
+        Err(why) => {
+            notices.warnings.push(format!("left {} alone: {reason}, but {why}", path.display()));
+            return;
+        }
+    };
+    match remove_if_still(path, judged) {
+        Ok(Removal::Retired) => notices.retired.push(format!("retired the link {} because {reason} ({why})", path.display())),
+        Ok(Removal::Gone) => {}
+        Ok(Removal::Replaced) => notices.warnings.push(format!(
+            "left {} alone: {reason}, but something replaced the link between deciding that and removing it, so it was put back",
+            path.display()
+        )),
+        Err(reason_it_could_not) => notices.warnings.push(format!(
+            "left {} alone: {reason}, and the link names a launcher mpm-shadow made, but {reason_it_could_not}",
+            path.display()
+        )),
+    }
+}
+
+/// What:
+/// Retires every link of the farm whose name the lock declares nowhere and whose target is a launcher this tool can prove its own.
 /// Why:
 /// The farm is `mpm-shadow`'s own folder:
 /// it links a name to a real program for a tool it does not publish,
@@ -469,10 +713,7 @@ fn links_reaching(ctx: &Context, launcher: &Path) -> Vec<PathBuf> {
 /// so a link to a program is left and named
 /// (a person may have made it,
 /// and the lock says nothing about it).
-/// A copied `.cache` makes its links name the checkout it was copied from,
-/// and that checkout's own install may have removed the launcher since,
-/// so a link that no longer resolves is proven by the launcher of the same name in this checkout.
-fn retire_exposed_links(
+fn retire_farm_links(
     entries: &[fs::DirEntry],
     declared: &BTreeSet<String>,
     declared_tools: &BTreeSet<&str>,
@@ -481,7 +722,7 @@ fn retire_exposed_links(
 ) {
     for entry in entries {
         let name: String = entry.file_name().to_string_lossy().to_string();
-        if declared.contains(&name) || name.starts_with('.') {
+        if declared.contains(&name) {
             continue;
         }
         let path: PathBuf = entry.path();
@@ -494,6 +735,11 @@ fn retire_exposed_links(
             }
         };
         if !metadata.file_type().is_symlink() {
+            // A hidden name that is not a link is the record of the postinstall links or a write of a killed run, and it is
+            // left silently; any other name is a check of what stands in the farm, which mpm-shadow never made.
+            if name.starts_with('.') {
+                continue;
+            }
             notices.warnings.push(format!(
                 "left {} alone: the lock declares no bin of that name, and this is not a symbolic link mpm-shadow made; \
                  remove it yourself if it is stale",
@@ -501,21 +747,63 @@ fn retire_exposed_links(
             ));
             continue;
         }
-        match proofs.linked_launcher(&path, declared_tools) {
-            Err(why) => notices
-                .warnings
-                .push(format!("left {} alone: the lock declares no bin of that name, but {why}", path.display())),
-            Ok(why) => match remove_if_present(&path) {
-                Ok(true) => notices.retired.push(format!(
-                    "retired the exposed link {} because the lock declares no bin of that name ({why})",
-                    path.display()
-                )),
-                Ok(false) => {}
-                Err(reason) => notices.warnings.push(format!(
-                    "left {} alone: the lock declares no bin of that name and the link names a launcher mpm-shadow made, but {reason}",
-                    path.display()
-                )),
-            },
+        retire_one_link(
+            "the lock declares no bin of that name",
+            &path,
+            judged_of_metadata(&metadata),
+            declared_tools,
+            proofs,
+            notices,
+        );
+    }
+}
+
+/// What:
+/// Retires every link in the folders a tool's postinstall step links into whose path the lock declares nowhere and whose target is a launcher this tool can prove its own.
+/// Why:
+/// A killed run can make these links and never record them,
+/// and a damaged record names none of them,
+/// so the record cannot be the only answer to "which links did mpm-shadow make".
+/// A link here that names a person's program is left and named, as in the farm;
+/// anything but a symbolic link is a person's file and is not judged at all.
+fn retire_other_links(
+    ctx: &Context,
+    declared_paths: &BTreeSet<PathBuf>,
+    declared_tools: &BTreeSet<&str>,
+    proofs: &mut Proofs<'_>,
+    notices: &mut LauncherNotices,
+) {
+    for folder in link_folders(ctx) {
+        if folder == ctx.scope.exposure_dir {
+            continue;
+        }
+        for entry in sorted_entries(&folder, notices) {
+            let path: PathBuf = entry.path();
+            if declared_paths.contains(&path) {
+                continue;
+            }
+            let metadata = match fs::symlink_metadata(&path) {
+                Ok(metadata) => metadata,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => {
+                    notices.warnings.push(format!("left {} alone: it cannot be inspected: {error}", path.display()));
+                    continue;
+                }
+            };
+            if !metadata.file_type().is_symlink() {
+                continue;
+            }
+            // A hidden link here is the leftover of a killed atomic write (`atomic_symlink`'s `.<name>.<pid>.tmp` or this pass's
+            // own `.<name>.<pid>.<n>.retired`); its target proves it, and leaving it would leave a link that later resolves to
+            // nothing.
+            retire_one_link(
+                "the lock declares no postinstall link there",
+                &path,
+                judged_of_metadata(&metadata),
+                declared_tools,
+                proofs,
+                notices,
+            );
         }
     }
 }
@@ -545,8 +833,8 @@ fn retire_launchers(
             continue;
         }
         let launcher: PathBuf = entry.path();
-        let why: String = match proofs.own(&launcher, declared_tools) {
-            Ok(why) => why,
+        let proven: Proven = match proofs.own(&launcher, declared_tools) {
+            Ok(proven) => proven,
             Err(why) => {
                 notices
                     .warnings
@@ -563,25 +851,48 @@ fn retire_launchers(
             ));
             continue;
         }
-        match remove_if_present(&launcher) {
-            Ok(true) => notices.retired.push(format!(
-                "retired the launcher {} because the lock declares no bin of that name ({why})",
-                launcher.display()
+        match remove_if_still(&launcher, proven.judged) {
+            Ok(Removal::Retired) => notices.retired.push(format!(
+                "retired the launcher {} because the lock declares no bin of that name ({})",
+                launcher.display(),
+                proven.why
             )),
-            Ok(false) => {}
+            Ok(Removal::Gone) => {}
+            Ok(Removal::Replaced) => {
+                notices.warnings.push(format!(
+                    "left {} alone: something replaced it between proving it mpm-shadow's own and removing it, so it was put back",
+                    launcher.display()
+                ));
+                continue;
+            }
             Err(reason) => {
-                notices.warnings.push(format!("left {} alone: its name is nowhere in this lock, but {reason}", launcher.display()));
+                notices
+                    .warnings
+                    .push(format!("left {} alone: its name is nowhere in this lock, but {reason}", launcher.display()));
                 continue;
             }
         }
         let record: PathBuf = record_path(&launcher);
-        match remove_if_present(&record) {
-            Ok(true) => notices
+        let judged: Judged = match record_is_own(&record, declared_tools) {
+            Ok(judged) => judged,
+            Err(why) => {
+                notices
+                    .warnings
+                    .push(format!("left {} alone: the launcher it belonged to is gone, but {why}", record.display()));
+                continue;
+            }
+        };
+        match remove_if_still(&record, judged) {
+            Ok(Removal::Retired) => notices
                 .retired
                 .push(format!("retired the launcher record {} because the lock declares no bin of that name", record.display())),
-            Ok(false) => {}
+            Ok(Removal::Gone) => {}
+            Ok(Removal::Replaced) => notices.warnings.push(format!(
+                "left {} alone: something replaced the record between reading it and removing it, so it was put back",
+                record.display()
+            )),
             Err(reason) => notices.warnings.push(format!(
-                "left {} alone: the launcher it belongs to is gone and its name is nowhere in this lock, but {reason}",
+                "left {} alone: the launcher it belonged to is gone and its name is nowhere in this lock, but {reason}",
                 record.display()
             )),
         }
@@ -595,7 +906,9 @@ fn retire_launchers(
 /// and the next install reads it as a record naming another lock,
 /// so that state must not survive an install.
 /// Only the record itself is proven here:
-/// a record this tool can read whose tool this lock still declares is `mpm-shadow`'s own writing.
+/// a record this tool can read whose tool this lock still declares is `mpm-shadow`'s own writing,
+/// and the caller holds the scope's lock,
+/// so a record an install beside this one has just written is always accompanied by its launcher by now.
 fn retire_records_without_launchers(
     entries: &[fs::DirEntry],
     declared: &BTreeSet<String>,
@@ -620,17 +933,24 @@ fn retire_records_without_launchers(
             // Its launcher stands beside it, so the pass above judged the pair.
             continue;
         }
-        if let Err(why) = record_is_own(&record, declared_tools) {
-            notices
-                .warnings
-                .push(format!("left {} alone: the lock declares no bin of that name, but {why}", record.display()));
-            continue;
-        }
-        match remove_if_present(&record) {
-            Ok(true) => notices
+        let judged: Judged = match record_is_own(&record, declared_tools) {
+            Ok(judged) => judged,
+            Err(why) => {
+                notices
+                    .warnings
+                    .push(format!("left {} alone: the lock declares no bin of that name, but {why}", record.display()));
+                continue;
+            }
+        };
+        match remove_if_still(&record, judged) {
+            Ok(Removal::Retired) => notices
                 .retired
                 .push(format!("retired the launcher record {} because the lock declares no bin of that name", record.display())),
-            Ok(false) => {}
+            Ok(Removal::Gone) => {}
+            Ok(Removal::Replaced) => notices.warnings.push(format!(
+                "left {} alone: something replaced the record between reading it and removing it, so it was put back",
+                record.display()
+            )),
             Err(reason) => notices
                 .warnings
                 .push(format!("left {} alone: the lock declares no bin of that name, but {reason}", record.display())),
@@ -706,11 +1026,13 @@ pub struct LauncherNotices {
 }
 
 /// What:
-/// Retires the launchers, records and exposed links of names this lock declares nowhere.
+/// Retires the launchers, records and links of names this lock declares nowhere.
 /// Why:
 /// This is the one place `install` cleans up after a bin the plan renamed or dropped.
 /// `made_links` are the exposed names this run itself linked,
 /// so a name the running `mpm-shadow` owns is never taken for a leftover.
+/// The caller holds the scope's lock over this pass,
+/// which is what makes "a record with no launcher is a leftover" true while another install runs.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -720,16 +1042,18 @@ pub fn retire_undeclared_launchers(ctx: &Context, made_links: &[String]) -> Laun
     let mut notices: LauncherNotices = LauncherNotices::default();
     // One listing per folder: an install with nothing to do compares names against the lock and reads no file.
     let launchers: Vec<fs::DirEntry> = sorted_entries(&ctx.scope.launcher_dir, &mut notices);
-    let links: Vec<fs::DirEntry> = sorted_entries(&ctx.scope.exposure_dir, &mut notices);
-    if launchers.is_empty() && links.is_empty() {
+    let farm: Vec<fs::DirEntry> = sorted_entries(&ctx.scope.exposure_dir, &mut notices);
+    if launchers.is_empty() && farm.is_empty() {
         return notices;
     }
     let declared_launchers: BTreeSet<String> = declared_launcher_names(ctx);
     let declared_links: BTreeSet<String> = declared_link_names(ctx, made_links);
+    let declared_paths: BTreeSet<PathBuf> = declared_link_paths(ctx);
     let declared_tools: BTreeSet<&str> = ctx.tools.iter().map(|tool| return tool.declaration.id.as_str()).collect();
     let mut proofs: Proofs<'_> = Proofs::new(ctx);
     // The links go before the launchers they point at, so no link is ever left naming a file that is gone.
-    retire_exposed_links(&links, &declared_links, &declared_tools, &mut proofs, &mut notices);
+    retire_farm_links(&farm, &declared_links, &declared_tools, &mut proofs, &mut notices);
+    retire_other_links(ctx, &declared_paths, &declared_tools, &mut proofs, &mut notices);
     retire_launchers(ctx, &launchers, &declared_launchers, &declared_tools, &mut proofs, &mut notices);
     retire_records_without_launchers(&launchers, &declared_launchers, &declared_tools, &mut notices);
     return notices;
