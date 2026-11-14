@@ -52,7 +52,7 @@ use crate::lean_policy::{
     TOOLCHAIN_FOLDER_PASS_SECONDS,
 };
 /// The first process that uses something under a folder.
-use crate::lean_proc_scan::scan_processes;
+use crate::lean_proc_scan::{ScanReport, scan_processes};
 /// The one way these tools remove an entry.
 use crate::lean_removal::{Refusal, claim_into_trash, delete_claimed, item_of, modes_named};
 /// The reading of the volume's free space the run already has,
@@ -337,7 +337,7 @@ fn oldest_first(left: &Candidate, right: &Candidate) -> std::cmp::Ordering {
 }
 
 /// What:
-/// `fn keep_reason(candidate: &Candidate, keep_toolchain: Option<&str>, limits: &ToolchainFolderLimits, environment: &GuardEnvironment, now: i64) -> Option<String>`
+/// `fn keep_reason(candidate: &Candidate, keep_toolchain: Option<&str>, limits: &ToolchainFolderLimits, now: i64, scan: Option<&ScanReport>) -> Option<String>`
 /// is why the folder is kept,
 /// or nothing when it may go.
 /// Why:
@@ -349,12 +349,17 @@ fn oldest_first(left: &Candidate, right: &Candidate) -> std::cmp::Ordering {
 /// The names a checkout pins are deliberately not a reason:
 /// 53 of this machine's worktrees still pinned `nightly-2026-11-10` on 2026-11-13 while none of them built,
 /// and that pin is what kept its 1.17 TB of build folders.
+/// The scan of the processes comes from the caller because it is the whole cost of a pass that finds work:
+/// one scan covers every folder the pass judges,
+/// so the proof costs one scan however many folders it covers
+/// (measured 2026-11-13 on this machine: 0.19 s for a scan of one folder and 0.24 s of nine,
+/// beside 0.02 s for a pass whose volume had its space back).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function keepReason(candidate: Candidate, keepToolchain: string | undefined, limits: Limits, environment: GuardEnvironment, now: number): string | undefined
+/// function keepReason(candidate: Candidate, keepToolchain: string | undefined, limits: ToolchainFolderLimits, now: number, scan: ScanReport | undefined): string | undefined
 /// ```
-fn keep_reason(candidate: &Candidate, keep_toolchain: Option<&str>, limits: &ToolchainFolderLimits, environment: &GuardEnvironment, now: i64) -> Option<String> {
+fn keep_reason(candidate: &Candidate, keep_toolchain: Option<&str>, limits: &ToolchainFolderLimits, now: i64, scan: Option<&ScanReport>) -> Option<String> {
     if keep_toolchain == Some(candidate.name.as_str()) {
         return Some(String::from("the build this pass runs under hands its work to this toolchain, so the folder is in use"));
     }
@@ -362,11 +367,30 @@ fn keep_reason(candidate: &Candidate, keep_toolchain: Option<&str>, limits: &Too
     if changed <= limits.age_seconds {
         return Some(format!("changed {changed} s ago, within the {} s age", limits.age_seconds));
     }
-    let scan = scan_processes(&environment.proc_root, &[candidate.path.as_path()], &[], environment.own_pid);
-    if let Some(used) = scan.blocks(&candidate.path) {
+    let found: &ScanReport = scan?;
+    if let Some(used) = found.blocks(&candidate.path) {
         return Some(format!("pid {} uses it as {}", used.pid, used.how));
     }
     return None;
+}
+
+/// What:
+/// `fn scan_of(environment: &GuardEnvironment, folders: &[Candidate]) -> ScanReport` is one scan of every process for a use of
+/// anything under any of these folders.
+/// Why:
+/// The proof of "not in use" is the same proof for every folder a pass judges,
+/// so the pass pays for it once and judges every folder against it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scanOf = (environment: GuardEnvironment, folders: Candidate[]): ScanReport => scanProcesses(environment.procRoot, folders.map((one) => one.path), [], environment.ownPid);
+/// ```
+fn scan_of(environment: &GuardEnvironment, folders: &[Candidate]) -> ScanReport {
+    let mut roots: Vec<&Path> = Vec::with_capacity(folders.len());
+    for folder in folders {
+        roots.push(folder.path.as_path());
+    }
+    return scan_processes(&environment.proc_root, &roots, &[], environment.own_pid);
 }
 
 /// What:
@@ -669,14 +693,20 @@ pub fn retire_toolchain_folders(
     }
     let (listed, unreadable): (Vec<Candidate>, Vec<String>) = candidates(base);
     outcome.lines.extend(unreadable);
-    for candidate in listed {
+    // The scan of every process is taken at most once, and only when a folder is old enough to be judged by it.
+    let mut scanned: Option<ScanReport> = None;
+    for candidate in listed.iter() {
         if pass_deadline.passed() {
             let text: String = format!("toolchain folders: the pass's own bound of {} s is gone; the next pass continues", limits.pass_limit.as_secs());
             outcome.lines.push(text.clone());
             emit(log, text);
             return outcome;
         }
-        if let Some(why) = keep_reason(&candidate, keep_toolchain, limits, environment, now) {
+        // A folder old enough to go is judged against a scan of the machine, which the first such folder pays for.
+        if now - candidate.modified > limits.age_seconds && scanned.is_none() {
+            scanned = Some(scan_of(environment, &listed));
+        }
+        if let Some(why) = keep_reason(candidate, keep_toolchain, limits, now, scanned.as_ref()) {
             outcome.kept += 1;
             outcome.lines.push(format!("kept toolchain folder {}: {why}", candidate.path.display()));
             continue;
@@ -696,7 +726,7 @@ pub fn retire_toolchain_folders(
             emit(log, line);
             continue;
         }
-        if let Some(changed) = changed_since(&candidate) {
+        if let Some(changed) = changed_since(candidate) {
             outcome.kept += 1;
             outcome.lines.push(format!("kept toolchain folder {}: {changed}", candidate.path.display()));
             continue;
