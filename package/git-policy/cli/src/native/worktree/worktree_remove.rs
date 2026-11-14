@@ -127,6 +127,16 @@ pub enum RemoveOutcome {
     ///
     /// The report is for standard error and says what is left and what frees the path.
     RemovedAround(Vec<Boundary>),
+    /// The worktree and its registration are gone,
+    /// and the volume the removal went around went away while its pass ran,
+    /// so the empty root went with one `rmdir`:
+    /// nothing was destroyed in one step and nothing waits for the commit service.
+    ///
+    /// `Removed` cannot stand for this,
+    /// because the command that prints a line for `Removed` promises a delete the commit
+    ///  service still has to make,
+    /// and on this path there is none.
+    RemovedAroundNothingLeft,
     /// The removal is refused and nothing was changed;
     /// the report is for standard error and says what stands in the way and how to clear it.
     Refused(String),

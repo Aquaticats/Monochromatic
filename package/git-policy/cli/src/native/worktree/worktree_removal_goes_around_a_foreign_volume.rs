@@ -284,6 +284,38 @@ pub fn refused_beside_a_volume_report(target: &Path, operand: &str, left: &[Boun
 }
 
 /// What:
+///  The report of a removal that went around a volume and found it gone when its pass ended:
+///  the worktree's entries went one by one,
+///  the empty root went with one `rmdir`,
+///  and nothing was handed to the commit service.
+/// Why:
+///   The line for a removal whose subvolume was destroyed says the destroy took it in one step and that the
+///   commit service deletes the files after the command returns.
+/// On this path neither is true:
+/// the pass deleted the files before the command
+///  returned,
+/// no hand-over record was written,
+/// and the root went with one `rmdir` because the volume that had kept it
+///  standing was gone.
+/// A person who read the destroy's words would look for a queued delete that does not exist,
+/// and
+///  for a worktree that is a plain directory they would also be told of a subvolume that never was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = emptiedAroundReport('/repo/wt');
+/// ```
+pub fn emptied_around_report(target: &Path) -> String {
+    return format!(
+        "{PREFIX}removed the worktree {target}, and Git no longer lists it: this command deleted its entries one by one, the \
+         subvolume or mount point that stood inside it had gone by the time that pass ended, and the root went with one \
+         `rmdir`. Nothing was handed to the commit service, so no delete waits behind this command.",
+        target = target.display()
+    );
+}
+
+
+/// What:
 ///  The report of a removal that removed what it could and stopped,
 ///  so the worktree is partly emptied and still registered.
 /// Why:

@@ -258,3 +258,39 @@ fn a_file_that_is_no_record_is_left_alone() {
     assert_eq!(std::fs::read(stranger.as_path()).expect("the file"), b"a person's own file\n", "and the file is where it was");
     remove(root.as_path());
 }
+
+/// What:
+///  The report of a removal whose volume went away during its pass says what that path did,
+///  and never what a destroy's line says:
+///  no btrfs subvolume removed in one step,
+///  and no delete waiting behind the command.
+/// Why:
+///   On that path the pass deleted the entries one by one,
+///  the empty root went with one `rmdir`,
+///  and
+///  `go_around` writes no hand-over record,
+///  so a reader told of a queued service delete looks for one that does not exist;
+///  and a worktree that is a plain directory would also be told of a subvolume that never was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const report = emptiedAroundReport('/repo/wt');
+/// expect(report).toContain('the root went with one `rmdir`');
+/// expect(report).not.toContain('in one step');
+/// ```
+#[test]
+fn the_report_of_a_volume_gone_during_the_pass_says_what_that_path_did() {
+    let root: PathBuf = fixture("around-emptied-report");
+    let target: PathBuf = root.join("wt");
+    let report: String = emptied_around_report(target.as_path());
+    assert!(report.contains(target.to_str().expect("UTF-8")), "the report names the worktree: {report}");
+    assert!(report.contains("Git no longer lists it"), "and that Git forgot it: {report}");
+    assert!(report.contains("deleted its entries one by one"), "and how its entries went: {report}");
+    assert!(report.contains("had gone by the time that pass ended"), "and that the volume was gone when the pass ended: {report}");
+    assert!(report.contains("the root went with one `rmdir`"), "and how the root went: {report}");
+    assert!(report.contains("Nothing was handed to the commit service, so no delete waits behind this command"), "and that no delete waits: {report}");
+    assert!(!report.contains("in one step"), "and never that a destroy took it in one step: {report}");
+    assert!(!report.contains("DESTROY"), "and never the destroy notice's words: {report}");
+    assert!(!report.contains("btrfs subvolume of the worktree"), "and never that a worktree subvolume was removed: {report}");
+    remove(root.as_path());
+}

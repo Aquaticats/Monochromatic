@@ -198,6 +198,10 @@ pub(crate) fn go_around(request: &RemoveRequest<'_>, held: &Held, registration: 
         if outcome == RemoveOutcome::Removed {
             forget_destroy(request.common_dir, registration.id.as_os_str());
             crate::worktree_removal_around_begun::forget_around_begun(request.common_dir, registration.id.as_os_str());
+            // The files went one by one in this command and the empty root went with one `rmdir`, so the ending is the around
+            // route's and not the destroy's: nothing was destroyed in one step and nothing waits for the commit service.
+            debug(TAG, format!("the volume of {} went away while the pass ran, so the emptied root went with one rmdir", target.display()).as_str());
+            return RemoveOutcome::RemovedAroundNothingLeft;
         }
         return finished_around(outcome, target, registration, &[], request);
     }
