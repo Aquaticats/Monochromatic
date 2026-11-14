@@ -1198,6 +1198,75 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landing's author and the no-manager author answered; each answer goes to review (2026-11-14T11:20:59-05:00)
+
+Not final and not approved:
+what two authors report of themselves,
+which this session has not checked,
+and what it queued.
+
+- **A landing never waits behind housekeeping** (tip `af0b824df3`, ended 11:16:05):
+  the author reports the place-starvation finding of its third review answered with three controls
+  (63 tests of the touched modules passing),
+  `main` with pass 37 and the `0.6.1-alpha.28` release commit merged with no conflict.
+  It leaves the review's second finding,
+  an unbounded `recv()` in the exit drain,
+  as it was,
+  and says a commit whose own look stalls with every general place held still ends `Unavailable`.
+  Review queued second (range `main...af0b824df3`, nineteen code files);
+  its reviewer is the one to say whether what was left alone may stay.
+  Passes 29 and 34 wait on that review.
+- **The commit service needs no service manager** (tip `77f5d525e3`, ended 11:17:43):
+  the author reports its review answered
+  (nine new controls,
+  41 tests of the changed modules passing at four CPUs,
+  first and later commits and the takeover path each within its arm's own spread against the commit before).
+  It names one thing left alone:
+  `invocation/management_service_settle_earlier_batches.rs` still advises `systemctl --user stop` for unit names this branch never writes.
+  Review queued third (range `main...77f5d525e3`, 67 code files).
+  Its two questions for the owner
+  (a grace period for a scope's service that answers after `START_WAIT`;
+  another name for the claim file,
+  which is now transient)
+  are kept with the others and block nothing today.
+- Local `main` and `origin/main` are level at 11:20:59 and both hold the `0.6.1-alpha.28` release commit `ddf30651eb`.
+- A run measured `${HOME}/temp/agent` at 261 GiB,
+  82 GiB of it exclusive,
+  by `btrfs filesystem du`;
+  the 330 GiB and 308 GB of other runs count shared data once for each copy.
+- The queue held 59 entries.
+
+##### Issue 6293's last change is right; two things in files the branch brings go back to its author (2026-11-14T11:16:40-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+what the coordinating session measured against `main`,
+and what it queued.
+
+- **Issue 6293** (`71d52acb9a`),
+  fourth review:
+  the last change
+  (a failed push read once for the answer that its branch is gone)
+  keeps every verdict,
+  by a case analysis and thirteen tests run.
+  Two things in files it was given to read,
+  which it calls older than that commit.
+  Measured against `main`:
+  the branch adds `service_server_start_through_the_manager.rs` whole and changes the socket binding and the files of a running instance,
+  so both stand in what the branch brings.
+  - A takeover of the socket is decided by a greeting alone:
+    a live service still in its recovery before `serve` can have its socket unlinked by a second starter,
+    and its later removal of its own files deletes the successor's by path.
+    The socket's mechanism was reproduced;
+    the chain is by reading,
+    set off by a recovery of more than ten seconds.
+  - The probe of the manager waits on a killed child with no bound,
+    by reading.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/issue-6293-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- 22 Pi runs were going at 11:16:40;
+  the queue held 58 entries.
+
 ##### The three removal notices pass and go into pass 40; a sweep beside a write loses the record of a standing lock, back to its author (2026-11-14T11:12:13-05:00)
 
 Not final and not approved:
@@ -1219,7 +1288,10 @@ and what the coordinating session queued.
   in `hand_over_with` (`worktree_remove_hand_over.rs`, near lines 342 to 356) a renamed subvolume can be left with no owner
   when the service settles the record inside a narrow window and the self-delete then fails;
   no data is lost.
-  Not yet with any agent.
+  A fresh run is queued since 11:17:18 to establish it by the code's own seams and,
+  where it can happen,
+  to make every renamed subvolume have an owner that deletes it
+  (`~/temp/agent/pi-runs/renamed-subvolume-of-a-removal-handed-over-is-never-left-with-no-owner-prompt.md`).
 - **The lock a killed Git left** (`2ac27d2a29`):
   the changed hunk is right and 29 lock tests pass.
   One reproduced end to end with the built wrapper,
