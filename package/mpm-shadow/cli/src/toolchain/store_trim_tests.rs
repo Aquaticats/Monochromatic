@@ -549,12 +549,16 @@ fn keeps_a_version_a_process_starts_in_between_the_look_and_the_removal() {
         .expect("start a process working inside the version");
 
     let outcome: TrimOutcome = apply_trim(&plan, &run);
+    // What: the child is ended before anything is asserted.
+    // Why: a failing assertion must not leak a process that outlives the test.
+    let cwd: PathBuf = fs::read_link(format!("/proc/{}/cwd", child.id())).expect("read the child's working directory");
+    let _ = child.kill();
+    let _ = child.wait();
 
     // What: the version is back under its own name and the line says why.
     // Why: a kept version that stays a removal marker is not the same store state, and a dangling cwd is the harm
     // this control is about.
     assert!(victim.join("program").exists(), "the version a process started in was removed: {:?}", outcome.lines);
-    let cwd: PathBuf = fs::read_link(format!("/proc/{}/cwd", child.id())).expect("read the child's working directory");
     assert!(!cwd.to_string_lossy().contains("(deleted)"), "the child's working directory was deleted: {}", cwd.display());
     assert!(
         outcome.lines.iter().any(|line| return line.contains("node/26.11.0") && line.contains("it is in use")),
@@ -562,8 +566,6 @@ fn keeps_a_version_a_process_starts_in_between_the_look_and_the_removal() {
         outcome.lines
     );
     assert_eq!(outcome.removed, 3, "{:?}", outcome.lines);
-    let _ = child.kill();
-    let _ = child.wait();
 }
 
 //endregion the removals an earlier run left, and a process that starts mid-pass
@@ -704,13 +706,25 @@ fn replays_a_real_store_listing() {
         .filter(|version| return version.pinned)
         .map(|version| return format!("{}-{}", version.tool, version.version))
         .collect();
+    // What: the pass is timed the way a real one runs: one look at the process table, the inventory, the judge,
+    // then the removals.
+    // Why: the second look the removals take is what the review's second finding bought, so its cost has to be
+    // visible next to the rest of a pass.
+    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone() };
+    let look_clock: Instant = Instant::now();
+    let planning_look: StoreHolders = run.look();
+    let look_ms: u128 = look_clock.elapsed().as_millis();
+    let inventory_clock: Instant = Instant::now();
     let candidates: Vec<TrimCandidate> = candidates_of(&replayed_roots, &tools);
+    let inventory_ms: u128 = inventory_clock.elapsed().as_millis();
+    let judge_clock: Instant = Instant::now();
     let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &|found| {
         if pinned.contains(&format!("{}-{}", found.tool, found.version)) {
             return Some("a lock of the replayed machine named it".to_string());
         }
-        return None;
+        return held_reason(&planning_look, &found.directory).map(|held| return format!("it is in use: {held}"));
     });
+    let judge_ms: u128 = judge_clock.elapsed().as_millis();
     let mut lines: Vec<String> = vec![
         format!("replayed version directories and leftover downloads: {}", candidates.len()),
         format!("their total: {} MiB; the size bound: {} MiB", plan.total_bytes / MIB, bounds.size_bound_bytes / MIB),
@@ -729,7 +743,13 @@ fn replays_a_real_store_listing() {
         }
     }
     lines.push(format!("planned removal: {} MiB", planned_removal / MIB));
-    let outcome: TrimOutcome = apply_trim(&plan, &TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone() });
+    let removal_run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone() };
+    let removal_clock: Instant = Instant::now();
+    let outcome: TrimOutcome = apply_trim(&plan, &removal_run);
+    let remove_ms: u128 = removal_clock.elapsed().as_millis();
+    lines.push(format!(
+        "cost: look {look_ms} ms, inventory {inventory_ms} ms, judge {judge_ms} ms, removals {remove_ms} ms"
+    ));
     lines.push(format!(
         "removed from the replayed store: {} version(s), {} MiB",
         outcome.removed,
