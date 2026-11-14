@@ -1,0 +1,17 @@
+# The recheck image plus one more script, for a surface found while the timing rounds ran: a parse that carries
+# annotations. A tag of its own, so the timing rounds going in the recheck image are not touched.
+#
+#   podman build --tag localhost/optique-two-remaining-copies-recheck-annotated:2026-11-13 --file Containerfile.annotated .
+
+FROM localhost/optique-two-remaining-copies-recheck:2026-11-13
+
+COPY image/annotated-scaling.ts /repo/annotated-scaling.ts
+COPY image/run-annotated.ts /run-annotated.ts
+
+RUN set -eux; \
+    cd /repo; \
+    for arm in base multiple both views-always; do \
+      deno cache --no-config --import-map "/maps/recheck-$arm.json" annotated-scaling.ts; \
+    done
+
+ENTRYPOINT ["node", "/run-annotated.ts"]

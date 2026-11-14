@@ -1,0 +1,1485 @@
+diff --git a/changes.d/core/multiple-item-state-sharing.md b/changes.d/core/multiple-item-state-sharing.md
+new file mode 100644
+index 00000000..dca43323
+--- /dev/null
++++ b/changes.d/core/multiple-item-state-sharing.md
+@@ -0,0 +1,4 @@
++ -  Made `multiple()` share its state with the earlier states it was extended
++    from instead of rebuilding the whole array for each item it accepts, so a
++    successful parse of many repeated items is no longer spent copying the
++    items it already holds.
+diff --git a/packages/core/src/internal/array-view.test.ts b/packages/core/src/internal/array-view.test.ts
+new file mode 100644
+index 00000000..eaceb7c9
+--- /dev/null
++++ b/packages/core/src/internal/array-view.test.ts
+@@ -0,0 +1,179 @@
++/**
++ * Unit tests for array-shaped views of elements that live in another
++ * structure.
++ */
++import { describe, test } from "node:test";
++import * as assert from "node:assert/strict";
++import { virtualArrayOf } from "./array-view.ts";
++
++const ITEMS = ["a", "b", "c", "d"] as const;
++
++function elementsOf(items: readonly string[]) {
++  return {
++    length: items.length,
++    get: (index: number) => items[index],
++  };
++}
++
++describe("virtualArrayOf", () => {
++  test("presents the elements of its source as an array", () => {
++    const view = virtualArrayOf(elementsOf(ITEMS));
++
++    assert.ok(Array.isArray(view));
++    assert.equal(view.length, ITEMS.length);
++    assert.equal(view[0], "a");
++    assert.equal(view[3], "d");
++    assert.equal(view[4], undefined);
++    assert.deepEqual(view.slice(1), ["b", "c", "d"]);
++    assert.deepEqual([...view], [...ITEMS]);
++    assert.deepEqual(view.map((item) => item.toUpperCase()), [
++      "A",
++      "B",
++      "C",
++      "D",
++    ]);
++    assert.ok(view.every((item) => typeof item === "string"));
++    assert.equal(view.join(","), ITEMS.join(","));
++    assert.equal(view.indexOf("c"), 2);
++    assert.equal(view.at(-1), "d");
++    assert.deepEqual(Object.keys(view), ["0", "1", "2", "3"]);
++    assert.equal(JSON.stringify(view), JSON.stringify(ITEMS));
++    assert.ok(1 in view);
++    assert.ok(Object.hasOwn(view, "2"));
++    assert.deepEqual(view, ITEMS);
++    assert.deepEqual(view, ["a", "b", "c", "d"]);
++  });
++
++  test("reports a shorter length than its source could serve", () => {
++    // The source serves a whole shared array and presents a window of it, so
++    // an element outside the window must not leak through.
++    const shared = ["a", "b", "c", "d"];
++    const view = virtualArrayOf({
++      length: 2,
++      get: (index) => shared[index],
++    });
++
++    assert.equal(view.length, 2);
++    assert.deepEqual([...view], ["a", "b"]);
++    assert.equal(view[2], undefined);
++    assert.deepEqual(Object.keys(view), ["0", "1"]);
++    assert.deepEqual(view.slice(0), ["a", "b"]);
++    assert.deepEqual(view, ["a", "b"]);
++  });
++
++  test("an empty view is an empty array", () => {
++    const view = virtualArrayOf(elementsOf([]));
++
++    assert.ok(Array.isArray(view));
++    assert.equal(view.length, 0);
++    assert.deepEqual([...view], []);
++    assert.deepEqual(view, []);
++    assert.equal(JSON.stringify(view), "[]");
++    assert.equal(view.at(-1), undefined);
++  });
++
++  test("carries symbol properties the way an array does", () => {
++    // annotateFreshArray() attaches annotations to array states as a symbol
++    // property, and the parser reads them back through the same view.
++    const annotation = Symbol.for("@test/array-view-annotation");
++    const view = virtualArrayOf(elementsOf(ITEMS)) as readonly string[] & {
++      [key: symbol]: unknown;
++    };
++
++    view[annotation] = "mark";
++    assert.equal(view[annotation], "mark");
++  });
++
++  test("refuses to write an element or the length", () => {
++    const writable = virtualArrayOf(elementsOf(ITEMS)) as string[];
++
++    assert.throws(() => {
++      writable[0] = "z";
++    }, TypeError);
++    assert.throws(() => {
++      writable.length = 0;
++    }, TypeError);
++    assert.throws(() => {
++      delete writable[1];
++    }, TypeError);
++    assert.deepEqual(writable, ITEMS);
++  });
++
++  test("gives a copy made from its descriptors its length and elements", () => {
++    const view = virtualArrayOf(elementsOf(ITEMS));
++
++    assert.equal(
++      Object.getOwnPropertyDescriptor(view, "length")?.value,
++      ITEMS.length,
++    );
++    // A `length` descriptor taken from the empty target would cut this copy
++    // back to no elements.
++    const copy: string[] = [];
++    for (const key of Reflect.ownKeys(view)) {
++      const descriptor = Reflect.getOwnPropertyDescriptor(view, key);
++      if (descriptor !== undefined) {
++        Object.defineProperty(copy, key, descriptor);
++      }
++    }
++    assert.equal(copy.length, ITEMS.length);
++    assert.deepEqual(copy, ITEMS);
++  });
++
++  test("refuses writes past its end and keeps no trace of them", () => {
++    const writable = virtualArrayOf(elementsOf(ITEMS)) as string[];
++    const pastEnd = String(ITEMS.length);
++
++    assert.throws(() => writable.push("z"), TypeError);
++    assert.throws(() => writable.unshift("z"), TypeError);
++    assert.throws(() => {
++      writable[ITEMS.length] = "z";
++    }, TypeError);
++    assert.throws(() => {
++      writable[ITEMS.length + 3] = "z";
++    }, TypeError);
++    assert.throws(
++      () => Object.defineProperty(writable, "0", { value: "z" }),
++      TypeError,
++    );
++    assert.throws(
++      () => Object.defineProperty(writable, pastEnd, { value: "z" }),
++      TypeError,
++    );
++    // A write that reached the target array would show up as a key and as an
++    // element past the end.
++    assert.equal(writable[ITEMS.length], undefined);
++    assert.ok(!(ITEMS.length in writable));
++    assert.deepEqual(Object.keys(writable), ["0", "1", "2", "3"]);
++    assert.deepEqual(writable, ITEMS);
++  });
++
++  test("refuses to be frozen and stays readable afterwards", () => {
++    const view = virtualArrayOf(elementsOf(ITEMS));
++
++    assert.throws(() => Object.freeze(view), TypeError);
++    assert.throws(() => Object.seal(view), TypeError);
++    assert.throws(() => Object.preventExtensions(view), TypeError);
++    // A view whose target was made non-extensible on the way to that error
++    // can no longer list its keys.
++    assert.ok(Object.isExtensible(view));
++    assert.deepEqual(Object.keys(view), ["0", "1", "2", "3"]);
++    assert.deepEqual(view, ITEMS);
++  });
++
++  test("two views of one source do not see each other's window", () => {
++    const shared = ["a", "b", "c", "d"];
++    const first = virtualArrayOf({
++      length: 3,
++      get: (index) => shared[index],
++    });
++    const second = virtualArrayOf({
++      length: 1,
++      get: (index) => shared[index + 2],
++    });
++
++    assert.deepEqual(first, ["a", "b", "c"]);
++    assert.deepEqual(second, ["c"]);
++    assert.equal(first[2], "c");
++    assert.equal(second[0], "c");
++  });
++});
+diff --git a/packages/core/src/internal/array-view.ts b/packages/core/src/internal/array-view.ts
+new file mode 100644
+index 00000000..f78d5e48
+--- /dev/null
++++ b/packages/core/src/internal/array-view.ts
+@@ -0,0 +1,205 @@
++/**
++ * Array-shaped views of elements that live in another structure.
++ *
++ * The state array of `multiple()` grows by one slot per accepted item.  It is
++ * typed `readonly T[]` and is read by indexing, spreading and
++ * `Array.prototype` methods, so a persistent structure cannot replace it
++ * without a type or reader change.  This module keeps the array type and the
++ * readers: the value is a proxy over a real array, every index read is served
++ * from the structure that holds the elements, and no version copies a slot it
++ * did not change.
++ *
++ * The proxy answers `Array.isArray()`, indexing, `length`, iteration, the
++ * `Array.prototype` methods, property enumeration and `node:assert` deep
++ * equality as an array of the same elements; *array-view.test.ts* checks each
++ * of those on Node, Deno and Bun.
++ *
++ * One handler serves every view and finds its elements by the proxy target, so
++ * building a view allocates one empty array and one proxy and no trap
++ * closures; the reader its caller passes is the only function made per view.
++ * A view is made once per accepted token, and a per-view handler would cost
++ * more than the copies it removes on ordinary command lines.
++ *
++ * @internal
++ * @since 1.4.0
++ * @module
++ */
++
++/**
++ * Supplies the elements of an array-shaped value.
++ *
++ * @template T The type of the elements.
++ * @internal
++ * @since 1.4.0
++ */
++export interface ArrayElements<T> {
++  /** The number of elements the value presents. */
++  readonly length: number;
++
++  /**
++   * Reads the element at an index.
++   *
++   * @param index The index to read, counted from the start.
++   * @returns The element at the index, or `undefined` when out of range.
++   */
++  get(index: number): T | undefined;
++}
++
++/** Elements behind each proxy target {@link virtualArrayOf} created. */
++const elementsByTarget = new WeakMap<object, ArrayElements<unknown>>();
++
++/**
++ * Reads the elements behind a proxy target.
++ *
++ * @param target The target array of a view.
++ * @returns The elements the view presents.
++ */
++function elementsOf(target: object): ArrayElements<unknown> {
++  const elements = elementsByTarget.get(target);
++  if (elements === undefined) {
++    throw new TypeError("An array view has no elements behind it.");
++  }
++  return elements;
++}
++
++/**
++ * Returns the index a property key names, when it names a present one.
++ *
++ * `Number()` also accepts `"1.0"`, `" 1"` and `"0x1"`, so the conversion is
++ * only accepted when it round-trips to the text an array index would have.
++ *
++ * @param property The property key being read.
++ * @param length The number of elements the value presents.
++ * @returns The index the key names, or `undefined` when it names another key.
++ */
++function indexOfProperty(
++  property: PropertyKey,
++  length: number,
++): number | undefined {
++  if (typeof property !== "string") return undefined;
++  const index = Number(property);
++  if (!Number.isInteger(index) || index < 0 || index >= length) {
++    return undefined;
++  }
++  return String(index) === property ? index : undefined;
++}
++
++/**
++ * Refuses a write to an element of a view.
++ *
++ * @throws {TypeError} Always, because the elements belong to a parser state
++ *         that later versions share.
++ */
++function refuseWrite(): never {
++  throw new TypeError("An array view of parser state cannot be modified.");
++}
++
++// One handler serves every view: each trap reads the view's elements from its
++// target array, so no element type is known here.  `never[]` is the empty
++// element type, and a proxy handler is bivariant in its target type, so the
++// result of `new Proxy()` keeps the caller's element type.
++const handler: ProxyHandler<never[]> = {
++  get(target, property, receiver) {
++    const elements = elementsOf(target);
++    if (property === "length") return elements.length;
++    const index = indexOfProperty(property, elements.length);
++    if (index !== undefined) return elements.get(index);
++    return Reflect.get(target, property, receiver);
++  },
++  has(target, property) {
++    const elements = elementsOf(target);
++    if (property === "length") return true;
++    if (indexOfProperty(property, elements.length) !== undefined) return true;
++    return Reflect.has(target, property);
++  },
++  ownKeys(target) {
++    const elements = elementsOf(target);
++    const keys: (string | symbol)[] = [];
++    for (let index = 0; index < elements.length; index += 1) {
++      keys.push(String(index));
++    }
++    return [...keys, ...Reflect.ownKeys(target)];
++  },
++  getOwnPropertyDescriptor(target, property) {
++    // `length` is a non-configurable own property of the target array and the
++    // proxy may not hide it, so its descriptor comes from the target, with the
++    // presented length as its value: the target's own value is 0, and a copy
++    // made from the view's descriptors would otherwise be cut back to nothing.
++    // The target's `length` is writable, so a proxy may report another value.
++    // Index descriptors come from the elements, which is what makes deep
++    // equality and property enumeration see the presented elements.
++    const elements = elementsOf(target);
++    if (property === "length") {
++      const descriptor = Reflect.getOwnPropertyDescriptor(target, property);
++      return descriptor === undefined
++        ? undefined
++        : { ...descriptor, value: elements.length };
++    }
++    const index = indexOfProperty(property, elements.length);
++    if (index !== undefined) {
++      return {
++        value: elements.get(index),
++        writable: true,
++        enumerable: true,
++        configurable: true,
++      };
++    }
++    return Reflect.getOwnPropertyDescriptor(target, property);
++  },
++  set(target, property, value) {
++    // An index past the end is refused as well: written through to the empty
++    // target it would read back as an element the view does not have.
++    if (
++      property === "length" ||
++      indexOfProperty(property, Number.POSITIVE_INFINITY) !== undefined
++    ) {
++      refuseWrite();
++    }
++    return Reflect.set(target, property, value);
++  },
++  defineProperty(target, property, descriptor) {
++    if (
++      property === "length" ||
++      indexOfProperty(property, Number.POSITIVE_INFINITY) !== undefined
++    ) {
++      refuseWrite();
++    }
++    return Reflect.defineProperty(target, property, descriptor);
++  },
++  deleteProperty(target, property) {
++    if (indexOfProperty(property, elementsOf(target).length) !== undefined) {
++      refuseWrite();
++    }
++    return Reflect.deleteProperty(target, property);
++  },
++  preventExtensions() {
++    // Freezing or sealing a view first makes its empty target array
++    // non-extensible, and a proxy over a non-extensible target may not report
++    // the index keys that target lacks, so every later `Object.keys()` of the
++    // view would throw.  Refusing here makes the freeze itself throw and
++    // leaves the view readable.
++    return false;
++  },
++};
++
++/**
++ * Builds an array that presents elements stored elsewhere.
++ *
++ * The returned value is a proxy over an empty array, so `Array.isArray()`
++ * stays true and `Array.prototype` methods work; writes to its indices and to
++ * `length` throw, because its elements belong to a parser state that later
++ * versions share.
++ *
++ * @template T The type of the elements.
++ * @param elements The reader that serves the elements.
++ * @returns An array-shaped view of the elements.
++ * @throws {TypeError} When an element or `length` is written, or when the view
++ *         is frozen, sealed or made non-extensible.
++ * @internal
++ * @since 1.4.0
++ */
++export function virtualArrayOf<T>(elements: ArrayElements<T>): readonly T[] {
++  const target: T[] = [];
++  elementsByTarget.set(target, elements);
++  return new Proxy(target, handler);
++}
+diff --git a/packages/core/src/internal/persistent-vector.test.ts b/packages/core/src/internal/persistent-vector.test.ts
+new file mode 100644
+index 00000000..b1c7f3ea
+--- /dev/null
++++ b/packages/core/src/internal/persistent-vector.test.ts
+@@ -0,0 +1,351 @@
++/**
++ * Unit tests for the immutable vector `multiple()` stores its state in.
++ */
++import { describe, test } from "node:test";
++import * as assert from "node:assert/strict";
++import * as fc from "fast-check";
++import {
++  appendTo,
++  dropLastFrom,
++  emptyPersistentVector,
++  type PersistentVector,
++  persistentVectorOf,
++  VIEW_THRESHOLD,
++} from "./persistent-vector.ts";
++
++// =============================================================================
++// Helpers
++// =============================================================================
++
++function assertMatches(
++  vector: PersistentVector<number>,
++  expected: readonly number[],
++): void {
++  assert.equal(vector.size, expected.length, "size");
++  for (let index = 0; index < expected.length; index += 1) {
++    assert.equal(vector.get(index), expected[index], `index ${index}`);
++  }
++  assert.equal(vector.get(-1), undefined, "index -1");
++  assert.equal(vector.get(expected.length), undefined, "index past the end");
++  assert.equal(vector.get(0.5), undefined, "a fractional index");
++  assert.deepEqual([...vector], expected, "iteration");
++  assert.deepEqual(vector.toArray(), expected, "toArray()");
++}
++
++/**
++ * The number of slots a node holds, so the sizes below cross every fan-out
++ * boundary: the tree grows a level at each of them.
++ */
++const FAN_OUT = 32;
++
++const SIZES = [
++  0,
++  1,
++  FAN_OUT - 1,
++  FAN_OUT,
++  FAN_OUT + 1,
++  FAN_OUT * FAN_OUT - 1,
++  FAN_OUT * FAN_OUT,
++  FAN_OUT * FAN_OUT + 1,
++  FAN_OUT ** 3 + FAN_OUT + 1,
++];
++
++function itemsOf(length: number): readonly number[] {
++  return Array.from({ length }, (_, index) => index);
++}
++
++// =============================================================================
++// Building
++// =============================================================================
++
++describe("PersistentVector", () => {
++  test("an empty vector holds nothing", () => {
++    assertMatches(emptyPersistentVector<number>(), []);
++    assert.deepEqual(emptyPersistentVector<number>().toArray(), []);
++  });
++
++  test("a vector built from an array holds its items in order", () => {
++    for (const size of SIZES) {
++      const items = itemsOf(size);
++      assertMatches(persistentVectorOf(items), items);
++    }
++  });
++
++  test("appending one item at a time keeps every earlier version", () => {
++    const size = FAN_OUT * FAN_OUT + 1;
++    const versions: PersistentVector<number>[] = [];
++    let vector = emptyPersistentVector<number>();
++    for (let index = 0; index < size; index += 1) {
++      versions.push(vector);
++      vector = vector.append(index);
++    }
++    versions.push(vector);
++    // Every version is read at its start, its end and its middle: an append
++    // that shares a node with an earlier version shows up as a wrong length
++    // or a wrong item in that version.
++    for (let index = 0; index < versions.length; index += 1) {
++      const version = versions[index]!;
++      assert.equal(version.size, index, `version ${index} size`);
++      if (index === 0) continue;
++      assert.equal(version.get(0), 0, `version ${index} first item`);
++      assert.equal(version.get(index - 1), index - 1, `version ${index} end`);
++      const middle = (index - 1) >> 1;
++      assert.equal(version.get(middle), middle, `version ${index} middle`);
++      assert.equal(version.get(index), undefined, `version ${index} past end`);
++    }
++  });
++
++  // ===========================================================================
++  // Dropping
++  // ===========================================================================
++
++  test("dropping the last item keeps the earlier and the later version", () => {
++    for (const size of SIZES) {
++      const items = itemsOf(size);
++      const vector = persistentVectorOf(items);
++      const shorter = vector.dropLast();
++      assertMatches(vector, items);
++      assertMatches(shorter, items.slice(0, -1));
++      assertMatches(shorter.dropLast(), items.slice(0, -2));
++      assertMatches(shorter.append(-1), [...items.slice(0, -1), -1]);
++    }
++  });
++
++  test("two extensions of one version do not see each other", () => {
++    const items = itemsOf(FAN_OUT * 2);
++    const base = persistentVectorOf(items);
++    const extended = base.append(-1);
++    const other = base.append(-2);
++    assertMatches(base, items);
++    assertMatches(extended, [...items, -1]);
++    assertMatches(other, [...items, -2]);
++    // A second extension of an extended version leaves the first one alone.
++    const again = extended.append(-3);
++    assertMatches(extended, [...items, -1]);
++    assertMatches(again, [...items, -1, -3]);
++  });
++
++  test("a version extended after a drop still holds the dropped item", () => {
++    const items = [1, 2, 3];
++    const base = persistentVectorOf(items);
++    const dropped = base.dropLast();
++    const extended = dropped.append(99);
++    assertMatches(base, items);
++    assertMatches(dropped, [1, 2]);
++    assertMatches(extended, [1, 2, 99]);
++  });
++
++  // ===========================================================================
++  // Random operations
++  // ===========================================================================
++
++  test("matches a plain array over random append and drop sequences", () => {
++    // Every intermediate version is checked against the plain array it should
++    // equal, so a structure that shares a node it later edits is caught at the
++    // step that edits it.
++    fc.assert(
++      fc.property(
++        fc.array(
++          fc.oneof(
++            fc.integer({ min: -1000, max: 1000 }).map((value) => ({
++              kind: "append" as const,
++              value,
++            })),
++            fc.constant({ kind: "dropLast" as const, value: 0 }),
++            fc.integer({ min: 0, max: 4 }).map((count) => ({
++              kind: "extendEarlier" as const,
++              value: count,
++            })),
++          ),
++          { maxLength: 64 },
++        ),
++        (operations) => {
++          const versions: PersistentVector<number>[] = [
++            emptyPersistentVector<number>(),
++          ];
++          const expected: number[][] = [[]];
++          for (const operation of operations) {
++            const latest = versions[versions.length - 1]!;
++            const latestExpected = expected[expected.length - 1]!;
++            if (operation.kind === "append") {
++              versions.push(latest.append(operation.value));
++              expected.push([...latestExpected, operation.value]);
++            } else if (operation.kind === "dropLast") {
++              versions.push(latest.dropLast());
++              expected.push(latestExpected.slice(0, -1));
++            } else {
++              // Extend an older version, so the versions form a tree and not
++              // only a chain.
++              const index = operation.value % versions.length;
++              versions.push(versions[index]!.append(operation.value));
++              expected.push([...expected[index]!, operation.value]);
++            }
++            const newest = versions[versions.length - 1]!;
++            const newestExpected = expected[expected.length - 1]!;
++            assert.deepEqual([...newest], newestExpected, "iteration");
++            assert.equal(newest.size, newestExpected.length, "size");
++          }
++        },
++      ),
++      { numRuns: 200 },
++    );
++  });
++});
++
++// =============================================================================
++// Array operations that share a vector
++// =============================================================================
++
++describe("appendTo", () => {
++  test("appends to a plain array", () => {
++    const base = ["a", "b"];
++
++    assert.deepEqual(appendTo(base, "c"), ["a", "b", "c"]);
++    assert.deepEqual(base, ["a", "b"]);
++  });
++
++  test("keeps every earlier version", () => {
++    const items = ["a", "b", "c", "d"];
++    let array: readonly string[] = [];
++    const versions: (readonly string[])[] = [];
++    for (const item of items) {
++      versions.push(array);
++      array = appendTo(array, item);
++    }
++    versions.push(array);
++
++    assert.deepEqual(versions, [[], ["a"], ["a", "b"], ["a", "b", "c"], items]);
++    for (const [index, version] of versions.entries()) {
++      assert.deepEqual(version, items.slice(0, index));
++    }
++  });
++
++  test("two extensions of one array do not see each other", () => {
++    const base = appendTo([], "a");
++    const first = appendTo(base, "b");
++    const second = appendTo(base, "c");
++
++    assert.deepEqual(base, ["a"]);
++    assert.deepEqual(first, ["a", "b"]);
++    assert.deepEqual(second, ["a", "c"]);
++  });
++
++  test("appends past one fan-out", () => {
++    const size = FAN_OUT * 2;
++    let array: readonly number[] = [];
++    for (let index = 0; index < size; index += 1) {
++      array = appendTo(array, index);
++    }
++
++    assert.equal(array.length, size);
++    assert.deepEqual(array, itemsOf(size));
++  });
++
++  test("a short array is copied and shares nothing", () => {
++    const base = appendTo(["a"], "b");
++    const extended = appendTo(base, "c");
++
++    // Below the threshold the code keeps today's plain arrays, so each result
++    // is an ordinary array that owns its slots.
++    assert.notEqual(extended, base);
++    assert.deepEqual(base, ["a", "b"]);
++    assert.deepEqual(extended, ["a", "b", "c"]);
++  });
++
++  test("a long array converts once and keeps every earlier version", () => {
++    // The conversion at the threshold is where a plain array could leak its
++    // slots into the vector, so the versions around it are read back.
++    const size = VIEW_THRESHOLD + 3;
++    const versions: (readonly number[])[] = [];
++    let array: readonly number[] = [];
++    for (let index = 0; index < size; index += 1) {
++      versions.push(array);
++      array = appendTo(array, index);
++    }
++    versions.push(array);
++
++    for (
++      const index of [
++        0,
++        1,
++        VIEW_THRESHOLD - 1,
++        VIEW_THRESHOLD,
++        VIEW_THRESHOLD + 1,
++        size,
++      ]
++    ) {
++      const version = versions[index];
++      if (version === undefined) throw new Error(`no version ${index}`);
++      assert.equal(version.length, index, `version ${index} length`);
++      assert.deepEqual([...version], itemsOf(index), `version ${index} items`);
++    }
++    // The version that triggered the conversion still shows its own items.
++    const converted = versions[VIEW_THRESHOLD];
++    if (converted === undefined) throw new Error("no converted version");
++    assert.equal(converted.at(-1), VIEW_THRESHOLD - 1);
++    assert.equal(converted[0], 0);
++  });
++
++  test("two extensions of one long array do not see each other", () => {
++    let base: readonly number[] = [];
++    for (let index = 0; index < VIEW_THRESHOLD; index += 1) {
++      base = appendTo(base, index);
++    }
++    const first = appendTo(base, -1);
++    const second = appendTo(base, -2);
++
++    assert.equal(base.length, VIEW_THRESHOLD);
++    assert.deepEqual(first.slice(-2), [VIEW_THRESHOLD - 1, -1]);
++    assert.deepEqual(second.slice(-2), [VIEW_THRESHOLD - 1, -2]);
++  });
++});
++
++describe("dropLastFrom", () => {
++  test("drops the last element of a plain array", () => {
++    const base = ["a", "b"];
++
++    assert.deepEqual(dropLastFrom(base), ["a"]);
++    assert.deepEqual(dropLastFrom([]), []);
++    assert.deepEqual(base, ["a", "b"]);
++  });
++
++  test("leaves the earlier version alone", () => {
++    const base = appendTo(appendTo([], "a"), "b");
++    const shorter = dropLastFrom(base);
++
++    assert.deepEqual(base, ["a", "b"]);
++    assert.deepEqual(shorter, ["a"]);
++    assert.deepEqual(appendTo(shorter, "z"), ["a", "z"]);
++    assert.deepEqual(base, ["a", "b"]);
++  });
++
++  test("drops the last element of a view", () => {
++    let array: readonly number[] = [];
++    for (let index = 0; index < VIEW_THRESHOLD + 2; index += 1) {
++      array = appendTo(array, index);
++    }
++    const shorter = dropLastFrom(array);
++
++    assert.equal(shorter.length, VIEW_THRESHOLD + 1);
++    assert.equal(shorter.at(-1), VIEW_THRESHOLD);
++    assert.equal(array.length, VIEW_THRESHOLD + 2);
++    assert.equal(array.at(-1), VIEW_THRESHOLD + 1);
++    // Appending after a drop replaces the last item of the shorter version and
++    // leaves the longer one alone.
++    const replaced = appendTo(shorter, -1);
++    assert.equal(replaced.at(-1), -1);
++    assert.equal(array.at(-1), VIEW_THRESHOLD + 1);
++  });
++
++  test("drops the last element past one fan-out", () => {
++    const size = FAN_OUT * 2;
++    let array: readonly number[] = [];
++    for (let index = 0; index < size; index += 1) {
++      array = appendTo(array, index);
++    }
++
++    assert.deepEqual(dropLastFrom(array), itemsOf(size - 1));
++    assert.equal(array.length, size);
++    assert.deepEqual(array, itemsOf(size));
++  });
++});
+diff --git a/packages/core/src/internal/persistent-vector.ts b/packages/core/src/internal/persistent-vector.ts
+new file mode 100644
+index 00000000..efcbfbb2
+--- /dev/null
++++ b/packages/core/src/internal/persistent-vector.ts
+@@ -0,0 +1,408 @@
++/**
++ * An immutable vector: an indexed sequence whose versions share storage.
++ *
++ * `multiple()` rebuilds its state array for every item it accepts, so a parse
++ * of N positional arguments copies 1 + 2 + ... + N slots when that state is a
++ * plain array.  This
++ * vector appends and drops the last slot by copying only the nodes on the
++ * path to it: both cost O(log32 N) slots, and a vector obtained earlier keeps
++ * the slots it had, because no node, child list or item list is modified
++ * after it is created.
++ *
++ * A view over a vector that is still typed `readonly T[]` is built by
++ * {@link virtualArrayOf} in *array-view.ts*.
++ *
++ * @internal
++ * @since 1.4.0
++ * @module
++ */
++
++import { virtualArrayOf } from "./array-view.ts";
++
++/**
++ * Highest number of slots a leaf holds and of children a branch holds.
++ *
++ * A fixed 32-way fan-out keeps the tree shallow (32,768 items sit at depth 3)
++ * while every copied node is one small array copy.
++ */
++const MAX_SLOTS = 32;
++
++/** A terminal node holding one to {@link MAX_SLOTS} items. */
++interface Leaf<T> {
++  readonly kind: "leaf";
++  readonly items: readonly T[];
++}
++
++/** An interior node holding one to {@link MAX_SLOTS} subtrees. */
++interface Branch<T> {
++  readonly kind: "branch";
++  readonly size: number;
++  readonly children: readonly VectorNode<T>[];
++}
++
++type VectorNode<T> = Branch<T> | Leaf<T>;
++
++/**
++ * Counts the slots a subtree holds.
++ *
++ * @param node The subtree to count.
++ * @returns The number of items the subtree holds.
++ */
++function slotCount<T>(node: VectorNode<T>): number {
++  return node.kind === "leaf" ? node.items.length : node.size;
++}
++
++/**
++ * Builds a leaf out of items that are already immutable to the caller.
++ *
++ * @param items The items the leaf holds, never modified afterwards.
++ * @returns The new leaf.
++ */
++function leafOf<T>(items: readonly T[]): Leaf<T> {
++  return { kind: "leaf", items };
++}
++
++/**
++ * Builds a branch out of children that are already immutable to the caller,
++ * summing their slot counts into the size an index walk routes by.
++ *
++ * @param children The subtrees the branch holds, never modified afterwards.
++ * @returns The new branch.
++ */
++function branchOf<T>(children: readonly VectorNode<T>[]): Branch<T> {
++  let size = 0;
++  for (const child of children) size += slotCount(child);
++  return { kind: "branch", size, children };
++}
++
++/**
++ * Reads the item at an index by walking down from a subtree.
++ *
++ * @param node The subtree to read from.
++ * @param index The index within the subtree.
++ * @returns The item at the index, or `undefined` when the subtree is shorter.
++ */
++function elementAt<T>(node: VectorNode<T>, index: number): T | undefined {
++  let current: VectorNode<T> | undefined = node;
++  let offset = index;
++  while (current !== undefined) {
++    if (current.kind === "leaf") return current.items[offset];
++    let next: VectorNode<T> | undefined;
++    for (const child of current.children) {
++      const count = slotCount(child);
++      if (offset < count) {
++        next = child;
++        break;
++      }
++      offset -= count;
++    }
++    current = next;
++  }
++  return undefined;
++}
++
++/** A subtree grown by one slot, plus a sibling to insert after it. */
++interface Appended<T> {
++  readonly node: VectorNode<T>;
++  readonly sibling?: VectorNode<T>;
++}
++
++/**
++ * Appends an item to the rightmost leaf of a subtree.
++ *
++ * @param node The subtree to grow, left unmodified.
++ * @param value The item to append.
++ * @returns The grown subtree, and a sibling when it was already full.
++ */
++function appendRight<T>(node: VectorNode<T>, value: T): Appended<T> {
++  if (node.kind === "leaf") {
++    if (node.items.length < MAX_SLOTS) {
++      return { node: leafOf([...node.items, value]) };
++    }
++    return { node, sibling: leafOf([value]) };
++  }
++  const lastIndex = node.children.length - 1;
++  const last = node.children[lastIndex];
++  if (last === undefined) throw new RangeError("A branch holds no children.");
++  const grown = appendRight(last, value);
++  const children = node.children.slice();
++  children[lastIndex] = grown.node;
++  if (grown.sibling !== undefined) children.push(grown.sibling);
++  if (children.length <= MAX_SLOTS) {
++    return { node: branchOf(children) };
++  }
++  // A full branch splits into two halves so that the parent stays shallow.
++  const half = children.length >> 1;
++  return {
++    node: branchOf(children.slice(0, half)),
++    sibling: branchOf(children.slice(half)),
++  };
++}
++
++/**
++ * Drops the rightmost item of a subtree.
++ *
++ * @param node The subtree to shrink, left unmodified.
++ * @returns The shrunk subtree, or `undefined` when it held one item.
++ */
++function dropRight<T>(node: VectorNode<T>): VectorNode<T> | undefined {
++  if (node.kind === "leaf") {
++    if (node.items.length <= 1) return undefined;
++    return leafOf(node.items.slice(0, -1));
++  }
++  const lastIndex = node.children.length - 1;
++  const last = node.children[lastIndex];
++  if (last === undefined) throw new RangeError("A branch holds no children.");
++  const shrunk = dropRight(last);
++  if (shrunk === undefined) {
++    if (node.children.length === 1) return undefined;
++    return branchOf(node.children.slice(0, -1));
++  }
++  const children = node.children.slice();
++  children[lastIndex] = shrunk;
++  if (children.length === 1) return children[0];
++  return branchOf(children);
++}
++
++/**
++ * Walks a subtree in order.
++ *
++ * @param node The subtree to walk.
++ * @yields The items of the subtree, in index order.
++ */
++function* walkNode<T>(node: VectorNode<T>): Generator<T> {
++  if (node.kind === "leaf") {
++    yield* node.items;
++    return;
++  }
++  for (const child of node.children) yield* walkNode(child);
++}
++
++/**
++ * An immutable vector of items.
++ *
++ * Every operation returns a vector and leaves its receiver as it was, so a
++ * parser context that was discarded can hand its state to no one, and a
++ * context that was kept still sees the items it had.
++ *
++ * @template T The type of the stored items.
++ * @internal
++ * @since 1.4.0
++ */
++export interface PersistentVector<T> extends Iterable<T> {
++  /** The number of items the vector holds. */
++  readonly size: number;
++
++  /**
++   * Reads the item at an index.
++   *
++   * @param index The index to read, counted from the start.
++   * @returns The item at the index, or `undefined` when the index is out of
++   *          range or not a whole number.
++   */
++  get(index: number): T | undefined;
++
++  /**
++   * Returns a vector with an item after the last one.
++   *
++   * @param value The item to append.
++   * @returns A vector one item longer.
++   */
++  append(value: T): PersistentVector<T>;
++
++  /**
++   * Returns a vector without its last item.
++   *
++   * @returns A vector one item shorter, or an empty vector when the receiver
++   *          was empty.
++   */
++  dropLast(): PersistentVector<T>;
++
++  /**
++   * Copies the items into a plain array.
++   *
++   * @returns A new array holding the items in index order.
++   */
++  toArray(): readonly T[];
++
++  /**
++   * Walks the items in index order.
++   *
++   * @returns An iterator over the items.
++   */
++  [Symbol.iterator](): Iterator<T>;
++}
++
++class PersistentVectorImpl<T> implements PersistentVector<T> {
++  readonly #root: VectorNode<T> | undefined;
++  readonly #size: number;
++
++  constructor(root: VectorNode<T> | undefined, size: number) {
++    this.#root = root;
++    this.#size = size;
++  }
++
++  get size(): number {
++    return this.#size;
++  }
++
++  get(index: number): T | undefined {
++    if (!Number.isInteger(index) || index < 0 || index >= this.#size) {
++      return undefined;
++    }
++    const root = this.#root;
++    if (root === undefined) return undefined;
++    return elementAt(root, index);
++  }
++
++  append(value: T): PersistentVector<T> {
++    const root = this.#root;
++    if (root === undefined) {
++      return new PersistentVectorImpl(leafOf([value]), 1);
++    }
++    const grown = appendRight(root, value);
++    const nextRoot = grown.sibling === undefined
++      ? grown.node
++      : branchOf([grown.node, grown.sibling]);
++    return new PersistentVectorImpl(nextRoot, this.#size + 1);
++  }
++
++  dropLast(): PersistentVector<T> {
++    const root = this.#root;
++    if (root === undefined) return this;
++    return new PersistentVectorImpl(dropRight(root), this.#size - 1);
++  }
++
++  toArray(): readonly T[] {
++    return [...this];
++  }
++
++  [Symbol.iterator](): Iterator<T> {
++    const root = this.#root;
++    return root === undefined ? [][Symbol.iterator]() : walkNode(root);
++  }
++}
++
++/**
++ * Creates an empty vector.
++ *
++ * @template T The type of the items the vector will hold.
++ * @returns An empty vector.
++ * @internal
++ * @since 1.4.0
++ */
++export function emptyPersistentVector<T>(): PersistentVector<T> {
++  return new PersistentVectorImpl<T>(undefined, 0);
++}
++
++/**
++ * Creates a vector holding the items of an array.
++ *
++ * @template T The type of the stored items.
++ * @param items The items to hold, in index order; the array is read, not kept.
++ * @returns A vector holding the items.
++ * @internal
++ * @since 1.4.0
++ */
++export function persistentVectorOf<T>(
++  items: readonly T[],
++): PersistentVector<T> {
++  let vector = emptyPersistentVector<T>();
++  for (const item of items) vector = vector.append(item);
++  return vector;
++}
++/**
++ * Items a state array must hold before appending a view instead of a copy.
++ *
++ * An append to a plain array copies every slot it has, which costs about a
++ * nanosecond per slot, and an append to a view costs about a microsecond
++ * whatever the length, so the crossover sits near a thousand items.  Below this
++ * number the code keeps plain arrays and the expression it had before; above
++ * it, the cost of an append stops growing with the state.  It is a power of two
++ * because the vector's nodes hold 32 slots.  The size was checked by running one
++ * sweep with the threshold here and one at 2,048: a parse of 3,000 items took
++ * 20.6 ms when views started at 1,025 items, 25.4 ms when the copies ran to
++ * 2,048, and 26.5 ms with the array copy alone.
++ *
++ * Exported so tests can size their state around it; nothing outside this module
++ * reads it.
++ */
++export const VIEW_THRESHOLD = 1024;
++
++/** Vectors behind each array that {@link vectorViewOf} returned. */
++const vectorSources = new WeakMap<object, PersistentVector<unknown>>();
++
++/**
++ * Reads the vector behind an array-shaped value.
++ *
++ * @template T The type of the elements.
++ * @param array The array to read, plain or virtual.
++ * @returns The vector of a virtual array, or `undefined` for a plain one.
++ */
++function vectorOf<T>(array: readonly T[]): PersistentVector<T> | undefined {
++  // The value was stored by vectorViewOf with this same element type.
++  return vectorSources.get(array) as PersistentVector<T> | undefined;
++}
++
++/**
++ * Wraps a vector in an array-shaped view.
++ *
++ * @template T The type of the elements.
++ * @param vector The vector to present.
++ * @returns An array holding the vector's elements.
++ */
++function vectorViewOf<T>(vector: PersistentVector<T>): readonly T[] {
++  const view = virtualArrayOf<T>({
++    length: vector.size,
++    get: (index) => vector.get(index),
++  });
++  vectorSources.set(view, vector);
++  return view;
++}
++
++/**
++ * Returns an array with an element after the last one, sharing the storage of
++ * the earlier array.
++ *
++ * The receiver is never modified, so an array obtained earlier keeps its
++ * elements whatever is appended to a later one.  A parser context discarded by
++ * backtracking needs exactly that: `multiple()` extends its state once per
++ * accepted item, and rebuilding the whole array each time costs O(N²) for a
++ * parse of N items.
++ *
++ * @template T The type of the elements.
++ * @param array The array to extend, plain or virtual.
++ * @param value The element to append.
++ * @returns An array one element longer.
++ * @internal
++ * @since 1.4.0
++ */
++export function appendTo<T>(array: readonly T[], value: T): readonly T[] {
++  const vector = vectorOf(array);
++  if (vector === undefined) {
++    if (array.length < VIEW_THRESHOLD) return [...array, value];
++    // The first append past the threshold copies the plain array once; every
++    // later append of its result shares storage instead of copying.
++    return vectorViewOf(persistentVectorOf([...array, value]));
++  }
++  return vectorViewOf(vector.append(value));
++}
++
++/**
++ * Returns an array without its last element, sharing the storage of the
++ * earlier array.
++ *
++ * @template T The type of the elements.
++ * @param array The array to shorten, plain or virtual.
++ * @returns An array one element shorter, or an empty array when the receiver
++ *          was empty.
++ * @internal
++ * @since 1.4.0
++ */
++export function dropLastFrom<T>(array: readonly T[]): readonly T[] {
++  const vector = vectorOf(array);
++  if (vector === undefined) return array.slice(0, -1);
++  const shorter = vector.dropLast();
++  if (shorter.size === 0) return [];
++  return vectorViewOf(shorter);
++}
+diff --git a/packages/core/src/modifiers.test.ts b/packages/core/src/modifiers.test.ts
+index 48b6b26e..d16a2847 100644
+--- a/packages/core/src/modifiers.test.ts
++++ b/packages/core/src/modifiers.test.ts
+@@ -37,6 +37,9 @@ import {
+   optional as optionalLocal,
+   withDefault as withDefaultLocal,
+ } from "#src/modifiers.ts";
++// A relative import reads the source under Node too, where the package
++// import map points at the built output and the constants are not exported.
++import { VIEW_THRESHOLD as stateThreshold } from "./internal/persistent-vector.ts";
+ import {
+   completeOrExtractPhase2Seed,
+   extractPhase2Seed,
+@@ -2642,6 +2645,245 @@ describe("multiple", () => {
+     }
+   });
+ 
++  it("should keep a state that is extended twice from mixing items", () => {
++    const parser = multiple(argument(string()));
++    const tokens = Array.from(
++      { length: stateThreshold + 5 },
++      (_, index) => `p${index}`,
++    );
++    let state = parser.initialState;
++    for (const token of tokens) {
++      const result = parser.parse({
++        buffer: [token],
++        state,
++        optionsTerminated: false,
++        usage: parser.usage,
++      });
++      assert.ok(result.success);
++      if (!result.success) return;
++      state = result.next.state;
++    }
++    // The state is past the size at which it starts sharing its items, which is
++    // the only place a state that edits shared storage can go wrong.
++    const baseState = state;
++    assert.equal(baseState.length, tokens.length);
++    const extendedWithX = parser.parse({
++      buffer: ["x"],
++      state: baseState,
++      optionsTerminated: false,
++      usage: parser.usage,
++    });
++    const extendedWithY = parser.parse({
++      buffer: ["y"],
++      state: baseState,
++      optionsTerminated: false,
++      usage: parser.usage,
++    });
++    assert.ok(extendedWithX.success);
++    assert.ok(extendedWithY.success);
++    if (!extendedWithX.success || !extendedWithY.success) return;
++
++    // Neither extension carries the item the other one added, which is what a
++    // state that edits the storage both of them share returns.
++    assert.equal(extendedWithX.next.state.length, tokens.length + 1);
++    assert.equal(extendedWithY.next.state.length, tokens.length + 1);
++    const withX = parser.complete(extendedWithX.next.state);
++    const withY = parser.complete(extendedWithY.next.state);
++    assert.ok(withX.success);
++    assert.ok(withY.success);
++    if (withX.success && withY.success) {
++      assert.deepEqual(withX.value, [...tokens, "x"]);
++      assert.deepEqual(withY.value, [...tokens, "y"]);
++    }
++
++    // The state both extensions were taken from still reads as it did.
++    assert.equal(baseState.length, tokens.length);
++    const baseCompleted = parser.complete(baseState);
++    assert.ok(baseCompleted.success);
++    if (baseCompleted.success) {
++      assert.deepEqual(baseCompleted.value, tokens);
++    }
++  });
++
++  it("should keep every intermediate state of a long run", () => {
++    const parser = multiple(argument(string()));
++    const tokens = Array.from(
++      { length: stateThreshold + 3 },
++      (_, index) => `p${index}`,
++    );
++    let state = parser.initialState;
++    const states: (typeof state)[] = [];
++    for (const token of tokens) {
++      const result = parser.parse({
++        buffer: [token],
++        state,
++        optionsTerminated: false,
++        usage: parser.usage,
++      });
++      assert.ok(result.success);
++      if (!result.success) return;
++      state = result.next.state;
++      states.push(state);
++    }
++
++    // The state starts sharing storage partway through the run, so the versions
++    // on both sides of that point are read back in full.
++    for (
++      const index of [
++        0,
++        1,
++        stateThreshold - 1,
++        stateThreshold,
++        stateThreshold + 1,
++        stateThreshold + 2,
++      ]
++    ) {
++      const version = states[index];
++      if (version === undefined) throw new Error(`no state ${index}`);
++      assert.equal(version.length, index + 1, `state ${index} length`);
++      const completed = parser.complete(version);
++      assert.ok(completed.success);
++      if (completed.success) {
++        assert.deepEqual(completed.value, tokens.slice(0, index + 1));
++      }
++    }
++    // Every version still reports the length it was built with.
++    for (const [index, version] of states.entries()) {
++      assert.equal(version.length, index + 1, `state ${index} length`);
++    }
++  });
++
++  it("should keep an async state that is extended twice from mixing items", async () => {
++    const tokens = Array.from(
++      { length: stateThreshold + 5 },
++      (_, index) => `p${index}`,
++    );
++    const parser = multiple(argument(asyncChoice([...tokens, "x", "y"])));
++    let state = parser.initialState;
++    for (const token of tokens) {
++      const result = await parser.parse({
++        buffer: [token],
++        state,
++        optionsTerminated: false,
++        usage: parser.usage,
++      });
++      assert.ok(result.success);
++      if (!result.success) return;
++      state = result.next.state;
++    }
++    const baseState = state;
++    assert.equal(baseState.length, tokens.length);
++
++    const extendedWithX = await parser.parse({
++      buffer: ["x"],
++      state: baseState,
++      optionsTerminated: false,
++      usage: parser.usage,
++    });
++    const extendedWithY = await parser.parse({
++      buffer: ["y"],
++      state: baseState,
++      optionsTerminated: false,
++      usage: parser.usage,
++    });
++    assert.ok(extendedWithX.success);
++    assert.ok(extendedWithY.success);
++    if (!extendedWithX.success || !extendedWithY.success) return;
++
++    assert.equal(extendedWithX.next.state.length, tokens.length + 1);
++    assert.equal(extendedWithY.next.state.length, tokens.length + 1);
++    const withX = await parser.complete(extendedWithX.next.state);
++    const withY = await parser.complete(extendedWithY.next.state);
++    assert.ok(withX.success);
++    assert.ok(withY.success);
++    if (withX.success && withY.success) {
++      assert.deepEqual(withX.value, [...tokens, "x"]);
++      assert.deepEqual(withY.value, [...tokens, "y"]);
++    }
++
++    assert.equal(baseState.length, tokens.length);
++    const baseCompleted = await parser.complete(baseState);
++    assert.ok(baseCompleted.success);
++    if (baseCompleted.success) {
++      assert.deepEqual(baseCompleted.value, tokens);
++    }
++  });
++
++  it("should replace the last item of a long state and keep the state before", () => {
++    // Each item takes two options, so the call that reads `-b` replaces the
++    // item the call that read `-a` left half filled instead of adding one.
++    const parser = multiple(object({
++      a: option("-a", string()),
++      b: option("-b", string()),
++    }));
++    const pairs = Array.from(
++      { length: stateThreshold + 5 },
++      (_, index) => ({ a: `a${index}`, b: `b${index}` }),
++    );
++    let state = parser.initialState;
++    for (const pair of pairs) {
++      for (const buffer of [["-a", pair.a], ["-b", pair.b]]) {
++        const result = parser.parse({
++          buffer,
++          state,
++          optionsTerminated: false,
++          usage: parser.usage,
++        });
++        assert.ok(result.success);
++        if (!result.success) return;
++        state = result.next.state;
++      }
++    }
++    // The state is past the size at which it starts sharing its items.
++    assert.equal(state.length, pairs.length);
++
++    const halfFilled = parser.parse({
++      buffer: ["-a", "half"],
++      state,
++      optionsTerminated: false,
++      usage: parser.usage,
++    });
++    assert.ok(halfFilled.success);
++    if (!halfFilled.success) return;
++    assert.equal(halfFilled.next.state.length, pairs.length + 1);
++
++    const filledWithX = parser.parse({
++      buffer: ["-b", "x"],
++      state: halfFilled.next.state,
++      optionsTerminated: false,
++      usage: parser.usage,
++    });
++    const filledWithY = parser.parse({
++      buffer: ["-b", "y"],
++      state: halfFilled.next.state,
++      optionsTerminated: false,
++      usage: parser.usage,
++    });
++    assert.ok(filledWithX.success);
++    assert.ok(filledWithY.success);
++    if (!filledWithX.success || !filledWithY.success) return;
++
++    // Filling the half-filled item replaces it, so the state keeps its length;
++    // a state that keeps the replaced item as well is one item longer here.
++    assert.equal(filledWithX.next.state.length, pairs.length + 1);
++    assert.equal(filledWithY.next.state.length, pairs.length + 1);
++    const withX = parser.complete(filledWithX.next.state);
++    const withY = parser.complete(filledWithY.next.state);
++    assert.ok(withX.success);
++    assert.ok(withY.success);
++    if (withX.success && withY.success) {
++      assert.deepEqual(withX.value, [...pairs, { a: "half", b: "x" }]);
++      assert.deepEqual(withY.value, [...pairs, { a: "half", b: "y" }]);
++    }
++
++    // The half-filled state both were taken from still lacks its second
++    // option, and the state before it still completes to its own items.
++    assert.ok(!parser.complete(halfFilled.next.state).success);
++    const before = parser.complete(state);
++    assert.ok(before.success);
++    if (before.success) assert.deepEqual(before.value, pairs);
++  });
++
+   it("should extend matched command items with optional arguments", () => {
+     const parser = multiple(command(
+       "add",
+diff --git a/packages/core/src/modifiers.ts b/packages/core/src/modifiers.ts
+index a5ad7494..2d745343 100644
+--- a/packages/core/src/modifiers.ts
++++ b/packages/core/src/modifiers.ts
+@@ -41,6 +41,7 @@ import {
+   isInjectedAnnotationWrapper,
+   unwrapInjectedAnnotationWrapper,
+ } from "./internal/annotations.ts";
++import { appendTo, dropLastFrom } from "./internal/persistent-vector.ts";
+ import {
+   mergeChildExec,
+   withChildContext,
+@@ -2740,10 +2741,13 @@ export function multiple<M extends Mode, TValue, TState>(
+       ...(result.provisional ? { provisional: true as const } : {}),
+       next: {
+         ...result.next,
+-        state: annotateFreshArray(context.state, [
+-          ...(added ? context.state : context.state.slice(0, -1)),
+-          nextItemState,
+-        ]),
++        state: annotateFreshArray(
++          context.state,
++          appendTo(
++            added ? context.state : dropLastFrom(context.state),
++            nextItemState,
++          ),
++        ),
+         ...(mergedExec != null
+           ? {
+             trace: mergedExec.trace,
+@@ -2909,10 +2913,13 @@ export function multiple<M extends Mode, TValue, TState>(
+       ...(result.provisional ? { provisional: true as const } : {}),
+       next: {
+         ...result.next,
+-        state: annotateFreshArray(context.state, [
+-          ...(added ? context.state : context.state.slice(0, -1)),
+-          nextItemState,
+-        ]),
++        state: annotateFreshArray(
++          context.state,
++          appendTo(
++            added ? context.state : dropLastFrom(context.state),
++            nextItemState,
++          ),
++        ),
+         ...(mergedExec != null
+           ? {
+             trace: mergedExec.trace,

@@ -55,7 +55,8 @@ export type FinishedPiRun = {
 /**
  End reasons whose duration says nothing about how long the work takes, so a run that ended on one is left out of the length
  sample: the model answered with an error, the agent answered with nothing where it should have finished, the prompt was
- refused, Pi could not compact its session, or the driver itself failed.
+ refused, Pi could not compact its session, Pi never took the prompt on any start so no work was done, or the driver itself
+ failed.
 
  A run that hit its wall clock or its turn cap counts all the same: it did the work for as long as it was allowed. Whatever a
  run ended on, the tool calls it finished before stopping are calls that finished, so its feed stays in the call sample.
@@ -65,6 +66,7 @@ export const END_REASONS_WITHOUT_A_JOB: readonly string[] = [
   'empty-answer',
   'prompt-rejected',
   'compaction-failed',
+  'pi-exited-before-prompt',
   'driver-failed',
 ];
 

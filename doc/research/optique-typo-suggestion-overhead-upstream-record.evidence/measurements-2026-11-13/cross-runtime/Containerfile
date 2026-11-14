@@ -1,0 +1,59 @@
+# Image that runs the published reproduction scripts, exactly as the repository's README says to run them, on Node,
+# Deno and Bun against two @optique/core versions. Everything the runs need is fetched at build time, so the run itself
+# has no mounts and no network.
+#
+# Base image follows doc/decision/container-base-distro.md.
+#
+#   podman build --tag localhost/optique-cross-runtime:2026-11-13 --file Containerfile .
+#   podman run --rm --network none --cpus 2 --memory 4g --pids-limit 512 --blkio-weight 10 \
+#     localhost/optique-cross-runtime:2026-11-13
+
+ARG CACHYOS_IMAGE=docker.io/cachyos/cachyos-v4:latest
+FROM ${CACHYOS_IMAGE}
+
+# The published image predates the openssl soname this nodejs links against, so the system is upgraded first;
+# --disable-sandbox keeps pacman's install hooks runnable in a build container.
+RUN pacman --disable-sandbox --sync --refresh --sysupgrade --noconfirm --needed nodejs npm deno bun
+
+COPY repo /repo
+COPY run-matrix.ts /run-matrix.ts
+
+ENV DENO_DIR=/deno-cache
+
+# One directory per npm version, installed from a tarball whose SHA-256 is the one the repository's workflow pins.
+RUN set -eux; \
+    install_arm() { \
+      version="$1"; sum="$2"; arm="/arm/$version"; \
+      mkdir --parents "$arm"; \
+      cp /repo/package.json /repo/mismatch-count.ts /repo/commit-paths.ts /repo/token-scaling.ts "$arm/"; \
+      cd "$arm"; \
+      npm pack "@optique/core@$version"; \
+      echo "$sum  optique-core-$version.tgz" | sha256sum --check; \
+      npm install --no-save --no-package-lock --no-audit --no-fund "./optique-core-$version.tgz"; \
+    }; \
+    install_arm 1.3.6 6a24982a7178d3ad66b0338598154e0e8ef16dee6651bde7a8ac145ffce6dd2b; \
+    install_arm 1.4.0-dev.2971 fbfa4083ef675c201717573a38f5eb9eaa6adeb02ddfb21a40bc6b3bcaa0cc74; \
+    npm cache clean --force
+
+# Two source checkouts of packages/core for the README's "measure a checkout" path: upstream main at 1d6e4594, and the
+# same tree with the input-trace prototype applied. Their import maps are made from the repository's own template.
+COPY src-before /checkout/before
+COPY src-after /checkout/after
+RUN set -eux; \
+    mkdir --parents /maps; \
+    for arm in before after; do \
+      sed "s#/path/to/optique#/checkout/$arm#g" /repo/maps/src-checkout.json > "/maps/src-$arm.json"; \
+    done
+
+# Deno fetches the npm package named by each import map here, where the network is available. --no-config keeps Deno
+# from reading the package.json beside the scripts, which would otherwise make it look for the package in node_modules.
+RUN set -eux; \
+    cd /repo; \
+    for version in 1.3.6 1.4.0-dev.2971; do \
+      deno cache --no-config --import-map "maps/npm-$version.json" mismatch-count.ts commit-paths.ts token-scaling.ts; \
+    done; \
+    for arm in before after; do \
+      deno cache --no-config --import-map "/maps/src-$arm.json" mismatch-count.ts commit-paths.ts token-scaling.ts; \
+    done
+
+ENTRYPOINT ["node", "/run-matrix.ts"]

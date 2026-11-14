@@ -100,23 +100,15 @@ export {
   VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
 } from './environment-without-credentials.ts';
 export {
-  NestedDriverError,
-  PiRunEndedEarlyError,
-  supervisePiRun,
-} from './supervise-pi-run.ts';
-export {
-  type StartWaitingRequest,
-  startWaitingForAnAnswer,
-  type WaitingForAnAnswer,
-} from './wait-for-an-answer.ts';
-export {
-  type Ending,
-  endReasonOfRun,
-} from './take-the-first-prompt.ts';
-export {
-  putTheRunAway,
-  type RunPutAway,
-} from './put-the-run-away.ts';
+  answerModelError,
+  type RetryWaiting,
+} from './answer-a-model-error.ts';
+
+/**
+ The driver of one run: its starts, the watch that follows the prompt, and what the run is put away with. Kept in a file of its own
+ so this list stays within the line budget a file is allowed.
+ */
+export * from './index-of-a-driver-run.ts';
 
 /**
  What the watch for runs that should have come back reads, and the lines it answers with. The command is
@@ -331,11 +323,6 @@ export {
   startLineSplitter,
   type SplitPiOutputRequest,
 } from './split-pi-output.ts';
-
-/**
- The library surface of one run after its prompt, kept in a file of its own for the same reason.
- */
-export * from './index-of-watching-a-run.ts';
 
 /**
  The library surface of reading a run's own records, kept in a file of its own for the same reason.

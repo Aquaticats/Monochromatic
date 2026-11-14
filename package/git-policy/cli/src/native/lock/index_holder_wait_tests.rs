@@ -125,7 +125,7 @@ const LONG_HOLD: Duration = Duration::from_millis(2500);
 const NO_CEILING: Duration = Duration::ZERO;
 
 /// A PID file that holds a number this process table does not have ends the wait at once,
-/// because no process here will release that lock;
+/// because no process of this boot will release that lock;
 /// the
 ///  diagnostic names the number,
 /// says that a Git of another PID namespace writes one this table has never had,
@@ -151,7 +151,8 @@ fn a_number_this_table_does_not_have_ends_the_wait_at_once_with_the_number_named
     assert!(matches!(outcome, IndexWait::OwnerGone(_)), "{outcome:?}");
     let text: String = sink.text();
     assert!(text.contains(format!("PID number {gone}").as_str()), "the number the PID file holds is said: {text}");
-    assert!(text.contains("which this process table does not have"), "the number is said for what it is: {text}");
+    assert!(text.contains("which no process in this process table has"), "the number is said for what it is: {text}");
+    assert!(text.contains("no record of the processes this repository's own commands started names"), "the diagnostic says no record of the wrapper's commands explains it: {text}");
     assert!(text.contains("another PID namespace"), "why this table does not have it is said: {text}");
     assert!(!text.contains("still held after"), "such an owner is not waited for: {text}");
     assert!(lock.exists(), "the wait removes no lock");

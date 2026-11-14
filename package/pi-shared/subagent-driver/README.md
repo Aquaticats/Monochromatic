@@ -954,6 +954,12 @@ each written as `--name=value`:
   which is the `retry.baseDelayMs` default Pi's own automatic retry uses.
   The wait doubles with each attempt and never passes a minute.
   It shapes only the errors the driver owns, which a 429 is not.
+- `--start-pause-seconds`:
+  the wait before Pi is started again after a start ended before its Pi took the prompt,
+  ten seconds by default.
+  It bounds only that pause:
+  how many starts a run makes, and the time they share, are the driver's own constants,
+  and the section "A Pi that exits before it takes the prompt" names both with their reasons.
 - `--pi-argument`:
   one more word for Pi's command line.
   Repeat it for more words.
@@ -996,10 +1002,17 @@ the launcher that builds the session's environment asks it, once, before it make
   `modelError` carries what the model said when the run ended on it,
   `piRetryGaveUp` carries what Pi's own automatic retry reported when it gave up on that error,
   `compactionProblem` carries what Pi reported of a compaction that kept the prompt waiting,
+  `piStartAttempts` says how many times Pi was started,
+  `piStartFailures` holds every start that ended before its Pi took the prompt,
+  each with its exit, the pause that followed it and the last lines Pi printed,
+  `piStartStoppedBy` names the bound that stopped the starts when none of them took the prompt,
   and `retries` and `rateLimitErrors` count what the driver retried and what the run met of the failures the
   coordinator measures apart.
 - `stderr.log`:
   Pi's standard error.
+  A run whose Pi is started more than once adds each start's output to this one file,
+  in the order the starts were made,
+  and the summary's `piStartFailures` reads the lines of the start each one is about.
 - `inbox/`:
   drop a message here to steer the run.
   Write it under a name starting with a dot,
@@ -1097,6 +1110,7 @@ or in the provider's own store.
 `prompt-rejected`,
 `compaction-failed`,
 `pi-exited`,
+`pi-exited-before-prompt`,
 `turn-cap`,
 `wall-clock`,
 `driver-failed`,
@@ -1221,12 +1235,65 @@ An error an automatic retry recovers from is not one:
 the run still ends `idle`,
 because the reply after it succeeded.
 
+`pi-exited-before-prompt` means Pi left every start the driver made before any of them took the prompt:
+nothing of the run's work happened,
+and the start is made again within the bounds the section "A Pi that exits before it takes the prompt" states.
+The feed holds a `start_exited` line for each of those starts,
+naming the attempt and Pi's own reason among its last lines,
+and a `start_again` line naming the attempt it prompted and the pause before it.
+
 `compaction-failed` means Pi reported a compaction that failed and then answered nothing,
 so the run ended on the session Pi could not put in order rather than on a prompt Pi refused.
 `compactionProblem` holds what Pi said of such a compaction,
 or names the compaction that was still running when the run ended,
 and it is there however the run ended:
 a run that ended at its wall clock or on a model error after a compaction Pi could not finish carries it too.
+
+### A Pi that exits before it takes the prompt
+
+Pi writes why it will not start to its standard error and nowhere else,
+and it exits there before the prompt is read,
+so such a run did no work at all.
+Of the 1,936 finished runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-14, 18 ended that way:
+13 on an extension that could not load a module,
+each start failing in 2,096 to 20,491 ms,
+one on a logger with no space left on the device (6,097 ms),
+and four on Pi's own retry of a model-store lock another process held,
+each start spending 127,176 to 247,556 ms.
+
+So a start whose Pi leaves before the prompt is taken is made again:
+`START_ATTEMPTS` (three) starts at most,
+each after a pause of `--start-pause-seconds`,
+because the conditions behind such a failure pass as often as they stand.
+The whole sequence of starts is bounded by `START_SEQUENCE_MILLISECONDS`,
+one start-up answer's bound,
+so a start that already spent it,
+as Pi's own model-store retry did in those four runs,
+is not made three times over:
+the run ends saying what stood.
+A Pi that took its prompt is never started again,
+whatever it does afterwards,
+because the prompt is where work may begin.
+
+When the starts are used up the run ends as `pi-exited-before-prompt`,
+which is a different reason from `pi-exited`,
+the ending of a run that had taken its prompt.
+`piStartFailures` holds every start that failed,
+each with its exit, the pause that followed it, and the last lines Pi wrote to its standard error,
+and the line the driver prints carries the reason among those lines in words,
+so nobody has to open a log to learn why the run did nothing.
+`piStartStoppedBy` says which bound stopped the starts:
+`tries-spent`,
+`start-sequence-spent`,
+or `wall-clock-too-near`.
+
+Every run carries `piStartAttempts`,
+which is 1 for a run Pi went on with,
+so a reader counts over a runs folder how often a start fails this way.
+A run that a later start carried reports the start it rode out in `piStartFailures` and keeps the end reason it earned,
+so `pi-exited-before-prompt` alone marks a condition that stood:
+a caller that fills a queue reads it and stops starting runs into that condition,
+and starts them again once the condition has been answered.
 
 ## When Pi compacts before it takes the prompt
 
@@ -1274,6 +1341,8 @@ A run's first three commands are `get_state`,
 `get_commands`,
 and the prompt,
 and Pi is loading its session and its extensions while they wait.
+A run whose start ended before the prompt was taken asks them again for each start it makes,
+under the same bound each time.
 Their silence is bounded by a measured figure of its own,
 not by the bound an answer owes mid-run.
 That figure is `START_UP_ANSWER_MILLISECONDS`,
@@ -1288,8 +1357,11 @@ and the run's wall clock still ends them.
 
 ## Which layer retries what
 
-The run has two retry layers,
+The run has two retry layers for a model error,
 and a 429 is Pi's.
+A start that ended before its Pi took the prompt is a third kind of retry,
+and it answers no model error at all:
+the section "A Pi that exits before it takes the prompt" states its bounds.
 The owner, 2026-11-11: "It's Pi's native retry's responsibility to deal with 429s."
 
 ### Pi's own automatic retry, inside one turn
@@ -1671,6 +1743,7 @@ and needs neither a running unit nor a process table.
 Every wait for Pi is bounded:
 Pi's start-up,
 its state and its commands,
+the pause between two starts of a Pi that left before taking the prompt,
 each command after the prompt,
 the watch,
 and putting the run away.

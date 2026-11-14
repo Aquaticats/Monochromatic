@@ -227,12 +227,18 @@ export function startRecordOfPiRun({
      How many times the driver asked the agent to go on after an answer that said nothing.
      */
     asks: number;
+
+    /**
+     Whether Pi took the run's first prompt, which is where work may begin.
+     */
+    tookPrompt: boolean;
   } = {
     retries: 0,
     retriesSinceAnswer: 0,
     answers: 0,
     rateLimitErrors: 0,
     asks: 0,
+    tookPrompt: false,
   };
 
   /**
@@ -285,6 +291,12 @@ export function startRecordOfPiRun({
     },
     note,
     countHandledPrompt: observed.countPromptHandled,
+    countPromptTaken: function countPromptTaken() {
+      state.tookPrompt = true;
+    },
+    promptTaken: function promptTaken() {
+      return state.tookPrompt;
+    },
     feedProblem: feed.problem,
     unrecoveredModelError: observed.unrecoveredModelError,
     lastAnswerWasEmpty: observed.lastAnswerWasEmpty,
@@ -354,6 +366,9 @@ export function startRecordOfPiRun({
       piExit,
       piHasExited,
       sessionStats,
+      piStartAttempts,
+      piStartFailures,
+      piStartStoppedBy,
     },) {
       return {
         endReason,
@@ -373,6 +388,9 @@ export function startRecordOfPiRun({
         },),
         retries: state.retries,
         rateLimitErrors: state.rateLimitErrors,
+        piStartAttempts: piStartAttempts ?? 1,
+        ...(piStartFailures === undefined ? {} : { piStartFailures, }),
+        ...(piStartStoppedBy === undefined ? {} : { piStartStoppedBy, }),
         ...modelErrorOf({
           run: observed,
           retries: state.retriesSinceAnswer,

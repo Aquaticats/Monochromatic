@@ -42,6 +42,15 @@ import {
 } from './wake-a-run-whose-work-outlives-its-turn.ts';
 
 /**
+ End reasons whose cause only Pi's own words give: Pi left the run, whether it had taken the prompt (`pi-exited`) or left before it
+ took it on any start (`pi-exited-before-prompt`).
+ */
+const END_REASONS_ONLY_PI_EXPLAINS: ReadonlySet<string> = new Set<string>([
+  'pi-exited',
+  'pi-exited-before-prompt',
+]);
+
+/**
  What finishing one run needs.
  */
 export type FinishRequest = {
@@ -353,7 +362,7 @@ export async function finishTheRun(request: FinishRequest,): Promise<FinishedRun
   // A run whose Pi left before the run got going is the one ending whose reason only Pi can give: a load failure, a refused
   // provider, a missing module all reach its standard error and nothing else. It is reported last, because a batch's one line
   // per entry is the last line of what a start printed, and `status 1 Memory peak: 12M` was what it said instead.
-  if ((request.unitStatus !== 0) && ((endReason === undefined) || (endReason === 'pi-exited'))) {
+  if ((request.unitStatus !== 0) && ((endReason === undefined) || END_REASONS_ONLY_PI_EXPLAINS.has(endReason,))) {
     /**
      Where the driver kept what Pi printed.
      */

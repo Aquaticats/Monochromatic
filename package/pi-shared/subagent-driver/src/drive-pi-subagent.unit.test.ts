@@ -44,6 +44,7 @@ import {
   PROCESSES_RECORD_KIND,
   recordsIn,
   type RunSummary,
+  START_ATTEMPTS,
   VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
 } from '../dist/final/node/index.mjs';
 import {
@@ -58,6 +59,8 @@ import {
   PI_AUTOMATIC_RETRIES,
   RATE_LIMIT_ERROR_TEXT,
   RECOVERED_REPLY,
+  START_FAILURE_ADVICE,
+  START_FAILURE_TEXT,
   TRANSIENT_ERROR_TEXT,
 } from './stand-in-pi-records-fixture.ts';
 
@@ -113,6 +116,16 @@ const RETRY_BASE_SECONDS = 0.05;
 const LOOK_MILLISECONDS = 20;
 /** Milliseconds in a second. */
 const MILLISECONDS_PER_SECOND = 1_000;
+/**
+ Seconds the driver is told to wait before it starts Pi again. The controls hand the driver this pause rather than the ten seconds
+ it ships, so what they watch is the restart itself; the relation they check is the pause the summary records, never a length of
+ time a test measured.
+ */
+const START_PAUSE_SECONDS = 0.05;
+/**
+ Milliseconds of that pause, which the summary of a start that was made again reports.
+ */
+const START_PAUSE_MILLISECONDS = START_PAUSE_SECONDS * MILLISECONDS_PER_SECOND;
 /**
  Milliseconds of the first retry delay, which `--retry-base-seconds` names in seconds.
  */
@@ -200,6 +213,7 @@ const ABSENT_SUMMARY: RunSummary = {
   lastAssistantText: '',
   retries: 0,
   rateLimitErrors: 0,
+  piStartAttempts: 1,
 };
 
 type Finished = {
@@ -217,6 +231,11 @@ type Finished = {
    */
   readonly environmentNames: readonly string[];
   readonly piArguments: readonly string[];
+
+  /**
+   How many times the driver started the stand-in, which is how many starts the run made.
+   */
+  readonly standInStarts: number;
   readonly inbox: readonly string[];
   readonly inboxContents: Readonly<Record<string, string>>;
   readonly logWasWritten: boolean;
@@ -586,6 +605,10 @@ async function runDriver(
   const promptFile = join(folder.path, 'prompt.md',);
   const log = join(folder.path, 'commands.log',);
   /**
+   Where a stand-in counts the starts of this run, which the separate processes of one run share.
+   */
+  const startCount = join(folder.path, 'starts.count',);
+  /**
    A folder holding no executable, so a test that takes Pi away cannot reach a real one.
    */
   const withoutExecutables = join(folder.path, 'no-executables',);
@@ -619,6 +642,7 @@ async function runDriver(
       HOME: process.env.HOME,
       STAND_IN_PI_SCENARIO: scenario,
       STAND_IN_PI_LOG: log,
+      STAND_IN_PI_START_COUNT_FILE: startCount,
       ...environment,
     },
     encoding: 'utf8',
@@ -655,6 +679,7 @@ async function runDriver(
     piArguments: logged.filter((line,) => line.startsWith('arguments ',)).flatMap((line,) =>
       JSON.parse(line.slice('arguments '.length,),) as string[]
     ),
+    standInStarts: logged.filter((line,) => line.startsWith('arguments ',)).length,
     inbox: await listInbox(join(runFolder, 'inbox',),),
     inboxContents: await contentsOfInbox(join(runFolder, 'inbox',),),
     logWasWritten: logged.length > 0,
@@ -968,12 +993,111 @@ await describe({
       },
     },),
     it({
-      name: 'a Pi that crashes at start ends the run as pi-exited and records its status',
+      name: 'a Pi that crashes at start is started again until its tries are spent, and the run ends as pi-exited-before-prompt',
       fn: async () => {
-        const run = await runDriver({ scenario: 'crash', },);
+        const run = await runDriver({
+          scenario: 'crash',
+          extraOptions: [`--start-pause-seconds=${String(START_PAUSE_SECONDS,)}`,],
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        expect(run.summary.endReason,).toBe('pi-exited-before-prompt',);
+        expect(run.summary.piExit?.code,).toBe(3,);
+        expect(run.summary.piStartAttempts,).toBe(START_ATTEMPTS,);
+        expect(run.summary.piStartStoppedBy,).toBe('tries-spent',);
+        expect(run.standInStarts,).toBe(START_ATTEMPTS,);
+      },
+    },),
+    it({
+      name: 'a start that exits before it takes the prompt once is started again, and the run ends as the run it was',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'exits-before-prompt-once',
+          extraOptions: [`--start-pause-seconds=${String(START_PAUSE_SECONDS,)}`,],
+        },);
+        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.summary.lastAssistantText,).toBe('done',);
+        // Two starts made, and the run went on after the second of them.
+        expect(run.summary.piStartAttempts,).toBe(2,);
+        expect(run.standInStarts,).toBe(2,);
+        expect(run.summary.piStartStoppedBy,).toBeUndefined();
+        /**
+         The start that failed, as the summary carries it.
+         */
+        const failed = run.summary.piStartFailures ?? [];
+        expect(failed,).toHaveLength(1,);
+        expect(failed[0]?.attempt,).toBe(1,);
+        expect(failed[0]?.exit.code,).toBe(1,);
+        expect(failed[0]?.pauseMilliseconds,).toBe(START_PAUSE_MILLISECONDS,);
+        // Pi's own words, in the summary, so a reader needs no log for why the first start did not go on.
+        expect(failed[0]?.standardErrorLines,).toEqual([START_FAILURE_TEXT, START_FAILURE_ADVICE,],);
+        expect(failed[0]?.reason,).toBe(START_FAILURE_TEXT,);
+        // Both starts are in the run's record, in the order they happened.
+        expect(run.feed.filter((entry,) => entry.kind === 'start_exited',).map((entry,) => entry.attempt,),)
+          .toEqual([1,],);
+        /**
+         The feed's own record of the start the driver made after that one.
+         */
+        const again = run.feed.filter((entry,) => entry.kind === 'start_again',);
+        expect(again,).toHaveLength(1,);
+        expect(again[0]?.attempt,).toBe(2,);
+        expect(again[0]?.of,).toBe(START_ATTEMPTS,);
+        expect(again[0]?.pauseMilliseconds,).toBe(START_PAUSE_MILLISECONDS,);
+        // The prompt was taken by the second start, which is what the run's own record says.
+        expect(run.feed.filter((entry,) => entry.kind === 'prompt_sent',).at(-1,)?.success,).toBe(true,);
+      },
+    },),
+    it({
+      name: 'a start that exits before its prompt on every try ends the run at once, with the cause in its summary',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'exits-before-prompt-always',
+          extraOptions: [`--start-pause-seconds=${String(START_PAUSE_SECONDS,)}`,],
+        },);
+        expect(run.status,).toBe(FAILED_STATUS,);
+        // Told apart, by its own reason, from a Pi that left a run which had taken the prompt.
+        expect(run.summary.endReason,).toBe('pi-exited-before-prompt',);
+        // Every start the driver allows was made, and the run did not wait its wall clock out.
+        expect(run.summary.piStartAttempts,).toBe(START_ATTEMPTS,);
+        expect(run.standInStarts,).toBe(START_ATTEMPTS,);
+        expect(run.summary.piStartStoppedBy,).toBe('tries-spent',);
+        /**
+         Every start that failed, which is one per start made.
+         */
+        const failed = run.summary.piStartFailures ?? [];
+        expect(failed,).toHaveLength(START_ATTEMPTS,);
+        expect(failed.map((start,) => start.attempt,),).toEqual([1, 2, 3,],);
+        expect(failed.map((start,) => start.pauseMilliseconds,),)
+          .toEqual([START_PAUSE_MILLISECONDS, START_PAUSE_MILLISECONDS, 0,],);
+        for (const start of failed) {
+          expect(start.exit.code,).toBe(1,);
+          expect(start.standardErrorLines,).toEqual([START_FAILURE_TEXT, START_FAILURE_ADVICE,],);
+          expect(start.reason,).toBe(START_FAILURE_TEXT,);
+        }
+        // The reason the driver prints names the cause, so nobody has to open a log to read it.
+        expect(run.standardError,).toContain('pi-exited-before-prompt',);
+        expect(run.standardError,).toContain(`each of its ${String(START_ATTEMPTS,)} starts`,);
+        expect(run.standardError,).toContain(START_FAILURE_TEXT,);
+        // Nothing of the run happened: no turn, and no prompt Pi took.
+        expect(run.summary.turns,).toBe(0,);
+        expect(run.feed.some((entry,) => (entry.kind === 'prompt_sent') && (entry.success === true)),).toBe(false,);
+      },
+    },),
+    it({
+      name: 'a Pi that takes the prompt and then exits is not started again',
+      fn: async () => {
+        const run = await runDriver({
+          scenario: 'exits-after-prompt',
+          extraOptions: [`--start-pause-seconds=${String(START_PAUSE_SECONDS,)}`,],
+        },);
         expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.endReason,).toBe('pi-exited',);
-        expect(run.summary.piExit?.code,).toBe(3,);
+        // One start: the prompt was taken, so work may have begun and no second Pi is made.
+        expect(run.standInStarts,).toBe(1,);
+        expect(run.summary.piStartAttempts,).toBe(1,);
+        expect(run.summary.piStartFailures,).toBeUndefined();
+        expect(run.feed.some((entry,) => entry.kind === 'start_again'),).toBe(false,);
+        expect(run.feed.some((entry,) => entry.kind === 'start_exited'),).toBe(false,);
       },
     },),
     it({

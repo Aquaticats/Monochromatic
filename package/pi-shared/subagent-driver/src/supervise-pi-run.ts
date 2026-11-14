@@ -1,5 +1,6 @@
 /**
- One whole run: starts Pi, sends the prompt, hands the run to the watch, ends Pi, and writes the summary.
+ One whole run: starts Pi, sends the prompt, hands the run to the watch, ends Pi, and writes the summary. The starts themselves,
+ including another start after a Pi that left before it took the prompt, are in `starts-of-a-run.ts`.
 
  @module
  */
@@ -7,21 +8,11 @@
 import { mkdir, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
-  type ConnectionToPi,
-  startConnectionToPi,
-} from './connection-to-pi.ts';
-import {
-  COMMAND_ANSWER_MILLISECONDS,
-  FEED_PREVIEW_CHARACTERS,
   MILLISECONDS_PER_SECOND,
   NESTED_RUN_VARIABLE,
 } from './driver-constants.ts';
 import {
-  millisecondsLeftUntil,
-} from './deadline.ts';
-import {
   CLEAN_END_REASONS,
-  endReasonOfPromptWait,
   finalEndReason,
 } from './end-reasons.ts';
 import {
@@ -33,27 +24,16 @@ import {
   DriverOptionsError,
 } from './parse-driver-options.ts';
 import type {
-  CommandAnswer,
   DriverOptions,
-  EndReason,
-  PiRecord,
-  RecordOfPiRun,
-  RunProgress,
   RunSummary,
 } from './driver-types.ts';
-import { preview, } from './previews-of-pi-messages.ts';
-import { putTheRunAway, } from './put-the-run-away.ts';
-import { endReasonOfRun, } from './take-the-first-prompt.ts';
-import { runCommandWithChildProcess, } from './run-command.ts';
-import { workOutlivingTheTurnIn, } from './work-the-run-left-running.ts';
-import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
-  fieldsOf,
-  recordsIn,
-} from './read-pi-fields.ts';
+  type RunPutAway,
+  putTheRunAway,
+} from './put-the-run-away.ts';
 import { startRecordOfPiRun, } from './record-of-pi-run.ts';
-import type { WatchRequest, } from './watch-request.ts';
-import { watchUntilEnded, } from './watch-pi-run.ts';
+import { startsOfARun, } from './starts-of-a-run.ts';
+import { endingLineOf, } from './the-line-a-driver-ends-with.ts';
 import { writeSummary, } from './write-summary.ts';
 
 /**
@@ -77,112 +57,13 @@ export class PiRunEndedEarlyError extends Error {
 }
 
 /**
- Builds Pi's command line. `--session` is its own word, so a path holding spaces stays one argument.
-
- @param options - options of this run
-
- @returns the arguments for Pi
- */
-function piCommandLine(options: DriverOptions,): readonly string[] {
-  return [
-    '--mode',
-    'rpc',
-    '--provider',
-    options.provider,
-    '--model',
-    options.model,
-    ...(options.session === undefined ? [] : [
-      '--session',
-      options.session,
-    ]),
-    ...options.piArguments,
-  ];
-}
-
-/**
- Says how many attempts a run made at the model error it ended on, so the reason the driver prints names them.
-
- @param summary - what the caller reads
-
- @returns the attempts, in words, or nothing when the run ended on no model error
- */
-function attemptsOf(summary: RunSummary,): string {
-  if (summary.modelErrorAttempts === undefined) {
-    return '';
-  }
-  /**
-   How many attempts the run made, as text.
-   */
-  const attempts = String(summary.modelErrorAttempts,);
-  return (summary.modelErrorAttempts === 1)
-    ? ' after 1 attempt'
-    : ` after ${attempts} attempts`;
-}
-
-/**
- Says what Pi's own automatic retry reported when it gave up on the model error the run ended with, so the reason the driver
- prints names the layer that answered that error rather than leaving a reader to think nothing tried.
-
- @param summary - what the caller reads
-
- @returns the note, in words, or nothing when Pi reported giving up on nothing
- */
-function piRetryNoteOf(summary: RunSummary,): string {
-  /**
-   What Pi reported when it stopped retrying.
-   */
-  const exhausted = summary.piRetryGaveUp;
-  if (exhausted === undefined) {
-    return '';
-  }
-  /**
-   How many attempts Pi's retry made, as text.
-   */
-  const attempts = String(exhausted.attempts,);
-  return (exhausted.attempts === 1)
-    ? ', and Pi\'s own automatic retry gave up on it after 1 attempt'
-    : `, and Pi's own automatic retry gave up on it after ${attempts} attempts`;
-}
-
-/**
- Says what the driver made of an agent whose last answer said nothing, so the message names the asks rather than leaving a reader
- to think the agent had finished.
-
- @param summary - what the caller reads
-
- @returns the note, in words, or nothing when the run did not end on an empty answer
- */
-function emptyAnswerNoteOf(summary: RunSummary,): string {
-  /**
-   What the run recorded of the empty answer.
-   */
-  const empty = summary.emptyAnswer;
-  if ((empty === undefined) || (summary.endReason !== 'empty-answer')) {
-    return '';
-  }
-  return (empty.asked === 1)
-    ? ', after its agent answered with no text and no tool call and the driver asked it to go on once'
-    : `, after its agent answered with no text and no tool call and the driver asked it to go on ${String(empty.asked,)} times`;
-}
-
-/**
- Says what Pi reported of a compaction, when one kept the run's prompt waiting, so the message names why Pi took nothing rather
- than leaving a reader to guess.
-
- @param summary - what the caller reads
-
- @returns the note, in words, or nothing when no compaction kept the prompt waiting
- */
-function compactionNoteOf(summary: RunSummary,): string {
-  return (summary.compactionProblem === undefined)
-    ? ''
-    : `, because Pi could not put its session in order: ${summary.compactionProblem}`;
-}
-
-/**
  Runs Pi once and writes everything the caller reads afterwards. `summary.json` appears last, so its presence means the driver
  has finished putting the run away. `piExit` is there only when Pi's exit was seen, and `piHasExited` says whether the driver
  could confirm Pi had gone.
+
+ A start whose Pi exits before it takes the prompt is started again, within the number of starts and the pause the constants name,
+ because nothing of the run's work can have happened. When they are used up the run ends as `pi-exited-before-prompt`, naming what
+ Pi printed, and `piStartFailures` holds every start that failed so a reader counts them.
 
  @param options - options of this run
 
@@ -240,7 +121,7 @@ export async function supervisePiRun(
     { recursive: true, },
   );
   /**
-   The run's feed and counts.
+   The run's feed and counts, which every start of it writes to, so the run's record covers all of them.
    */
   const record = startRecordOfPiRun({ feedFile: join(
     options.runFolder,
@@ -257,88 +138,43 @@ export async function supervisePiRun(
     removedNames: givenToPi.removedNames,
   },);
   /**
-   Declines a dialog, which would otherwise wait for an answer forever.
-
-   @param id - dialog's identifier
+   Where Pi's standard error is kept for every start of this run: a start that will not go on says why there and nowhere else, and
+   one file holds what each start printed.
    */
-  function declineDialog(id: unknown,): void {
-    connection.write({
-      type: 'extension_ui_response',
-      id,
-      cancelled: true,
-    },);
-  }
+  const standardErrorFile = join(
+    options.runFolder,
+    'stderr.log',
+  );
   /**
-   The running Pi.
+   The run's starts: Pi until one of them takes the prompt, or until the starts or their time run out.
    */
-  const connection: ConnectionToPi = startConnectionToPi({
-    piArguments: piCommandLine(options,),
-    workingFolder: options.workingFolder,
-    environment: {
-      ...givenToPi.environment,
-      [NESTED_RUN_VARIABLE]: '1',
-    },
-    standardErrorFile: join(
-      options.runFolder,
-      'stderr.log',
-    ),
-    listeners: {
-      onEvent: function onEvent(event,) {
-        record.observe({
-          event,
-          declineDialog,
-        },);
-      },
-      onUnreadableLine: function onUnreadableLine(line,) {
-        record.note({
-          kind: 'non-json',
-          line: preview({
-            value: line,
-            length: FEED_PREVIEW_CHARACTERS.unreadableLine,
-          },),
-        },);
-      },
-      onExit: function onExit(exit,) {
-        record.note({
-          kind: 'exit',
-          ...exit,
-        },);
-      },
-      onProblem: function onProblem(problem,) {
-        record.note({
-          kind: 'problem',
-          problem,
-        },);
-      },
-    },
-  },);
-  /**
-   Why the run ended.
-   */
-  const { endReason, } = await endReasonOfRun({
-    connection,
-    record,
+  const starts = await startsOfARun({
     options,
+    record,
     inbox,
     deadline,
-    workLeftRunning: async function workLeftRunning() {
-      return await workOutlivingTheTurnIn({
-        runFolder: options.runFolder,
-        workingFolder: options.workingFolder,
-        processFolder: process.env
-          .PI_RUNS_PROCESS_FOLDER
-          ?? '/proc',
-        run: runCommandWithChildProcess,
-      },);
-    },
+    environment: givenToPi.environment,
+    standardErrorFile,
   },);
   /**
-   What putting the run away left: Pi's own statistics, and whether its leaving could be confirmed.
+   The Pi of the run's last start, whose ending the summary reads.
    */
-  const putAway = await putTheRunAway({
-    connection,
+  const { connection: lastConnection, } = starts;
+  /**
+   What putting the last start away left: Pi's own statistics, and whether its leaving could be confirmed. A start that failed
+   before its Pi took the prompt is already put away, so its own answer stands.
+   */
+  const putAway: RunPutAway = starts.putAway ?? await putTheRunAway({
+    connection: lastConnection,
     record,
   },);
+  /**
+   Every start that ended before its Pi took the prompt, and why none followed the last of them.
+   */
+  const {
+    startFailures,
+    startStoppedBy,
+  } = starts;
   await record.close();
   /**
    The error Pi settled on, when nothing after it recovered.
@@ -349,17 +185,14 @@ export async function supervisePiRun(
    */
   const feedProblem = record.feedProblem();
   /**
-   Why the run ended, once those two are known.
-   */
-  /**
    How Pi ended, which the summary and the reason both read.
    */
-  const piExit = connection.exitDetails();
+  const piExit = lastConnection.exitDetails();
   /**
    Why the run ended, once every late failure is known.
    */
   const finalReason = finalEndReason({
-    endReason,
+    endReason: starts.endReason,
     stopped: putAway.stopped,
     modelError,
     feedProblem,
@@ -371,25 +204,21 @@ export async function supervisePiRun(
   const summary = record.summarize({
     endReason: finalReason,
     piExit,
-    piHasExited: connection.hasExited(),
+    piHasExited: lastConnection.hasExited(),
     sessionStats: putAway.sessionStats,
+    piStartAttempts: starts.startsTaken,
+    ...(startFailures.length === 0 ? {} : { piStartFailures: startFailures, }),
+    ...(startStoppedBy === undefined ? {} : { piStartStoppedBy: startStoppedBy, }),
   },);
   await writeSummary({
     runFolder: options.runFolder,
     summary,
   },);
   if (!CLEAN_END_REASONS.has(summary.endReason,)) {
-    throw new PiRunEndedEarlyError(
-      `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${piRetryNoteOf(summary,)}${emptyAnswerNoteOf(summary,)}${compactionNoteOf(summary,)}. The summary is in ${join(
-        options.runFolder,
-        'summary.json',
-      )} and Pi's standard error in ${
-        join(
-          options.runFolder,
-          'stderr.log',
-        )
-      }.`,
-    );
+    throw new PiRunEndedEarlyError(endingLineOf({
+      summary,
+      runFolder: options.runFolder,
+    },),);
   }
   return summary;
 }
