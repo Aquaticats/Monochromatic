@@ -27,7 +27,7 @@
 //! ```
 
 use super::commit::remove_settled;
-use super::support::{Fixture, fixture, git, repository, start_fixture_service, FixtureService};
+use super::support::{Fixture, fixture, git, give_service_environment, repository, start_fixture_service, FixtureService};
 use git_policy_cli::service_claim_watch::LOOK_AGAIN_AFTER;
 use git_policy_cli::service_fault::AFTER_PROMOTE;
 use git_policy_cli::service_work::work_directory;
@@ -61,6 +61,39 @@ fn setup(name: &str) -> Setup {
     git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
     let service: FixtureService = start_fixture_service(&fixture);
     service.serve(&fixture, repo.join(".git").as_path());
+    return Setup { fixture, repo, remote, service };
+}
+
+/// What:
+///  The same repository and remote,
+/// with the note that names this worktree's service its worktree,
+/// as provisioning writes it.
+/// Why:
+///   A service the manager starts is told which worktree it serves,
+/// and the note is that record;
+/// the fixture's service has none unless a control writes it,
+/// so a
+///  control about the records of a worktree the service knows has to write it,
+/// exactly as the first command of a worktree
+///  does.
+fn setup_that_knows_its_worktree(name: &str) -> Setup {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
+    let remote: PathBuf = fixture.root.join("remote.git");
+    git(&fixture, fixture.root.as_path(), &["init", "--quiet", "--bare", "--initial-branch=main", remote.to_str().expect("UTF-8")]);
+    std::fs::write(repo.join("a.txt"), "base\n").expect("a");
+    git(&fixture, &repo, &["add", "a.txt"]);
+    git(&fixture, &repo, &["commit", "--quiet", "--message=base"]);
+    git(&fixture, &repo, &["config", "maintenance.autoDetach", "false"]);
+    git(&fixture, &repo, &["remote", "add", "origin", remote.to_str().expect("UTF-8")]);
+    git(&fixture, &repo, &["push", "--quiet", "--set-upstream", "origin", "main"]);
+    let service: FixtureService = start_fixture_service(&fixture);
+    let real: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the Git directory");
+    let instance: String = git_policy_cli::service_instance::instance_of(real.as_path());
+    git_policy_cli::service_units_of_removed_worktrees::record_worktree(service.runtime.as_path(), instance.as_str(), real.as_path()).expect("the note of the worktree");
+    // The service reads the note from the runtime directory of its account, which is this fixture's.
+    give_service_environment(&fixture, "XDG_RUNTIME_DIR", service.runtime.to_str().expect("UTF-8"));
+    service.serve(&fixture, real.as_path());
     return Setup { fixture, repo, remote, service };
 }
 
@@ -202,7 +235,7 @@ fn a_running_service_pushes_a_promoted_record_within_the_bound() {
 /// so the claim is what this control asserts.
 #[test]
 fn every_kind_of_record_waiting_with_no_wake_is_claimed_within_the_bound() {
-    let setup: Setup = setup("nothing-announced-every-kind");
+    let setup: Setup = setup_that_knows_its_worktree("nothing-announced-every-kind");
     let tip: String = head_of(&setup, "HEAD");
     let parent: String = head_of(&setup, "HEAD~1");
     let mut written: Vec<String> = Vec::new();
@@ -250,13 +283,15 @@ fn a_record_the_look_ran_is_not_run_again_by_a_late_wake() {
     let setup: Setup = setup("nothing-announced-late-wake");
     let looked: String = commit_and_die_after_promote(&setup, "one\n");
     wait_until("the running service pushed the record", LOOK_AGAIN_AFTER * 3, &|| { return remote_has(&setup, looked.as_str()); });
+    // The service's line about its push is copied to its log by a thread of the fixture, so the line is waited for.
+    wait_until("the service said it pushed the record", LOOK_AGAIN_AFTER, &|| { return push_lines_naming(&setup, looked.as_str()) > 0; });
     assert_eq!(push_lines_naming(&setup, looked.as_str()), 1, "the look made the push once");
     // A later commit wakes the service for the same repository, which is the late wake the record's own wake would have been.
     let later: String = commit_through(&setup, "two\n");
     wait_until("the later commit's push settled", LOOK_AGAIN_AFTER * 6, &|| { return records_in(&setup, PENDING).is_empty(); });
     wait_until("the later commit reached the remote", LOOK_AGAIN_AFTER * 6, &|| { return remote_has(&setup, later.as_str()); });
     assert_eq!(push_lines_naming(&setup, looked.as_str()), 1, "the late wake did not push the settled record again");
-    assert!(records_in(&setup, DONE).iter().any(|name| { return name.ends_with(looked.as_str()); }), "the record is where a push that was made is kept");
+    assert!(records_in(&setup, DONE).iter().any(|name| { return name.starts_with(format!("push-{looked}").as_str()); }), "the record is where a push that was made is kept");
     remove_settled(&setup.fixture);
 }
 
