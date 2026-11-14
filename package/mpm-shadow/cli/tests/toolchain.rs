@@ -8,6 +8,7 @@ use std::fs;
 
 use mpm_shadow::cli::{build_command, declared_verbs};
 use mpm_shadow::constants::USAGE_EXIT_CODE;
+use mpm_shadow::toolchain::archive_staging;
 use mpm_shadow::toolchain::lock::{parse_lock, render_lock};
 use mpm_shadow::toolchain::scope::{EXPOSURE_DIR_RELATIVE, LOCK_FILE_NAME, PLAN_FILE_NAME};
 use std::path::{Path, PathBuf};
@@ -417,3 +418,267 @@ fn the_toolchain_prune_says_it_covers_release_archives_and_words_an_empty_result
     assert!(stdout.contains("release archive"), "the empty result names the release archives as well: {stdout}");
     assert!(!stdout.contains("no unnamed cargo version"), "{stdout}");
 }
+
+//region a second command changing the store under the cleanup
+
+/// The crate the cleanup controls keep in a store of their own.
+const CLEANUP_CRATE: &str = "mpm-shadow-cleanup-fixture";
+
+/// The version the cleanup judges removable in the controls.
+const CLEANUP_OLD: &str = "1.0.0";
+
+/// The version a lock names, which the cleanup keeps.
+const CLEANUP_NAMED: &str = "2.0.0";
+
+/// A worktree, a home and a store the cleanup controls own,
+/// with a plan that declares no tool and the lock the binary itself wrote for it.
+struct Store {
+    /// The fixture directory, removed when the fixture drops.
+    directory: tempfile::TempDir,
+}
+
+impl Store {
+    /// A store whose worktree is a git repository, because the cleanup lists worktrees through git.
+    fn new() -> Store {
+        let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).expect("make a fixture root");
+        fs::create_dir_all(directory.path().join("home")).expect("make the home");
+        fs::create_dir_all(directory.path().join("work")).expect("make the worktree");
+        fs::write(directory.path().join("work").join(PLAN_FILE_NAME), "{\"schemaVersion\": 1, \"tools\": {}}\n").expect("write the plan");
+        let repository = Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(directory.path().join("work"))
+            .env_clear()
+            .env("PATH", "/usr/bin:/bin")
+            .output()
+            .expect("run git init");
+        assert!(repository.status.success(), "{}", text(&repository.stderr));
+        let fixture = Store { directory };
+        // A plan with no tool resolves to nothing, so this writes the lock with no network read.
+        let written = fixture.run(&["install", "--no-frozen-lockfile"]);
+        assert_eq!(written.status.code(), Some(0), "{}", text(&written.stderr));
+        return fixture;
+    }
+
+    /// The worktree.
+    fn work(&self) -> PathBuf {
+        return self.directory.path().join("work");
+    }
+
+    /// The home every command of these controls reads.
+    fn home(&self) -> PathBuf {
+        return self.directory.path().join("home");
+    }
+
+    /// The repository scope's toolchain root.
+    fn root(&self) -> PathBuf {
+        return self.home().join(".local").join("share").join("monochromatic-dev").join("toolchain");
+    }
+
+    /// The directory of the fixture crate in that root.
+    fn crate_dir(&self) -> PathBuf {
+        return self.root().join("cargo").join(CLEANUP_CRATE);
+    }
+
+    /// The directory the archives of one version were downloaded into.
+    fn downloads(&self, version: &str) -> PathBuf {
+        return self.root().join("downloads").join("cargo").join(CLEANUP_CRATE).join(version);
+    }
+
+    /// Writes one version directory of the fixture crate.
+    fn write_version(&self, version: &str, files: &[&str]) {
+        let directory = self.crate_dir().join(version);
+        fs::create_dir_all(&directory).expect("make the version");
+        for file in files {
+            fs::write(directory.join(file), b"#!/bin/sh\n").expect("write a file of the version");
+        }
+    }
+
+    /// Writes the machine scope's lock, naming the fixture crate at `version`.
+    /// The machine scope keeps its lock in the config directory, not beside the store.
+    fn name_in_the_machine_lock(&self, version: &str) {
+        let directory = self.home().join(".config").join("monochromatic-dev").join("toolchain");
+        fs::create_dir_all(&directory).expect("make the machine scope");
+        let text = format!(
+            "{{\"schemaVersion\": 1, \"tools\": {{\"cargo:{CLEANUP_CRATE}\": {{\"request\": \"cargo:{CLEANUP_CRATE}@latest\", \
+             \"version\": \"{version}\", \"route\": \"cargo-binstall\", \"packageId\": \"{CLEANUP_CRATE}\"}}}}}}\n"
+        );
+        fs::write(directory.join(LOCK_FILE_NAME), text).expect("write the machine lock");
+    }
+
+    /// A command in the worktree with a given `PATH`,
+    /// and the cleanup's bounds set so that the store the fixture wrote is what it judges.
+    fn command(&self, arguments: &[&str], path: &str) -> Command {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_mpm-shadow"));
+        command
+            .args(arguments)
+            .current_dir(self.work())
+            .env_clear()
+            .env("HOME", self.home())
+            .env("PATH", path)
+            // Every version the fixture wrote is over the size bound and older than the floor:
+            // the controls are about the removal, not about the rule that asks for one.
+            // The work limit is raised because a control that holds the install's renames spends the shipped two
+            // seconds before the cleanup reaches its first removal.
+            .env("MPM_SHADOW_STORE_SIZE_BOUND", "0")
+            .env("MPM_SHADOW_STORE_AGE_FLOOR", "0")
+            .env("MPM_SHADOW_STORE_WORK_LIMIT", "60s")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        return command;
+    }
+
+    /// Runs one command and returns what it printed and how it ended.
+    fn run(&self, arguments: &[&str]) -> Output {
+        return self.command(arguments, "/usr/bin:/bin").output().expect("run mpm-shadow");
+    }
+}
+
+/// Waits for `child` to end,
+/// giving up after `deadline` so a command that waits for ever cannot hold the test.
+fn wait_until_ended(child: &mut std::process::Child, deadline: std::time::Duration) -> Option<std::process::ExitStatus> {
+    let until = std::time::Instant::now() + deadline;
+    loop {
+        match child.try_wait().expect("ask about the command") {
+            Some(status) => return Some(status),
+            None if std::time::Instant::now() >= until => return None,
+            None => std::thread::sleep(std::time::Duration::from_millis(10)),
+        }
+    }
+}
+
+/// Waits for `path` to appear,
+/// giving up after `deadline`.
+fn wait_until_present(path: &Path, deadline: std::time::Duration) -> bool {
+    let until = std::time::Instant::now() + deadline;
+    while std::time::Instant::now() < until {
+        if path.exists() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    return path.exists();
+}
+
+/// What:
+/// A version another command publishes at the name the cleanup is removing is never removed:
+/// the cleanup keeps it and says why.
+/// Why:
+/// The review of 2026-11-14 found by reading that `store_trim`'s removal rechecks the version directory's write time
+/// and then renames whatever stands at that name to the removal marker;
+/// a `publish_staged` of another command that lands between the two was renamed away and deleted,
+/// which is a freshly installed version, possibly one a lock now names.
+/// The window is a few system calls, so this control holds the install's `rename` calls with `strace` and publishes
+/// the fresh copy while the cleanup is inside the window.
+#[test]
+fn a_version_another_run_publishes_while_the_cleanup_judges_it_is_never_removed() {
+    let store = Store::new();
+    store.name_in_the_machine_lock(CLEANUP_NAMED);
+    store.write_version(CLEANUP_OLD, &["program"]);
+    store.write_version(CLEANUP_NAMED, &["program"]);
+    fs::create_dir_all(store.downloads(CLEANUP_OLD)).expect("make the downloads");
+    fs::write(store.downloads(CLEANUP_OLD).join("archive.tar.gz"), b"x").expect("write an archive");
+    // A removal an earlier run left unfinished: the pass runs even though this install installs nothing.
+    fs::write(store.root().join(".mpm-shadow-removal-unfinished"), b"").expect("leave the marker the pass runs for");
+    // The fresh copy the other command publishes at the version's name inside the window,
+    // staged the way an archive install stages it.
+    let fresh = store.directory.path().join("fresh");
+    fs::create_dir_all(&fresh).expect("make the fresh copy");
+    fs::write(fresh.join("program"), b"#!/bin/sh\n").expect("write the fresh program");
+    fs::write(fresh.join(archive_staging::COMPLETE_MARKER), b"mpm-shadow-cleanup-fixture 1.0.0\n").expect("mark the fresh copy finished");
+
+    // Every rename of the install is held at its entry, so the cleanup takes seconds between its recheck and its move.
+    let mut held = Command::new("strace");
+    held.args(["-f", "-o", "/dev/null", "-e", "trace=rename", "-e", "inject=rename:delay_enter=1000000"]);
+    held.arg(env!("CARGO_BIN_EXE_mpm-shadow")).arg("install").arg("--frozen-lockfile");
+    held.current_dir(store.work())
+        .env_clear()
+        .env("HOME", store.home())
+        .env("PATH", "/usr/bin:/bin")
+        .env("MPM_SHADOW_STORE_SIZE_BOUND", "0")
+        .env("MPM_SHADOW_STORE_AGE_FLOOR", "0")
+        .env("MPM_SHADOW_STORE_WORK_LIMIT", "60s")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    let mut child: std::process::Child = match held.spawn() {
+        Ok(started) => started,
+        Err(error) => panic!("this control holds the cleanup's renames with strace, which must start: {error}"),
+    };
+    // The cleanup moves the downloads out of their name first, which is where the window opens.
+    let downloads_marker: PathBuf = store.downloads(CLEANUP_OLD).with_file_name(".mpm-shadow-removing.1.0.0");
+    if !wait_until_present(&downloads_marker, std::time::Duration::from_secs(120)) {
+        let _killed = child.kill();
+        let _reaped = child.wait();
+        panic!("the cleanup never reached its first rename, so this control proved nothing");
+    }
+    // The publish of another command, through the code that does it: the copy there is not finished,
+    // so it is moved aside, the fresh one takes the name, and the copy that was there is discarded.
+    archive_staging::publish_staged(&fresh, &store.crate_dir().join(CLEANUP_OLD), "program").expect("publish the fresh copy");
+    let ended = wait_until_ended(&mut child, std::time::Duration::from_secs(180));
+    let Some(status) = ended else {
+        let _killed = child.kill();
+        let _reaped = child.wait();
+        panic!("the install was still running 180 s after it started");
+    };
+    let output: Output = child.wait_with_output().expect("read the install's output");
+    let report: String = format!("{}{}", text(&output.stdout), text(&output.stderr));
+
+    assert!(status.success(), "an install whose cleanup kept a published version ends well: {report}");
+    assert!(
+        store.crate_dir().join(CLEANUP_OLD).join(archive_staging::COMPLETE_MARKER).is_file(),
+        "the version another command published was removed: {report}"
+    );
+    assert!(
+        report.contains("another run wrote it while the cleanup ran"),
+        "the cleanup says why it kept the published version: {report}"
+    );
+    assert!(store.crate_dir().join(CLEANUP_NAMED).join("program").is_file(), "the version the lock names stays");
+}
+
+/// What:
+/// A `git` that never answers costs the install its worktree list within a stated bound, and nothing else:
+/// the cleanup keeps every version and says which read ran out of time.
+/// Why:
+/// The review of 2026-11-14 found that the install path runs `git worktree list` through a runner with no timeout,
+/// so a git blocked on a listed worktree's hung file system made `install` wait for ever.
+#[test]
+fn a_git_that_never_answers_costs_the_install_its_worktree_list_within_a_stated_bound() {
+    let store = Store::new();
+    store.name_in_the_machine_lock(CLEANUP_NAMED);
+    store.write_version(CLEANUP_OLD, &["program"]);
+    store.write_version(CLEANUP_NAMED, &["program"]);
+    fs::write(store.root().join(".mpm-shadow-removal-unfinished"), b"").expect("leave the marker the pass runs for");
+    // A `git` that answers nothing: the stand-in waits on its own sleep, which ends long before the test's deadline
+    // only if something stops it.
+    let standin = store.directory.path().join("standin");
+    fs::create_dir_all(&standin).expect("make the stand-in directory");
+    fs::write(standin.join("git"), "#!/bin/sh\nsleep 300\n").expect("write the stand-in");
+    #[cfg(unix)]
+    {
+        /// Imports `PermissionsExt` from `std::os::unix::fs`.
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(standin.join("git"), fs::Permissions::from_mode(0o700)).expect("make the stand-in executable");
+    }
+
+    let mut child: std::process::Child = store
+        .command(&["install", "--frozen-lockfile"], &format!("{}:/usr/bin:/bin", standin.display()))
+        .spawn()
+        .expect("start the install");
+    let ended = wait_until_ended(&mut child, std::time::Duration::from_secs(60));
+    let Some(status) = ended else {
+        let _killed = child.kill();
+        let _reaped = child.wait();
+        panic!("the install was still waiting on git 60 s after it started, so the read has no bound");
+    };
+    let output: Output = child.wait_with_output().expect("read the install's output");
+    let report: String = format!("{}{}", text(&output.stdout), text(&output.stderr));
+
+    assert!(status.success(), "a read that ran out of time is said, and the install still ends well: {report}");
+    assert!(report.contains("worktree list --porcelain"), "the sentence names the read: {report}");
+    assert!(report.contains("was still running after its bound of 10 s"), "the sentence names the bound: {report}");
+    assert!(report.contains("every version is kept until the locks can be read"), "the sentence says what it did: {report}");
+    assert!(store.crate_dir().join(CLEANUP_OLD).join("program").is_file(), "nothing was removed");
+}
+
+//endregion

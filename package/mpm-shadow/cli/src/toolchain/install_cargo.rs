@@ -39,7 +39,7 @@ use super::model::{LockedTool, Origin};
 /// Imports `package_name` from `super::observe`.
 use super::observe::package_name;
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest};
+use super::runner::{DEFAULT_PROGRAM_BOUND, RunOutcome, RunRequest};
 /// Imports the keeps every removal asks from `super::store_keeps`.
 use super::store_keeps::InstallKeeps;
 
@@ -101,7 +101,7 @@ pub fn install_cargo_binstall(ctx: &Context, tool: &LockedTool) -> Result<(), To
     if let Some(token) = ctx.github_token() {
         env.insert("GITHUB_TOKEN".to_string(), token);
     }
-    let request: RunRequest = RunRequest { command: "cargo".to_string(), args, env: Some(env), cwd: None };
+    let request: RunRequest = RunRequest { command: "cargo".to_string(), args, env: Some(env), cwd: None, bound: DEFAULT_PROGRAM_BOUND };
     let outcome: RunOutcome = ctx.run(&request);
     if !outcome.succeeded() {
         if repository_crate && let Some(error) = no_archive_failure(&tool.declaration.id, &crate_name, &tool.version, &outcome) {

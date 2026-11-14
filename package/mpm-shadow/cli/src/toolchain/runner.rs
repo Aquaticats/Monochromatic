@@ -9,17 +9,21 @@
 //! `gh`):
 //! a `Runner` trait,
 //! the real implementation on `std::process::Command`,
-//! and the
-//!           environment those programs are given.
+//! the
+//!           bound every start runs under,
+//! and the environment those programs are given.
 //! Why:
 //! Tests pass a recording fake,
 //! so a provider's tests assert the exact arguments it builds without
 //!           installing anything or touching the real host.
+//! Nothing may wait forever,
+//! so the real runner stops a program that outlives its bound instead of waiting on it,
+//! and a caller whose read must not stall states a shorter bound than the default.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! // runner.ts
-//! export type RunRequest = { command: string; args: string[]; env?: Record<string, string>; cwd?: string };
+//! export type RunRequest = { command: string; args: string[]; env?: Record<string, string>; cwd?: string; bound: number };
 //! export type RunOutcome = { stdout: string; stderr: string; code: number };
 //! export interface Runner { run(request: RunRequest): RunOutcome }
 //! ```
@@ -30,6 +34,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 /// Imports what this module uses from `std::process`.
 use std::process::{Command, Stdio};
+/// Imports `Duration`, `Instant` from `std::time`.
+use std::time::{Duration, Instant};
 
 /// Imports `manager_native_bin_dirs` from `super::layout`.
 use super::layout::{manager_native_bin_dirs, physical_pnpm_home};
@@ -46,19 +52,56 @@ fn texts(arguments: &[&str]) -> Vec<String> {
 }
 
 /// What:
+/// The longest one program the toolchain starts may run before the real runner stops it:
+/// one hour.
+/// Why:
+/// Nothing may wait forever,
+/// so a program that hangs on a network read or on a lock of its own ends instead of holding the install:
+/// the review of 2026-11-14 found `cargo binstall` waiting on a read with no timeout,
+/// and the answer has to be a bound on every start rather than on the one that hung.
+/// An hour is the agent's choice, open to the owner's veto:
+/// the longest a real install takes here is a third-party crate compiled from source
+/// (the store held a 3.1 GiB `llama.cpp` build on 2026-11-13,
+/// and a release build of this package's own 8 000-line crate took 18 s in this run's scope),
+/// so an hour covers a source build several times over and still ends a hang.
+/// A program stopped at its bound loses nothing a retry cannot do:
+/// its version directory stays unfinished,
+/// which the size- and write-time cleanup keeps because it is recent,
+/// and the next install replaces it.
+pub const DEFAULT_PROGRAM_BOUND: Duration = Duration::from_secs(3600);
+
+/// How long the runner waits between two looks at a program that is still running.
+/// It starts here so a program that finishes in milliseconds costs almost nothing,
+/// and doubles up to `LONGEST_PAUSE` so an hour's wait is a few thousand checks rather than an hour of them.
+const FIRST_PAUSE: Duration = Duration::from_millis(1);
+
+/// The longest pause between two looks at a running program.
+const LONGEST_PAUSE: Duration = Duration::from_millis(25);
+
+/// How many bytes one read of a captured stream takes.
+const BYTES_PER_READ: usize = 8192;
+
+/// How long the runner waits for a stopped program's captured output once it is gone.
+/// A program whose own child still holds the pipe never closes it,
+/// so the output is taken as it stands rather than waited for.
+const STOPPED_OUTPUT_GRACE: Duration = Duration::from_millis(500);
+
+/// What:
 /// One program start:
 /// the program (a name looked up on `PATH`,
 /// or a path),
 /// its arguments,
 /// an optional full
-///           environment and an optional working directory.
+///           environment,
+/// an optional working directory and
+/// how long it may run.
 /// Why:
 /// A plain value,
 /// so a fake can record it and a test can compare it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type RunRequest = { command: string; args: string[]; env?: Record<string, string>; cwd?: string };
+/// type RunRequest = { command: string; args: string[]; env?: Record<string, string>; cwd?: string; bound: number };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RunRequest {
@@ -74,18 +117,29 @@ pub struct RunRequest {
     /// The working directory;
     /// `None` means this process's.
     pub cwd: Option<PathBuf>,
+    /// The longest it may run;
+    /// the real runner stops it after this and reports a failure naming the program and the bound.
+    pub bound: Duration,
 }
 
 /// The methods of `RunRequest`.
 impl RunRequest {
-    /// A request with the process's own environment and working directory.
+    /// A request with the process's own environment and working directory,
+    /// bounded by `DEFAULT_PROGRAM_BOUND`.
     pub fn new(command: &str, args: &[&str]) -> RunRequest {
         return RunRequest {
             command: command.to_string(),
             args: texts(args),
             env: None,
             cwd: None,
+            bound: DEFAULT_PROGRAM_BOUND,
         };
+    }
+
+    /// A copy with a shorter (or longer) bound than the default.
+    pub fn bounded(mut self, bound: Duration) -> RunRequest {
+        self.bound = bound;
+        return self;
     }
 
     /// A copy with the child environment set.
@@ -168,13 +222,98 @@ pub trait Runner {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProcessRunner;
 
+/// Reads one captured stream and sends what it reads as it arrives,
+/// then `None` when the stream ended.
+/// Why:
+/// The bytes must reach the caller before the stream ends:
+/// a program can exit while one of its own children still holds the pipe,
+/// and then the stream never ends.
+/// A reader still waiting when the runner gives up on it is left behind rather than joined, for the same reason.
+fn collect(source: Option<impl std::io::Read + Send + 'static>, stdout: bool, sender: std::sync::mpsc::Sender<(bool, Option<Vec<u8>>)>) {
+    let Some(mut stream) = source else {
+        let _sent = sender.send((stdout, None));
+        return;
+    };
+    let mut buffer: [u8; BYTES_PER_READ] = [0; BYTES_PER_READ];
+    loop {
+        match std::io::Read::read(&mut stream, &mut buffer) {
+            Ok(0) => {
+                let _sent = sender.send((stdout, None));
+                return;
+            }
+            Ok(read) => {
+                if sender.send((stdout, Some(buffer[..read].to_vec()))).is_err() {
+                    return;
+                }
+            }
+            Err(_) => {
+                let _sent = sender.send((stdout, None));
+                return;
+            }
+        }
+    }
+}
+
+/// Waits for a started program until its bound,
+/// and returns its exit status,
+/// or nothing when the bound passed and the program was stopped.
+/// Why:
+/// The pause grows from `FIRST_PAUSE` to `LONGEST_PAUSE`,
+/// so a program that answers in milliseconds is not held up by the check
+/// and an hour's wait costs a few thousand checks rather than an hour of them.
+fn wait_until_stopped(child: &mut std::process::Child, bound: Duration) -> Option<std::process::ExitStatus> {
+    let give_up_at: Instant = Instant::now() + bound;
+    let mut pause: Duration = FIRST_PAUSE;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Some(status),
+            Ok(None) => {}
+            Err(_unknown) => return None,
+        }
+        if Instant::now() >= give_up_at {
+            let _killed = child.kill();
+            let _reaped = child.wait();
+            return None;
+        }
+        std::thread::sleep(pause);
+        pause = pause.saturating_mul(2).min(LONGEST_PAUSE);
+    }
+}
+
+/// The text of both captured streams,
+/// taken as it stands once both ended or `STOPPED_OUTPUT_GRACE` passed.
+fn captured_output(receiver: &std::sync::mpsc::Receiver<(bool, Option<Vec<u8>>)>) -> (String, String) {
+    let mut stdout: Vec<u8> = Vec::new();
+    let mut stderr: Vec<u8> = Vec::new();
+    let mut open: usize = 2;
+    let give_up_at: Instant = Instant::now() + STOPPED_OUTPUT_GRACE;
+    while open > 0 {
+        let left: Duration = give_up_at.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            break;
+        }
+        let Ok((is_stdout, chunk)) = receiver.recv_timeout(left) else {
+            break;
+        };
+        match chunk {
+            Some(bytes) if is_stdout => stdout.extend_from_slice(&bytes),
+            Some(bytes) => stderr.extend_from_slice(&bytes),
+            None => open -= 1,
+        }
+    }
+    return (String::from_utf8_lossy(&stdout).to_string(), String::from_utf8_lossy(&stderr).to_string());
+}
+
 /// Implements `Runner` for `ProcessRunner`.
 impl Runner for ProcessRunner {
-    /// Starts the program with captured output.
+    /// Starts the program with captured output,
+    /// and stops it once it has run for its bound.
     fn run(&self, request: &RunRequest) -> RunOutcome {
         let mut command: Command = Command::new(&request.command);
         command.args(&request.args);
         command.stdin(Stdio::null());
+        command.stdout(Stdio::piped());
+        command.stderr(Stdio::piped());
         if let Some(env) = &request.env {
             command.env_clear();
             command.envs(env);
@@ -182,18 +321,44 @@ impl Runner for ProcessRunner {
         if let Some(directory) = &request.cwd {
             command.current_dir(directory);
         }
-        return match command.output() {
-            Ok(output) => RunOutcome {
-                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-                code: output.status.code().unwrap_or(1),
-            },
-            Err(error) => RunOutcome {
-                stdout: String::new(),
-                stderr: format!("cannot start {}: {error}", request.command),
-                code: 1,
-            },
+        let mut child: std::process::Child = match command.spawn() {
+            Ok(started) => started,
+            Err(error) => {
+                return RunOutcome {
+                    stdout: String::new(),
+                    stderr: format!("cannot start {}: {error}", request.command),
+                    code: 1,
+                };
+            }
         };
+        // What: each captured stream is drained by its own thread.
+        // Why: a program that writes more than a pipe holds would block before it exits,
+        // and one whose own child keeps the pipe open would hold the reader for ever.
+        let (sender, receiver) = std::sync::mpsc::channel::<(bool, Option<Vec<u8>>)>();
+        let out = child.stdout.take();
+        let err = child.stderr.take();
+        let out_sender = sender.clone();
+        let err_sender = sender.clone();
+        drop(sender);
+        let out_thread = std::thread::spawn(move || return collect(out, true, out_sender));
+        let err_thread = std::thread::spawn(move || return collect(err, false, err_sender));
+        let status: Option<std::process::ExitStatus> = wait_until_stopped(&mut child, request.bound);
+        let (stdout, stderr) = captured_output(&receiver);
+        // The reader threads end with their streams; a join here would wait on a pipe another program still holds.
+        drop(out_thread);
+        drop(err_thread);
+        let Some(exit) = status else {
+            let mut message: String = format!(
+                "{} was still running after its bound of {} s and was stopped, so nothing it was doing finished",
+                request.line(),
+                request.bound.as_secs()
+            );
+            if !stderr.trim().is_empty() {
+                message.push_str(&format!(": {}", stderr.trim()));
+            }
+            return RunOutcome { stdout, stderr: message, code: 1 };
+        };
+        return RunOutcome { stdout, stderr, code: exit.code().unwrap_or(1) };
     }
 }
 

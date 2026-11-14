@@ -52,8 +52,8 @@ use serde_json::Value;
 /// so a size reads the same everywhere.
 use crate::cleanup_report::format_size;
 
-/// Imports `CURRENT_LINK_NAME` from `super::cargo_installs`.
-use super::cargo_installs::CURRENT_LINK_NAME;
+/// Imports `CURRENT_LINK_NAME` and `shell_word` from `super::cargo_installs`.
+use super::cargo_installs::{CURRENT_LINK_NAME, shell_word};
 /// Imports `Context` from `super::context`.
 use super::context::Context;
 /// Imports `Route` from `super::model`.
@@ -72,6 +72,9 @@ use super::store_versions::{
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
+/// Imports `file_name_text` from `super::util`,
+/// which spells a path's last name for the suffix a claim adds to it.
+use super::util::file_name_text;
 
 /// Bytes in the next larger unit.
 const BYTES_PER_KIB: u64 = 1024;
@@ -647,6 +650,10 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
 /// The version directory's write time is read again before anything moves:
 /// a version another run wrote after the scan is not the one that was judged,
 /// and it stays.
+/// The write time alone cannot carry that across the move,
+/// because another run publishes a version by renaming a fresh directory onto the version's name,
+/// which changes the entry at that name without changing anything this run can read before the move;
+/// so the version is moved aside first and what was moved is compared with what was judged.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -665,7 +672,8 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(format!("it cannot be read: {error}")),
     };
-    if metadata.modified().ok() != Some(candidate.written) {
+    let judged: JudgedVersion = JudgedVersion::of(&metadata);
+    if judged.written != Some(candidate.written) {
         return Err("another run wrote it while the cleanup ran".to_string());
     }
     // What: the marker is written before the first rename.
@@ -685,15 +693,30 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
         }
         None => None,
     };
-    let version_marker: PathBuf = tombstone_of(&candidate.directory);
-    if let Err(error) = fs::rename(&candidate.directory, &version_marker) {
-        // The version stays, so its downloads go back to the name they had.
-        if let Some(marker) = &moved_downloads
-            && let Some(downloads) = &candidate.downloads
-        {
-            let _ = fs::rename(marker, downloads);
+    // What: the version is taken out of its name before anything is compared or deleted,
+    // to a hidden name no scan judges and no recovery deletes.
+    // Why: the move is one atomic step, so whatever another run put at that name is in hand and can be told from the
+    // version that was judged; a check and then a move would delete whatever the second run published in between.
+    let claimed: PathBuf = claim_name_beside(&candidate.directory);
+    match fs::rename(&candidate.directory, &claimed) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            restore_downloads(&moved_downloads, &candidate.downloads);
+            return Ok(None);
         }
-        return Err(format!("it cannot be moved aside: {error}"));
+        Err(error) => {
+            restore_downloads(&moved_downloads, &candidate.downloads);
+            return Err(format!("it cannot be moved aside: {error}"));
+        }
+    }
+    if !judged.still_at(&claimed) {
+        return Err(put_back(&candidate.directory, &claimed, &moved_downloads, &candidate.downloads));
+    }
+    let version_marker: PathBuf = tombstone_of(&candidate.directory);
+    if let Err(error) = fs::rename(&claimed, &version_marker) {
+        // The version stays, so it goes back to its name with the downloads that were moved aside for it.
+        let reason: String = put_back(&candidate.directory, &claimed, &moved_downloads, &candidate.downloads);
+        return Err(format!("it cannot be moved aside: {error}; {reason}"));
     }
     for marker in [Some(version_marker), moved_downloads].into_iter().flatten() {
         match fs::remove_dir_all(&marker) {
@@ -709,6 +732,102 @@ fn remove_one(candidate: &TrimCandidate) -> Result<Option<u64>, String> {
         let _ = fs::remove_dir(tool_downloads);
     }
     return Ok(Some(candidate.bytes));
+}
+
+/// What:
+/// One version directory as it was judged:
+/// when it was written,
+/// and on Unix the file system and inode that name the entry.
+/// Why:
+/// A version another run published over the judged one is a different directory under the same name,
+/// which only those two numbers tell from the one the scan measured,
+/// and a write into the judged one in place changes its write time.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct JudgedVersion {
+    /// When the version directory was last written.
+    written: Option<SystemTime>,
+    /// The file system and inode naming the entry, on Unix.
+    #[cfg(unix)]
+    naming: (u64, u64),
+}
+
+/// The methods of `JudgedVersion`.
+impl JudgedVersion {
+    /// The entry `metadata` describes.
+    fn of(metadata: &fs::Metadata) -> JudgedVersion {
+        /// Imports `MetadataExt` from `std::os::unix::fs`,
+        /// for the two numbers that name an entry.
+        #[cfg(unix)]
+        use std::os::unix::fs::MetadataExt;
+        return JudgedVersion {
+            written: metadata.modified().ok(),
+            #[cfg(unix)]
+            naming: (metadata.dev(), metadata.ino()),
+        };
+    }
+
+    /// Whether `path` holds this entry now.
+    fn still_at(self, path: &Path) -> bool {
+        return match fs::symlink_metadata(path) {
+            Ok(metadata) => JudgedVersion::of(&metadata) == self,
+            Err(_) => false,
+        };
+    }
+}
+
+/// What:
+/// A free hidden name beside `version_directory`,
+/// where the one atomic move of a removal takes it.
+/// Why:
+/// No scan lists a hidden name as a version,
+/// and the recovery pass finishes only the names it recognizes as a removal in progress,
+/// so a copy whose identity has not been compared yet is never a name that pass deletes.
+fn claim_name_beside(version_directory: &Path) -> PathBuf {
+    let name: String = file_name_text(version_directory);
+    for attempt in 0..8 {
+        let candidate: PathBuf = version_directory.with_file_name(format!(".{name}.{}.{attempt}.claimed", std::process::id()));
+        if fs::symlink_metadata(&candidate).is_err() {
+            return candidate;
+        }
+    }
+    return version_directory.with_file_name(format!(".{name}.{}.claimed", std::process::id()));
+}
+
+/// Puts the downloads moved aside for a version back under their name,
+/// as the removal does when the version stays.
+fn restore_downloads(moved_downloads: &Option<PathBuf>, downloads: &Option<PathBuf>) {
+    if let Some(marker) = moved_downloads
+        && let Some(downloads_directory) = downloads
+    {
+        // Best effort: the version is staying, and a download this run cannot put back is a name the next pass reads.
+        let _ = fs::rename(marker, downloads_directory);
+    }
+}
+
+/// What:
+/// Puts back the version that was taken out of its name,
+/// with the downloads moved aside for it,
+/// and says why it stayed.
+/// Why:
+/// What is in hand is not the version this run judged but the one another run published at its name,
+/// so it goes back exactly where it was;
+/// a put that cannot happen keeps it at the hidden name it was moved to,
+/// and the line has to say that name and the command that puts it back,
+/// because a kept version nobody can find is a lost version to the run that installed it.
+fn put_back(version_directory: &Path, claimed: &Path, moved_downloads: &Option<PathBuf>, downloads: &Option<PathBuf>) -> String {
+    let restored: std::io::Result<()> = fs::rename(claimed, version_directory);
+    restore_downloads(moved_downloads, downloads);
+    return match restored {
+        Ok(()) => "another run wrote it while the cleanup ran".to_string(),
+        Err(error) => format!(
+            "another run wrote it while the cleanup ran, and what it wrote cannot be put back: {error}; it is kept at {} \
+             instead of {}, and `mv -- {} {}` puts it back",
+            claimed.display(),
+            version_directory.display(),
+            shell_word(&claimed.to_string_lossy()),
+            shell_word(&version_directory.to_string_lossy())
+        ),
+    };
 }
 
 /// What:

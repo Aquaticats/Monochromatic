@@ -245,6 +245,10 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
                     path.display(),
                     target.display()
                 )),
+                // What: a link another run of this checkout retired first is a finished cleanup.
+                // Why: the record and the checkout are one tree's own, so the only other run that removes this link is
+                // a second command in this tree, and the link it took is the one this run would have taken.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
                 Err(error) => {
                     notices.warnings.push(format!("cannot remove the stale postinstall link {}: {error}", path.display()));
                     kept.insert(path.clone(), target.clone());

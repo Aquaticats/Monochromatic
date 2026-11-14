@@ -16,11 +16,26 @@
 
 /// Imports what this module uses from `std::path`.
 use std::path::{Path, PathBuf};
+/// Imports `Duration` from `std::time`.
+use std::time::Duration;
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
 /// Imports what this module uses from `super::runner`.
 use super::runner::{RunOutcome, RunRequest, Runner};
+
+/// What:
+/// The longest the worktree list may run: ten seconds.
+/// Why:
+/// The list is one read of the repository's metadata,
+/// but a listed worktree on a hung file system or a git waiting on a lock of its own makes it wait for ever,
+/// and the install reads it before every newest-only removal.
+/// Measured on this repository's main checkout on 2026-11-14,
+/// 170 listed worktrees:
+/// 0.02 s, 0.03 s and 0.02 s for three runs,
+/// so ten seconds is three hundred times the slowest one,
+/// and a list that takes longer than that is not answering at all.
+const WORKTREE_LIST_BOUND: Duration = Duration::from_secs(10);
 
 /// One worktree `git worktree list --porcelain` reports.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -44,7 +59,8 @@ pub struct ListedWorktree {
 /// export function listedWorktrees(runner: Runner, root: string): { directory: string; prunable: boolean }[]  // throws
 /// ```
 pub fn listed_worktrees(runner: &dyn Runner, root: &Path) -> Result<Vec<ListedWorktree>, ToolchainError> {
-    let request: RunRequest = RunRequest::new("git", &["-C", &root.to_string_lossy(), "worktree", "list", "--porcelain"]);
+    let request: RunRequest =
+        RunRequest::new("git", &["-C", &root.to_string_lossy(), "worktree", "list", "--porcelain"]).bounded(WORKTREE_LIST_BOUND);
     let outcome: RunOutcome = runner.run(&request);
     if !outcome.succeeded() {
         return Err(ToolchainError::failure(format!(

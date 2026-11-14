@@ -265,6 +265,10 @@ pub fn prune_stale_own_crates_reporting(cargo_home: &Path, toolchain_roots: &[Pa
                 report.bytes += size;
                 report.deleted.push(entry.path);
             }
+            // What: a copy another run of the shadow removed first is a finished cleanup.
+            // Why: every tree's shadow prunes the same cargo home, so two of them reach this entry at once, and the
+            // space the other one gave back is not this run's to report.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => report.failed.push((entry.path, error.to_string())),
         }
     }

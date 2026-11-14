@@ -40,7 +40,7 @@ use super::model::LockedTool;
 /// Imports what this module uses from `super::observe`.
 use super::observe::{observe_tool, package_name, satisfies_lock};
 /// Imports `RunRequest` from `super::runner`.
-use super::runner::RunRequest;
+use super::runner::{DEFAULT_PROGRAM_BOUND, RunRequest};
 
 /// The directories added to the search for the prerequisite tool (`pnpm`,
 /// `uv`,
@@ -104,6 +104,7 @@ pub fn install_mpm_pnpm(ctx: &Context, tool: &LockedTool) -> Result<(), Toolchai
         args,
         env: Some(ctx.pnpm_env()),
         cwd: None,
+        bound: DEFAULT_PROGRAM_BOUND,
     };
     run_checked(ctx, &request, "pnpm add --global", &tool.declaration.id)?;
     let package: String = package_name(tool);
@@ -210,6 +211,7 @@ pub fn install_go_install(ctx: &Context, tool: &LockedTool) -> Result<(), Toolch
         args: vec!["install".to_string(), target],
         env: Some(env),
         cwd: None,
+        bound: DEFAULT_PROGRAM_BOUND,
     };
     run_checked(ctx, &request, "go install", &tool.declaration.id)?;
     return read_back_installed_go_tool(ctx, tool);

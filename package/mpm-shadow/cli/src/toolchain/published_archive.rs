@@ -306,8 +306,15 @@ pub fn remove_older_archives(
             // A lock names it or a process of this user runs it: the newest-only rule stops here.
             continue;
         }
-        if let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
+        // What: a version another run removed between the listing above and this removal is a finished cleanup.
+        // Why: every worktree shares this store root, so two installs of the same newer version reach this loop at
+        // once; the second `remove_dir_all` finds nothing, which is the state it set out to reach.
+        match fs::remove_dir_all(&directory) {
+            Ok(()) => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(ToolchainError::failure(format!("cannot remove the superseded {}: {error}", directory.display())));
+            }
         }
         remove_downloads(toolchain_root, id, &name)?;
         removed.push(directory);

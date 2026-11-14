@@ -36,7 +36,7 @@ use super::install_support::{artifact_for_host, failed_step};
 /// Imports `LockedTool` from `super::model`.
 use super::model::LockedTool;
 /// Imports what this module uses from `super::runner`.
-use super::runner::{RunOutcome, RunRequest};
+use super::runner::{DEFAULT_PROGRAM_BOUND, RunOutcome, RunRequest};
 
 /// The prefix of every artifact URL this route accepts.
 const GITHUB_PREFIX: &str = "https://github.com/";
@@ -229,6 +229,7 @@ pub fn install_bin_sourced(ctx: &Context, tool: &LockedTool) -> Result<(), Toolc
                 args,
                 env: Some(env.clone()),
                 cwd: None,
+                bound: DEFAULT_PROGRAM_BOUND,
             };
             let outcome: RunOutcome = ctx.run(&request);
             if outcome.succeeded() {

@@ -124,26 +124,39 @@ A version is kept when any of these holds,
   and its versions are kept with that name in the line.
 - **it was written inside the age floor**.
 - **another run wrote it after the scan**:
-  the directory write time is read again before the rename,
-  and a version that changed is kept with that reason.
+  the directory write time is read again before anything moves,
+  and then the version is moved out of its name in one atomic rename
+  and what was moved is compared with what was judged (its write time, and on Unix the file system and inode that
+  name it);
+  a version that changed is put back and kept with that reason.
+  The move comes first because the write time alone cannot carry the judgement across it:
+  another command publishes a version by renaming a fresh directory onto the version's name,
+  and the fresh entry is there without any write this run can read before the move.
 - **the process table could not be read**:
   every version is kept,
   with the reason in the line.
 
 ## A removal cut short
 
-A removal is two steps:
+A removal is three steps:
 
-1. the version's downloads directory and then the version directory are renamed to
-   `.mpm-shadow-removing.<name>` beside them,
-   one atomic rename each;
-2. those two are deleted.
+1. the version's downloads directory is renamed to `.mpm-shadow-removing.<name>` beside it,
+   one atomic rename;
+2. the version directory is renamed to a hidden `.<version>.<process id>.<attempt>.claimed` beside it,
+   one atomic rename, and the copy that arrived is compared with the one the scan judged;
+3. the claimed version directory is renamed to `.mpm-shadow-removing.<name>`,
+   and the two markers and the downloads marker are deleted.
 
-A run killed between the two steps leaves a hidden `.mpm-shadow-removing.*` directory,
+A run killed between the second and third steps leaves the version's tree under the claimed name,
+which no scan lists as a version and no recovery deletes;
+nothing else is lost,
+and `mv` puts it back by hand.
+A run killed after the third step leaves a hidden `.mpm-shadow-removing.*` directory,
 which no scan lists as a version,
 and a `.mpm-shadow-removal-unfinished` file in the store root.
 The next install runs the pass because of that file and finishes the deletion,
 printing one line saying it did.
+The claimed name exists so that only a copy this run has compared is ever at a name the recovery deletes.
 
 ## What it says
 
@@ -225,6 +238,19 @@ this pass judges only while the stores are over their bound,
 while they run whenever a newer version arrives,
 and a hidden name that happened to match a tool would keep every version of that tool for good.
 
+Every one of those removals reads the store's directories and then deletes what it read,
+and none of them holds a lock while it does:
+two commands in two worktrees reach the same store root,
+and the review of 2026-11-14 ran that race on both paths (four threads removing one crate's superseded versions,
+and two `prune --toolchain --global` at once).
+So a removal that finds its target gone has succeeded,
+because the directory is in the state the removal set out to reach:
+it is `NotFound` that says another command took it,
+`unlink` in `remove_dir_all` tolerating the same for a file another command unlinked,
+and the run does not report it as its own deletion.
+Any other failure is still reported,
+with the directory named and, for a recursive removal, that part of it may be gone.
+
 ## What it does not touch
 
 - Anything outside the stores,
@@ -241,3 +267,32 @@ and a hidden name that happened to match a tool would keep every version of that
   `rustup`
   and the `bin` downloader keep in their own homes,
   which mpm-shadow never wrote.
+
+## What a command waits on, and for how long
+
+Nothing here waits for ever, so every program an install starts and every lock it takes has a stated bound,
+and running out of one is said rather than hidden.
+
+- **Every program it starts: one hour** (`DEFAULT_PROGRAM_BOUND` in `src/toolchain/runner.rs`).
+  The longest install here is a third-party crate compiled from source,
+  which an hour covers several times over;
+  a program still running at its bound is stopped and the command reports that it was,
+  naming the program, the bound and what it had printed.
+  A program's own children may outlive it:
+  the runner reads what they wrote as it arrives and stops waiting half a second after the program is gone,
+  which is why a program that leaves a background child holding its output does not hold the install.
+  What an install loses when a program is stopped is the unfinished version directory,
+  which this pass keeps because it is recent and the next install replaces.
+- **`git worktree list`, which the removals read to find every worktree's lock: ten seconds**
+  (`WORKTREE_LIST_BOUND` in `src/toolchain/worktrees.rs`).
+  Measured on this repository's main checkout on 2026-11-14, 170 listed worktrees:
+  0.02 s, 0.03 s and 0.02 s.
+  A list that runs out of its bound is a read that could not be made,
+  so the install keeps every version and says so,
+  `prune --toolchain` refuses instead of deleting anything,
+  and nothing is lost either way.
+- **The scope's lock, which one command holds while it writes the lock file: five seconds**
+  (`GUARD_WAIT` in `src/toolchain/publish.rs`).
+  A holder that is stopped or hung is not waited for;
+  the publish refuses, names the guard file and the bound, and writes nothing,
+  so the lock file and the files around it are exactly as they were.

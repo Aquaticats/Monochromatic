@@ -633,3 +633,37 @@ fn an_explicit_lock_file_that_does_not_exist_refuses_the_prune_and_deletes_nothi
     assert!(error.message.contains(&missing.display().to_string()), "the message names the path: {error}");
     assert!(version_directory(&root, "fd-find", "1.1.0").is_dir(), "nothing was deleted");
 }
+
+//region a version another run removed first
+
+/// What:
+/// A version another command removed between the listing that judged it and the removal itself is a finished cleanup:
+/// the prune ends well, says nothing about a partial removal, and does not claim to have deleted it.
+/// Why:
+/// Every worktree shares one store root and the removals take no lock,
+/// so two `prune --toolchain` runs reach the same version directory;
+/// the review of 2026-11-14 ran two `mpm-shadow prune --toolchain --global` at once in five rounds,
+/// and one of them exited 1 with "No such file or directory (os error 2); part of it may be gone" in every round,
+/// though the store was exactly in the state it set out to reach.
+#[test]
+fn a_version_another_run_removed_before_the_deletion_is_a_finished_cleanup() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let victim: PathBuf = version_directory(&root, "fd-find", "1.1.0");
+    finish_install(&victim, "fd-find", "1.1.0", &["fd"]);
+    // Nothing names the version, so the prune judged it removable before this effect runs.
+    fs::write(rig.scope.root.join("toolchain.lock.json"), "{\"tools\":{}}").expect("write");
+    // The other run removes it while this one is reading every worktree's lock,
+    // which is after the listing and before the deletion.
+    let vanished: PathBuf = victim.clone();
+    rig.runner.on("git -C", Box::new(move |_request| fs::remove_dir_all(&vanished).expect("the other run removes it")));
+    rig.runner.answer("git -C", &format!("worktree {}\nHEAD a\n\n", rig.scope.root.display()), 0);
+
+    let removed: Vec<PathBuf> =
+        prune_toolchain(&rig.scope, &rig.runner, &[], false).expect("a directory that is already gone is a finished cleanup");
+
+    assert!(!victim.exists(), "the version is gone, which is what both runs wanted");
+    assert!(removed.is_empty(), "this run deleted nothing, and must not say it did: {removed:?}");
+}
+
+//endregion

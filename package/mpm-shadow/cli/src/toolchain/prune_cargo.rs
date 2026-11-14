@@ -332,8 +332,16 @@ fn prune_archives(
         if running_reason(holders, &directory).is_some() {
             continue;
         }
-        if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(partly_removed(&directory, &error, removed));
+        // What: a version another run removed between the listing and this removal is a finished cleanup.
+        // Why: every worktree shares this store root, so two prunes of the same store reach this loop at once;
+        // the second `remove_dir_all` finds nothing, which is the state it set out to reach,
+        // and it is the other run that deleted it, so this one does not report it as its own.
+        if !dry_run {
+            match fs::remove_dir_all(&directory) {
+                Ok(()) => {}
+                Err(error) if error.kind() == ErrorKind::NotFound => continue,
+                Err(error) => return Err(partly_removed(&directory, &error, removed)),
+            }
         }
         removed.push(directory);
     }
@@ -524,8 +532,16 @@ pub fn prune_toolchain(
     }
     let mut removed: Vec<PathBuf> = Vec::new();
     for (_crate_name, _version, directory) in planned {
-        if !dry_run && let Err(error) = fs::remove_dir_all(&directory) {
-            return Err(partly_removed(&directory, &error, &removed));
+        // What: a version another run removed between the listing and this removal is a finished cleanup.
+        // Why: every worktree shares this store root, so two prunes of the same store reach this loop at once;
+        // the second `remove_dir_all` finds nothing, which is the state it set out to reach,
+        // and it is the other run that deleted it, so this one does not report it as its own.
+        if !dry_run {
+            match fs::remove_dir_all(&directory) {
+                Ok(()) => {}
+                Err(error) if error.kind() == ErrorKind::NotFound => continue,
+                Err(error) => return Err(partly_removed(&directory, &error, &removed)),
+            }
         }
         removed.push(directory);
     }

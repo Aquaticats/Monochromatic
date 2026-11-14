@@ -8,6 +8,8 @@ use crate::constants::OWN_CRATE_PREFIX;
 
 /// Imports `fs` from `std`.
 use std::fs;
+/// Imports `PathBuf` from `std::path`.
+use std::path::PathBuf;
 
 /// Imports `cargo_installs`' readers and the same-version removal.
 use super::cargo_installs::{is_repository_published, version_directory};
@@ -312,6 +314,72 @@ fn installing_a_newer_version_keeps_the_version_a_process_of_this_account_runs()
         .expect("a process of this account runs it");
     assert!(reason.contains(&format!("pid {}", stand_in.pid())), "the rule names the process: {reason}");
     stand_in.stop();
+}
+
+//endregion
+
+//region a superseded version another run removed first
+
+/// How many files the slow version of the concurrency control holds.
+/// Why:
+/// Deleting costs about 30 microseconds per file on this machine's store volume
+/// (`doc/toolchain-version-cleanup.md`, "The measurement it was sized from"),
+/// so this many files take about a fifth of a second:
+/// long enough for the control's second actor to remove the version it wants removed,
+/// and short enough to keep the test quick.
+const SLOW_VERSION_FILES: usize = 6_000;
+
+/// What:
+/// A superseded version another command removed between the listing that judged it and the removal itself is a
+/// finished cleanup: the installation ends well and does not report the version as a failure.
+/// Why:
+/// The two worktrees of one repository share one toolchain root and the newest-only removal takes no lock,
+/// so two installs of the same newer version reach the same older version directory.
+/// The review of 2026-11-14 raced four calls against one store in five rounds and had two or three of them fail with
+/// "cannot remove the superseded ...: No such file or directory" in every round,
+/// which made a finished cleanup read as a failed install.
+#[test]
+fn a_superseded_version_another_run_removed_first_is_a_finished_cleanup() {
+    let rig = Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    install_finished(&rig, NEWEST);
+    // The removal deletes the newest older version first, so this is the tree it is inside when the other run acts.
+    let slowest: PathBuf = version_directory(&root, FIXTURE_CRATE, UNNAMED);
+    install_finished(&rig, UNNAMED);
+    for file in 0..SLOW_VERSION_FILES {
+        fs::write(slowest.join(format!("filler{file}")), b"x").expect("fill the version");
+    }
+    let later: PathBuf = version_directory(&root, FIXTURE_CRATE, EARLIER);
+    install_finished(&rig, EARLIER);
+    let listing: usize = fs::read_dir(&slowest).expect("list the slow version").count();
+
+    // The second actor removes the other version once the first one is being deleted,
+    // which is after this run listed both and before it reaches the second.
+    let watched: PathBuf = slowest.clone();
+    let vanishing: PathBuf = later.clone();
+    let other_run: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let started: std::time::Instant = std::time::Instant::now();
+        loop {
+            let left: usize = fs::read_dir(&watched).map(|entries| return entries.count()).unwrap_or(0);
+            if left < listing {
+                // One rename, so this control does not empty the same tree the run under test is emptying.
+                let moved: PathBuf = vanishing.with_file_name(format!(".{EARLIER}.removed-by-the-other-run"));
+                fs::rename(&vanishing, &moved).expect("the other run removes the version");
+                return;
+            }
+            assert!(started.elapsed() < std::time::Duration::from_secs(60), "the slow version was never removed");
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    });
+
+    let removed: Vec<PathBuf> = super::cargo_installs::remove_older_than_newest(&root, FIXTURE_CRATE, &InstallKeeps::default(), NEWEST)
+        .expect("a version that is already gone is a finished cleanup");
+    other_run.join().expect("the other run finished");
+
+    assert_eq!(removed, vec![slowest.clone()], "this run deleted the slow version and nothing else: {removed:?}");
+    assert!(!slowest.exists());
+    assert!(!later.exists(), "the other run removed the second version");
+    assert!(version_directory(&root, FIXTURE_CRATE, NEWEST).is_dir(), "the newest finished version stays");
 }
 
 //endregion

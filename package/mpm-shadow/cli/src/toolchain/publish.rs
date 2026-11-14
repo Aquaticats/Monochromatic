@@ -25,6 +25,8 @@
 use std::fs::{self, File, OpenOptions};
 /// Imports what this module uses from `std::path`.
 use std::path::Path;
+/// Imports `Duration`, `Instant` from `std::time`.
+use std::time::{Duration, Instant};
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
@@ -92,6 +94,23 @@ pub fn read_revisions(scope: &Scope) -> Result<Revisions, ToolchainError> {
 }
 
 /// What:
+/// How long a command waits for the scope's lock before it refuses:
+/// five seconds.
+/// Why:
+/// Nothing may wait forever,
+/// so a holder that is stopped or hung must not stop another command in that checkout.
+/// A whole `install` on this machine takes about a second (measured in this run's scope: the review's probe pruned a
+/// store of 400 versions in 0.62 s, and the work the lock covers is one atomic file write),
+/// so a lock held for five seconds is held by a command that is not finishing;
+/// the holder's own run is what to wait for, and a person can run the command again.
+/// The caller loses nothing by refusing:
+/// the lock is not written and nothing else has been changed.
+pub const GUARD_WAIT: Duration = Duration::from_secs(5);
+
+/// The pause between two attempts at the scope's lock.
+const GUARD_POLL: Duration = Duration::from_millis(20);
+
+/// What:
 /// The exclusive OS lock for one scope,
 /// held for as long as the value lives.
 /// Why:
@@ -124,17 +143,34 @@ fn open_guard_file(path: &Path) -> Result<File, ToolchainError> {
     };
 }
 
+/// What:
 /// Takes the scope's exclusive lock,
-/// waiting until another mpm-shadow run releases it.
+/// waiting no longer than `GUARD_WAIT`,
+/// and refuses with the file and the bound when another command holds it for that long.
+/// Why:
+/// The wait has a stated bound,
+/// so a holder that is stopped or hung cannot stop this command for ever;
+/// a refusal changes nothing and says which file was held.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function acquireGuard(scope: Scope): Guard  // throws
+/// ```
 pub fn acquire_guard(scope: &Scope) -> Result<Guard, ToolchainError> {
-    let file: File = open_guard_file(&scope.guard_file)?;
-    if let Err(error) = file.lock() {
-        return Err(ToolchainError::failure(format!(
-            "cannot take the scope lock {}: {error}",
-            scope.guard_file.display()
-        )));
+    let give_up_at: Instant = Instant::now() + GUARD_WAIT;
+    loop {
+        if let Some(guard) = try_acquire_guard(scope)? {
+            return Ok(guard);
+        }
+        if Instant::now() >= give_up_at {
+            return Err(ToolchainError::failure(format!(
+                "{} is held by another command in this checkout and did not come free within {} s, so nothing was written and nothing was changed; run the command again when the other one has finished",
+                scope.guard_file.display(),
+                GUARD_WAIT.as_secs()
+            )));
+        }
+        std::thread::sleep(GUARD_POLL);
     }
-    return Ok(Guard { _file: file });
 }
 
 /// Takes the scope's exclusive lock without waiting;

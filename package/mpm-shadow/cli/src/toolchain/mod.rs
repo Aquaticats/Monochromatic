@@ -317,6 +317,10 @@ mod bin_paths_tests;
 #[cfg(test)]
 mod lock_cmd_tests;
 
+/// The unit tests of the scope lock and the publish that waits on it.
+#[cfg(test)]
+mod publish_tests;
+
 /// The unit tests of the output readers.
 #[cfg(test)]
 mod parse_output_tests;

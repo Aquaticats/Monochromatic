@@ -982,6 +982,12 @@ before deleting anything,
 so a run killed halfway leaves a marker the next install finishes,
 and it removes for at most two seconds per pass,
 so an install never waits on a long deletion.
+Before it moves a version aside it compares what it moved with the version it judged,
+so a version another command publishes at that name while the pass runs is put back and kept.
+
+Every program an install starts runs under a stated bound, and so does every lock it waits on;
+running out of one is reported, and nothing is lost.
+`doc/toolchain-version-cleanup.md` gives each bound, how it was sized, and what happens at it.
 
 It prints one line per version removed and per version kept on standard error,
 and nothing on a pass that judges nothing.
@@ -992,6 +998,8 @@ and `MPM_SHADOW_STORE_WORK_LIMIT`;
 
 The newest-only removal of this repository's own tools and `prune --toolchain` are older than this pass,
 and they keep a version a running process of this user uses too;
+a version another command removes first is a finished cleanup and not a failure,
+because two worktrees share one store and those removals take no lock.
 `doc/toolchain-version-cleanup.md` lists each removal an install makes and what it keeps.
 
 ## Cargo tool installs
