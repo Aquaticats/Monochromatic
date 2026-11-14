@@ -1302,7 +1302,15 @@ written by the coordinating session from the pass's report and its own commands'
   was not relinked after 3 tries.
   The run in that worktree was told by a note in its inbox at 21:13,
   with the remedy the wrapper printed.
-  The run for relinks that are given up is in the queue.
+  Two more came during the commit of 21:21,
+  for the worktrees of the two reviews started together
+  (landing-never-waits and the commit-forms answer).
+  The run for relinks that are given up is going
+  (`package-state-of-a-new-worktree-is-relinked-or-the-wrapper-says-why-not`,
+  since 17:25)
+  and was told of all three by a note in its inbox.
+  Corrected at 21:22:
+  this line first said that run was in the queue.
 
 ##### The commit-forms author answered its first review; the landing that never waits is written; both go to review (2026-11-13T21:11:17-05:00)
 
