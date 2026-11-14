@@ -15,8 +15,11 @@
 /// Import the generators and invariants under control,
 ///  and the tables they draw from.
 use super::{
-    FrontierSeen, MAX_CONTROL_ARGUMENTS, SEPARATOR_MARK, check_control_removal, check_frontier,
-    check_separator, control_arguments, removed_tokens, separated_arguments,
+    CLEAN_DELETES, FrontierSeen, IGNORED_AND_TRACKED, INDEX_DIFFERS, LINKED_WORKTREE,
+    MAX_CONTROL_ARGUMENTS, OPERATION_WAITS, REMOTE_GUESS, SEQUENCER_WAITS, SEPARATOR_MARK,
+    STAGED_WORK, STASH_HELD, UNTRACKED_AND_TRACKED, WORKTREE_DIRTY, WORKTREE_WORK,
+    check_control_removal, check_frontier, check_separator, control_arguments, removed_tokens,
+    separated_arguments,
 };
 use crate::arguments::arguments_from_bytes;
 use crate::control_tables::{CONTROL_TOKENS, WRAPPER_SPELLINGS};
@@ -298,7 +301,7 @@ fn separated_arguments_keep_everything_after_the_separator() {
     );
 }
 
-/// All two-token inputs at both locations hold the frontier,
+/// All two-token inputs at both locations and with every answer this package models hold the frontier,
 ///  and every ending is reached.
 #[test]
 fn generated_arguments_reach_every_frontier_ending() {
@@ -306,7 +309,23 @@ fn generated_arguments_reach_every_frontier_ending() {
     let mut rejected: usize = 0;
     let mut refused: usize = 0;
     let count: u8 = u8::try_from(CONTROL_TOKENS.len()).expect("the table fits in a byte");
-    for mode in 0..32_u8 {
+    // The five answers a mode held before the abort forms and the settings every worktree shares arrived.
+    let first_answer_bits: u16 =
+        LINKED_WORKTREE | INDEX_DIFFERS | SEQUENCER_WAITS | REMOTE_GUESS | WORKTREE_DIRTY;
+    // The answers this package gained with them, each walked on its own at the linked worktree,
+    //  where every one of them is read; the fuzzer crosses them with the five above.
+    let gained_answers: [u16; 6] = [
+        IGNORED_AND_TRACKED,
+        UNTRACKED_AND_TRACKED,
+        OPERATION_WAITS,
+        OPERATION_WAITS | WORKTREE_WORK,
+        OPERATION_WAITS | STAGED_WORK,
+        STASH_HELD | CLEAN_DELETES,
+    ];
+    let modes = (0..=first_answer_bits).chain(gained_answers.map(|extra: u16| {
+        return LINKED_WORKTREE | extra;
+    }));
+    for mode in modes {
         for first in 0..count {
             for second in 0..count {
                 let arguments: Vec<OsString> = control_arguments(&[first, second]);
@@ -321,7 +340,7 @@ fn generated_arguments_reach_every_frontier_ending() {
     assert!(forwarded > 0, "nothing was forwarded");
     assert!(rejected > 0, "nothing was rejected");
     assert!(refused > 0, "nothing was refused");
-    // Fixed cases on each side of every frontier rule, at the linked worktree (mode 1) and outside (mode 0).
+    // Fixed cases on each side of every frontier rule, at the linked worktree (`LINKED_WORKTREE`) and outside (0).
     for (values, mode, seen) in [
         (vec!["commit", "-m", "x"], 0, FrontierSeen::Refused),
         (vec!["commit", "-n", "-m", "x"], 0, FrontierSeen::Refused),
@@ -348,60 +367,121 @@ fn generated_arguments_reach_every_frontier_ending() {
             0,
             FrontierSeen::Forwarded,
         ),
-        (vec!["add", "file"], 1, FrontierSeen::Refused),
+        (vec!["add", "file"], LINKED_WORKTREE, FrontierSeen::Refused),
         (vec!["add", "file"], 0, FrontierSeen::Forwarded),
-        (vec!["add", "."], 1, FrontierSeen::Rejected),
+        (vec!["add", "."], LINKED_WORKTREE, FrontierSeen::Rejected),
         (
             vec!["add", "--no-enforce-final-newline", "file"],
-            1,
+            LINKED_WORKTREE,
             FrontierSeen::Forwarded,
         ),
-        (vec!["worktree", "add", "x"], 1, FrontierSeen::Forwarded),
+        (vec!["worktree", "add", "x"], LINKED_WORKTREE, FrontierSeen::Forwarded),
         (vec!["worktree", "add", "x"], 0, FrontierSeen::Forwarded),
         (
             vec!["worktree", "add", "--no-worktree-copy", "x"],
-            1,
+            LINKED_WORKTREE,
             FrontierSeen::Forwarded,
         ),
-        (vec!["worktree", "list"], 1, FrontierSeen::Forwarded),
-        (vec!["st"], 1, FrontierSeen::Forwarded),
+        (vec!["worktree", "list"], LINKED_WORKTREE, FrontierSeen::Forwarded),
+        (vec!["st"], LINKED_WORKTREE, FrontierSeen::Forwarded),
         (vec!["st"], 0, FrontierSeen::Forwarded),
-        (vec!["status"], 1, FrontierSeen::Forwarded),
-        (vec!["--version"], 1, FrontierSeen::Forwarded),
+        (vec!["status"], LINKED_WORKTREE, FrontierSeen::Forwarded),
+        (vec!["--version"], LINKED_WORKTREE, FrontierSeen::Forwarded),
         // A forced form whose target tree also tracks an ignored file rejects in a linked worktree.
         (
             vec!["checkout", "--force", "tracks"],
-            1 | 32,
+            LINKED_WORKTREE | IGNORED_AND_TRACKED,
             FrontierSeen::Rejected,
         ),
         // The same form with nothing shared is measured by the clean status and runs.
         (
             vec!["checkout", "--force", "tracks"],
-            1,
+            LINKED_WORKTREE,
             FrontierSeen::Forwarded,
         ),
         // A stash drop rejects while the repository holds a stash.
-        (vec!["stash", "drop"], 1 | 64, FrontierSeen::Rejected),
-        (vec!["stash", "drop"], 1, FrontierSeen::Forwarded),
+        (
+            vec!["stash", "drop"],
+            LINKED_WORKTREE | STASH_HELD,
+            FrontierSeen::Rejected,
+        ),
+        (
+            vec!["stash", "drop"],
+            LINKED_WORKTREE,
+            FrontierSeen::Forwarded,
+        ),
         // A clean carrying its own exclusion rejects while only that pattern calls a path ignored, because that
         //  path is an untracked file the clean would lose.
         (
             vec!["clean", "-X", "-e", "keep", "."],
-            1 | 128,
+            LINKED_WORKTREE | CLEAN_DELETES,
             FrontierSeen::Rejected,
         ),
         // The same clean where the patterns add nothing is forwarded: an ignored file the worktree itself has is no
         //  reason to refuse it.
         (
             vec!["clean", "-X", "-e", "keep", "."],
-            1,
+            LINKED_WORKTREE,
             FrontierSeen::Forwarded,
         ),
         // And a `-X` clean that names no pattern asks nothing at all.
         (
             vec!["clean", "-X", "."],
-            1 | 128,
+            LINKED_WORKTREE | CLEAN_DELETES,
             FrontierSeen::Forwarded,
+        ),
+        // An abort whose own operation waits and holds nothing of the person's runs exactly as Git runs it.
+        (
+            vec!["merge", "--abort"],
+            LINKED_WORKTREE | OPERATION_WAITS,
+            FrontierSeen::Forwarded,
+        ),
+        // No state of this form's own kind waits, so Git refuses the abort itself and discards nothing.
+        (
+            vec!["merge", "--abort"],
+            LINKED_WORKTREE,
+            FrontierSeen::Forwarded,
+        ),
+        // The person's own work stands where the abort's reset writes: the command is refused, naming it.
+        (
+            vec!["merge", "--abort"],
+            LINKED_WORKTREE | OPERATION_WAITS | WORKTREE_WORK,
+            FrontierSeen::Rejected,
+        ),
+        // The same in the index that reset drops.
+        (
+            vec!["cherry-pick", "--abort"],
+            LINKED_WORKTREE | OPERATION_WAITS | STAGED_WORK,
+            FrontierSeen::Rejected,
+        ),
+        // An ignored file at a path the restored tree tracks is the person's environment: refused, naming each path.
+        (
+            vec!["rebase", "--abort"],
+            LINKED_WORKTREE | OPERATION_WAITS | IGNORED_AND_TRACKED,
+            FrontierSeen::Rejected,
+        ),
+        // An untracked file there is what Git's own reset refuses, so the wrapper refuses first and names it.
+        (
+            vec!["rebase", "--skip"],
+            LINKED_WORKTREE | OPERATION_WAITS | UNTRACKED_AND_TRACKED,
+            FrontierSeen::Rejected,
+        ),
+        // A write of the settings every worktree shares is refused in a linked worktree, naming the main checkout,
+        //  and left to Git where there is no other checkout to share them with.
+        (
+            vec!["remote", "set-url", "origin", "url"],
+            LINKED_WORKTREE,
+            FrontierSeen::Rejected,
+        ),
+        (
+            vec!["remote", "set-url", "origin", "url"],
+            0,
+            FrontierSeen::Forwarded,
+        ),
+        (
+            vec!["config", "remote.origin.url", "url"],
+            LINKED_WORKTREE,
+            FrontierSeen::Rejected,
         ),
     ] {
         assert_eq!(

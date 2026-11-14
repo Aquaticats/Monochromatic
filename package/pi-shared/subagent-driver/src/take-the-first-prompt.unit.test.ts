@@ -31,8 +31,14 @@ import {
   type PiRecord,
   type RecordOfPiRun,
   startRecordOfPiRun,
+  START_PAUSE_MILLISECONDS,
   START_UP_ANSWER_MILLISECONDS,
 } from '../dist/final/node/index.mjs';
+
+/**
+ Milliseconds in a second, so a limit the options state in seconds is derived from the value the driver ships.
+ */
+const MILLISECONDS_PER_SECOND = 1_000;
 
 /**
  A folder the test throws away.
@@ -260,6 +266,7 @@ async function firstPromptOf({
     turnCap: 2,
     retryCap: 0,
     retryBaseSeconds: 1,
+    startPauseSeconds: START_PAUSE_MILLISECONDS / MILLISECONDS_PER_SECOND,
   };
   /**
    The record of the run.
@@ -420,6 +427,7 @@ await describe({
           turnCap: 2,
           retryCap: 0,
           retryBaseSeconds: 1,
+          startPauseSeconds: START_PAUSE_MILLISECONDS / MILLISECONDS_PER_SECOND,
         };
         /**
          The record of the run.
