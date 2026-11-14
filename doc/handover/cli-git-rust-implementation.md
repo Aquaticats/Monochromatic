@@ -1263,6 +1263,30 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.33` is installed and its gate is running (2026-11-14T17:00:34-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **`0.6.1-alpha.33`** (pass 38):
+  published by 17:00:21,
+  installed here from 17:00:21 to 17:00:31,
+  sample commit 1,051 ms,
+  `--version` answering `0.6.1-alpha.33`.
+  Its gate was started at 17:00:34 on `4576839066`,
+  the commit `main` pointed at with the release's bump and the lock
+  (unit and log `gpc-gate-wrapper-next-alpha-on-4576839066-20261114T170034-0500`);
+  a bounded wait for its verdict runs in the background.
+  The journal checks of its first minutes are still to run.
+- The wrapper releases of 2026-11-14 after the owner's return,
+  in order:
+  `0.6.1-alpha.28` (pass 37),
+  `0.6.1-alpha.29` (pass 39),
+  `0.6.1-alpha.30` (pass 40),
+  `0.6.1-alpha.31` (pass 43),
+  `0.6.1-alpha.32` (pass 42),
+  `0.6.1-alpha.33` (pass 38).
+
 ##### The drive probe held level 24 for its eight hours, with 28 slow readings and not the four this file said; it is started again (2026-11-14T16:55:07-05:00)
 
 Not final and not approved:
