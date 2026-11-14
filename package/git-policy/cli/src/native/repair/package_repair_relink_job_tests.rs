@@ -185,9 +185,11 @@ fn both_tools_run_in_the_worktree_in_the_records_order() {
 /// and the record keeps its claim for another try.
 /// Why:
 ///   One tool's failure must not leave the other tool's state unrelinked,
-///   the person is told which tool failed and how to finish it,
+///   the person is told which tool failed and with what,
 ///   and a failure this machine's ordinary conditions produce (two installers in one `node_modules`)
 ///   passes when the tool runs alone.
+/// The words are the tool's own and name no command:
+/// the notice a given-up record leaves quotes them beside the commands the record asked for.
 #[test]
 fn a_tool_that_fails_is_named_the_next_still_runs_and_the_record_is_tried_again() {
     let scene: Scene = scene("relink-job-fails");
@@ -197,7 +199,7 @@ fn a_tool_that_fails_is_named_the_next_still_runs_and_the_record_is_tried_again(
     let verdict: Verdict = relink(&scene, &item);
     let Verdict::Retry(reason) = verdict else { panic!("a failing tool is a failure that can pass: {verdict:?}") };
     assert!(reason.starts_with("pnpm: "), "{reason}");
-    assert!(reason.contains("pnpm --dir "), "the words do not name the command that finishes it: {reason}");
+    assert!(reason.contains("exit status 3"), "the words are not the tool's own: {reason}");
     let named: String = starts(&scene);
     assert!(named.contains("mpm-shadow"), "the toolchain install did not run: {named}");
     remove(scene.root.as_path());

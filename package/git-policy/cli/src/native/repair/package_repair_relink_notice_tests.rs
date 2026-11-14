@@ -5,12 +5,14 @@
 //!  The notice is the only word the person gets about a worktree whose package links still name the checkout it was copied
 //!  from,
 //!  so every control here names the words,
+//!  the reason they carry,
 //!  the commands in them,
+//!  the Git directory they are written in,
 //!  and that one read takes the notice away.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! recordNotice(gitDir, id, wordsFor(worktree, entry, 3)); assert(takeNotices(gitDir) === [expected]);
+//! recordNotice(worktreeGitDir, id, wordsFor(worktree, entry, 3, 'pnpm: exit status 1')); assert(takeNotices(worktreeGitDir) === [expected]);
 //! ```
 
 use super::*;
@@ -33,24 +35,92 @@ fn record_of(worktree: &Path, common_dir: &Path) -> WorkItem {
 
 /// What:
 ///  The words name the worktree,
-///  the tries,
-///  and both commands that finish the job.
+///  say a tool answered and with what,
+///  and name both commands the record asked for.
 /// Why:
-///  A person who reads only this line must be able to finish the relinking without a journal or a record.
+///  A person who reads only this line must be able to tell what failed and what finishes the job,
+///  without a journal or a record,
+///  and a count of tries alone names nothing they can change.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// assert(words.includes(worktree) && words.includes('3 tries') && words.includes('pnpm --dir '));
+/// assert(words.includes(worktree) && words.includes('pnpm: exit status 1') && words.includes('pnpm --dir '));
 /// ```
 #[test]
-fn the_words_name_the_worktree_the_tries_and_every_command() {
+fn the_words_name_the_worktree_what_failed_and_every_command() {
     let root: PathBuf = fixture("relink-notice-words");
     let worktree: PathBuf = root.join("the worktree");
-    let words: String = words_for(worktree.as_path(), &entry_rooted_at(worktree.as_path()), 3);
+    let words: String = words_for(worktree.as_path(), &entry_rooted_at(worktree.as_path()), 3, Some("pnpm: exit status 1: ERR_PNPM_META_FETCH_FAIL"));
     assert!(words.contains(worktree.to_string_lossy().as_ref()), "the words do not name the worktree: {words}");
-    assert!(words.contains("3 tries"), "the words do not say how many times the service tried: {words}");
+    assert!(words.contains("the last try failed with: pnpm: exit status 1: ERR_PNPM_META_FETCH_FAIL"), "the words do not say what failed: {words}");
+    assert!(words.contains("3 times"), "the words do not say how many times the service tried: {words}");
     assert!(words.contains("pnpm --dir "), "the words do not name the pnpm command: {words}");
     assert!(words.contains(MANUAL_COMMAND), "the words do not name the toolchain command: {words}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A record whose tries ran out with no answer kept says the service stopped,
+///  rather than claiming a tool failed.
+/// Why:
+///   A record killed on every try holds no answer of any tool,
+///  and words that named a reason it never had would send the person after the wrong thing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = wordsFor(worktree, entry, 3, undefined); assert(words.includes('stopped 3 times'));
+/// ```
+#[test]
+fn the_words_of_a_record_no_tool_answered_say_the_service_stopped() {
+    let root: PathBuf = fixture("relink-notice-no-answer");
+    let worktree: PathBuf = root.join("the worktree");
+    let words: String = words_for(worktree.as_path(), &entry_rooted_at(worktree.as_path()), 3, None);
+    assert!(words.contains("stopped 3 times"), "the words do not say the service stopped: {words}");
+    assert!(!words.contains("the last try failed with"), "the words name a failure no tool gave: {words}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree's own Git directory is the one its pointer names,
+///  and a directory holding `.git` itself is that directory.
+/// Why:
+///   The notice is written where a command run in that worktree reads it,
+///  and that is the worktree's own Git directory,
+///  never the one of the worktree whose command added it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert(gitDirOf(worktree) === adminDir); assert(gitDirOf(mainWorktree) === join(mainWorktree, '.git'));
+/// ```
+#[test]
+fn a_worktree_git_directory_is_the_one_its_pointer_names() {
+    let root: PathBuf = fixture("relink-notice-git-dir");
+    let worktree: PathBuf = root.join("the worktree");
+    let admin: PathBuf = root.join("common/worktrees/the-worktree");
+    std::fs::create_dir_all(worktree.as_path()).expect("worktree");
+    std::fs::create_dir_all(admin.as_path()).expect("registration");
+    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
+    assert_eq!(git_dir_of_a_worktree(worktree.as_path()), Some(admin.clone()));
+    std::fs::remove_file(worktree.join(".git")).expect("pointer");
+    std::fs::create_dir_all(worktree.join(".git")).expect("git directory");
+    assert_eq!(git_dir_of_a_worktree(worktree.as_path()), Some(worktree.join(".git")));
+    remove(root.as_path());
+}
+
+/// What:
+///  A worktree whose pointer is gone names no Git directory,
+///  so nothing is written where no command will ever read it.
+/// Why:
+///   A worktree removed before its record was drained takes its Git directory with it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert(gitDirOf(join(root, 'removed')) === undefined);
+/// ```
+#[test]
+fn a_removed_worktree_names_no_git_directory() {
+    let root: PathBuf = fixture("relink-notice-git-dir-gone");
+    assert_eq!(git_dir_of_a_worktree(root.join("removed").as_path()), None);
     remove(root.as_path());
 }
 
@@ -123,7 +193,32 @@ fn a_relink_record_names_the_tools_it_asked_for() {
     let item: WorkItem = item_of(root.as_path(), worktree.as_path(), &entry).expect("the record");
     let notice: String = notice_for_given_up(&item, 3).expect("the notice");
     assert!(notice.contains("pnpm --dir "), "{notice}");
-    assert!(!notice.contains(MANUAL_COMMAND), "the notice names a tool the record did not ask for: {notice}");    let both: WorkItem = record_of(worktree.as_path(), root.as_path());
+    assert!(!notice.contains(MANUAL_COMMAND), "the notice names a tool the record did not ask for: {notice}");
+    let both: WorkItem = record_of(worktree.as_path(), root.as_path());
     assert!(notice_for_given_up(&both, 3).expect("the notice").contains(MANUAL_COMMAND));
+    remove(root.as_path());
+}
+
+/// What:
+///  The notice quotes the reason the last try gave,
+///  kept beside the record by the round that ran the tool.
+/// Why:
+///   The recovery gives a record up and never saw the tool's answer,
+///   so the reason has to travel through the file that round wrote,
+///   or the person reads a count of tries where the reason is owed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// remember(item.gitDir, item.id(), 'toolchain: 1 launcher records still name another lock file');
+/// assert(noticeForGivenUp(item, 3).includes('the last try failed with: toolchain: 1 launcher records still name another lock file'));
+/// ```
+#[test]
+fn the_notice_quotes_the_reason_the_last_try_gave() {
+    let root: PathBuf = fixture("relink-notice-reason");
+    let worktree: PathBuf = root.join("the worktree");
+    let item: WorkItem = record_of(worktree.as_path(), root.as_path());
+    crate::package_repair_relink_failure::remember(item.git_dir.as_path(), item.id().as_str(), "pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE").expect("kept");
+    let notice: String = notice_for_given_up(&item, 3).expect("the notice");
+    assert!(notice.contains("the last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE"), "{notice}");
     remove(root.as_path());
 }

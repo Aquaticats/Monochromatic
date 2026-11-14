@@ -374,6 +374,9 @@ pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claime
 /// because nothing failed and nothing was sent.
 ///  A notice that could not be written answers that it is not there,
 /// so the push is not settled in silence.
+///  A relink given up on is told in the Git directory of the worktree whose links still name another checkout,
+///  so the next command there shows it,
+///  and no command in another worktree answers for a worktree it does not hold.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -383,18 +386,27 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool
     let mut told: bool = true;
     for item in given_up {
         // A relink given up on leaves the worktree's links naming the checkout the copy came from, and nothing reads `failed`;
-        //  the words name the commands that finish it, and are shown by the next command in that worktree.
+        //  the words name what the last try failed with and the command that finishes the job, and the notice waits in that
+        //  worktree's own Git directory for the next command there.
         if item.kind == WorkKind::Relink {
             match crate::package_repair_relink_notice::notice_for_given_up(item, MAX_TRIES) {
                 Some(text) => {
-                    if let Err(problem) = crate::package_repair_relink_notice::record_notice(git_dir, item.id().as_str(), text.as_str()) {
+                    // The worktree's own Git directory is where a command run there reads notices; a worktree that is gone takes
+                    //  its Git directory with it, and then the notice is left in the directory the record was drained from, which
+                    //  is still where a person looks after removing one.
+                    let worktree_git_dir: PathBuf = crate::package_repair_relink_notice::git_dir_of_a_worktree(item.repository.as_path()).unwrap_or_else(|| return git_dir.to_path_buf());
+                    if let Err(problem) = crate::package_repair_relink_notice::record_notice(worktree_git_dir.as_path(), item.id().as_str(), text.as_str()) {
                         crate::service_error!(
                             "the abandoned relink of {} {} could not be recorded for the person: {problem}",
                             item.id(),
                             crate::service_timing::in_the_repository_at(item.repository.as_path())
                         );
                         told = false;
+                        continue;
                     }
+                    // The words are where a command shows them, so the reason they quote is no longer needed and nothing else
+                    //  removes it once the record has moved to `failed`.
+                    crate::package_repair_relink_failure::forget(item.git_dir.as_path(), item.id().as_str());
                 }
                 None => {
                     crate::service_error!(

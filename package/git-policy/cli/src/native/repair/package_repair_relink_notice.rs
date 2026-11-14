@@ -7,11 +7,13 @@
 //!  A work record that reached `failed` is scanned by nothing:
 //!  without a notice the person keeps a worktree whose package links name the checkout it was copied from,
 //!  and learns of it only when a tool fails in it.
-//!  The notice holds one line,
-//!  and it names the commands that finish the job by hand,
-//!  so the person needs to read no record and no journal.
-//!  It is a plain file in the worktree's own Git directory,
-//!  so a command in the worktree reads one directory and finds nothing when nothing was given up.
+//!  The notice holds what the last try failed with,
+//!  which only the round that ran the tool saw (`package_repair_relink_failure.rs`),
+//!  and the commands the record asked for,
+//!  so the person reads why the wrapper stopped and what is left to do about it.
+//!  It is a plain file in the relinked worktree's own Git directory,
+//!  so a command in that worktree reads one directory and finds nothing when nothing was given up,
+//!  and no command in another worktree answers for it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -52,24 +54,68 @@ fn commands_for(worktree: &Path, tools: &[RelinkTool]) -> Vec<String> {
 }
 
 /// What:
-///  The one line a person reads about a relink that was given up on.
+///  The one line a person reads about a relink that was given up on:
+///  what the worktree holds now,
+///  whether a tool answered and with what,
+///  and the command the record's tool finishes the job with.
 /// Why:
 ///   It names the worktree,
-///   how many times the service tried,
-///   and every command that finishes the job,
-///   because the record itself is not where anyone looks.
+///   and it says what failed rather than only how often the service tried,
+///   because a count names nothing a person can change.
+///   The command is offered as the step that follows that change,
+///   never as the fix on its own:
+///   the wrapper ran it,
+///   and it cannot run anything else for the tools the record asked for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const words = (worktree, commands, tries) => `monochromatic-git-policy-cli: the package state of ${worktree} was not relinked after ${tries} tries. Run ${commands.map((c) => `\`${c}\``).join(', then ')} to finish it by hand.`;
+/// const words = (worktree, commands, tries, lastFailure) => `monochromatic-git-policy-cli: the package state of ${worktree} was not relinked, so its links still name the checkout it was copied from. ${lastFailure === undefined ? `The commit service stopped ${tries} times before it could finish the job, so no tool's answer was ever recorded.` : `The wrapper tried ${tries} times and gave up; the last try failed with: ${lastFailure}`} Running the same command again would fail the same way, so something only you can change has to come first; after that, ${commands.map((c) => `\`${c}\``).join(' or ')} finishes the job.`;
 /// ```
-pub fn words_for(worktree: &Path, entry: &RelinkEntry, tries: u32) -> String {
+pub fn words_for(worktree: &Path, entry: &RelinkEntry, tries: u32, last_failure: Option<&str>) -> String {
     let commands: Vec<String> = commands_for(worktree, &entry.tools);
+    let opening: String = format!("monochromatic-git-policy-cli: the package state of {} was not relinked, so its links still name the checkout it was copied from.", worktree.display());
+    let what_happened: String = match last_failure {
+        Some(reason) => format!("The wrapper tried {tries} times and gave up; the last try failed with: {reason}"),
+        None => format!("The commit service stopped {tries} times before it could finish the job (a restart, a kill or a crash each time), so no tool's answer was ever recorded."),
+    };
     return format!(
-        "monochromatic-git-policy-cli: the package state of {} was not relinked after {tries} tries, so its links still name the checkout it was copied from. Run `{}` to finish it by hand.",
-        worktree.display(),
-        commands.join("`, then `")
+        "{opening} {what_happened} Running the same command again would fail the same way, so something only you can change has to come first; after that, `{}` finishes the job.",
+        commands.join("` or `")
     );
+}
+
+/// What:
+///  The Git directory of `worktree`:
+///  `.git` itself when it is a directory,
+///  else the path its pointer names,
+///  so a notice is written where a command run in that worktree reads it.
+/// Why:
+///   The work records live in the Git directory of the worktree whose command added the new one,
+///   and a notice written there is shown by the next command in that worktree
+///   about worktrees the person may never enter.
+///   The pointer of a removed worktree does not resolve,
+///   and then nothing will run in it again and nothing is owed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const gitDir = (worktree) => stat(join(worktree, '.git')).isDirectory() ? join(worktree, '.git') : parsePointer(readFile(join(worktree, '.git')));
+/// ```
+pub fn git_dir_of_a_worktree(worktree: &Path) -> Option<PathBuf> {
+    use std::os::unix::ffi::OsStrExt as _;
+    let pointer: PathBuf = worktree.join(".git");
+    let Ok(found) = std::fs::metadata(pointer.as_path()) else { return None };
+    if found.is_dir() {
+        return Some(pointer);
+    }
+    // The pointer is a file only: a link, a pipe or anything else at that name is no Git directory this may write in.
+    if !found.is_file() {
+        return None;
+    }
+    let bytes: Vec<u8> = std::fs::read(pointer.as_path()).ok()?;
+    let line: &[u8] = bytes.trim_ascii_end();
+    let named: &[u8] = line.strip_prefix(b"gitdir: ")?;
+    let named_path: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(named));
+    return Some(if named_path.is_absolute() { named_path } else { worktree.join(named_path) });
 }
 
 /// What:
@@ -140,7 +186,8 @@ pub fn notice_for_given_up(item: &crate::work_item::WorkItem, tries: u32) -> Opt
         Ok(decoded) => decoded,
         Err(_unreadable) => return None,
     };
-    return Some(words_for(item.repository.as_path(), &entry, tries));
+    let last_failure: Option<String> = crate::package_repair_relink_failure::recall(item.git_dir.as_path(), item.id().as_str());
+    return Some(words_for(item.repository.as_path(), &entry, tries, last_failure.as_deref()));
 }
 
 /// Notice controls stay out of the release executable.

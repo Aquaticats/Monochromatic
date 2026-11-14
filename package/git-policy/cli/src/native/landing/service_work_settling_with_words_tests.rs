@@ -243,3 +243,97 @@ fn a_given_up_relink_leaves_a_notice_naming_the_command() {
     assert!(lines[0].contains("pnpm --dir "), "the notice names no command: {lines:?}");
     remove(root.as_path());
 }
+
+/// A handler whose relink answers one retryable failure every time it is asked.
+struct RelinkRetries {
+    /// What the relink says failed.
+    said: String,
+}
+
+impl WorkHandlers for RelinkRetries {
+    fn push(&self, _items: &[WorkItem]) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn maintenance(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn review(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Done;
+    }
+
+    fn relink(&self, _item: &WorkItem) -> Verdict {
+        return Verdict::Retry(self.said.clone());
+    }
+}
+
+/// Drain whatever the common directory holds once.
+fn drained_once(common: &Path, handlers: &RelinkRetries) {
+    let mut replanning = Replanning { first: None, changes: Vec::new(), plans: None };
+    crate::lazy_runtime::run_on_runtime(drain_pending_awaiting(
+        common,
+        handlers,
+        &ClaimTime::read(),
+        CLAIM_LEASE,
+        Renewal::Timed,
+        &mut replanning,
+        &SERVICE_KINDS,
+        crate::housekeeping_of_one_round::HOUSEKEEPING_OF_ONE_ROUND,
+    ))
+    .expect("the pending drain runs");
+}
+
+/// What:
+///  A relink whose tries run out quotes the reason the last try gave,
+///  and that notice waits in the relinked worktree's own Git directory.
+/// Why:
+///   The step that gives a record up is the recovery,
+///   which holds the record and never the answer the tool gave,
+///   so without the reason kept beside the record the person reads a count of tries where the reason is owed.
+///   The notice is written where a command run in that worktree reads it:
+///   a notice left in the Git directory of the worktree whose command added it is shown by a command about something
+///   else, which is what the person complained about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (let attempt = 0; attempt < MAX_TRIES; attempt += 1) { drainOnce(common); requeueExpired(work, after, LEASE, MAX_TRIES, skipNotice(common)); }
+/// assert(takeNotices(admin)[0].includes('the last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE'));
+/// ```
+#[test]
+fn a_given_up_relink_quotes_the_reason_the_last_try_gave_and_lands_in_its_own_worktree() {
+    let root: PathBuf = fixture("settling-given-up-relink-reason");
+    let common: PathBuf = root.join("common");
+    let worktree: PathBuf = root.join("the worktree");
+    let admin: PathBuf = common.join("worktrees/the-worktree");
+    std::fs::create_dir_all(common.as_path()).expect("common");
+    std::fs::create_dir_all(worktree.as_path()).expect("worktree");
+    std::fs::create_dir_all(admin.as_path()).expect("registration");
+    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
+    let entry: crate::package_repair_relink::RelinkEntry = crate::package_repair_relink::RelinkEntry {
+        root: worktree.clone(),
+        search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
+        tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
+    };
+    let item: WorkItem = crate::package_repair_relink::item_of(common.as_path(), worktree.as_path(), &entry).expect("the record");
+    let work: PathBuf = work_directory(common.as_path());
+    enqueue(work.as_path(), &item).expect("the record is queued");
+    let handlers: RelinkRetries = RelinkRetries { said: String::from("pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE") };
+    // Every attempt is tried and the claim it keeps is taken back until the record's tries run out, which is where the
+    //  service gives it up and tells the person.
+    let mut given_up: Vec<WorkItem> = Vec::new();
+    for _attempt in 1..=MAX_TRIES {
+        drained_once(common.as_path(), &handlers);
+        let after_the_lease: ClaimTime = ClaimTime::read().advanced(CLAIM_LEASE * 2);
+        let recovered = crate::work_item_recovery::requeue_expired_reporting_telling(work.as_path(), &after_the_lease, CLAIM_LEASE, MAX_TRIES, &crate::service_work_handlers_replanning_and_acceptance::SkipNotice(common.as_path()));
+        given_up.extend(recovered.given_up);
+    }
+    assert_eq!(given_up.len(), 1, "the record whose tries ran out is given up on once");
+    let notices: Vec<String> = crate::package_repair_relink_notice::take_notices(admin.as_path());
+    assert_eq!(notices.len(), 1, "one notice waits in the relinked worktree's own Git directory: {notices:?}");
+    assert!(notices[0].contains("the last try failed with: pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE"), "the notice does not quote the reason: {notices:?}");
+    assert!(crate::package_repair_relink_notice::take_notices(common.as_path()).is_empty(), "the notice was left in the Git directory of the worktree whose command added it");
+    // The reason the notice quoted is not kept once the record it belongs to has settled.
+    assert!(!work_directory(common.as_path()).parent().expect("the wrapper's folder").join("relink-failures").join(item.id()).is_file(), "the reason of a settled record is left behind");
+    remove(root.as_path());
+}

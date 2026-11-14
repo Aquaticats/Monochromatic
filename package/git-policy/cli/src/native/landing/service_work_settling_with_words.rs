@@ -51,6 +51,7 @@ use std::path::Path;
 pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, item: Claimed, verdict: Verdict, kind: &str) -> Option<HeldClaims> {
     match verdict {
         Verdict::Done => {
+            forget_the_reason(kind, &item);
             return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
         Verdict::Delivered { said, .. } => {
@@ -59,13 +60,16 @@ pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, ite
             //  which this module cannot make: the words are said rather than dropped, and the item is settled as done, because
             //  nothing here may fail a person's work over the shape of an answer.
             crate::service_warn!("a step that answers in words answered as a push did, and its words are said here: {said}");
+            forget_the_reason(kind, &item);
             return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
         Verdict::Failed(reason) => {
             say_it_failed(kind, &item, reason.as_str());
+            forget_the_reason(kind, &item);
             return settle_all_awaiting(held, work_dir, vec![item], FAILED).await;
         }
         Verdict::Retry(reason) => {
+            keep_the_reason(kind, &item, reason.as_str());
             say_it_failed(kind, &item, format!("{reason}; this is tried again when its claim runs out").as_str());
             return Some(held);
         }
@@ -77,9 +81,51 @@ pub(crate) async fn settle_with_the_words(held: HeldClaims, work_dir: &Path, ite
                 "subvolume delete" => crate::service_log!("the subvolume {} was left as it is: {reason}", item.item.parent),
                 _ => crate::service_log!("the review of {} was skipped: {reason}", item.item.oid),
             }
+            forget_the_reason(kind, &item);
             return settle_all_awaiting(held, work_dir, vec![item], DONE).await;
         }
     }
+}
+
+/// What:
+///  Keep the answer the last try of a relink gave,
+///  for the notice a record that runs out its tries leaves.
+/// Why:
+///   A record whose tries ran out is given up on by the recovery,
+///   which holds the record and never the answer the tool gave,
+///   so a count of tries would be the only word about a worktree whose links still name another checkout.
+///   The kinds that answer in words share this step,
+///   and only a relink leaves a notice that can quote a tool.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (kind === 'relink') remember(item.item.gitDir, item.item.id(), reason);
+/// ```
+fn keep_the_reason(kind: &str, item: &Claimed, reason: &str) {
+    if kind != "relink" {
+        return;
+    }
+    if let Err(problem) = crate::package_repair_relink_failure::remember(item.item.git_dir.as_path(), item.item.id().as_str(), reason) {
+        crate::service_warn!("the reason the relink of {} failed could not be kept for the person: {problem}", item.item.repository.display());
+    }
+}
+
+/// What:
+///  Take a kept reason away,
+///  because the record it belongs to settled and nothing reads it again.
+/// Why:
+///   The reason is a file of its own,
+///   and a record that is done or failed leaves no step that would remove it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (kind === 'relink') forget(item.item.gitDir, item.item.id());
+/// ```
+fn forget_the_reason(kind: &str, item: &Claimed) {
+    if kind != "relink" {
+        return;
+    }
+    crate::package_repair_relink_failure::forget(item.item.git_dir.as_path(), item.item.id().as_str());
 }
 
 /// What:

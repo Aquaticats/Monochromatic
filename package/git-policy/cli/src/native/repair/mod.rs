@@ -72,6 +72,10 @@ pub mod package_repair_relink_job;
 #[cfg(target_os = "linux")]
 pub mod package_repair_relink_job_worktree_proof;
 
+/// Why a relink's last try failed,
+/// kept until the record settles or the notice quotes it.
+pub mod package_repair_relink_failure;
+
 /// The notice a relink given up on leaves for the person,
 /// and the lines a later command in that worktree shows of it.
 pub mod package_repair_relink_notice;
