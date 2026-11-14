@@ -145,7 +145,7 @@ fn plan_of_the_removal(command: &ResolvedCommand, common_dir: &Path, context: &G
     };
     let fold_case: bool = case_folds(context, common_dir)?;
     let target: Option<PathBuf> = git_worktree_for_operand(common_dir, operand.as_os_str(), start.as_path(), fold_case)?;
-    return Ok(target.map(|target| return RemovePlan { target, operand, force }));
+    return Ok(target.map(|found| return RemovePlan { target: found, operand, force }));
 }
 
 /// What:
@@ -170,7 +170,7 @@ fn case_folds(context: &GitContext, common_dir: &Path) -> Result<bool, String> {
         Ok(finished) => finished,
         Err(error) => return Err(format!("Git cannot say whether this repository folds case in paths ({error})")),
     };
-    match output.code {
+    return match output.code {
         // The key is set: Git's own reading of it is true or false.
         Some(0) => match String::from_utf8_lossy(output.stdout.as_slice()).trim() {
             "true" => Ok(true),

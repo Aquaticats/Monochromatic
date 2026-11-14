@@ -423,13 +423,13 @@ fn a_named_pipe_at_the_index_holds_neither_a_removal_nor_a_merge() {
     assert!(scene.task.exists(), "nothing was removed");
     remove(&scene.fixture);
 
-    let scene: Scene = a_repository_with_a_recorded_worktree("removal-fifo-index-merge");
-    let index: PathBuf = admin_of(&scene.fixture, "task").join("index");
-    std::fs::remove_file(index.as_path()).expect("a regular index goes");
-    make_pipe(index.as_path());
-    let merged: Observed = observe(wrapped_within(&scene.fixture, "30").current_dir(scene.repo.as_path()).args(["merge", "--no-edit", BRANCH]).env("CLI_GIT_TEST_ONLY_JOURNAL_SOCKET", "@cli-git-review-journal-nobody"), b"");
-    let said: String = stderr_of(&merged);
-    assert_eq!(merged.code, Some(0), "the merge ends, and keeps the worktree: {said}");
-    assert!(scene.task.exists(), "the sweep left it: {said}");
-    remove(&scene.fixture);
+    let merging: Scene = a_repository_with_a_recorded_worktree("removal-fifo-index-merge");
+    let piped: PathBuf = admin_of(&merging.fixture, "task").join("index");
+    std::fs::remove_file(piped.as_path()).expect("a regular index goes");
+    make_pipe(piped.as_path());
+    let merged: Observed = observe(wrapped_within(&merging.fixture, "30").current_dir(merging.repo.as_path()).args(["merge", "--no-edit", BRANCH]).env("CLI_GIT_TEST_ONLY_JOURNAL_SOCKET", "@cli-git-review-journal-nobody"), b"");
+    let merge_words: String = stderr_of(&merged);
+    assert_eq!(merged.code, Some(0), "the merge ends, and keeps the worktree: {merge_words}");
+    assert!(merging.task.exists(), "the sweep left it: {merge_words}");
+    remove(&merging.fixture);
 }
