@@ -26,6 +26,7 @@ import {
   StartRefusedError,
   startRefusalsIn,
 } from './checks-before-a-start.ts';
+import { fileSystemOfARun, } from './file-system-of-a-run.ts';
 import { finishTheRun, } from './finish-a-run.ts';
 import { gitRunnerOf, } from './git-command.ts';
 import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
@@ -268,6 +269,17 @@ await mkdir(
 );
 
 /**
+ What the run's unit may and may not write, read once the worktree Git made is there: the checkout stays read-only around the
+ run's worktree, the Git directories its commits write, the checkout's cache and the run's own folder.
+ */
+const fileSystem = await fileSystemOfARun({
+  checkoutFolder: options.checkoutFolder,
+  worktree,
+  runFolder,
+  worksInTheCheckoutItself: readOnlyInMain,
+},);
+
+/**
  How many model turns the run may start.
  */
 const turnCap = options.turnCap ?? await sizedTurnCap();
@@ -308,6 +320,7 @@ const unit = unitCommandOf({
   model: options.model,
   idleSeconds: options.idleSeconds,
   turnCap,
+  fileSystem,
   ...(options.session === undefined ? {} : { session: options.session, }),
 },);
 

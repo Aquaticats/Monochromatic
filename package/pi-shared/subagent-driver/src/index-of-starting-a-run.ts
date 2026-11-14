@@ -159,6 +159,11 @@ export {
   turnCapSizing,
 } from './turn-cap-of-finished-runs.ts';
 export {
+  type FileSystemOfARun,
+  fileSystemOfARun,
+  fileSystemPropertiesOf,
+} from './file-system-of-a-run.ts';
+export {
   UNIT_GRACE_SECONDS,
   UNIT_IO_WEIGHT,
   type UnitCommandRequest,

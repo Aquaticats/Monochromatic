@@ -345,6 +345,10 @@ await describe({
               model: 'deepseek-v4.1-flash',
               idleSeconds: IDLE_SECONDS_OF_A_RUN,
               turnCap: 400,
+              fileSystem: {
+                foldersAUnitCannotWrite: ['/repo',],
+                foldersAUnitMustWrite: ['/repo/.claude/worktrees/pi-copy-route', '-/repo/.cache',],
+              },
             },);
             expect(command.command,).toBe('systemd-run',);
             expect(command.words,).toEqual([
@@ -357,6 +361,9 @@ await describe({
               '--property=CPUQuota=800%',
               `--property=TasksMax=${String(3_000,)}`,
               `--property=IOWeight=${String(UNIT_IO_WEIGHT,)}`,
+              '--property=ReadOnlyPaths=/repo',
+              '--property=ReadWritePaths=/repo/.claude/worktrees/pi-copy-route',
+              '--property=ReadWritePaths=-/repo/.cache',
               '--setenv=PATH=/mise/bin:/usr/bin',
               '--setenv=HOME=/home/a',
               '/mise/bin/node',
@@ -392,6 +399,10 @@ await describe({
               model: 'deepseek-v4.1-flash',
               idleSeconds: 1,
               turnCap: 1,
+              fileSystem: {
+                foldersAUnitCannotWrite: ['/repo',],
+                foldersAUnitMustWrite: ['/repo/.git',],
+              },
               session: '/sessions/a.jsonl',
             },).words,).toContain('--session=/sessions/a.jsonl',);
           },

@@ -216,6 +216,92 @@ async function commonDirectoryOf({ gitDirectory, }: { readonly gitDirectory: str
 }
 
 /**
+ Says whether the marker of a checkout is the folder a repository holds, rather than the file a linked worktree holds.
+
+ @param marker - the marker itself
+
+ @param folder - the folder the marker was looked for in, for the message
+
+ @returns whether the marker is a folder
+
+ @throws CheckoutNotFoundError when the folder holds no marker
+
+ @example
+ ```ts
+ const isAFolder = await markerIsAFolder({ marker: '/repo/.git', folder: '/repo', },);
+ ```
+ */
+async function markerIsAFolder({
+  marker,
+  folder,
+}: {
+  readonly marker: string;
+  readonly folder: string;
+},): Promise<boolean> {
+  try {
+    return (await stat(marker,)).isDirectory();
+  }
+  catch (error) {
+    if (errorCodeOf(error,) !== MISSING_PATH_CODE) {
+      throw error;
+    }
+    throw new CheckoutNotFoundError(
+      `${folder} holds no ${CHECKOUT_MARKER}, so the Git directories a run's commits write cannot be read. Run the command from inside the checkout, or name the checkout with --checkout-folder.`,
+    );
+  }
+}
+
+/**
+ Reads the Git directory of the checkout at a folder, and the Git directory every worktree of the repository shares.
+
+ A run's unit cannot write the checkout its launcher works in, and Git writes both of these folders for a commit, a fetch or a
+ push, so both are named from the worktree Git made rather than guessed from the layout Git uses.
+
+ @param folder - the checkout or the linked worktree to read, which must be its own root
+
+ @returns the Git directory of that folder, and the one every worktree of its repository shares
+
+ @throws CheckoutNotFoundError when the folder marks no checkout, or when the Git directory it names cannot be read
+
+ @example
+ ```ts
+ const folders = await gitFoldersOf({ folder: '/repo/.claude/worktrees/pi-a', },);
+ ```
+ */
+export async function gitFoldersOf({ folder }: { readonly folder: string },): Promise<{
+  readonly gitDirectory: string;
+  readonly commonDirectory: string;
+}> {
+  /**
+   The marker of the folder named, which is a folder in a repository and a file in a linked worktree.
+   */
+  const marker = join(
+    folder,
+    CHECKOUT_MARKER,
+  );
+  if (await markerIsAFolder({
+    marker,
+    folder,
+  },)) {
+    return {
+      gitDirectory: marker,
+      commonDirectory: marker,
+    };
+  }
+  /**
+   The Git directory this worktree was given, inside the repository's own.
+   */
+  const gitDirectory = await gitDirectoryOf({
+    marker,
+    markedFolder: folder,
+  },);
+  return {
+    gitDirectory,
+    commonDirectory: await commonDirectoryOf({ gitDirectory, },),
+  };
+}
+
+/**
  Finds the repository the checkout a command was started in belongs to.
 
  @param from - the folder the command was started in

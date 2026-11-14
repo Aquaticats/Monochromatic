@@ -11,6 +11,10 @@ import {
   MILLISECONDS_PER_SECOND,
   TEARDOWN_MILLISECONDS,
 } from './driver-constants.ts';
+import {
+  type FileSystemOfARun,
+  fileSystemPropertiesOf,
+} from './file-system-of-a-run.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
 
 /**
@@ -116,6 +120,12 @@ export type UnitCommandRequest = {
    The session file the run resumes, when it resumes one.
    */
   readonly session?: string;
+
+  /**
+   What the unit may and may not write: the checkout the launcher works in, kept read-only around the folders the run must
+   write.
+   */
+  readonly fileSystem: FileSystemOfARun;
 };
 
 /**
@@ -143,7 +153,7 @@ export function runtimeMaxSecondsOf({ wallSeconds, }: { readonly wallSeconds: nu
 
  @example
  ```ts
- const command = unitCommandOf({ runName: 'copy-route', cpuPercent: 800, memory: '12G', taskCount: 3_000, wallSeconds: 7_200, pathOfMiseEnvironment: '/bin', home: '/home/a', node: '/bin/node', driverEntry: '/pkg/src/drive-pi-subagent.ts', runFolder: '/runs/copy-route-4', workingFolder: '/repo/.claude/worktrees/pi-copy-route', promptFile: '/runs/copy-route-prompt.md', provider: 'neuralwatt', model: 'deepseek-v4.1-flash', idleSeconds: 120, turnCap: 400, },);
+ const command = unitCommandOf({ runName: 'copy-route', cpuPercent: 800, memory: '12G', taskCount: 3_000, wallSeconds: 7_200, pathOfMiseEnvironment: '/bin', home: '/home/a', node: '/bin/node', driverEntry: '/pkg/src/drive-pi-subagent.ts', runFolder: '/runs/copy-route-4', workingFolder: '/repo/.claude/worktrees/pi-copy-route', promptFile: '/runs/copy-route-prompt.md', provider: 'neuralwatt', model: 'deepseek-v4.1-flash', idleSeconds: 120, turnCap: 400, fileSystem: { foldersAUnitCannotWrite: ['/repo'], foldersAUnitMustWrite: ['/repo/.claude/worktrees/pi-copy-route', '-/repo/.cache'], }, },);
  ```
  */
 export function unitCommandOf(request: UnitCommandRequest,): {
@@ -162,6 +172,7 @@ export function unitCommandOf(request: UnitCommandRequest,): {
       `--property=CPUQuota=${String(request.cpuPercent,)}%`,
       `--property=TasksMax=${String(request.taskCount,)}`,
       `--property=IOWeight=${String(UNIT_IO_WEIGHT,)}`,
+      ...fileSystemPropertiesOf(request.fileSystem,),
       `--setenv=PATH=${request.pathOfMiseEnvironment}`,
       `--setenv=HOME=${request.home}`,
       request.node,
