@@ -1193,8 +1193,23 @@ to settle before a reply:
   Weighed and left:
   the second patch's figures are those of the patch before its last change,
   which the linked write-up says and the reply does not.
+  Another fresh session of the reviewing model read those corrections as of commit `7771aa14fc`
+  (prompt `${HOME}/temp/agent/pi-runs/optique-reply-draft-corrections-claim-check-prompt.md`,
+  run folder `optique-reply-draft-corrections-claim-check-1`,
+  19 turns,
+  report `${HOME}/temp/agent/optique-reply-draft-corrections-check-2026-11-13/keep/review-report.md`).
+  It recomputed the ratios they touch from the raw rounds,
+  found each correction faithful to the records,
+  and found no figure changed.
+  It pointed out that the note before the reply still gave its length as 44 where the draft now has 45 lines,
+  and that the draft issue's count of places that slice the buffer could be read as fifteen where the write-up says sixteen.
+  Both are corrected,
+  the second after counting the places in upstream's source at the merge:
+  sixteen,
+  two of them in `argument()`.
   Not reviewed by anyone:
-  those corrections.
+  those last two changes,
+  which alter no figure.
   Next:
   the draft goes to the owner,
   who edits it,
