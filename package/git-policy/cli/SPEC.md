@@ -3479,6 +3479,16 @@ because Git's own removal is the route that would delete through a mount point.
 which the
 registration's own proof still uses.
 
+The proof of cleanliness a removal makes is the stat proof every removal makes,
+and a refusal beside a volume is proven again by the files themselves:
+`check_clean_by_content` settles by reading a file every entry its stat data cannot vouch for
+(the state a worktree is in the moment it was added,
+where a whole-second modification time is not older than the index's and Git's own racy rule says the stat
+data proves nothing either way)
+and makes the untracked scan the ordinary proof makes,
+so a tree refused only because its stat fields prove nothing yet is proven clean and removed around the volume,
+and a tree that proof cannot settle is refused while nothing of it is deleted.
+
 A removal that found such a volume proves what every removal proves before it deletes anything:
 the worktree is registered,
 not locked,
@@ -3500,12 +3510,27 @@ stands,
 and,
 for a tree whose entries are all present,
 clearing or moving what Git would delete.
-A tree whose only trouble is entries missing from it is the shape a pass of this program leaves,
-and the report says which of the two it read:
-a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it,
-and without such a record the report names `--force`,
+The status a removal reads is one of three,
+and the report says which of them it read:
+Git names nothing at all,
+Git names entries and every one is missing from the tree,
+or Git names something else.
+An empty report is no report of deletions,
+so a clean tree is never worded as one a pass half emptied.
+A tree whose entries are missing is the shape a pass of this program leaves,
+and a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it;
+without such a record the report names `--force`,
 says that moving a volume out cannot finish a tree whose tracked entries are gone,
 and never claims that nothing was removed.
+A tree Git names nothing in,
+and which the proof of cleanliness cannot settle,
+is refused in its own words:
+the report says that Git reports no change in the worktree at all,
+gives the reason the proof refused,
+says that this is no state a pass of this program left,
+and names `--force` as what goes around the volume now.
+A tree whose entries are only missing may be finished by the same unforced command once that record proves it,
+and no worktree is ever removed on a cleanliness that was not proven.
 The tree is never handed to Git to get Git's own sentence,
 because Git's removal is what would delete through the mount;
 the report says so instead of pretending to be Git's words.
@@ -6478,8 +6503,15 @@ The client sends `warm` only after `merge`,
 `switch`,
 `rebase` or `reset` exits 0 and the digest of the rules text
 it would load changed,
-only to a service of that worktree that already runs (found by its start arguments),
-and never starts a process.
+only to a service of that worktree that already runs (found by its start arguments,
+read within `WARM_SCAN_CEILING` and only among the processes of this user),
+and it writes no unit,
+asks no manager for a start,
+and starts no process.
+A service killed between that look and the connection is started by the connection itself:
+the socket unit keeps listening,
+which is what socket activation is for,
+and no check before a connection is one with it.
 The client keeps compiling on a cache miss.
 `src/native/policy/policy_forbidden_strings.rs` decides whether that miss writes the shared cache
 (`CachePublisher`,
@@ -6510,6 +6542,13 @@ also leaves the artifact for the next command that publishes,
 so such a machine compiles the rules once per command:
 correct,
 and slower than a cache it cannot fill.
+A request that is not made is not sent either:
+its look at the processes is made within `WARM_SCAN_CEILING` and its connection within `WARM_REQUEST_CONNECT_CEILING`
+(`src/native/service/wait_ceilings.rs`),
+so a process stuck in the kernel and a service whose queue of unaccepted connections is full each cost the command
+that ceiling and no more,
+and the command publishes the artifact itself,
+as it does when no service runs.
 The artifact's publication (`package/forbidden-strings/cli/src/runtime_cache/publish.rs`)
 writes a private temporary and renames it over the artifact,
 syncing neither the file nor its directory:
@@ -7578,8 +7617,7 @@ on the commit path:
   that process's number,
   and it is written before the command ends by the signal:
   the raise used to happen inside the report,
-  so an interrupted commit left no record at all,
-  and no record of the 1,792 that stood at 2026-11-12T07:15Z said `client-signal`.
+  so an interrupted commit left no record at all.
   The sender is what tells a keyboard's interrupt from the stop a caller sends at its own bound,
   which is the same `SIGTERM`.
   A second signal ends the command at once,
@@ -8535,14 +8573,54 @@ and
   because the start that follows may be hours away:
   the service exits after three idle hours,
   and the manager starts it again from whatever the link names then.
+  The link the releases before this one named in every unit text they wrote
+  (`service_instance.rs`,
+  `EARLIER_RELEASES_PROGRAM_POINTER`,
+  `<runtime>/systemd/user/<notes>/service-program`)
+  is pointed at the running executable too,
+  so an instance whose loaded text is theirs starts this release instead of a
+  program the install removed,
+  which would fail every start at the EXEC step and end at the manager's start limit.
   The one thing left is a unit the manager holds at an older text,
   and it is dropped rather than reloaded (`service_provision_instance_unloaded.rs`):
   a service that runs is asked to retire first,
   so the batch it holds is finished,
-  the worktree's socket is stopped,
+  the worktree's socket is then stopped in the mode that leaves the service alone,
+  because a plain stop carries through `Requires=` to a service another command started meanwhile,
+  and such a service is asked to retire and waited for instead of ever being stopped,
   the manager is asked what it holds of the worktree's units until it holds neither,
   and the socket is started again,
   so the next start reads the file as it is now.
+  That repair never ends a commit it cannot finish:
+  a manager that answers nothing,
+  a stop it does not take,
+  a service still running at the retirement wait,
+  and a unit another command starts again inside the wait are each one line on the wrapper's log,
+  with nothing stopped,
+  the record of what the manager read left unwritten,
+  and the commit going on through whatever the manager runs
+  (`a_manager_that_stops_answering_after_the_stop_leaves_the_commit_to_go_on`,
+  `a_service_that_is_still_landing_leaves_the_commit_to_go_on_and_stops_nothing`,
+  `a_unit_the_manager_keeps_past_the_wait_leaves_the_commit_to_go_on_and_the_record_unwritten`).
+  The link is the one thing whose failure the commit outlives rather than mends,
+  and it decides whether that commit lands:
+  pointing it never ends a commit,
+  the units are still written,
+  and a start then runs the program the link still names
+  (`point_program_link` in `service_provision.rs`,
+  `a_program_link_that_cannot_be_pointed_leaves_the_commit_to_go_on`).
+  That program is this release when a build of this release left the link at another path,
+  and the commit lands through it;
+  when it is another release's and it will not step aside on the retire or on the restart,
+  the commit ends with "The commit service that is running was started from another release ...",
+  whose words name the link and the runtime directory that could not hold it;
+  and when it cannot be executed at all (a directory,
+  a path an upgrade removed) the start fails and the commit ends with
+  "The commit service did not start".
+  Nothing smaller is safe there:
+  the commit service is the only writer of a commit,
+  this release does not hand one to another release's service,
+  and the manager reads the program from the link on the text it holds.
   The cost is this worktree's own:
   measured in a disposable manager holding 4,059 units,
   the manager held a stopped socket and service no longer on the first 50 ms poll,

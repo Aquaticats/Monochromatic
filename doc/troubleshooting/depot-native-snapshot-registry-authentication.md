@@ -13,7 +13,7 @@ That distinguishes these observed request paths;
 it does not establish the server-side reason for the registry RPC rejection.
 
 The [sealed receipt](../audit/depot-native-snapshot-absence-2026-10-18.evidence.json)
-and its [source archive](../audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz)
+and its source archive (`../audit/depot-native-snapshot-absence-2026-10-18.sources.json.gz`)
 retain the source contracts,
 selected authentication controls,
 creator identities,
@@ -21,6 +21,8 @@ timestamps,
 and original response hashes.
 The complete CI response remains private;
 only the required response status and request identity are published.
+`depot-native-snapshot-absence-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Exercised OCI authentication bridge
 
