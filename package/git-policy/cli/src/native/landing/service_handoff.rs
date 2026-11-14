@@ -626,6 +626,29 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
 }
 
 /// What:
+///  Moves a push record whose commit Git holds in the branch's remote to `done`,
+/// from the state it waits in.
+/// Why:
+///   `done` is the state a settlement already has,
+/// so the record stays known to the queue (a repeat landing adds
+///  nothing) and stops being a thing no round may run.
+/// A move that fails leaves the record where it is,
+/// which costs a line that
+///  is still true of the record and loses nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settle = (workDir, state, id) => { mkdirp(join(workDir, 'done')); rename(join(workDir, state, id), join(workDir, 'done', id)); };
+/// ```
+fn settle_where_a_push_that_was_made_is_kept(work_dir: &Path, state: &str, name: &str) {
+    let done: PathBuf = state_directory(work_dir, crate::work_item::DONE);
+    if crate::private_storage::create_private_directory_all(done.as_path()).is_err() {
+        return;
+    }
+    let _settled: std::io::Result<()> = std::fs::rename(state_directory(work_dir, state).join(name), done.join(name));
+}
+
+/// What:
 ///  Moves a held record whose commit Git holds in the branch's remote to `done`,
 /// where the queue keeps a push that was made.
 /// Why:
@@ -641,11 +664,7 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
 /// const settleHeld = (workDir, id) => { mkdirp(join(workDir, 'done')); rename(join(workDir, 'held', id), join(workDir, 'done', id)); };
 /// ```
 fn settle_held(work_dir: &Path, name: &str) {
-    let done: PathBuf = state_directory(work_dir, crate::work_item::DONE);
-    if crate::private_storage::create_private_directory_all(done.as_path()).is_err() {
-        return;
-    }
-    let _settled: std::io::Result<()> = std::fs::rename(state_directory(work_dir, crate::work_item::HELD).join(name), done.join(name));
+    settle_where_a_push_that_was_made_is_kept(work_dir, crate::work_item::HELD, name);
 }
 
 /// The branch one held record names.
@@ -692,26 +711,39 @@ pub const PUSH_QUEUED_AFTER: std::time::Duration = std::time::Duration::from_sec
 ///  The one line a command says about the pushes this worktree has queued and no service has taken,
 /// and how many more wait the same way.
 /// Why:
-///   A push record in `pending` is a push that has not been made and that the service takes without any further commit.
-/// A wrapper
-///  killed between promoting the record and waking the service leaves one,
-/// and a service that went away before it
-///  looked leaves one;
-/// the command that would have said "the push is queued" died,
-/// so the record is the only place
-///  the statement can come from,
+///   A push record in `pending` is a push that has not been made and that a running service takes without any further
+/// commit
+/// (`LOOK_AGAIN_AFTER` in `service_claim_watch.rs`).
+/// A wrapper killed between promoting the record and waking the service
+///  leaves one,
+/// and a service that went away before it looked leaves one;
+/// the command that would have said "the push is
+///  queued" died,
+/// so the record is the only place the statement can come from,
 /// and every later command reads it from there.
+///   A record whose commit Git already holds in the branch's upstream ref is a push that was made,
+/// by the service or by
+///  the person's own `git push`,
+/// and nothing waits on it:
+/// the same proof that settles a held record settles it
+///  (`held_push_commit_on_the_remote.rs`),
+/// so the line and `git status` agree instead of the line outliving the push.
+/// The
+///  records that still wait wake the service,
+/// as a released held record does,
+/// so the command that says a push is queued is also
+///  the command that has the service look at it now.
 ///   One push is named and the rest are counted,
 /// because the person acts on the oldest and the list of a
 ///  container's unserved commits has no end.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// queuedPushNotices(gitDir, now) // the oldest pending push, then a count
+/// queuedPushNotices(gitDir, now, record, wake) // settle what Git already holds; the oldest waiting push, then a count; wake
 /// ```
-pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime) -> Vec<String> {
+pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime, record: &dyn RemoteRecord, wake: &dyn WakeTheService) -> Vec<String> {
     let work_dir: PathBuf = work_directory(git_dir);
-    let mut waiting: Vec<(String, std::time::SystemTime)> = Vec::new();
+    let mut waiting: Vec<(std::time::SystemTime, String, String)> = Vec::new();
     for (name, queued) in crate::work_item::entries_oldest_first(work_dir.as_path(), crate::work_item::PENDING) {
         if !name.starts_with(format!("{}-", WorkKind::Push.name()).as_str()) {
             continue;
@@ -719,26 +751,31 @@ pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime) -> Vec<St
         if now.duration_since(queued).unwrap_or(std::time::Duration::ZERO) < PUSH_QUEUED_AFTER {
             continue;
         }
-        waiting.push((name, queued));
+        // The record names its own commit and branch; one that cannot be read still names its commit through its file name, and
+        //  a record with no branch has no upstream to ask about.
+        let path: PathBuf = state_directory(work_dir.as_path(), crate::work_item::PENDING).join(name.as_str());
+        let (commit, reference): (String, String) = match std::fs::read_to_string(path).ok().and_then(work_item_of) {
+            Some(item) => (item.oid, item.branch_ref),
+            None => match crate::work_item_ids_and_names::object_of_a_record_name(name.as_str()) {
+                Some(commit) => (commit.to_string(), String::new()),
+                None => continue,
+            },
+        };
+        if !reference.is_empty() && record.on_the_remote(reference.as_str(), commit.as_str()) == OnTheRemote::There {
+            settle_where_a_push_that_was_made_is_kept(work_dir.as_path(), crate::work_item::PENDING, name.as_str());
+            continue;
+        }
+        waiting.push((queued, commit, reference));
     }
-    let Some((oldest, queued)) = waiting.first() else { return Vec::new() };
-    // The record names its own commit and branch; one that cannot be read still names its commit through its file name, and its
-    //  branch is unknown.
-    let path: PathBuf = state_directory(work_dir.as_path(), crate::work_item::PENDING).join(oldest.as_str());
-    let record: Option<WorkItem> = std::fs::read_to_string(path).ok().and_then(work_item_of);
-    let (commit, reference): (String, String) = match record {
-        Some(item) => (item.oid, item.branch_ref),
-        None => match crate::work_item_ids_and_names::object_of_a_record_name(oldest.as_str()) {
-            Some(commit) => (commit.to_string(), String::new()),
-            None => return Vec::new(),
-        },
-    };
+    let Some((queued, oldest_commit, oldest_reference)) = waiting.first() else { return Vec::new() };
     let waited: std::time::Duration = now.duration_since(*queued).unwrap_or(std::time::Duration::ZERO);
-    let mut lines: Vec<String> = vec![queued_push_line(reference.as_str(), commit.as_str(), waited)];
+    let mut lines: Vec<String> = vec![queued_push_line(oldest_reference.as_str(), oldest_commit.as_str(), waited)];
     let more: usize = waiting.len() - 1;
     if more > 0 {
         let (subject, possessive): (&str, &str) = if more == 1 { ("commit is", "its") } else { ("commits are", "their") };
         lines.push(format!("{more} more {subject} queued for {possessive} push the same way"));
     }
+    // The service is told now, so the record that waits is taken without waiting for the next commit either.
+    wake.wake(git_dir);
     return lines;
 }

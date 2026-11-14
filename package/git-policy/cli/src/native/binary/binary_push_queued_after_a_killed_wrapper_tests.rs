@@ -234,6 +234,44 @@ fn a_service_that_starts_pushes_the_queued_record_with_no_further_commit() {
 }
 
 /// What:
+///  A push record waiting for a service is settled, and not named, once the person's own push has made the commit,
+/// and the command that finds it asks the service to look.
+/// Why:
+///   The line reads the record,
+/// and the record outlives a hand push exactly as it outlives a service's own:
+/// on 2026-11-13
+///  `integrate/git-policy-cli-pass-25-for-alpha-23` said "the push has not been made yet" on every command after
+///  `git push origin HEAD` had put `HEAD` on its upstream.
+/// A line that says a push has not been made while `git status` shows it
+///  on the remote is untrue, and Git's own record of the branch's upstream is the proof that settles it
+/// (`held_push_commit_on_the_remote.rs`).
+#[test]
+fn a_queued_record_whose_commit_a_person_pushed_is_settled_and_not_named() {
+    let setup: Setup = setup("push-queued-settled-by-a-hand-push");
+    let commit: String = commit_and_die_after_promote(&setup, "one\n");
+    // No service runs, so nothing takes the record while the person pushes by hand.
+    setup.service.stop_all();
+    git(&setup.fixture, &setup.repo, &["push", "--quiet", "origin", "main"]);
+    assert!(remote_has(&setup, commit.as_str()), "the hand push made the commit");
+    assert_eq!(pending_push_records(&setup).len(), 1, "the record still waits");
+    // The record is older than the bound a record must pass to be named, so a command that did not settle it would name it.
+    let pending: PathBuf = state_directory(work_directory(git_dir(&setup).as_path()).as_path(), PENDING).join(pending_push_records(&setup)[0].as_str());
+    let aged: std::time::SystemTime = std::time::SystemTime::now() - PUSH_QUEUED_AFTER - Duration::from_secs(1);
+    std::fs::File::options().write(true).open(pending.as_path()).expect("the record opens").set_modified(aged).expect("the record is aged");
+    let said: Observed = run_without_settling(&setup, &["status", "--short"]);
+    let text: String = stderr_of(&said);
+    assert_eq!(said.code, Some(0), "{text}");
+    assert!(!text.contains("is queued for its push"), "a commit the remote holds is not named as queued: {text}");
+    assert!(pending_push_records(&setup).is_empty(), "the record was settled: {:?}", pending_push_records(&setup));
+    let done: PathBuf = state_directory(work_directory(git_dir(&setup).as_path()).as_path(), git_policy_cli::work_item::DONE);
+    assert!(
+        std::fs::read_dir(done.as_path()).is_ok_and(|listing| { return listing.flatten().any(|entry| { return entry.file_name().to_string_lossy().starts_with(format!("push-{commit}").as_str()); }); }),
+        "the record is where a push that was made is kept"
+    );
+    remove_settled(&setup.fixture);
+}
+
+/// What:
 ///  A commit the post-commit gate blocks leaves no runnable record and no queued line.
 /// Why:
 ///   The negative control of the line:

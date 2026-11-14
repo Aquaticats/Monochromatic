@@ -213,8 +213,16 @@ pub(crate) fn show_push_failures<F: RepositoryFacts>(stripped: &StrippedInvocati
         let _written = writeln!(std::io::stderr(), "{line}");
     }
     // A push record no service has taken is a queued push that no command has said anything about: the one that left it was
-    //  killed before it could, or the service went away before it looked. The record is where that statement lives.
-    for line in crate::service_handoff::queued_push_notices(git_dir.as_path(), std::time::SystemTime::now()) {
+    //  killed before it could, or the service went away before it looked. The record is where that statement lives, and a record
+    //  whose commit Git already holds in the branch's remote is settled here instead of named, because the person's own push
+    //  may have made it after the record was left.
+    let record: GitRemoteRecord<'_> = GitRemoteRecord { context: &context, cwd: cwd.as_path() };
+    for line in crate::service_handoff::queued_push_notices(
+        git_dir.as_path(),
+        std::time::SystemTime::now(),
+        &record,
+        &crate::held_push_release_wakes_the_service::AskTheService { context: &context },
+    ) {
         // A closed terminal is not a reason to stop the command the person asked for.
         let _written = writeln!(std::io::stderr(), "{line}");
     }
