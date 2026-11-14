@@ -200,9 +200,9 @@ fn play_between_look_and_write() {
 /// because the commit a worktree shows is not this command's to rewrite.
 ///   A switch can also land in the instant between the last look at the checkout and the write of the reference,
 /// and a switch onto a branch whose tree matches the old tip on the merge's paths does not refuse:
-/// it carries the merge's content over as a staged change,
-///  (a review of commit `b0c133f42b`, its finding:
-/// the comment here said such a switch refuses, and it does not).
+/// it carries the merge's content over as a staged change.
+/// The comment here said such a switch refuses, and it does not
+///  (a review of commit `b0c133f42b`, its finding).
 /// So the checkout is looked at once more after the reference moved,
 /// and the tree of the branch it shows is written over the paths this move wrote:
 ///  the merge's for the pushed branch, and that branch's own content for any other.
