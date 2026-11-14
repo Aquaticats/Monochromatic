@@ -325,6 +325,49 @@ fn a_note_that_may_be_missing_refuses_a_directory_of_another_instance() {
 }
 
 /// What:
+///  A note written while a service runs is found by its look,
+/// and the look names the repository only while a record waits in it.
+/// Why:
+///   This is the look's whole job (`look_again`):
+/// the landing writes a note before it answers a commit,
+/// so a push
+///  promoted afterwards is found by a service that started before either,
+/// and a repository whose records are all settled is named
+///  by no look at all.
+#[test]
+fn the_look_names_a_repository_holding_a_record_and_no_other() {
+    let root: PathBuf = scratch("look");
+    let git_dir: PathBuf = git_dir_with_work(root.as_path(), "repo.git");
+    let other: PathBuf = git_dir_with_work(root.as_path(), "other.git");
+    let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);
+    let instance: String = instance_of(git_dir.as_path());
+    // The service of this instance starts knowing nothing of either repository.
+    let mut watch: ClaimWatch = ClaimWatch::restored(store.as_path(), Some(instance.as_str()));
+    assert!(watch.look_again().is_empty(), "nothing is waiting and nothing is named");
+    // The landing writes the note of its repository, and the promotion leaves a record in it, with no wake.
+    note_for_the_next_service(store.as_path(), Some(instance.as_str()), git_dir.as_path());
+    std::fs::create_dir_all(state_directory(work_directory(git_dir.as_path()).as_path(), PENDING)).expect("the waiting directory");
+    std::fs::write(state_directory(work_directory(git_dir.as_path()).as_path(), PENDING).join("push-a-record"), b"{}").expect("a record waits");
+    assert_eq!(watch.look_again(), vec![git_dir.clone()], "the note written since the start is read and its record named");
+    // The record is settled, as a push that was made is, and a second repository holds only finished records: the look names
+    //  neither, so a repository whose records are all settled costs one listing of an empty directory and nothing more.
+    std::fs::rename(
+        state_directory(work_directory(git_dir.as_path()).as_path(), PENDING).join("push-a-record"),
+        {
+            let done: PathBuf = state_directory(work_directory(git_dir.as_path()).as_path(), crate::work_item::DONE);
+            std::fs::create_dir_all(done.as_path()).expect("the finished directory");
+            done.join("push-a-record")
+        },
+    )
+    .expect("the record is settled");
+    std::fs::create_dir_all(state_directory(work_directory(other.as_path()).as_path(), crate::work_item::DONE)).expect("the finished directory");
+    std::fs::write(state_directory(work_directory(other.as_path()).as_path(), crate::work_item::DONE).join("push-a-record"), b"{}").expect("a finished record");
+    watch.remember(other.as_path());
+    assert!(watch.look_again().is_empty(), "a repository with no record waiting is named by no look");
+    let _removed = std::fs::remove_dir_all(&root);
+}
+
+/// What:
 ///  A note owed for a path that leads to another repository by the time it is written is not written either.
 /// Why:
 ///   The pause before a retry is long enough for a path to be replaced by a link,
@@ -353,5 +396,29 @@ fn a_note_owed_for_a_path_that_now_leads_elsewhere_is_not_written() {
     assert!(watch.retry().is_empty());
     assert!(watch.directories().is_empty(), "the repository the path leads to now is not this instance's, so it is not watched");
     assert!(files_of(store.as_path()).is_empty(), "and no note of it is written");
+    let _removed = std::fs::remove_dir_all(&root);
+}
+
+/// What:
+///  A look whose reading of the notes fails says so by owing the read,
+/// and the pause it is asked again after grows.
+/// Why:
+///   The look is asked every few seconds,
+/// so a journal that stopped answering must thin its own attempts out rather
+///  than fill the blocking pool with them (`notes_owed_again`).
+#[test]
+fn a_look_that_cannot_read_the_notes_owes_the_read_and_waits_longer() {
+    let root: PathBuf = scratch("look-unread");
+    let git_dir: PathBuf = git_dir_with_work(root.as_path(), "repo.git");
+    let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);
+    let mut watch: ClaimWatch = ClaimWatch::restored(store.as_path(), None);
+    watch.remember(git_dir.as_path());
+    assert!(!watch.needs_retry(), "a note that was written owes nothing");
+    let failing: ReadFile<'_> = &|_path: &Path| { return Err(std::io::Error::other("the journal did not answer")); };
+    let _named: Vec<PathBuf> = watch.look_again_reading(failing);
+    assert!(watch.needs_retry(), "the read that failed is owed again");
+    let once: Duration = watch.pause(FIRST);
+    let _again: Vec<PathBuf> = watch.look_again_reading(failing);
+    assert!(watch.pause(FIRST) > once, "the pause grows with each failure: {:?} then {:?}", once, watch.pause(FIRST));
     let _removed = std::fs::remove_dir_all(&root);
 }
