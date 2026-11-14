@@ -123,7 +123,7 @@ fn config(name: &str) -> ClientConfig {
         activation: Activation::StartedByTheWrapper,
         start_wait: PATIENCE,
         heartbeat_silence: QUICK_SILENCE,
-        starter: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, waiting_notice_after: QUICK_NOTICE,
+        starter: None, keep_fresh: None, answer_ceiling: git_policy_cli::wait_ceilings::ANSWER_CEILING, withdraw_ceiling: git_policy_cli::wait_ceilings::WITHDRAW_CEILING, extra_wait: git_policy_cli::wait_ceilings::SHORT_EXTRA_WAIT, start_ceiling: git_policy_cli::wait_ceilings::START_CEILING, recovering_ceiling: git_policy_cli::wait_ceilings::RECOVERING_CEILING, waiting_notice_after: QUICK_NOTICE,
     };
 }
 

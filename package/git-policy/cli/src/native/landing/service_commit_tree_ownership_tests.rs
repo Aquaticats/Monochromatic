@@ -57,7 +57,7 @@ fn an_unanswered_submission_keeps_the_tree_and_a_definite_refusal_does_not() {
         ClientFailure::ServiceNotReading { took_nothing: true },
         ClientFailure::ServiceNotReading { took_nothing: false },
         // Nothing answered at the service's address, so the request was never sent at all.
-        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: std::time::Duration::from_secs(10) },
+        ClientFailure::ServiceRecovering { address: String::from("/run/user/1000/x.sock"), waited: std::time::Duration::from_secs(120), log: None },
     ] {
         assert!(the_service_never_took(&Err(refused.clone())), "the service never took the request: {refused:?}");
     }

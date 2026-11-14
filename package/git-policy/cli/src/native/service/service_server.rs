@@ -191,6 +191,18 @@ pub struct ServeSettings {
     /// (`service_journal_restored_at_start.rs`);
     /// a control shortens it.
     pub journal_restore_ceiling: Duration,
+    /// What:
+    ///  The journal one level above this instance's own,
+    ///  the single one the earlier releases kept,
+    ///  whose open batches of this worktree this service finishes;
+    ///  and nothing when there is none.
+    /// Why:
+    ///  It is finished after the acceptor starts, never before:
+    /// a batch left open by an earlier release is recovered with a landing,
+    /// which can wait on a foreign `index.lock` for `LANDING_LOCK_CEILING` (one minute),
+    /// and a service that does that before it answers is a service that reads as stopped to the client that is waiting
+    ///  (the review of `77f5d525e3`, finding 3).
+    pub earlier_journal: Option<PathBuf>,
     /// What the service does when that directory is gone:
     /// the shipped one stops this service's own socket through the user manager
     ///  (`service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone`),
@@ -212,6 +224,7 @@ impl ServeSettings {
             own_git_dir: None,
             own_worktree_check: OWN_WORKTREE_CHECK,
             journal_restore_ceiling: START_CEILING,
+            earlier_journal: None,
             own_units_stop: crate::service_units_of_removed_worktrees::stop_own_socket_when_the_worktree_is_gone,
         };
     }
@@ -351,6 +364,27 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     }
     start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
     let _reports = settle_open_batches(context, settings.instance.as_deref());
+    // What:
+    //  The batches an earlier release's single service left open for this worktree are finished here,
+    //  after the acceptor started and before the first landing of this loop.
+    // Why:
+    //  The recovery lands, and a landing waits on the index lock for up to `LANDING_LOCK_CEILING`;
+    // a service that does it before it answers greets no one for that long,
+    // and a client that met it reported that nothing answered although the service was alive
+    //  (the review of `77f5d525e3`, finding 3).
+    //  Reading its records here is safe for the same reason the in-serve recovery is:
+    // the loop is the one landing, so nothing lands while it recovers, and a request that arrives meanwhile waits in the
+    // queue this thread reads when it is done.
+    if let (Some(shared), Some(instance)) = (settings.earlier_journal.as_deref(), settings.instance.as_deref()) {
+        let earlier: LandContext = LandContext { git: context.git.clone(), journal: shared.to_path_buf(), on_objects_written: None, lock_ceiling: context.lock_ceiling };
+        crate::service_log!("recovering the batches an earlier release left open in {}, before the first landing", shared.display());
+        #[cfg(test)]
+        crate::service_fault::hooks::run_on_any_thread(crate::service_land_finish::THE_EARLIER_JOURNALS_RECOVERY);
+        let _reported = crate::service_land_finish::recover_instance(&earlier, instance);
+        // Nothing reads that journal's finished batches any more; the newest are kept, and an older one goes only once no
+        //  client of it may still read it, so it stops growing.
+        let _pruned = prune_done(shared, DONE_RETAINED, &crate::claim_time::ClaimTime::read());
+    }
     // The memory of landed requests is bounded: a finished record goes only when no client of it may still read it,
     //  and only past the newest `DONE_RETAINED` of the journal, before the rest are read into that memory.
     let pruned: usize = prune_done(context.journal.as_path(), DONE_RETAINED, &crate::claim_time::ClaimTime::read());

@@ -108,3 +108,59 @@ fn a_claim_in_a_folder_that_is_not_there_is_an_error() {
     let address: PathBuf = root.join("not-there").join("3f9a.sock");
     assert!(claim(address.as_path()).is_err(), "no claim file can be made beside an address whose folder is not there");
 }
+
+/// What:
+///  A claim is of the file the path names once the lock is held:
+///  a command that opened a file another command then unlinked, and locked it after that command's claim ended,
+///  is told another process has the claim, never that it holds one on a file no path names.
+/// Why:
+///  The lock says which file a process holds and never that the file is the address's claim: the holder that ends
+///  unlinks the file by its inode, and the next command creates another at the path. Two claims on one address, one of them
+///  on a dead file, is the defect the claim exists for (the review of `77f5d525e3`, finding 2).
+#[test]
+fn a_claim_is_of_the_file_the_path_names_when_the_lock_is_held() {
+    let root: PathBuf = folder("opened-before-the-unlink");
+    let address: PathBuf = an_address(root.as_path());
+    let claim_path: PathBuf = path(address.as_path());
+    // The taker that was there first: this call stands for it and holds the file the second one opens.
+    let Claim::Held(first) = claim(address.as_path()).expect("the claim is made") else { panic!("nothing held this claim") };
+    // The second taker opens the same file, and waits where the seam is until this control lets it lock.
+    let (opened, it_opened) = std::sync::mpsc::channel::<()>();
+    let (let_go, wait_here) = std::sync::mpsc::channel::<()>();
+    let second_address: PathBuf = address.clone();
+    let second = std::thread::spawn(move || {
+        let mut opened_it = Some(opened);
+        let mut wait_for = Some(wait_here);
+        return claim_seamed(second_address.as_path(), &mut move || {
+            let _told = opened_it.take().map(|told| { return told.send(()); });
+            let _let_go = wait_for.take().map(|waits| { return waits.recv(); });
+        });
+    });
+    it_opened.recv().expect("the second taker opened the file");
+    // The first taker ends the way a failed takeover does, and another command puts its own file at the path.
+    drop(first);
+    assert!(!claim_path.exists(), "the first taker's file goes with its claim");
+    let Claim::Held(third) = claim(address.as_path()).expect("the claim is made") else { panic!("nothing held this claim") };
+    let _let_go = let_go.send(());
+    let second_claim = second.join().expect("the second taker ends").expect("the second taker answers");
+    let second_holds: bool = matches!(second_claim, Claim::Held(_));
+    assert!(!second_holds, "the second taker holds no claim on a file the path no longer names");
+    assert!(claim_path.exists(), "and it removed nothing of the third taker's file: {}", claim_path.display());
+    // The third taker's own claim goes with it, as every claim does.
+    drop(third);
+    assert!(!claim_path.exists(), "the third taker's file goes when its claim ends");
+}
+
+/// What:
+///  A claim on a file the path still names is held, so the check only refuses a file that went.
+/// Why:
+///  The ordinary takeover is two opens of one file (a killed taker's, which nobody holds), and it must still be claimed.
+#[test]
+fn a_claim_on_a_file_that_did_not_go_is_held() {
+    let root: PathBuf = folder("file-that-stayed");
+    let address: PathBuf = an_address(root.as_path());
+    std::fs::write(path(address.as_path()), b"").expect("a claim file a killed taker left");
+    let Claim::Held(taken) = claim(address.as_path()).expect("the claim is made") else { panic!("a file nobody holds is a claim") };
+    drop(taken);
+    assert!(!path(address.as_path()).exists(), "and the takeover that took it over removes it");
+}

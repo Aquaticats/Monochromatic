@@ -33,6 +33,7 @@ fn config(socket: &str) -> ClientConfig {
         waiting_notice_after: Duration::from_secs(60),
         extra_wait: Duration::from_secs(1),
         start_ceiling: Duration::from_millis(400),
+        recovering_ceiling: crate::wait_ceilings::RECOVERING_CEILING,
     };
 }
 
@@ -83,29 +84,6 @@ fn an_address_nothing_listens_on_ends_with_the_plain_failure() {
     assert!(began.elapsed() < Duration::from_secs(5), "the wait ends at its bound");
 }
 
-/// What: A connection something accepts but never answers is named as that, not as a start that never happened.
-/// Why:  The two states have two different next steps, and the old words sent a person to a log that holds nothing.
-#[test]
-fn an_address_that_answers_nothing_is_named_truly() {
-    let socket: String = address("answers-nothing");
-    let service = listen_at(socket.as_str()).expect("the service listens");
-    let holding = std::thread::spawn(move || {
-        let mut held = Vec::new();
-        while let Ok((stream, _)) = service.accept() {
-            held.push(stream);
-            if held.len() > 64 {
-                break;
-            }
-        }
-    });
-    let mut announced: bool = false;
-    let reached = reach(&config(socket.as_str()), &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), false);
-    match reached.err() {
-        Some(ClientFailure::NothingAnswered { .. }) => {}
-        other => panic!("an address whose connections nothing answers must be named so, not {other:?}"),
-    }
-    std::mem::forget(holding);
-}
 
 /// What: A service that greeted earlier in this command and now says nothing is the service that stopped.
 /// Why:  Its heartbeats are what tell a working batch from a stopped process; a command that saw a greeting knows the difference,
@@ -161,7 +139,7 @@ fn a_service_of_another_release_is_asked_to_retire() {
 }
 
 /// What:
-///  The line a wait prints when nothing has answered is written while the wait still goes on,
+///  The line a wait prints for a service that is there and has not answered is written while the wait still goes on,
 ///  and the wait still ends at its own bound.
 /// Why:
 ///  A line read only at the end of the wait is a line a person sees after the thing it explains has stopped happening:
@@ -175,6 +153,7 @@ fn the_notice_of_a_wait_reaches_the_person_before_the_wait_ends() {
     let mut settings: ClientConfig = config(socket.as_str());
     // Twice the notice grace, so the line and the end of the wait are a second apart at the least.
     settings.start_wait = Duration::from_millis(2_400);
+    settings.recovering_ceiling = Duration::from_millis(2_400);
     let mut notices: TimesOfLines = TimesOfLines::start();
     let mut announced: bool = false;
     let began: std::time::Instant = std::time::Instant::now();
@@ -182,13 +161,13 @@ fn the_notice_of_a_wait_reaches_the_person_before_the_wait_ends() {
     let waited: Duration = began.elapsed();
     let said: Vec<(Duration, String)> = notices.lines();
     let text: String = said.iter().map(|(_when, line)| { return line.as_str(); }).collect();
-    let telling: Vec<&(Duration, String)> = said.iter().filter(|(_when, line)| { return line.contains("nothing has answered at"); }).collect();
+    let telling: Vec<&(Duration, String)> = said.iter().filter(|(_when, line)| { return line.contains("has not answered yet"); }).collect();
     assert_eq!(telling.len(), 1, "one line, and one only: {text:?}");
     let (when, _line): &(Duration, String) = telling[0];
     assert!(text.contains(socket.as_str()), "the line names the address: {text}");
     assert!(*when < Duration::from_millis(1_500), "the line is read while the wait goes on ({when:?} of {waited:?}): {text}");
     assert!(waited >= settings.start_wait, "and the wait still ends at its own bound: {waited:?}");
-    assert!(matches!(failure, ClientFailure::NothingAnswered { .. }), "the end says what the wait proved: {failure:?}");
+    assert!(matches!(failure, ClientFailure::ServiceRecovering { .. }), "the end says what the wait proved: {failure:?}");
     finished.store(true, std::sync::atomic::Ordering::Relaxed);
     serving.join().expect("the stand-in service's thread");
     drop(held);
@@ -243,4 +222,135 @@ fn take_connections_and_greet_nothing(listener: std::os::unix::net::UnixListener
         }
     });
     return (finished, held, serving);
+}
+
+/// The settings of a control that meets a service of this release at a real address,
+/// with the gate the retiring of an earlier release's units passes through open:
+/// the runtime directory the environment named is this one,
+/// and a bus address sits inside it.
+fn config_with_a_gate(socket: &std::path::Path, runtime: &std::path::Path) -> ClientConfig {
+    let mut settings: ClientConfig = config("gate-is-open");
+    settings.address = Bind::Path(socket.to_path_buf());
+    settings.starter = Some(crate::service_server_start_by_the_wrapper::ServerToStart {
+        socket: socket.to_path_buf(),
+        instance: String::from("3f9a"),
+        journal: runtime.join("journal"),
+        git: std::path::PathBuf::from("/usr/bin/git"),
+        program: std::path::PathBuf::from("/bin/true"),
+        manager: None,
+        named_runtime_dir: Some(runtime.to_path_buf()),
+        bus_address: Some(format!("unix:path={}", runtime.join("bus").display())),
+    });
+    return settings;
+}
+
+/// What:
+///  A command served by its own release reads no unit folder and removes no earlier release's unit file.
+/// Why:
+///  The retiring of an earlier release's units exists for a service of an earlier release that holds this worktree's
+/// address, and a command that meets only its own release touches nothing: it ran for every commit and wake of this
+/// release's own service, which read the unit folder and asked the manager to stop units no earlier release ever wrote
+///  (the review of `77f5d525e3`, finding 1).
+#[test]
+fn a_command_served_by_its_own_release_removes_no_earlier_releases_unit_file() {
+    use std::io::Write;
+    let runtime: std::path::PathBuf = crate::test_support::short_directory_for_sockets("reach-own-release");
+    let socket: std::path::PathBuf = runtime.join("monochromatic-git-policy-cli").join("3f9a.sock");
+    std::fs::create_dir_all(socket.parent().unwrap_or(runtime.as_path())).expect("the socket folder");
+    // An earlier release's unit file, as it wrote it, in the folder the retiring reads.
+    let units: std::path::PathBuf = runtime.join("systemd").join("user");
+    std::fs::create_dir_all(units.as_path()).expect("the unit folder");
+    let earlier_unit: std::path::PathBuf = units.join("monochromatic-git-policy-cli@.service");
+    std::fs::write(
+        earlier_unit.as_path(),
+        "# Written by the git wrapper for its commit service (monochromatic-git-policy-cli-unit)\n[Unit]\nDescription=Commit service of one worktree for the git wrapper\n",
+    )
+    .expect("the earlier release's unit file");
+    // This release's own service at the address.
+    let service = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("the service listens");
+    let serving = std::thread::spawn(move || {
+        let (mut stream, _) = service.accept().expect("a connection");
+        let _sent = stream.write_all(line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
+        std::thread::sleep(Duration::from_millis(200));
+    });
+    let mut announced: bool = false;
+    // The retiring of an earlier release's units is in `reach_current`, which is what the commit and the hand-over call.
+    let reader = reach_current_untimed(&config_with_a_gate(socket.as_path(), runtime.as_path()), &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), false)
+        .expect("this release's own service is reached");
+    drop(reader);
+    serving.join().expect("the service ends");
+    assert!(earlier_unit.exists(), "a command that meets only its own release leaves an earlier release's unit file where it is");
+}
+
+/// What:
+///  A service that is there and greets only after the start's own bound is waited for, and served.
+/// Why:
+///  A live service can be slow to greet while it returns to work: it recovers the batches an earlier release left open,
+/// which can wait on a foreign index lock for a minute, and it builds its own runtime.
+/// The start's bound (`START_WAIT`) is for a start this command made, and a service that took the connection is not one:
+///  waiting only that long failed a commit the service would have served (the review of `77f5d525e3`, finding 3).
+#[test]
+fn a_service_that_greets_after_the_starts_own_bound_is_still_served() {
+    use std::io::Write;
+    let socket: String = address("greets-late");
+    let service = listen_at(socket.as_str()).expect("the service listens");
+    let serving = std::thread::spawn(move || {
+        // What a service that is recovering looks like: it takes every connection and says nothing for a while, then it
+        // greets every one. The while is a state of this control, not a speed of the machine: the bound it must outlast is
+        // the start's own, a tenth of it.
+        let began: Instant = Instant::now();
+        let recovering_for: Duration = Duration::from_millis(400);
+        while let Ok((mut stream, _)) = service.accept() {
+            if began.elapsed() < recovering_for {
+                continue;
+            }
+            let _sent = stream.write_all(line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
+        }
+    });
+    let mut announced: bool = false;
+    let mut settings: ClientConfig = config(socket.as_str());
+    settings.start_wait = Duration::from_millis(150);
+    settings.start_ceiling = Duration::from_millis(150);
+    settings.recovering_ceiling = Duration::from_secs(5);
+    let reached = reach(&settings, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), false);
+    let (reader, version, release) = reached.expect("a service that is there is waited for, and it greets");
+    assert_eq!(version, PROTOCOL_VERSION);
+    assert_eq!(release.as_deref(), Some(RELEASE));
+    drop(reader);
+    // The greeter ends when its listener is dropped, which is when the connection it greets closes.
+    std::mem::forget(serving);
+}
+
+/// What:
+///  A service that takes the connection and never greets ends the wait with the failure that says it is alive and
+///  returning to work, within its own stated bound, and never with the failure of a start.
+/// Why:
+///  "Nothing has answered" about a live service sends the person to look for a service that exists, and says nothing about
+///  what the service was doing; the sentence that says it is recovering names its log, which is where its recovery and the
+///  lock it waits for are written (the review of `77f5d525e3`, finding 3).
+#[test]
+fn a_service_that_takes_the_connection_and_greets_nothing_is_said_to_be_recovering() {
+    let socket: String = address("silent-but-there");
+    let service = listen_at(socket.as_str()).expect("the service listens");
+    let serving = std::thread::spawn(move || {
+        let mut held: Vec<std::os::unix::net::UnixStream> = Vec::new();
+        while let Ok((stream, _)) = service.accept() {
+            held.push(stream);
+            if held.len() > 16 {
+                return;
+            }
+        }
+    });
+    let mut announced: bool = false;
+    let mut settings: ClientConfig = config(socket.as_str());
+    settings.start_ceiling = Duration::from_millis(150);
+    settings.recovering_ceiling = Duration::from_millis(600);
+    let began: Instant = Instant::now();
+    let reached = reach(&settings, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), false);
+    let waited: Duration = began.elapsed();
+    let failure: ClientFailure = reached.expect_err("a service that greets nothing fails the wait");
+    assert!(matches!(failure, ClientFailure::ServiceRecovering { .. }), "a service that is there is not said to be absent: {failure:?}");
+    assert!(waited >= settings.start_ceiling, "and the start's own bound was not the end of it: {waited:?}");
+    assert!(waited < settings.recovering_ceiling + Duration::from_millis(600), "it ends within the bound a live service is given: {waited:?}");
+    std::mem::forget(serving);
 }

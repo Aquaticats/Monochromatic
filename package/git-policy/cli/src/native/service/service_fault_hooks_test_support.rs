@@ -94,10 +94,17 @@ pub(crate) struct HoldOnAnyThread {
     pub(crate) let_go: std::sync::mpsc::Receiver<()>,
 }
 
-/// The hold a control set,
-/// if any,
-/// taken by the thread that reaches it so a second reach passes.
-static HELD_ON_ANY_THREAD: std::sync::Mutex<Option<HoldOnAnyThread>> = std::sync::Mutex::new(None);
+/// What:
+///  The holds controls set,
+///  one per point,
+///  each taken by the thread that reaches its point so a second reach passes.
+/// Why:
+///  Two controls of one test binary hold two different points,
+/// and a registry that holds one at a time loses the other's hold when they run beside each other
+/// (`service_server_greets_before_the_journal_is_restored_tests.rs` holds the journal read and the earlier release's
+///  recovery).
+/// A hold for the same point twice still replaces the first: one control per point.
+static HELD_ON_ANY_THREAD: std::sync::Mutex<Vec<HoldOnAnyThread>> = std::sync::Mutex::new(Vec::new());
 
 /// What:
 ///  Holds `point` on whichever thread reaches it,
@@ -112,7 +119,9 @@ static HELD_ON_ANY_THREAD: std::sync::Mutex<Option<HoldOnAnyThread>> = std::sync
 /// const [reached, reachedWait] = channel(); const [letGo, held] = channel(); holdOnAnyThread({ point, reached, letGo: held });
 /// ```
 pub(crate) fn hold_on_any_thread(held: HoldOnAnyThread) {
-    *HELD_ON_ANY_THREAD.lock().expect("the hold registry") = Some(held);
+    let mut holds: std::sync::MutexGuard<'_, Vec<HoldOnAnyThread>> = HELD_ON_ANY_THREAD.lock().expect("the hold registry");
+    holds.retain(|one| one.point != held.point);
+    holds.push(held);
 }
 
 /// What:
@@ -211,7 +220,11 @@ pub(crate) async fn await_on_any_thread(point: &str) {
 /// const held = take(); if (held?.point !== point) return; held.reached.send(); held.letGo.recv();
 /// ```
 pub(crate) fn run_on_any_thread(point: &str) {
-    let taken: Option<HoldOnAnyThread> = HELD_ON_ANY_THREAD.lock().expect("the hold registry").take().filter(|held| { return held.point == point; });
+    let taken: Option<HoldOnAnyThread> = {
+        let mut holds: std::sync::MutexGuard<'_, Vec<HoldOnAnyThread>> = HELD_ON_ANY_THREAD.lock().expect("the hold registry");
+        let at: Option<usize> = holds.iter().position(|one| { return one.point == point; });
+        at.map(|found| { return holds.remove(found); })
+    };
     let Some(held) = taken else { return };
     let _said = held.reached.send(());
     let _let_go = held.let_go.recv();

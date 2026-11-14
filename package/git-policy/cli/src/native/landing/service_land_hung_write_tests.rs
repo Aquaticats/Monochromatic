@@ -129,6 +129,7 @@ fn client_with_extra_wait(serving: &Serving, answer_ceiling: Duration, withdraw_
         waiting_notice_after: PATIENCE,
         extra_wait,
         start_ceiling: PATIENCE,
+        recovering_ceiling: crate::wait_ceilings::RECOVERING_CEILING,
     };
 }
 

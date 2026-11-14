@@ -134,13 +134,15 @@ pub enum Platform {
 pub enum ClientFailure {
     /// The service was started and did not come up.
     DidNotStart,
-    /// Something accepted the connection at the service's address and nothing answered;
-    /// no service manager could be asked to start or restart it.
-    NothingAnswered {
+    /// A service is running at the address, took the connection, and has not greeted within the bound a live service's
+    /// own recoveries are given: it is alive and still returning to work.
+    ServiceRecovering {
         /// The address the service was asked at.
         address: String,
         /// How long the wait lasted.
         waited: Duration,
+        /// The file the service writes its own lines to, when this command knows it.
+        log: Option<std::path::PathBuf>,
     },
     /// The platform cannot start the service on demand.
     NoActivation(Platform),
@@ -319,7 +321,7 @@ pub fn render(failure: &ClientFailure) -> String {
             "The commit service did not start, so this commit was not made. Its log shows why: `{LOG_COMMAND}`. \
              Run the commit again after fixing that. {NOTHING_CHANGED}"
         ),
-        ClientFailure::NothingAnswered { address, waited } => crate::service_messages_of_a_service_that_stopped::nothing_answered(address.as_str(), *waited),
+        ClientFailure::ServiceRecovering { address, waited, log } => crate::service_messages_of_a_service_that_stopped::service_recovering(address.as_str(), *waited, log.as_deref()),
         ClientFailure::NoActivation(platform) => format!(
             "This computer cannot start the commit service on demand, so this commit was not made. {} {NOTHING_CHANGED}",
             platform_remedy(*platform)

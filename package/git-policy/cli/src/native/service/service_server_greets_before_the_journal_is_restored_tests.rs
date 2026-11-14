@@ -188,6 +188,40 @@ fn a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer
     assert!(joined, "the service ends when it is told to retire, so a read that gave no answer did not hold it");
 }
 
+/// What:
+///  A client is greeted while the batches an earlier release left open in the shared journal are being recovered.
+/// Why:
+///  That recovery lands, and a landing waits on a foreign `index.lock` for `LANDING_LOCK_CEILING` (one minute);
+/// a service that recovers before it answers greets no one for that long, and a client that met it reported that nothing
+///  answered although the service was alive (the review of `77f5d525e3`, finding 3).
+/// The recovery is held at its own fault point, so "while the recovery waits" is a state of the code and not a duration.
+#[test]
+fn a_client_is_greeted_while_the_batches_an_earlier_release_left_are_recovered() {
+    let world: World = world("earlier-journals-recovery");
+    // The shared journal the earlier releases kept, one level above this instance's own.
+    let shared: PathBuf = world.journal.join("shared");
+    std::fs::create_dir_all(shared.as_path()).expect("the shared journal");
+    let (reached, let_go) = crate::service_fault::hooks::hold_the_point(crate::service_land_finish::THE_EARLIER_JOURNALS_RECOVERY);
+    let listener: UnixListener = UnixListener::bind(world.socket()).expect("bind");
+    let context: LandContext = world.context();
+    let mut settings: ServeSettings = world.settings();
+    settings.instance = Some(String::from("3f9a"));
+    settings.earlier_journal = Some(shared.clone());
+    let serving = std::thread::spawn(move || {
+        serve(listener, &context, &settings);
+    });
+    let reached_the_recovery: Option<bool> = crate::test_support::finished_within_at(PATIENCE, move || { return reached.blocking_recv().is_ok(); });
+    assert_eq!(reached_the_recovery, Some(true), "the service reaches the recovery of the earlier release's batches, which it holds here");
+    // A client connects while that recovery waits, and is greeted: the acceptor started before it.
+    let stream: UnixStream = UnixStream::connect(world.socket()).expect("the service listens");
+    let _timeout = stream.set_read_timeout(Some(HEARTBEAT_EVERY * 3));
+    let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a second handle on the connection"));
+    assert!(greeted(&mut reader), "the service greets a client although the batches an earlier release left are still being recovered");
+    retire(world.socket().as_path());
+    let _let_go = let_go.send(());
+    assert!(join_within(serving), "the service ends when it is told to retire, so a recovered batch did not hold it");
+}
+
 /// Tells the service at `socket` to retire,
 /// which ends it once the batch it holds is landed.
 fn retire(socket: &Path) {

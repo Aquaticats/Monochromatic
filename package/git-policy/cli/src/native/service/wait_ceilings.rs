@@ -65,6 +65,48 @@ pub const MOVED_BRANCH_REBUILD_CEILING: Duration = ANSWER_CEILING;
 ///  work the person is waiting for.
 pub const START_CEILING: Duration = Duration::from_secs(60);
 
+/// What:
+///  The longest a command waits for a service that is there — its address takes the connection — and has not greeted yet.
+/// Why:
+///  A service that is alive can be slow to greet for two measured reasons and nothing else:
+/// the build of its own runtime, which `RUNTIME_BUILD_PATIENCE` (`START_CEILING`) waits for, and the batches an earlier
+///  release left open, which this release recovers after its acceptor starts and which can wait on a foreign
+///  `index.lock` for `LANDING_LOCK_CEILING` (one minute).
+///  So a live service is waited for the sum of the two, and past it the command says the service is alive and still
+/// returning to work, never that nothing answered
+/// (`service_client_reach_service.rs`; the review of `77f5d525e3`, finding 3).
+///  It is a wait for something that is there: a command that meets no service still ends at its start's own bound.
+pub const RECOVERING_CEILING: Duration = START_CEILING.saturating_add(LANDING_LOCK_CEILING);
+
+/// What:
+///  The environment variable that sets how long a command waits for a service that is there and has not greeted,
+///  in whole milliseconds.
+/// Why:
+///  A control of the sentence a person reads about a recovering service must not wait two minutes for it,
+/// and what it checks is the sentence and that the wait ends,
+///  not the number: measured on a live service that never greets, that is 120 s of a suite's time for nothing
+///  (`WAITING_NOTICE_VARIABLE` is the same device for a notice).
+pub const RECOVERING_CEILING_VARIABLE: &str = "CLI_GIT_TEST_ONLY_RECOVERING_MILLIS";
+
+/// What:
+///  `RECOVERING_CEILING`,
+///  or the setting that variable holds when it names a positive number of milliseconds.
+/// Why:
+///   See the variable: a control shortens the wait and nothing else does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recoveringCeiling() // Duration
+/// ```
+pub fn recovering_ceiling() -> Duration {
+    let Ok(text) = std::env::var(RECOVERING_CEILING_VARIABLE) else { return RECOVERING_CEILING };
+    let Ok(millis) = text.parse::<u64>() else { return RECOVERING_CEILING };
+    return match millis {
+        0 => RECOVERING_CEILING,
+        _ => Duration::from_millis(millis),
+    };
+}
+
 /// The longest a service waits for the build of its own multi-thread runtime,
 /// once that build has outlasted `BUILD_DEADLINE`,
 /// before it ends and lets the service manager start it again.

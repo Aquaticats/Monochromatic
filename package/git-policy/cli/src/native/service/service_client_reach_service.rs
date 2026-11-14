@@ -97,20 +97,35 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
         if !*announced && started.elapsed() >= START_NOTICE_GRACE {
             *announced = true;
             let address: String = crate::service_server::address_text(&config.address);
-            let _written = writeln!(notices, "{}", starting_notice(address.as_str(), "and this command starts it when it is not running"));
+            let _written = writeln!(
+                notices,
+                "{}",
+                match connected {
+                    // A service is there: saying this command starts it would be false.
+                    true => crate::service_messages_of_a_wait_for_the_service::recovering_notice(address.as_str()),
+                    false => starting_notice(address.as_str(), "and this command starts it when it is not running"),
+                }
+            );
         }
-        match &config.starter {
-            // One start is bounded by its own wait, so reaching this bound means a start is still under way in another command, or
-            //  a service keeps answering with something that is not this protocol: both fail the command in a known time.
-            Some(_) if started.elapsed() >= config.start_ceiling => {
-                return Err(if connected { nothing_answered(config, started.elapsed()) } else { ClientFailure::DidNotStart });
+        // What: A service that is there and has not greeted is a service that is alive and still returning to work, and it is
+        //       waited for its own bound; a start that was made and keeps sending nothing keeps the start's own bound.
+        // Why:  The two states have two next steps and two sentences: an address nothing listens on is a start that failed,
+        //       and a service that takes the connection and greets nothing is one that is running and recovering — from the
+        //       batches an earlier release left open, or from the build of its own runtime. Saying "nothing answered" about
+        //       the second failed commits a live service would have served (the review of `77f5d525e3`, finding 3).
+        let connected_ceiling: Duration = config.start_ceiling.max(config.recovering_ceiling);
+        // A start this command made, or a service that keeps answering with something that is not this protocol, ends at the
+        // start's bound; without an executable to start, the bound is the start wait, which is the same kind of bound.
+        let start_bound: Duration = match &config.starter {
+            Some(_) => config.start_ceiling,
+            None => config.start_wait,
+        };
+        if connected {
+            if started.elapsed() >= connected_ceiling {
+                return Err(recovering(config, started.elapsed()));
             }
-            Some(_) => {}
-            // Without an executable to start, nothing can start the service: what the wait comes to is the truth about the address.
-            None if started.elapsed() >= config.start_wait => {
-                return Err(if connected { nothing_answered(config, started.elapsed()) } else { ClientFailure::DidNotStart });
-            }
-            None => {}
+        } else if started.elapsed() >= start_bound {
+            return Err(ClientFailure::DidNotStart);
         }
         std::thread::sleep(CONNECT_PAUSE);
     }
@@ -139,20 +154,24 @@ fn greeting_patience(config: &ClientConfig, started: Instant) -> Duration {
 }
 
 /// What:
-///  The end of a wait where something took the connection but nothing answered.
+///  The end of a wait for a service that is there and has not greeted within its own bound.
 /// Why:
-///  `DidNotStart` was printed here where the service had started and then stopped inside its own process,
-/// which sent the person to a
-///  log that holds nothing about it;
-/// an address nothing listens on and an address whose connections go unanswered are two different
-///  states with two different next steps.
+///  It is not the failure of a start: the address takes connections, so a service process runs.
+/// Saying that nothing answered about it sends the person to look for a service that does not exist, and fails a commit
+///  the service would have served when its recovery or its runtime build ended
+/// (the review of `77f5d525e3`, finding 3).
+/// The service's own log names what it was doing, which is where a recovery's waiting is written.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// nothingAnswered(config, waited) // { nothing-answered } | { did-not-start }
+/// recovering(config, waited) // { service-recovering, address, waited, log }
 /// ```
-fn nothing_answered(config: &ClientConfig, waited: Duration) -> ClientFailure {
-    return ClientFailure::NothingAnswered { address: crate::service_server::address_text(&config.address), waited };
+fn recovering(config: &ClientConfig, waited: Duration) -> ClientFailure {
+    return ClientFailure::ServiceRecovering {
+        address: crate::service_server::address_text(&config.address),
+        waited,
+        log: config.starter.as_ref().map(|server| { return server.log(); }),
+    };
 }
 
 /// What:
@@ -229,12 +248,6 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
                 // A service that announces no release is this build's own, as every service this release starts is.
                 None => true,
             };
-            // What: A service of an earlier release is met, so an earlier release's units are what hold this worktree's address;
-            //       they are retired once in this command, before it asks the service to leave.
-            // Why:  A loaded socket unit of that release keeps the name bound, so a server of this release could never own it, and
-            //       the manager would start the old program again on every connection (`service_server_earlier_release_units.rs`).
-            //       A command that meets only its own release touches nothing.
-            let _retired: Vec<std::path::PathBuf> = retire_earlier_units_once(config);
             if newer_or_equal {
                 if release.as_deref() != Some(RELEASE) {
                     let _written = writeln!(notices, "{}", other_release_notice(release.as_deref()));
@@ -242,6 +255,14 @@ pub(crate) fn reach_current_untimed(config: &ClientConfig, notices: &mut dyn Wri
                 trace.answered_by = release;
                 return Ok(reader);
             }
+            // What: A service of an earlier release is met, so an earlier release's units are what hold this worktree's address;
+            //       they are retired once in this command, before it asks the service to leave.
+            // Why:  A loaded socket unit of that release keeps the name bound, so a server of this release could never own it, and
+            //       the manager would start the old program again on every connection (`service_server_earlier_release_units.rs`).
+            //       A command that meets only its own release touches nothing, which is why this is here and not above the return:
+            //       measured against the branch's own service, every commit read the unit folder and asked the manager to stop
+            //       units no earlier release ever wrote (the review of `77f5d525e3`, finding 1).
+            let _retired: Vec<std::path::PathBuf> = retire_earlier_units_once(config);
         }
         if version > PROTOCOL_VERSION {
             return Err(ClientFailure::NoCommonVersion);

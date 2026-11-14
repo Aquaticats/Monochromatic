@@ -11,7 +11,6 @@ use super::*;
 fn samples() -> Vec<ClientFailure> {
     let mut all: Vec<ClientFailure> = vec![
         ClientFailure::DidNotStart,
-        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/monochromatic-git-policy-cli/0123456789abcdef0123456789abcdef.sock"), waited: Duration::from_secs(10) },
         ClientFailure::OtherAccount,
         ClientFailure::MayNotHaveLanded,
         ClientFailure::NoCommonVersion,
@@ -61,6 +60,11 @@ fn samples() -> Vec<ClientFailure> {
         },
         ClientFailure::UnitInTheWay(String::from("/home/a/.config/systemd/user/cli-git.socket")),
         ClientFailure::WorkNotHandedOver(String::from("the work directory cannot be written")),
+        ClientFailure::ServiceRecovering {
+            address: String::from("/home/a/temp/agent/rt/monochromatic-git-policy-cli/3f9a.sock"),
+            waited: Duration::from_secs(120),
+            log: Some(std::path::PathBuf::from("/home/a/temp/agent/rt/monochromatic-git-policy-cli/3f9a.log")),
+        },
         ClientFailure::ContentPruned,
         ClientFailure::Interrupted { signal: libc::SIGINT, blocker: Some(String::from("a landing behind another program's index lock")) },
         ClientFailure::Interrupted { signal: libc::SIGTERM, blocker: None },
@@ -108,10 +112,10 @@ fn variant_index(failure: &ClientFailure) -> usize {
         ClientFailure::WithdrawalUnconfirmed { .. } => 21,
         ClientFailure::SocketPathTooLong { .. } => 28,
         ClientFailure::ServiceElsewhere { .. } => 29,
-        ClientFailure::NothingAnswered { .. } => 32,
         ClientFailure::Interrupted { .. } => 30,
         ClientFailure::InterruptedNotKnown { .. } => 31,
         ClientFailure::ServiceNotReading { .. } => 33,
+        ClientFailure::ServiceRecovering { .. } => 34,
     };
 }
 
@@ -270,11 +274,13 @@ fn messages_quote_their_constants_and_facts() {
     assert!(render(&ClientFailure::DidNotStart).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::Unavailable).contains(LOG_COMMAND));
     assert!(render(&ClientFailure::OtherRelease).contains(RESTART_COMMAND));
-    // What: The failure that a program other than this release answers names the link whose pointing decides it.
-    // Why:  A link that cannot be pointed is what keeps that program being started, and a person can only look at it by name.
+    // What: The failure that a program other than this release answers names the command that ends it on a machine with no
+    //       service manager.
+    // Why:  This release writes no unit and points no program link, so the thing a person can act on is the service itself:
+    //       a link named here would be a file nothing on this branch writes or reads (the review of `3d5c1a0d8c`, finding 9).
     assert!(
-        render(&ClientFailure::OtherRelease).contains(crate::service_instance::PROGRAM_LINK),
-        "the ending names the link: {}",
+        render(&ClientFailure::OtherRelease).contains(STOP_COMMAND),
+        "the ending names the command that ends the service: {}",
         render(&ClientFailure::OtherRelease)
     );
     assert!(render(&ClientFailure::NoCommonVersion).contains(STOP_COMMAND));
@@ -304,7 +310,6 @@ fn messages_quote_their_constants_and_facts() {
         ClientFailure::ServiceSilent,
         ClientFailure::ServiceNotReading { took_nothing: true },
         ClientFailure::ServiceNotReading { took_nothing: false },
-        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
     ] {
         let words: String = render(&failure);
         for command in [STATUS_COMMAND, STOP_COMMAND] {
@@ -318,7 +323,6 @@ fn messages_quote_their_constants_and_facts() {
     for not_made in [
         ClientFailure::ServiceNotReading { took_nothing: true },
         ClientFailure::ServiceNotReading { took_nothing: false },
-        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
     ] {
         let words: String = render(&not_made);
         assert!(words.contains(NOTHING_CHANGED), "{not_made:?} says nothing in the repository changed: {words}");
@@ -380,7 +384,6 @@ fn a_request_that_reached_the_service_is_not_described_as_one_that_never_can_lan
     for never_arrived in [
         ClientFailure::ServiceNotReading { took_nothing: true },
         ClientFailure::ServiceNotReading { took_nothing: false },
-        ClientFailure::NothingAnswered { address: String::from("/run/user/1000/x.sock"), waited: Duration::from_secs(10) },
     ] {
         let words: String = render(&never_arrived);
         assert!(words.contains("framing newline"), "{never_arrived:?} says a request is read only when its newline arrived: {words}");

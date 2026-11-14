@@ -396,6 +396,24 @@ pub fn recover(context: &LandContext) -> Vec<RecoveryReport> {
 /// ```ts
 /// await recoverInstance(context, instance)
 /// ```
+/// The point at which a service recovers the batches an earlier release left open,
+/// for a control that holds that recovery (`service_fault_hooks_test_support.rs`).
+#[cfg(test)]
+pub(crate) const THE_EARLIER_JOURNALS_RECOVERY: &str = "the-earlier-journals-recovery";
+
+/// What:
+///  Finishes the batches the single service of the earlier releases left open for one worktree,
+///  in the journal that service kept above every instance's own.
+/// Why:
+///  A worktree that an earlier release served may have a batch open there when this release's service starts for it,
+/// and finishing it is the only way the commit it was preparing is settled.
+///  The service runs this after its acceptor starts (`service_server.rs`, `serve_in_a_landing`),
+/// so the minute a landing may wait on a foreign index lock is never a minute in which the service answers no one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recoverTheEarlierJournalsOpenBatch(context, instance); // after the acceptor started
+/// ```
 pub fn recover_instance(context: &LandContext, instance: &str) -> Vec<RecoveryReport> {
     return recover_selected(context, Some(instance), JournalOwner::ThisService);
 }

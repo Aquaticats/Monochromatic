@@ -34,6 +34,10 @@
 //! (`service_files_of_a_stopped_instance.rs`, `forget_stopped_instance`).
 //!  Removal is safe because it happens after the address is bound:
 //! a taker that arrives once the file is gone finds the address accepting and never claims anything.
+//!  The file a claim is taken on is asked for again once the lock is held:
+//! a file that went between the open and the lock is a claim whose file no path names, and the command that opened it
+//!  answers as it does for a claim another process holds
+//! (`claim_the`; the review of `77f5d525e3`, finding 2).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -146,6 +150,16 @@ pub enum Claim {
 /// claim(address) // flock(claimFile(address), LOCK_EX | LOCK_NB)
 /// ```
 pub(crate) fn claim(address: &Path) -> std::io::Result<Claim> {
+    return claim_seamed(address, &mut do_nothing);
+}
+
+/// The call a claim makes between opening the claim file and taking the kernel's lock on it:
+/// none.
+fn do_nothing() {}
+
+/// `claim` with a call between the open and the lock, where a control may let another command open the same file, let its
+/// holder unlink it, and put another file at the path.
+pub(crate) fn claim_seamed(address: &Path, after_the_open: &mut dyn FnMut()) -> std::io::Result<Claim> {
     let claim_path: PathBuf = path(address);
     // What: Two rounds, and each one ends in a claim or in another process's claim.
     // Why:  This command creates the file when no takeover is in flight, and the round after a file that went between the
@@ -155,13 +169,13 @@ pub(crate) fn claim(address: &Path) -> std::io::Result<Claim> {
             // What: A file this command created is claimed in the same step, so no second process can slip in between.
             // Why:  A file that exists is not a claim: the claim is the kernel's lock on it, and a file created without one
             //       is a file another process may take (`claim_the`).
-            Ok(file) => return claim_the(file, claim_path),
+            Ok(file) => return claim_the(file, claim_path, after_the_open),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 // What: A file that is there is opened and claimed, or it is another process's claim.
                 // Why:  A file a killed taker left holds no claim: the kernel gave that up when the process ended, so this
                 //       command takes it and removes it at the end of its own takeover.
                 let Ok(file) = std::fs::OpenOptions::new().read(true).write(true).open(claim_path.as_path()) else { continue };
-                return claim_the(file, claim_path);
+                return claim_the(file, claim_path, after_the_open);
             }
             Err(refused) => return Err(refused),
         }
@@ -171,25 +185,46 @@ pub(crate) fn claim(address: &Path) -> std::io::Result<Claim> {
 
 /// What:
 ///  Takes the kernel's exclusive claim on an open claim file,
-///  without waiting.
+///  without waiting,
+///  and only while the path still names the file this call opened.
 /// Why:
 ///   A claim another process holds is a normal answer, not a failure: it is taking this address over at this instant.
+///  The file this call opened can stop being the claim's file between the open and the lock:
+/// a holder that is ending unlinks the file by its inode, a command between the two steps creates another at the path, and
+///  this call's lock lands on a file no path names any more.
+/// Two takers would then hold a claim each, one of them on a dead file, and the claim would no longer be one process's
+///  for one address (the review of `77f5d525e3`, finding 2).
+///  So the lock is taken and then the path is asked again: a path that names another file is another command's claim,
+/// and this call releases its lock and answers as it does for a claim it cannot have.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// flock(file, LOCK_EX | LOCK_NB) ? held : anotherProcessTakesOver
+/// flock(file, LOCK_EX | LOCK_NB) && sameFile(path, file) ? held : anotherProcessTakesOver
 /// ```
-fn claim_the(file: std::fs::File, path: PathBuf) -> std::io::Result<Claim> {
+fn claim_the(file: std::fs::File, path: PathBuf, after_the_open: &mut dyn FnMut()) -> std::io::Result<Claim> {
+    after_the_open();
     // SAFETY: `flock` takes a descriptor this process owns and one number, and touches no memory.
     let taken: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    if taken == 0 {
-        return Ok(Claim::Held(AddressTakeoverClaim::of(file, path)?));
+    if taken != 0 {
+        let refused: std::io::Error = std::io::Error::last_os_error();
+        return match refused.raw_os_error() {
+            Some(code) if code == libc::EWOULDBLOCK => Ok(Claim::AnotherProcessTakesOver),
+            _ => Err(refused),
+        };
     }
-    let refused: std::io::Error = std::io::Error::last_os_error();
-    return match refused.raw_os_error() {
-        Some(code) if code == libc::EWOULDBLOCK => Ok(Claim::AnotherProcessTakesOver),
-        _ => Err(refused),
+    // What: The path must still name the file this call locked, and a path that names anything else is another claim.
+    // Why:  The lock alone says which file this process holds, never that the file is the address's claim: the file is
+    //       unlinked by inode when the holder it was opened beside ends, and the next command creates a new one.
+    let opened: (u64, u64) = {
+        let metadata: std::fs::Metadata = file.metadata()?;
+        (metadata.dev(), metadata.ino())
     };
+    let named_now: Option<(u64, u64)> = std::fs::symlink_metadata(path.as_path()).ok().map(|metadata| { return (metadata.dev(), metadata.ino()); });
+    if named_now != Some(opened) {
+        // The lock goes with the file, which this call does not keep: the claim it took is not the address's.
+        return Ok(Claim::AnotherProcessTakesOver);
+    }
+    return Ok(Claim::Held(AddressTakeoverClaim::of(file, path)?));
 }
 
 /// What:

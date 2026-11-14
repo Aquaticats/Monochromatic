@@ -50,8 +50,8 @@ pub(crate) fn the_service_never_took(result: &Result<Submitted, ClientFailure>) 
             // or not the whole of it in time,
             // so the service has no line to act on and no tree to read.
             | ClientFailure::ServiceNotReading { .. }
-            // Nothing answered at the service's address, so the request was never sent.
-            | ClientFailure::NothingAnswered { .. }
+            // A service is there and has not greeted, so the request was never sent.
+            | ClientFailure::ServiceRecovering { .. }
             // No service was reached at all, so nothing was written and nothing can be running.
             | ClientFailure::DidNotStart
             | ClientFailure::NoActivation(_)

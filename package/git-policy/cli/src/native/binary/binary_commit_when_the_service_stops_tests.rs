@@ -39,6 +39,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
+/// The wait a live service that never greets is given in this control, in milliseconds, and the same number as a duration.
+const SHORT_RECOVERING_MILLIS: &str = "1200";
+const SHORT_RECOVERING: Duration = Duration::from_millis(1200);
+
 /// How long a control waits for something that must happen,
 /// so a broken bound fails the control instead of holding the run.
 const PATIENCE: Duration = Duration::from_secs(120);
@@ -212,6 +216,9 @@ fn wrapped_against_stand_in(fixture: &Fixture, stand_in: &StandIn, directory: &P
     hermetic(&mut command, fixture, wrapper_first_path(fixture).as_os_str());
     command.env("XDG_RUNTIME_DIR", stand_in.runtime.as_path());
     command.env(git_policy_cli::wait_ceilings::WAITING_NOTICE_VARIABLE, "1");
+    // A live service that never greets is waited for `RECOVERING_CEILING`; this control is about the words and the end of
+    // that wait, and two minutes of a suite's time is not.
+    command.env(git_policy_cli::wait_ceilings::RECOVERING_CEILING_VARIABLE, SHORT_RECOVERING_MILLIS);
     command.current_dir(directory).args(arguments);
     return command;
 }
@@ -577,15 +584,15 @@ fn a_service_that_wakes_after_the_failure_makes_no_commit() {
 /// and 34 of its 35 connection tries were refused.
 /// The wait is bounded, and the connect to a socket nothing accepts on no longer waits in the kernel
 /// (`CONNECT_CEILING`),
-/// so a client that finds such an instance ends at the start wait with words that name it,
-/// and its next run reaches the service that is there.
+/// so a client that finds such an instance ends at the wait a live service is given, with words that say the service is
+/// there and has not answered (`RECOVERING_CEILING`), and its next run reaches the service that is there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const standIn = standIn(fixture, repo, 'say-nothing'); await fails(); drop(standIn); await wrappedCommit(fixture); expect(landed)
 /// ```
 #[test]
-fn a_commit_that_finds_a_dying_instance_ends_within_the_start_wait() {
+fn a_commit_that_finds_a_dying_instance_ends_within_the_wait_a_live_service_is_given() {
     let fixture: Fixture = fixture("dying-instance");
     let repo: PathBuf = staged_repository(&fixture, "repo", 1);
     let before: String = head_of(&fixture, repo.as_path());
@@ -598,9 +605,9 @@ fn a_commit_that_finds_a_dying_instance_ends_within_the_start_wait() {
     let words: String = String::from_utf8_lossy(ran.stderr.as_slice()).into_owned();
     assert!(stand_in.accepted.load(Ordering::SeqCst) > 0, "the stand-in took the connection of the commit");
     assert_eq!(ran.code, Some(1), "a commit whose service answers nothing fails: {words}");
-    assert!(took >= START_WAIT, "the wait is the one a start is granted: {took:?}");
-    assert!(took < START_WAIT + HEARTBEAT_SILENCE + HEARTBEAT_SILENCE, "and it ends there rather than waiting for the instance: {took:?}");
-    assert!(words.contains("Nothing has answered"), "the words name what did not answer: {words}");
+    assert!(took >= SHORT_RECOVERING, "the wait is the one a service that is there is given: {took:?}");
+    assert!(took < SHORT_RECOVERING + HEARTBEAT_SILENCE + HEARTBEAT_SILENCE, "and it ends there rather than waiting for the instance: {took:?}");
+    assert!(words.contains("is running at") && words.contains("has not answered"), "the words say the service is there and has not answered: {words}");
     assert!(words.contains("was not made"), "and that the commit was not made: {words}");
     // The instance that held the socket is gone, which is what the manager waits for before it starts the next one.
     drop(stand_in);

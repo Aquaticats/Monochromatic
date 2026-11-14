@@ -1437,6 +1437,7 @@ fn the_after_commit_work_of_a_repository_whose_path_is_not_utf8_runs() {
             withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
             extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
             start_ceiling: crate::wait_ceilings::START_CEILING,
+            recovering_ceiling: crate::wait_ceilings::RECOVERING_CEILING,
             waiting_notice_after: Duration::from_secs(60),
         },
         repository: repository.clone(),

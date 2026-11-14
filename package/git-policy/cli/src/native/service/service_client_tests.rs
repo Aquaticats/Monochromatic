@@ -93,6 +93,7 @@ fn reach_settings(address: &str) -> ClientConfig {
         waiting_notice_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
         extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: crate::wait_ceilings::START_CEILING,
+        recovering_ceiling: crate::wait_ceilings::RECOVERING_CEILING,
     };
 }
 
@@ -227,14 +228,14 @@ fn a_request_that_was_sent_is_not_reported_as_a_commit_that_was_not_made_when_a_
 }
 
 /// What:
-///  A request that was never sent keeps the answer that nothing answered,
+///  A request that was never sent keeps the answer that nothing was reached,
 /// which is true when nothing was sent.
 /// Why:
 ///   The control of the two controls above:
 /// the words "did not start" are right only while no request reached a service,
 /// so the change that keeps them from a sent request must not take them from an unsent one.
 #[test]
-fn a_request_that_was_never_sent_keeps_the_answer_that_nothing_answered() {
+fn a_request_that_was_never_sent_keeps_the_answer_that_nothing_was_reached() {
     let name: String = an_address("never-sent");
     let failure: ClientFailure = submit(&reach_settings(name.as_str()), &a_request("never-sent"), &mut std::io::sink())
         .expect_err("nothing listens at this address");

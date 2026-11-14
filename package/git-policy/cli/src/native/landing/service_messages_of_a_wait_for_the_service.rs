@@ -252,3 +252,21 @@ pub fn rebuild_notice(branch: &str, builds: usize, waited: std::time::Duration, 
         ceiling.as_secs()
     );
 }
+
+/// What:
+///  The line that tells a person the service is running and has not answered yet.
+/// Why:
+///  The notice printed while a command waits says this command starts the service, which is false when a connection was
+/// made: something is there and has not spoken, and that is a service returning to work rather than a missing one
+/// (`service_client_reach_service.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.stderr.write(recoveringNotice(address));
+/// ```
+pub(crate) fn recovering_notice(address: &str) -> String {
+    return format!(
+        "The commit service of this worktree is running at {address} and has not answered yet: it is still returning to \
+         work, and this command waits for it."
+    );
+}

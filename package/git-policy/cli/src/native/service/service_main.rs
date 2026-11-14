@@ -48,9 +48,8 @@
 //! if (argv.slice(0, 3).join(' ') === 'monochromatic-git-policy-cli service run') process.exit(await runService(argv.slice(3)));
 //! ```
 
-use crate::service_journal::{DONE_RETAINED, prune_done};
 use crate::wrapper_names_old_and_new::COMMAND_WORD;
-use crate::service_land::{LandContext, recover_instance};
+use crate::service_land::LandContext;
 use crate::service_protocol::PROTOCOL_VERSION;
 use crate::service_timing::{log, started_line};
 use crate::service_server::{Bind, IDLE_EXIT, ServeSettings, bind, serve};
@@ -360,17 +359,12 @@ pub fn run(arguments: &[String]) -> i32 {
     settings.instance = named_instance;
     // Every later entry carries the release and the instance.
     crate::service_timing::set_context(settings.release.as_str(), settings.instance.as_deref());
-    // Before the recovery of the batches an earlier service left open, so the time from this line to `ready` is that recovery.
+    // What: The single journal the earlier releases kept above every instance's own, when there is one.
+    // Why:  Its open batches of this worktree are finished by the serving loop, after the acceptor starts, so a recovery
+    //       that waits on a foreign index lock never delays a greeting (`service_server.rs`, `serve_in_a_landing`).
+    settings.earlier_journal = context.journal.parent().map(std::path::Path::to_path_buf);
+    // The line the time from a start to `ready` was measured from; the earlier release's recovery is inside the loop now.
     log(started_line(settings.release.as_str(), PROTOCOL_VERSION, settings.instance.as_deref()).as_str());
-    // The single service of the earlier releases kept one journal above every instance's own: this worktree's open batches in
-    //  it are finished before the first connection is accepted.
-    if let (Some(instance), Some(shared)) = (settings.instance.as_deref(), context.journal.parent()) {
-        let earlier: LandContext = LandContext { git: context.git.clone(), journal: shared.to_path_buf(), on_objects_written: None, lock_ceiling: context.lock_ceiling };
-        let _reports = recover_instance(&earlier, instance);
-        // Nothing reads that journal's finished batches any more; the newest are kept, and an older one goes only once no
-        //  client of it may still read it, so it stops growing.
-        let _pruned = prune_done(shared, DONE_RETAINED, &crate::claim_time::ClaimTime::read());
-    }
     crate::service_log!("ready");
     // The repository this service served before warms its compiled rules now, on the blocking pool, so an upgrade's new cache is
     //  filled before the first commit that would compile it.

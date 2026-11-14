@@ -91,6 +91,13 @@ pub struct ClientConfig {
     /// could hold a start longer, and the longest measured cold start is 1,041 ms.
     ///  A second command that waits on the first one's start waits the same bound, which ends at the same moment.
     pub start_ceiling: Duration,
+    /// What:
+    ///  The longest a command waits for a service that is there and has not greeted yet,
+    ///  which is a service that is alive and still returning to work.
+    /// Why:
+    ///  `RECOVERING_CEILING`: the longest a live service takes to greet, over the recoveries and the runtime build it may
+    /// be inside, and past it the command ends saying so rather than saying nothing answered.
+    pub recovering_ceiling: Duration,
 }
 
 /// What:
@@ -138,6 +145,7 @@ pub fn client_config(address: Bind, host: Option<&crate::service_host_of_a_workt
         withdraw_ceiling: crate::wait_ceilings::WITHDRAW_CEILING,
         extra_wait: crate::wait_ceilings::SHORT_EXTRA_WAIT,
         start_ceiling: crate::service_client_listen_and_ask_to_retire::START_WAIT,
+        recovering_ceiling: crate::wait_ceilings::recovering_ceiling(),
         waiting_notice_after: crate::wait_ceilings::waiting_notice_after(),
     };
 }

@@ -21,6 +21,7 @@
 //! render({ kind: 'service-not-reading', tookNothing: true })
 //! ```
 
+use std::path::Path;
 use crate::service_messages::{
     CHECK_COMMANDS, LOG_COMMAND, NOTHING_CHANGED, NOTHING_CHANGED_AND_THE_STAGED_WORK, STATUS_COMMAND, STOP_COMMAND, WhatTheBranchShows,
 };
@@ -52,12 +53,26 @@ pub(crate) fn not_reading(took_nothing: bool) -> String {
     );
 }
 
-/// What a person reads about a commit whose service answered nothing at its address,
-/// which is the case where the request was never sent at all.
-pub(crate) fn nothing_answered(address: &str, waited: Duration) -> String {
+/// What:
+///  What a person reads about a commit that met a service which is running and has not greeted yet.
+/// Why:
+///  The service is there — its address took the connection — so nothing about this is a start that failed, and the commit
+///  can still be made: the service is alive and still returning to work, and the next command is served by it.
+/// What holds it is written in its own log, which is where its recovery and the index lock it waits for are named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// serviceRecovering(address, waited, log) // 'the service is running and has not answered yet...'
+/// ```
+pub(crate) fn service_recovering(address: &str, waited: Duration, log: Option<&Path>) -> String {
+    let its_log: String = match log {
+        Some(path) => format!(" Its own log names what it is doing: {}.", path.display()),
+        None => String::from(" Its log names what it is doing."),
+    };
     return format!(
-        "Nothing has answered at the commit service's address for this worktree ({address}) for {} seconds, so this commit \
-         was not made: the request was never sent, and nothing of it can land later by itself. \
+        "The commit service of this worktree is running at {address} and has not answered for {} seconds: it took the \
+         connection and has not finished returning to work, which is the recovery of the work an earlier release left, or the \
+         build of its own runtime.{its_log} This commit was not made, and nothing of it can land later by itself. \
          {NOTHING_CHANGED_AND_THE_STAGED_WORK} {NOTHING_CHANGED}\n{}",
         whole_seconds(waited),
         steps_for_a_commit_that_was_not_made()
