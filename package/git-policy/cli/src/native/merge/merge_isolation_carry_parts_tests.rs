@@ -15,7 +15,7 @@ fn capture() -> Capture {
         paths: vec![
             CapturedPath {
                 path: b"dir/a b.txt".to_vec(),
-                worktree: Some(CapturedFile { mode: String::from("100755"), raw: String::from("d".repeat(40)), blob: String::from("e".repeat(40)) }),
+                worktree: Some(CapturedFile { mode: String::from("100755"), raw: String::from("d".repeat(40)), blob: String::from("e".repeat(40)), permissions: Some(0o755) }),
                 index: Some(CapturedIndex { mode: String::from("100644"), oid: String::from("f".repeat(40)) }),
             },
             CapturedPath {

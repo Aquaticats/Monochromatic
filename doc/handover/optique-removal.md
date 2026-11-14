@@ -708,18 +708,624 @@ What was established that day:
   whose context names `node:util` `parseArgs` adoption and Valibot,
   and no performance reason.
   The measurement therefore bears on none of the reasons that decision records.
-- An Optique parse of three tokens cost 0.52 to 0.74 ms on every version measured,
+- An Optique parse of two tokens cost 0.39 to 0.97 ms across the versions measured,
   and each positional token before a `--` adds about 0.18 ms on 1.3.6.
   Which of the consumers this handover lists pass many such tokens was not checked;
   the section "Existing consumer constraints" names forwarding ones.
 
-Open,
-and the owner's to decide:
+Decided by the owner on 2026-11-12:
 
-- whether to reply to the maintainer,
-  and with which of the drafted material;
-- whether the reassessment the maintainer asks for should happen at all.
-  This handover's scope and decisions stand until the owner says otherwise.
+- The removal plan stays as it is ("Keep the removal plan").
+  No reassessment of Optique is scheduled.
+- The data reply to the maintainer goes out only after the owner has edited it
+  (the option chosen reads "I edit,
+  then post").
+  The draft is in the troubleshooting doc;
+  no agent posts it.
+- Nobody for this project reported the cost upstream before 2026-09-28
+  (the option chosen reads "No,
+  nobody reported it").
+
+Further instructions from the owner on 2026-11-12,
+in order:
+
+- "dahlia could be someone useful.
+  Be maximally coorperative and do everything dahlia asked and might ask."
+- "Still do everything we need to do to ask dahlia questions correctly on top of that.
+  This is an addition,
+  not a change of course."
+- "Feel free to make new gh repos in my `Aquaticat` gh account for minimal reproductions."
+
+What those add:
+
+- Reproducers the maintainer can run as they are,
+  on Node,
+  Deno and Bun,
+  against an npm version or a source checkout.
+- Each new upstream finding written up as its own report under `doc/troubleshooting/`,
+  with a draft in the form upstream's tracker uses.
+  Two were found on 2026-11-12:
+  every option probe on the unreleased 1.4 line pays for short-option scoping,
+  and the input trace copies its whole map for each recorded token on every version.
+- A fix prototyped locally for the input trace only.
+  Upstream accepts AI-assisted pull requests only for accepted issues,
+  so no patch is sent before an issue is accepted.
+- Reproduction repositories under the owner's account,
+  created private,
+  made public only when the owner says.
+
+Open:
+
+- Which further questions go to the maintainer.
+  The owner's instruction on 2026-11-12:
+  "You're supposed to put on your statistician and mathmatician and software engineer's hats
+  to resolve questions we can resolve first."
+  So each drafted question is first answered here by analysis,
+  measurement or source reading where that is possible,
+  and only what is left is offered for sending.
+  The drafted questions are in
+  `/var/mnt/encrypted/temp/agent/optique-session-2026-11-12/optique-questions-for-maintainer-2026-11-12.md`,
+  which is scratch and not committed
+  (its first copy under `${HOME}/temp/agent` was gone after the reboot of 2026-11-13).
+
+### State on 2026-11-13T09:45:00-05:00
+
+Nothing has been sent upstream by this project beyond the owner's own two short comments.
+Upstream moved on its own from this repository's public documents:
+
+- The owner answered the maintainer on the commit at 2026-11-12T13:52:56Z:
+  "Looking.
+  ETA:
+  In 24h with 90% certainty."
+  and again at 2026-11-13T14:27:49Z:
+  "Sorry,
+  I had some issues with my machine.
+  New ETA:
+  in 72h with 80% certainty."
+  That runs to 2026-11-16T14:27:49Z.
+- The maintainer opened upstream issue 1120 at 2026-11-13T08:16:37Z,
+  citing the research record and the short-option document at commit `249bbf19ea`,
+  and pull request 1121 for it at 2026-11-13T10:10:30Z.
+  Issue 1120 names the input-trace copy and puts it outside its own scope.
+- The maintainer merged pull request 1121 at 2026-11-13T15:37:30Z as commit `d26f1a24`,
+  which closed issue 1120.
+  The merge commit's tree is that of the branch head `a175cdb7` this project measured,
+  so those figures are figures for `main` as of the merge.
+  Checked afterwards the same day:
+  upstream has no open pull request,
+  no issue newer than 1120,
+  and no commit on `input-trace.ts` since 2026-05-14.
+  The documents and the reply draft now say the pull request is merged.
+
+Decided by the owner on 2026-11-13,
+each in answer to a question that gave the options:
+
+- When to answer the maintainer:
+  "Wait for the review".
+- The input-trace patch,
+  asked whether to raise it in the reply,
+  open an issue,
+  open a discussion or keep it here:
+  "Keep it local for now.
+  I want to have everything figured out ourselves before giving replies.
+  And I've already said my ETA had changed to 72h from now."
+  An agent then took the patch paragraph out of the reply draft,
+  and the owner corrected that:
+  "I only said to "keep it **local** for **now**",
+  which means it can be in the draft."
+  So the draft carries it,
+  and nothing about the patch is filed or posted before the owner posts the reply.
+- The reproduction repository,
+  told that its first commit carries the account's own address:
+  "Make public as it is".
+  Done at 2026-11-13T14:41:43Z.
+- One further item,
+  held back from this repository:
+  the owner's decision on it is recorded in a local file,
+  `${HOME}/temp/agent/optique-2026-11-13/held-back-item-notes.md`,
+  which is not committed.
+- The research record's status line,
+  which read "complete" on the word of the session that wrote it:
+  "No.
+  It was not complete.
+  At the very least it should have said I haven't approved it as complete."
+  and
+  "You marking it Status:
+  complete probably caused dahlia to pre-emptively work more than what the information at that time called for.
+  And it might have also created extra work for dahlia."
+  The line now says the owner has not approved it,
+  and the reply draft holds a placeholder for whether to tell the maintainer.
+- Two rule changes that came of this session's missteps,
+  both chosen by the owner from proposals:
+  rule `VR2` in `AGENTS.md` now covers answers as well as requests,
+  and a new rule,
+  `SGO`,
+  reserves "complete",
+  "final" and "approved" for the owner and has agents mark their documents and reports otherwise,
+  saying what was done and checked,
+  by whom,
+  and what is open.
+  The Optique and Deno documents of this work carry that mark.
+  The other documents under `doc/` whose status reads "complete" are listed in #6292,
+  filed on the owner's answer "Open one issue (Recommended)";
+  none of them was changed.
+
+- Upstream issue 1118,
+  about PowerShell completion tests exceeding Bun's five-second timeout,
+  which the owner took for something this work set off:
+  "I believe we're the only ones using Bun 1.3.14,
+  so this one has to have been triggered by us.
+  And we don't care about support for older versions,
+  just like Bun itself doesn't care."
+  and
+  "I suspect you tested Bun 1.3.14 anyway,
+  which we shouldn't have.
+  Even if we did,
+  it shouldn't have been counted or marked as a defect."
+  What the records show,
+  checked on 2026-11-13 by the session that did the work:
+  - The issue was opened by upstream's maintainer at 2026-11-12T18:11:19Z.
+    It,
+    and the two beside it (1116 and 1117),
+    name neither this repository nor its owner.
+    It reports `mise test` on the maintainer's own branch `bugfiix/docs-build-oom`,
+    on Fedora Linux 44.
+  - Upstream's `mise.toml` pins `bun = "1.3"`,
+    and `mise ls-remote bun` lists 1.3.14 as the newest 1.3 release,
+    so `mise test` in upstream's checkout runs Bun 1.3.14 for whoever runs it.
+  - This repository's `toolchain.lock.json` held Bun 1.4.4 at the commit before the issue (`07597bdd20`) and holds it now.
+  - No measurement or run record of this work names 1.3.14;
+    the scratch files that do are copies of upstream's issues 1116 and 1118
+    and the review reports that quote them.
+    The records show Bun 1.3.0,
+    in the prototype's work image,
+    whose first Bun log is dated 2026-11-12T15:02:28-05:00,
+    about two hours after the issue;
+    and Bun 1.4.4 on 2026-11-13.
+  - This repository's public Optique documents,
+    as of the commit before the issue,
+    say nothing about Bun tests or PowerShell.
+  So nothing found ties the issue to this work.
+  Not established:
+  what the session did before its context was summarised,
+  beyond what those records hold;
+  and why the maintainer ran the suite that day.
+  What was wrong on this side is the Bun 1.3.0:
+  the prototype's image pinned it with no reason given,
+  the session ran upstream's suite on it on 2026-11-13,
+  and wrote the failing-test counts into a public document.
+  That is an old version,
+  the failures are no finding about upstream,
+  and nothing about them is to be reported.
+  The comparison was run again on Bun 1.4.4 the same day,
+  where the patched tree passes the core suite,
+  and the document now reports that.
+  Rule `PIN` in `AGENTS.md` was amended on the owner's choice:
+  test on current releases only,
+  and an older one's failures are no defect.
+- The two per-token copies the input-trace patch leaves,
+  in `multiple()` and `argument()`,
+  asked whether to prototype fixes for them before the reply,
+  describe them in the reply as profiled and not fixed,
+  or leave them out:
+  "Prototype now (Recommended)".
+  A Pi run did it on 2026-11-13,
+  named `optique-two-remaining-copies-prototype`,
+  on DeepSeek through Neuralwatt,
+  with the brief `${HOME}/temp/agent/pi-runs/optique-two-remaining-copies-prototype-prompt.md`.
+  It ended after 362 turns with its report given;
+  its driver then recorded `driver-failed` on a parse error of its own,
+  which another session filed as issue 6295.
+  Its feed holds seven commands that reach a network,
+  all of them reads,
+  and it left no process or container.
+  The coordinating session rechecked the two diffs the same day and wrote the result into
+  `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`,
+  section "Prototypes for the two further copies":
+  the diff for `multiple()`'s state holds up and is kept as a second patch beside that document,
+  with a test and a fix added in the recheck;
+  the diff for the token buffer makes alternating option-and-argument input about ten times slower and is not kept.
+  The run's clone is deleted;
+  its `keep/` folder remains at `${HOME}/temp/agent/upstream-prototype.3lsGY9v7/keep`.
+  The agent said this machine's Git wrapper emptied `node_modules` in its throwaway worktrees;
+  its feed shows the failed imports and no cause,
+  and that was not looked into further.
+- Agents at once:
+  rule `MXA` in `AGENTS.md` and `doc/handover/agents-at-once-on-this-machine.md` set a cap for the whole machine.
+  Count before starting any further Pi run for this work,
+  the next review pass included.
+
+Nothing in this section has been approved by the owner as complete or final;
+it is one AI session's record of what it did,
+checked and left open.
+
+Where each piece stands:
+
+- The reply draft,
+  in `doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md`,
+  was rewritten on 2026-11-13.
+  It is not to be posted until the independent review is folded in and the open points are settled,
+  and then only by the owner after editing it.
+- The short-option finding needs no report;
+  its document records upstream's issue and this project's measurement of pull request 1121.
+- The input-trace finding has its document,
+  `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`,
+  a patch beside it,
+  and a draft issue that is not to be filed for now.
+  Settled on 2026-11-13 and recorded there:
+  the patch removes the largest of three per-token copies and leaves two,
+  the state array of `multiple()` and the buffer slice every primitive makes;
+  a second patch beside the document removes the first of those,
+  rechecked by the coordinating session and reviewed by nobody else,
+  and nothing that works was found for the second;
+  whether the second patch is offered to upstream is the owner's choice and is not made;
+  the patched tree passes upstream's core suite on Bun 1.4.4,
+  the current release,
+  with no failure;
+  and the 1.0,
+  1.1 and 1.2 lines grow as 1.3.6 does.
+- The reproduction repository `Aquaticat/optique-parse-cost-reproduction` is public,
+  at commit `76b15277df53e5577cdc4e67bfeda3b7302b12c6`.
+  Three workflow runs fail on their asserting steps.
+
+Open,
+to settle before a reply:
+
+- The independent review of the three documents and the patch:
+  qwen4-max-preview through Pi,
+  run name `optique-input-trace-and-reply-claim-check`,
+  started 2026-11-13.
+  Its first pass ended after 71 turns and 35 minutes,
+  reading the documents as of commit `5a4e07d2e3`;
+  its report is `${HOME}/temp/agent/optique-2026-11-13/review-report.md`.
+  It recomputed every figure from the raw records and found them to match,
+  found the code excerpts verbatim and no defect in the patch,
+  and found errors in the prose,
+  which were corrected the same day:
+  a sentence quoted from upstream issue 989 that is not in it,
+  a claim that the trace copy is what separates pull request 1121 from 1.3.6
+  (1.3.6 pays for that copy too,
+  so the gap is option-scope work),
+  the length check misstated in the reply draft,
+  and smaller wording and timestamp matters.
+  The documents changed after that commit,
+  so a second pass over the changes was run on 2026-11-13 by resuming the same session
+  (run folder `optique-input-trace-and-reply-claim-check-2`,
+  27 turns and 17 minutes,
+  reading `main` at `426d33d638`;
+  report `${HOME}/temp/agent/optique-2026-11-13/review-report-2.md`).
+  It found every new figure to match its record,
+  the new source excerpts verbatim,
+  and the first pass's corrections all in place.
+  Its own findings were small and were corrected the same day:
+  a wrong count and two unrecorded statements in the Deno document
+  (the two were then run and recorded),
+  a sentence there that dated a Deno run without a record
+  (replaced by the recorded one),
+  and wording that said slightly more than the records in this handover and in the input-trace document.
+  Its prompt is `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-follow-up-prompt.md`.
+  A third pass read those corrections,
+  commit `2d06b4ae60`,
+  by resuming the same session
+  (run folder `optique-input-trace-and-reply-claim-check-3`,
+  report `${HOME}/temp/agent/optique-2026-11-13/review-report-3.md`).
+  It found each correction supported by its record or source,
+  the three checks run after the second pass real and run against the patch as committed,
+  and nothing in the status lines claiming more than unapproved.
+  It found two wording matters,
+  corrected the same day:
+  a share of the patched parse at 4,000 to 8,000 tokens that was the share of two files,
+  given as the share of the two copies
+  (the document now gives both the functions' and the files' figures and says the profile cannot do better);
+  and a count of scratch files in this handover.
+  A fourth pass read the section "Prototypes for the two further copies",
+  the second patch and the revised drafts as of commit `758946f3e1`,
+  by resuming the same session once the machine was under its agent cap
+  (run folder `optique-input-trace-and-reply-claim-check-4`,
+  33 turns;
+  prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fourth-pass-prompt.md`;
+  report `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-report-4.md`).
+  It recomputed every figure of the section from the raw records and found them to match,
+  found the vector and the two view fixes correct,
+  and found five things,
+  all folded in the same day:
+  the view's `length` descriptor reported 0,
+  so a copy made from a state's descriptors came back empty
+  (latent;
+  fixed in the patch,
+  with a test);
+  a sentence that called the `concat` variant's gain "inside the spread" where the figures show a gain;
+  no test guarding that descriptor;
+  a count of failing tests that differs by runtime;
+  and two omissions in the list of what a caller can notice.
+  A fifth pass by the same model read the changes made after that,
+  which are that fix,
+  the timing on Node and Bun,
+  and the timing parts rewritten as ratios,
+  as of commit `9fd4f0e93e`
+  (run folder `optique-input-trace-and-reply-claim-check-5`,
+  19 turns;
+  prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-fifth-pass-prompt.md`;
+  report `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-report-5.md`).
+  It recomputed every ratio,
+  range,
+  count and exponent from the summary of the records and found them to match,
+  found the `length` fix correct and guarded by a test that fails without it,
+  and found the five earlier findings resolved.
+  It raised three things.
+  The drafts and "What does not work" gave the slowdown of both fixes over the base
+  as if it were the buffer view's own;
+  they now give both fixes over the state fix alone,
+  and the timing part lists both comparisons.
+  A sentence said same-code pairs had medians "within a tenth of 1" where one was 0.82;
+  it now gives the two medians and says no such pair was timed on Node or Bun.
+  And the view has no `setPrototypeOf` trap;
+  that is dismissed,
+  because a plain array lets a caller change its prototype in the same way
+  and the change reaches only the view it is called on.
+  Both wording changes are in commit `65fddfa874`.
+- The owner's two corrections of 2026-11-13 on the timing,
+  both acted on the same day:
+  "Why did you time a thing only on deno and why did you time a thing on deno (to be discontinued software) at all?",
+  and
+  "You should always assume the machine doesn't just have you using it and all timings are unpredictable
+  and cannot stand on their own and comparative timing is better."
+  The arms were then timed on Node 26.13.1 and Bun 1.4.4 as built packages,
+  and the section's timing parts and the two drafts now give ratios between arms run in the same round,
+  with no absolute time as a finding.
+  Deno's own tracker says it is maintained "until October 2027" with bug fixes only (issue 37030 there).
+  Asked on 2026-11-13 how far the rewrite should go,
+  the owner chose "Everything (Recommended)":
+  the three Optique troubleshooting documents,
+  the research record and the README of the public reproduction repository are to be recast to ratios,
+  with absolute times only as labelled scale,
+  and are to say that Deno is maintained only until October 2027.
+  That recast is written:
+  the short-option and typo-suggestion documents in commit `4721f3722b`,
+  the older parts of the input-trace document in `4b98e390ac`,
+  the research record in `65fddfa874`,
+  each from records already in the evidence archive and with no new measurement.
+  The README held no absolute time;
+  it gained a paragraph saying what kind of figure it gives and one on Deno's state,
+  published as commit `d99a8aec8c937b71749eac1da3a7d5b479c7d132` of `Aquaticat/optique-parse-cost-reproduction`.
+  `doc/troubleshooting/deno-run-with-an-npm-import-map-fails-beside-a-package-json.md` gained the same note on Deno.
+  Times that remain in milliseconds are labelled as scale,
+  quote upstream or commit `4879a44e6a`,
+  or sit beside upstream's own estimate of "less than 1ms".
+  A sixth review pass by the same model read the recast as of commit `ce2cc36df5`
+  (prompt `${HOME}/temp/agent/pi-runs/optique-input-trace-and-reply-claim-check-sixth-pass-prompt.md`,
+  run folder `optique-input-trace-and-reply-claim-check-6`,
+  20 turns,
+  report `${HOME}/temp/agent/optique-two-remaining-copies-recheck-2026-11-13/keep/review-report-6.md`).
+  It reported that every ratio,
+  growth factor,
+  share and exponent it traced reproduced from the archive,
+  found every remaining absolute time labelled,
+  and found the fifth pass's two wording findings resolved.
+  It raised three things,
+  all folded in:
+  the typo-suggestion document called a comparison of short paths "one run each" where it was seven rounds;
+  the note on Deno's state was missing from the research record and the typo-suggestion document;
+  and "about 2,600 times" in the research record divides two separate measurements and carried no scale label.
+  It could not confirm that the two sides of the agent's 323 shared a process,
+  and the research record now says that its report does not say.
+  It did not flag the two times the research record gave for the sweep over token length,
+  which at that commit were the lowest of the rounds,
+  as that section says of its milliseconds;
+  they were restated by round afterwards,
+  and the later pass checked the restated ones.
+- One timing was still on Deno alone after that:
+  upstream's pull request 1121,
+  which both drafts report.
+  It was repeated on 2026-11-13 on Node 26.13.1 and Bun 1.4.4 with every arm a built package,
+  seven rounds,
+  with the merge's package linked twice as a same-code control.
+  A thousand paths after `--`:
+  the pull request over `main` before it was 0.72 on Node and 0.73 on Bun,
+  and over 1.3.6 it was 1.37 on Node and 1.95 on Bun.
+  The input-trace patch on top brings it level with 1.3.6 on Node (0.92) and changes nothing on Bun at that size (1.92),
+  so the drafts no longer say the patch closes that gap without naming the runtime.
+  The figures are in the short-option and input-trace documents,
+  the records in the evidence archive,
+  folder `pull-request-1121-on-node-and-bun-2026-11-13`.
+  A fresh session of the same reviewing model,
+  in a worktree of its own,
+  read that measurement,
+  what is written from it,
+  and every correction made to the recast after commit `ce2cc36df5`,
+  as of commit `2907e3a444`
+  (prompt `${HOME}/temp/agent/pi-runs/optique-pull-request-1121-on-node-and-bun-claim-check-prompt.md`,
+  run folder `optique-pull-request-1121-on-node-and-bun-claim-check-1`,
+  82 turns,
+  report `${HOME}/temp/agent/optique-pull-request-1121-timed-on-node-and-bun-2026-11-13/keep/review-report.md`).
+  It recomputed every added ratio,
+  range and count from the raw rounds with its own code and found them correct,
+  confirmed against GitHub that `84f95710` is the merge's first parent,
+  and found the three sentences drawn from the measurement supported.
+  It raised five things,
+  all folded in:
+  a status note in the typo-suggestion document said its timings ran on Node where its reply draft carries Bun figures;
+  two status accounts said the sixth pass "found them to match" where that pass had not flagged the length-sweep times;
+  "no further from 1 than the control" overstated a median that lies inside the control's range;
+  the draft issue gave a figure for a thousand paths without saying it was the input with no `--`;
+  and a pointer named the wrong section for the patch's ratio by size on Bun.
+  It also noticed that the reply draft said the core suite passes with the first patch "on Deno and Node"
+  where the draft issue said Bun as well;
+  the suite record has all three,
+  and the reply draft now says so.
+  Not reviewed by anyone:
+  those last corrections,
+  in commits `f8c6a64194` and `4ee9f13bf1`.
+  The four documents were loaded as GitHub renders them after the last of those commits,
+  and their new links,
+  both draft fences and the changed sentences render as written.
+  Upstream was read again at 2026-11-13T22:01:52Z:
+  `main` is still the merge `d26f1a24`,
+  and the commit thread has no comment after the owner's of 14:27:49Z.
+  A read earlier that evening found no open pull request and no issue newer than 1120.
+- Asked on 2026-11-13 whether the drafts keep their passage on the input-trace patch closing what pull request 1121 leaves,
+  now that the Node and Bun timing shows it does so on Node and not on Bun,
+  the owner chose "Reply cut,
+  issue keeps":
+  the passage is out of the reply draft and stays in the draft issue.
+  Asked what to do next with the reply draft,
+  which ran to 66 lines,
+  the owner chose "Tighten the reply first".
+  It was tightened at 2026-11-13T17:04:45-05:00 to 44 lines;
+  the note before the draft in the typo-suggestion document lists what left it and where each part lives.
+  Every figure in it stood in the longer draft.
+  A fresh session of the reviewing model read the tightened form as of commit `629e7b84d7`
+  (prompt `${HOME}/temp/agent/pi-runs/optique-tightened-reply-draft-claim-check-prompt.md`,
+  run folder `optique-tightened-reply-draft-claim-check-1`,
+  39 turns,
+  report `${HOME}/temp/agent/optique-reply-draft-tightened-2026-11-13/keep/review-report.md`).
+  It found no wrong figure and no new one,
+  and the owner's choices reflected as recorded.
+  Its findings,
+  folded in:
+  the second patch's ratio did not name what it is a ratio to,
+  and a reader could take it as a ratio to `main`,
+  which no round measured at 32,000 arguments;
+  both drafts now say it is against the first patch alone.
+  The buffer copy had lost "that consumes a token".
+  The opening called every number a ratio where the closing paragraph quotes two absolute times.
+  And the note's list of where each removed part lives was imprecise.
+  Weighed and left:
+  the second patch's figures are those of the patch before its last change,
+  which the linked write-up says and the reply does not.
+  Another fresh session of the reviewing model read those corrections as of commit `7771aa14fc`
+  (prompt `${HOME}/temp/agent/pi-runs/optique-reply-draft-corrections-claim-check-prompt.md`,
+  run folder `optique-reply-draft-corrections-claim-check-1`,
+  19 turns,
+  report `${HOME}/temp/agent/optique-reply-draft-corrections-check-2026-11-13/keep/review-report.md`).
+  It recomputed the ratios they touch from the raw rounds,
+  found each correction faithful to the records,
+  and found no figure changed.
+  It pointed out that the note before the reply still gave its length as 44 where the draft now has 45 lines,
+  and that the draft issue's count of places that slice the buffer could be read as fifteen where the write-up says sixteen.
+  Both are corrected,
+  the second after counting the places in upstream's source at the merge:
+  sixteen,
+  two of them in `argument()`.
+  Not reviewed by anyone:
+  those last two changes,
+  which alter no figure.
+  Next:
+  the draft goes to the owner,
+  who edits it,
+  writes the lines the draft marks as the owner's,
+  and posts it;
+  the time the owner gave the maintainer runs to 2026-11-16T14:27:49Z.
+  The owner's earlier choice that the reply carry the second patch with its costs and the buffer finding still holds in substance:
+  the tightened draft names the second patch,
+  its gain and that it makes a large state a `Proxy`,
+  says the buffer attempt did not work,
+  and leaves the detail of both to the write-up it links.
+- Asked the same day which of the recheck's results the reply draft should carry,
+  the owner chose the second patch with its costs and the buffer finding,
+  and not the note about `concat`.
+  The draft carries exactly those.
+- Asked whether to add two rules to `AGENTS.md`,
+  one on reporting timings as ratios and one on which runtimes to measure on,
+  the owner chose "Only TVC".
+  Rule `TVC` is added,
+  with its reason in `doc/philosophy/agents.md`.
+- One further item waits for the owner.
+  It is held back from this repository on the owner's decision.
+  What it is,
+  where its draft is and what was checked are in the local file
+  `${HOME}/temp/agent/optique-2026-11-13/held-back-item-notes.md`,
+  which is not committed;
+  read that file before writing anything about the item anywhere.
+  On 2026-11-13 the owner chose to have this handover point to it without saying what it concerns.
+- Which of the drafted questions go into the reply.
+  The draft asks whether an issue for the first patch is welcome,
+  whether a proxy-backed state is wanted at all,
+  and whether offering every token to every option parser is the intended end state.
+  The one about a guard on how parse work grows is partly answered by pull request 1121,
+  which keeps a benchmark for its workload.
+
+Scratch,
+all under `${HOME}/temp/agent`,
+which since the reboot of 2026-11-13 is on `/var/mnt/encrypted`:
+
+- `optique-session-2026-11-12/`:
+  the question list,
+  the held-back report,
+  the publish and wait scripts for the reproduction repository.
+- `optique-parse-cost-reproduction/`:
+  the staging copy the publish script reads.
+- `optique-2026-11-13/`:
+  the container recipes,
+  runners and records of the measurements of 2026-11-13.
+- `upstream-prototype.O1iPjcqr/`:
+  the disposable clone that holds the patch's working tree,
+  with its logs.
+- `upstream-prototype.3lsGY9v7/keep/`:
+  what the prototype agent left for the two further copies:
+  its diffs,
+  report,
+  scripts,
+  logs and measurements.
+- `optique-two-remaining-copies-recheck-2026-11-13/keep/`:
+  the records of the recheck of those diffs,
+  and the reports of the fourth,
+  fifth and sixth review passes.
+- `optique-research-record-recast-to-ratios-2026-11-13/keep/`:
+  the checks made while the research record was recast,
+  the rendered check of the pushed record,
+  the scratch sizes measured that day,
+  and the list and the result of the cleanup.
+- `optique-pull-request-1121-timed-on-node-and-bun-2026-11-13/keep/`:
+  the records of the Node and Bun timing of pull request 1121,
+  and the report of its review.
+
+On 2026-11-13,
+once the last review was folded in,
+everything but `keep/` in those folders was deleted,
+with the reviewers' own scratch folders,
+their branches,
+which held no commit `main` lacks,
+and every container image this work had built
+(each tagged `localhost/optique-*:2026-11-13`).
+The scripts,
+recipes and records the documents cite are in the evidence archive beside the research document,
+in the folders `two-remaining-copies-recheck-2026-11-13`,
+`pull-request-1121-on-node-and-bun-2026-11-13`,
+`recast-to-ratios-2026-11-13` and `measurements-2026-11-13`.
+That archive is to leave the tree.
+At about 17:27 local time on 2026-11-13 the owner ordered that no archive stays tracked,
+which `doc/handover/cli-git-rust-implementation.md` records under the heading that starts
+"The owner:
+no archive stays tracked";
+the removal is another session's run,
+and by the owner's answers there Git history keeps each whole archive
+and what a document cites is kept beside it as plain text.
+This work adds nothing more to the archive.
+The session that runs the removal was told on 2026-11-13 which files of the archive the Optique documents cite,
+that the agent's third and fourth diffs exist nowhere else in the tree,
+and that the scratch originals were deleted that day on the ground that the archive held them;
+commit `a6783a44ae` is the last that changed the archive.
+Running a check again means building its image again from the recipe there,
+which fetches the current Node,
+Deno and Bun and so will not reproduce the versions named in the documents once those move.
+What the deletion listed first and what it did are in
+`${HOME}/temp/agent/optique-research-record-recast-to-ratios-2026-11-13/keep/`,
+files `look-before-cleanup.txt` and `what-the-cleanup-did.txt`.
+`${HOME}/temp/agent` measured 269,602 MiB before that deletion,
+of which this work's folders held about 3,000 MiB;
+the largest folders that had appeared since the measurement earlier that day,
+which read 218,124 MiB,
+belong to other sessions.
+
+The defects in this repository's own tools that showed during the work are filed,
+on the owner's instruction of 2026-11-13 ("open defects as issues in my own repo"):
+#6288,
+#6289,
+#6290,
+#6291,
+#6293
+and #6298.
 
 ## Next action
 

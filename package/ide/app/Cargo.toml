@@ -158,4 +158,4 @@ tracing = ">=0.1.44"
 tracing-log = { version = ">=0.2", default-features = false }
 tracing-subscriber = ">=0.3.23"
 tree-house = { version = ">=0.4", default-features = false }
-vello = { version = ">=0.11", default-features = false }
+vello = { version = ">=0.12.0", default-features = false }

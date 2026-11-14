@@ -19,7 +19,7 @@
 //! const [write, note, target] = await planWorktreeAwaiting(places, change, entry);
 //! ```
 
-use crate::merge_isolation_carry_layers::{Decision, Layer, Outcome, Side, decide, write_layer_bytes};
+use crate::merge_isolation_carry_layers::{Decision, Layer, MODIFY_DELETE, Outcome, Side, decide, write_layer_bytes};
 use crate::merge_isolation_carry_parts::{CapturedFile, CapturedIndex, CapturedPath};
 use crate::merge_isolation_carry_reads::{file_form_awaiting, raw_bytes_awaiting};
 use crate::merge_isolation_carry_writes::{CarryFailure, FileWrite, IndexWrite};
@@ -62,6 +62,21 @@ pub(crate) fn side(change: &Change, after: bool) -> Option<Side> {
     return Some(Side { mode: mode.clone(), oid: oid.clone() });
 }
 
+/// What:
+///  The permission bits the capture read for one worktree entry.
+/// Why:
+///   A record an older release wrote holds none,
+/// and a link has none of its own,
+///  so a write takes Git's mode alone where this answers nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const thePermissionsOf = (file) => file.permissions;
+/// ```
+fn the_permissions_of(file: &CapturedFile) -> Option<u32> {
+    return file.permissions;
+}
+
 /// The mode a written path carries when neither side names one.
 pub(crate) fn plain_file_mode() -> String {
     return String::from(PLAIN_FILE_MODE);
@@ -86,20 +101,51 @@ pub(crate) async fn plan_worktree_awaiting(
     let (runner, context, root) = places;
     let layer: Layer = Layer { base: side(change, false), ours: entry.worktree.as_ref().map(side_of_file), theirs: side(change, true) };
     let decision: Decision = decide(runner, entry.path.as_slice(), &layer).await.map_err(CarryFailure::Failed)?;
+    // A write lands where Git's own update left the merge's entry,
+    //  so the mode of the file there is the one Git's checkout gave it:
+    //  the file system narrows a fresh `0666` or `0777` by the process's umask,
+    //  exactly as it did for Git,
+    //  and only the executable bits come from the mode the two layers end with
+    //  (`SPEC.md`,
+    //  "Carry edits forward").
+    //  A path the merge deletes has nothing of Git's standing where the person's entry goes back,
+    //  so their own permission bits are the only ones left to write.
     let mode: String = decision.mode.clone().unwrap_or_else(plain_file_mode);
+    let the_persons_bits: Option<u32> = if change.exists_after() { None } else { entry.worktree.as_ref().and_then(the_permissions_of) };
+    // What:
+    //  Whether the person's index holds an entry of their own that the merge's side does not have.
+    // Why:
+    //  A staged entry is their work as their unsaved bytes are,
+    //  and where the merge deletes the path the file that entry names must stand,
+    //  or the index would hold a file the checkout does not have.
+    //  The mode of a staged entry is part of it:
+    //  `git add` writes the executable bit into the index,
+    //  and the merge's own tree update removes the whole entry
+    //  (`plan_index_awaiting`).
+    let staged_of_their_own: bool = matches!(
+        (&entry.index, side(change, false)),
+        (Some(staged), Some(base)) if staged.mode != base.mode || staged.oid != base.oid
+    );
+    if !change.exists_after()
+        && staged_of_their_own
+        && let Some(file) = &entry.worktree
+    {
+        let bytes: Vec<u8> = raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?;
+        return Ok((FileWrite::Bytes { bytes, mode, the_persons_bits }, Note::Kept(MODIFY_DELETE), Some(file.blob.clone())));
+    }
     return match decision.outcome {
-        // The merge's own bytes with a mode of the person's: the layer holds nothing of theirs to merge, but the mode they
-        //  set is theirs, and Git's update writes the merge's own.
-        Outcome::Merges => match side(change, true) {
-            Some(merge) if merge.mode != mode => {
-                let form: Vec<u8> = file_form_awaiting(context, root, entry.path.as_slice(), merge.oid.as_str()).await.map_err(CarryFailure::Failed)?;
-                Ok((FileWrite::Bytes(form, mode), Note::None, Some(merge.oid.clone())))
-            }
-            _ => Ok((FileWrite::Leave, Note::None, None)),
-        },
+        // Nothing of the person's is in this layer, so what Git's own update wrote at the path is what the path ends at,
+        //  with the mode Git wrote it in. A permission bit a person set that Git does not record is theirs to see gone:
+        //  real Git writes the merge's content over it, so this command writes nothing at all
+        //  (`SPEC.md`, "Carry edits forward").
+        Outcome::Merges => Ok((FileWrite::Leave, Note::None, None)),
         Outcome::Ours => match &entry.worktree {
             Some(file) => Ok((
-                FileWrite::Bytes(raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?, mode),
+                FileWrite::Bytes {
+                    bytes: raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?,
+                    mode,
+                    the_persons_bits,
+                },
                 Note::None,
                 Some(file.blob.clone()),
             )),
@@ -108,11 +154,15 @@ pub(crate) async fn plan_worktree_awaiting(
         Outcome::Merged { bytes, conflict, .. } => {
             let oid: String = write_layer_bytes(runner, bytes.as_slice()).await.map_err(CarryFailure::Failed)?;
             let form: Vec<u8> = file_form_awaiting(context, root, entry.path.as_slice(), oid.as_str()).await.map_err(CarryFailure::Failed)?;
-            return Ok((FileWrite::Bytes(form, mode), if conflict { Note::Conflict } else { Note::Merged }, Some(oid)));
+            return Ok((FileWrite::Bytes { bytes: form, mode, the_persons_bits }, if conflict { Note::Conflict } else { Note::Merged }, Some(oid)));
         }
         Outcome::Kept(why) => match &entry.worktree {
             Some(file) => Ok((
-                FileWrite::Bytes(raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?, mode),
+                FileWrite::Bytes {
+                    bytes: raw_bytes_awaiting(context, root, file.raw.as_str()).await.map_err(CarryFailure::Failed)?,
+                    mode,
+                    the_persons_bits,
+                },
                 Note::Kept(why),
                 Some(file.blob.clone()),
             )),
@@ -152,6 +202,26 @@ pub(crate) async fn plan_index_awaiting(
     // Nothing of the person's is in this layer, so the merge's entry is the layer's own.
     if base.is_none() && ours.is_none() {
         return Ok(IndexWrite::Leave);
+    }
+    // What:
+    //  A staged entry whose blob is the branch's own and whose mode is not stays staged.
+    // Why:
+    //  A mode is a record of Git's index,
+    //  not the permission bits a person set on a worktree file:
+    //  `git add` writes the executable bit into the entry,
+    //  and the entry is a piece of their work as their staged bytes are.
+    //  The merge's own tree update writes the entries of the paths it changes,
+    //  so this layer gives theirs back:
+    //  over the merge's object where the merge writes the path,
+    //  and on their own entry where the merge deletes it
+    //  (`SPEC.md`,
+    //  "Carry edits forward").
+    if let (Some(found), Some(person)) = (&base, &ours)
+        && found.oid == person.oid
+        && found.mode != person.mode
+        && side(change, true).is_none()
+    {
+        return Ok(IndexWrite::Entry(person.mode.clone(), person.oid.clone()));
     }
     let layer: Layer = Layer { base, ours: ours.clone(), theirs: side(change, true) };
     let decision: Decision = decide(runner, entry.path.as_slice(), &layer).await.map_err(CarryFailure::Failed)?;

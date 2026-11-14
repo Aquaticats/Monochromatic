@@ -31,6 +31,7 @@ import { optionIn, } from './option-in.ts';
 import { startProcessTable, } from './processes-under-a-pi-run.ts';
 import { requiredPositiveNumber, } from './required-option-values.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
+import { usageWasAsked, } from './usage-of-a-command.ts';
 import {
   unitStateIsRunning,
   unitStateOf,
@@ -41,6 +42,17 @@ import {
  */
 const USAGE =
   'list-launchers-whose-unit-has-ended [--launcher-entry=<basename>]... [--minimum-age-seconds=<n>] [--stop]';
+
+// The word that asks for help goes to the command as an argument, and the command answers it before it reads an option
+// or touches anything: mise appends a word its task's usage spec does not claim to the task's text, and `--help` is
+// mise's own flag, so this is the only place it can land.
+if (usageWasAsked({
+  words: argv.slice(2,),
+  usage: USAGE,
+},)) {
+  process.exitCode = 0;
+  process.exit(0,);
+}
 
 /**
  The option that names the basename a launcher is run as.

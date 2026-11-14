@@ -1,5 +1,46 @@
 # `@optique/core` 0.7.0 to 1.3.1: each positional token builds a typo suggestion in every option parser that rejects it, so a successful parse of many paths takes seconds
 
+Unapproved and not final.
+An AI session wrote this document on 2026-11-12 and rewrote its reply draft on 2026-11-13,
+and the owner has not approved it.
+Done and checked by that session:
+the measurements and the source reading reported here,
+and one review by a model from another vendor of the text as it stood on 2026-11-12.
+Open:
+a second such review read the text as of commits `5a4e07d2e3` and `426d33d638`,
+and the corrections made after that as of commit `2d06b4ae60`,
+and its findings were folded in;
+the corrections made after that last pass are not reviewed,
+and the reply draft waits for the owner.
+On 2026-11-13 the owner pointed out that this machine is shared and no timing stands on its own,
+and the timing figures here,
+the reply draft's among them,
+were rewritten as ratios between versions run in the same round,
+with absolute times kept only as scale.
+A model from another vendor reviewed that rewrite as of commit `ce2cc36df5`,
+and its one finding on this document,
+a comparison described as one run each that was seven rounds,
+is corrected.
+The figures on pull request 1121 in the reply draft were measured again on Node and Bun after that.
+The timings in this document's own sections ran on Node,
+and the reply draft also carries figures taken on Node and on Bun.
+A second review by that vendor's model read the reply draft's new figures as of commit `2907e3a444`
+and recomputed them from the raw rounds;
+what it found on this document,
+an earlier form of this sentence that left Bun out
+and a line of the draft that said the core suite passes with the first patch "on Deno and Node"
+where the record has Bun as well,
+is corrected,
+and those corrections have had no review.
+The reply draft was then tightened on the owner's choice,
+as the note before it says.
+A fresh session of that vendor's model reviewed the tightened form as of commit `629e7b84d7`,
+and another the changes made for it as of commit `7771aa14fc`;
+the note before the draft says what each found.
+Deno appears only as one of the runtimes the reproduction scripts and the suite were run on;
+its maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
+with no new feature work.
+
 Status,
 2026-11-12:
 upstream fixed this in two steps.
@@ -38,11 +79,18 @@ Three variants exist by version:
    growing with the length of each token;
    nearly all of it in `levenshteinDistance`.
 - 1.3.2 to 1.3.6:
-   about 0.18 ms per positional token whatever its length;
+   about a fifteenth of the time 1.3.1 takes on a thousand real paths,
+   and the same whatever the length of a token;
    about three quarters of it in collecting option names and searching them.
 - `1.4.0-dev` builds from `1.4.0-dev.2665` on:
-   about 0.09 ms per positional token;
+   about half the time of 1.3.6 again;
    no suggestion code runs.
+
+Those ratios are from seven rounds with the versions paired by round,
+under "Inputs that are slow".
+For scale only,
+on the machine used they came to seconds for a thousand paths on the first group,
+and about 0.18 ms and 0.09 ms per positional token on the other two.
 
 ## Root cause
 
@@ -157,7 +205,7 @@ the failure and its message are thrown away.
     }
 ```
 
-`levenshteinDistance()` fills a table of token length times name length.
+`levenshteinDistance()` does work in proportion to token length times name length.
 So one parse does work in proportion to
 tokens times option parsers times option names times token length.
 A profile of a thousand-path parse on 1.1.1 put 93.1% of the parse in `levenshteinDistance`.
@@ -245,7 +293,9 @@ and the profile of `1.4.0-dev.2971` shows what that costs with the suggestion wo
 - Upstream pull request 992 says
    "Short-path default/callback runs showed no improvement."
    On this repository's parser,
-   a thousand tokens of one to three characters went from 300.3 ms on 1.3.1 to 185.3 ms on 1.3.2.
+   a thousand tokens of one to three characters took 0.62 times as long on 1.3.2 as on 1.3.1,
+   as a ratio of the two medians over the same seven rounds,
+   not paired round by round.
    The length check in step 4 rejects this parser's long option names against a short token;
    that explanation was read from the code and not tested on its own.
 
@@ -278,8 +328,9 @@ on 2026-11-12.
 
 A standalone script that needs only `@optique/core` beside it.
 Its parser has the shape of the old commit parser:
-the same options and flags,
-`multiple(argument(string()))`,
+the same Git options and flags,
+without the wrapper's own `--no-enforce-only`,
+then `multiple(argument(string()))`
 and `passThrough()`.
 
 ```ts
@@ -367,45 +418,62 @@ console.log(JSON.stringify({
 Each run was a fresh process,
 with the versions alternating inside each round.
 Every run parsed all thousand paths.
-The host's load average was above 29 throughout,
+These runs did not record the host's load,
 and the rounds differ from one another by more than the careful measurement in the research document does;
 the figures here are the lowest and highest round medians.
 
 ### Inputs that are slow
 
-The script as written,
-paths before any `--`,
-over four rounds:
+Paths before any `--`.
+The finding is the ratio between versions,
+from the measurement in the research document:
+this repository's old parser,
+seven rounds,
+each version's process paired with the other's in the same round,
+later version over earlier:
 
-- 1.1.1:
-   2,683.4 to 4,207.5 ms
-- 1.3.1:
-   2,566.3 to 3,734.3 ms
-- 1.3.2:
-   165.5 to 291.8 ms
-- 1.3.6:
-   169.6 to 256.5 ms
-- `1.4.0-dev.2664`:
-   190.9 to 298.6 ms
-- `1.4.0-dev.2971`:
-   91.3 to 134.6 ms
+- 1.1.1 to 1.3.1:
+   1.00 (0.83 to 1.04),
+   four rounds one way and three the other:
+   no difference.
+- 1.3.1 to 1.3.2:
+   0.065 (0.061 to 0.070),
+   faster in all seven.
+- 1.3.2 to 1.3.6:
+   1.04 (0.97 to 1.20),
+   no difference.
+- 1.3.2 to `1.4.0-dev.2664`:
+   1.24 (1.14 to 1.43),
+   slower in all seven.
+- 1.3.6 to `1.4.0-dev.2971`:
+   0.51 (0.46 to 0.61),
+   faster in all seven.
 
-The four round medians for 1.3.6 were 169.6,
+The script of this document,
+over four rounds,
+went the same way in each.
+Its round medians,
+for scale only:
+2.6 to 4.2 s on 1.1.1 and 1.3.1,
+0.17 to 0.30 s on 1.3.2,
+1.3.6 and `1.4.0-dev.2664`,
+and 0.09 to 0.13 s on `1.4.0-dev.2971`.
+The four for 1.3.6 were 169.6,
 175.4,
 178.9 and 256.5 ms,
-which shows how far one loaded round can sit from the others.
+which shows how far one loaded round can sit from the others
+and why no single time is a finding.
 
 ### Inputs that stay fast
 
 The same script with `"--"` placed before the paths,
-over two rounds:
-
-- 1.1.1:
-   32.9 to 48.4 ms
-- 1.3.6:
-   38.2 to 47.1 ms
-- `1.4.0-dev.2971`:
-   73.7 to 80.5 ms
+over two rounds.
+On 1.1.1 it took about a hundredth of the time it took without the separator
+(between 0.008 and 0.018,
+from the extremes of the round medians of both).
+For scale only,
+the round medians were 33 to 48 ms on 1.1.1,
+38 to 47 ms on 1.3.6 and 74 to 81 ms on `1.4.0-dev.2971`.
 
 After `--` an option parser returns a fixed failure before it looks at the token,
 so the search in step 2 is never reached.
@@ -422,9 +490,12 @@ so the search in step 2 is never reached.
         };
 ```
 
-On this input the pre-release took about twice as long as 1.1.1 and 1.3.6 in both rounds.
+On this input the pre-release took 1.6 to 2.2 times as long as 1.1.1 and 1.3.6,
+taking each round by itself.
 Two rounds are too few to call that a regression;
-it is recorded because the ranges do not overlap.
+the seven-round measurement that does is in
+`doc/troubleshooting/optique-1-4-short-option-scoping-slows-every-option-probe.md`,
+1.73 times 1.3.6 (1.51 to 2.12).
 
 ## Verified workarounds
 
@@ -438,12 +509,13 @@ Tradeoffs:
    upstream issues 990 and 991.
    An undeclared `--name=value` token before `--` now goes to `passThrough()` and is no longer a positional argument,
    and a known value option with its value missing now fails the parse where it used to succeed.
-- About 0.18 ms per positional token remains.
+- About a fifteenth of the earlier time remains,
+   and it still grows with tokens times options.
 
 ### Put `--` before the positional tokens
 
 Verified on 1.1.1 by the figures under "Inputs that stay fast":
-from seconds to under 50 ms for a thousand paths.
+about a hundredth of the time for a thousand paths.
 
 Tradeoffs:
 
@@ -454,15 +526,13 @@ Tradeoffs:
 ### On 1.3.2 or later, give every option and flag a literal `errors.noMatch`
 
 The script with `{ errors: { noMatch: message`No match.` } }` passed to every `option()` and `flag()`,
-over two rounds:
-
-- 1.3.2:
-   46.1 to 51.8 ms
-- 1.3.6:
-   44.5 to 48.2 ms
-
-That is about a quarter of the same version's time without it,
-and below the pre-release's.
+over two rounds,
+took about a quarter of the same version's time without it on 1.3.2 and on 1.3.6
+(between 0.16 and 0.31,
+from the extremes of the round medians of both),
+and less than the pre-release.
+For scale only,
+its round medians were 46 to 52 ms on 1.3.2 and 45 to 48 ms on 1.3.6.
 
 Tradeoffs:
 
@@ -479,7 +549,7 @@ Verified by the `1.4.0-dev.2971` figures.
 
 Tradeoffs:
 
-- It is a pre-release published from each push to `main`,
+- It is a pre-release published from every push to any branch that is not a tag,
    and upstream's README and `docs/` say nothing about installing or supporting these builds.
 - Custom mismatch callbacks run only when their message is read,
    so a callback used for a side effect may run fewer times.
@@ -501,13 +571,16 @@ Tradeoffs:
 - A literal `errors.noMatch` on 1.3.1 or earlier.
    The search runs before the literal is returned (step 2).
    Measured over two rounds with the literal on every option and flag:
-   2,591.7 to 2,895.5 ms on 1.1.1,
-   and 2,804.9 to 3,193.8 ms on 1.3.1.
+   the round medians on 1.1.1 and on 1.3.1 were no lower than without it by more than the rounds differ among themselves
+   (for scale only,
+   2.6 to 3.2 s with it and 2.6 to 4.2 s without).
 - A function-valued `errors.noMatch` on any version before 1.4.0.
    Step 2 and step 4 show the search running before the call.
    This was read from the source and not timed.
 - Shorter paths on 1.3.1 or earlier.
-   A thousand tokens of one to three characters still took 300.3 ms on 1.3.1.
+   A thousand tokens of one to three characters still took 1.6 times as long on 1.3.1 as on 1.3.2,
+   as a ratio of the two medians over the same seven rounds,
+   not paired round by round.
 
 ## Upstream filing artifact
 
@@ -522,14 +595,18 @@ and whether to post it is the owner's decision.
 
 `.out-of-scope/`,
 read 2026-11-12:
-no file there names Optique or this bug class,
+the one mention of Optique there is in `.out-of-scope/jsr.md`,
+which lists `@optique/*` among packages once imported from JSR.
+That file exempts JSR registry defects,
+not how Optique parses,
 so no exemption applies.
 
 Duplicate search,
 2026-11-12:
 `gh issue list --repo dahlia/optique --state all --search 'performance OR slow OR benchmark OR levenshtein OR overhead OR latency in:title,body'`
-returns upstream issues 988 and 989,
-both closed.
+returns 51 issues,
+with upstream issues 988 and 989 first.
+Both are closed.
 They describe this cost,
 cite this repository's commits as their source,
 and were fixed by pull requests 992 and 997.
@@ -581,7 +658,7 @@ The six constraints:
 
 Risk to the poster:
 the reply would go out under the owner's account.
-Upstream's policy ends:
+The last of the policy's numbered rules reads:
 "Violations of this policy may result in being banned from contributing."
 The draft and its numbers were produced with AI assistance,
 so posting it unreviewed,
@@ -621,9 +698,14 @@ Readiness check,
     yes,
     the figures under "Verification" come from that script unchanged.
 7.  Reproduction runnable by others on a clean machine through CI:
-    not done.
-    The script needs one file and one installed package;
-    no repository with a workflow was created.
+    not done on 2026-11-12.
+    Done since:
+    `Aquaticat/optique-parse-cost-reproduction`,
+    created private and public when read on 2026-11-13,
+    whose workflow runs fail on their asserting steps as its README says they do,
+    the latest for its commit `d99a8aec` that day;
+    the scripts were also run on Node,
+    Deno and Bun on 2026-11-13.
 8.  Verdict:
     no recommendation to post.
     The blocker is one only the owner can clear:
@@ -638,38 +720,185 @@ per upstream's policy.
 An AI session wrote every line of it and no person has reviewed it;
 it speaks for nobody until the owner makes it theirs.
 
+It answers both things the maintainer asked:
+a reassessment on 1.3.6 and on `main`,
+and a reproducer.
+The reassessment itself is the owner's to state,
+so that line is a placeholder.
+
+Rewritten 2026-11-13T09:36:05-05:00,
+because the thread moved:
+
+- The owner answered on the commit at 2026-11-12T13:52:56Z:
+   "Looking.
+   ETA:
+   In 24h with 90% certainty."
+   The owner followed it at 2026-11-13T14:27:49Z with
+   "Sorry,
+   I had some issues with my machine.
+   New ETA:
+   in 72h with 80% certainty.",
+   which runs to 2026-11-16T14:27:49Z.
+- The maintainer read this repository's documents without waiting,
+   opened upstream issue 1120 from them at 2026-11-13T08:16:37Z,
+   opened pull request 1121 for it two hours later,
+   and merged it at 2026-11-13T15:37:30Z as commit `d26f1a24`,
+   whose tree is that of the branch head `a175cdb7` measured here.
+   So the draft no longer reports the short-option cost as news;
+   it reports a measurement of the pull request.
+- The input-trace cost has its own document and a checked patch,
+   `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`.
+- Revised 2026-11-13T13:57:35-05:00:
+   fixes for the two copies behind the trace's were prototyped and rechecked that day,
+   as that document records under "Prototypes for the two further copies".
+   The draft now says what came of each.
+   Whether the second patch is offered to upstream at all is the owner's choice,
+   and the draft's sentences about it are there to be cut.
+
+Decided by the owner on 2026-11-13,
+in answer to questions put that morning:
+
+- On when to answer:
+   "Wait for the review",
+   and
+   "I want to have everything figured out ourselves before giving replies."
+   So the draft is not posted until the independent review is folded in and the open points are settled.
+- On the input-trace patch:
+   "Keep it local for now."
+   and,
+   when an agent took that to mean the draft should leave the patch out:
+   "I only said to "keep it **local** for **now**",
+   which means it can be in the draft."
+   So the draft carries the patch paragraph,
+   and nothing about the patch is filed or posted until the owner posts the reply.
+
+Tightened 2026-11-13T17:04:45-05:00,
+on two choices the owner made that afternoon when shown the Node and Bun timing of pull request 1121:
+
+- "Reply cut,
+   issue keeps":
+   the passage on the input-trace patch bringing the pull request level with 1.3.6 after `--`,
+   which holds on Node and not on Bun,
+   left this draft and stays in the draft issue at the end of
+   `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`.
+- "Tighten the reply first":
+   the draft went from 66 lines to 44,
+   and stands at 45 since a correction from its review took one more.
+   What left it,
+   with where each now lives:
+   the rounds that showed no difference,
+   under "Inputs that are slow" in this document;
+   the count of mismatches,
+   in the reproduction repository's README and under "How the cost grows" in
+   `doc/research/optique-typo-suggestion-overhead-upstream-record.md`;
+   `main` before the merge against 1.3.6,
+   in `doc/troubleshooting/optique-1-4-short-option-scoping-slows-every-option-probe.md`;
+   what the `Proxy` of the second patch costs a caller and the figures for the buffer attempt,
+   in the input-trace document under "Prototypes for the two further copies",
+   which the draft links;
+   and the paragraph on what 1.3.6 still does on every mismatch,
+   in step 4 of "Root cause" and under "Verified workarounds" in this document,
+   with the length check's two limits in the research record.
+   Shorter phrases left it too,
+   each of which stands in the documents named here:
+   that the parser was unchanged from the commit's parent,
+   the two-CPU container,
+   "faster in all seven",
+   that the arms were rotated,
+   that the first patch applies to `main` as of the merge,
+   that the core suite passes with the second patch,
+   and how the second patch was timed and what it does.
+   No figure in the tightened draft is new:
+   each stood in the longer one.
+   A model from another vendor,
+   in a fresh session,
+   reviewed the tightened form as of commit `629e7b84d7`.
+   It found no wrong figure and no new one,
+   and found the owner's choices reflected as recorded.
+   Folded in from it:
+   the second patch's ratio now names what it is a ratio to,
+   the first patch alone,
+   where a reader could have taken it as a ratio to `main`,
+   which no round measured at that size;
+   the buffer copy is again said of each primitive that consumes a token;
+   the opening speaks of the measurements and no longer of every number,
+   since the closing paragraph quotes two absolute times from the old commit message;
+   and this note's list of where each removed part lives is corrected.
+   Weighed and left as it is:
+   the second patch's figures are those of the patch before its last change,
+   to how a view answers a request for its `length` descriptor,
+   which the linked write-up says and the reply does not.
+   Another fresh session of that model read those corrections as of commit `7771aa14fc`,
+   recomputed the ratios they touch from the raw rounds,
+   and found each correction faithful to the records and no figure changed.
+   It pointed out that this note still gave the draft's length as 44,
+   and that the draft issue's count of places that slice the buffer could be read as fifteen
+   where the write-up says sixteen;
+   the issue now says two in `argument()` and fourteen more,
+   which was checked against upstream's source at the merge.
+
 ~~~md
-Thanks for the pointer. I reran the old parser from the parent of this commit against several versions. One parse of
-`['--message', 'x', ...1000 paths]`, median of 49 timed parses, Node 26 in a two-CPU container:
+Thanks for #992 and #997, and for #1120 and #1121: you got to the short-option cost from the notes here before I
+had sent you any of it.
 
-- 1.1.1: 2,696 ms
-- 1.3.1: 2,707 ms
-- 1.3.2: 180 ms
-- 1.3.6: 184 ms
-- 1.4.0-dev.2664 (main before #997): 229 ms
-- 1.4.0-dev.2971 (current dev): 95 ms
+[Owner: your answer to "would you consider reassessing". What the record here shows: performance was the reason for
+one parser only, the Git wrapper's, which has since been rewritten; the rest of the migration rests on the grammar
+and Valibot reasons you noticed.]
 
-So #992 removed 93% of it and #997 about half of the rest. Three things you may not have:
+My measurements, each a ratio between versions run in the same round because the machine is shared, with the range
+of the single rounds in brackets. The parser this commit removed, one parse of `['--message', 'x', ...1000 paths]` on
+Node 26, seven rounds: 1.3.2 took 0.065 times as long as 1.3.1 (0.061 to 0.070), and 1.4.0-dev.2971 took 0.51
+times as long as 1.3.6 (0.46 to 0.61). So #992 removed about 93% of it and #997 about half of what was left.
 
-- On 1.3.6, a CPU profile still puts about three quarters of the parse in `suggestion.js` and `usage.js`
-  (`traverseUsage`, `findSimilar`, `createErrorWithSuggestions`); `levenshteinDistance` itself is down to 6%.
-- `main` at #997's base was 24% slower than 1.3.6 on this input.
-- Short tokens did improve at 1.3.2 here (300 ms to 185 ms for a thousand 1 to 3 character names), unlike the
-  short-path note in #992. This parser's option names are long, so the length check rejects them.
+On #1121, as built packages on Node 26 and Bun 1.4, seven rounds, a thousand paths after `--`: its merge took 0.72
+times as long as main just before it on Node (0.62 to 0.77) and 0.73 on Bun (0.66 to 0.79). Against 1.3.6 it took
+1.37 times as long on Node (1.27 to 1.63), which agrees with your own figures, and 1.95 on Bun (1.62 to 1.99).
 
-On the current dev build the suggestion code is gone from the profile; what is left is `short-option.js` (31%),
-`input-trace.js` (23%) and `constructs.js` (14%), because every token is still offered to every option parser. Is
-that the intended end state?
+On the `InputTraceImpl.set()` copy you set aside in #1120: I have a patch that keeps the entries in an immutable
+hash trie. With 8,000 positional arguments and one option the patched build takes 0.11 times as long as main on
+Node (0.10 to 0.12) and 0.30 times on Bun (0.15 to 0.33), over five rounds, and the core suite passes with it on
+Deno, Node and Bun. It does not make the parse linear: `multiple()` still rebuilds its state array for each item
+and each primitive that consumes a token still slices the rest of the buffer. A second patch removes the state
+copy (32,000 arguments take 0.16 times as long as with the first patch alone on Node, and 0.43 on Bun) at the cost
+of making a large state a `Proxy`; for the buffer I have nothing that works. The write-up, with both patches and
+what the `Proxy` costs:
+[commit permalink to doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md in
+Aquaticats/Monochromatic].
 
-A standalone script (only `@optique/core`) that shows the same effect is in
-`doc/troubleshooting/optique-eager-typo-suggestions-on-positional-arguments.md` in this repository.
+Both patches were written by an AI agent, so per AI_POLICY.md there is no pull request. Would you take an issue for
+the first, and is a proxy-backed state something you would want at all?
+
+The reproducer you asked for, three scripts that run unchanged on Node, Deno and Bun against an npm version or a
+checkout, with a workflow that runs them on pinned versions:
+https://github.com/Aquaticat/optique-parse-cost-reproduction
+
+One question: after #997 every token is still offered to every option parser, a constant cost per token and option.
+Is that the intended end state?
 
 For context: the parser we replaced Optique with here was a different parser with bugs of its own and has since been
 deleted, so our old 4.24 s and 0.89 s compared two different things.
 
-[Owner: add here, in your own words, anything you want to say about the cost not having been reported upstream in
-July, and the disclosure of AI assistance that upstream's policy asks for.]
+[Owner: add, in your own words, the disclosure of AI assistance that upstream's policy asks for, and anything you
+want to say about the cost not having been reported upstream in July.]
+
+[Owner: whether to tell dahlia that the research record #1120 cites was marked "Status: complete" by an AI session
+without your approval, was still changing that day, and now says so.]
 ~~~
+
+The repository the draft links was created private on 2026-11-12T21:02:14Z
+and made public at 2026-11-13T14:41:43Z,
+on the owner's answer "Make public as it is".
+"As it is" refers to its first commit,
+which GitHub made when the repository was created and which carries the account's own address
+where the two later commits carry its noreply address;
+the owner was told and chose not to rewrite it.
+Three of its workflow runs fail on their asserting steps,
+as its README says they should
+(`43306241322`,
+`43306311950` and `43443075690`).
+
+The draft's link to the input-trace write-up is a placeholder:
+put a commit permalink there on the day of posting.
 
 [object loop]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/constructs.ts#L5869-L5884
 [no-match 1.1.1]: https://github.com/dahlia/optique/blob/b8d39082fdeb37bb16c68b2dc2396d4c9c45b1d5/packages/core/src/primitives.ts#L1232-L1271
@@ -678,3 +907,4 @@ July, and the disclosure of AI assistance that upstream's policy asks for.]
 [no-match 1.3.6]: https://github.com/dahlia/optique/blob/d969c9f6014bb0dee510fb407efe3806d2636dcf/packages/core/src/primitives.ts#L1302-L1347
 [search 1.3.6]: https://github.com/dahlia/optique/blob/d969c9f6014bb0dee510fb407efe3806d2636dcf/packages/core/src/suggestion.ts#L184-L192
 [deferred failure]: https://github.com/dahlia/optique/blob/1d6e459442e92f83006a7c34e4f11f5018c9ab39/packages/core/src/internal/failure.ts#L16-L39
+[deno state]: https://github.com/denoland/deno/issues/37030#:~:text=will%20continue%20maintain%20Deno%20until%20October%202027

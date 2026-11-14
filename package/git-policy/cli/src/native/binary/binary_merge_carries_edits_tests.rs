@@ -661,6 +661,28 @@ fn a_clean_checkout_that_opens_an_editor_still_merges() {
 }
 
 /// What:
+///  The permission bits Git's own checkout writes for the entry the index holds at `name`.
+/// Why:
+///  The mode a merge writes is a fact about Git's own program,
+///  which a control reads from Git rather than naming,
+///  so a file whose mode is compared with Git's answer is compared with the entry Git records,
+///  under the umask this run has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const modeGitChecksOut = (repo, name) => { git(['checkout-index', `--prefix=${elsewhere}/`, '--', name]); return mode(join(elsewhere, name)); };
+/// ```
+fn mode_git_checks_out(fixture: &Fixture, repo: &Path, name: &str) -> u32 {
+    use std::os::unix::fs::PermissionsExt;
+    let elsewhere: PathBuf = repo.parent().map_or_else(|| { return repo.to_path_buf() }, |parent| { return parent.join("git-writes"); });
+    std::fs::create_dir_all(elsewhere.as_path()).expect("a directory Git checks the entry out into");
+    git(fixture, repo, &["checkout-index", format!("--prefix={}/", elsewhere.display()).as_str(), "--", name]);
+    let written: u32 = std::fs::symlink_metadata(elsewhere.join(name)).expect("Git's own checkout of the entry").permissions().mode() & 0o7777;
+    std::fs::remove_file(elsewhere.join(name)).expect("the checkout is read and removed");
+    return written;
+}
+
+/// What:
 ///  The permission bits of what stands at `name`,
 /// without following a link.
 /// Why:
@@ -805,21 +827,31 @@ fn a_symbolic_link_the_person_has_where_the_merge_adds_a_path_stays_a_link() {
 /// What:
 ///  A change of the executable bit alone,
 /// with the blob untouched,
-/// is kept on the merged file.
+/// ends at the mode Git writes for the entry the merge ends with.
 /// Why:
-///   The decision compares object ids,
-/// so a mode the person set read as no change at all,
-/// and the merge's own mode
-///  replaced it with no line;
-/// the person's mode is theirs the same way their bytes are.
+///   Real Git compares the executable bit of a worktree file against the index and refuses a merge over such a file,
+///  so it writes no answer here;
+///  this command completes the merge,
+///  and it writes the file as Git's own checkout of the entry writes it:
+///  `0666` narrowed by the process's umask,
+///  with no executable bit,
+///  because the entry the merge ends with is `100644`
+///  (owner's decision of 2026-11-12T12:26:24-05:00,
+///  "As real Git,
+///  both cases";
+///  `SPEC.md`,
+///  "Merges and commits never fail").
+///  The person's bytes still come first:
+///  this path holds no byte of theirs,
+///  so the merge's content lands with the merge's mode.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// chmod('a.txt', 0o755); const ran = await wrapped(['merge', '--no-edit', 'feature']);
-/// expect(mode('a.txt')).toBe(0o755); expect(read('a.txt')).toContain('three feature');
+/// expect(read('a.txt')).toContain('three feature'); expect(mode('a.txt')).toBe(theModeGitChecksOut('a.txt')); expect(mode('a.txt') & 0o111).toBe(0);
 /// ```
 #[test]
-fn a_mode_change_on_a_path_the_merge_changes_is_kept() {
+fn a_mode_change_on_a_path_the_merge_changes_ends_at_the_mode_git_writes() {
     let fixture: Fixture = fixture("carry-mode-only");
     let repo: PathBuf = diverged(&fixture, "repo");
     {
@@ -831,33 +863,41 @@ fn a_mode_change_on_a_path_the_merge_changes_is_kept() {
     assert_merged(&fixture, repo.as_path(), "mode change");
     let after: String = text_at(repo.as_path(), "a.txt").expect("a.txt is there");
     assert!(after.contains(FEATURE_THIRD) && after.contains(MAIN_FIRST), "the merge's own lines land: {after:?}");
-    assert_eq!(mode_at(repo.as_path(), "a.txt"), 0o755, "the person's executable bit stands: {}", said(&observed));
-    assert_eq!(status(&fixture, repo.as_path()), " M a.txt\n", "the mode is their unsaved change, as their edits are");
+    assert_eq!(
+        mode_at(repo.as_path(), "a.txt"),
+        mode_git_checks_out(&fixture, repo.as_path(), "a.txt"),
+        "the file ends at the mode Git's own checkout writes for its entry: {}",
+        said(&observed)
+    );
+    assert_eq!(status(&fixture, repo.as_path()), "", "the exec bit Git does not record for this entry is not left behind as an edit");
     remove_settled(&fixture);
 }
 
 /// What:
 ///  The same change of the executable bit alone,
 /// on a path the merge deletes:
-/// the person's file stays with their mode and the line
-///  names the modify/delete decision.
+/// the path goes,
+/// with no byte and no mode of the person's left behind.
 /// Why:
-///   The entry rules read a mode the person set alone as no change at all,
-/// because a path the merge keeps takes the
-///  merge's bytes with that mode;
-/// a path the merge deletes has none of the merge's bytes to take it,
-///  so the mode was all that stood of their work and the deletion took it
-/// (owner's rule "never discard user data";
-///  `SPEC.md`,
-/// "Carry edits forward").
+///   A mode change alone is no change of the bytes,
+/// and Git's own update deletes the file,
+///  so the mode on it is the one thing the deletion takes with it.
+///  Real Git refuses a merge over a worktree file whose executable bit differs from the index,
+///  so the answer here is the one Git's own tree update gives:
+///  the person's work is entirely in a bit the index does not hold,
+///  and nothing of theirs is in the bytes
+///  (`SPEC.md`,
+///  "Merges and commits never fail").
+///  A byte of theirs at such a path is a different case and is kept whole
+///  (`a_private_mode_on_a_path_the_merge_deletes_keeps_the_carried_bytes_private`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// chmod('gone.txt', 0o755); const ran = await wrapped(['merge', '--no-edit', 'feature']);
-/// expect(read('gone.txt')).toBe('gone base\n'); expect(mode('gone.txt')).toBe(0o755);
+/// expect(existsSync('gone.txt')).toBe(false);
 /// ```
 #[test]
-fn a_mode_change_on_a_path_the_merge_deletes_is_kept() {
+fn a_mode_change_on_a_path_the_merge_deletes_goes_with_the_deletion() {
     let fixture: Fixture = fixture("carry-mode-only-delete");
     let repo: PathBuf = diverged(&fixture, "repo");
     {
@@ -869,11 +909,9 @@ fn a_mode_change_on_a_path_the_merge_deletes_is_kept() {
     let words: String = said(&observed);
     assert_eq!(observed.code, Some(0), "{}", words);
     assert_merged(&fixture, repo.as_path(), "mode change on a deleted path");
-    assert_eq!(text_at(repo.as_path(), "gone.txt").as_deref(), Some("gone base\n"), "the person's bytes are kept: {words}");
-    assert_eq!(mode_at(repo.as_path(), "gone.txt"), 0o755, "the person's executable bit stands: {words}");
+    assert_eq!(text_at(repo.as_path(), "gone.txt"), None, "the path the merge deletes is gone, as it is after Git's own update: {words}");
     assert!(head_object(&fixture, repo.as_path(), "gone.txt").is_empty(), "the merge's deletion is in the merge commit: {words}");
-    assert!(words.contains("gone.txt"), "the line names the path: {words}");
-    assert!(words.contains("the merge deletes it"), "the line names the modify/delete decision: {words}");
+    assert_eq!(status(&fixture, repo.as_path()), "", "nothing of the person's is left as an edit at the path: {words}");
     remove_settled(&fixture);
 }
 
@@ -909,6 +947,93 @@ fn a_staged_mode_change_on_a_path_the_merge_deletes_keeps_its_entry() {
     assert_eq!(mode_at(repo.as_path(), "gone.txt"), 0o755, "the person's executable bit stands: {words}");
     let staged: String = index_entry(&fixture, repo.as_path(), "gone.txt");
     assert!(staged.starts_with("100755 "), "the index holds the mode they staged, not {staged:?}: {words}");
+    assert!(head_object(&fixture, repo.as_path(), "gone.txt").is_empty(), "the merge's deletion is in the merge commit: {words}");
+    assert!(words.contains("gone.txt"), "the line names the path: {words}");
+    assert!(words.contains("the merge deletes it"), "the line names the modify/delete decision: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A change of a private file's read and write bits alone,
+/// with the blob and the executable bit untouched,
+/// on a path the merge deletes:
+/// the path goes,
+/// as it does after real Git's own update.
+/// Why:
+///  `git status` compares the executable bit alone,
+/// so `chmod 0600 gone.txt` is no change Git's own update sees,
+///  and its deletion takes the file and the mode with it.
+///  This command writes the mode real Git writes,
+///  which for a deleted path is none at all
+///  (owner's decision of 2026-11-12T12:26:24-05:00,
+///  "As real Git,
+///  both cases";
+///  `SPEC.md`,
+///  "Merges and commits never fail").
+///  A byte of theirs at the path is still their work and keeps the file with every bit they set
+///  (`a_private_mode_on_a_path_the_merge_deletes_keeps_the_carried_bytes_private`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmod('gone.txt', 0o600); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(existsSync('gone.txt')).toBe(false);
+/// ```
+#[test]
+fn a_private_mode_on_a_path_the_merge_deletes_goes_with_the_deletion() {
+    let fixture: Fixture = fixture("carry-private-mode-only-delete");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(repo.join("gone.txt"), std::fs::Permissions::from_mode(0o600)).expect("the person's private mode");
+    }
+    assert_eq!(status(&fixture, repo.as_path()), "", "the fixture's private mode is work Git's status does not show");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "{}", words);
+    assert_merged(&fixture, repo.as_path(), "private mode on a deleted path");
+    assert_eq!(text_at(repo.as_path(), "gone.txt"), None, "the path the merge deletes is gone, as it is after Git's own update: {words}");
+    assert!(head_object(&fixture, repo.as_path(), "gone.txt").is_empty(), "the merge's deletion is in the merge commit: {words}");
+    assert_eq!(status(&fixture, repo.as_path()), "", "no mode of the person's is left as an edit: {words}");
+    remove_settled(&fixture);
+}
+
+/// What:
+///  The same private mode with an edit beside it,
+/// on a path the merge deletes:
+/// the file the carry puts back carries their bytes and their `0600`,
+/// not the `0644` a checkout writes.
+/// Why:
+///  The capture kept Git's mode alone,
+/// and the path the merge deleted stood empty when the carry wrote the person's entry back,
+/// so the mode came from Git's entry and a private file came back world-readable:
+///  keeping the bytes while widening a private uncommitted file exposes them
+///  (a Kimi K3.1 Pro audit of `0.6.1-alpha.12`,
+/// its second finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// chmod('gone.txt', 0o600); append('gone.txt', 'local private edit\n'); const ran = await wrapped(['merge', '--no-edit', 'feature']);
+/// expect(read('gone.txt')).toBe('gone base\nlocal private edit\n'); expect(mode('gone.txt')).toBe(0o600);
+/// ```
+#[test]
+fn a_private_mode_on_a_path_the_merge_deletes_keeps_the_carried_bytes_private() {
+    let fixture: Fixture = fixture("carry-private-mode-and-edit-delete");
+    let repo: PathBuf = diverged(&fixture, "repo");
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(repo.join("gone.txt"), std::fs::Permissions::from_mode(0o600)).expect("the person's private mode");
+    }
+    std::fs::write(repo.join("gone.txt"), b"gone base\nlocal private edit\n").expect("the person's private edit");
+    let observed: Observed = run(&fixture, repo.as_path(), &["merge", "--no-edit", "feature"]);
+    let words: String = said(&observed);
+    assert_eq!(observed.code, Some(0), "{}", words);
+    assert_merged(&fixture, repo.as_path(), "private mode and edit on a deleted path");
+    assert_eq!(
+        text_at(repo.as_path(), "gone.txt").as_deref(),
+        Some("gone base\nlocal private edit\n"),
+        "the person's bytes are kept: {words}"
+    );
+    assert_eq!(mode_at(repo.as_path(), "gone.txt"), 0o600, "the mode they set stands: {words}");
     assert!(head_object(&fixture, repo.as_path(), "gone.txt").is_empty(), "the merge's deletion is in the merge commit: {words}");
     assert!(words.contains("gone.txt"), "the line names the path: {words}");
     assert!(words.contains("the merge deletes it"), "the line names the modify/delete decision: {words}");

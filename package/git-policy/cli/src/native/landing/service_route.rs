@@ -36,12 +36,12 @@ use crate::repo_read_layout::{RepoLayout, read_layout_in};
 /// A pathname from the bytes Git printed for it,
 ///  and one answer without its terminating line feed.
 use crate::hooks_path_values::{path_answer, without_the_terminator};
-use crate::service_instance::{SOCKET_DIRECTORY, socket_path, try_instance_of};
+use crate::service_instance::{SOCKET_DIRECTORY, service_unit_instance, socket_path, try_instance_of};
 use crate::service_host_of_a_worktree::{ServiceHost, state_dir_of_the_command};
 use crate::service_server::Bind;
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::transaction_git_awaiting::run_git_awaiting;
-use crate::wait_ceilings::ROUTE_STATE_CEILING;
+use crate::wait_ceilings::{HAND_OVER_GREETING_WAIT, ROUTE_STATE_CEILING};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -415,31 +415,66 @@ pub fn route_from_environment(real_git: &Path, git_dir: &Path) -> Option<Route> 
     });
 }
 
-/// What:
-///  Whether something listens on the socket:
-/// a connection to it succeeds.
+/// What a socket of the commit service did when the status asked it.
 /// Why:
-///  A service is running when its socket takes a connection.
+///  A socket that takes a connection is not a service that answers:
+/// the status is what the message of a failed commit sends a person to,
+/// so it tells a service that works from one
+///  that is running and has stopped inside itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const serviceAnswers = async (socket: string) => { try { await connect(socket); return true; } catch { return false; } };
+/// type Answered = 'greeted' | 'said-nothing' | 'nothing'
 /// ```
-fn service_answers(socket: &Path) -> bool {
-    return std::os::unix::net::UnixStream::connect(socket).is_ok();
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Answered {
+    /// A service took the connection and sent its greeting.
+    Greeted,
+    /// Something took the connection and sent nothing within the bound.
+    SaidNothing,
+    /// Nothing took the connection.
+    Nothing,
 }
 
 /// What:
-///  Whether any socket file in a directory takes a connection.
+///  What the commit service at `socket` does when it is asked,
+/// waited for no longer than the wait a hand-over grants a greeting.
 /// Why:
-///  Without a worktree to ask about,
-/// any commit service of the user counts.
+///   A service greets a connection before it restores anything,
+/// so a connection taken and greeted is a service that runs,
+/// and a connection taken and never greeted is a program that stopped inside itself
+/// (`wait_ceilings.rs`,
+/// `HAND_OVER_GREETING_WAIT`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// (await readdir(directory)).some((name) => name.endsWith('.sock') && serviceAnswers(join(directory, name)))
+/// const answered = asking(socket); // 'greeted' | 'said-nothing' | 'nothing'
 /// ```
-fn any_socket_answers(directory: &Path) -> bool {
+fn asking(socket: &Path) -> Answered {
+    let Ok(stream) = crate::service_client_connect_within_a_bound::connect_within(&Bind::Path(socket.to_path_buf())) else {
+        return Answered::Nothing;
+    };
+    let _timeout = stream.set_read_timeout(Some(HAND_OVER_GREETING_WAIT));
+    let mut reader: std::io::BufReader<std::os::unix::net::UnixStream> = std::io::BufReader::new(stream);
+    return match crate::service_client_listen_and_ask_to_retire::listen(&mut reader) {
+        crate::service_client_listen_and_ask_to_retire::Heard::Message(_) => Answered::Greeted,
+        crate::service_client_listen_and_ask_to_retire::Heard::Silent => Answered::SaidNothing,
+        crate::service_client_listen_and_ask_to_retire::Heard::Closed => Answered::Nothing,
+    };
+}
+
+/// What:
+///  Whether any commit service of the account greets a connection in a directory of sockets.
+/// Why:
+///   Without a worktree to ask about,
+/// any service of the account counts,
+/// and one that takes a connection and says nothing does not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readdir(directory).some((name) => name.endsWith('.sock') && asking(join(directory, name)) === 'greeted')
+/// ```
+fn any_service_greets(directory: &Path) -> bool {
     let Ok(entries) = std::fs::read_dir(directory) else {
         return false;
     };
@@ -449,7 +484,7 @@ fn any_socket_answers(directory: &Path) -> bool {
             Some(extension) => extension == "sock",
             None => false,
         };
-        if is_socket_file && service_answers(path.as_path()) {
+        if is_socket_file && asking(path.as_path()) == Answered::Greeted {
             return true;
         }
     }
@@ -457,25 +492,26 @@ fn any_socket_answers(directory: &Path) -> bool {
 }
 
 /// What:
-///  Says whether the commit service of a worktree answers on its socket.
+///  Says what the commit service of a worktree does,
+///  names the unit that serves it,
+///  and gives the step that ends a service which stopped inside itself.
 /// Why:
-///   A diagnostic only:
-/// there is nothing to install or start by hand.
-/// Connecting is what a commit does,
-/// so a service that the
-///  manager would start on demand is started by this check too.
-/// Outside a repository there is no worktree to ask for,
-/// and the
-///  answer counts the instances that answer.
+///   A diagnostic a person reaches for when a commit failed:
+/// connecting is what a commit does,
+/// so a service the manager would start on demand is started by this check too,
+/// and the unit its restart
+///  names is the one of this worktree and no other.
+/// A restart of every service of the account is what the failure this check answers must never ask for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// serviceStatus(runtimeDir, gitDir)
 /// ```
 pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> StatusReport {
-    let (answered, what): (bool, &str) = match (runtime_dir, git_dir) {
-        (Some(runtime), Some(git)) => match try_instance_of(git) {
-            Ok(instance) => (service_answers(socket_path(runtime, instance.as_str()).as_path()), "The commit service of this worktree"),
+    let what: &str = if git_dir.is_some() { "The commit service of this worktree" } else { "A commit service" };
+    let instance: Option<String> = match (runtime_dir, git_dir) {
+        (Some(_runtime), Some(git)) => match try_instance_of(git) {
+            Ok(found) => Some(found),
             Err(unreachable) => {
                 return StatusReport {
                     code: 1,
@@ -487,23 +523,44 @@ pub fn service_status(runtime_dir: Option<&Path>, git_dir: Option<&Path>) -> Sta
                 };
             }
         },
-        (Some(runtime), None) => {
-            let any: bool = any_socket_answers(runtime.join(SOCKET_DIRECTORY).as_path());
-            (any, "A commit service")
-        }
-        (None, _) => (false, "The commit service"),
+        _ => None,
     };
-    return if answered {
-        StatusReport { code: 0, stdout: format!("{what} is running and answers.\n"), stderr: String::new() }
-    } else {
-        StatusReport {
+    let answered: Answered = match (runtime_dir, instance.as_deref()) {
+        (Some(runtime), Some(found)) => asking(socket_path(runtime, found).as_path()),
+        (Some(runtime), None) => {
+            if any_service_greets(runtime.join(SOCKET_DIRECTORY).as_path()) {
+                Answered::Greeted
+            } else {
+                Answered::Nothing
+            }
+        }
+        (None, _) => Answered::Nothing,
+    };
+    let unit: String = match instance.as_deref() {
+        Some(found) => format!(" Its unit is `{}`.", service_unit_instance(found)),
+        None => String::new(),
+    };
+    return match answered {
+        Answered::Greeted => StatusReport { code: 0, stdout: format!("{what} is running and answers.{unit}\n"), stderr: String::new() },
+        Answered::SaidNothing => StatusReport {
+            code: 1,
+            stdout: String::new(),
+            stderr: format!(
+                "{what} took a connection and sent nothing for {} seconds, so it is running and has stopped inside itself: it was \
+                 frozen, a debugger holds it, or it waits for a disk that never answers. Starting it again does not help, because the \
+                 service manager believes it runs.{unit} Restart that unit with `systemctl --user restart` and the unit name printed here, \
+                 then run the commit again.\n",
+                HAND_OVER_GREETING_WAIT.as_secs()
+            ),
+        },
+        Answered::Nothing => StatusReport {
             code: 1,
             stdout: String::new(),
             stderr: format!(
                 "{what} does not answer here. It sets itself up the first time a commit needs it, so there is nothing to \
-                 install; if a commit fails, its message says what to do.\n"
+                 install; if a commit fails, its message says what to do.{unit}\n"
             ),
-        }
+        },
     };
 }
 

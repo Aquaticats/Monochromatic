@@ -58,8 +58,8 @@ export type ProviderPool = {
 };
 
 /**
- The limit a pool carries while it takes no new run, which two of them do: one the owner replaced, and one they closed while its
- week is used up.
+ The limit a pool carries while it takes no new run, which three of them do: one the owner replaced, the one that replaced it
+ and was then taken out, and one they closed while its week is used up.
 
  A closed pool keeps its place in the table because its runs are still counted where they are, and because a run that names the
  launcher's default provider and model is still read as a default run, which the first pool with room then takes.
@@ -67,14 +67,18 @@ export type ProviderPool = {
 export const CLOSED_POOL_LIMIT = 0;
 
 /**
- The qwen plan's DeepSeek pool, which a run that names no model of its own takes first.
+ The qwen plan's DeepSeek pool, which no new run takes since the owner took it out of the pools on 2026-11-13.
 
- The owner, 2026-11-11T17:5x-05:00: "I think there's no point to withholding all Qwen quota to Qwen itself. Please replace the
- neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017". So default runs go here first,
- where they went to standard Neuralwatt, with the 18 slots that pool had. The plan's own concurrency limit is neither stated nor
- measured: a 429 that names one sets the real number, as it did for Neuralwatt.
+ The owner, 2026-11-13T14:5x-05:00: "Remove Qwen hosted Deepseek from the pool." So the limit is {@link CLOSED_POOL_LIMIT},
+ and it was 18. The same plan answers the reviews on `qwen4-max-preview`, and that afternoon it had answered four of them
+ "429 ... Allocated quota exceeded", which its documentation gives as a limit on tokens per second or minute; the runs of this
+ pool drew on the same plan. The entry stays so that the runs already on it are counted where they are and finish there.
 
- Those 18 are the size the owner had just given the pool this replaced, 2026-11-11T17:0x-05:00: "Change flex concurrency to
+ What it was before: the owner, 2026-11-11T17:5x-05:00: "I think there's no point to withholding all Qwen quota to Qwen
+ itself. Please replace the neuralwatt standard deepseek pool with qwen-token-plan-individual  deepseek-v4.1-flash-1017". So
+ default runs went here first, where they had gone to standard Neuralwatt, with the 18 slots that pool had.
+
+ Those 18 were the size the owner had just given the pool this replaced, 2026-11-11T17:0x-05:00: "Change flex concurrency to
  22-2=20 per model and normal concurrency to 20-2=18 per model. Neuralwatt said to keep 1 to 2 below the limit because \"a slot
  frees up a moment after your client sees the response finish, so a request sent straight away can land as the 23rd\"."
  Neuralwatt's 429 of 2026-11-11T01:19Z, "Concurrent limit reached for deepseek-ai/DeepSeek-V4.1-Flash: 6/6 slots in use. ...
@@ -85,17 +89,22 @@ export const QWEN_PLAN_DEEPSEEK: ProviderPool = {
   name: 'qwen-plan-deepseek',
   provider: 'qwen-token-plan-individual',
   model: 'deepseek-v4.1-flash-1017',
-  limit: 18,
+  limit: CLOSED_POOL_LIMIT,
   wallFactor: 1,
   takesDefaultRuns: true,
+  closed: {
+    reason: 'the owner took the qwen plan\'s DeepSeek model out of the pools on 2026-11-13',
+  },
 };
 
 /**
  Neuralwatt's standard DeepSeek pool, which no new run takes since the qwen plan replaced it.
 
- The owner's words beside {@link QWEN_PLAN_DEEPSEEK} are the replacement, so the limit is {@link CLOSED_POOL_LIMIT} and it was
- 18. The entry stays so that the runs already on standard Neuralwatt are counted where they are, and so a run that names the
- launcher's default provider and model is still read as a default run and placed on the first pool with room.
+ The owner's words of 2026-11-11 beside {@link QWEN_PLAN_DEEPSEEK} are the replacement, so the limit is
+ {@link CLOSED_POOL_LIMIT} and it was 18. The entry stays so that the runs already on standard Neuralwatt are counted where
+ they are, and so a run that names the launcher's default provider and model is still read as a default run and placed on the
+ first pool with room. The pool that replaced it was itself taken out on 2026-11-13, and nothing was said then about this one,
+ so it stays as it was: closed.
 
  The owner, 2026-11-09 kept the account's own limit at 20: "Try 20, and if it doesn't blow up (in terms of api rate limits),
  we're permanently raising the practical limit to 20." Historical 429s that lowered it for a few hours are void: the owner wrote
@@ -111,7 +120,8 @@ export const NEURALWATT_STANDARD: ProviderPool = {
 };
 
 /**
- Neuralwatt's DeepSeek flex pool, which a run that names no model of its own takes once the qwen plan's pool is full.
+ Neuralwatt's DeepSeek flex pool, which a run that names no model of its own takes first, the two pools before it in the table
+ being closed.
 
  The owner, 2026-11-10: "You can use -flex postfix on neuralwatt models. They have their own separate pool of 22 slots. They're
  around 100% slower than standard in practice." A flex run therefore gets twice the wall clock, which is what `wallFactor` is
@@ -176,14 +186,37 @@ export const NEURALWATT_KIMI_FLEX: ProviderPool = {
 
  The owner, 2026-11-11T16:3x-05:00: "qwen-token-plan-individual  qwen4-max-preview is now available in Pi. Check if it can
  replace Kimi or Sonnet." Then, 2026-11-11T19:27-05:00: "Make the Qwen 4 pool 18, and use it for reviews INSTEAD of Kimi."
- So the limit is the owner's number. The plan's own concurrency limit for it is not measured or stated, and a 429 that names
- one sets the real number.
+ So the limit was the owner's number, 18, until 2026-11-13.
+
+ The limit now is measured. On 2026-11-13, between 13:56:41 and 15:15:53 (-05:00), the plan answered eighteen runs on this
+ model "429 ... Allocated quota exceeded ... insufficient_quota", which its error-code page gives as a limit on tokens a second
+ or a minute, and Pi 1.5.2 never retries that answer (`@earendil-works/pi-ai/dist/utils/retry.js` lists `insufficient_quota`
+ and `quota exceeded` as not retryable), so each one ended its run. Counted from every run's feed and summary of that day:
+ each ending came with six to nine runs on this model going; by minute, none in the 278 minutes with five or fewer going, one
+ in the 40 minutes at six, five in the 21 at seven, one in the 5 at eight, one in the single minute at nine. Six to nine runs
+ on the plan's DeepSeek model were going beside them each time, and whether the plan counts those against the same limit is
+ not shown. The owner, 2026-11-13T15:2x-05:00: "You're responsible for the driver, the wrapper, mpm, cargo. If you find a
+ issue you or a subagent fix it."
+
+ Corrected the same day at 15:45: five does not prevent the answer. Between 15:36:05 and 15:41:05 it ended three more runs with
+ only two and three runs on this model going (by minute then: two of the 297 minutes at five or fewer held an ending, against
+ eight of the 67 at six or more), and the runs it ended had contexts from 27,598 to 523,600 tokens while runs of 118,179 to
+ 599,191 finished, so neither the count of runs nor the size of a run's context tells which request is refused.
+
+ What the provider says of the plan (its Token Plan FAQ, read 2026-11-13,
+ https://docs.modelstudio.console.alibabacloud.com/en/model-studio/token-plan-personal-faq): the rate limits "are adjusted
+ dynamically based on overall load" and "cannot be increased"; a caller that is limited should "wait about 1 minute before
+ retrying"; and the concurrency it recommends for the personal edition is "1-2 Agents" on its smallest tier and "6-8 Agents" on
+ its largest. So five stays as a number inside what the largest tier is recommended, where 18 was more than twice it, and what
+ lets a run live through the answer is a retry after about a minute, not this number. A first form of this comment said to
+ lower the number by one at each such ending; that rule is withdrawn, because the answer comes at any count and the rule would
+ only walk the pool down to nothing.
  */
 export const QWEN_PLAN_QWEN4_MAX_PREVIEW: ProviderPool = {
   name: 'qwen-token-plan',
   provider: 'qwen-token-plan-individual',
   model: 'qwen4-max-preview',
-  limit: 18,
+  limit: 5,
   wallFactor: 1,
   takesDefaultRuns: false,
 };

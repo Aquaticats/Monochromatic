@@ -75,6 +75,16 @@ pub fn name_unaccounted_trash(git_dir: &Path, worktree: &Path, notices: &mut dyn
     for state in [PENDING, CLAIMED, RECOVERING, FAILED] {
         let Ok(listing) = std::fs::read_dir(state_directory(work.as_path(), state)) else { continue };
         for entry in listing.flatten() {
+            // What: A record whose name says it is another kind of work is passed over without being opened.
+            // Why:  The queue keeps every kind, and this repository held 508 failed pushes and reviews beside one
+            //       trash record: reading each of them on every command was half a thousand opens, and this machine's trace
+            //       has one open of that tree taking 7.4 s while the disk was saturated
+            //       (`doc/planning/cli-git-commit-latency-alpha-11-against-alpha-10.md`).
+            //       A record's name begins with its kind (`work_item_ids_and_names.rs`), so the name answers the question the
+            //       bytes would.
+            if !crate::work_item_ids_and_names::names_a_trash_record(entry.file_name().to_string_lossy().as_ref()) {
+                continue;
+            }
             let record: PathBuf = entry.path();
             // A record is a plain file: a named pipe or a device in a state directory is somebody's own entry, and
             // opening it would wait for a writer that never comes, on every command in this worktree.
@@ -231,3 +241,8 @@ fn left_words(path: &Path, reason: &str) -> String {
         path.display()
     );
 }
+
+/// The scan's controls stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_trash_unaccounted_tests.rs"]
+mod tests;

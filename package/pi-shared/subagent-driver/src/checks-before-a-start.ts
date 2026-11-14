@@ -1,6 +1,6 @@
 /**
- What a start checks before it makes anything: that the prompt file can be read, that the base names a commit, and that the run's
- unit name is free.
+ What a start checks before it makes anything: that the prompt file can be read, that the base names a commit, that the run's
+ unit name is free, and that Pi starts in this session and loads its extensions.
 
  A start that fails one of these made nothing, so nothing has to be undone, and no provider slot is spent on a run that could not
  have worked. Before this, a launcher took a slot, made a worktree and linked its dependencies, and only then did the driver find
@@ -14,15 +14,38 @@ import {
   stat,
 } from 'node:fs/promises';
 import { constants, } from 'node:fs';
+import { join, } from 'node:path';
 import type { GitRunner, } from './worktree-of-a-run.ts';
 import type { RunCommand, } from './run-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
+import {
+  type PiStartAnswer,
+  piProblemIn,
+  rememberPiStartCheck,
+} from './pi-start-check.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
+
+export {
+  PI_LOAD_FAILURE_TEXT,
+  PI_START_CHECK_MEMORY_SECONDS,
+  type PiStartCheckOutcome,
+  type PiStartAnswer,
+  type PiStartCheckRecord,
+  StartRefusedError,
+  piProblemIn,
+  piStartCheckFileIn,
+  rememberPiStartCheck,
+} from './pi-start-check.ts';
 
 /**
  The code the operating system gives a path that is not there.
  */
 const MISSING_PATH_CODE = 'ENOENT';
+
+/**
+ The mode a prompt file has to grant: a file nobody may read cannot be a run's first prompt.
+ */
+const PROMPT_READABLE_MODE: number = constants.R_OK;
 
 /**
  The code the operating system gives a path whose permission bits refuse the caller.
@@ -34,20 +57,6 @@ const PERMISSION_CODE = 'EACCES';
  */
 const UNIT_NOT_FOUND_STATE = 'not-found';
 
-/**
- A start this package refused, with every reason it found.
- */
-export class StartRefusedError extends Error {
-  /**
-   The name printed with the message.
-   */
-  override readonly name = 'StartRefusedError';
-}
-
-/**
- The mode a prompt file has to grant: a file nobody may read cannot be a run's first prompt.
- */
-const PROMPT_READABLE_MODE: number = constants.R_OK;
 
 /**
  Says what stops a prompt file from being read, if anything does.
@@ -188,7 +197,45 @@ export async function nameProblemIn({
 }
 
 /**
- Every reason a start is refused, in the order a reader needs them.
+ What a start settled before it made anything: the reasons it is refused, and the warnings a start that goes ahead prints.
+ */
+export type StartChecks = {
+  /**
+   One line per reason the start is refused, empty when it may go ahead.
+   */
+  readonly refusals: readonly string[];
+
+  /**
+   One line per question the start could not get an answer to, which is no reason to refuse a run.
+   */
+  readonly warnings: readonly string[];
+};
+
+/**
+ Reads the refusals and the warnings a start's checks answered.
+
+ @param answers - what each check answered, in the order the checks ran
+
+ @returns the reasons and the warnings, each as its own list
+
+ @example
+ ```ts
+ const { refusals, warnings } = answersIn([{ problem: 'no prompt', }, {},],);
+ ```
+ */
+export function answersIn(answers: readonly PiStartAnswer[],): StartChecks {
+  return {
+    refusals: answers.flatMap(function problemOf(answer,) {
+      return (answer.problem === undefined) ? [] : [answer.problem,];
+    },),
+    warnings: answers.flatMap(function warningOf(answer,) {
+      return (answer.warning === undefined) ? [] : [answer.warning,];
+    },),
+  };
+}
+
+/**
+ Every reason a start is refused, in the order a reader needs them, with the warnings a start that goes ahead prints.
 
  @param promptFile - the run's first prompt
 
@@ -202,11 +249,17 @@ export async function nameProblemIn({
 
  @param runName - the run's name
 
- @returns one line per reason, empty when the start may go ahead
+ @param sessionPath - the `PATH` the session's own processes get, which the question about Pi is asked with
+
+ @param home - the `HOME` the session runs with, whose settings name the extensions Pi loads
+
+ @param runsFolder - folder the runs live in, where an answer about Pi is kept for the starts that follow
+
+ @returns the refusals and the warnings
 
  @example
  ```ts
- const refusals = await startRefusalsIn({ promptFile: '/runs/a-prompt.md', git, checkoutFolder: '/repo', base: 'main', run, runName: 'a', },);
+ const { refusals, warnings } = await startRefusalsIn({ promptFile: '/runs/a-prompt.md', git, checkoutFolder: '/repo', base: 'main', run, runName: 'a', sessionPath: '/bin', home: '/home/a', runsFolder: '/runs', },);
  ```
  */
 export async function startRefusalsIn({
@@ -216,6 +269,9 @@ export async function startRefusalsIn({
   base,
   run,
   runName,
+  sessionPath,
+  home,
+  runsFolder,
 }: {
   readonly promptFile: string;
   readonly git: GitRunner;
@@ -223,11 +279,26 @@ export async function startRefusalsIn({
   readonly base: string;
   readonly run: RunCommand;
   readonly runName: string;
-},): Promise<readonly string[]> {
+
   /**
-   What each check found, in the order the checks run.
+   The `PATH` the session's own processes get, which the question about Pi is asked with.
    */
-  const problems = await Promise.all([
+  readonly sessionPath: string;
+
+  /**
+   The `HOME` the session runs with, whose settings name the extensions Pi loads.
+   */
+  readonly home: string;
+
+  /**
+   Folder the runs live in, where an answer about Pi is kept for the starts that follow.
+   */
+  readonly runsFolder: string;
+},): Promise<StartChecks> {
+  /**
+   What the three checks about the run itself found, in the order a reader needs them.
+   */
+  const [promptAnswer, baseAnswer, nameAnswer] = await Promise.all([
     promptProblemIn({ path: promptFile, },),
     baseProblemIn({
       git,
@@ -239,7 +310,48 @@ export async function startRefusalsIn({
       runName,
     },),
   ],);
-  return problems.flatMap(function problemOf(answer,) {
-    return (answer.problem === undefined) ? [] : [answer.problem,];
+  /**
+   What the question about Pi answered, which is asked even when another check refuses, so a reader fixes them all at once.
+   */
+  const pi = await piProblemIn({
+    run,
+    sessionPath,
+    home,
+    folder: checkoutFolder,
+    runsFolder,
+    keepTheAnswer: false,
   },);
+  /**
+   What the checks answered.
+   */
+  const checks = answersIn([
+    promptAnswer,
+    baseAnswer,
+    nameAnswer,
+    pi,
+  ],);
+  // A refused start makes nothing, not even a memory: the answer about Pi is kept only once every check has passed.
+  /**
+   The reasons this start is refused.
+   */
+  const { refusals, } = checks;
+  if (refusals.length === 0) {
+    /**
+     What the question about Pi found worth keeping, when it found anything.
+     */
+    const { keep, } = pi;
+    if (keep !== undefined) {
+      await rememberPiStartCheck({
+        runsFolder,
+        record: {
+          askedAt: new Date().toISOString(),
+          ...keep,
+          sessionPath,
+          home,
+          folder: checkoutFolder,
+        },
+      },);
+    }
+  }
+  return checks;
 }

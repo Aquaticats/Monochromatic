@@ -17,6 +17,16 @@
 //!  Processes the scan
 //!      cannot read are partial evidence,
 //!  and they are reported as such rather than counted as absent.
+//!  A process another account owns is the one such case a removal may act through
+//!  (`OTHER_ACCOUNTS_PROCESS_REASON`):
+//!  it cannot write into a file of this account's,
+//!  which is why the commit service's lock removal tolerates it
+//!  (the owner's decision of 2026-11-07,
+//! "Service removes it").
+//!  A process of this account whose descriptors the kernel refuses may hold the file,
+//!  and a caller that would unlink it must keep it
+//!  (a Kimi K3.1 Pro audit of `0.6.1-alpha.12`,
+//! its first finding).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -169,6 +179,12 @@ fn scan_process(proc_root: &Path, pid: &str, device: u64, inode: u64, opened: Op
     let listing: std::fs::ReadDir = match std::fs::read_dir(process.join("fd")) {
         Ok(found) => found,
         Err(error) if exited(&error) => return (false, None, None),
+        // A process of this account whose descriptors the kernel refuses may hold the file, so its reason is kept as one a
+        //  removal does not act through; another account's process cannot write into a file of this account's, and that reason
+        //  is the one the commit service's lock removal tolerates.
+        Err(error) if crate::index_lock_holders_accounts::another_account_owns(process.as_path()) => {
+            return (false, Some(format!("{}{pid}: {error}", crate::index_lock_holders_accounts::OTHER_ACCOUNTS_PROCESS_REASON)), None);
+        }
         Err(error) => return (false, Some(format!("PID {pid}: {error}")), None),
     };
     let mut holds: bool = false;

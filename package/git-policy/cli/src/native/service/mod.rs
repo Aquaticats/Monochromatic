@@ -30,6 +30,12 @@ pub mod service_scratch_trees_of_queued_requests;
 /// beside the landing loop.
 pub mod service_shadow_pool_fill;
 
+/// The service's stock of finished shadows drawn ahead of the commits that ask for one.
+pub mod service_shadow_draw;
+
+/// The question a commit asks its service for the finished shadow drawn ahead of it.
+pub mod service_client_shadow_hand_out;
+
 /// Whether a socket of an earlier release's unit listens,
 /// read from the table of unix sockets.
 pub mod earlier_unix_sockets_that_listen;
@@ -206,8 +212,14 @@ pub mod service_client_why_withdrawn;
 
 /// Connecting to the service,
 /// reading one line from it,
+/// writing a request within a bound,
 /// and asking an older service to retire.
 pub mod service_client_listen_and_ask_to_retire;
+
+/// The connect itself,
+/// waited for with a bound because a socket whose queue of unaccepted connections is full takes no connection
+/// until something accepts.
+pub mod service_client_connect_within_a_bound;
 
 /// The settings of one client run,
 /// and what starts the server when nothing answers.

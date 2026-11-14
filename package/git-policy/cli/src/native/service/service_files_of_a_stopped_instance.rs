@@ -34,6 +34,10 @@
 //! and any name this release does not explain keep the whole journal,
 //! which is then named to the person,
 //! because work they may still want is never discarded.
+//! A batch's copy of the conclusion state (`<batch>.cleanup`) is not one of them:
+//! it is a copy of what the landing compares,
+//! made for a worktree whose units are stopped and whose files are gone,
+//! so it goes with the journal.
 //! A service that may still write keeps the journal and the files that name the instance,
 //! so a later sweep finishes then.
 //! Nothing here starts a unit,
@@ -54,12 +58,11 @@ use crate::private_storage::create_private_directory_all;
 use crate::push_retry::PLAN_DIRECTORY;
 use crate::service_claim_watch::WATCH_DIRECTORY;
 use crate::service_instance::{socket_path, SOCKET_DIRECTORY};
-use crate::service_journal::{CLAIM_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
+use crate::service_journal::{CLAIM_EXTENSION, CONCLUSION_COPY_EXTENSION, DONE_EXTENSION, INDEXED_EXTENSION, OPEN_EXTENSION, SCRATCH_EXTENSION, START_EXTENSION, TEMPORARY_EXTENSION};
 use crate::service_journal_folder_of_an_instance::journal_of;
-use crate::service_journal_record_age::{a_client_may_still_read, stamp_of};
+use crate::service_journal_record_age::{a_client_may_still_read, a_client_may_still_read_finished_batch, modified_time_of};
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "serviceFilesOfAnInstance";
@@ -212,44 +215,6 @@ enum Kept {
 /// the client of its request may still look for the commit it became.
 const A_LOST_ANSWER_MAY_READ_IT: &str = "a batch that landed too recently for every client of it to be gone";
 
-/// The time a path was last written,
-/// and why it could not be read.
-fn modified_time_of(path: &Path) -> std::io::Result<SystemTime> {
-    let metadata = std::fs::metadata(path)?;
-    return metadata.modified();
-}
-
-/// The reading of the clocks a finished record was written by,
-/// from the record's own text,
-/// and nothing when it carries none or cannot be read.
-fn finished_record_reading(path: &Path) -> Option<ClaimTime> {
-    let text: String = std::fs::read_to_string(path).ok()?;
-    return stamp_of(text.as_str());
-}
-
-/// What:
-///  Whether a client of the finished record at `path` may still read it.
-/// Why:
-///   A record whose modification time already says a client may still look costs no read,
-/// and one the wall clock calls old is asked about through the reading it carries,
-/// because a wall clock that stepped forward makes a record of this boot look old
-/// while the client of it is still inside a wait measured on the monotonic clock.
-/// The reading is only ever one more reason to keep a record:
-/// no client can look for a commit past `A_FINISHED_RECORD_IS_READ` of the clock it waits on,
-/// but a record the wall clock still keeps is kept whether its reading is old or not,
-/// so a clock that moved costs a journal that outlives its clients and never a record taken too soon.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// aClientMayStillRead(finishedRecordReading(path), modifiedTimeOf(path), now)
-/// ```
-fn a_client_may_still_read_the_finished_record(path: &Path, now: &ClaimTime) -> bool {
-    if a_client_may_still_read(None, modified_time_of(path), now) {
-        return true;
-    }
-    return a_client_may_still_read(finished_record_reading(path).as_ref(), modified_time_of(path), now);
-}
-
 /// Whether a file name is the record of a batch that landed,
 /// which a stopped instance's journal may lose once no client of it can still look.
 fn is_finished_memory(name: &str) -> bool {
@@ -286,6 +251,26 @@ fn reason_of_a_kept_file(name: &str) -> &'static str {
         return "a record that was written and not published";
     }
     return "a file this release does not know";
+}
+
+/// What:
+///  Whether a folder inside a journal is one batch's copy of the conclusion state that batch removed.
+/// Why:
+///   The copy is named `<batch>.cleanup` (`conclusion_state_copy.rs`),
+/// and it is a copy the service made:
+/// the
+///  worktree's own state files are what the cleanup removes,
+/// and this journal belongs to a worktree that is gone.
+///  A folder whose name only ends that way is not one:
+/// the batch number before it is digits and nothing else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const copy = /^[0-9]+\.cleanup$/.test(name);
+/// ```
+fn is_a_conclusion_copy(name: &str) -> bool {
+    let Some((stem, extension)) = name.rsplit_once('.') else { return false };
+    return extension == CONCLUSION_COPY_EXTENSION && !stem.is_empty() && stem.bytes().all(|byte| { return byte.is_ascii_digit() });
 }
 
 /// Why a folder inside a journal keeps it.
@@ -420,13 +405,19 @@ fn kept_entry_of(journal: &Path, now: &ClaimTime) -> Result<Option<Kept>, String
             Err(error) => return Err(format!("{} could not be read ({error})", path.display())),
         };
         if kind.is_dir() {
+            // The copy of a batch's conclusion state is the service's own, made before the branch moved, and it is a
+            // copy of what the landing compares and of the worktree's scratch state, never the state itself: the
+            // worktree this journal belongs to is gone, so nothing reads it again.
+            if is_a_conclusion_copy(name.as_str()) {
+                continue;
+            }
             if !holds_nothing(path.as_path())? {
                 return Ok(Some(Kept::Work(name.clone(), reason_of_a_kept_folder(name.as_str()))));
             }
             continue;
         }
         if is_finished_memory(name.as_str()) {
-            if a_client_may_still_read_the_finished_record(path.as_path(), now) {
+            if a_client_may_still_read_finished_batch(path.as_path(), now) {
                 readable = Some(Kept::Read(name, A_LOST_ANSWER_MAY_READ_IT));
             }
             continue;

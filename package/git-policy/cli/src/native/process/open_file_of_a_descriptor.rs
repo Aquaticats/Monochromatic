@@ -69,18 +69,28 @@ const READ_IN_MEMORY_FILE_SYSTEMS: [&str; 7] = ["btrfs", "ext4", "xfs", "f2fs", 
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// parseFdinfo(await readFile(`${process}/fdinfo/${fd}`, 'utf8')).mnt_id ?? undefined
+/// const record = descriptorRecord({ process, fd, targeted: 'real-file' });
+/// record.text === undefined ? undefined : mountIdIn(record.text);
 /// ```
 #[cfg(target_os = "linux")]
 fn mount_id_of(process: &Path, fd: &OsStr) -> std::io::Result<Option<u64>> {
-    let record: PathBuf = process.join("fdinfo").join(fd);
-    let text: String = std::fs::read_to_string(record)?;
-    for line in text.lines() {
-        if let Some(value) = line.strip_prefix("mnt_id:") {
-            return Ok(value.trim().parse::<u64>().ok());
-        }
-    }
-    return Ok(None);
+    return match crate::descriptor_record::descriptor_record(process, fd, crate::descriptor_record::Targeted::RealFile) {
+        crate::descriptor_record::Record::Text(text) => Ok(crate::descriptor_record::mount_id_in(text.as_str())),
+        // Only a descriptor of a file of a file system reaches this read, so its text is a path and it can be the file; a
+        //  descriptor that is not one is not identified here either.
+        crate::descriptor_record::Record::NotTheTarget => Ok(None),
+        // The process or the descriptor ended while this read looked at it, which a caller has always read as a race.
+        crate::descriptor_record::Record::Gone => Err(std::io::Error::from(std::io::ErrorKind::NotFound)),
+        crate::descriptor_record::Record::BeyondBound => Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "its record is longer than the {} bytes this scan takes, so the mount it reached is not read",
+                crate::descriptor_record::RECORD_BYTES_AT_MOST
+            ),
+        )),
+        crate::descriptor_record::Record::Unreadable { kind, reason } => Err(std::io::Error::new(kind, reason)),
+        crate::descriptor_record::Record::KindUnknown { kind, reason } => Err(std::io::Error::new(kind, reason)),
+    };
 }
 
 /// What:
@@ -92,11 +102,14 @@ fn mount_id_of(process: &Path, fd: &OsStr) -> std::io::Result<Option<u64>> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// (await readFile(`${process}/mountinfo`, 'utf8')).split('\n').find(line => Number(line) === mntId)?.split(' - ')[1].split(' ')[0]
+/// readPlainTextAt(`${process}/mountinfo`, 4 << 20).split('\n').find(line => Number(line) === mntId)?.split(' - ')[1].split(' ')[0]
 /// ```
 #[cfg(target_os = "linux")]
 fn file_system_of_mount(process: &Path, mount: u64) -> std::io::Result<Option<String>> {
-    let table: String = std::fs::read_to_string(process.join("mountinfo"))?;
+    // The table's length is the system's state, not this command's: a process of a container host can hold tens of
+    //  thousands of mounts, and one past the bound is refused rather than read whole
+    //  (`crate::plain_file::MOUNT_TABLE_LIMIT`).
+    let table: String = crate::plain_file::read_plain_text_at(process.join("mountinfo").as_path(), crate::plain_file::MOUNT_TABLE_LIMIT)?;
     for line in table.lines() {
         let fields: Vec<&str> = line.split(' ').collect();
         let first: Option<u64> = match fields.first() {
