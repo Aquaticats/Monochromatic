@@ -720,9 +720,9 @@ by the rules that already stand:
   and no change to the pools:
   about twenty-five agents stays the most.
 - The units this depends on and when each ends by itself:
-  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-18-20261114T0142`
-  (started 2026-11-14T01:42:18-05:00 for eight hours,
-  so it is started again by 09:42;
+  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-17-20261114T0204`
+  (started 2026-11-14T02:03:15-05:00 for eight hours,
+  so it is started again by 10:03;
   the one of 17:12:16 at level thirty-two ended at 01:12:16),
   and the waiter of the moment
   (eight hours from its start,
@@ -730,16 +730,30 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
-- May an hour in which `toolchain-daily-update.service` runs judge a level of the agent search?
-  Twenty to twenty-two agents held the judged hour of 2026-11-13 18:51 to 19:49;
-  the same count failed the drive half of the criterion twice between 01:07 and 01:19 on 2026-11-14,
-  with the daily update running since 00:16:48,
-  and the cap went from thirty-two to twenty by the rule
+- The agent cap went from thirty-two to seventeen between 01:16 and 02:03 on 2026-11-14,
+  each step by the search's own rule,
+  while the count of agents fell and the home drive's stalls grew
+  (up to 143 s on a 4 KiB write-and-sync,
+  every other reading by 01:50).
+  The count that held an hour on 2026-11-13 was twenty to twenty-two.
+  Does the cap stay where the criterion put it,
+  or go back up once the stalls are explained?
+  What is known:
+  they do not go with the daily update
+  (they went on after it ended at 01:40:01);
+  a snapshot cleanup of the system has run since 00:00:07 and is the one lead,
+  untested
   (`doc/handover/agents-at-once-on-this-machine.md`,
-  "Levels 32 and 24 fail on the home drive, 2026-11-14T00:59:04-05:00 to 01:18:45-05:00").
-  Nothing measured shows the daily update is the cause.
-  At twenty the queue starts nothing new while twenty or more runs are going;
-  until then about twenty-two went at once.
+  "Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00").
+  After seventeen the search ends at sixteen and this session takes it no lower.
+  The earlier form of this question,
+  about hours that hold the daily update,
+  is withdrawn.
+- Is the lock of Pi's files to be cleared by hand again if it is left again before the shim is fixed?
+  It was cleared once at 02:02:59 on 2026-11-14 after twenty minutes in which no Pi run could start
+  (the section of 2026-11-14T02:05:16-05:00);
+  the decision record names that recovery,
+  and this session will repeat it under the same checks unless told otherwise.
 - When a retried push reached one address and was declined at another,
   and the report of that cannot be written because the storage refuses the write,
   is it enough that the words stand in the journal?
@@ -1224,6 +1238,105 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### No Pi run could start for twenty minutes: a lock this repository's shim never takes over; `0.6.1-alpha.24` is installed; the cap is seventeen (2026-11-14T02:05:16-05:00)
+
+Not final and not approved:
+what the coordinating session found,
+did and queued.
+
+- **The outage**:
+  from 01:43:06 to 02:02:59 every Pi that was started exited with status 1 before it took its prompt,
+  with `Lock file is already being held (lock: /home/user/.pi/agent/.models-store.json.lock)`.
+  Two queue entries were spent on it
+  (`removal-refuses-a-worktree-…-5`,
+  ended 01:46:07 after 127 s and no turn;
+  `review-git-policy-cli-pending-push-…-1`,
+  ended 01:53:56 the same way);
+  two runs of another session carry the same line.
+  The sixteen Pi processes already running went on.
+  The filling unit was stopped at 01:54:52 so that no further entry was spent.
+- **The cause, read in the source**:
+  the lock is made by this repository's own replacement for `proper-lockfile`
+  (`package/pnpm-override/shim-proper-lockfile/index.cjs`,
+  which Pi's installed `auth-storage.js` resolves):
+  `mkdirSync` of `.<name>.lock`,
+  `rmdirSync` to release,
+  and the caller's `stale` and `onCompromised` ignored.
+  A lock whose holder died is never taken over.
+  `doc/decision/proper-lockfile-removal.md` says so and why it was accepted:
+  "The workspace does not run multiple concurrent pi instances;
+  if that changes,
+  revisit the shim."
+  It has changed.
+  Which process made this lock and died is not established:
+  no live Pi had started within nine minutes before it,
+  and one run of this session ended eight seconds after it.
+- **Adopted while the owner was away,
+  open to veto**:
+  the lock directory was removed by hand at 02:02:59
+  (`rmdir`,
+  which refuses a directory that holds anything).
+  It is the recovery the decision record names
+  ("until the user `rmdir`s the lock directory").
+  Checked before:
+  the directory was empty,
+  `models-store.json` was unchanged since 2026-11-13T21:55:58,
+  all sixteen live Pi processes were sleeping and none in a blocked write,
+  and the lock had stood twenty minutes where the longest stall measured that night is 143 s.
+- **Verified after**:
+  the filling unit was started again at 02:03:15;
+  its first start,
+  integration pass 35,
+  took its prompt 41.9 s after its start
+  (`prompt_sent`,
+  `success: true`).
+- **Put back and queued**:
+  the removal-refuses author's resume and the pending-push review are back at the head;
+  a fresh run for the shim is first in the queue
+  (`lock-shim-of-pi-takes-over-a-lock-whose-holder-is-gone`,
+  citing the decision);
+  a fresh driver run is queued for a Pi that exits before it takes its prompt
+  (`driver-run-whose-pi-exits-before-it-takes-its-prompt-is-started-again-within-a-bound`),
+  told that a retry alone would not have answered twenty minutes and that a standing failure must be told apart
+  so a filler can stop spending entries on it.
+  Until the shim is fixed and in `main`,
+  the same can happen again and is cleared the same way.
+- **`0.6.1-alpha.24`** was published at about 01:50
+  (release run 43567512343,
+  publish run 43567600861)
+  and installed at 01:54:11.
+  Its sample commit took 10,936 ms,
+  of which 9,653 ms was the wait for the service's answer and 151 ms the landing's lock:
+  the shape that passes 29 and 34 answer,
+  not something this release changes.
+  The journal from 01:53:30 to 02:00:30 holds 915 lines of the wrapper's units:
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at its start limit,
+  and nine services that said `0.6.1-alpha.24` at their start.
+- **Add never skips**
+  (tip `5e01a74f19`,
+  ended 01:48:22):
+  the author answered all four findings of the fifth review,
+  each with a control that fails without its fix,
+  and says of one review probe that it cannot see the fix because it copies the old mapping.
+  Review of the answer queued
+  (range `main...5e01a74f19`).
+- **The cap is seventeen** since 02:03:15.
+  Level eighteen failed at 01:54:55 on 141,638 ms and 24,317 ms with seventeen and sixteen agents going,
+  after the daily update had ended:
+  the stalls do not go with the daily update,
+  and the count does not explain them.
+  A lead from the system's journal,
+  not tested:
+  `snapper-cleanup.service` has run since 00:00:07 and deleted a batch of snapshots at 00:14:49,
+  98 s before the first slow answer of the service manager;
+  it did not run in the hour that held.
+  All of it is in `doc/handover/agents-at-once-on-this-machine.md`,
+  "Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00".
+  After seventeen the search ends at sixteen and goes no lower without the owner.
+- The queue held 67 entries at 02:05:07.
 
 ##### The merge-lock answer passed its review: pass 35; a merge fails when a lock appears between its look and its settle; two authors' answers go to review (2026-11-14T01:45:40-05:00)
 
