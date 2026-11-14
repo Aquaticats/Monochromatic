@@ -11,6 +11,7 @@ import {
   execFile,
 } from 'node:child_process';
 import { once, } from 'node:events';
+import { existsSync, } from 'node:fs';
 import {
   chmod,
   lstat,
@@ -29,6 +30,7 @@ import {
 } from 'node:path';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { promisify, } from 'node:util';
+import { createSopsFixture, } from '@monochromatic-dev/env-local-json-core/ts/fixture.ts';
 import {
   describe,
   expect,
@@ -47,6 +49,10 @@ import {
   VARIABLES_KEPT_DESPITE_CREDENTIAL_NAME,
 } from '../dist/final/node/index.mjs';
 import {
+  PRINTS_A_VALUE_SCENARIO,
+  WITHOUT_MASKING_SCENARIO,
+} from './stand-in-pi-masking-fixture.ts';
+import {
   REPORTED_PROCESS_ID,
 } from './stand-in-pi-scenario-plays-fixture.ts';
 import {
@@ -60,6 +66,88 @@ import {
   START_FAILURE_TEXT,
   TRANSIENT_ERROR_TEXT,
 } from './stand-in-pi-records-fixture.ts';
+
+/**
+ Reads every file a run wrote, whole, so a test can ask what a run left behind without holding the folder it was in.
+
+ @param folder - the run's folder
+
+ @returns each file's text, by its name under the folder
+ */
+async function textsOfEveryFileIn({ folder, }: { readonly folder: string },): Promise<Readonly<Record<string, string>>> {
+  // A run that refused before making its folder wrote nothing, which is an empty answer rather than a failure.
+  if (!await exists(folder,)) {
+    return {};
+  }
+  /**
+   What the folder holds, of any depth.
+   */
+  const entries = await readdir(
+    folder,
+    { recursive: true, withFileTypes: true, },
+  );
+  /**
+   The files of the folder, each with the name it has under it.
+   */
+  const files = entries.filter(function isFile(entry,) {
+    return entry.isFile();
+  },);
+  /**
+   Each file's text, read in parallel because there are as many reads as the folder holds files.
+   */
+  const texts = await Promise.all(files.map(function readOne(entry,) {
+    return readFile(
+      join(
+        entry.parentPath,
+        entry.name,
+      ),
+      'utf8',
+    );
+  },),);
+  return Object.fromEntries(files.map(function textOf(entry, index,) {
+    return [entry.name, texts[index] ?? '',];
+  },),);
+}
+
+/**
+ An age identity file that opens nothing: a key of the right shape that no store was encrypted to.
+
+ It is built from parts so the file holds no text any scanner would take for a key, and it is not one: no store anywhere is
+ encrypted to it, and this machine has none.
+ */
+const NOT_A_KEY_FOR_THIS_STORE: string = `${['AGE', 'SECRET', 'KEY',].join('-',)}-1${'Q'.repeat(58,)}`.concat(String.fromCodePoint(10,),);
+
+/**
+ The folder holding `sops`, found on this machine's own PATH, which the two masking controls give the driver beside its stand-in.
+
+ The driver's PATH in these tests is the stand-in's folder and nothing else, so a store reader would find no sops there; a real
+ driver inherits the shell's PATH, which is what this adds.
+
+ @returns the folder holding sops, or none when this machine has none
+ */
+function folderOfSops(): readonly string[] {
+  /**
+   The folder of this machine's PATH that holds sops, if one does.
+   */
+  const folder = (process.env.PATH ?? '').split(delimiter,)
+    .find(function holdsSops(entry,) {
+      return existsSync(join(
+        entry,
+        'sops',
+      ),);
+    },);
+  return (folder === undefined) ? [] : [folder,];
+}
+
+/**
+ The stand-in value the two masking controls put in a store, long enough to be masked.
+ */
+const MASKED_STORE_VALUE = 'stand-in-store-value-0123456789';
+
+/**
+ The name the stand-in store declares for it.
+ */
+const MASKED_STORE_NAME = 'STAND_IN_API_KEY';
 
 /**
  Specialized promisified `execFile`, typed through Node's own adapter contract.
@@ -231,6 +319,11 @@ type Finished = {
   readonly inboxContents: Readonly<Record<string, string>>;
   readonly logWasWritten: boolean;
   readonly runFolderWasMade: boolean;
+
+  /**
+   Every file the run wrote, whole, which is what a test of what a run leaves behind reads.
+   */
+  readonly runFiles: Readonly<Record<string, string>>;
 };
 
 type RunPaths = {
@@ -257,6 +350,11 @@ type RunRequest = {
    */
   readonly promptText?: string;
   readonly withoutPrompt?: boolean;
+
+  /**
+   Folders added to the driver's PATH after the stand-in's own, which a test of the store reader needs for sops.
+   */
+  readonly extraPathEntries?: readonly string[];
   readonly wallSeconds?: number;
   readonly idleSeconds?: number;
 
@@ -584,6 +682,7 @@ async function runDriver(
     withoutPi = false,
     promptText = 'hello',
     withoutPrompt = false,
+    extraPathEntries = [],
     wallSeconds = RUN_WALL_SECONDS,
     idleSeconds = IDLE_SECONDS,
     turnCap = TURN_CAP,
@@ -615,7 +714,7 @@ async function runDriver(
     promptFile,
     log,
   },);
-  const pathWithStandIn = [folder.path, dirname(process.execPath,), '/usr/bin',].join(delimiter,);
+  const pathWithStandIn = [folder.path, dirname(process.execPath,), '/usr/bin', ...extraPathEntries,].join(delimiter,);
   const running = execFileAsync(process.execPath, [
     DRIVER,
     `--run-folder=${runFolder}`,
@@ -675,6 +774,7 @@ async function runDriver(
     inboxContents: await contentsOfInbox(join(runFolder, 'inbox',),),
     logWasWritten: logged.length > 0,
     runFolderWasMade: await exists(runFolder,),
+    runFiles: await textsOfEveryFileIn({ folder: runFolder, },),
   };
 }
 
@@ -1692,6 +1792,93 @@ await describe({
         const noted = run.feed.find((entry,) => entry.kind === 'environment',);
         expect(noted?.removedNames,).toEqual([CREDENTIAL_SHAPED_VARIABLE,],);
         expect(JSON.stringify(run.feed,),).not.toContain(CREDENTIAL_VALUE,);
+      },
+    },),
+    it({
+      name: 'keeps a value a tool printed out of every file the run writes, and says on the feed what was masked',
+      fn: async () => {
+        /**
+         The stand-in store, which is the only place this value stands.
+         */
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        const run = await runDriver({
+          scenario: PRINTS_A_VALUE_SCENARIO,
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+          },
+        },);
+        expect(run.summary.endReason,).toBe('idle',);
+        /**
+         What the feed says the tool result held, which is a marker and not a value.
+         */
+        const ended = run.feed.find((entry,) => entry.kind === 'tool_end',);
+        expect(String(ended?.result,),).toContain(
+          `[masked secret value of ${MASKED_STORE_NAME}]`,
+        );
+        expect(JSON.stringify(run.feed,),).not.toContain(MASKED_STORE_VALUE,);
+        // Every file the run writes, read back: a value masked in what the model reads may not be left in one of them.
+        /**
+         The files the run wrote that hold the value, which may be none.
+         */
+        const holding = Object.entries(run.runFiles,)
+          .filter(function holdsIt([, text,],) {
+            return text.includes(MASKED_STORE_VALUE,);
+          },)
+          .map(function nameOf([name,],) {
+            return name;
+          },);
+        expect(holding,).toEqual([],);
+      },
+    },),
+    it({
+      name: 'refuses to start a run whose secret environment cannot be read, naming the cause and starting no Pi',
+      fn: async () => {
+        /**
+         A stand-in store, which a second key does not open.
+         */
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        /**
+         An identity file that is not the one the store was encrypted to.
+         */
+        await using otherIdentity = await makeFolder();
+        /**
+         The key of another identity.
+         */
+        const otherKey = join(otherIdentity.path, 'identity.txt',);
+        await writeFile(
+          otherKey,
+          NOT_A_KEY_FOR_THIS_STORE,
+        );
+        const run = await runDriver({
+          scenario: 'normal',
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: otherKey,
+          },
+        },);
+        expect(run.status,).not.toBe(CLEAN_STATUS,);
+        expect(run.standardError,).toContain('SecretEnvironmentUnreadableError',);
+        expect(run.standardError.toLowerCase(),).toContain('decrypt',);
+        expect(run.standardError,).not.toContain(MASKED_STORE_VALUE,);
+        // No Pi was started, so the stand-in wrote nothing: a run whose masking cannot be armed does not begin.
+        expect(run.logWasWritten,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'sends no prompt to a Pi whose masking is not in place',
+      fn: async () => {
+        const run = await runDriver({ scenario: WITHOUT_MASKING_SCENARIO, },);
+        expect(run.summary.endReason,).toBe('masking-not-armed',);
+        expect(run.commands,).not.toContain('prompt',);
+        /**
+         What the feed says about it, which names the values handed over and the commands Pi had.
+         */
+        const noted = run.feed.find((entry,) => entry.kind === 'masking_not_armed',);
+        expect(typeof noted?.handedOver,).toBe('number',);
+        expect(noted?.commands,).not.toContain('secret-value-masking',);
       },
     },),
     it({
