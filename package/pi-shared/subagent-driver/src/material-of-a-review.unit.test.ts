@@ -342,18 +342,18 @@ function aCopiedFile({ from, path, }: { readonly from: string; readonly path: st
 
 /**
  The names the reviewed commit holds for a set of changes: the newer name of every path that was added, copied, modified, renamed
- or changed the type of, which is what `git ls-tree` prints for a commit that holds them.
+ or changed the type of.
 
  @param changed - the changes a stand-in git reports
 
- @returns the paths the commit holds, one to a line
+ @returns the paths the commit holds, in the order the changes were given
 
  @example
  ```ts
  const held = heldPathsIn({ changed: [aModifiedFile(aCodePath())], },);
  ```
  */
-function heldPathsIn({ changed, }: { readonly changed: readonly ChangedInATest[] },): string {
+function heldPathsIn({ changed, }: { readonly changed: readonly ChangedInATest[] },): readonly string[] {
   /**
    The statuses that leave a file at the newer name.
    */
@@ -364,16 +364,169 @@ function heldPathsIn({ changed, }: { readonly changed: readonly ChangedInATest[]
     'R',
     'T',
   ],);
-  /**
-   The newer names of those changes.
-   */
-  const paths = changed.filter(function leavesAFile(one,) {
+  return changed.filter(function leavesAFile(one,) {
     return leavingAFile.has(one.status.charAt(0,),);
   },)
     .map(function newerName(one,) {
       return one.path;
     },);
-  return (paths.length === 0) ? '' : `${paths.join('\n',)}\n`;
+}
+
+/**
+ The last byte of the C0 controls, which Git quotes.
+ */
+const LAST_C0_BYTE = 0x1F;
+
+/**
+ The first byte that is not ASCII, which Git quotes.
+ */
+const FIRST_NON_ASCII_BYTE = 0x7F;
+
+/**
+ The byte a double quote is, which Git quotes.
+ */
+const DOUBLE_QUOTE_BYTE = 0x22;
+
+/**
+ The byte a backslash is, which Git quotes.
+ */
+const BACKSLASH_BYTE = 0x5C;
+
+/**
+ The byte a line feed is, which Git writes as an escape.
+ */
+const LINE_FEED_BYTE = 0x0A;
+
+/**
+ The byte a tab is, which Git writes as an escape.
+ */
+const TAB_BYTE = 0x09;
+
+/**
+ The byte a carriage return is, which Git writes as an escape.
+ */
+const CARRIAGE_RETURN_BYTE = 0x0D;
+
+/**
+ A backslash, which a lone one cannot stand in a raw template, so one is taken from two.
+ */
+const BACKSLASH = String.raw`\\`.slice(
+  0,
+  1,
+);
+
+/**
+ Reads a path the way Git prints one in a line when it does not hold the raw name: wrapped in double quotes with C-style escapes
+ when it holds a byte a plain line cannot carry, which is the quoting `core.quotePath` turns on.
+
+ @param path - a path, from the top of the checkout
+
+ @returns the path as Git prints it without `-z`
+
+ @example
+ ```ts
+ const quoted = cQuoted('a b.ts',);
+ ```
+ */
+function cQuoted(path: string,): string {
+  /**
+   The path's bytes as Git sees them.
+   */
+  const bytes = Buffer.from(path, 'utf8',);
+  /**
+   Whether one byte is one Git quotes: a control, a byte outside printable ASCII, a double quote or a backslash.
+   */
+  function isUnusual(byte: number,): boolean {
+    if (byte <= LAST_C0_BYTE) {
+      return true;
+    }
+    if (byte >= FIRST_NON_ASCII_BYTE) {
+      return true;
+    }
+    if (byte === DOUBLE_QUOTE_BYTE) {
+      return true;
+    }
+    return byte === BACKSLASH_BYTE;
+  }
+  if (!bytes.some(isUnusual,)) {
+    return path;
+  }
+  /**
+   The quoted form, built a piece at a time.
+   */
+  const pieces: string[] = ['"',];
+  for (const byte of bytes) {
+    if (byte === DOUBLE_QUOTE_BYTE) {
+      pieces.push(String.raw`\"`,);
+    }
+    else if (byte === BACKSLASH_BYTE) {
+      pieces.push(String.raw`\\`,);
+    }
+    else if (byte === LINE_FEED_BYTE) {
+      pieces.push(String.raw`\n`,);
+    }
+    else if (byte === TAB_BYTE) {
+      pieces.push(String.raw`\t`,);
+    }
+    else if (byte === CARRIAGE_RETURN_BYTE) {
+      pieces.push(String.raw`\r`,);
+    }
+    else if (isUnusual(byte,)) {
+      /**
+       The byte's octal digits, which a quoted path writes after a backslash.
+       */
+      const digits = byte.toString(8,);
+      /**
+       The digits padded to the three a quoted path writes.
+       */
+      const octal = digits.padStart(
+        3,
+        '0',
+      );
+      pieces.push(`${BACKSLASH}${octal}`,);
+    }
+    else {
+      pieces.push(String.fromCodePoint(byte,),);
+    }
+  }
+  pieces.push('"',);
+  return pieces.join('',);
+}
+
+/**
+ What `git ls-tree --name-only -r` prints for a set of changes: one name to a line, in Git's quoting, or, when the question asks
+ for `-z`, the raw names each ended by a NUL byte.
+
+ @param changed - the changes a stand-in git reports
+
+ @param nul - whether the question asked for `-z`
+
+ @returns the text git prints
+
+ @example
+ ```ts
+ const printed = lsTreePrintedFor({ changed: [aModifiedFile(aCodePath())], nul: true },);
+ ```
+ */
+function lsTreePrintedFor({
+  changed,
+  nul,
+}: {
+  readonly changed: readonly ChangedInATest[];
+  readonly nul: boolean;
+},): string {
+  /**
+   The paths the commit holds.
+   */
+  const paths = heldPathsIn({ changed, },);
+  if (nul) {
+    return paths.map(function asAField(path,) {
+      return `${path}\0`;
+    },)
+      .join('',);
+  }
+  return (paths.length === 0) ? '' : `${paths.map(cQuoted,)
+    .join('\n',)}\n`;
 }
 
 /**
@@ -419,7 +572,10 @@ function gitChanging({ changed, }: { readonly changed: readonly ChangedInATest[]
 ) => Promise<CommandOutput> {
   return async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
     if (words[0] === 'ls-tree') {
-      return answered(heldPathsIn({ changed, },),);
+      return answered(lsTreePrintedFor({
+        changed,
+        nul: words.includes('-z',),
+      },),);
     }
     if (words.includes('--name-status',)) {
       return answered(nameStatusPrintedFor({ changed, },),);
@@ -772,9 +928,76 @@ await describe({
               'ls-tree',
               '--name-only',
               '-r',
+              '-z',
               aCommit(),
               '--',
               aSourceFolder(),
+            ],);
+          },
+        },),
+        it({
+          name: 'keeps a changed file whose name holds a byte outside ASCII, because the commit\'s listing is asked for raw names as the range\'s names are',
+          fn: async () => {
+            /**
+             A changed code file whose name holds a non-ASCII byte.
+             */
+            const awkward = `${aSourceFolder()}/naïve.ts`;
+            /**
+             What the reading answered.
+             */
+            const material = await readAChangeThrough([aModifiedFile(awkward,),],);
+            expect(material.kind,).toBe('code-and-build-decisions',);
+            expect(codeFilesOf(material,),).toEqual([awkward,],);
+          },
+        },),
+        it({
+          name: 'keeps both of two renames whose status and names joined by spaces are equal, because one change is told from another by its parts',
+          fn: async () => {
+            /**
+             The range the first rename is in.
+             */
+            const firstRange = `${anIntegrationBranch()}...${aBranch()}`;
+            /**
+             The range the second rename is in.
+             */
+            const secondRange = 'other...range';
+            /**
+             A git that answers each range with one of the two renames whose joined text is equal: `R100 x y.ts z.ts`.
+             */
+            async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
+              if (words[0] === 'ls-tree') {
+                return answered('y.ts z.ts\0z.ts\0',);
+              }
+              if (words.includes('--name-status',)) {
+                return answered((words.includes(firstRange,))
+                  ? 'R100\0x\0y.ts z.ts\0'
+                  : 'R100\0x y.ts\0z.ts\0',);
+              }
+              return answered('a diff of them',);
+            }
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git,
+              checkoutFolder: '/repo',
+              ranges: [firstRange, secondRange,],
+              source: '.',
+              commit: aCommit(),
+            },);
+            expect(material.kind,).toBe('code-and-build-decisions',);
+            expect(codeFilesOf(material,),).toEqual(['y.ts z.ts', 'z.ts',],);
+            expect(codeRemovalsOf(material,),).toEqual([
+              {
+                status: 'renamed',
+                was: 'x',
+                now: 'y.ts z.ts',
+              },
+              {
+                status: 'renamed',
+                was: 'x y.ts',
+                now: 'z.ts',
+              },
             ],);
           },
         },),
@@ -1007,7 +1230,7 @@ await describe({
              */
             async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
               return answered((words[0] === 'ls-tree')
-                ? `${aSourceFolder()}/gate.unit.test.ts`
+                ? `${aSourceFolder()}/gate.unit.test.ts\0`
                 : (words.includes('--name-status',))
                   ? nameStatusPrintedFor({
                     changed: [
@@ -1039,7 +1262,7 @@ await describe({
                */
               async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
                 return answered((words[0] === 'ls-tree')
-                  ? `${aCodePath()}\n`
+                  ? `${aCodePath()}\0`
                   : ((words.includes('--name-status',)) ? `${status}\0${aCodePath()}\0` : 'a diff'),);
               }
               /**
@@ -1071,7 +1294,7 @@ await describe({
              A git that names a status with no path after it.
              */
             async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
-              return answered((words[0] === 'ls-tree') ? `${aCodePath()}\n` : ((words.includes('--name-status',)) ? 'M\0' : 'a diff'),);
+              return answered((words[0] === 'ls-tree') ? `${aCodePath()}\0` : ((words.includes('--name-status',)) ? 'M\0' : 'a diff'),);
             }
             /**
              What the reading answered, or the error it threw.

@@ -18,6 +18,7 @@ import {
   NO_SYNTHETIC_HOST_LOAD,
   REVIEW_BRIEF_PLACEHOLDERS,
   TemplatePlaceholderError,
+  aPathAsABriefShowsIt,
   briefOfAChangeToTests,
   briefOfAReview,
   placeholdersIn,
@@ -494,6 +495,87 @@ await describe({
             expect(reads,).toContain('The reviewed commit holds no file at a path this change touches, so the diff holds everything there is to read.',);
             expect(reads,).not.toContain('Read each of these files in full',);
             expect(reads,).toContain(`- \`${aDeletedPath()}\` (deleted)`,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: aPathAsABriefShowsIt.name,
+      children: [
+        it({
+          name: 'shows an ordinary path as itself in a code span, so every brief written before a name needed another form reads the same',
+          fn: async () => {
+            expect(aPathAsABriefShowsIt({ path: 'package/a/src/gate.rs' },),).toBe('`package/a/src/gate.rs`',);
+          },
+        },),
+        it({
+          name: 'shows a path with a space, a double quote, a backslash, a byte outside ASCII or a leading dash as itself, because a code span carries each of them',
+          fn: async () => {
+            /**
+             The names a code span carries as they are.
+             */
+            const plain = [
+              'package/a/src/a b.ts',
+              'package/a/src/a"b.ts',
+              String.raw`package/a/src/a\b.ts`,
+              'package/a/src/naïve.ts',
+              '-dash.ts',
+            ];
+            for (const path of plain) {
+              expect(aPathAsABriefShowsIt({ path, },),).toBe(`\`${path}\``,);
+            }
+          },
+        },),
+        it({
+          name: 'shows a path with a line break or a tab as a JSON string, because a line of the brief cannot carry the character',
+          fn: async () => {
+            expect(aPathAsABriefShowsIt({ path: 'package/a/src/a\nb.ts' },),).toBe('`"package/a/src/a\\nb.ts"`',);
+            expect(aPathAsABriefShowsIt({ path: 'package/a/src/a\tb.ts' },),).toBe('`"package/a/src/a\\tb.ts"`',);
+          },
+        },),
+        it({
+          name: 'shows a path with a backtick as a JSON string whose backtick is escaped, because the backtick would end the code span',
+          fn: async () => {
+            expect(aPathAsABriefShowsIt({ path: 'package/a/src/a`b.ts' },),).toBe('`"package/a/src/a\\u0060b.ts"`',);
+          },
+        },),
+        it({
+          name: 'shows a path that begins and ends with a space as a JSON string, because a code span trims one space from each end',
+          fn: async () => {
+            expect(aPathAsABriefShowsIt({ path: ' a ' },),).toBe('`" a "`',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: whatTheReviewReads.name,
+      children: [
+        it({
+          name: 'names a file whose name holds a line break as a JSON string and says what that form is, so a reviewer can open the file it names',
+          fn: async () => {
+            /**
+             The part of a brief for a change whose only file holds a line break in its name.
+             */
+            const reads = whatTheReviewReads({
+              files: ['package/a/src/a\nb.ts',],
+              removedOrRenamed: [],
+            },);
+            expect(reads,).toContain('- `"package/a/src/a\\nb.ts"`',);
+            expect(reads,).toContain('A path written in double quotes is shown as a JSON string',);
+            expect(reads,).toContain('open the file it names',);
+          },
+        },),
+        it({
+          name: 'says nothing about the JSON form when every path can stand in a line as itself, so an ordinary brief keeps its words',
+          fn: async () => {
+            /**
+             The part of a brief for a change whose files are ordinary names.
+             */
+            const reads = whatTheReviewReads({
+              files: ['package/a/src/gate.rs',],
+              removedOrRenamed: [{ status: 'deleted', path: 'package/a/src/old_gate.rs' },],
+            },);
+            expect(reads,).not.toContain('JSON',);
           },
         },),
       ],

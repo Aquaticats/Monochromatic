@@ -60,6 +60,7 @@ export {
   placeholdersInTheBriefOfAChangeToTests,
   placeholdersInTheReviewBrief,
   reviewBriefValues,
+  aPathAsABriefShowsIt,
   subjectOfAChangeToTests,
   subjectOfAReview,
   whatTheReviewReads,

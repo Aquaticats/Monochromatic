@@ -285,7 +285,7 @@ function aRenamedFile({ was, now, }: { readonly was: string; readonly now: strin
  const held = heldPathsIn({ changed: [aModifiedFile(aCodeFile())], },);
  ```
  */
-function heldPathsIn({ changed, }: { readonly changed: readonly ChangedInATest[] },): string {
+function heldPathsIn({ changed, }: { readonly changed: readonly ChangedInATest[] },): readonly string[] {
   /**
    The statuses that leave a file at the newer name.
    */
@@ -296,16 +296,12 @@ function heldPathsIn({ changed, }: { readonly changed: readonly ChangedInATest[]
     'R',
     'T',
   ],);
-  /**
-   The newer names of those changes.
-   */
-  const paths = changed.filter(function leavesAFile(one,) {
+  return changed.filter(function leavesAFile(one,) {
     return leavingAFile.has(one.status.charAt(0,),);
   },)
     .map(function newerName(one,) {
       return one.path;
     },);
-  return (paths.length === 0) ? '' : `${paths.join('\n',)}\n`;
 }
 
 /**
@@ -351,9 +347,19 @@ function gitChanging({ changed, }: { readonly changed: readonly ChangedInATest[]
 ) => Promise<CommandOutput> {
   return async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
     if (words[0] === 'ls-tree') {
+      /**
+       The paths the commit holds, in the form the question asked for: raw fields ended by NUL bytes when it asked for `-z`, or
+       one to a line otherwise. Every path a test gives this stand-in is plain ASCII, so Git's quoting prints it as itself.
+       */
+      const paths = heldPathsIn({ changed, },);
       return {
         status: 0,
-        stdout: heldPathsIn({ changed, },),
+        stdout: (words.includes('-z',))
+          ? paths.map(function asAField(path,) {
+            return `${path}\0`;
+          },)
+            .join('',)
+          : ((paths.length === 0) ? '' : `${paths.join('\n',)}\n`),
         stderr: '',
       };
     }

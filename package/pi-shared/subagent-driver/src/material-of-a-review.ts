@@ -539,9 +539,14 @@ export async function materialOfAReview({
    */
   const diffs: string[] = [];
   /**
-   Every path a range changed, each once: what tells one change from another across the ranges is its status and both names.
+   The changes the ranges read so far, each once, in the order git named them.
    */
-  const changes = new Map<string, ChangedPath>();
+  const changed: ChangedPath[] = [];
+  /**
+   What tells one change from another, kept as its parts and never as joined text: its status, the older name it came from (empty
+   for a change that names none, which no path can be) and its newer name.
+   */
+  const named = new Map<string, Map<string, Set<string>>>();
   /* oxlint-disable eslint/no-await-in-loop -- one range's diff after another, because each range's answer is joined in the order
      the caller gave them. See doc/lint/sequential-awaits.md. */
   for (const range of ranges) {
@@ -571,14 +576,24 @@ export async function materialOfAReview({
       },),
     },)) {
       /**
-       What tells this change from another one the ranges named.
+       The older names already recorded for this status.
        */
-      const key = `${one.status} ${one.from ?? ''} ${one.path}`;
-      if (!changes.has(key,)) {
-        changes.set(
-          key,
-          one,
-        );
+      const byOlderName = named.get(one.status,) ?? new Map<string, Set<string>>();
+      named.set(
+        one.status,
+        byOlderName,
+      );
+      /**
+       The newer names already recorded for that status and older name.
+       */
+      const byNewerName = byOlderName.get(one.from ?? '') ?? new Set<string>();
+      byOlderName.set(
+        one.from ?? '',
+        byNewerName,
+      );
+      if (!byNewerName.has(one.path,)) {
+        byNewerName.add(one.path,);
+        changed.push(one,);
       }
     }
   }
@@ -593,18 +608,15 @@ export async function materialOfAReview({
       'ls-tree',
       '--name-only',
       '-r',
+      '-z',
       commit,
       '--',
       source,
     ],
-  },)).split('\n',)
-    .filter(function isPath(line,) {
-      return line !== '';
+  },)).split('\0',)
+    .filter(function isPath(field,) {
+      return field !== '';
     },),);
-  /**
-   Every path the ranges changed, in the order git named them.
-   */
-  const changed = [...changes.values(),];
   /**
    What each changed path is to a review, which decides the kind of review the ranges ask for.
    */

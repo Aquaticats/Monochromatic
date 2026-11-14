@@ -573,6 +573,18 @@ either is refused with the status and the path named,
 rather than guessed at,
 because a guess would decide the review from part of the change.
 
+Every path is read as the raw bytes Git gave:
+both the range's names and the commit's own listing are asked with `-z`,
+because Git quotes an unusual name with `core.quotePath` in a line,
+and two lists where only one is quoted never agree.
+Two changes are told apart by their parts, the status and the two names,
+never by text joined from them, since a path can hold the character a join would use.
+
+A brief shows a name as itself in a code span,
+and as a JSON string when the name holds a character a line cannot carry:
+a line break, a tab, another control, or the backtick that ends the code span.
+The brief says so where it does that, and a reviewer reads the JSON string and opens the file it names.
+
 A range that holds code or a build decision is reviewed as the change itself.
 The files are the `.rs` and `.ts` code the ranges touched,
 and the manifests and tool configurations that decide how that code is built,

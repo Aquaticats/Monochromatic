@@ -330,6 +330,41 @@ export function readablePathsOf({
 }
 
 /**
+ Says whether two removals or renames name the same path, comparing their parts and never text joined from them.
+
+ A path can hold any byte but NUL, so no join of two paths is safe to compare; their parts are compared one by one instead.
+
+ @param one - one removal or rename
+
+ @param other - another removal or rename
+
+ @returns whether both name the same path the same way
+
+ @example
+ ```ts
+ const same = sameRemoval({ one: { status: 'deleted', path: 'x' }, other: { status: 'deleted', path: 'x' } },);
+ ```
+ */
+function sameRemoval({
+  one,
+  other,
+}: {
+  readonly one: RemovedOrRenamedPath;
+  readonly other: RemovedOrRenamedPath;
+},): boolean {
+  if (one.status === 'deleted') {
+    return (other.status === 'deleted') && (one.path === other.path);
+  }
+  if (other.status !== 'renamed') {
+    return false;
+  }
+  if (one.was !== other.was) {
+    return false;
+  }
+  return one.now === other.now;
+}
+
+/**
  Reads the paths a range removed or renamed of one kind, which a brief names even though the commit holds no file to read in
  full at them.
 
@@ -359,10 +394,6 @@ export function removedOrRenamedAmong({
    The removals and renames read so far.
    */
   const removed: RemovedOrRenamedPath[] = [];
-  /**
-   What each one read so far looks like, so two ranges that name the same removal do not name it twice.
-   */
-  const seen = new Set<string>();
   for (const one of changed) {
     if (kindOfChangedPath({
       changed: one,
@@ -371,12 +402,12 @@ export function removedOrRenamedAmong({
       continue;
     }
     for (const entry of removedOrRenamedBy({ changed: one, },)) {
-      /**
-       What tells one removal from another.
-       */
-      const key = JSON.stringify(entry,);
-      if (!seen.has(key,)) {
-        seen.add(key,);
+      if (!removed.some(function namesTheSame(seen,) {
+        return sameRemoval({
+          one: entry,
+          other: seen,
+        },);
+      },)) {
         removed.push(entry,);
       }
     }

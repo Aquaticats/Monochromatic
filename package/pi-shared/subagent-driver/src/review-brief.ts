@@ -84,6 +84,105 @@ export function subjectOfAChangeToTests({ source, }: { readonly source: string }
 }
 
 /**
+ The last code point of the C0 controls, which a line of a brief cannot carry.
+ */
+const LAST_C0_CONTROL = 0x1F;
+
+/**
+ The first code point of the C1 controls, which a line of a brief cannot carry either.
+ */
+const FIRST_C1_CONTROL = 0x7F;
+
+/**
+ The last code point of the C1 controls.
+ */
+const LAST_C1_CONTROL = 0x9F;
+
+/**
+ The character that ends a code span, which a path shown as itself cannot hold.
+ */
+const CODE_SPAN_END = '`';
+
+/**
+ Says whether a path needs the JSON form: it holds a control character, the backtick that would end the code span it is shown in,
+ or a space at both of its ends, which a code span trims.
+
+ @param path - a path from the top of the checkout
+
+ @returns whether a brief shows it as a JSON string
+
+ @example
+ ```ts
+ const needsJSON = aPathNeedsJSONText('a\nb.ts',);
+ ```
+ */
+function aPathNeedsJSONText(path: string,): boolean {
+  if (path.startsWith(' ',) && path.endsWith(' ',)) {
+    return true;
+  }
+  for (const character of path) {
+    /**
+     The code point this character is.
+     */
+    const codePoint = character.codePointAt(0,) ?? 0;
+    /**
+     Whether it is a control a line cannot carry.
+     */
+    const isAControl = (codePoint <= LAST_C0_CONTROL) || ((codePoint >= FIRST_C1_CONTROL) && (codePoint <= LAST_C1_CONTROL));
+    if (isAControl || (character === CODE_SPAN_END)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ Reads a path as a JSON string, which carries a control character in text a line can hold, and which never holds the backtick that
+ would end the code span around it.
+
+ @param path - a path from the top of the checkout
+
+ @returns the path as JSON text, its backticks escaped where JSON leaves them raw
+
+ @example
+ ```ts
+ const shown = jsonTextOf('a\nb.ts',);
+ ```
+ */
+function jsonTextOf(path: string,): string {
+  /**
+   The path as JSON text, which carries a control character in text a line can hold.
+   */
+  const asJSON = JSON.stringify(path,);
+  // JSON leaves a backtick raw, and the code span around this text is written with backticks.
+  return asJSON.replaceAll(
+    CODE_SPAN_END,
+    String.raw`\u0060`,
+  );
+}
+
+/**
+ Reads how a brief shows one path: in a code span as itself, or as a JSON string when the name holds a character a line cannot
+ carry.
+
+ A path is text Git gave as bytes, and a brief is a page of lines: a name with a line break, a tab, another control, or the
+ backtick that ends a code span cannot stand in it. The JSON string names the same bytes unambiguously, and the brief says what
+ that form is where it is used.
+
+ @param path - a path from the top of the checkout
+
+ @returns the path as a brief writes it, inside a code span
+
+ @example
+ ```ts
+ const shown = aPathAsABriefShowsIt({ path: 'a\nb.ts', },);
+ ```
+ */
+export function aPathAsABriefShowsIt({ path, }: { readonly path: string },): string {
+  return aPathNeedsJSONText(path,) ? `\`${jsonTextOf(path,)}\`` : `\`${path}\``;
+}
+
+/**
  Reads the part of a brief that says what the reviewer reads: every file the reviewed commit holds at a path the change touched,
  and every path the change removed or renamed, with what happened to each one.
 
@@ -116,7 +215,7 @@ export function whatTheReviewReads({
     lines.push(
       'Read each of these files in full before you answer:',
       ...files.map(function asAListItem(path,) {
-        return `- \`${path}\``;
+        return `- ${aPathAsABriefShowsIt({ path, },)}`;
       },),
     );
   }
@@ -128,11 +227,22 @@ export function whatTheReviewReads({
       'The change removes or renames these paths, and the diff holds each one\'s change:',
       ...removedOrRenamed.map(function asARemoval(removed,) {
         return (removed.status === 'deleted')
-          ? `- \`${removed.path}\` (deleted)`
-          : `- \`${removed.was}\` (renamed to \`${removed.now}\`)`;
+          ? `- ${aPathAsABriefShowsIt({ path: removed.path, },)} (deleted)`
+          : `- ${aPathAsABriefShowsIt({ path: removed.was, },)} (renamed to ${aPathAsABriefShowsIt({ path: removed.now, },)})`;
       },),
       'Say what depended on each of them, and what does its work now or why nothing does.',
     );
+  }
+  /**
+   Whether any path the part names needs the JSON form, which the part explains where it is used.
+   */
+  const anyPathNeedsJSON = files.some(aPathNeedsJSONText,)
+    || removedOrRenamed.some(function needsJSON(removed,) {
+      return aPathNeedsJSONText(removed.status === 'deleted' ? removed.path : removed.was,)
+        || aPathNeedsJSONText(removed.status === 'deleted' ? removed.path : removed.now,);
+    },);
+  if (anyPathNeedsJSON) {
+    lines.push('A path written in double quotes is shown as a JSON string, because it holds a character a line of this brief cannot carry: read it as the JSON string it is, and open the file it names.',);
   }
   return lines.join('\n',);
 }
