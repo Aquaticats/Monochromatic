@@ -23,7 +23,9 @@
 use crate::package_repair_pnpm::manual_command;
 use crate::package_repair_relink::{RelinkEntry, RelinkTool, decode};
 use crate::package_repair_toolchain::MANUAL_COMMAND;
+use crate::plain_file::read_plain_file;
 use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
+use crate::worktree_convert_inspection::GIT_FILE_LIMIT;
 use std::path::{Path, PathBuf};
 
 /// Directory under the worktree's own Git directory that holds one notice per relink given up on.
@@ -102,27 +104,87 @@ pub fn words_for(worktree: &Path, entry: &RelinkEntry, tries_the_record_allows: 
 ///   about worktrees the person may never enter.
 ///   The pointer of a removed worktree does not resolve,
 ///   and then nothing will run in it again and nothing is owed.
+///   The pointer is read the way every other `.git` reader of this crate reads one:
+///   the open takes the type from the handle, without following a link and without waiting,
+///   and a file past `GIT_FILE_LIMIT` is refused rather than read into this process's memory.
+///   A pointer is one line, and a give-up pass may not be the thing that exhausts the host
+///   (a 2 GiB pointer file was read whole before this: 523 MB peak and the rest in swap).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const gitDir = (worktree) => stat(join(worktree, '.git')).isDirectory() ? join(worktree, '.git') : parsePointer(readFile(join(worktree, '.git')));
+/// const gitDir = (worktree) => stat(join(worktree, '.git')).isDirectory() ? join(worktree, '.git') : parsePointer(readPlainFile(join(worktree, '.git'), GIT_FILE_LIMIT));
 /// ```
 pub fn git_dir_of_a_worktree(worktree: &Path) -> Option<PathBuf> {
     use std::os::unix::ffi::OsStrExt as _;
     let pointer: PathBuf = worktree.join(".git");
+    // A stat opens nothing, so a pipe or a link at the name cannot hold it.
     let Ok(found) = std::fs::metadata(pointer.as_path()) else { return None };
     if found.is_dir() {
         return Some(pointer);
     }
-    // The pointer is a file only: a link, a pipe or anything else at that name is no Git directory this may write in.
-    if !found.is_file() {
-        return None;
-    }
-    let bytes: Vec<u8> = std::fs::read(pointer.as_path()).ok()?;
+    // A name that is not a plain file, a link, and a file past the bound are all nothing this may write in.
+    let bytes: Vec<u8> = read_plain_file(pointer.as_path(), GIT_FILE_LIMIT).ok()?;
     let line: &[u8] = bytes.trim_ascii_end();
     let named: &[u8] = line.strip_prefix(b"gitdir: ")?;
     let named_path: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(named));
     return Some(if named_path.is_absolute() { named_path } else { worktree.join(named_path) });
+}
+
+/// What:
+///  Where the words about `worktree` go,
+///  when this repository can prove that the worktree at that path is the one the record is about:
+///  its own Git directory.
+///  Nothing when it cannot be proved,
+///  and then the caller writes in the directory the record was drained from.
+/// Why:
+///   The pointer alone proves nothing:
+///   an interrupted removal leaves a checkout whose pointer names a directory that is gone,
+///   and a notice written into a directory made again there is one no command in that checkout can read
+///   (Git refuses the worktree: `gitfile does not point to a valid repository`).
+///   The registration's own `gitdir` and `commondir` back-links are what a working Git directory of this repository
+///   holds, so the words go where a command reads them or somewhere the caller can be sure of.
+///   A registration made after the record was queued is another worktree at the same path:
+///   the administrative directory is named after the path,
+///   so a later worktree would otherwise show words about an earlier one,
+///   and the moment the record carries is the only thing that tells them apart.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const target = (drain, worktree, queuedAt) => { const admin = gitDirOf(worktree); const proved = registrationOf(commonDirOf(drain), worktree); return admin && proved && sameFile(admin, proved) && mtime(join(worktree, '.git')) <= instantOf(queuedAt) ? proved : undefined; };
+/// ```
+pub fn notice_target_of_a_worktree(drain_git_dir: &Path, worktree: &Path, queued_at: &str) -> Option<PathBuf> {
+    let named: PathBuf = git_dir_of_a_worktree(worktree)?;
+    // The registration proves the directory is a worktree of this repository, at this path, with the back-links a
+    //  working Git directory of it holds.
+    let common: PathBuf = crate::common_directory_of_a_git_directory::common_directory_of(drain_git_dir);
+    let proved: PathBuf = crate::worktree_registration_proof::registration_of(common.as_path(), worktree).ok()?;
+    if std::fs::canonicalize(named.as_path()).ok().as_deref() != Some(proved.as_path()) {
+        return None;
+    }
+    // A registration made after the record was queued is a worktree added at that path later. Both moments are
+    //  compared in milliseconds, which is the resolution a record's `created` is written with: a `.git` written in the
+    //  same millisecond as the record that names it is this worktree's, and a file's own moment is finer than that.
+    let registered: std::time::SystemTime = std::fs::symlink_metadata(worktree.join(".git")).ok()?.modified().ok()?;
+    let queued: std::time::SystemTime = crate::iso_time::instant_of_iso(queued_at)?;
+    if milliseconds_of(registered) > milliseconds_of(queued) {
+        return None;
+    }
+    return Some(proved);
+}
+
+/// What:
+///  `moment` in whole milliseconds since the Unix epoch,
+///  the resolution a record's own stamp is written with.
+/// Why:
+///   A file's moment is finer than a millisecond, so comparing the two as they are would call a `.git` written inside
+///   the record's own millisecond a later registration and hold the words back from the worktree they are about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const millis = (moment) => Math.floor(moment.getTime());
+/// ```
+fn milliseconds_of(moment: std::time::SystemTime) -> u128 {
+    return moment.duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis();
 }
 
 /// What:
@@ -140,12 +202,21 @@ pub fn git_dir_of_a_worktree(worktree: &Path) -> Option<PathBuf> {
 ///   which a command either reads whole or finds replaced.
 ///   Words that could not replace the first would hold the record unsettled for ever,
 ///   because the recovery settles nothing while the person cannot be told.
+///   A Git directory that is not there refuses them,
+///   rather than being made again for them: a directory made again is one no command in the worktree reads,
+///   and the caller has somewhere a command does read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const record = (gitDir, id, text) => { mkdir(noticeDirectory(gitDir)); replaceFile(join(noticeDirectory(gitDir), id), text) };
 /// ```
 pub fn record_notice(git_dir: &Path, id: &str, text: &str) -> Result<(), String> {
+    // The words never bring a Git directory into being: a directory that is not there is no place a command in that
+    //  worktree reads, and making one again is how a notice came to land where Git refuses the worktree
+    //  (`fatal: gitfile does not point to a valid repository`). The caller writes where it knows a command reads.
+    if !git_dir.is_dir() {
+        return Err(format!("{} is no directory that exists, so no command there would read words written in it", git_dir.display()));
+    }
     let directory: PathBuf = git_dir.join(NOTICE_DIRECTORY);
     create_private_directory_all(directory.as_path()).map_err(|error| format!("the notice directory {} could not be made ({error})", directory.display()))?;
     let path: PathBuf = directory.join(id);

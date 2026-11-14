@@ -106,6 +106,120 @@ fn launcher_name(record: &Path) -> Option<String> {
 }
 
 /// What:
+///  This worktree's own `toolchain.lock.json`,
+///  as its path is written and as the filesystem resolves it,
+///  so a record that names either spelling of it is not a copy of another checkout's.
+/// Why:
+///  One read of that pair serves every record of a pass,
+///  and the removal asks the same question again of the bytes it holds,
+///  so the two answers cannot be given by different comparisons.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const own = (destination) => ({ own: join(destination, 'toolchain.lock.json'), real: realpath(destination) + '/toolchain.lock.json' });
+/// ```
+struct ThisWorktreesLock {
+    /// The lock as a record spells it.
+    own: PathBuf,
+    /// The same lock as the filesystem resolves it, when the worktree resolves at all.
+    real: Option<PathBuf>,
+}
+
+impl ThisWorktreesLock {
+    /// The lock of `destination`.
+    fn of(destination: &Path) -> ThisWorktreesLock {
+        let real: Option<PathBuf> = match std::fs::canonicalize(destination) {
+            Ok(resolved) => Some(resolved.join(LOCK_FILE)),
+            Err(_) => None,
+        };
+        return ThisWorktreesLock { own: destination.join(LOCK_FILE), real };
+    }
+
+    /// Whether `record` names a lock other than this worktree's:
+    /// `Some(true)` when it does,
+    /// `Some(false)` when it names this one,
+    /// and nothing when it cannot be read as a record holding a lock.
+    fn names_another_lock(&self, record: &Path) -> Option<bool> {
+        let named: PathBuf = lock_named_by_record(record)?;
+        let mine: bool = named == self.own || Some(&named) == self.real.as_ref();
+        return Some(!mine);
+    }
+}
+
+/// What:
+///  A launcher record and the launcher beside it,
+///  as one pass classified them:
+///  a copy of an earlier release's layout that no install rewrites.
+/// Why:
+///   The removal proves what it deletes,
+///   and a launcher has no bytes that say whether an install wrote it:
+///   the object that was beside the record when the pass read the directory is the only thing to compare,
+///   because a launcher another command writes is another object under the same name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Copy = { record: string; launcher: string; name?: string; launcherIdentity?: Identity };
+/// ```
+struct CopyOfAnEarlierLayout {
+    /// The record.
+    record: PathBuf,
+    /// The launcher beside it, whether or not there was one.
+    launcher: PathBuf,
+    /// The launcher's name the lock is asked about.
+    name: Option<String>,
+    /// The object that was at the launcher's name.
+    launcher_identity: Option<Identity>,
+}
+
+/// What:
+///  The object a name held:
+///  its device and inode, its size, and the moment it was written.
+/// Why:
+///   A launcher a concurrent install writes is a new object under the same name
+///   (`mpm-shadow` places it with a rename),
+///   so an object equal in all four is the one the pass classified and no other.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Identity = { device: bigint; inode: bigint; size: bigint; modified: [bigint, bigint] };
+/// ```
+#[derive(Clone, Copy, Eq, PartialEq)]
+struct Identity {
+    /// The device the object is on.
+    device: u64,
+    /// Its inode.
+    inode: u64,
+    /// Its size in bytes.
+    size: u64,
+    /// When it was last written, in whole seconds since the epoch.
+    modified_seconds: i64,
+    /// And the nanoseconds of that moment.
+    modified_nanoseconds: i64,
+}
+
+/// What:
+///  The object `path` names now,
+///  or nothing when it is not there.
+/// Why:
+///   A launcher is compared with the object the pass classified, and an absent one was removed by someone else.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const identity = (path) => { const s = statSync(path); return [s.dev, s.ino, s.size, s.mtime]; };
+/// ```
+fn identity_of(path: &Path) -> Option<Identity> {
+    use std::os::unix::fs::MetadataExt as _;
+    let found: std::fs::Metadata = std::fs::symlink_metadata(path).ok()?;
+    return Some(Identity {
+        device: found.dev(),
+        inode: found.ino(),
+        size: found.size(),
+        modified_seconds: found.mtime(),
+        modified_nanoseconds: found.mtime_nsec(),
+    });
+}
+
+/// What:
 ///  What a worktree's launcher directory holds:
 ///  the records an install rewrites,
 ///  and the copies of an earlier release's layout beside them.
@@ -122,8 +236,8 @@ fn launcher_name(record: &Path) -> Option<String> {
 struct Launchers {
     /// Records naming another lock that the worktree's own lock declares a launcher for.
     stale: Vec<PathBuf>,
-    /// Records naming another lock for a name the worktree's own lock declares nowhere.
-    unrewritable: Vec<PathBuf>,
+    /// Records naming another lock for a name the worktree's own lock declares nowhere, and what they were read beside.
+    unrewritable: Vec<CopyOfAnEarlierLayout>,
 }
 
 /// What:
@@ -144,19 +258,24 @@ fn launchers_of(destination: &Path) -> Launchers {
         return Launchers { stale: named_another, unrewritable: Vec::new() };
     };
     let mut stale: Vec<PathBuf> = Vec::new();
-    let mut unrewritable: Vec<PathBuf> = Vec::new();
+    let mut unrewritable: Vec<CopyOfAnEarlierLayout> = Vec::new();
     for record in named_another {
-        match launcher_name(record.as_path()) {
-            Some(name) if declared.contains(&name) => stale.push(record),
-            _ => unrewritable.push(record),
+        let name: Option<String> = launcher_name(record.as_path());
+        if name.as_ref().is_some_and(|launcher| return declared.contains(launcher)) {
+            stale.push(record);
+            continue;
         }
+        let launcher: PathBuf = record.with_extension("");
+        let launcher_identity: Option<Identity> = identity_of(launcher.as_path());
+        unrewritable.push(CopyOfAnEarlierLayout { record, launcher, name, launcher_identity });
     }
     return Launchers { stale, unrewritable };
 }
 
 /// What:
 ///  Remove the launcher records, and the launchers beside them,
-///  that this worktree's lock declares nowhere.
+///  that this worktree's lock declares nowhere,
+///  once the bytes being removed are proved to be that copy and not what another command wrote.
 /// Why:
 ///   They are copies of a layout an earlier release had,
 ///  carried in by the copy that made the worktree,
@@ -166,12 +285,20 @@ fn launchers_of(destination: &Path) -> Launchers {
 ///  so leaving them would keep a record that names another checkout in every worktree copied from this one.
 ///  A record that cannot be removed is said and left:
 ///  it is no install's work, so the relink neither fails nor waits on it.
+///  The classification reads the lock and the directory once,
+///  and a person's `toolchain:update` and install can write a correct record and launcher for a name the lock
+///  declares after that read:
+///  so each record is renamed to a name only this pass writes,
+///  read again,
+///  and put back when the install declared its name meanwhile or its bytes name this worktree's own lock,
+///  and the launcher goes only when it is the object this pass read beside the record.
+///  Whatever a kill leaves is a record under a name nothing reads, which the next pass sweeps.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const record of unrewritable) { unlink(record); unlink(record.withExtension('')); }
+/// for (const copy of copies) { const aside = takeAside(copy.record); if (!stillACopy(destination, aside, copy.name)) { putBack(aside, copy.record); continue; } unlink(aside); if (identityOf(copy.launcher) === copy.launcherIdentity) unlink(copy.launcher); }
 /// ```
-fn remove_what_no_install_rewrites(destination: &Path, records: &[PathBuf]) {
+fn remove_what_no_install_rewrites(destination: &Path, copies: &[CopyOfAnEarlierLayout]) {
     // A control's own concurrent `toolchain:update` and install, run once as the removal begins: the window a
     //  classification cannot see lies between its read and the removal, and a control has to stand in it to show what
     //  the pass does when something is written there. Taken out, so it runs once; only a control build has it.
@@ -179,20 +306,145 @@ fn remove_what_no_install_rewrites(destination: &Path, records: &[PathBuf]) {
     if let Some(write) = WHEN_THE_REMOVAL_BEGINS.with(|cell| return cell.borrow_mut().take()) {
         write();
     }
-    for record in records {
-        let launcher: PathBuf = record.with_extension("");
-        match std::fs::remove_file(record.as_path()) {
-            Ok(()) => debug(TAG, format!("{}: removed {}, whose launcher name {} declares nowhere", destination.display(), record.display(), LOCK_FILE).as_str()),
+    sweep_what_a_kill_left(destination);
+    let own: ThisWorktreesLock = ThisWorktreesLock::of(destination);
+    for copy in copies {
+        let Some(aside) = take_aside(copy.record.as_path()) else { continue };
+        if !still_a_copy_of_an_earlier_layout(destination, aside.as_path(), copy.name.as_deref(), &own) {
+            // Another command declared this name or wrote its own record there: the bytes are not a copy any more,
+            //  and a name that holds a newer file keeps it.
+            put_back(aside.as_path(), copy.record.as_path());
+            continue;
+        }
+        match std::fs::remove_file(aside.as_path()) {
+            Ok(()) => debug(TAG, format!("{}: removed {}, whose launcher name {} declares nowhere", destination.display(), copy.record.display(), LOCK_FILE).as_str()),
             Err(error) => {
-                debug(TAG, format!("{}: {} is no record any install rewrites and it could not be removed ({error})", destination.display(), record.display()).as_str());
+                debug(TAG, format!("{}: {} is no record any install rewrites and it could not be removed ({error})", destination.display(), aside.display()).as_str());
                 continue;
             }
         }
-        // The launcher beside the record goes with it, so nothing in the worktree keeps a copy of the source's layout.
-        match std::fs::remove_file(launcher.as_path()) {
+        // The launcher beside the record goes with it, and only the object this pass read: an install that wrote its own
+        //  launcher meanwhile leaves a different object, which is not this pass's to remove.
+        if copy.launcher_identity.is_none() {
+            continue;
+        }
+        if identity_of(copy.launcher.as_path()) != copy.launcher_identity {
+            debug(TAG, format!("{}: {} was written by another command and is left", destination.display(), copy.launcher.display()).as_str());
+            continue;
+        }
+        match std::fs::remove_file(copy.launcher.as_path()) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => debug(TAG, format!("{}: {} could not be removed ({error})", destination.display(), launcher.display()).as_str()),
+            Err(error) => debug(TAG, format!("{}: {} could not be removed ({error})", destination.display(), copy.launcher.display()).as_str()),
+        }
+    }
+}
+
+/// What:
+///  The name this pass reads `record` under once it has taken it out of the launcher directory,
+///  or nothing when it could not be taken.
+/// Why:
+///  The name is ours alone (this process's number and a count),
+///  so no other command can write what is read there,
+///  which is what makes the deletion provable:
+///  whatever is at the record's own name afterwards was written by that other command and is left.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const takeAside = (record) => { const aside = record.withName(`${basename(record)}.removing-${pid}-${counter++}`); return rename(record, aside) ? aside : undefined; };
+/// ```
+fn take_aside(record: &Path) -> Option<PathBuf> {
+    static NEXT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let token: u32 = NEXT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let name: String = format!("{}.removing-{}-{token}", record.file_name()?.to_string_lossy(), std::process::id());
+    let aside: PathBuf = record.with_file_name(name);
+    return match std::fs::rename(record, aside.as_path()) {
+        Ok(()) => Some(aside),
+        Err(error) => {
+            debug(TAG, format!("{} could not be taken aside ({error}), so it is left", record.display()).as_str());
+            None
+        }
+    };
+}
+
+/// What:
+///  Put a record this pass took aside back under its name,
+///  unless another command has written one there meanwhile.
+/// Why:
+///   A rename would replace whatever that command wrote;
+///   a name taken only when it is free leaves the newer record and drops the copy this pass holds.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const putBack = (aside, record) => { if (link(aside, record) fails with EEXIST) unlink(aside); else unlink(aside); };
+/// ```
+fn put_back(aside: &Path, record: &Path) {
+    match std::fs::hard_link(aside, record) {
+        Ok(()) => {
+            let _removed = std::fs::remove_file(aside);
+            debug(TAG, format!("{} was written by another command and is left", record.display()).as_str());
+        }
+        // A record another command wrote is newer than the copy in this pass's hand, which is dropped here.
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            let _removed = std::fs::remove_file(aside);
+        }
+        Err(error) => debug(TAG, format!("{} could not be put back from {} ({error}); the next pass sweeps it", record.display(), aside.display()).as_str()),
+    }
+}
+
+/// What:
+///  Whether the record this pass took aside still says it is a copy no install rewrites:
+///  it names a lock other than this worktree's,
+///  and the worktree's lock, read now, declares no launcher of its name.
+/// Why:
+///   The lock and the record are read again here because they may have changed since the classification,
+///   and a record an install has just written for a name the lock declares is not this pass's to remove.
+///   A lock that cannot be read keeps the rule the classification used: every record counts as one an install answers,
+///  so a copy is still a copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stillACopy = (destination, aside, name, own) => own.namesAnotherLock(aside) === true && (name === undefined || !(declaredLauncherNames(destination)?.has(name) ?? false));
+/// ```
+fn still_a_copy_of_an_earlier_layout(destination: &Path, aside: &Path, name: Option<&str>, own: &ThisWorktreesLock) -> bool {
+    match own.names_another_lock(aside) {
+        Some(true) => {}
+        Some(false) | None => return false,
+    }
+    let Some(launcher) = name else { return true };
+    return match declared_launcher_names(destination) {
+        Some(declared) => !declared.contains(launcher),
+        None => true,
+    };
+}
+
+/// What:
+///  Remove what a killed pass left in the launcher directory:
+///  a record under a name this module gives a record it took aside,
+///  whose process is gone.
+/// Why:
+///   A pass killed between taking a record aside and removing or putting it back leaves that name behind,
+///   and nothing else would ever read it.
+///   A name whose process still runs is a pass in flight and is left.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const entry of readdir(launchers)) if (entry.includes('.removing-') && !existsSync(`/proc/${pidOf(entry)}`)) unlink(entry);
+/// ```
+fn sweep_what_a_kill_left(destination: &Path) {
+    let Ok(listing) = std::fs::read_dir(destination.join(LAUNCHERS)) else { return };
+    for item in listing.flatten() {
+        let name: std::ffi::OsString = item.file_name();
+        let Some(text) = name.to_str() else { continue };
+        let Some((_, owner)) = text.rsplit_once(".removing-") else { continue };
+        let Some((written_pid, _token)) = owner.split_once('-') else { continue };
+        let Ok(pid) = written_pid.parse::<u32>() else { continue };
+        if std::path::Path::new(format!("/proc/{pid}").as_str()).exists() {
+            continue;
+        }
+        match std::fs::remove_file(item.path()) {
+            Ok(()) => debug(TAG, format!("{}: removed what a killed pass left", item.path().display()).as_str()),
+            Err(error) => debug(TAG, format!("{} could not be removed ({error})", item.path().display()).as_str()),
         }
     }
 }
@@ -249,11 +501,7 @@ pub const MANUAL_COMMAND: &str = "mise run toolchain:install";
 /// ```
 pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
     let Ok(listing) = std::fs::read_dir(destination.join(LAUNCHERS)) else { return Vec::new() };
-    let own: PathBuf = destination.join(LOCK_FILE);
-    let own_real: Option<PathBuf> = match std::fs::canonicalize(destination) {
-        Ok(real) => Some(real.join(LOCK_FILE)),
-        Err(_) => None,
-    };
+    let own: ThisWorktreesLock = ThisWorktreesLock::of(destination);
     let mut stale: Vec<PathBuf> = Vec::new();
     for item in listing.flatten() {
         let path: PathBuf = item.path();
@@ -264,13 +512,10 @@ pub fn stale_launch_records(destination: &Path) -> Vec<PathBuf> {
         if !is_record {
             continue;
         }
-        let named: Option<PathBuf> = lock_named_by_record(&path);
-        let Some(lock) = named else {
-            debug(TAG, format!("{} names no lock file and is left alone", path.display()).as_str());
-            continue;
-        };
-        if lock != own && Some(&lock) != own_real.as_ref() {
-            stale.push(path);
+        match own.names_another_lock(path.as_path()) {
+            Some(true) => stale.push(path),
+            Some(false) => {}
+            None => debug(TAG, format!("{} names no lock file and is left alone", path.display()).as_str()),
         }
     }
     stale.sort();
@@ -486,7 +731,8 @@ async fn count_stale_within_the_budget(destination: &Path) -> Result<usize, Bloc
 fn prepare_install_on_a_caller_thread(destination: &Path, environment: &RepairEnvironment) -> ToolchainRepair {
     let launchers: Launchers = launchers_of(destination);
     // A copy of an earlier release's layout is removed rather than reported: no install rewrites it, and it names another
-    //  checkout's lock until it goes.
+    //  checkout's lock until it goes. The removal proves the bytes it deletes again, because a concurrent update and
+    //  install can write a correct record and launcher for a name the lock declares between the two.
     remove_what_no_install_rewrites(destination, launchers.unrewritable.as_slice());
     if launchers.stale.is_empty() {
         debug(TAG, format!("{}: every launcher record this worktree's lock declares names this worktree", destination.display()).as_str());

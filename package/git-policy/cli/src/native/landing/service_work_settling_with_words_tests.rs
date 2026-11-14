@@ -309,7 +309,11 @@ fn a_given_up_relink_quotes_the_reason_the_last_try_gave_and_lands_in_its_own_wo
     std::fs::create_dir_all(common.as_path()).expect("common");
     std::fs::create_dir_all(worktree.as_path()).expect("worktree");
     std::fs::create_dir_all(admin.as_path()).expect("registration");
+    // A registration of this repository: the pointer to its own Git directory, and that directory's back-links to the
+    //  worktree and to the repository, which is what a command in the worktree and the notice's target both read.
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
+    std::fs::write(admin.join("gitdir"), format!("{}\n", worktree.join(".git").display())).expect("the back-link");
+    std::fs::write(admin.join("commondir"), "../..\n").expect("the common directory");
     let entry: crate::package_repair_relink::RelinkEntry = crate::package_repair_relink::RelinkEntry {
         root: worktree.clone(),
         search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
@@ -392,7 +396,11 @@ fn given_up_relink_scene(name: &str) -> RelinkScene {
     std::fs::create_dir_all(common.as_path()).expect("common");
     std::fs::create_dir_all(worktree.as_path()).expect("worktree");
     std::fs::create_dir_all(admin.as_path()).expect("registration");
+    // A registration of this repository: the pointer to its own Git directory, and that directory's back-links to the
+    //  worktree and to the repository, which is what a command in the worktree and the notice's target both read.
     std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
+    std::fs::write(admin.join("gitdir"), format!("{}\n", worktree.join(".git").display())).expect("the back-link");
+    std::fs::write(admin.join("commondir"), "../..\n").expect("the common directory");
     let entry: crate::package_repair_relink::RelinkEntry = crate::package_repair_relink::RelinkEntry {
         root: worktree.clone(),
         search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,

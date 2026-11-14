@@ -124,3 +124,25 @@ fn a_stamp_written_again_in_one_millisecond_is_still_a_moment_of_its_own() {
     let newest: &String = distinct.last().expect("the stamps");
     assert!(newest.as_str() > "2026-10-06T00:00:00.000Z", "{newest} is a moment before this control was written");
 }
+
+/// What:
+///  A stamp this module wrote names the same instant when it is read back,
+///  and a text that is not one names nothing.
+/// Why:
+///   The notice of a given-up relink compares a record's `created` with the moment a registration was made,
+///   so a stamp read as another instant would put the words in the wrong worktree or hold them back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// assert(instantOfIso('2026-10-07T03:34:01.123Z').valueOf() === 1791344041123); assert(instantOfIso('a while ago') === undefined);
+/// ```
+#[test]
+fn a_stamp_reads_back_as_the_instant_it_names() {
+    let read: Option<std::time::SystemTime> = instant_of_iso("2026-10-07T03:34:01.123Z");
+    let millis: u128 = read.expect("the stamp is one this module writes").duration_since(std::time::SystemTime::UNIX_EPOCH).expect("after the epoch").as_millis();
+    assert_eq!(millis, 1_791_344_041_123, "the stamp names another instant than it was written from");
+    let written: String = format_iso_milliseconds(1_791_344_041_123);
+    assert_eq!(instant_of_iso(written.as_str()), read, "a stamp this module wrote does not read back as itself");
+    assert_eq!(instant_of_iso("a while ago"), None);
+    assert_eq!(instant_of_iso("1969-12-31T23:59:59.999Z"), None, "a stamp before 1970 names no instant a record carries");
+}

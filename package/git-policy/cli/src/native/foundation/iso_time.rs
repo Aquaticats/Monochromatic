@@ -58,6 +58,27 @@ pub fn now_iso() -> String {
     return format_iso_milliseconds(jiff::Timestamp::now().as_millisecond());
 }
 
+/// What:
+///  The instant a `toISOString` stamp names,
+///  or nothing when the text is not one.
+/// Why:
+///  A record's `created` is a stamp,
+///  and a reader that compares it with a file's own moment needs the instant and not the text
+///  (the notice of a given-up relink asks whether the registration at a path was made after the record was queued).
+///  A stamp before 1970 names no instant such a record carries and is refused,
+///  so a caller cannot be handed a moment that arithmetic then wraps.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const instant = (text) => { const millis = Date.parse(text); return Number.isNaN(millis) || millis < 0 ? undefined : new Date(millis); };
+/// ```
+pub fn instant_of_iso(text: &str) -> Option<std::time::SystemTime> {
+    let stamp: jiff::Timestamp = text.parse().ok()?;
+    let millis: i64 = stamp.as_millisecond();
+    let after_the_epoch: u64 = u64::try_from(millis).ok()?;
+    return Some(std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_millis(after_the_epoch));
+}
+
 /// The last millisecond this process wrote a stamp for,
 /// so the next stamp is never the same one.
 static LAST_MILLISECOND: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(i64::MIN);

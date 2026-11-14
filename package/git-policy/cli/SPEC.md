@@ -4866,6 +4866,20 @@ of which the two that rewrite link layouts in place are the service's work whene
   and a copy of it reached every new worktree.
   Such a record is removed together with the launcher beside it,
   and the count that says whether the install did its work covers only the records the lock declares.
+  The removal proves the bytes it deletes:
+  each record is renamed to a name only that pass writes,
+  read again against the lock as it is now,
+  and put back when another command declared its name meanwhile or the bytes name this worktree's own lock,
+  and the launcher goes only when it is the object the pass read beside the record
+  (device,
+  inode,
+  size and moment),
+  because `mpm-shadow` places a launcher with a rename and an install that wrote its own is another object.
+  A person's `toolchain:update` and install landing between the classification and the removal therefore keeps
+  the record and launcher it wrote,
+  and a repair that deleted them would discard what that command had just made.
+  A pass killed between taking a record aside and removing or putting it back leaves it under a name nothing reads,
+  and the next pass removes what a gone process left there.
   On 2026-11-13 that copy made every new worktree report
   "toolchain:
   1 launcher records still name another lock file" on every try,
@@ -4949,7 +4963,34 @@ because either may have happened and no file tells them apart:
 its notice says no answer was kept and points at the commit service's journal,
 which is where the rest of what happened is.
 The notice is written in the relinked worktree's own Git directory,
-where a command run there reads it.
+where a command run there reads it,
+when this repository proves that directory is the worktree the record is about:
+the worktree's `.git` pointer names a registration under the common directory's `worktrees`,
+and that registration's `gitdir` and `commondir` back-links name this worktree and this repository.
+The pointer is read as every other `.git` reader of the crate reads one,
+only when it is a plain file and never past `GIT_FILE_LIMIT` (64 KiB):
+a pointer is one line,
+and a 2 GiB file at that name was read whole into the service's memory before this
+(523 MB peak,
+the rest in swap),
+while a pipe put there between a look and a read held the pass for ever.
+A registration made after the record was queued is another worktree at the same path,
+and the administrative directory is named after the path,
+so the record's own `created` decides:
+words about an earlier worktree are never left where a later one's commands would read them.
+Where that proof cannot be made,
+or the directory refuses the words
+(a read-only administrative directory,
+a parent that cannot be made),
+the words go to the directory the record was drained from,
+which a command in the worktree whose add wrote the record reads,
+and which is writable whenever the recovery can move records at all.
+That fallback is the one the recovery needs:
+it settles nothing while the person cannot be told,
+so a directory that refuses the words may not hold the record in `recovering` for ever.
+The words never make a Git directory that is not there:
+a directory made again for them is one no command in that checkout reads,
+and Git refuses that worktree (`fatal: gitfile does not point to a valid repository`).
 It is published over any words an earlier telling of the same record left,
 rather than create-new,
 because the recovery tells a record again when a pass was killed between the words and the move to `failed`,
@@ -4968,7 +5009,8 @@ A relink written in the Git directory of the worktree whose command added the ne
 about a worktree that command had never touched:
 on 2026-11-13 one commit in the main checkout printed eight of them for eight other worktrees.
 A worktree that is gone has no Git directory to write in,
-and the notice is left in the directory the record was drained from.
+and the notice is left in the directory the record was drained from,
+which is also where a command in the adding worktree reads it.
 
 What the service proves before it relinks:
 the record's payload and its repository field must name one directory,

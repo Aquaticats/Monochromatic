@@ -2429,6 +2429,12 @@ monochromatic-git-policy-cli: the package state of <worktree> was not relinked, 
 The line waits in that worktree's own Git directory,
 so only a command run there shows it,
 and one command shows it once.
+When that directory cannot be proved to be the worktree the record is about,
+or refuses the words (a read-only administrative directory),
+the line waits in the Git directory of the worktree whose command added the new one instead,
+so a command there shows it;
+it is never left in a Git directory this wrapper made again,
+which no command in that checkout would read.
 A record whose service was killed on every try has no answer to quote,
 and its line says no answer was kept for it and that the commit service's journal holds the rest,
 rather than guessing at what happened.
