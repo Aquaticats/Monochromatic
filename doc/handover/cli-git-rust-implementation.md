@@ -1121,6 +1121,44 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The add-never-skips author answered its third review (2026-11-13T20:34:11-05:00)
+
+Not final and not approved:
+the coordinating session's reading of a run that ended at 20:29:19.
+
+- Tip `7f3b425d9a` on `fix/git-policy-cli-add-never-skips-the-cargo-repair-because-of-a-marker-it-carried`,
+  `main` merged in.
+  The author ran both of the review's reproductions and saw both.
+- Through the wrapper built at the reviewed commit,
+  a `git worktree add` in a repository with a named pipe at `.git/info/exclude` was held the whole 120 s of the probe's bound.
+  `strace` showed the holding read was not the one the review named but another read of the same file in the same add,
+  the trash line's plain `std::fs::read`,
+  reached first.
+  Both reads now go through the wrapper's read of a regular file and refuse a pipe at once.
+  The patterns are now compared line by line and only the missing ones written,
+  so a list cut short by an earlier release or a torn append is completed;
+  before,
+  a lease file showed in `git status` and could be staged.
+- Five controls,
+  each shown failing with the older helper put back.
+  Cost per add:
+  about 3.4 µs more on the trash line and 4.2 µs per staged workspace.
+  Clippy clean;
+  194 tests of its modules pass.
+- Routed:
+  its fourth review over `main...7f3b425d9a` is queued at the head.
+- Found by it and left alone,
+  each now with an owner:
+  a Git child of the add's copy step that stalls is ended at its ceiling and the step is tried again with nothing bounding the whole
+  (with a ten-second ceiling the add had not answered after 240 s;
+  real Git itself waits on a pipe at that file),
+  for which a fresh run is queued
+  (`~/temp/agent/pi-runs/worktree-add-ends-within-a-total-bound-when-a-git-child-of-its-copy-stalls-again-and-again-prompt.md`);
+  and `service run --path` listens but nothing wakes its round in a session with no service manager,
+  which belongs to the review of the no-manager branch and is named in its next brief.
+- This run is the first of an author to end since the fix for issue 6299 reached `main`:
+  it ended `idle` with no `workProblem`.
+
 ##### Pass 24, abort and skip, is in `main` and `0.6.1-alpha.21` is dispatched; the launcher change is in `main` (2026-11-13T20:27:05-05:00)
 
 Not final and not approved:
