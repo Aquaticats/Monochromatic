@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 
 /// A manager that records what it is asked and can be made to fail.
 #[derive(Clone, Default)]
-pub(crate) struct Recorder {
+pub(super) struct Recorder {
     calls: Arc<Mutex<Vec<String>>>,
     failure: Arc<Mutex<Option<CallError>>>,
     /// What a stop is answered with,
@@ -28,9 +28,11 @@ pub(crate) struct Recorder {
     ///  earlier-release wrapper that sets its unit up again would.
     recreate: Arc<Mutex<Option<PathBuf>>>,
     /// The states a unit reports in turn,
-    /// the last one repeating;
-    /// a unit without a script is not held by the manager.
-    states: Arc<Mutex<std::collections::HashMap<String, Vec<String>>>>,
+    /// the last one repeating,
+    /// and nothing for a unit the manager has dropped;
+    /// a unit without a script is not held by the manager at all.
+    states: Arc<Mutex<std::collections::HashMap<String, Vec<Option<String>>>>>,
+
     /// What a state question is answered with instead of a state,
     /// when it is made to fail.
     state_failure: Arc<Mutex<Option<CallError>>>,
@@ -52,11 +54,6 @@ pub(crate) struct Recorder {
 impl Manager for Recorder {
     fn within(&mut self, wait: std::time::Duration) {
         self.budgets.lock().expect("lock").push(wait);
-    }
-
-    fn reload(&mut self) -> Result<(), CallError> {
-        self.calls.lock().expect("lock").push(String::from("reload"));
-        return self.failure.lock().expect("lock").clone().map_or(Ok(()), Err);
     }
 
     fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
@@ -96,7 +93,7 @@ impl Manager for Recorder {
         }
         let mut scripts = self.states.lock().expect("lock");
         let Some(script) = scripts.get_mut(unit) else { return Ok(None) };
-        return Ok(Some(if script.len() > 1 { script.remove(0) } else { script[0].clone() }));
+        return Ok(if script.len() > 1 { script.remove(0) } else { script[0].clone() });
     }
 
     fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError> {
@@ -140,7 +137,7 @@ impl Recorder {
         }
     }
 
-    pub(crate) fn calls(&self) -> Vec<String> {
+    pub(super) fn calls(&self) -> Vec<String> {
         return self.calls.lock().expect("lock").clone();
     }
 
@@ -148,14 +145,21 @@ impl Recorder {
     pub(super) fn observe_start(&self, read: Box<dyn FnMut() + Send>) {
         *self.at_start.lock().expect("lock") = Some(read);
     }
+
+    /// Answers the state questions about `unit` with these states in turn,
+    /// the last one repeating,
+    /// so a control can watch a unit go from running to inactive to gone.
+    pub(super) fn report_states_of(&self, unit: &str, states: &[Option<&str>]) {
+        self.states.lock().expect("lock").insert(unit.to_owned(), states.iter().map(|state| { return state.map(str::to_owned); }).collect());
+    }
 }
 
-pub(crate) struct Machine {
-    pub(crate) root: PathBuf,
-    pub(crate) host: ProvisionHost,
+pub(super) struct Machine {
+    pub(super) root: PathBuf,
+    pub(super) host: ProvisionHost,
 }
 
-pub(crate) fn machine(name: &str) -> Machine {
+pub(super) fn machine(name: &str) -> Machine {
     let root: PathBuf = fixture(name);
     let runtime: PathBuf = short_runtime_directory();
     let host: ProvisionHost = ProvisionHost {
@@ -216,14 +220,19 @@ fn unit_files_of_both_spellings_are_the_wrappers_own_and_the_new_ones_name_the_n
     }
 }
 
-/// The first provisioning writes both units,
+/// What:
+///  The first provisioning writes both units,
 /// filled in and marked,
-/// and only starts the socket:
-/// the manager finds a new file
-///  by itself,
-/// and a reload would interrupt its other clients.
+/// points the program link at this release,
+///  and starts the socket;
+/// the manager finds a new file by itself,
+/// and nothing makes it read every unit it holds.
+/// Why:
+///  The service unit names the per-user link and never the release's own path,
+/// which is what keeps every later
+///  upgrade from changing the text the manager holds.
 #[test]
-fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
+fn the_first_provisioning_writes_the_units_and_starts() {
     let machine: Machine = machine("provision-first-lib");
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("provisioned");
@@ -232,10 +241,13 @@ fn the_first_provisioning_writes_the_units_and_starts_without_a_reload() {
         assert!(!text.contains(BINARY_PLACEHOLDER) && !text.contains(GIT_PLACEHOLDER), "no placeholder is left in {name}");
         assert!(OWN_MARKERS.iter().any(|marker| { return text.contains(marker); }), "{name} carries the marker");
     }
-    let program: PathBuf = crate::service_provision_program_pointer::program_of(machine.host.runtime_dir.as_path(), machine.host.service_binary.as_path());
-    assert!(written(&machine, SERVICE_UNIT_NAME).contains(program.to_string_lossy().as_ref()), "the service unit starts the program through the link");
-    assert!(!written(&machine, SERVICE_UNIT_NAME).contains(machine.host.service_binary.to_string_lossy().as_ref()), "and names no executable of its own");
-    assert_eq!(recorder.calls(), with_earlier_instance_questions(vec![format!("start {}", instance_socket())]));
+    let link: PathBuf = program_link(machine.host.runtime_dir.as_path());
+    assert!(written(&machine, SERVICE_UNIT_NAME).contains(link.to_string_lossy().as_ref()), "the service unit runs the link");
+    assert_eq!(std::fs::read_link(&link).expect("the link is there"), machine.host.service_binary, "and the link names this release");
+    assert_eq!(
+        recorder.calls(),
+        with_earlier_instance_questions(vec![format!("state {}", instance_service()), format!("state {}", instance_socket()), format!("start {}", instance_socket())])
+    );
     remove(machine.root.as_path());
 }
 
@@ -352,7 +364,7 @@ fn a_second_provisioning_changes_nothing_and_clears_failed_state_before_the_star
 
 /// The socket the units activate,
 /// as the manager would have made it.
-pub(crate) fn add_socket(machine: &Machine) {
+pub(super) fn add_socket(machine: &Machine) {
     let socket: PathBuf = socket_path(machine.host.runtime_dir.as_path(), machine.host.instance.as_str());
     std::fs::create_dir_all(socket.parent().expect("socket directory")).expect("directories");
     std::fs::write(&socket, b"").expect("socket stand-in");
@@ -402,31 +414,48 @@ fn only_the_wrappers_own_earlier_units_keep_an_installation_from_being_in_place(
 }
 
 /// What:
-///  A provisioning of an installation that is already what this command would write asks the manager nothing.
+///  A unit an earlier release wrote with the absolute path of its own program is rewritten with the per-user link,
+/// the
+///  worktree's units are unloaded when the manager holds them,
+/// failed state is cleared,
+/// and the socket is started.
 /// Why:
-///  The manager is asked only about a unit it may hold changed or a socket that is not there;
-/// a
-///  commit whose only change is the program link (a release change,
-/// or a second build of one release) reads one link and
-///  returns,
-///  which is what keeps a first commit after an install from queueing behind a manager that is reading every
-///  unit.
+///  The path in an earlier release's text is the one thing this release stops writing,
+/// and a manager that holds that text
+///  would keep starting the program it names.
+/// The unload is what makes it read the file again,
+/// and it names this worktree's units alone.
 #[test]
-fn a_provisioning_of_an_installation_that_is_in_place_asks_the_manager_nothing() {
-    let machine: Machine = machine("provision-in-place-asks-nothing-lib");
+fn a_unit_of_an_earlier_release_is_rewritten_and_started() {
+    let machine: Machine = machine("provision-removed-lib");
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     add_socket(&machine);
-    assert!(in_place(&machine.host));
+    let unit: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME);
+    let removed: &str = "/home/a/.local/share/toolchain/cargo/cli/0.5.2/bin/cli-git-service";
+    std::fs::write(&unit, written(&machine, SERVICE_UNIT_NAME).replace(program_link(machine.host.runtime_dir.as_path()).to_string_lossy().as_ref(), removed)).expect("older unit");
+    assert!(!in_place(&machine.host));
     let mut recorder: Recorder = Recorder::default();
-    provision_with(&machine.host, &mut recorder).expect("provisioned again");
-    assert!(recorder.calls().is_empty(), "nothing to write and nothing to start, so nothing is asked: {:?}", recorder.calls());
+    provision_with(&machine.host, &mut recorder).expect("repaired");
+    assert!(!written(&machine, SERVICE_UNIT_NAME).contains(removed));
+    assert!(in_place(&machine.host));
+    assert_eq!(
+        recorder.calls(),
+        with_earlier_instance_questions(vec![
+            format!("state {}", instance_service()),
+            format!("state {}", instance_socket()),
+            format!("reset-failed {}", instance_service()),
+            format!("reset-failed {}", instance_socket()),
+            format!("start {}", instance_socket())
+        ])
+    );
     remove(machine.root.as_path());
 }
 
 /// A unit another release wrote,
 /// whose text differs from this release's template and not only in the program path,
 /// is
-///  rewritten as well.
+///  rewritten as well,
+/// and the manager is asked about this worktree's units before it is asked to start the socket.
 #[test]
 fn a_unit_from_another_release_is_rewritten() {
     let machine: Machine = machine("provision-release-lib");
@@ -439,16 +468,32 @@ fn a_unit_from_another_release_is_rewritten() {
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("rewritten");
     assert_eq!(written(&machine, SERVICE_UNIT_NAME), unit_texts(&machine.host)[1].1);
-    assert_eq!(recorder.calls().first().map(String::as_str), Some("reload"));
+    let calls: Vec<String> = recorder.calls();
+    assert_eq!(calls.first(), Some(&format!("state {}", instance_service())), "the manager is asked what it holds of this worktree: {calls:?}");
+    assert!(!calls.iter().any(|call| { return call.starts_with("reload"); }), "and nothing makes it read every unit it holds: {calls:?}");
     remove(machine.root.as_path());
 }
 
-/// When the manager refuses after a unit was rewritten,
-/// the rewrite is withdrawn,
-/// so the next commit does not take a file the
-///  manager never reloaded for an installed one.
+/// What:
+///  A manager that refuses every call leaves the unit files in place and no record that claims it read them.
+/// Why:
+///  The files are the texts the manager reads,
+/// and the record says the manager was watched dropping this
+///  worktree's units,
+/// which a manager that answered nothing never was:
+/// anything it still holds is a text it would start the unit
+///  from,
+/// so a record written here would send every later commit down the fast path into the service of the release that was
+///  replaced.
+/// The next command's own wait starts the socket,
+/// and the next provisioning unloads and starts again,
+/// which is what
+///  makes the files an installation the manager read.
+/// Withdrawing the files is not needed,
+/// and withdrawing them would leave a
+///  machine whose manager refuses every start with no unit file at all.
 #[test]
-fn a_refused_reload_leaves_no_unit_that_looks_installed() {
+fn a_refused_start_leaves_the_files_and_no_stale_unit() {
     let machine: Machine = machine("provision-withdrawn-lib");
     provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
     add_socket(&machine);
@@ -465,59 +510,321 @@ fn a_refused_reload_leaves_no_unit_that_looks_installed() {
     let mut refusing: Recorder = Recorder::default();
     *refusing.failure.lock().expect("lock") = Some(CallError::Manager { name: String::from("org.freedesktop.systemd1.AccessDenied"), text: String::new() });
     provision_with(&machine.host, &mut refusing).expect_err("refused");
-    assert!(!in_place(&machine.host), "the next commit provisions again");
-    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned again");
-    assert!(in_place(&machine.host));
+    // What: The texts on disk are the ones the manager was told about before this call, because the write put the template
+    //       back as the first provisioning left it.
+    // Why:  The record is the manager's own answer and nothing this call learned, so a call that was refused cannot spoil it;
+    //       what it must not do is record texts the manager was never told about.
+    assert!(in_place(&machine.host), "the files hold the texts the manager was told about, and nothing stale is held");
+    // What: The next call finds the files an installation the manager was told about and asks nothing at all.
+    // Why:  The refused start spoiled nothing: the record is the manager's own answer from the call before, and the texts on
+    //       disk are the ones it covers.
+    let mut again: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut again).expect("provisioned again");
+    assert!(again.calls().is_empty(), "the installation is in place, so nothing is asked: {:?}", again.calls());
     remove(machine.root.as_path());
 }
 
+/// What:
+///  A moved service program (an upgrade) moves the per-user link and leaves both unit texts as they are,
+/// so the manager
+///  holds texts it read once for the whole session.
+/// Why:
+///  This is the whole of the fix for the reload:
+/// the one thing an upgrade changes is a file the manager never reads,
+///  and the next start resolves the link to the release that pointed it last
+///  (`doc/planning/git-wrapper-reload-remedy.md`).
+#[test]
+fn a_moved_program_moves_only_the_link() {
+    let mut machine: Machine = machine("provision-moved-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    let texts_before: [(&'static str, String); 2] = unit_texts(&machine.host);
+    machine.host.service_binary = machine.root.join("upgraded/monochromatic-git-policy-cli");
+    assert_eq!(unit_texts(&machine.host), texts_before, "an upgrade changes no unit text");
+    point_program_link(&machine.host);
+    assert_eq!(std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"), machine.host.service_binary);
+    assert!(in_place(&machine.host), "and the installation stays one the manager read");
+    remove(machine.root.as_path());
+}
 
 /// What:
-///  An upgrade whose process wrote the new service template and was killed before the manager was reloaded
+///  An upgrade,
+/// a downgrade,
+/// two releases used in turn and a build made in a worktree all write the very same two unit
+///  texts,
+/// and a commit that meets one of them asks the manager for nothing.
+/// Why:
+///   The text of a unit is the manager's copy of a file,
+/// and it reads that file again only when it is asked to reload every
+///  unit it holds;
+/// on 2026-11-12 one of those reads held a session's manager for 139,770 ms and ended the desktop
+///  session (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+/// So the one thing a release
+///  change may write is the link the service unit names,
+/// and this is the control that names each of the four ways a
+///  release changes:
+/// the release after this one,
+/// the release before it,
+/// this one again,
+/// and a binary built into a worktree
+///  rather than installed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const program of [nextRelease, previousRelease, thisReleaseAgain, aBuildInAWorktree]) expect(unitTexts(withProgram(program))).toEqual(installed);
+/// ```
+#[test]
+fn a_release_change_of_every_kind_changes_no_unit_text() {
+    let mut machine: Machine = machine("provision-release-change-lib");
+    let installed: [(&'static str, String); 2] = unit_texts(&machine.host);
+    // What: The four ways a release changes, as the paths they leave the wrapper running from.
+    // Why:  A build of this repository made in a worktree (`target/debug`) is a release change like an install, which is
+    //       what makes a second build of one release a case of its own.
+    let next_release: PathBuf = machine.root.join("releases/0.6.2/bin/monochromatic-git-policy-cli");
+    let previous_release: PathBuf = machine.root.join("releases/0.6.0/bin/monochromatic-git-policy-cli");
+    let this_release: PathBuf = machine.host.service_binary.clone();
+    let a_build_in_a_worktree: PathBuf = machine.root.join("worktrees/topic/target/debug/monochromatic-git-policy-cli");
+    for program in [&next_release, &previous_release, &this_release, &a_build_in_a_worktree, &next_release] {
+        machine.host.service_binary = program.clone();
+        assert_eq!(unit_texts(&machine.host), installed, "a release change to {} changes no unit text", program.display());
+        assert!(!unit_texts(&machine.host).iter().any(|(_name, text)| { return text.contains(program.to_string_lossy().as_ref()); }), "and no unit names the executable of {} itself", program.display());
+    }
+    // The link is the one thing a release change moves, and each of those four names it.
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    for program in [&previous_release, &next_release, &a_build_in_a_worktree] {
+        machine.host.service_binary = program.clone();
+        let installed_text: String = written(&machine, SERVICE_UNIT_NAME);
+        point_program_link(&machine.host);
+        assert_eq!(written(&machine, SERVICE_UNIT_NAME), installed_text, "the template is not written again for {}", program.display());
+        assert_eq!(std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"), *program, "and the link names {}", program.display());
+    }
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A provisioning that finds the units,
+/// the record of what the manager was told,
+/// the socket file and no earlier socket of this
+///  worktree listening asks the manager nothing at all.
+/// Why:
+///   This is the fast path a commit of a freshly installed release takes:
+/// the release change moved the link and nothing
+///  else,
+/// and asking three questions of a busy manager cost more than the whole of the release change
+///  (`service_client_reach_service.rs`,
+/// which repairs a unit the manager reports `inactive` and asks a service of another
+///  release to retire).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(await provisionWith(host, recorder)).toBe(undefined); expect(recorder.calls).toEqual([]);
+/// ```
+#[test]
+fn a_provisioning_of_an_installation_that_is_in_place_asks_the_manager_nothing() {
+    let machine: Machine = machine("provision-in-place-asks-nothing-lib");
+    provision_with(&machine.host, &mut Recorder::default()).expect("provisioned");
+    add_socket(&machine);
+    assert!(in_place(&machine.host));
+    let mut recorder: Recorder = Recorder::default();
+    provision_with(&machine.host, &mut recorder).expect("provisioned again");
+    assert!(recorder.calls().is_empty(), "nothing to write and nothing to start, so nothing is asked: {:?}", recorder.calls());
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  The service unit text of the machine an earlier release set up,
+/// for the two releases this wrapper can find installed:
+/// `0.6.1-alpha.13`,
+///  whose template names the executable of the release that wrote it,
+/// and `0.6.1-alpha.14`,
+/// whose template already names a
+///  program link,
+/// but one of that release's own.
+/// Why:
+///   The two differ,
+/// so a control seeded by one says nothing about the other,
+/// and every machine that installed either
+///  meets this release's units for the first time at its first commit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // { release: '0.6.1-alpha.13', program: '<the executable of the release that wrote the template>' }
+/// ```
+fn template_of(release: &str, runtime_dir: &Path) -> String {
+    // What: The program each release filled into the template.
+    // Why:  `0.6.1-alpha.13` wrote the absolute path of its own executable into the unit;
+    //       `0.6.1-alpha.14` wrote a link of its
+    //       own, which sits in the notes folder of the note directory.
+    let program: String = match release {
+        "0.6.1-alpha.13" => String::from("/home/someone/.local/share/toolchain/cargo/cli/0.6.1-alpha.13/bin/monochromatic-git-policy-cli"),
+        "0.6.1-alpha.14" => runtime_unit_dir(runtime_dir).join(crate::service_units_of_removed_worktrees::NOTES_FOLDER).join("service-program").to_string_lossy().into_owned(),
+        other => panic!("{other} is no release this control knows"),
+    };
+    return SERVICE_UNIT
+        .replace(BINARY_PLACEHOLDER, program.as_str())
+        .replace(GIT_PLACEHOLDER, "/usr/bin/git")
+        .replace(STOP_TIMEOUT_PLACEHOLDER, STOP_TIMEOUT_SECONDS.to_string().as_str());
+}
+
+/// What:
+///  A machine that carries the template of `0.6.1-alpha.13` or of `0.6.1-alpha.14`
+/// is brought over on its first commit,
+///  and nothing about it makes the manager read every unit it holds.
+/// Why:
+///   Those are the two releases a machine here can hold.
+/// The first names an executable,
+/// the second a link of its
+///  own,
+/// and this release names a link of its own that is the same in every release,
+/// so each one's text is rewritten
+///  exactly once.
+/// What the rewrite costs is this worktree's own units:
+/// the service is asked to retire,
+/// its socket is
+///  stopped,
+/// the manager is watched dropping them,
+/// and the socket is started again
+/// (`service_provision_instance_unloaded.rs`).
+/// The manager is asked nothing else,
+/// and its having to read every unit it holds
+///  is not among the calls this program can make:
+/// `source_guard/no_start_at_login_tests.rs` holds the list of
+///  members it may call and is failed by a reload.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const release of ['0.6.1-alpha.13', '0.6.1-alpha.14']) expect(await firstCommitOn(aMachineWith(release))).not.toAskForAReload();
+/// ```
+#[test]
+fn a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a_reload() {
+    for release in ["0.6.1-alpha.13", "0.6.1-alpha.14"] {
+        let machine: Machine = machine(format!("provision-seeded-by-{release}-lib").as_str());
+        let directory: PathBuf = runtime_unit_dir(machine.host.runtime_dir.as_path());
+        std::fs::create_dir_all(&directory).expect("the unit directory");
+        let seeded: String = template_of(release, machine.host.runtime_dir.as_path());
+        std::fs::write(directory.join(SERVICE_UNIT_NAME), &seeded).expect("the earlier release's service template");
+        std::fs::write(directory.join(SOCKET_UNIT_NAME), SOCKET_UNIT).expect("the earlier release's socket template");
+        // The record those releases kept: one file for the whole runtime directory, which this release never reads.
+        let notes: PathBuf = directory.join(crate::service_units_of_removed_worktrees::NOTES_FOLDER);
+        std::fs::create_dir_all(&notes).expect("the notes folder");
+        std::fs::write(notes.join("units-the-manager-was-told"), "an earlier release's digest\n").expect("the earlier release's record");
+        // The socket the earlier release started, which the manager keeps across a release change.
+        add_socket(&machine);
+        assert_ne!(written(&machine, SERVICE_UNIT_NAME), unit_texts(&machine.host)[1].1, "{release}'s template is not this release's");
+        assert!(!in_place(&machine.host), "so the machine is not set up for this release yet");
+        let mut recorder: Recorder = Recorder::default();
+        // What: The manager the first commit meets: it holds this worktree's service running under the earlier release's text,
+        //       and drops it once it was asked to retire and its socket was stopped.
+        // Why:  That is the state a machine which used the earlier release is in, and the calls below are what the migration
+        //       costs it.
+        recorder.report_states_of(instance_service().as_str(), &[Some("active"), Some("inactive"), None]);
+        recorder.report_states_of(instance_socket().as_str(), &[Some("active"), None]);
+        provision_with(&machine.host, &mut recorder).expect("the first commit of this release sets the machine up");
+        assert_eq!(written(&machine, SERVICE_UNIT_NAME), unit_texts(&machine.host)[1].1, "{release}'s template is rewritten to this release's");
+        assert!(in_place(&machine.host), "and the machine is set up for this release");
+        // What: Every call the manager was asked for, in order.
+        // Why:  It names this worktree's own two units and nothing else, and no member of it can make the manager read every
+        //       unit it holds: retirement, the stop of the socket this worktree's service requires, the wait until the manager
+        //       holds neither, and the start again.
+        assert_eq!(
+            recorder.calls(),
+            with_earlier_instance_questions(vec![
+                format!("state {}", instance_service()),
+                format!("state {}", instance_socket()),
+                format!("state {}", instance_service()),
+                format!("stop {}", instance_socket()),
+                format!("state {}", instance_service()),
+                format!("state {}", instance_socket()),
+                format!("reset-failed {}", instance_service()),
+                format!("reset-failed {}", instance_socket()),
+                format!("start {}", instance_socket())
+            ]),
+            "{release}'s machine is brought over with this worktree's own units alone"
+        );
+        remove(machine.root.as_path());
+    }
+}
+
+/// What:
+///  A replacement killed between its new link and its rename leaves the link that was there,
+/// which still names a program that
+///  exists.
+/// Why:
+///   The manager starts whatever the link names at the moment of the start,
+/// so a link removed before the new one was made
+///  would name nothing and no start could bring the service back;
+/// the temporary link and the rename are what make a reader see
+///  the old link or the new one,
+/// and the next provisioning renames its own over the old one.
+#[test]
+fn a_replacement_that_stops_before_its_rename_leaves_the_old_link() {
+    let machine: Machine = machine("provision-half-written-link-lib");
+    let earlier: PathBuf = machine.root.join("programs/earlier-release");
+    let later: PathBuf = machine.root.join("programs/later-release");
+    std::fs::create_dir_all(machine.root.join("programs")).expect("the program folder");
+    std::fs::write(&earlier, b"the earlier release").expect("the earlier program");
+    std::fs::write(&later, b"the later release").expect("the later program");
+    crate::service_provision_unit_file_ownership_and_writes::link_atomically(program_link(machine.host.runtime_dir.as_path()).as_path(), earlier.as_path()).expect("the link names the earlier release");
+    // What: The temporary link a killed replacement left behind, beside the link that was there.
+    // Why:  It is the name `link_atomically` writes before the rename, which a kill between the two leaves on disk.
+    let temporary: PathBuf = program_link(machine.host.runtime_dir.as_path()).with_extension(format!("linktmp-{}-0", std::process::id()));
+    std::os::unix::fs::symlink(&later, &temporary).expect("the temporary link a killed replacement left");
+    assert_eq!(std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"), earlier, "a reader sees the link that was there, whole");
+    crate::service_provision_unit_file_ownership_and_writes::link_atomically(program_link(machine.host.runtime_dir.as_path()).as_path(), later.as_path()).expect("the next provisioning renames its own over the old one");
+    assert_eq!(std::fs::read_link(program_link(machine.host.runtime_dir.as_path())).expect("the link"), later, "the link names the program the next provisioning wrote");
+    assert!(earlier.exists() && later.exists(), "neither program is touched");
+    let _removed = std::fs::remove_file(&temporary);
+    remove(machine.root.as_path());
+}
+
+/// What:
+///  A commit killed between making the manager drop this worktree's units and recording that it did
 ///  repairs itself at the next commit:
-/// the files alone are not taken for an installation the manager was told about.
+/// the files alone are not taken for an installation the manager read.
 /// Why:
 ///  The files then hold exactly the text this wrapper would write,
 /// and a fast path that reads only the files takes them for
-///  installed and returns without the reload.
-/// The manager keeps the unit it loaded,
-/// so every later commit reaches the service
-///  of the release that was replaced and ends with `ClientFailure::OtherRelease` however often it is run
+///  installed and returns.
+/// The manager may still hold the unit it loaded before,
+/// so every later commit would reach the
+///  service of the release that was replaced and end with `ClientFailure::OtherRelease` however often it is run
 ///  (`doc/planning/cli-git-entry-and-service-lifecycle-route-findings-on-main.md`,
 /// the sequence of the interrupted
 ///  upgrade).
 /// A commit must not fail repeatedly because of a kill it cannot see,
-/// so the next one asks for the reload the killed one
-///  never made,
-/// and only then are the files an installation again.
+/// so the next one asks the manager what it
+///  holds and unloads it,
+/// and the record is written only then.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// expect(inPlaceAfterAKilledUpgrade).toBe(false);
-/// expect(reloadAskedAfterRepairingIt).toBe(true);
+/// expect(unloadAskedAfterRepairingIt).toBe(true);
 /// ```
 #[test]
-fn an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit() {
+fn a_commit_killed_before_it_recorded_the_units_is_repaired_by_the_next_commit() {
     let machine: Machine = machine("provision-interrupted-upgrade-lib");
     provision_with(&machine.host, &mut Recorder::default()).expect("the replaced release provisioned");
     add_socket(&machine);
-    assert!(in_place(&machine.host), "the replaced release is installed and the manager was told");
-    // The upgrading release changed the service template itself (a line the other release did not write) and was killed
-    // before it asked the manager to reload. A release that moves only its program leaves the template alone, and the record
-    // with it (`service_provision_program_pointer.rs`), so this is the state that repair is still for.
-    let name: &'static str = SERVICE_UNIT_NAME;
-    let text: String = format!("{}# a line the upgrading release added\n", written(&machine, SERVICE_UNIT_NAME));
-    std::fs::write(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(name), text).expect("the upgrading release's template");
-    assert!(!in_place(&machine.host), "the manager was never told about the template the kill left behind");
+    assert!(in_place(&machine.host), "the replaced release is installed and the manager read its texts");
+    // The upgrading release was killed before it recorded what the manager holds.
+    crate::service_provision_loaded_unit_texts::forget(machine.host.runtime_dir.as_path(), INSTANCE);
+    assert!(!in_place(&machine.host), "the next commit does not take the files for an installation the manager read");
     let mut recorder: Recorder = Recorder::default();
     provision_with(&machine.host, &mut recorder).expect("repaired");
-    assert_eq!(recorder.calls().first().map(String::as_str), Some("reload"), "the reload the killed upgrade never made: {:?}", recorder.calls());
-    assert!(in_place(&machine.host), "and the installation is one the manager was told about");
+    assert_eq!(
+        recorder.calls().first(),
+        Some(&format!("state {}", instance_service())),
+        "the manager is asked what it holds of this worktree before anything is started: {:?}",
+        recorder.calls()
+    );
+    assert!(in_place(&machine.host), "and the installation is one the manager read");
     remove(machine.root.as_path());
 }
 
 /// Units of an earlier release are recognized by their content and removed with their enabling link,
-/// then a reload follows.
+/// and the worktree's own socket is started after they are gone.
 #[test]
 fn earlier_units_are_removed_with_their_link() {
     let machine: Machine = machine("provision-earlier-lib");
@@ -530,9 +837,10 @@ fn earlier_units_are_removed_with_their_link() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     assert!(!directory.join(LEGACY_SOCKET_UNIT_NAME).exists() && !directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
     assert!(std::fs::symlink_metadata(directory.join("sockets.target.wants").join(LEGACY_SOCKET_UNIT_NAME)).is_err());
-    // The service those units ran is stopped before the files go, then the manager reloads.
+    // The service those units ran is stopped before this worktree's own socket is started.
     let calls: Vec<String> = recorder.calls();
-    assert!(position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()) < position(&calls, "reload"), "{calls:?}");
+    assert!(position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()) < position(&calls, format!("start {}", instance_socket()).as_str()), "{calls:?}");
+    assert!(!calls.iter().any(|call| { return call.starts_with("reload"); }), "and nothing makes the manager read every unit it holds: {calls:?}");
     remove(machine.root.as_path());
 }
 
@@ -642,7 +950,6 @@ fn the_unit_names_agree_with_the_templates() {
 /// its socket and service are stopped (socket first),
 /// its unit files and socket file are
 ///  removed,
-/// the manager is reloaded,
 /// and the worktree's own instance is started.
 /// Nothing of it counts as in place.
 #[test]
@@ -667,7 +974,9 @@ fn the_earlier_single_service_is_stopped_and_its_units_removed() {
             format!("stop {LEGACY_SERVICE_UNIT_NAME}"),
             format!("state {LEGACY_SOCKET_UNIT_NAME}"),
             format!("state {LEGACY_SERVICE_UNIT_NAME}"),
-            String::from("reload"),
+            // Then what the manager holds of this worktree's own instance, which is nothing on a first provisioning.
+            format!("state {}", instance_service()),
+            format!("state {}", instance_socket()),
             format!("start {}", instance_socket())
         ])
     );
@@ -692,7 +1001,11 @@ pub(super) fn earlier_service_files(machine: &Machine, directory: &Path) -> Path
 }
 
 fn script(recorder: &Recorder, unit: &str, states: &[&str]) {
-    recorder.states.lock().expect("lock").insert(unit.to_string(), states.iter().map(|state| { return (*state).to_string(); }).collect());
+    recorder
+        .states
+        .lock()
+        .expect("lock")
+        .insert(unit.to_string(), states.iter().map(|state| { return Some((*state).to_string()); }).collect());
 }
 
 fn position(calls: &[String], wanted: &str) -> usize {
@@ -756,20 +1069,20 @@ fn a_state_question_that_outlasts_the_retirement_wait_is_a_slow_stop_and_not_a_m
 /// What:
 ///  A manager that does not answer within the exchange's time never fails the commit:
 /// the units stay written,
-/// the record of what it
-///  was told stays unwritten,
-/// the person reads what the wait was for once,
+/// the record of
+///  what it was told stays unwritten,
+/// one line says what the wait was for,
 /// and the next commit asks again.
 /// Why:
 ///   The units being written is what the manager needs,
-/// and a service of this release that is already running can answer the request
-///  however slowly the manager reads its units;
+/// and a service of this release that is already running can answer the
+///  request however slowly the manager gets to it;
 /// a commit that ended here told the person this account has no user services,
-/// which was false,
-/// and
-///  left the change uncommitted (two commits of 2026-11-11,
+///  which was false,
+/// and left the change uncommitted (two commits of 2026-11-11,
 /// twenty seconds of provisioning each).
-/// The record must not be written:
+/// The record must
+///  not be written:
 /// only the manager's own answer may say it was told.
 #[test]
 fn a_manager_that_does_not_answer_never_fails_the_commit() {
@@ -785,18 +1098,28 @@ fn a_manager_that_does_not_answer_never_fails_the_commit() {
     assert!(said[0].contains(instance_socket().as_str()), "{said:?}");
     assert!(said[0].contains("the commit goes on") && said[0].contains("the next commit asks the manager again"), "{said:?}");
     assert!(runtime_unit_dir(machine.host.runtime_dir.as_path()).join(SERVICE_UNIT_NAME).exists(), "the units are written");
-    assert!(!crate::service_provision_loaded_unit_texts::remembers(machine.host.runtime_dir.as_path(), unit_texts(&machine.host).as_slice()), "the record is unwritten, so the next commit asks again");
-    let mut next: Recorder = Recorder::default();
+    assert!(
+        !crate::service_provision_loaded_unit_texts::remembers(machine.host.runtime_dir.as_path(), INSTANCE, unit_texts(&machine.host).as_slice()),
+        "the record is unwritten, so the next commit asks again"
+    );
     add_socket(&machine);
+    let mut next: Recorder = Recorder::default();
     provision_with(&machine.host, &mut next).expect("the next commit asks again");
-    assert_eq!(next.calls().first().map(String::as_str), Some("reload"), "the reload the manager never answered: {:?}", next.calls());
+    assert_eq!(
+        next.calls().first(),
+        Some(&format!("state {}", instance_service())),
+        "the next commit unloads this worktree's unit before it starts it: {:?}",
+        next.calls()
+    );
     remove(machine.root.as_path());
 }
 
 /// Each phase has a time of its own:
-/// the questions of the retirement wait never get more than the wait allows,
-/// and the start
-///  that follows gets the whole exchange's time again however long the retirement took.
+/// a question of the retirement wait never gets more than the wait allows,
+/// the questions about this
+///  worktree's own units get the retirement wait too,
+/// and the start that follows gets the whole exchange's time again however long the
+///  retirement took.
 #[test]
 fn the_retirement_questions_and_the_start_have_budgets_of_their_own() {
     let machine: Machine = machine("provision-budgets-lib");
@@ -806,11 +1129,11 @@ fn the_retirement_questions_and_the_start_have_budgets_of_their_own() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let budgets: Vec<std::time::Duration> = recorder.budgets.lock().expect("lock").clone();
     assert_eq!(budgets.first(), Some(&EXCHANGE_WAIT), "the stop calls get a whole exchange's time: {budgets:?}");
+    assert!(!budgets.is_empty() && budgets.len() >= 4, "{budgets:?}");
     // The last budget is the earlier socket of the worktree's, and the one before it the start's.
     assert_eq!(budgets[budgets.len() - 2], EXCHANGE_WAIT, "the start gets a whole exchange's time again: {budgets:?}");
-    let questions: &[std::time::Duration] = &budgets[1..budgets.len() - 2];
-    assert!(!questions.is_empty(), "{budgets:?}");
-    assert!(questions.iter().all(|budget| { return *budget <= machine.host.retirement_wait; }), "{budgets:?}");
+    assert!(budgets.iter().all(|budget| { return *budget <= EXCHANGE_WAIT; }), "no call is given more than one exchange: {budgets:?}");
+    assert!(budgets.iter().any(|budget| { return *budget <= machine.host.retirement_wait; }), "and a phase of the retirement or of the unload is bounded by the retirement wait: {budgets:?}");
     remove(machine.root.as_path());
 }
 
@@ -841,7 +1164,8 @@ fn an_earlier_service_installed_in_the_persistent_unit_directory_is_stopped() {
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let calls: Vec<String> = recorder.calls();
     assert!(position(&calls, format!("stop {LEGACY_SOCKET_UNIT_NAME}").as_str()) < position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()));
-    assert!(position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()) < position(&calls, "reload"), "{calls:?}");
+    assert!(position(&calls, format!("stop {LEGACY_SERVICE_UNIT_NAME}").as_str()) < position(&calls, format!("start {}", instance_socket()).as_str()), "{calls:?}");
+    assert!(!calls.iter().any(|call| { return call.starts_with("reload"); }), "and nothing makes the manager read every unit it holds: {calls:?}");
     assert!(!directory.join(LEGACY_SERVICE_UNIT_NAME).exists());
     remove(machine.root.as_path());
 }
@@ -1133,7 +1457,7 @@ fn a_failure_to_stop_the_earlier_socket_is_logged_and_never_fails_provisioning()
 }
 
 /// Every call about the earlier socket has a time of its own,
-/// as the reload and the start do,
+/// as the unload and the start do,
 /// so that a bus that stalls delays
 ///  the commit by no more than one exchange.
 #[test]
@@ -1143,8 +1467,11 @@ fn the_questions_about_the_earlier_socket_have_a_budget_of_their_own() {
     script(&recorder, earlier_socket().as_str(), &["active"]);
     provision_with(&machine.host, &mut recorder).expect("provisioned");
     let budgets = recorder.budgets.lock().expect("lock").clone();
-    assert_eq!(budgets.len(), 2, "one for the start and one for the earlier socket: {budgets:?}");
+    // The questions about this worktree's own units, the start, and the two questions about the earlier socket: each of them
+    //  gets a whole exchange.
+    assert!(budgets.len() >= 4, "the unload, the start and both earlier-socket questions have a budget: {budgets:?}");
     assert_eq!(budgets.last().copied(), Some(EXCHANGE_WAIT));
+    assert_eq!(budgets[budgets.len() - 2], EXCHANGE_WAIT);
     remove(machine.root.as_path());
 }
 

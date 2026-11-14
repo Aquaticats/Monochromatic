@@ -92,6 +92,10 @@ pub mod journald_native;
 /// The address native journal entries are sent to.
 pub mod journald_native_socket_target;
 
+/// The service's log lines on standard error,
+/// written by a thread of their own so no landing waits for the stream.
+pub mod service_log_lines_off_the_calling_thread;
+
 /// The lines the commit service writes about its life and about the time each request took.
 pub mod service_timing;
 
@@ -203,17 +207,17 @@ pub mod service_provision_earlier_service_retirement;
 /// The wrapper's own provisioning of the commit service's socket activation.
 pub mod service_provision;
 
+/// Dropping the service manager's copy of one worktree's units,
+/// so the next start reads the unit files as they are.
+pub mod service_provision_instance_unloaded;
+
 /// The states in which provisioning already knows no service can answer this command,
 /// so the command says why instead of waiting out the start ceiling.
 pub mod service_provision_refusals_before_the_wait;
 
-/// The record of the unit texts the service manager was last told about,
+/// The record of the unit texts the service manager last read for one instance,
 /// which tells an installation it runs from files a kill left behind.
 pub mod service_provision_loaded_unit_texts;
-
-/// The link the units start the commit service's program through,
-/// which is the same in every release and every build of one.
-pub mod service_provision_program_pointer;
 
 /// The line a commit prints when the service manager has not answered its provisioning within a moment.
 pub mod service_provision_slow_manager_notice;
