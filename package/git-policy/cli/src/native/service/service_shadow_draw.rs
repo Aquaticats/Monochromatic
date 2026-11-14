@@ -59,8 +59,6 @@ static DRAWING: AtomicBool = AtomicBool::new(false);
 ///  and the answer must not.
 ///  The list is the whole of the service's own record of what it drew,
 ///  so a stock a restart forgets is drawn again and the trees it dropped are left to the sweep by their age.
-///  The lock it is read under guards nothing on disk and dies with the process,
-///  so it is never a lock a commit can be left waiting on.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -69,15 +67,19 @@ static DRAWING: AtomicBool = AtomicBool::new(false);
 #[derive(Debug, Default)]
 pub struct DrawnShadows {
     /// Lock kept:
-    ///  the trees the landing loop drew and the trees a commit's own connection takes,
-    ///  which are one vector read and changed from both threads:
-    ///  the landing loop adds at its end and a connection takes from the front,
-    ///  so the order a tree was drawn in is only preserved if the two never interleave inside the vector.
-    ///  The section is one push or one pop of a vector, so it covers the smallest unit there is,
-    ///  and nothing that waits on storage or on a socket is inside it.
+    ///  the trees nobody has asked for yet,
+    ///  which the draw's own thread records and every connection's answer takes,
+    ///  so two threads reach the list and a list of paths is not one word an atomic could hold.
+    ///  Under it the list is changed and nothing else:
+    ///  one `push` on the draw's thread and one `pop` where a commit's question is answered,
+    ///  with no Git process, no file and no other lock,
+    ///  and it guards nothing on disk and dies with the process,
+    ///  so it is never a lock a commit can be left waiting on.
     ///
-    /// The trees nobody has asked for yet,
-    /// in the order they were drawn.
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// #ready: PathBuf[] = []
+    /// ```
     ready: Mutex<Vec<PathBuf>>,
 }
 
