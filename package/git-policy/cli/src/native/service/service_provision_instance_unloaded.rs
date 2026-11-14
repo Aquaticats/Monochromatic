@@ -31,7 +31,8 @@
 //! ```
 
 use crate::service_client_listen_and_ask_to_retire::ask_to_retire;
-use crate::service_instance::{service_unit_instance, socket_path, socket_unit_instance};
+use crate::service_address_of_a_worktree::socket_address_of;
+use crate::service_instance::{service_unit_instance, socket_unit_instance};
 use crate::service_provision_host_and_manager::{Manager, ProvisionHost};
 use crate::systemd_dbus::CallError;
 
@@ -275,7 +276,10 @@ fn stop_alone(manager: &mut dyn Manager, unit: &str) -> Result<(), CallError> {
 /// retireService(host, manager, instance) // { gone } | { stillRunning } | { notAsked }
 /// ```
 fn retire_service(host: &ProvisionHost, manager: &mut dyn Manager, instance: &str) -> ServiceLeft {
-    ask_to_retire(socket_path(host.runtime_dir.as_path(), instance).as_path());
+    // The ask goes to the address the service really holds: a socket file, or an abstract name where the runtime
+    // directory's path leaves no room for one (`service_address_of_a_worktree.rs`). A path here was the finding: under a
+    // name it reached a file that cannot exist, so the service was never asked and the repair never finished.
+    ask_to_retire(&socket_address_of(host.runtime_dir.as_path(), instance));
     return wait_until_at_rest(host, manager, service_unit_instance(instance).as_str());
 }
 
