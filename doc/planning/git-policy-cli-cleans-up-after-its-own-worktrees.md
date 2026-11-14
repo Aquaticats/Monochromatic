@@ -434,7 +434,14 @@ each one a control:
   and no process of this account that hides its working folder and started after the worktree was made;
 - every ignored file and link it holds is also in the worktree this merge ran in,
   by kind,
-  mode and bytes (the paragraph below).
+  mode and bytes (the paragraph below);
+- no worktree this repository registers lies inside it (a nested one keeps both);
+- no commit is named only by the worktree's own state, for this worktree and for every one registered inside it
+  (its detached `HEAD`, and the references Git keeps per worktree: `refs/worktree/`,
+  `refs/bisect/`,
+  `refs/rewritten/`);
+- no edit to a tracked file hides behind `assume-unchanged` or `skip-worktree`
+  (the paragraphs about Git work below).
 
 A process can hide its working folder from its own account:
 `PR_SET_DUMPABLE` 0 makes `/proc/<pid>/cwd` unreadable to the user that owns the process,
@@ -500,13 +507,20 @@ A file this repository's own worktree holds identically came from the add or fro
  or holds with other bytes,
  may be the person's,
  so the worktree stays and the file is named in the reason.
-Ignored directories are never read:
+Ignored directories are never read file by file:
  a build writes them into the worktree alone,
  which is the state this sweep exists to give back,
- and reading every file below them would cost the tree on every merge;
- the removal line says the ignored files went because the merge's own worktree holds every one of them,
- and it says a directory Git ignores went with the worktree unread,
- so a person who kept something inside one learns it is not in the worktree the merge ran in.
+ and reading every file below them would cost the tree on every merge.
+The removal line names each ignored directory it deleted,
+ and every Git repository inside one with the tip of each branch,
+ through `worktree_removal_takes.rs`:
+ the owner's decision of 2026-11-12T13:04:14-05:00 lets a directory and a nested repository go with the
+ worktree,
+ and says each thing that goes is logged,
+ because a person who cloned into an ignored directory has nothing else to look for its commits with.
+A nested repository is found by walking the ignored directories alone,
+ which the removal already deletes,
+ and its branches are read with one `git for-each-ref` per repository found.
 The comparison is a stat and a bounded byte read per ignored file Git lists,
  and this repository's own worktree measured 136 such files against 468 ignored directories,
  so the sweep keeps the space it was written for.
@@ -522,6 +536,38 @@ Another cross-vendor review found that the sweep skipped this
  and that `git gc --prune=now` then took the commit.
 The held lines are printed before the removal lines,
  so a person reads where the commit is before reading that the worktree went.
+
+**Git work a removal would destroy.**
+The owner's decision of 2026-11-12T13:04:14-05:00 keeps Git work from every removal and lets the rest go,
+ and the audit of 0.6.1-alpha.14 found three states in which it went with exit 0:
+ a commit only a detached `HEAD` held,
+ a commit made in a detached worktree after the merge handed the removal over,
+ and an edit to a tracked file behind `assume-unchanged` or `skip-worktree`.
+`worktree_removal_keeps_git_work.rs` answers the first two for any worktree a removal takes,
+ the candidate and every one registered inside it:
+ a commit the worktree's detached `HEAD` names,
+ or one a reference under `refs/worktree/`,
+ `refs/bisect/` or `refs/rewritten/` names,
+ is stranded unless some reference of the repository that outlives the removal holds it,
+ and the question is asked with `git for-each-ref --contains`,
+ so a commit an older commit of a branch holds counts as named.
+`worktree_removal_hidden_edits.rs` answers the third:
+ the bytes of every entry marked `assume-unchanged` or `skip-worktree` are compared with the blob its index
+ entry names,
+ in process and under the attributes Git would apply,
+ and a file the worktree does not hold (a sparse checkout's entry) is no edit.
+Both questions are asked by the proof the service makes immediately before it destroys
+ (`worktree_removal_second_look.rs`),
+ which is why the service reads the worktree's `HEAD` again after the hand-over,
+ and by `worktree_remove.rs` immediately before its own destroy,
+ which is also the person's unforced `git worktree remove`.
+A worktree either keeps stays,
+ and a typed removal refuses with `git worktree remove --force` named as the way through,
+ which runs as Git runs it and deletes the same set.
+No commit is kept on a reference of the wrapper's own here:
+ a commit a person made on a detached `HEAD` is work in progress,
+ the removal can wait,
+ and a name the person did not make is one they have to be told about anyway.
 
 Every merge that lands a branch prints one line per worktree it removed,
  left,

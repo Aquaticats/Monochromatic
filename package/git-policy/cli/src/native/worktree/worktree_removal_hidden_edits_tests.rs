@@ -85,7 +85,9 @@ fn a_clean_worktree_holds_no_hidden_edit() {
 ///  with the file and the two ways forward.
 /// Why:
 ///  This is the mark the wrapper's own proof of cleanliness declines on,
-///  and the removal then handed the worktree to Git, which deleted the edit (a Sonnet audit, finding F3).
+///  and the removal then handed the worktree to Git,
+/// which deleted the edit (a Sonnet audit,
+/// finding F3).
 #[test]
 fn an_edit_behind_assume_unchanged_is_named() {
     let fixture: Fixture = a_repository_with_a_worktree("hidden-edits-assume");

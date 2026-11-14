@@ -1210,7 +1210,9 @@ The service proves every condition above again,
  which the sweep names in the worktree's own Git directory),
  the records its Git directory holds,
  the record that this program made the worktree,
- and every commit a reference lock holds.
+ every commit a reference lock holds,
+ the worktree's own `HEAD` and the commits only it names,
+ and the edits a mark keeps Git from seeing.
 A worktree that no longer meets one of them stays,
  and the next wrapper command in that repository names it once,
  with the path,
@@ -1234,9 +1236,39 @@ An ignored file you write after the merge returned is one the service compares a
  and it keeps the worktree;
  what goes with it is a file written in the moment between that reading and Git's deletion,
  which is the same window any check and the step relying on it leave.
+A whole ignored directory goes with the worktree without being read,
+ and a Git repository you cloned or made inside one goes too,
+ even when its commits exist nowhere else.
+Both are named in the removal's own line on standard error,
+ the repositories with the tip of every branch they held,
+ so a person who kept something there learns what went and which commit it was:
+
+```console
+$ git merge --no-edit topic
+monochromatic-git-policy-cli: it deleted, besides the files Git tracks: the ignored directories `ignored`; the Git repository at `ignored/clone`, whose branches are `main` at 1234567890ab.
+```
+
 A worktree this program cannot prove it made is named instead,
  once per merge that lands its branch,
  with the `git worktree remove` line that removes it.
+
+**Git work a removal never destroys.**
+A removal keeps the worktree when it would leave a commit named by nothing,
+ or an edit to a tracked file that Git cannot see:
+- a commit only the worktree's detached `HEAD` names,
+  or one only a reference under `refs/worktree/`,
+  `refs/bisect/` or `refs/rewritten/` names,
+  and no reference of the repository holds;
+- a commit made on a detached `HEAD` after the merge handed the removal over,
+  because the service reads `HEAD` again immediately before it deletes anything;
+- an edit behind `assume-unchanged` or `skip-worktree`,
+  because the file's bytes are compared with the blob its index entry names rather than with Git's own answer.
+
+A worktree registered inside the one being removed is asked the same way,
+ and its own `HEAD` counts whether or not it is on a branch.
+A typed `git worktree remove` without `--force` refuses for either reason and names
+ `git worktree remove --force`,
+ which runs as Git runs it and deletes the same set.
 
 **What a removal keeps.**
 A worktree's own Git directory also holds the push failures nobody has seen yet

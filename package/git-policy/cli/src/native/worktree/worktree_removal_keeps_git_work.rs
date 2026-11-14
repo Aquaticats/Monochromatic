@@ -88,7 +88,8 @@ struct Stranded {
 ///
 /// # Errors
 ///
-/// The words for a record, a reference or a Git answer this cannot read,
+/// The words for a record,
+/// a reference or a Git answer this cannot read,
 /// which leaves the worktree kept rather than read as clear.
 pub(crate) fn git_work_a_removal_would_strand(context: &GitContext, common_dir: &Path, worktree: &Path, admin: &Path) -> Result<Vec<String>, String> {
     let mut places: Vec<(PathBuf, PathBuf)> = vec![(worktree.to_path_buf(), admin.to_path_buf())];

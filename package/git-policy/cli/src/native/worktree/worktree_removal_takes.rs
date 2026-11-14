@@ -12,9 +12,9 @@
 //!  its commits can exist nowhere else,
 //!  and nobody learns their names once the directory is gone,
 //!  so the line names the repository's path and the tip of every branch it holds.
-//!  The reason the sweep prints a directory unread is that reading every file below one would cost the whole tree on every
-//!  merge;
-//!  listing them is one Git start and no file read,
+//!  The reason the sweep used to print a directory unread is that reading every file below one would cost the whole tree
+//!  on every merge;
+//!  naming the directories is one Git start and a walk of the ignored tree alone,
 //!  and it is made only for a worktree that is about to go.
 //!  Nothing here fails a removal:
 //!  what cannot be read is what the line leaves unsaid,
@@ -38,6 +38,21 @@ const GIT_POINTER: &str = ".git";
 /// The separator Git puts between the components of a path.
 const SEPARATOR: u8 = b'/';
 
+/// What:
+///  The query that names every ignored entry Git sees,
+///  with each whole ignored directory as one name.
+/// Why:
+///   A removal deletes a directory Git ignores as a whole,
+///  so the directory is the thing to name,
+///  and one line for it costs nothing where listing every file below it would read the whole ignored tree.
+///  The restore of a snapshot asks Git the same question with these words (`worktree_dirty_restore.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const IGNORED_WORDS = ['ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '--no-empty-directory', '-z'];
+/// ```
+const IGNORED_WORDS: [&str; 7] = ["ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "--no-empty-directory", "-z"];
+
 /// How many directories one line names before it counts the rest.
 const SHOWN_DIRECTORIES: usize = 3;
 
@@ -53,7 +68,7 @@ const SHOWN_DIGITS: usize = 12;
 
 /// How many entries of an ignored directory this reads while it looks for repositories.
 /// Why:
-///   A removal of a worktree with a large ignored tree already walks it for its own proofs,
+///   The removal of a worktree with a large ignored tree already walks it for its own proofs,
 ///  and a bound keeps a directory holding more than this from costing the merge a longer walk than the removal itself.
 const WALKED_ENTRIES: usize = 50_000;
 
@@ -64,8 +79,9 @@ const WALKED_ENTRIES: usize = 50_000;
 ///   The line has to name what went,
 ///  and the two things a person looks for afterwards are the build output they kept below an ignored name and a
 ///  repository they cloned inside one.
-///  The listing is one Git start over the paths Git already knows are ignored,
-///  so nothing is read that the removal would not delete.
+///  The listing is one Git start that names whole ignored directories,
+///  and a walk of those directories alone,
+///  so nothing is read that the removal would not delete and no tracked file is read at all.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -78,12 +94,13 @@ pub(crate) fn what_the_removal_takes(context: &GitContext, worktree: &Path, admi
         // than something untrue.
         Err(_reason) => return Vec::new(),
     };
+    let directories: BTreeSet<Vec<u8>> = ignored_directories(ignored.as_slice());
+    let repositories: BTreeSet<Vec<u8>> = repositories_beneath(worktree, directories.iter());
+    let mut named: BTreeSet<Vec<u8>> = directories;
+    named.retain(|name| return !repositories.contains(name));
     let mut lines: Vec<String> = Vec::new();
-    let repositories: BTreeSet<Vec<u8>> = repositories_beneath(worktree, ignored.as_slice());
-    let mut directories: BTreeSet<Vec<u8>> = directories_of(ignored.as_slice());
-    directories.retain(|name| return !repositories.contains(name));
-    if !directories.is_empty() {
-        lines.push(directories_line(directories));
+    if !named.is_empty() {
+        lines.push(directories_line(named));
     }
     lines.extend(repository_lines(context, worktree, repositories));
     return lines;
@@ -91,17 +108,18 @@ pub(crate) fn what_the_removal_takes(context: &GitContext, worktree: &Path, admi
 
 /// What:
 ///  Every path Git ignores in the worktree,
-///  each as Git names it.
+///  each as Git names it,
+///  with a whole ignored directory as one name.
 /// Why:
 ///   Git's own ignore rules are what the removal deletes by,
 ///  so they are what names the directories and the repositories that go.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// ignoredPaths(context, worktree, admin) // [Uint8Array]
+/// ignoredPaths(context, worktree, admin) // ['ignored/', 'build/.cache/x.bin']
 /// ```
 fn ignored_paths(context: &GitContext, worktree: &Path, admin: &Path) -> Result<Vec<Vec<u8>>, String> {
-    let arguments: Vec<OsString> = ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"].map(OsString::from).to_vec();
+    let arguments: Vec<OsString> = IGNORED_WORDS.iter().map(OsString::from).collect();
     let request: GitRequest = GitRequest {
         cwd: worktree.to_path_buf(),
         arguments,
@@ -121,22 +139,25 @@ fn ignored_paths(context: &GitContext, worktree: &Path, admin: &Path) -> Result<
 }
 
 /// What:
-///  The directories every ignored path lies in,
-///  each named once.
+///  The directories the removal deletes,
+///  each named once:
+///  a whole ignored directory as Git named it,
+///  and the directory of an ignored file Git named one by one.
 /// Why:
-///   Git lists a whole ignored directory as its files when the caller asks without `--directory`,
-///  and a person counts directories rather than the files inside them.
-///  A path inside a repository is left to the repository's own line,
-///  which names the repository once instead of a directory per file.
+///   A person counts directories rather than the files inside them,
+///  and one ignored directory below a file's own name is where a person looks for what they kept.
+///  A file at the worktree's root itself names no directory of the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// directoriesOf(paths) // ['ignored', 'build/.cache']
+/// ignoredDirectories(['ignored/', 'build/.cache/x.bin']) // ['ignored', 'build/.cache']
 /// ```
-fn directories_of(paths: &[Vec<u8>]) -> BTreeSet<Vec<u8>> {
+fn ignored_directories(paths: &[Vec<u8>]) -> BTreeSet<Vec<u8>> {
     let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
     for path in paths {
-        if path.split(|byte| return *byte == SEPARATOR).any(|name| return name == GIT_POINTER.as_bytes()) {
+        // Git ends the name of a whole ignored directory with the separator.
+        if let Some(directory) = path.strip_suffix(&[SEPARATOR]) {
+            names.insert(directory.to_vec());
             continue;
         }
         let Some(at) = path.iter().rposition(|byte| return *byte == SEPARATOR) else { continue };
@@ -179,19 +200,19 @@ fn directories_line(names: BTreeSet<Vec<u8>>) -> String {
 ///  Only those are walked,
 ///  and only for a worktree that is about to go,
 ///  so the cost is the ignored tree the removal already deletes and nothing of the tracked one.
-///  A repository nested inside another is not looked for below a root already found:
+///  Nothing is looked for below a root already found:
 ///  the outer repository's line names the directory that takes both.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// repositoriesBeneath(worktree, ignored) // ['ignored/clone']
+/// repositoriesBeneath(worktree, directories) // ['ignored/clone']
 /// ```
-fn repositories_beneath(worktree: &Path, paths: &[Vec<u8>]) -> BTreeSet<Vec<u8>> {
+fn repositories_beneath<'a>(worktree: &Path, directories: impl Iterator<Item = &'a Vec<u8>>) -> BTreeSet<Vec<u8>> {
     let mut roots: BTreeSet<Vec<u8>> = BTreeSet::new();
     let mut stack: Vec<(Vec<u8>, PathBuf)> = Vec::new();
-    for name in top_level_directories(paths) {
+    for name in directories {
         let shown: String = String::from_utf8_lossy(name.as_slice()).into_owned();
-        stack.push((name, worktree.join(shown)));
+        stack.push((name.clone(), worktree.join(shown)));
     }
     let mut read: usize = 0;
     while let Some((relative, directory)) = stack.pop() {
@@ -201,7 +222,7 @@ fn repositories_beneath(worktree: &Path, paths: &[Vec<u8>]) -> BTreeSet<Vec<u8>>
             if read > WALKED_ENTRIES {
                 return roots;
             }
-            let name: std::ffi::OsString = entry.file_name();
+            let name: OsString = entry.file_name();
             let mut child: Vec<u8> = relative.clone();
             child.push(SEPARATOR);
             child.extend_from_slice(name.as_encoded_bytes());
@@ -218,27 +239,6 @@ fn repositories_beneath(worktree: &Path, paths: &[Vec<u8>]) -> BTreeSet<Vec<u8>>
 }
 
 /// What:
-///  The first components of the ignored paths,
-///  which are the directories a repository inside the worktree can lie in.
-/// Why:
-///   Every ignored path is below one of them,
-///  so walking those covers the whole ignored tree once,
-///  and a path that lies in the worktree's root itself names no directory of its own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// topLevelDirectories(paths) // ['ignored', 'build']
-/// ```
-fn top_level_directories(paths: &[Vec<u8>]) -> BTreeSet<Vec<u8>> {
-    let mut names: BTreeSet<Vec<u8>> = BTreeSet::new();
-    for path in paths {
-        let Some(at) = path.iter().position(|byte| return *byte == SEPARATOR) else { continue };
-        names.insert(path[..at].to_vec());
-    }
-    return names;
-}
-
-/// What:
 ///  One line for each Git repository the removal deletes,
 ///  naming its path and the tip of every branch it holds.
 /// Why:
@@ -250,7 +250,7 @@ fn top_level_directories(paths: &[Vec<u8>]) -> BTreeSet<Vec<u8>> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// repositoryLines(context, roots) // ['the Git repository at `ignored/clone`, whose branches are `main` at 1234567']
+/// repositoryLines(context, worktree, roots) // ['the Git repository at `ignored/clone`, whose branches are `main` at 1234567']
 /// ```
 fn repository_lines(context: &GitContext, worktree: &Path, roots: BTreeSet<Vec<u8>>) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
@@ -259,7 +259,7 @@ fn repository_lines(context: &GitContext, worktree: &Path, roots: BTreeSet<Vec<u
         lines.push(repository_line(context, worktree, root.as_slice()));
     }
     if total > lines.len() {
-        lines.push(format!("{} more Git repositories went with it", total - lines.len()));
+        lines.push(format!("{} more Git repositories", total - lines.len()));
     }
     return lines;
 }

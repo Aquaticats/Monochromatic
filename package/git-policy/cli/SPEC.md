@@ -3118,12 +3118,44 @@ A worktree whose branch a merge landed is removed by those same routes,
  that it is unlocked,
  that no operation is unfinished in it,
  that nothing works inside it,
- that every ignored file it holds is one the worktree the merge ran in also holds,
+ that no worktree this repository registers lies inside it,
+ that every ignored entry it holds is one the worktree the merge ran in also holds
+ (a whole ignored directory as one entry,
+ which is not read below that),
+ that no commit is named only by the worktree's own state,
+ that no edit to a tracked file hides behind a mark Git does not see through,
  and that the records of its own Git directory are copied,
  and then it records the removal and returns.
+A commit named only by the worktree's own state is one its detached `HEAD` names,
+ or one a reference under `refs/worktree/`,
+ `refs/bisect/` or `refs/rewritten/` names,
+ and no reference of the repository that outlives the removal holds
+ (`src/native/worktree/worktree_removal_keeps_git_work.rs`);
+ a commit an ancestor of a surviving reference holds is not stranded.
+Every worktree this repository registers inside the candidate is asked the same question,
+ detached `HEAD` included,
+ because the removal takes that worktree's own Git directory with the outer one.
+An edit behind `assume-unchanged` or `skip-worktree` is found by comparing the file's bytes with the blob its
+ index entry names,
+ in process and under the attributes the real Git would apply
+ (`src/native/worktree/worktree_removal_hidden_edits.rs`),
+ because Git's own answer to `status` reads the mark and sees nothing.
+A worktree either of those keeps stays,
+ and the person's own unforced `git worktree remove` refuses it with `git worktree remove --force` named as
+ the way through,
+ which runs as Git runs it and deletes the same set.
+What the removal deletes besides the files Git tracks is named in the line that reports it
+ (`src/native/worktree/worktree_removal_takes.rs`):
+ each ignored directory,
+ and every Git repository found by walking those directories,
+ with the tip of every branch it holds,
+ because the owner's decision of 2026-11-12T13:04:14-05:00 lets both go and says each thing that goes is
+ logged.
  The service proves that same list again immediately before it destroys anything
  (`src/native/worktree/worktree_removal_second_look.rs`):
  the registrations are read again,
+ the worktree's own `HEAD` and the references it keeps are read
+ (a commit made on a detached `HEAD` after the hand-over is a commit no reference holds),
  the lock and the marks are looked for again,
  the process table is read again,
  the ignored files are compared again with the worktree the sweep names beside the registration
@@ -3131,6 +3163,7 @@ A worktree whose branch a merge landed is removed by those same routes,
  so a removal takes that record with the registration and needs no cleanup of its own),
  the records of the worktree's own Git directory are copied again,
  the record that this program made the worktree is read again,
+ the edits a mark hides are compared by content again,
  and every commit a reference lock holds reaches `refs/cli-git/kept/<batch>` of the common Git directory before
  the worktree's own Git directory goes,
  because a batch can meet a reference lock in the whole window and not only before the hand-over.

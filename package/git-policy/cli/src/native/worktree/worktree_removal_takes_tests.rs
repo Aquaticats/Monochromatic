@@ -30,7 +30,8 @@ impl Fixture {
         return what_the_removal_takes(&git_context(), self.worktree.as_path(), self.admin.as_path());
     }
 
-    /// Write a file, making its directories.
+    /// Write a file,
+    /// making its directories.
     fn write(&self, relative: &str, bytes: &[u8]) {
         let path: PathBuf = self.worktree.join(relative);
         std::fs::create_dir_all(path.parent().expect("a parent")).expect("a directory");
@@ -94,7 +95,8 @@ fn an_ignored_directory_that_goes_is_named() {
 /// Why:
 ///  The repository's commits can exist nowhere else,
 ///  and the branch tip is the last thing a person can look for once the directory is gone
-///  (a Sonnet audit of 0.6.1-alpha.14, finding F1).
+///  (a Sonnet audit of 0.6.1-alpha.14,
+/// finding F1).
 #[test]
 fn a_git_repository_inside_an_ignored_directory_is_named_with_its_branch_tips() {
     let fixture: Fixture = a_repository_with_a_worktree("removal-takes-repository", "ignored/\n");

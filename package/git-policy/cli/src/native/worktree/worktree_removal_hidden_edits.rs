@@ -6,14 +6,17 @@
 //!  so `git status` calls the worktree clean,
 //!  `git worktree remove` deletes it without a word,
 //!  and the wrapper's own proof of cleanliness declines
-//!  (`worktree_clean.rs`: "base.txt is marked assume-unchanged")
-//!  and hands the removal to Git, which cannot see the mark
+//!  (`worktree_clean.rs`:
+//! "base.txt is marked assume-unchanged")
+//!  and hands the removal to Git,
+//! which cannot see the mark
 //!  (a Sonnet audit of 0.6.1-alpha.14,
 //!  finding F3).
 //!  An edit to a tracked file is Git work,
 //!  and the owner's rule is that no removal destroys it however it is hidden,
 //!  so the file itself is compared with the blob its index entry names:
-//!  the bytes, not the stat data Git was told to ignore.
+//!  the bytes,
+//! not the stat data Git was told to ignore.
 //!  The comparison reads the files in process and under the attributes Git would apply,
 //!  exactly as the copy and conversion paths prove a worktree
 //!  (`worktree_clean_tree_walk::paths_whose_content_differs`),

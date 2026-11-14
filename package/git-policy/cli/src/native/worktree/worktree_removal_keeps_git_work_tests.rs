@@ -148,8 +148,10 @@ fn a_commit_only_a_person_worktree_reference_names_is_stranded() {
 ///  and the reason names the commit its own `HEAD` holds.
 /// Why:
 ///  A removal takes the nested worktree's files and its own Git directory with the outer one,
-///  and a detached registration is no branch, so nothing else names what it holds
-///  (a Sonnet audit of 0.6.1-alpha.14, finding F2).
+///  and a detached registration is no branch,
+/// so nothing else names what it holds
+///  (a Sonnet audit of 0.6.1-alpha.14,
+/// finding F2).
 #[test]
 fn a_commit_only_a_detached_worktree_inside_holds_is_stranded() {
     let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-nested");

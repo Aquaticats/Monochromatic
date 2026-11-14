@@ -46,13 +46,16 @@ pub mod worktree_removal_rescue;
 /// What becomes of the commit a reference lock holds in a linked worktree that Git removes.
 pub mod worktree_removal_held_commits;
 
-/// The commits a removal would leave named by nothing, which keep the worktree.
+/// The commits a removal would leave named by nothing,
+/// which keep the worktree.
 pub mod worktree_removal_keeps_git_work;
 
-/// The edits a mark keeps Git from noticing, which keep the worktree.
+/// The edits a mark keeps Git from noticing,
+/// which keep the worktree.
 pub mod worktree_removal_hidden_edits;
 
-/// What a removal deletes besides the files Git tracks, in the words of its line.
+/// What a removal deletes besides the files Git tracks,
+/// in the words of its line.
 pub mod worktree_removal_takes;
 
 /// The plan for one `git worktree add` that the cheap-worktree ladder serves:
