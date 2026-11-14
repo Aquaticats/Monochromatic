@@ -57,6 +57,24 @@ pub const MOVED_BRANCH_REBUILD_CEILING: Duration = ANSWER_CEILING;
 /// the slowest of 52 cold starts took 1,041 ms (`startWaitMs`,
 /// `reachMs`).
 /// One minute is 58 times that.
+///  Why this and no shorter bound for a greeting that has not come:
+/// a greeting that is late is
+///  never by itself read as a service stopped inside its own process.
+/// On 2026-11-12T01:21:10-05:00 a commit waited three
+///  seconds for the greeting of a service that was starting on a machine with dozens of agents,
+/// read the silence as a
+///  service stopped inside its own process,
+/// asked the manager to restart it,
+/// and then asked the manager for a reload that held
+///  it for 139,770 ms and ended the desktop session
+/// (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`);
+/// the service greeted the next time it was
+///  asked,
+/// five seconds later.
+/// The start ceiling is what separates a start that is merely slow from a service that is
+///  stopped inside its own process,
+/// and it is where the one restart of such a service happens
+///  (`service_client_reach_service.rs`).
 pub const START_CEILING: Duration = Duration::from_secs(60);
 
 /// The longest a service waits for the build of its own multi-thread runtime,

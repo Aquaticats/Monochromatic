@@ -425,6 +425,11 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the client's pause between connects while nothing answers, before this command starts the server",
     },
     Allowed {
+        file: "service/service_provision_instance_unloaded.rs",
+        rule: "blocking-sleep",
+        why: "the pause between looks at whether the manager dropped this worktree's units, on the synchronous face of provisioning",
+    },
+    Allowed {
         file: "transaction/transaction_phase.rs",
         rule: "blocking-sleep",
         why: "the pause between looks at a phase's release, on the synchronous face",

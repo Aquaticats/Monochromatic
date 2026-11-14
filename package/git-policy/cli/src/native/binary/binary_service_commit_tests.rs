@@ -90,6 +90,10 @@ impl Running {
         return last.unwrap_or_else(|| { return Ok(std::os::unix::process::ExitStatusExt::from_raw(0)); });
     }
 
+    // What: The stop the stand-in manager's own tests needed is not here.
+    // Why:  Its only caller was `binary_service_provision_tests.rs`, which this branch keeps deleted with the provisioning
+    //       subsystem: a method no control calls is dead code, and Clippy refuses it.
+
     /// Waits for the first service to exit by itself for at most `limit`;
     /// nothing when it is still running then.
     pub(super) fn exited_within(&mut self, limit: Duration) -> Option<std::process::ExitStatus> {

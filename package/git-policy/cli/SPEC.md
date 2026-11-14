@@ -3360,6 +3360,176 @@ so the registration is finished exactly as a marked record's is,
 and nothing is left for the person.
 What still fails is reported with its path and with `git worktree prune` as the way forward.
 
+#### A volume the removal did not make: removing around it
+
+A worktree can hold a subvolume or a mount point its removal did not make:
+a snapshot someone took there,
+a container's storage,
+a mounted image,
+or a linked worktree of another repository.
+`BTRFS_IOC_SNAP_DESTROY` refuses a subvolume that contains another one (`ENOTEMPTY`) and nothing else can take a
+nested subvolume's whole tree in one step,
+and Git's own removal descends into a mount point and deletes what is mounted there,
+so neither route may take such a worktree.
+The removal therefore goes around what it did not make:
+it removes every other entry of the worktree,
+keeps each volume and the directories that lead to it exactly as they stand (mode and owner included),
+forgets the worktree in Git (the registration and its directory),
+and says what it left.
+The path stays taken until the person moves the volume out.
+This is the project's decision of 2026-11-12 ("Remove around it"),
+and it holds on both routes alike:
+the removal a person typed and the one a merge's sweep or the commit service performs.
+
+What stands there is found before anything is decided,
+by the walk of `src/native/subvolume/subvolume_remove_walk.rs`:
+every directory below the worktree root is opened below its parent without following a link and without crossing a
+mount (`openat2` with `RESOLVE_NO_XDEV`),
+and a directory on another device is a nested subvolume.
+An entry the kernel refuses to cross (`EXDEV`) is a mount point,
+whatever filesystem is mounted there,
+which is what catches a bind mount of the same filesystem that no device comparison can tell.
+The look widens nothing and deletes nothing,
+so it changes no mode of what it judges,
+and it reports every volume it found with the reason it could not look everywhere when it could not.
+The same look runs for a worktree that is no subvolume,
+before the removal is handed to Git,
+and again in the commit service immediately before it removes a worktree it was handed,
+because Git's own removal is the route that would delete through a mount point.
+`look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume, which the
+registration's own proof still uses.
+
+A removal that found such a volume proves what every removal proves before it deletes anything:
+the worktree is registered,
+not locked,
+no conversion's copy lies beside it,
+the worktree root and its registration are held open and are still the objects that were proven,
+and it is clean or the person forced it.
+The clean proof stays Git's own, exactly as the decision of 2026-11-12T13:04:14 requires:
+an unforced removal deletes no untracked file and no modified tracked file,
+and a foreign volume that Git lists as untracked (one no ignore rule covers) is such an entry,
+so it keeps a typed unforced removal from happening.
+That removal then refuses with one report that says what the command itself did,
+names each volume,
+gives the reason Git refuses,
+and words the way on by what the tree in front of it is:
+`git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
+stands, and, for a tree whose entries are all present, clearing or moving what Git would delete.
+A tree whose only trouble is entries missing from it is the shape a pass of this program leaves,
+and the report says which of the two it read:
+a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it,
+and without such a record the report names `--force`,
+says that moving a volume out cannot finish a tree whose tracked entries are gone,
+and never claims that nothing was removed.
+The tree is never handed to Git to get Git's own sentence,
+because Git's removal is what would delete through the mount;
+the report says so instead of pretending to be Git's words.
+A forced removal is served without the clean proof, as it always was.
+
+With that proof in hand the removal empties the tree around the volumes:
+one pass over the tree,
+where a directory that holds a volume in its subtree is kept together with its mode,
+and every other entry is removed;
+an entry that turns out to be a volume is left where it stands and its chain is kept;
+a file or a link is unlinked,
+a directory is emptied and then removed with `rmdir`,
+and `rmdir` is where the kernel's refusal is read.
+A directory whose `rmdir` is refused as not empty after it was listed is looked at again through the descriptor the
+removal holds:
+a volume that appeared there in that moment is kept and the directory with it,
+and anything else that appeared is refused in the words the paragraph above gives,
+so the removal deletes nothing it did not list.
+The mode of a kept directory is given back after the pass,
+and the directories the pass widened to empty are those it deletes,
+so what is left stands with the modes and owners it had.
+The pass judges and empties one opened object and never a name twice:
+it opens the entry as a handle that follows nothing, crosses no mount and needs no permission on it,
+asks that handle what kind of directory it is,
+gives the owner access through that same handle,
+and only then opens the name again for reading,
+comparing the device and inode of the descriptor it opened with the handle it judged.
+Another object at that name is kept with the directories that lead to it,
+and a name that leads elsewhere while the mode is being given cannot receive that change.
+So a volume's own mode is never widened to look inside it,
+and a volume renamed over a directory in the moment between the two lookups is left where it stands rather than
+emptied.
+The look that decides the removal (`look_for_boundaries`) resolves each name once and asks the device of the very
+descriptor it then reads.
+Nothing in the pass renames, unmounts, moves or deletes a volume;
+the only names it touches are those of the worktree's own entries.
+
+A removal that was killed inside that pass leaves the worktree's own entries deleted,
+the volumes standing and the registration kept,
+and the next unforced command would meet a worktree Git reports as changed.
+The pass therefore writes, before its first deletion,
+a record under `monochromatic-git-policy-cli/around-removals-begun/<registration id>` naming the registration's
+identity, the worktree root's identity and the path the removal was given
+(`src/native/worktree/worktree_removal_around_begun.rs`).
+A later unforced removal of that same worktree,
+whose registration and root are those two identities,
+reads the record, asks Git whether anything is reported about the tree but the entries a pass removed
+(leaving out what stands inside the volumes it leaves,
+because the pass often deletes the ignore rule that hid one),
+and finishes the removal when nothing else stands there.
+A record this build cannot read proves nothing and is left for the build that wrote it,
+a record whose registration is gone is dropped by the next removal,
+and a record that cannot be written costs that finish and never the removal.
+Every entry the pass removes is removed by `take` in that file,
+which is where the log of what a removal deletes joins it
+(`removal-refuses-a-worktree-a-process-works-in-and-logs-each-ignored-file-it-deletes`).
+
+When the pass ends the removal looks again through the descriptor it holds:
+a volume that went away while the pass ran leaves a tree that is now empty,
+and the root goes as any other removal takes it,
+which is one `rmdir` under the held parent, or the destroy where the caller takes that route.
+A tree that still holds one is finished without the destroy:
+the registration is emptied and removed through the descriptors the removal holds,
+one of its `worktrees` directory last,
+and the worktree's subvolume (or its plain directory) stays,
+holding nothing but the volumes and the directories that lead to them.
+The outcome is neither `removed` nor `refused`:
+it is `RemovedAround`, which carries every volume that was left,
+and `src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs` words it.
+A removal that stopped halfway is `Incomplete` with its own words:
+files it removed are gone, the worktree is still registered, and the report says which of the two happened.
+A pass that emptied the tree but could not remove the registration is reported in the around route's own words:
+the worktree was emptied around what was left, the path still stands with it, Git still lists the worktree, and
+`git worktree prune` or another run of the same removal finishes it.
+
+The person's own `git worktree remove` prints that report on standard error and exits 0,
+because the worktree is gone from Git's records and every file of it except the volumes is gone;
+`git worktree list` no longer names it and its registration directory is gone.
+For a worktree whose branch landed,
+the sweep prints the same thing as one of its own lines,
+records it in `monochromatic-git-policy-cli/left-in-place-notices` under the common Git directory,
+which the next wrapper command in any worktree of that repository shows once,
+and never reports the worktree as removed without that line.
+A removal the commit service performs makes the same look and the same pass in its own process,
+and records the same line.
+A record a build cannot read is left for the build that wrote it,
+and a file in that directory that is not a record is neither shown nor moved.
+
+What frees the path is said in every one of those reports:
+the person moves each volume out of the directory it stands in;
+a mount point is released with `umount`, which keeps what is mounted there;
+a subvolume that is another repository's worktree is removed with `git worktree remove` in that repository,
+which keeps its branch;
+and the directories that are then empty are removed from the deepest one up with `rmdir`,
+which the kernel allows for an empty subvolume root,
+after which the path is free for `git worktree add`.
+A report never names `btrfs subvolume delete` for a volume that still holds something:
+it destroys everything inside the subvolume,
+which the command that refused cannot see.
+
+A later `git worktree add` at that path meets a directory that is not empty,
+and Git's own words (`fatal: <path> already exists`) say only that.
+The wrapper adds one line after Git's refusal when the directory holds a volume,
+names each volume and its path,
+and says that a removal left it and what frees the path,
+so a person who reads "already exists" learns what stands there.
+The line is worded by the same module and comes from the same look,
+which is why it cannot disagree with the removal's report.
+
 When the subvolume is destroyed and the registration cannot be removed (an unwritable `worktrees` directory,
 a registration
 replaced meanwhile),
@@ -4482,25 +4652,32 @@ of which the two that rewrite link layouts in place are the service's work whene
   Then `cargo clean --offline --package <member>` for every member,
   so registry and git dependencies are reused and
   the worktree's own crates rebuild with the worktree's own paths.
-  That clean is not the add's work, and it runs only where the worktree's own build directory holds
+  That clean is not the add's work,
+  and it runs only where the worktree's own build directory holds
   state a build could reuse:
   Cargo keeps the fingerprints that make an artifact fresh inside the build directory,
   so a worktree that starts without one rebuilds its own crates by itself,
   and a copied `target/` alone is no reason to clean.
   Measured on 2026-11-12 on this repository:
   a copy of a built workspace whose `target/` held the source's binary was rebuilt by the copy's first
-  build, which named the copy's own path,
+  build,
+  which named the copy's own path,
   while the clean a copied `target/` used to ask for was a full workspace resolution that deleted
-  nothing, 32.8 to 47.7 s of work in each of three adds that took that clean 34 times
+  nothing,
+  32.8 to 47.7 s of work in each of three adds that took that clean 34 times
   (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
   Where the worktree's build directory does hold that state,
   the add moves it to the filling's staging name (`<build directory>.monochromatic-prewarm`) in one
-  rename, under the filling's marker, and adds the workspace to the same `prewarm` record,
+  rename,
+  under the filling's marker,
+  and adds the workspace to the same `prewarm` record,
   so no build that starts at once finds artifacts Cargo would call fresh:
-  it finds no build directory and compiles everything itself, which is correct and only slower.
+  it finds no build directory and compiles everything itself,
+  which is correct and only slower.
   The filling then cleans that staged copy and publishes it back with the rename that never replaces,
   so a worktree that built in the meantime keeps what it made.
-  The add runs no `cargo clean` in that path, which is what keeps an add inside its bound:
+  The add runs no `cargo clean` in that path,
+  which is what keeps an add inside its bound:
   the clean's quiet window is six hundred seconds and its ceiling eighteen minutes.
   Where the state cannot be moved aside at all (a staging name another writer holds,
   or a directory that cannot be renamed),
@@ -6241,7 +6418,16 @@ Every Git step a command or a landing starts is also listed with its duration (`
 `steps` in the commit timing record (`name`,
 and the read-only queries the in-process readers decline count here too,
 because a commit that waits on one must name it (`src/native/repo_read/git_metadata.rs`);
-the program and the subcommand only;
+the program and the subcommand,
+then `arguments` for a step that ran `NAMED_STEP` (1,000 ms) or longer
+(`src/native/transaction/git_step_arguments.rs`:
+the arguments are named so that a slow child explains itself,
+the value of an option that carries the person's own text is replaced by `an argument`,
+so is every word that is neither an object name nor a ref name,
+and the words are bounded by `NAMED_WORDS_LIMIT` (12) with the rest counted,
+because 496 of the 29,053 Git steps of this repository's records on 2026-11-12 ran a second or longer);
+a shorter step carries no `arguments` member at all,
+so a record of short steps reads as it did before that field existed;
 `offsetMs` from the command's start;
 `durationMs`) and `stepsDropped`,
 and `steps="<name>@<offset>+<duration>;..."` with `steps_dropped=<count>` at the end of the
@@ -8589,7 +8775,8 @@ in-process reader can) gives every value of the multi-valued keys.
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
-  The name carries the commit the push sent, which is the commit the branch named before the push read the worktree's verdicts,
+  The name carries the commit the push sent,
+  which is the commit the branch named before the push read the worktree's verdicts,
   and never the newest work record the round claimed:
   a commit that lands after that claim is what the push sends,
   so a record named for the claimed commit would replace an unread account of that commit with words about another one and
@@ -8607,7 +8794,8 @@ in-process reader can) gives every value of the multi-valued keys.
   the display cap of a notice stays on a push that did not finish,
   which a later try says the same thing about.
 - A record that could not be written never leaves its work items settled as if it existed:
-  the words it would have carried go to the service journal, every line of them,
+  the words it would have carried go to the service journal,
+  every line of them,
   and what the items become follows what a later try can say.
   A push that landed,
   whose account the storage refused,
@@ -12138,7 +12326,8 @@ Measured on 2026-11-12 on this host,
 one look at the held records of a worktree that holds none costs 27.8 microseconds
 (2,000 looks through the command's notice desk,
 `push_notices_for`),
-which is nothing beside the owner's limit of five seconds per commit.
+which is nothing beside the owner's bound on what a commit may add to native Git
+(the larger of 5,000 ms and twice that commit's own native time).
 The gate itself promotes its own record into `pending` with one rename when it passes and unlinks it when it
 blocks,
 so a blocked gate keeps the commit local,
@@ -14413,7 +14602,21 @@ these private entries:
   and `logs`.
   It contains the private `HEAD`,
   a snapshot of every real ref taken at invocation
-  (`git for-each-ref` in the owning worktree,
+  (read from `packed-refs` and the loose ref files by the wrapper's own reader,
+  `src/native/repo_read/repo_read_refs.rs`,
+  with `refs/bisect`,
+  `refs/worktree` and `refs/rewritten` read from the worktree's own Git directory in a linked worktree,
+  and one `git for-each-ref` in the owning worktree whenever that reader cannot prove the answer:
+  a reftable store,
+  an object format it does not know,
+  a ref name it declines,
+  or a damaged `packed-refs`);
+  the reader lists a symbolic ref at the end of its chain,
+  never at the name it points at directly,
+  and lists none at all for a chain that ends at no ref or that passes more than four links,
+  which is Git's own `SYMREF_MAXDEPTH` counted as Git counts it;
+  every chain is resolved from the targets as they are stored before any of them is rewritten,
+  so one name's answer never depends on which other name was answered first;
   symbolic refs recreated with `git symbolic-ref`),
   and a private copy of the target branch ref at the preparation base
   that replaces the snapshot's entry for that ref.
@@ -14640,12 +14843,14 @@ from this invocation's own capture.
 The skeleton is the directory itself,
 `objects`,
 `objects/info` and `refs`:
-`objects/pack`, `refs/heads` and `refs/tags` are left to Git,
+`objects/pack`,
+`refs/heads` and `refs/tags` are left to Git,
 which makes the loose object's own directory and the loose ref it writes,
 and the check answers "no pack and no ref" with one question about each absent directory
 (`shadow_skeleton.rs`,
 `shadow_pool_member.rs`).
-A member that holds one of the three is refused, which is what a shadow a commit has used holds.
+A member that holds one of the three is refused,
+which is what a shadow a commit has used holds.
 
 #### A shadow handed out from the drawn folder
 
@@ -14654,7 +14859,8 @@ and hands it over:
 this is the option of
 `doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`
 that the owner decided for on 2026-11-11,
-in its checked form, so every question a claim asks is asked of the tree that is handed out.
+in its checked form,
+so every question a claim asks is asked of the tree that is handed out.
 
 - The drawn trees live in `<common-dir>/monochromatic-git-policy-cli-shadow-drawn/<worktree>`,
   one entry per tree named `drawn-<identity>`,
@@ -14682,17 +14888,22 @@ in its checked form, so every question a claim asks is asked of the tree that is
   so two commits that ask at once never get one tree;
   a restarted service hands out nothing it did not draw,
   and a tree an earlier one drew is left to the sweep by its age.
-- The ask is bounded at `DRAWN_ANSWER_DEADLINE`, 250 ms,
+- The ask is bounded at `DRAWN_ANSWER_DEADLINE`,
+  250 ms,
   which is a hundred and fifty times the largest answer measured over 3,000 round trips
   (`service_client_shadow_hand_out.rs`).
-  A socket nobody listens on, a service that does not answer, an empty stock,
+  A socket nobody listens on,
+  a service that does not answer,
+  an empty stock,
   and an answer naming a tree that is not this worktree's drawn one are all the same to a commit:
-  it takes the pool's member or makes its creation, within the bounds it has today,
+  it takes the pool's member or makes its creation,
+  within the bounds it has today,
   and says nothing.
 - A commit that is handed a tree runs `refusal` on it,
   which is the same check a claim runs and is all reads,
   then writes the ref store into it as it does into a claimed member.
-  A commit that concludes something is never handed one: it carries the state a conclusion leaves,
+  A commit that concludes something is never handed one:
+  it carries the state a conclusion leaves,
   which the landing that concludes compares at the path its own scratch tree holds.
   A tree this invocation refuses is released in the background and the commit takes the other routes.
 - The tree is renewed every `SCRATCH_REFRESH_EVERY` while the command that holds it lives,
@@ -14702,15 +14913,22 @@ in its checked form, so every question a claim asks is asked of the tree that is
   and the sweep removes the tree once it has not been renewed for `SCRATCH_TREE_ABANDONED_AFTER`.
   `sweep_drawn` runs beside every wrapped command,
   beside the service's own draw,
-  and for a removed worktree, which takes the trees of its own folder that nothing renewed and leaves a fresh one:
-  a tree a live commit holds is fresh, and its Git is reading it while the removal runs.
-- The request that lands a commit names the drawn tree it was built in, in its `shadow` field,
+  and for a removed worktree,
+  which takes the trees of its own folder that nothing renewed and leaves a fresh one:
+  a tree a live commit holds is fresh,
+  and its Git is reading it while the removal runs.
+- The request that lands a commit names the drawn tree it was built in,
+  in its `shadow` field,
   and the service removes that tree with the scratch tree once that landing is over.
-  A request the service answered as not landed, or never took,
-  leaves the tree to the command, which releases it beside itself in the background.
+  A request the service answered as not landed,
+  or never took,
+  leaves the tree to the command,
+  which releases it beside itself in the background.
 - A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
-  their commit makes its creation, and it asks nothing.
-- A commit that concludes a merge, a cherry-pick or a revert is handed no drawn tree yet,
+  their commit makes its creation,
+  and it asks nothing.
+- A commit that concludes a merge,
+  a cherry-pick or a revert is handed no drawn tree yet,
   and takes the pool's member or makes its creation as it did before:
   the landing that concludes compares the state Git left in the shadow with the copy it kept,
   reading the shadow at the path the commit's own scratch tree holds
@@ -14736,8 +14954,10 @@ in its checked form, so every question a claim asks is asked of the tree that is
   It is the service's `rename` that the drawn route moves off the commit's wait:
   `330` measured claims put a median 0.08 ms and at most 5,606 ms in it
   (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
-  "The cost, over 330 commits").
-- A handed-out tree is checked before it is used, and a claimed member is checked before it is used,
+  "The cost,
+  over 330 commits").
+- A handed-out tree is checked before it is used,
+  and a claimed member is checked before it is used,
   and everything the check reads is a read:
   its `config` must be the text this invocation's creation would write,
   its alternates must name this invocation's object directory,
@@ -17042,7 +17262,7 @@ in the same shape as `prepareParts` and with the same rule,
 its own list and its own bound stated in `buildPartsDropped`:
 a build's name is never read as a preparation's,
 and a stretch whose own Git child took all of it,
-such as `shadow refs` around the ref snapshot's `git for-each-ref`,
+such as `index` around `git read-tree` or the build around the scratch `git commit`,
 states that child's time in `childrenMs`),
 `buildPartsDropped`
 `indexBuilds`
@@ -17641,8 +17861,11 @@ mixed and default modes,
 `rm` and `mv` with force,
 `checkout-index` with force,
 every `read-tree` form Git accepts,
-and the abort forms of `merge`,
+the abort forms of `merge`,
 `rebase`,
+`cherry-pick`,
+`revert` and `am`,
+and the `--skip` forms of `rebase`,
 `cherry-pick`,
 `revert` and `am`.
 Read-tree is read from its own option table,
@@ -17797,6 +18020,9 @@ because the wrapper never sees that command start.
 
 A form is rejected in the main worktree and outside any worktree always,
 and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
+The abort and skip forms are the exception,
+decided by the work they would discard wherever they run
+("The abort and skip forms while their operation waits" below).
 A `clean` counts untracked files as well.
 An ignored file is not a reason to refuse a clean in a linked worktree,
 by the owner's answer of 2026-11-10 ("All four are deleted,
@@ -18063,11 +18289,17 @@ what it destroys,
 an alternative that fits the likely intent,
 and the deliberate override (`--no-enforce-worktree` directly after the subcommand).
 
-#### The abort forms while their operation waits
+#### The abort and skip forms while their operation waits
 
 An operation that stopped with conflicts makes `git status` report its own state,
 so the rule above refused every abort form for exactly as long as it was the command a person needs:
 in a linked worktree a conflicted merge could be finished but not aborted without the hatch.
+`git rebase --skip` and its siblings are here for the same reason and a second one:
+they drop the commit or patch the operation stopped at and go on,
+so they discard the hand resolution of its conflict just as the abort does
+(measured with Git 2.56.0 for every form,
+including `git am --skip` ending a rebase that applies patches),
+and before this rule they were not guarded at all.
 The abort forms are decided instead by the state the command's own implementation reads,
 from the worktree's Git directory,
 read in one start of Git that asks `rev-parse --path-format=absolute --git-path` for
@@ -18099,6 +18331,14 @@ and refuses an `am` in progress;
 and each aborts a pick or a revert alike;
 `git am --abort` needs `rebase-apply` in either of its two modes,
 so it also ends a rebase that applies patches.
+The `--skip` forms are live on the same state,
+because they end the same operation:
+`git rebase --skip` needs the rebase's state,
+`git cherry-pick --skip` and `git revert --skip` the pick's,
+and `git am --skip` the apply backend's in either mode.
+`git merge` has no `--skip`,
+and a region that spells one is left to Git,
+which refuses it.
 A state of another kind does not make a form live:
 Git refuses it
 (`There is no merge to abort (MERGE_HEAD missing)`,
@@ -18107,53 +18347,118 @@ and discards nothing,
 so the command is left to Git and the record says `allowed`
 with `dirty` null,
 because no status was read.
+
 While a form is live,
-the work that is not the operation's own is copied first and the command runs
-(the owner's "save,
-then allow",
-2026-11-02,
-which the conflicted-path carve-out below already follows).
+what decides it is the work that is not the operation's own.
+Where the only change is the operation's own state,
+the command runs exactly as Git runs it and no line is added to standard error,
+and the record says `allowed` with `dirty` null.
+Where the person's own work is there,
+the command is refused before anything is changed,
+and the refusal gives both routes out:
+the quit form stops the operation and keeps the index and the files,
+and the guard's opt-out runs the command exactly as real Git runs it.
+That is the owner's answer of 2026-11-12T10:35:07,
+"Refuse with opt-out",
+which replaced the saving this rule described before it.
+Nothing is copied,
+and no sentence of a refusal says a copy was made.
+A skip is decided the same way and is refused or let through wherever it is,
+in the main worktree and in a linked one alike:
+the rule is about the work,
+not about which worktree the command runs in.
 Where the answer cannot be read,
-the rejection above stands,
+the command is refused and the refusal names what could not be read,
 which loses nothing.
 
-That work is read from Git's own listings.
-For a merge whose `AUTO_MERGE` ref resolves,
-it is the paths where the worktree differs from the result Git recorded
-(`git diff --name-only -z AUTO_MERGE`)
-or where the index does,
-unmerged entries left out
-(`git diff --cached --name-only -z --diff-filter=ACDMRTB AUTO_MERGE`):
-an untouched conflicted path holds the recorded result and unmerged index entries,
-so it is not named,
-and a resolution written or staged over it is.
-For a merge without `AUTO_MERGE`,
+That work is read from Git's own listings against the result Git recorded for the conflict.
+`AUTO_MERGE` holds the result Git computed and wrote into the worktree,
+and measured with Git 2.56.0 that ref is there for a merge,
 a rebase,
+a cherry-pick and an `am` alike,
+not only for a merge,
+so every form is read against it:
+the worktree against it
+(`git diff --name-only -z AUTO_MERGE`)
+and the index against it
+(`git diff --cached --name-only -z --diff-filter=ACDMRTB AUTO_MERGE`,
+whose unmerged entries are the operation's own state and are left out).
+A path that still holds the recorded result was never touched by the person,
+so an untouched conflicted path is not named;
+a resolution written over it is,
+and a resolution staged over it is named as content only the index holds,
+because the worktree still holds the recorded result.
+Where Git recorded no result (a Git older than the ref,
+or a state none is written for),
+the listings compare each side with the other
+(`git diff --name-only -z` and `git diff --cached --name-only -z --diff-filter=ACDMRTB`),
+and the paths the operation is still stopped at are asked for on their own
+(`git diff --name-only -z --diff-filter=U`) and kept:
+they are named as conflicted paths,
+and a command that would replace one of them is refused,
+because without a recorded result nothing the wrapper can read tells the conflict text Git wrote there
+from a resolution the person wrote over it.
+That is not caution for its own sake:
+a checked-in strategy's text names its own temporary files,
+so it cannot be reproduced to compare with,
+and the `resolve` strategy's markers read `.merge_file_1xHykn` with a fresh name each time (measured with Git 2.56.0).
+Which ways of stopping record the result is measured too:
+a merge under `ort`,
+`recursive` or `subtree`,
 a cherry-pick,
-a revert and an `am`,
-every uncommitted tracked change is named
-(`git diff --name-only -z` and `git diff --cached --name-only -z`),
-because those aborts return with a hard reset that keeps nothing.
+and an `am` applying a patch all record it,
+and the file Git left equals it;
+`git merge -s resolve` and `git cherry-pick --strategy=resolve` record none,
+so their conflicts are the fallback's and are refused;
+a custom merge driver's output is inside the record,
+so a path the driver wrote is not named and an edit over it is;
+`git merge -s ours` conflicts not at all;
+and a Git older than the ref records nothing either,
+which is the same fallback.
+Measured with Git 2.56.0,
+the worktree listing names such a path twice,
+once with the status `U` and once as a modification,
+so no filter separates the operation's state from the person's work,
+and every one of them is counted as the person's.
 A listing that fails is a rejection,
 never an empty list.
-A listed path that the worktree no longer holds while the index does is content the abort would drop,
-because the abort resets the index too,
-and no worktree file can be copied for it:
-the two listings that name it are `git ls-files --stage -z` (a stage-zero entry) and
-`git ls-files --deleted -z` (no file in the worktree),
-each read over the listed paths with `:(top,literal)` names,
-and the command is rejected naming every such path,
-saying the content stands only in the index and giving `git restore --worktree -- <path>` and
-`git show :<path> > <file>` as the ways to keep it.
-The copies are written by the same saver,
-into the same `monochromatic-git-policy-cli/discarded/<UTC time>/` folder,
-with the same bound,
-and the notice names the command,
-the folder and each copy before Git runs;
-a path with nothing to copy is named as such,
-and a copy that cannot be written rejects the command with the reason.
-The record is `saved-abort` with the copies when something was saved,
-and `allowed` with `dirty` null when the operation's own state was all there was.
+A listed path whose index holds a whole entry is content the command would drop,
+because the reset drops the index too,
+and `git ls-files --stage --full-name -z` over the listed paths with `:(top,literal)` names answers which they are;
+`--full-name` keeps a path below the top of the worktree spelled as the two listings spell it,
+so a command run below the top compares one spelling with itself.
+A listed path whose index entry was erased holds no content,
+and the tree the reset writes back holds that path and its content,
+so a staged deletion is no reason to refuse the command:
+an abort undoes the deletion and loses nothing of the person's.
+
+The refusal names the command as typed,
+each path with what stands there,
+and both ways out.
+The kinds are
+`a resolution or edit you made since Git stopped at the conflict`,
+`content only the index holds`,
+`a staged resolution` (beside an edit in the worktree),
+`a staged edit`,
+and,
+where no result is recorded,
+`an edit you made since the operation began` and `content the index holds`.
+A refusal names at most five paths and counts the rest.
+The quit form is `git merge --quit`,
+`git rebase --quit`,
+`git cherry-pick --quit` or `git revert --quit`,
+`git am --quit`:
+each stops the operation and keeps the index and the files
+(measured with Git 2.56.0 in every stopped state,
+a hand resolution kept in all of them),
+and none of them is a guarded form.
+The opt-out is `--no-enforce-worktree` written directly after the subcommand,
+which is where the wrapper strips it:
+`git merge --no-enforce-worktree --abort`,
+`git rebase --no-enforce-worktree --skip`.
+It is the spelling `linked-worktree-only` already reads,
+because this refusal is part of that policy,
+so no control of its own was added.
 
 The ignored-file question a hard reset gets is asked here too,
 because the abort writes a tree back over the worktree,
@@ -18170,21 +18475,87 @@ and the commit in `sequencer/head` for a sequence;
 also when it ends a rebase that applies patches.
 A recorded commit is read from the file Git wrote in the same start that read the state,
 and a record that cannot be read,
+that is not a regular file,
 or that holds no commit id,
 is a rejection and never a quiet fall back to `HEAD`,
 because the ignored-file refusal it earns must not read as clean.
+The record is opened with `O_NONBLOCK` and `O_NOFOLLOW` and refused unless it is a regular file,
+and it is read to at most one page (`RECORD_BYTES_READ`):
+a `git rebase --abort` whose `rebase-merge/orig-head` was a pipe hung there for good before this bound,
+with nothing able to end it.
 An ignored file at one of those paths keeps the rejection and is named,
 as for a forced `checkout` and a hard `reset`.
 
-The main worktree and a directory outside a worktree keep the rejection,
-because the rule above refuses a form there always;
-`git merge --quit` and its siblings stop the operation and keep the index and files
-(measured in every stopped state,
-a hand resolution kept in all of them),
-and the hatch runs the abort anyway.
-The check runs after the allowlisted tool cache has answered `exempt`,
-so a repository no guard reads gets no copy either.
+A skip writes back the tree of the commit it stopped at,
+which is `HEAD`,
+measured with Git 2.56.0:
+an ignored file at a path `HEAD` tracks is replaced by the tree's content,
+and one at a path only the operation's original head tracks survives the skip.
 
+The check runs after the allowlisted tool cache has answered `exempt`,
+so a repository no guard reads gets no refusal either.
+
+An untracked file at a path the restored tree tracks is where Git itself refuses the command.
+Git's own reset will not write a tree over an untracked file,
+and measured with Git 2.56.0 for every abort form and every skip form,
+an untracked file whose content is the tree's own included,
+Git refused and named the file:
+`git merge --abort` printed
+`Untracked working tree file 'victim.txt' would be overwritten by merge`,
+and `git rebase --skip`,
+`git cherry-pick --skip` and `git am --skip`
+failed with `The following untracked working tree files would be overwritten by reset`.
+A plain `git reset --hard` writes such a file over without a word,
+which is why each command's own behaviour is measured here and a reset's is not.
+The question is `git ls-files --others --exclude-standard -z` over the restored tree's paths
+(`repository_facts_untracked_files.rs`),
+and the rejection says that it is Git that refuses the command,
+names each file,
+says Git will not write that tree while the file is there,
+and gives moving or copying the file away as the way forward.
+Nothing is lost,
+so no copy is owed and no notice may claim the command ran.
+
+An abort is decided by the work it would discard wherever it runs:
+in the main worktree,
+in a linked one,
+and outside a worktree,
+the same reading answers the same way,
+which is the owner's decision of 2026-11-13 ("Same rule everywhere")
+and ends the older rule that every abort is refused in the main worktree.
+So an abort that would discard nothing runs there,
+and one that would discard work is refused there naming the files,
+with the same quit form and the same opt-out,
+and a skip is decided the same way.
+What the rule costs that worktree is what it already cost a linked one,
+measured with the built wrapper over nine samples each in the same conflicted state:
+`git merge --abort` took 92 ms at the median there against real Git's 5 ms,
+where the refusal it replaces took 10 ms,
+and the same command in a linked worktree took 84 ms.
+The check runs after the allowlisted tool cache has answered `exempt`,
+so a repository no guard reads gets no refusal either.
+
+#### The second measurement, immediately before Git starts
+
+The measurement above happens when the policy decides,
+and Git changes files later,
+so a file can be edited in between and go with the abort unseen.
+A command the measurement let through is measured again immediately before the process becomes Git,
+in the plain forward and in the coordinated one,
+by the same reading and with the same words,
+and a refusal there is a plain line on standard error
+(`abort_recheck.rs`).
+The plan the second measurement needs is held in one place and taken once,
+so a start the system refused and the wrapper repeats measures once.
+A difference the second measurement finds refuses the command,
+names the work that appeared,
+adds `This work appeared between the wrapper's measurement and Git's start.`,
+and appends a `rejected` record;
+the record the first measurement wrote still says `allowed`,
+which is what that measurement decided.
+One round is all a refusal needs:
+any difference ends the command,
+so a second round could only find the same difference again.
 #### The window between the measurement and the command
 
 The rule above is a statement about the state the wrapper measured,
@@ -18207,6 +18578,11 @@ A write that lands inside that window is not seen,
 and nothing in the wrapper can close it:
 only the process that changes files can decide,
 against the state it is about to change.
+For the abort and skip forms the window is the instant between the second measurement and Git's own reset,
+which is as small as a separate process can make it and is still not zero:
+a write that lands after it goes with the abort,
+and nothing of the wrapper's holds the version before,
+because nothing is copied.
 
 Where Git itself has such a check,
 the wrapper hands the decision to Git instead of measuring,
@@ -18514,6 +18890,16 @@ monochromatic-git-policy-cli: saved your copy of a.rs to
 
 A conflicted path with no file in the worktree has nothing to copy:
 the wrapper says so in one line and allows the command.
+A file another program is still writing is copied up to the size it had when the copy opened it,
+that copy is kept,
+and the wrapper says so before Git runs:
+
+```text
+monochromatic-git-policy-cli: a.rs was still being written while the wrapper copied it, so the copy holds what stood when the wrapper opened the file and nothing written after that. This command runs now, and a write that lands after the copy is not saved. Keep it another way if the later bytes matter.
+```
+
+The copy loop reads at most that size,
+so a writer that never stops cannot hold the command for good.
 If a copy cannot be written (a full disk,
 a refused permission,
 a place that is not a directory,
@@ -18659,8 +19045,8 @@ with `schemaVersion`,
 `exempt`,
 `hatch`,
 `logged`,
-`saved-conflict`,
-`saved-nested-repository` or `saved-abort`),
+`saved-conflict` or
+`saved-nested-repository`),
 `dirty`,
 `cwd` and `arguments`.
 Each path and argument this line names is written beside its text as its bytes
@@ -18673,9 +19059,12 @@ the line exists to attribute a loss to it.
 The text fields hold what a reader of an earlier release read.
 A `saved-conflict` line also has `copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy),
-and so do a `saved-nested-repository` line,
-whose places hold the repositories a clean would have deleted,
-and a `saved-abort` line.
+and so does a `saved-nested-repository` line,
+whose places hold the repositories a clean would have deleted.
+No outcome of this release copies anything before an abort or a skip:
+those forms are refused instead.
+A file an earlier release wrote may still hold `saved-abort` and `saved-skip` lines with their own `copies`,
+because the record is append-only.
 A `logged` line also has `writtenBeforeGitRuns` set to `true`,
 and no other outcome has the field.
 `dirty` is whether the worktree or the repository held what the form could destroy,
