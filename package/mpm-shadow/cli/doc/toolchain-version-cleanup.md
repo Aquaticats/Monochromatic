@@ -203,7 +203,9 @@ and the link names another version.
 What a kill leaves at each step is the same in both cases:
 before a rename, nothing changed;
 after it, the markers and the store-root marker the next install reads,
-which asks about the paths a version owns and the link again before it deletes anything.
+which asks about the paths a version owns,
+and about the link,
+again before it deletes anything.
 The two renames are not one step,
 so a kill between them leaves a marker for the downloads with the version still under its name;
 that state reads as a removal that never got past its first rename,
