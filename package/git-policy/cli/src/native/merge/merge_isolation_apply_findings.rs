@@ -26,28 +26,57 @@ use std::time::Duration;
 /// so the person must be told where the merge is,
 /// what finishes
 ///  it,
-/// what happens to their own edits meanwhile,
+/// what the checkout holds meanwhile,
+/// where their own bytes are when a lock stopped the putting back of them,
 /// and how to clear a lock no program uses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// `monochromatic-git-policy-cli: git merge ${reference}: ...`
 /// ```
-pub(crate) fn a_deferred_save_finding(reference: &str, lock: &Path, side_ref: &str, why: WhyTheMergeIsSaved) -> String {
-    let blocked: String = match why {
+pub(crate) fn a_deferred_save_finding(
+    reference: &str,
+    lock: &Path,
+    side_ref: &str,
+    why: WhyTheMergeIsSaved,
+    kept: Option<&str>,
+) -> String {
+    let blocked: String = match &why {
         WhyTheMergeIsSaved::TheWaitEnded(waited) => format!("did not let go within {} seconds", waited.as_secs()),
         WhyTheMergeIsSaved::NotTheCommandsToClear => String::from("is not one this command may clear"),
         // The merge is not made to wait for another program's command, which is the owner's rule, so the line must not read as
         //  one that waited.
         WhyTheMergeIsSaved::AnotherProgramHoldsIt(holder) => format!("is held by {holder} and this merge does not wait for it"),
         WhyTheMergeIsSaved::AnotherProgramTookIt => String::from("was taken by another program in the instant before this merge wrote"),
+        WhyTheMergeIsSaved::AnotherProgramTookItAfterTheClear => {
+            String::from("was taken by another program after this merge put your paths back to the branch and before Git updated the checkout")
+        }
+        WhyTheMergeIsSaved::TheLockStoppedTheRestore => {
+            String::from("was taken by another program after this merge looked and before its checkout could be put back")
+        }
+    };
+    let kept_where: &str = kept.unwrap_or("the ref this merge's record names");
+    // What the checkout holds is stated only as far as this command knows it: a lock that stopped the putting back of the
+    //  person's bytes also stopped the restore, so those paths are named rather than promised away.
+    let checkout: String = match &why {
+        WhyTheMergeIsSaved::AnotherProgramTookItAfterTheClear => format!(
+            "The branch has not moved and nothing of the merge is in the checkout, and the files this merge changes hold the branch's \
+             content where your own bytes were: those bytes are kept on {kept_where}, and the next git command in this worktree puts them \
+             back and finishes the checkout once that lock is free. "
+        ),
+        WhyTheMergeIsSaved::TheLockStoppedTheRestore => format!(
+            "The branch has not moved and nothing of the merge is in the checkout; every byte the files held before this command is kept \
+             on {kept_where}, and the next git command in this worktree puts them back and finishes the checkout once that lock is free. "
+        ),
+        _ => String::from(
+            "Nothing of the merge is in the checkout yet and the branch has not moved: the next git command in this worktree finishes \
+             the checkout once that lock is free, and the edits you make meanwhile to files the merge does not change are kept. ",
+        ),
     };
     return format!(
         "monochromatic-git-policy-cli: git merge {reference}: another program holds this repository's index ({lock}) and {blocked}, so the \
-         merge is saved on {side_ref} and this command exits 0. Nothing of the merge is in the checkout yet and the branch has not moved: \
-         the next git command in this worktree finishes the checkout once that lock is free, and the edits you make meanwhile to files the \
-         merge does not change are kept. If no program is using this repository, the lock was left by a program that was killed, and \
-         removing it lets a command run.\n",
+         merge is saved on {side_ref} and this command exits 0. {checkout}If no program is using this repository, the lock was left by a \
+         program that was killed, and removing it lets a command run.\n",
         lock = lock.display()
     );
 }
@@ -77,6 +106,14 @@ pub(crate) enum WhyTheMergeIsSaved {
     /// Another program took the lock after this merge looked,
     /// so nothing of the clear was written.
     AnotherProgramTookIt,
+    /// Another program took the lock after this merge cleared the paths the person's work stood in and before
+    /// Git's own update,
+    /// so those paths hold the branch's content and their bytes are only in the capture.
+    AnotherProgramTookItAfterTheClear,
+    /// Another program's lock outlasted the putting back of the person's own bytes,
+    /// which the same lock stopped,
+    /// so the record is kept and the next command puts them back.
+    TheLockStoppedTheRestore,
 }
 
 /// What:

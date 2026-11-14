@@ -4,6 +4,9 @@ use super::*;
 /// The fixtures a linked worktree needs,
 /// and the identity of a Git context.
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository};
+/// The words a saved merge prints,
+/// which live in a file of their own now.
+use crate::merge_isolation_apply_findings::{a_deferred_save_finding, a_merge_that_could_not_be_saved};
 
 /// What:
 ///  A merge that meets an index lock it may not clear says where its result is,
@@ -28,6 +31,7 @@ fn the_line_of_a_saved_merge_names_the_side_ref_and_what_finishes_the_checkout()
         Path::new("/r/.git/index.lock"),
         "refs/cli-git/kept/1794200000000",
         WhyTheMergeIsSaved::TheWaitEnded(std::time::Duration::from_secs(60)),
+        None,
     );
     assert!(said.starts_with("monochromatic-git-policy-cli: git merge feature: "), "{said}");
     assert!(said.contains("/r/.git/index.lock"), "the lock is named: {said}");
@@ -43,6 +47,7 @@ fn the_line_of_a_saved_merge_names_the_side_ref_and_what_finishes_the_checkout()
         Path::new("/r/.git/index.lock"),
         "refs/cli-git/kept/1",
         WhyTheMergeIsSaved::NotTheCommandsToClear,
+        None,
     );
     assert!(untouched.contains("is not one this command may clear"), "{untouched}");
     assert!(!untouched.contains("seconds"), "no wait is claimed: {untouched}");

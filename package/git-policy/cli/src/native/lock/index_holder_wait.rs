@@ -53,7 +53,8 @@
 
 /// Evidence about the holder of a lock.
 use crate::index_lock_evidence::{
-    DEAD_OWNER_LOCK_LEFT, Evidence, Verdict, WaitEnd, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line, proven_holder_progress_line, unproven_wait_line,
+    DEAD_OWNER_LOCK_LEFT, Evidence, THE_ENDING_SAYS_IT, Verdict, WaitEnd, blocker_words, ceiling_line, classify_index_lock, dead_owner_diagnostic, gather_with, proven_holder_line,
+    proven_holder_progress_line, unproven_wait_line,
 };
 
 /// The sentence a merge's dead-owner line ends on:
@@ -359,6 +360,9 @@ pub fn wait_for_index_release_while_finishing_a_merge<W: Write + ?Sized>(real_in
         real_index,
         "merge",
         RECOVERY_CONSEQUENCE,
+        // The ending says the lock is cleared when nothing else holds it, and every caller of this wait does clear one, so
+        //  the dead owner's line must not first say the merge stays unfinished.
+        THE_ENDING_SAYS_IT,
         RECOVERY_NOTICE_ENDING,
         CLEARS_A_DEAD_OWNERS_LOCK,
         recovery_ceiling(),
@@ -410,7 +414,7 @@ fn write_then_flush<W: Write + ?Sized>(out: &mut W, bytes: &[u8]) -> std::io::Re
 fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
     let consequence: String = format!("git {command} stops waiting and reports what Git says");
     let notice_ending: String = format!("git {command} meets Git's own refusal");
-    return wait_with_watches_and_consequence(real_index, command, consequence.as_str(), notice_ending.as_str(), DEAD_OWNER_LOCK_LEFT, ceiling, cadence, out, set_watch);
+    return wait_with_watches_and_consequence(real_index, command, consequence.as_str(), consequence.as_str(), notice_ending.as_str(), DEAD_OWNER_LOCK_LEFT, ceiling, cadence, out, set_watch);
 }
 
 /// `wait_with_watches` with the sentence the ceiling line ends on given,
@@ -419,6 +423,7 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
     real_index: &Path,
     command: &str,
     consequence: &str,
+    dead_consequence: &str,
     notice_ending: &str,
     dead_ending: &str,
     ceiling: Duration,
@@ -448,7 +453,7 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
             proof = look_at(real_index, &gather_here);
         }
         if let Proof::Dead(pid) = &proof {
-            let _noted = write_then_flush(out, dead_owner_diagnostic(lock.as_path(), *pid, consequence, dead_ending).as_bytes());
+            let _noted = write_then_flush(out, dead_owner_diagnostic(lock.as_path(), *pid, dead_consequence, dead_ending).as_bytes());
             return IndexWait::OwnerGone(elapsed);
         }
         if due {

@@ -46,7 +46,8 @@ use crate::recovery_files::lock_pid_path;
 use std::path::{Path, PathBuf};
 /// The end of a wait and the sentences the evidence is reported in.
 pub use crate::index_lock_evidence_words::{
-    DEAD_OWNER_LOCK_LEFT, WaitEnd, blocker_words, ceiling_line, dead_owner_diagnostic, proven_holder_line, proven_holder_progress_line, unproven_removal_advice, unproven_wait_line,
+    DEAD_OWNER_LOCK_LEFT, THE_ENDING_SAYS_IT, WaitEnd, blocker_words, ceiling_line, dead_owner_diagnostic, proven_holder_line, proven_holder_progress_line,
+    unproven_removal_advice, unproven_wait_line,
 };
 
 /// Longest PID file text quoted in evidence,
