@@ -27,6 +27,7 @@ import {
   type GitRunner,
   type RunCommand,
   PI_START_CHECK_MEMORY_SECONDS,
+  absoluteFolderProblemIn,
   baseProblemIn,
   checkoutFolderOf,
   nameProblemIn,
@@ -389,6 +390,44 @@ await describe({
             },);
             expect(problem,).toContain(unitNameOfGiven({ name: runName, },),);
             expect(problem,).toContain(runName,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: absoluteFolderProblemIn.name,
+      children: [
+        it({
+          name: 'says nothing about a folder that is an absolute path, which systemd takes',
+          fn: async () => {
+            expect(absoluteFolderProblemIn({
+              folder: '/repo',
+              what: 'checkout folder',
+            },),).toEqual({},);
+            expect(absoluteFolderProblemIn({
+              folder: '/data/my repo',
+              what: 'checkout folder',
+            },),).toEqual({},);
+          },
+        },),
+        it({
+          name: 'names a relative folder, what systemd takes instead, and the manager words a relative one meets',
+          fn: async () => {
+            for (const folder of ['sub/repo', './repo', '../repo', '',]) {
+              /**
+               What the check said about that folder.
+               */
+              const { problem, } = absoluteFolderProblemIn({
+                folder,
+                what: 'runs folder',
+              },);
+              expect(problem,).toBeDefined();
+              expect(problem,).toContain(`'${folder}'`,);
+              expect(problem,).toContain('runs folder',);
+              expect(problem,).toContain('is not an absolute path',);
+              expect(problem,).toContain('Invalid ReadOnlyPaths',);
+              expect(problem,).toContain('starting with /',);
+            }
           },
         },),
       ],
@@ -809,6 +848,50 @@ await describe({
              */
             const long = `Error: ${'x'.repeat(ENTRY_REASON_CHARACTERS * 2,)}`;
             expect(reasonInFailedStart({ output: `${long}\n`, },).reason?.length,).toBe(ENTRY_REASON_CHARACTERS,);
+          },
+        },),
+        it({
+          name: 'refuses a start whose checkout folder is a relative path, before it makes anything, and says why',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A prompt file a run could be given.
+             */
+            const prompt = join(folder.path, 'a-prompt.md',);
+            await writeFile(prompt, 'Answer with one line.\n',);
+            /**
+             What a start that is otherwise ready answers, told that its checkout is a relative path.
+             */
+            const { refusals, } = await startRefusalsIn({
+              promptFile: prompt,
+              git: answering({
+                status: 0,
+                stdout: 'a-commit\n',
+                stderr: '',
+              },).git,
+              checkoutFolder: 'sub/checkout',
+              base: 'main',
+              run: async function answered(request,) {
+                return (request.command === 'pi')
+                  ? {
+                    status: 0,
+                    stdout: 'Usage: pi\n',
+                    stderr: '',
+                  }
+                  : {
+                    status: 0,
+                    stdout: 'not-found\n',
+                    stderr: '',
+                  };
+              },
+              runName: 'copy-route',
+              sessionPath: '/bin',
+              home: folder.path,
+              runsFolder: folder.path,
+            },);
+            expect(refusals,).toHaveLength(1,);
+            expect(refusals[0],).toContain('sub/checkout',);
+            expect(refusals[0],).toContain('is not an absolute path',);
           },
         },),
       ],

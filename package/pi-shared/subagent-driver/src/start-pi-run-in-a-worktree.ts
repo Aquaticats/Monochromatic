@@ -26,7 +26,11 @@ import {
   StartRefusedError,
   startRefusalsIn,
 } from './checks-before-a-start.ts';
-import { fileSystemOfARun, } from './file-system-of-a-run.ts';
+import {
+  fileSystemOfARun,
+  refuseUnlessTheWorktreeIsThere,
+  WorktreeGoneError,
+} from './file-system-of-a-run.ts';
 import { finishTheRun, } from './finish-a-run.ts';
 import { gitRunnerOf, } from './git-command.ts';
 import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
@@ -324,6 +328,25 @@ const unit = unitCommandOf({
   ...(options.session === undefined ? {} : { session: options.session, }),
 },);
 
+// The worktree was read a moment ago and several questions were asked since. A launcher of another start of this name that has
+// just ended removes a finished worktree in that window, and the unit would then fail in the manager's own words (a
+// `ReadWritePaths=` folder that is not there refuses the unit with exit 226), which says nothing about what happened. Asking once
+// more, as late as this launcher can, turns that into a line a reader can act on before any unit is asked for.
+try {
+  await refuseUnlessTheWorktreeIsThere({
+    worktree,
+    runName: options.name,
+    runFolder,
+  },);
+}
+catch (error) {
+  if (!(error instanceof WorktreeGoneError)) {
+    throw error;
+  }
+  console.error(`${options.name}: refusing to start: ${error.message}`,);
+  process.exit(1,);
+}
+
 /**
  The process that follows the unit, which this launcher ends once the unit has ended rather than waiting on the manager's own
  signals.
@@ -359,6 +382,27 @@ const waited = await waitForUnitToEnd({
 const status = (waited.ended === 'the-unit-ended')
   ? (waiter.exitCode ?? 0)
   : 1;
+
+// A removal that landed between the last look at the worktree and the manager's own namespace setup leaves a unit that never
+// started and a status the manager chose (226, a namespace failure). The words below say which folder went and what to do, so a
+// start that failed this way does not end on that bare status. A run that ended with a status of its own is left alone: another
+// launcher of this name removing a finished worktree afterwards is not a failure of this run.
+if ((!readOnlyInMain) && (status !== 0)) {
+  try {
+    await refuseUnlessTheWorktreeIsThere({
+      worktree,
+      runName: options.name,
+      runFolder,
+    },);
+  }
+  catch (error) {
+    if (!(error instanceof WorktreeGoneError)) {
+      throw error;
+    }
+    console.error(`${options.name}: the unit did not start: ${error.message}`,);
+  }
+}
+
 console.log(launcherEndedLineOf({
   runName: options.name,
   unitName: unitNameOfGiven({ name: options.name, },),

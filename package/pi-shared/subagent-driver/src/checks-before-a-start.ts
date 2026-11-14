@@ -3,7 +3,8 @@
  unit name is free, and that Pi starts in this session and loads its extensions.
 
  A start that fails one of these made nothing, so nothing has to be undone, and no provider slot is spent on a run that could not
- have worked. Before this, a launcher took a slot, made a worktree and linked its dependencies, and only then did the driver find
+ have worked. The checkout and the runs folder are checked too: a unit's path properties take absolute paths, and a relative one
+ refuses the unit before any run starts. Before this, a launcher took a slot, made a worktree and linked its dependencies, and only then did the driver find
  that its prompt file was not there.
 
  @module
@@ -14,7 +15,10 @@ import {
   stat,
 } from 'node:fs/promises';
 import { constants, } from 'node:fs';
-import { join, } from 'node:path';
+import {
+  isAbsolute,
+  join,
+} from 'node:path';
 import type { GitRunner, } from './worktree-of-a-run.ts';
 import type { RunCommand, } from './run-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
@@ -197,6 +201,44 @@ export async function nameProblemIn({
 }
 
 /**
+ Says what stops a folder from being named in a unit's path properties, if anything does.
+
+ Why: systemd reads `ReadOnlyPaths=` and `ReadWritePaths=` as lists of paths under the host's root, so a relative folder refuses
+ the whole unit (`Invalid ReadOnlyPaths`) and the run never starts. A start says so before it makes anything, naming the option's
+ folder and what to write instead.
+
+ @param folder - the folder a start would name
+
+ @param what - what the folder is, for the message
+
+ @returns the problem in words, or nothing when the folder is absolute
+
+ @example
+ ```ts
+ const problem = absoluteFolderProblemIn({ folder: 'sub/repo', what: 'checkout folder', });
+ ```
+ */
+export function absoluteFolderProblemIn({
+  folder,
+  what,
+}: {
+  /**
+   The folder a start would name in its unit's path properties.
+   */
+  readonly folder: string;
+
+  /**
+   What the folder is, which the message names.
+   */
+  readonly what: string;
+},): { readonly problem?: string } {
+  if (isAbsolute(folder,)) {
+    return {};
+  }
+  return { problem: `the ${what} '${folder}' is not an absolute path, so the run's unit cannot name it: systemd's ReadOnlyPaths= and ReadWritePaths= are lists of paths under the host's root, and a relative one refuses the whole unit with "Invalid ReadOnlyPaths". Name it as an absolute path, starting with /.`, };
+}
+
+/**
  What a start settled before it made anything: the reasons it is refused, and the warnings a start that goes ahead prints.
  */
 export type StartChecks = {
@@ -328,6 +370,14 @@ export async function startRefusalsIn({
     promptAnswer,
     baseAnswer,
     nameAnswer,
+    absoluteFolderProblemIn({
+      folder: checkoutFolder,
+      what: 'checkout folder',
+    },),
+    absoluteFolderProblemIn({
+      folder: runsFolder,
+      what: 'runs folder',
+    },),
     pi,
   ],);
   // A refused start makes nothing, not even a memory: the answer about Pi is kept only once every check has passed.

@@ -347,7 +347,8 @@ await describe({
               turnCap: 400,
               fileSystem: {
                 foldersAUnitCannotWrite: ['/repo',],
-                foldersAUnitMustWrite: ['/repo/.claude/worktrees/pi-copy-route', '-/repo/.cache',],
+                foldersAUnitMustWrite: ['/repo/.claude/worktrees/pi-copy-route',],
+                foldersAUnitMustWriteWhenTheyAreThere: ['/repo/.cache',],
               },
             },);
             expect(command.command,).toBe('systemd-run',);
@@ -361,9 +362,9 @@ await describe({
               '--property=CPUQuota=800%',
               `--property=TasksMax=${String(3_000,)}`,
               `--property=IOWeight=${String(UNIT_IO_WEIGHT,)}`,
-              '--property=ReadOnlyPaths=/repo',
-              '--property=ReadWritePaths=/repo/.claude/worktrees/pi-copy-route',
-              '--property=ReadWritePaths=-/repo/.cache',
+              '--property=ReadOnlyPaths="/repo"',
+              '--property=ReadWritePaths="/repo/.claude/worktrees/pi-copy-route"',
+              '--property=ReadWritePaths=-"/repo/.cache"',
               '--setenv=PATH=/mise/bin:/usr/bin',
               '--setenv=HOME=/home/a',
               '/mise/bin/node',
@@ -402,6 +403,7 @@ await describe({
               fileSystem: {
                 foldersAUnitCannotWrite: ['/repo',],
                 foldersAUnitMustWrite: ['/repo/.git',],
+                foldersAUnitMustWriteWhenTheyAreThere: [],
               },
               session: '/sessions/a.jsonl',
             },).words,).toContain('--session=/sessions/a.jsonl',);

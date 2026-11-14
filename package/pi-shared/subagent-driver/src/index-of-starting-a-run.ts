@@ -130,6 +130,7 @@ export {
   type PiStartCheckRecord,
   type StartChecks,
   StartRefusedError,
+  absoluteFolderProblemIn,
   answersIn,
   baseProblemIn,
   piProblemIn,
@@ -160,9 +161,15 @@ export {
 } from './turn-cap-of-finished-runs.ts';
 export {
   type FileSystemOfARun,
+  WorktreeGoneError,
   fileSystemOfARun,
   fileSystemPropertiesOf,
+  refuseUnlessTheWorktreeIsThere,
 } from './file-system-of-a-run.ts';
+export {
+  PathThatIsNotAbsoluteError,
+  pathInAUnitProperty,
+} from './path-in-a-unit-property.ts';
 export {
   UNIT_GRACE_SECONDS,
   UNIT_IO_WEIGHT,
