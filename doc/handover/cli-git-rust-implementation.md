@@ -1225,6 +1225,140 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landing's answer gives up a large trash after three rounds, back to its author; the package state's answer goes to review (2026-11-14T12:08:28-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session queued.
+
+- **A landing never waits behind housekeeping** (`af0b824df3`),
+  fourth review:
+  one reproduced by linking the crate and calling functions it ships:
+  a trash that needs more than three bounded rounds is moved to `failed` by the cap of tries,
+  and nothing scans `failed`,
+  so the large trash the change was made for stays on disk with nothing that comes back for it
+  (ten of twelve entries left in its run,
+  twice).
+  No data a person made is lost and no commit fails.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/landing-never-waits-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+  Passes 29 and 34 go on waiting on this branch.
+  This session's first draft of that brief told the author that two passes wait on it;
+  the line was taken out at 12:08:35,
+  before the run started,
+  since no brief may hint at hurry.
+- **Package state of a new worktree** (tip `afc54765d4`, ended 12:06:48):
+  the author reports its review answered,
+  `main` merged with one conflict in `SPEC.md` that it checked by hand after `rerere` resolved it,
+  six controls passing at four CPUs,
+  and one cost it names:
+  the removal of three thousand copies is 160 ms slower.
+  Review queued third (range `main...afc54765d4`, nine code files).
+- The queue held 65 entries at 12:08:28.
+
+##### The foreign watch note passes and goes into pass 43; one low finding goes back; the driver's empty answer goes to review; the pools, not the cap, hold the count of runs (2026-11-14T12:03:39-05:00)
+
+Not final and not approved:
+what two reviews and one author report of themselves,
+what the coordinating session read in the filling unit's journal,
+and what it queued.
+
+- **A watch note of another repository** (`130519d862`):
+  no defect;
+  sixteen claim-watch controls run,
+  the five guards against a foreign instance among them.
+  **Integration pass 43** is queued first with it,
+  told of the two small conflicts and the file-length split its author expects against pass 38
+  (`~/temp/agent/pi-runs/integration-pass-43-with-the-watch-note-of-another-repository-never-written-into-this-service-journal-prompt.md`).
+- **A commit that does not land says what stopped it** (`771d34e0fa`),
+  second review:
+  one thing by reading,
+  low:
+  the stop's signal and its sender are two words read apart,
+  so a second signal between the reads pairs one stop's signal with the other's sender and the record names the wrong sender.
+  Weighed as worth its fix:
+  naming what stopped a commit is what the change is for,
+  and the author already packed the same pair for the relayed case.
+  The review ran 24 tests and stands on reading for the paths that need a service.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/commit-that-does-not-land-answers-its-second-review-of-2026-11-14-prompt.md`).
+- **The driver's empty last answer** (tip `ad5e48ef93`, ended 12:00:24):
+  the author reports the ask sent only to a Pi at rest,
+  and names two refusals of the same kind (wake, retry) it left for controls of their own.
+  Review queued third (range `main...ad5e48ef93`, fourteen code files).
+- **What holds the count of runs**:
+  between 11:48:21 and 12:01:18 the filling unit started nothing with 20 to 22 runs going under a cap of 24.
+  Its journal says why each time:
+  "no entry of the … left may start now (… runs on qwen4-max-preview going, held to 5; 0 places free in the default pools after the launchers that wait)".
+  So the providers' pools,
+  and not the cap,
+  are what limits the runs now,
+  and the level-24 probe is measuring the drive at 20 to 23 agents.
+  The queue held 64 entries at 12:03:39 and grows faster than it drains.
+
+##### The long runtime directory passes and goes into pass 42; the commit service without a manager still starts `systemctl` on every commit, back to its author (2026-11-14T11:55:27-05:00)
+
+Not final and not approved:
+what two reviews report of themselves,
+and what the coordinating session queued.
+
+- **A commit is made when the runtime directory's path is too long for a socket** (`eafd1e9a24`),
+  third review:
+  "No concrete defect found."
+  Four end-to-end binary controls through a real wrapped commit pass
+  (the longest directory that still gives a path,
+  one byte past it,
+  a short one,
+  one spelled with `..`),
+  and it confirmed from systemd's source that the manager reports an abstract socket as `@<name>`.
+  Two things it names and does not count as defects:
+  the hand-out of a shadow is skipped for abstract addresses,
+  and `ask_to_retire` does not check the peer's account.
+  It did not run the gate container with a real manager.
+  **Integration pass 42** is queued first with this branch alone
+  (`~/temp/agent/pi-runs/integration-pass-42-with-the-commit-made-when-the-runtime-directory-path-is-too-long-for-a-socket-prompt.md`).
+- **The commit service needs no service manager** (`77f5d525e3`),
+  third review:
+  one reproduced with a recording stand-in:
+  every commit served by the release's own service still starts `systemctl --user stop` for three unit names,
+  since the retiring of earlier units is called before the early return.
+  Two by reading:
+  a claim's lock taken with no second look at which file the path names,
+  so two servers can each hold a claim;
+  and recovery before the acceptor with a start ceiling this branch shortened to 10 s,
+  so an upgrade with an open batch behind a foreign lock can fail the first commit while the service is alive.
+  The last has the same root as the first finding against issue 6293.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/commit-service-needs-no-service-manager-answers-its-third-review-of-2026-11-14-prompt.md`).
+- 22 Pi runs were going at 11:55:27;
+  the queue held 62 entries.
+  Passes 38 to 42 are five going or queued side by side,
+  each with one or a few branches;
+  each merges `main` again when another reaches it.
+
+##### The landed removal's author answered; its answer goes to review (2026-11-14T11:45:34-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked.
+
+- **The landed removal's guard** (tip `528279d099`, ended 11:40:51):
+  the author reports both findings answered:
+  the guard runs on every route by which a typed removal passes,
+  `--no-worktree-copy` among them,
+  with only the two recorded things standing it down;
+  and every printed command runs as printed for a hostile path.
+  Eighteen binary controls and 45 unit tests passing at four CPUs.
+  One test of the wider run fails,
+  `the_status_follows_the_dash_c_options_of_the_invocation`,
+  which it ran at `main`'s own tip in a scratch worktree and found failing there with the same assertion.
+  It leaves two things open for whoever integrates:
+  whether the policy stage's guard shares this path once both branches are in,
+  and whether `REGISTRATION_SUBCOMMANDS` learns `remove`.
+  Review queued second (range `main...528279d099`, seventeen code files).
+- 22 Pi runs were going at 11:45:34;
+  the queue held 61 entries.
+
 ##### Removal-refuses passes its fifth review and goes into pass 41; the brief writer for tests goes back; two authors' answers go to review (2026-11-14T11:39:47-05:00)
 
 Not final and not approved:
