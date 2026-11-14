@@ -344,8 +344,9 @@ pub fn run(arguments: &[String]) -> i32 {
     if let (Some(instance), Some(shared)) = (settings.instance.as_deref(), context.journal.parent()) {
         let earlier: LandContext = LandContext { git: context.git.clone(), journal: shared.to_path_buf(), on_objects_written: None, lock_ceiling: context.lock_ceiling };
         let _reports = recover_instance(&earlier, instance);
-        // Nothing reads that journal's finished batches any more; the newest are kept and the rest go, so it stops growing.
-        let _pruned = prune_done(shared, DONE_RETAINED);
+        // Nothing reads that journal's finished batches any more; the newest are kept, and an older one goes only once no
+        //  client of it may still read it, so it stops growing.
+        let _pruned = prune_done(shared, DONE_RETAINED, &crate::claim_time::ClaimTime::read());
     }
     crate::service_log!("ready");
     // The repository this service served before warms its compiled rules now, on the blocking pool, so an upgrade's new cache is
