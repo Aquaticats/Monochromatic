@@ -254,6 +254,14 @@ pub(crate) async fn drop_the_records_refs_then_the_record(
     intent: &MergeIntent,
     side_ref: SideRef,
 ) -> Result<bool, RecoveryError> {
+    // The capture's bytes are in the checkout or back in the files by the time a caller gets here, and that is written beside
+    //  the record before its ref is decided: a kill between the two steps then leaves a record whose next settle needs nothing
+    //  from the objects (`merge_isolation_journal.rs`, `mark_carry_finished`).
+    if intent.carried.is_some()
+        && let Err(error) = crate::merge_isolation_journal::mark_carry_finished(record)
+    {
+        return Err(RecoveryError(format!("the finish of the carried work could not be recorded: {error}")));
+    }
     if !drop_capture_awaiting(place, root, record, intent).await {
         return Ok(false);
     }

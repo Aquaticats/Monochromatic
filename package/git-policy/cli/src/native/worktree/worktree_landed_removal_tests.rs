@@ -1463,6 +1463,7 @@ fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the
         Examined::Unfinished(why) => format!("unfinished: {why}"),
         Examined::Handed(record, _went) => format!("handed: {}", record.oid),
         Examined::Kept(why) => format!("kept: {why}"),
+        Examined::RemovedAround(left, _went) => format!("removed-around {}", left.len()),
         Examined::Unproven => String::from("unproven"),
     };
     assert!(
@@ -1922,4 +1923,141 @@ fn a_merge_whose_service_does_not_answer_tells_it_once() {
     let sweep: LandedSweep = sweep_landed_worktrees(&place, before.as_str(), after.as_str(), "main");
     assert_eq!(sweep.handed_over.len(), 2, "both landed worktrees wait for the commit service: {sweep:?}");
     assert_eq!(*asked.borrow(), 1, "the merge waits for the service once and not once per candidate");
+}
+
+/// Whether this run's fixtures are on btrfs, or the reason the control did not run.
+fn a_btrfs_fixture_root(root: &Path, control: &str) -> bool {
+    if crate::fs_kind::filesystem_kind(root) == Ok(crate::fs_kind::FilesystemKind::Btrfs) {
+        return true;
+    }
+    let acknowledged: bool = std::env::var_os(crate::fs_btrfs_test_support::ABSENT_ACKNOWLEDGED_VARIABLE).is_some_and(|value| { return !value.is_empty() });
+    assert!(
+        acknowledged,
+        "the control {control} needs a btrfs fixture root, but {} is on another filesystem; set CLI_GIT_TEST_ROOT to a \
+         directory on btrfs, or set {} to state that this run has none",
+        root.display(),
+        crate::fs_btrfs_test_support::ABSENT_ACKNOWLEDGED_VARIABLE
+    );
+    eprintln!("BTRFS CONTROL NOT RUN: {control} (the fixture root {} is on another filesystem)", root.display());
+    return false;
+}
+
+/// What:
+///  The registration directories a repository holds now, by name.
+/// Why:
+///  A removal of the last worktree removes the `worktrees` folder itself, as Git does,
+///  so a control that
+///  listed it unconditionally would fail on the state it means to prove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = registrationsUnder(common); // [] when the folder is gone
+/// ```
+fn registrations_under(common: &Path) -> Vec<String> {
+    let Ok(listed) = std::fs::read_dir(common.join("worktrees")) else { return Vec::new() };
+    let mut names: Vec<String> = listed.flatten().map(|found| return found.file_name().to_string_lossy().into_owned()).collect();
+    names.sort();
+    return names;
+}
+
+/// What:
+///  Age the tracked files of a worktree a control made,
+///  so the cleanliness proof judges their stat data instead of refusing them as new as the index.
+/// Why:
+///  A worktree Git made holds files whose times are the moment of the add,
+///  and a file as new as the index proves
+///  nothing by its stat fields:
+/// every removal of one through the proof needs them aged first.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// ageWhatTheWorktreeHolds('/fixture/worktree'); // the files Git reads are 120 s old
+/// ```
+fn age_what_the_worktree_holds(worktree: &Path) {
+    for name in ["README.md", ".gitignore"] {
+        let path: PathBuf = worktree.join(name);
+        if path.is_file() {
+            age(path.as_path());
+        }
+    }
+    let _refreshed = std::process::Command::new(REAL_GIT).args(["update-index", "--refresh"]).current_dir(worktree).output();
+}
+
+/// What:
+///  A worktree whose branch landed and which holds a subvolume the removal did not make
+///  is removed around it:
+///  the volume and the directories that lead to it stay,
+///  the rest is gone,
+///  Git forgets the worktree,
+///  and the sweep's line says what was left and what frees the path.
+/// Why:
+///   This is the automatic removal,
+///  which nobody can refuse to:
+///  a volume there is not a reason to keep the worktree,
+///  and it is not the removal's to delete.
+#[test]
+fn a_landed_worktree_holding_a_volume_is_removed_around_it_and_the_volume_stays() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-around-volume", "snap/\n");
+    if !a_btrfs_fixture_root(landed.root.as_path(), "landed-around-volume") {
+        remove(landed.root.as_path());
+        return;
+    }
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let volume: PathBuf = landed.worktree.join("snap");
+    crate::fs_btrfs_ioctl::subvolume_create_at(volume.as_path()).expect("a subvolume the removal did not make");
+    std::fs::write(volume.join("precious.txt"), b"what I put there\n").expect("a file the person put there");
+    let before: Vec<u8> = std::fs::read(volume.join("precious.txt")).expect("the file");
+    let mode_before: u32 = std::os::unix::fs::MetadataExt::mode(&std::fs::metadata(volume.as_path()).expect("the volume")) & 0o7777;
+    age_what_the_worktree_holds(landed.worktree.as_path());
+
+    let sweep: LandedSweep = land_feature(&landed);
+    assert!(sweep.removed.is_empty(), "nothing is reported as plainly removed: {sweep:?}");
+    assert_eq!(sweep.removed_around.len(), 1, "the worktree is removed around the volume: {sweep:?}");
+    assert_eq!(sweep.removed_around[0].worktree, landed.worktree);
+    assert_eq!(sweep.removed_around[0].left.len(), 1, "and the volume is named: {sweep:?}");
+    assert_eq!(std::fs::read(volume.join("precious.txt")).expect("the file is still there"), before, "the volume is untouched");
+    assert_eq!(std::os::unix::fs::MetadataExt::mode(&std::fs::metadata(volume.as_path()).expect("the volume")) & 0o7777, mode_before, "and its mode is what it was");
+    assert_eq!(std::fs::read_dir(landed.worktree.as_path()).expect("the worktree").flatten().map(|found| return found.file_name()).collect::<Vec<_>>(), vec![std::ffi::OsString::from("snap")], "nothing but the volume is left in it");
+    assert_eq!(registrations_under(landed.common.as_path()), Vec::<String>::new(), "the worktree's registration is gone");
+    let lines: Vec<String> = crate::worktree_landed_sweep_notice::landed_sweep_lines(&sweep);
+    assert!(lines.iter().any(|line| return line.contains("Git no longer lists it")), "a line says the worktree is gone from Git: {lines:?}");
+    assert!(lines.iter().any(|line| return line.contains(volume.to_str().expect("a UTF-8 fixture path"))), "and names the volume: {lines:?}");
+    assert!(lines.iter().any(|line| return line.contains("free for `git worktree add`")), "and what frees the path: {lines:?}");
+    remove(landed.root.as_path());
+}
+
+/// What:
+///  The commit service's own removal goes around a volume that appeared after the merge handed the removal over,
+///  so the volume is not deleted through,
+///  and the person reads what is left on their next command.
+/// Why:
+///   The record was written before the volume existed,
+///  and Git's own removal would delete what is mounted at a mount point:
+///  a service that ran it anyway destroyed a person's snapshot (an audit of the release 0.6.1-alpha.14,
+///  finding F4).
+#[test]
+fn the_service_goes_around_a_volume_that_appeared_after_the_hand_over() {
+    let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-around-hand-over", "snap/\n");
+    if !a_btrfs_fixture_root(landed.root.as_path(), "landed-around-hand-over") {
+        remove(landed.root.as_path());
+        return;
+    }
+    record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
+    let sweep: LandedSweep = land_feature(&landed);
+    assert_eq!(sweep.handed_over.len(), 1, "the removal waits for the commit service: {sweep:?}");
+    let volume: PathBuf = landed.worktree.join("snap");
+    crate::fs_btrfs_ioctl::subvolume_create_at(volume.as_path()).expect("a subvolume nobody handed over");
+    std::fs::write(volume.join("precious.txt"), b"what I put there\n").expect("a file the person put there");
+    age_what_the_worktree_holds(landed.worktree.as_path());
+
+    let verdicts: Vec<Verdict> = let_the_service_finish(&sweep);
+    assert_eq!(verdicts, vec![Verdict::Done], "the service finished the removal: {verdicts:?}");
+    assert_eq!(std::fs::read(volume.join("precious.txt")).expect("the file is still there"), b"what I put there\n", "the volume is untouched");
+    assert_eq!(std::fs::read_dir(landed.worktree.as_path()).expect("the worktree").flatten().map(|found| return found.file_name()).collect::<Vec<_>>(), vec![std::ffi::OsString::from("snap")], "nothing but the volume is left in it");
+    assert_eq!(registrations_under(landed.common.as_path()), Vec::<String>::new(), "the worktree's registration is gone");
+    let notices: Vec<String> = shown_notices(crate::worktree_removal_goes_around_a_foreign_volume::left_in_place_notices(landed.common.as_path()));
+    assert_eq!(notices.len(), 1, "the person reads what was left once: {notices:?}");
+    assert!(notices[0].contains(volume.to_str().expect("a UTF-8 fixture path")), "the notice names the volume: {}", notices[0]);
+    assert!(notices[0].contains("free for `git worktree add`"), "and what frees the path: {}", notices[0]);
+    remove(landed.root.as_path());
 }

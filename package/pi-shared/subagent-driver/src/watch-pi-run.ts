@@ -30,7 +30,7 @@ import {
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
-  askAboutItsWork,
+  askAboutItsWorkOrReportAFailure,
   type WorkWaitedFor,
 } from './kept-while-work-runs.ts';
 import type { WatchRequest, } from './watch-request.ts';
@@ -472,9 +472,10 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       },))) {
       /**
        What the run left running, asked before it may end as a run that finished its turn: an agent that ended its turn while a
-       build compiled is waiting for that build, so the run is kept, and sent back to it once it is over.
+       build compiled is waiting for that build, so the run is kept, and sent back to it once it is over. A read of that work that
+       fails is reported beside the end reason, which stays `idle`: the agent finished its turn either way.
        */
-      const asked = await askAboutItsWork({
+      const asked = await askAboutItsWorkOrReportAFailure({
         watch,
         waited,
       },);

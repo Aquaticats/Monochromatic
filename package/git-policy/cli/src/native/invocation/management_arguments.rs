@@ -4,6 +4,9 @@
 //! Why:
 //!  `check` and `fix` run policies over an explicit scope;
 //!  `doctor` lists the traditional hooks a repository holds;
+//!  `kept-references` lists the references the wrapper keeps commits on,
+//!  with what the next pruning would take,
+//!  and runs one pruning with `--prune`;
 //!  `trust`,
 //!  `untrust` and
 //!      `status` are retired with executable configuration and only explain that.
@@ -45,6 +48,7 @@ Usage: git monochromatic-git-policy-cli check (--all | -- <pathspec>...) [--poli
        git monochromatic-git-policy-cli fix (--all | -- <pathspec>...) [--policy <id>]...
        git monochromatic-git-policy-cli doctor
        git monochromatic-git-policy-cli service (status | settle-earlier-batches | stop-units-of-removed-worktrees)
+       git monochromatic-git-policy-cli kept-references [--prune]
        git monochromatic-git-policy-cli migrate-to-subvolume [--dry-run | --rollback | --remove-old]
        git monochromatic-git-policy-cli convert-worktree-to-subvolume [--dry-run | --abandon] (--all | <worktree>...)
        git monochromatic-git-policy-cli --help
@@ -68,6 +72,11 @@ Commands:
            many; the wrapper stops them itself when it removes a worktree, and this covers the rest).
   doctor   List traditional hooks (unsupported). Exit 0 when none or only git-lfs shims are found,
            1 when any other hook is found, 2 outside a repository.
+  kept-references
+           List the references the wrapper keeps built commits on (refs/cli-git/kept/), with the
+           commit, the age, the worktree and batch each came from, and what the next pruning of them
+           would take. The wrapper prunes them by itself after a landed commit, by age and by size;
+           --prune runs one pruning now.
   migrate-to-subvolume
            Convert the main checkout into a btrfs subvolume (see `git monochromatic-git-policy-cli migrate-to-subvolume --help`).
   convert-worktree-to-subvolume
@@ -157,6 +166,14 @@ pub enum ManagementAction {
     /// `service stop-units-of-removed-worktrees`:
     /// stop the commit service units of worktrees that no longer exist.
     StopUnitsOfRemovedWorktrees,
+    /// `kept-references`:
+    /// list what is kept and what the next pruning would take,
+    /// and with `prune`,
+    /// run one pruning now.
+    KeptReferences {
+        /// Whether `--prune` asked for the pruning itself.
+        prune: bool,
+    },
     /// `check` or `fix` over exactly one scope.
     Direct {
         /// `true` for `fix`,
@@ -452,6 +469,13 @@ pub fn parse_management_arguments(
             [word] if word == "status" => Ok(ManagementAction::ServiceStatus),
             [word] if word == "settle-earlier-batches" => Ok(ManagementAction::SettleEarlierBatches),
             [word] if word == "stop-units-of-removed-worktrees" => Ok(ManagementAction::StopUnitsOfRemovedWorktrees),
+            _ => Err(ManagementRefusal::Usage),
+        };
+    }
+    if name == "kept-references" {
+        return match rest {
+            [] => Ok(ManagementAction::KeptReferences { prune: false }),
+            [option] if option == "--prune" => Ok(ManagementAction::KeptReferences { prune: true }),
             _ => Err(ManagementRefusal::Usage),
         };
     }

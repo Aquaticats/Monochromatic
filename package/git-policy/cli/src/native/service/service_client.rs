@@ -26,7 +26,7 @@
 
 use crate::service_client_settings_and_watches::RECONNECTS;
 pub use crate::service_client_listen_and_ask_to_retire::{START_WAIT, ask_to_retire};
-use crate::service_client_listen_and_ask_to_retire::{Heard, a_message_is_already_here, listen, read_message};
+use crate::service_client_listen_and_ask_to_retire::{Heard, Wrote, a_message_is_already_here, listen, read_message, write_within};
 pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::diagnostic_log::debug;
@@ -283,13 +283,37 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         service_seen = true;
         let mut payload: String = line.clone();
         payload.push('\n');
-        if reader.get_mut().write_all(payload.as_bytes()).is_err() {
-            breaks += 1;
-            trace.reconnects += 1;
-            if breaks > RECONNECTS {
+        // What:
+        //  The request is written within a bound, and the wait is on progress rather than on a clock; a give-up says
+        //  "never taken" only when this command never put one whole request line on the wire.
+        // Why:
+        //  One `write_all` of a request waits in the kernel until the service reads it,
+        //  and a service that stopped reading never does:
+        // a request of one mebibyte fills both buffers of the connection and then waits with no end,
+        //  so no ceiling of this client was ever looked at again
+        //  (the audit of release 0.6.1-alpha.12 that stopped the service during the write of its request).
+        //  `trace.sends` counts the attempts that put the whole line on the wire, so it is what tells the two ends apart:
+        // with none, no line ever reached the service whole and, the service refusing a line that ends without its newline
+        //  (`service_server_connection_handling.rs`), nothing of this commit can be taken or land later;
+        // with one, an earlier attempt may already be the service's, so the result is not known and the commit's scratch
+        //  tree stays with the service's claim on it (the review of this change, finding 1).
+        let before_the_write: usize = trace.sends;
+        match write_within(reader.get_ref(), payload.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING) {
+            Wrote::All => {}
+            Wrote::Ended => {
+                breaks += 1;
+                trace.reconnects += 1;
+                if breaks > RECONNECTS {
+                    return Err(ClientFailure::MayNotHaveLanded);
+                }
+                continue;
+            }
+            Wrote::NothingTaken | Wrote::TooSlow if before_the_write > 0 => {
+                // An earlier attempt delivered this request whole, so it may be the service's however this one ended.
                 return Err(ClientFailure::MayNotHaveLanded);
             }
-            continue;
+            Wrote::NothingTaken => return Err(ClientFailure::ServiceNotReading { took_nothing: true }),
+            Wrote::TooSlow => return Err(ClientFailure::ServiceNotReading { took_nothing: false }),
         }
         trace.sends += 1;
         if parked.is_none() {
@@ -410,8 +434,23 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         if let Some(done) = answered {
             return done;
         }
-        // The service went silent or the connection broke before an answer: the service died, hung or was replaced. Send the
-        //  same request again.
+        // What:
+        //  The service went silent or the connection broke before an answer,
+        //  and the same request is sent again with the same identity.
+        // Why:
+        //  A silence is the service saying nothing for the whole heartbeat silence,
+        //  and the connection made again is what tells a
+        //  service that stopped from one whose beats were late:
+        // a service that still runs greets a new connection at once,
+        //  however busy its
+        //  landing is,
+        // and a service that stopped greets nothing,
+        // which ends the command at this bound rather than after another
+        //  request.
+        //  A commit never lands twice,
+        // because the identity goes with every send and the service answers a repeated
+        //  identity as already landed,
+        // so sending it again costs nothing that was not already spent.
         breaks += 1;
         if breaks > RECONNECTS {
             return Err(if last_break_was_silence { ClientFailure::ServiceSilent } else { ClientFailure::MayNotHaveLanded });
@@ -453,7 +492,9 @@ fn withdraw(config: &ClientConfig, id: &str, heard_blocker: Option<String>, answ
     };
     let mut asking: String = encode_client(&ClientMessage::Withdraw { id: id.to_string() });
     asking.push('\n');
-    if reader.get_mut().write_all(asking.as_bytes()).is_err() {
+    // The one line of the withdrawal is written under the same bounds as a request, so a service that stops reading holds nothing.
+    let written: Wrote = write_within(reader.get_ref(), asking.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING);
+    if written != Wrote::All {
         return Err(why.not_known(blocker));
     }
     let mut deadline: Instant = Instant::now() + config.withdraw_ceiling;
@@ -517,7 +558,10 @@ pub fn wake(config: &ClientConfig, git_dir: &std::path::Path, review_key: Option
     line.push('\n');
     let mut announced: bool = false;
     let mut reader: BufReader<UnixStream> = reach_current(config, notices, &mut announced, &mut ReachTrace::default(), false)?;
-    if reader.get_mut().write_all(line.as_bytes()).is_err() {
+    // The one line the wake carries is written under the bounds of any other, so a service that stopped reading costs the
+    //  confirmation and never the command.
+    let written: Wrote = write_within(reader.get_ref(), line.as_bytes(), crate::wait_ceilings::REQUEST_WRITE_SILENCE, crate::wait_ceilings::REQUEST_WRITE_CEILING);
+    if written == Wrote::Ended {
         return Err(ClientFailure::Unavailable);
     }
     // The service closes the connection after it has read the line, and that close is the confirmation.

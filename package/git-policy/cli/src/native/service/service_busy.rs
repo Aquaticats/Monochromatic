@@ -105,12 +105,15 @@ const DECISION_EXTENSION: &str = "decision";
 const LANDING: &str = "landing";
 
 /// How many withdrawals the record remembers:
-/// the same as the finished batches the journal remembers,
+/// the same as the journal's count of finished records (`DONE_RETAINED`),
 /// and as the service's own
 ///  memory of normal withdrawals (`service_server.rs`,
 /// `WITHDRAWN_RETAINED`),
 /// since a client that withdrew sends nothing more for
 ///  its request.
+/// The journal's own records are now removed by an age as well (`prune_done`),
+/// so this count is not the journal's retention;
+/// it is what a person's own two counts of requests are held to.
 const WITHDRAWALS_RETAINED: usize = DONE_RETAINED;
 
 /// The most confirmed withdrawals the record holds at any moment,

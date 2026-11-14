@@ -22,8 +22,7 @@ use std::path::{Path, PathBuf};
 const INSTANCE: &str = "0123456789abcdef0123456789abcdef";
 
 /// How long a refusal may take:
-/// far below the start ceiling it replaces (one minute,
-/// twice with the reload),
+/// far below the start ceiling it replaces (one minute),
 /// and above any reason for a slow check.
 const AT_ONCE: std::time::Duration = std::time::Duration::from_secs(2);
 
@@ -38,16 +37,15 @@ struct Addressing {
     /// What the question is answered with instead of addresses,
     /// when it is made to fail.
     refusal: Option<CallError>,
+    /// The units the manager dropped after a stop,
+    /// which it no longer holds:
+    /// a stop in the mode that applies the job to the socket and the units that require it takes both of a worktree's units.
+    stopped: std::collections::HashSet<String>,
 }
 
 impl Manager for Addressing {
     fn within(&mut self, wait: std::time::Duration) {
         self.calls.push(format!("within {}", wait.as_secs()));
-    }
-
-    fn reload(&mut self) -> Result<(), CallError> {
-        self.calls.push(String::from("reload"));
-        return Ok(());
     }
 
     fn reset_failed(&mut self, unit: &str) -> Result<(), CallError> {
@@ -62,18 +60,25 @@ impl Manager for Addressing {
 
     fn stop(&mut self, unit: &str) -> Result<(), CallError> {
         self.calls.push(format!("stop {unit}"));
+        // What the manager does with a stop in the mode that applies the job to the unit and to the units that require it:
+        //  the socket and the service of one worktree are dropped together, and a dropped unit is not held.
+        for name in [unit.to_string(), unit.replace(".socket", ".service"), unit.replace(".service", ".socket")] {
+            let _dropped = self.stopped.insert(name);
+        }
         return Ok(());
     }
 
     fn stop_alone(&mut self, unit: &str) -> Result<(), CallError> {
         self.calls.push(format!("stop-alone {unit}"));
+        let _dropped = self.stopped.insert(unit.to_string());
         return Ok(());
     }
 
     fn active_state(&mut self, unit: &str) -> Result<Option<String>, CallError> {
         self.calls.push(format!("state {unit}"));
-        // An earlier release's unit for this worktree never runs in these controls.
-        return Ok(if unit.contains("cli-git@") { None } else { Some(String::from("inactive")) });
+        // An earlier release's unit for this worktree never runs in these controls, and a unit the manager dropped is not
+        //  held any more.
+        return Ok(if unit.contains("cli-git@") || self.stopped.contains(unit) { None } else { Some(String::from("inactive")) });
     }
 
     fn listen(&mut self, unit: &str) -> Result<Option<Vec<String>>, CallError> {

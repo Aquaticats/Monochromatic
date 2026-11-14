@@ -129,6 +129,10 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.ignored_files_the_tree_tracks(revision);
     }
 
+    fn untracked_files_the_tree_tracks(&mut self, revision: &OsStr) -> Result<Vec<String>, String> {
+        return self.inner.untracked_files_the_tree_tracks(revision);
+    }
+
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {
         return self.inner.clean_deleted_paths(arguments);
     }
@@ -194,6 +198,10 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
 
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
         return (**self).ignored_files_the_tree_tracks(revision);
+    }
+
+    fn untracked_files_the_tree_tracks(&mut self, revision: &OsStr) -> Result<Vec<String>, String> {
+        return (**self).untracked_files_the_tree_tracks(revision);
     }
 
     fn clean_deleted_paths(&mut self, arguments: Vec<OsString>) -> Result<Vec<Vec<u8>>, String> {

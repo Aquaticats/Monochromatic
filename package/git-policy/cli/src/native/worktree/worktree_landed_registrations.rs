@@ -83,8 +83,7 @@ pub(crate) fn registration_naming(common_dir: &Path, worktree: &Path) -> Result<
             return Ok(Some(one));
         }
     }
-    return Ok(None);
-}
+    return Ok(None);}
 
 /// What:
 ///  Every registration of the repository,
