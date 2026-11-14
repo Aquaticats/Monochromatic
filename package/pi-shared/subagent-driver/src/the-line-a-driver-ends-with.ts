@@ -119,9 +119,10 @@ function startsNoteOf(summary: RunSummary,): string {
     ...(last?.reason === undefined ? {} : { reason: last.reason, }),
     lines: last?.standardErrorLines ?? [],
   },);
+  // The sentence ends where the line's own full stop is, so a reason that ends a sentence never shows two.
   return (summary.piStartAttempts === 1)
-    ? ` Pi exited before it took the prompt on its only start, ${exitWordsOf(last,)}${said}.`
-    : ` Pi exited before it took the prompt on each of its ${starts} starts, the last of them ${exitWordsOf(last,)}${said}.`;
+    ? ` Pi exited before it took the prompt on its only start, ${exitWordsOf(last,)}${said}`
+    : ` Pi exited before it took the prompt on each of its ${starts} starts, the last of them ${exitWordsOf(last,)}${said}`;
 }
 
 /**
