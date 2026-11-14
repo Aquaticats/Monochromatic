@@ -760,6 +760,9 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - A Pi run that cannot write into the main checkout (tip `ca137eb2bf`, added 2026-11-14T13:59-05:00):
+    is a review's unit also held to a read-only worktree,
+    which needs every package's build folder listed as writable so that a review can still build and test?
   - The queue of runs filled from the driver package (tip `9a778654e9`, added 2026-11-14T13:15-05:00):
     does `reviewOfBranch` belong in the queue too;
     is half an hour the right bound for the notice that the filling has stalled;
@@ -1235,6 +1238,38 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The change that keeps a Pi run out of the main checkout is written and goes to review (2026-11-14T13:59:05-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked.
+
+- **A Pi run cannot write into the main checkout** (tip `ca137eb2bf`, ended 13:54:18):
+  the run's unit gets the main checkout read-only (`ReadOnlyPaths=`),
+  with its own worktree,
+  the common Git directory,
+  the checkout's `.cache`,
+  its scratch and its run folder writable (`ReadWritePaths=`).
+  By its controls on a disposable repository:
+  before the change a write and a delete under the checkout's `package/` succeed;
+  after it both are refused with `Read-only file system`,
+  while writes into the worktree,
+  the run folder,
+  scratch and `.cache` succeed and a commit lands.
+  The user manager of this machine (systemd 262) honours both properties for an unprivileged unit;
+  a writable path that does not exist fails the unit unless it carries the `-` prefix.
+  It found how the fuzz sidecar's author came to write there:
+  that agent copied its own three files from the main checkout into its worktree after seeing them in the main checkout's status.
+  Left open by it:
+  a review's unit can be held to a read-only worktree,
+  but a type check then fails on the first package's build folder,
+  so reviews would need each package's build folder listed;
+  and the batch's own unit is not confined,
+  since it makes the worktrees.
+  The first of these is added to the kept questions.
+  Review queued second (range `main...ca137eb2bf`, five code files).
+- The queue held 60 entries at 13:59:05.
 
 ##### The merge that ends saved and the commit that says what stopped it both pass; pass 44 carries them (2026-11-14T13:54:43-05:00)
 
