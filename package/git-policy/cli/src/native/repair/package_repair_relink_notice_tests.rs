@@ -61,23 +61,26 @@ fn the_words_name_the_worktree_what_failed_and_every_command() {
 }
 
 /// What:
-///  A record whose tries ran out with no answer kept says the service stopped,
-///  rather than claiming a tool failed.
+///  A record with no kept answer says so and points at the service's journal,
+///  and claims neither that a tool failed nor that no tool ever ran.
 /// Why:
 ///   A record killed on every try holds no answer of any tool,
-///  and words that named a reason it never had would send the person after the wrong thing.
+///  and so does one whose reason could not be written;
+///  the two cannot be told apart from the files, so the words may only say what is true of both,
+///  and the journal is where the rest is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const words = wordsFor(worktree, entry, 3, undefined); assert(words.includes('stopped 3 times'));
+/// const words = wordsFor(worktree, entry, 3, undefined); assert(words.includes("No tool's answer was kept"));
 /// ```
 #[test]
-fn the_words_of_a_record_no_tool_answered_say_the_service_stopped() {
+fn the_words_of_a_record_with_no_kept_answer_point_at_the_journal() {
     let root: PathBuf = fixture("relink-notice-no-answer");
     let worktree: PathBuf = root.join("the worktree");
     let words: String = words_for(worktree.as_path(), &entry_rooted_at(worktree.as_path()), 3, None);
-    assert!(words.contains("stopped 3 times"), "the words do not say the service stopped: {words}");
+    assert!(words.contains("No tool's answer was kept for this record, so what stopped it is only in the commit service's journal."), "the words do not say what is known: {words}");
     assert!(!words.contains("The last try failed with"), "the words name a failure no tool gave: {words}");
+    assert!(!words.contains("no tool's answer was ever recorded"), "the words claim something no file can show: {words}");
     remove(root.as_path());
 }
 

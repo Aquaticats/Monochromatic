@@ -337,3 +337,210 @@ fn a_given_up_relink_quotes_the_reason_the_last_try_gave_and_lands_in_its_own_wo
     assert!(!work_directory(common.as_path()).parent().expect("the wrapper's folder").join("relink-failures").join(item.id()).is_file(), "the reason of a settled record is left behind");
     remove(root.as_path());
 }
+
+/// What:
+///  A relink record queued in a worktree of its own,
+///  and the work directory its states are in.
+/// Why:
+///  The two controls below drive the real drain and the real recovery over one record,
+///  and they differ in what happens to the pass that gives it up;
+///  the scene they share lives here once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scene = givenUpRelinkScene('name'); // { root, common, worktree, admin, item, work }
+/// ```
+struct RelinkScene {
+    /// The fixture's root, which a control removes.
+    root: PathBuf,
+    /// The common directory the record is queued under.
+    common: PathBuf,
+    /// That worktree's own Git directory.
+    admin: PathBuf,
+    /// The record.
+    item: WorkItem,
+    /// The work directory its states are in.
+    work: PathBuf,
+    /// How many passes of this scene have run,
+    /// so each looks further ahead than the one before:
+    /// a claim a pass took carries that pass's reading,
+    /// and the next pass only takes it once a lease has gone by after it.
+    passes: std::cell::Cell<u32>,
+}
+
+/// The reason every control below gives the record's failing try.
+const THE_REASON: &str = "pnpm: exit status 1: ERR_PNPM_OUTDATED_LOCKFILE";
+
+/// What:
+///  One relink record of one worktree,
+///  queued and ready for the first drain.
+/// Why:
+///   Every step of the give-up path is the production one:
+///   the drain claims it,
+///   the handler answers with a retryable failure,
+///   and the recovery takes the claim back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const scene = (name) => { const s = fixture(name); writePointer(s.worktree, s.admin); enqueue(s.work, relinkItem(s)); return s; }
+/// ```
+fn given_up_relink_scene(name: &str) -> RelinkScene {
+    let root: PathBuf = fixture(name);
+    let common: PathBuf = root.join("common");
+    let worktree: PathBuf = root.join("the worktree");
+    let admin: PathBuf = common.join("worktrees/the-worktree");
+    std::fs::create_dir_all(common.as_path()).expect("common");
+    std::fs::create_dir_all(worktree.as_path()).expect("worktree");
+    std::fs::create_dir_all(admin.as_path()).expect("registration");
+    std::fs::write(worktree.join(".git"), format!("gitdir: {}\n", admin.display())).expect("pointer");
+    let entry: crate::package_repair_relink::RelinkEntry = crate::package_repair_relink::RelinkEntry {
+        root: worktree.clone(),
+        search_path: crate::package_repair_relink::SearchPathOfTheAdd::Unset,
+        tools: vec![crate::package_repair_relink::RelinkTool::Pnpm],
+    };
+    let item: WorkItem = crate::package_repair_relink::item_of(common.as_path(), worktree.as_path(), &entry).expect("the record");
+    let work: PathBuf = work_directory(common.as_path());
+    enqueue(work.as_path(), &item).expect("the record is queued");
+    return RelinkScene { root, common, admin, item, work, passes: std::cell::Cell::new(0) };
+}
+
+impl RelinkScene {
+    /// One attempt of the relink and the claim it keeps taken back,
+    /// read at a clock further ahead than every pass before it.
+    fn attempt(&self, handlers: &RelinkRetries) -> crate::work_item_recovery::Recovered {
+        drained_once(self.common.as_path(), handlers);
+        let passes: u32 = self.passes.get() + 1;
+        self.passes.set(passes);
+        let after_the_lease: ClaimTime = ClaimTime::read().advanced(CLAIM_LEASE * 2 * passes);
+        return crate::work_item_recovery::requeue_expired_reporting_telling(
+            self.work.as_path(),
+            &after_the_lease,
+            CLAIM_LEASE,
+            MAX_TRIES,
+            &crate::service_work_handlers_replanning_and_acceptance::SkipNotice(self.common.as_path()),
+        );
+    }
+
+    /// The record's own attempts, up to the claim the give-up pass takes.
+    fn drive_to_the_last_claim(&self, handlers: &RelinkRetries) {
+        for _attempt in 1..MAX_TRIES {
+            let recovered: crate::work_item_recovery::Recovered = self.attempt(handlers);
+            assert!(recovered.given_up.is_empty(), "the record is not given up on before its last try");
+        }
+    }
+
+    /// Where the record stands, as the directory it is in.
+    fn state(&self) -> &'static str {
+        for state in [PENDING, DONE, FAILED] {
+            if state_directory(self.work.as_path(), state).join(self.item.id()).is_file() {
+                return state;
+            }
+        }
+        for state in ["claimed", "recovering"] {
+            let Ok(entries) = std::fs::read_dir(state_directory(self.work.as_path(), state)) else { continue };
+            for entry in entries.flatten() {
+                if id_of_entry(entry.file_name().to_string_lossy().as_ref()) == self.item.id() {
+                    return state;
+                }
+            }
+        }
+        return "no state";
+    }
+
+    /// The reason kept beside the record, as a command asks for it.
+    fn kept_reason(&self) -> Option<String> {
+        return crate::package_repair_relink_failure::recall(self.item.git_dir.as_path(), self.item.id().as_str());
+    }
+
+    /// The notices a command in the worktree would read now, taken as it takes them.
+    fn notices(&self) -> Vec<String> {
+        return crate::package_repair_relink_notice::take_notices(self.admin.as_path());
+    }
+}
+
+/// What:
+///  A pass killed between the words and the move to `failed` leaves the reason where the next pass finds it,
+///  and that pass settles the record with the words the first wrote.
+/// Why:
+///   The recovery promises that a kill after the notice is recovered once more, which replaces the notice instead of
+///   losing it.
+///   A reason taken back at the first telling makes that promise false:
+///   the second pass words a notice that no tool ever answered,
+///   it cannot replace the first words while they stand,
+///   so the record is told again every lease period and never settles,
+///   and once a command has taken the first notice the false one lands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const s = givenUpRelinkScene('kill'); s.driveToTheLastClaim(handlers); killedAfterTheWords.value = true; s.attempt(handlers);
+/// assert(s.state() === 'recovering'); assert(s.keptReason() === THE_REASON); killedAfterTheWords.value = false;
+/// assert(s.attempt(handlers).moved === 1); assert(s.state() === 'failed');
+/// assert(s.notices() === [wordsQuoting(THE_REASON)]); assert(s.keptReason() === undefined);
+/// ```
+#[test]
+fn a_give_up_killed_between_the_words_and_the_move_settles_on_the_next_pass_with_the_same_words() {
+    let scene: RelinkScene = given_up_relink_scene("relink-give-up-killed");
+    let handlers: RelinkRetries = RelinkRetries { said: String::from(THE_REASON) };
+    scene.drive_to_the_last_claim(&handlers);
+    // The kill this control makes: the pass writes the words and stops before the move, which is the state a process
+    //  killed at that instruction leaves.
+    crate::work_item_recovery::KILLED_AFTER_THE_WORDS.with(|flag: &std::cell::Cell<bool>| flag.set(true));
+    let interrupted: crate::work_item_recovery::Recovered = scene.attempt(&handlers);
+    crate::work_item_recovery::KILLED_AFTER_THE_WORDS.with(|flag: &std::cell::Cell<bool>| flag.set(false));
+    assert_eq!(interrupted.moved, 0, "the killed pass moved nothing");
+    assert!(interrupted.given_up.is_empty(), "the killed pass reported nothing given up");
+    assert_eq!(scene.state(), "recovering", "a killed pass leaves the record where it took it");
+    assert_eq!(scene.kept_reason().as_deref(), Some(THE_REASON), "the reason died with the killed pass, and the next pass has nothing to quote");
+    let first: Vec<String> = scene.notices();
+    assert_eq!(first.len(), 1, "the killed pass wrote one notice: {first:?}");
+    assert!(first[0].contains(THE_REASON), "the first notice quotes the reason: {first:?}");
+    // The next pass, which is the one the recovery promises.
+    let settled: crate::work_item_recovery::Recovered = scene.attempt(&handlers);
+    assert_eq!(settled.moved, 1, "the pass after the kill settles the record");
+    assert_eq!(scene.state(), FAILED, "the record reached `failed`");
+    assert_eq!(scene.kept_reason(), None, "the reason is taken back once the record is where nothing reads it again");
+    let shown: Vec<String> = scene.notices();
+    assert_eq!(shown.len(), 1, "the person reads one notice: {shown:?}");
+    assert!(shown[0].contains(THE_REASON), "the words the person reads are the ones the first pass wrote: {shown:?}");
+    assert!(!shown[0].contains("no tool's answer was kept"), "the person is told a tool answered: {shown:?}");
+    remove(scene.root.as_path());
+}
+
+/// What:
+///  A give-up whose move to `failed` fails keeps the reason,
+///  and the next pass settles the record with the same words.
+/// Why:
+///   A rename into `failed` can fail (a full disk, a directory that is not there),
+///   and the recovery's words promise the pass after it says the same thing again.
+///   Nothing scans `failed`, so a reason taken back before the record got there is an answer nothing can repeat.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const s = givenUpRelinkScene('move-fails'); s.driveToTheLastClaim(handlers); rmSync(join(s.work, 'failed'));
+/// assert(s.attempt(handlers).moved === 0); assert(s.state() === 'recovering'); assert(s.keptReason() === THE_REASON);
+/// mkdirSync(join(s.work, 'failed')); assert(s.attempt(handlers).moved === 1); assert(s.notices() === [wordsQuoting(THE_REASON)]);
+/// ```
+#[test]
+fn a_give_up_whose_move_to_failed_fails_settles_on_the_next_pass_with_the_same_words() {
+    let scene: RelinkScene = given_up_relink_scene("relink-give-up-move-fails");
+    let handlers: RelinkRetries = RelinkRetries { said: String::from(THE_REASON) };
+    scene.drive_to_the_last_claim(&handlers);
+    // The move this control makes fail: the directory it moves into is not there, which is what a failed rename leaves
+    //  behind and what a full disk does to the record that would have moved.
+    std::fs::remove_dir(state_directory(scene.work.as_path(), FAILED)).expect("the failed directory is taken away");
+    let failed_move: crate::work_item_recovery::Recovered = scene.attempt(&handlers);
+    assert_eq!(failed_move.moved, 0, "a move that fails settles nothing");
+    assert_eq!(scene.state(), "recovering", "the record stays where the taker left it");
+    assert_eq!(scene.kept_reason().as_deref(), Some(THE_REASON), "the reason was taken back before the record got to where nothing reads it again");
+    // What a later pass has once the disk can take the record again.
+    std::fs::create_dir_all(state_directory(scene.work.as_path(), FAILED)).expect("the failed directory is back");
+    let settled: crate::work_item_recovery::Recovered = scene.attempt(&handlers);
+    assert_eq!(settled.moved, 1, "the pass after the failed move settles the record");
+    assert_eq!(scene.state(), FAILED, "the record reached `failed`");
+    let shown: Vec<String> = scene.notices();
+    assert_eq!(shown.len(), 1, "the person reads one notice: {shown:?}");
+    assert!(shown[0].contains(THE_REASON), "the notice the person reads quotes the reason: {shown:?}");
+    assert!(!shown[0].contains("no tool's answer was kept"), "the notice claims no answer was kept: {shown:?}");
+    assert_eq!(scene.kept_reason(), None, "the reason is taken back once the record settled");
+    remove(scene.root.as_path());
+}

@@ -377,6 +377,8 @@ pub(crate) fn still_held(held: &HeldClaims, work_dir: &Path, claimed: Vec<Claime
 ///  A relink given up on is told in the Git directory of the worktree whose links still name another checkout,
 ///  so the next command there shows it,
 ///  and no command in another worktree answers for a worktree it does not hold.
+///  Its reason stays kept until the record is in `failed` (`GivenUpNotice::settled`),
+///  because a pass killed between the words and the move is told again and must say the same thing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -395,6 +397,9 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool
                     //  its Git directory with it, and then the notice is left in the directory the record was drained from, which
                     //  is still where a person looks after removing one.
                     let worktree_git_dir: PathBuf = crate::package_repair_relink_notice::git_dir_of_a_worktree(item.repository.as_path()).unwrap_or_else(|| return git_dir.to_path_buf());
+                    // The words replace any an earlier telling of this record left: a pass killed between them and the move
+                    //  to `failed` is told again, and says the same thing because the reason is still kept
+                    //  (`GivenUpNotice::settled` takes it back once the record is where nothing reads it again).
                     if let Err(problem) = crate::package_repair_relink_notice::record_notice(worktree_git_dir.as_path(), item.id().as_str(), text.as_str()) {
                         crate::service_error!(
                             "the abandoned relink of {} {} could not be recorded for the person: {problem}",
@@ -404,9 +409,6 @@ pub(crate) fn tell_about_given_up(git_dir: &Path, given_up: &[WorkItem]) -> bool
                         told = false;
                         continue;
                     }
-                    // The words are where a command shows them, so the reason they quote is no longer needed and nothing else
-                    //  removes it once the record has moved to `failed`.
-                    crate::package_repair_relink_failure::forget(item.git_dir.as_path(), item.id().as_str());
                 }
                 None => {
                     crate::service_error!(
@@ -456,6 +458,25 @@ pub(crate) struct SkipNotice<'a>(pub(crate) &'a Path);
 impl crate::work_item_recovery::GivenUpNotice for SkipNotice<'_> {
     fn tell(&self, given_up: &WorkItem) -> bool {
         return tell_about_given_up(self.0, std::slice::from_ref(given_up));
+    }
+
+    /// What:
+    ///  Take a relink's kept reason back,
+    ///  now that its record is in `failed` and no later pass will tell again.
+    /// Why:
+    ///   The reason has to outlive the words:
+    ///   a pass killed between them and the move to `failed` is told again by the next one,
+    ///   and a reason forgotten at the first telling would make that second notice claim no tool ever answered.
+    ///   Nothing reads a record in `failed`, so keeping it longer would leave a file nothing removes.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// settled(item) { if (item.kind === 'relink') forget(item.gitDir, item.id()); }
+    /// ```
+    fn settled(&self, given_up: &WorkItem) {
+        if given_up.kind == WorkKind::Relink {
+            crate::package_repair_relink_failure::forget(given_up.git_dir.as_path(), given_up.id().as_str());
+        }
     }
 }
 

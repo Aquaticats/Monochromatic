@@ -23,7 +23,7 @@
 use crate::package_repair_pnpm::manual_command;
 use crate::package_repair_relink::{RelinkEntry, RelinkTool, decode};
 use crate::package_repair_toolchain::MANUAL_COMMAND;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
 use std::path::{Path, PathBuf};
 
 /// Directory under the worktree's own Git directory that holds one notice per relink given up on.
@@ -66,18 +66,24 @@ fn commands_for(worktree: &Path, tools: &[RelinkTool]) -> Vec<String> {
 ///   never as the fix on its own:
 ///   the wrapper ran it,
 ///   and it cannot run anything else for the tools the record asked for.
+///   `tries_the_record_allows` is the record's bound and never the count it reached:
+///   the count rises when a pass killed after the words is recovered again,
+///   and the words a second telling writes over the first must say what the first said.
+///   A record with no kept answer does not claim the service stopped or that no tool ran,
+///   because either may have happened:
+///   it says what is true, that no answer was kept, and where the rest is.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const words = (worktree, commands, tries, lastFailure) => `monochromatic-git-policy-cli: the package state of ${worktree} was not relinked, so its links still name the checkout it was copied from. ${lastFailure === undefined ? `The commit service stopped ${tries} times before it could finish the job (a restart, a kill or a crash each time), so no tool's answer was ever recorded.` : `The wrapper tried ${tries} times and gave up. The last try failed with: ${lastFailure.replace(/[. \\n]+$/, '')}.`} Running the same command again would fail the same way, so something only you can change has to come first; after that, ${commands.map((c) => `\`${c}\``).join(' or ')} finishes the job.`;
+/// const words = (worktree, commands, triesAllowed, lastFailure) => `monochromatic-git-policy-cli: the package state of ${worktree} was not relinked, so its links still name the checkout it was copied from. ${lastFailure === undefined ? `No tool's answer was kept for this record, so what stopped it is only in the commit service's journal.` : `The wrapper tried ${triesAllowed} times and gave up. The last try failed with: ${lastFailure.replace(/[. \\n]+$/, '')}.`} Running the same command again would fail the same way, so something only you can change has to come first; after that, ${commands.map((c) => `\`${c}\``).join(' or ')} finishes the job.`;
 /// ```
-pub fn words_for(worktree: &Path, entry: &RelinkEntry, tries: u32, last_failure: Option<&str>) -> String {
+pub fn words_for(worktree: &Path, entry: &RelinkEntry, tries_the_record_allows: u32, last_failure: Option<&str>) -> String {
     let commands: Vec<String> = commands_for(worktree, &entry.tools);
     let opening: String = format!("monochromatic-git-policy-cli: the package state of {} was not relinked, so its links still name the checkout it was copied from.", worktree.display());
     // The tool's own words are quoted as they came, minus the stop that would double the sentence's own period.
     let what_happened: String = match last_failure.map(|reason| return reason.trim_end_matches(['.', ' ', '\n'])) {
-        Some(reason) => format!("The wrapper tried {tries} times and gave up. The last try failed with: {reason}."),
-        None => format!("The commit service stopped {tries} times before it could finish the job (a restart, a kill or a crash each time), so no tool's answer was ever recorded."),
+        Some(reason) => format!("The wrapper tried {tries_the_record_allows} times and gave up. The last try failed with: {reason}."),
+        None => String::from("No tool's answer was kept for this record, so what stopped it is only in the commit service's journal."),
     };
     return format!(
         "{opening} {what_happened} Running the same command again would fail the same way, so something only you can change has to come first; after that, `{}` finishes the job.",
@@ -122,20 +128,28 @@ pub fn git_dir_of_a_worktree(worktree: &Path) -> Option<PathBuf> {
 /// What:
 ///  Write the notice one given-up record leaves,
 ///  named after the record,
-///  so two records of one worktree do not answer for each other.
+///  replacing any words an earlier telling of that record left.
 /// Why:
 ///   The record is gone from the queue by the time the person reads the notice,
 ///   so the name it leaves has to be one a command can show and remove without knowing the record.
+///   A pass killed between the words and the move to `failed` is told again by the next pass
+///   (`work_item_recovery.rs`),
+///   and the record's reason is kept until it is in `failed`,
+///   so the second telling words exactly what the first did:
+///   the same bytes over the same name,
+///   which a command either reads whole or finds replaced.
+///   Words that could not replace the first would hold the record unsettled for ever,
+///   because the recovery settles nothing while the person cannot be told.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const record = (gitDir, id, text) => { mkdir(noticeDirectory(gitDir)); writeFile(join(noticeDirectory(gitDir), id), text) };
+/// const record = (gitDir, id, text) => { mkdir(noticeDirectory(gitDir)); replaceFile(join(noticeDirectory(gitDir), id), text) };
 /// ```
 pub fn record_notice(git_dir: &Path, id: &str, text: &str) -> Result<(), String> {
     let directory: PathBuf = git_dir.join(NOTICE_DIRECTORY);
     create_private_directory_all(directory.as_path()).map_err(|error| format!("the notice directory {} could not be made ({error})", directory.display()))?;
     let path: PathBuf = directory.join(id);
-    return write_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| format!("the notice {} could not be written ({error})", path.display()));
+    return replace_private_file_unsynced(path.as_path(), text.as_bytes()).map_err(|error| format!("the notice {} could not be written ({error})", path.display()));
 }
 
 /// What:
@@ -177,9 +191,9 @@ pub fn take_notices(git_dir: &Path) -> Vec<String> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const noticeFor = (item) => item.kind === 'relink' && decode(item.parent) ? wordsFor(item.repository, decode(item.parent), MAX_TRIES) : undefined;
+/// const noticeFor = (item) => item.kind === 'relink' && decode(item.parent) ? wordsFor(item.repository, decode(item.parent), MAX_TRIES, recall(item.gitDir, item.id)) : undefined;
 /// ```
-pub fn notice_for_given_up(item: &crate::work_item::WorkItem, tries: u32) -> Option<String> {
+pub fn notice_for_given_up(item: &crate::work_item::WorkItem, tries_the_record_allows: u32) -> Option<String> {
     if item.kind != crate::work_item::WorkKind::Relink {
         return None;
     }
@@ -188,7 +202,7 @@ pub fn notice_for_given_up(item: &crate::work_item::WorkItem, tries: u32) -> Opt
         Err(_unreadable) => return None,
     };
     let last_failure: Option<String> = crate::package_repair_relink_failure::recall(item.git_dir.as_path(), item.id().as_str());
-    return Some(words_for(item.repository.as_path(), &entry, tries, last_failure.as_deref()));
+    return Some(words_for(item.repository.as_path(), &entry, tries_the_record_allows, last_failure.as_deref()));
 }
 
 /// Notice controls stay out of the release executable.
