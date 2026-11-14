@@ -24,7 +24,7 @@
 //!
 //!  A record is **one file**:
 //!  the pin itself,
-//!  named `<path digest>.<pid>.<birth identity>.hold`,
+//!  named `<path digest>.<device>.<inode>.<pid>.<birth identity>.hold`,
 //!  and the path that digest stands for is written once per path in `<path digest>.lock-path`.
 //!  Nothing else is written for a record,
 //!  so publishing it is one `link` and nothing else,
@@ -216,23 +216,28 @@ fn lock_path_file(folder: &Path, digest: &str) -> PathBuf {
 /// What:
 ///  The record's own file name for one take by one Git:
 ///  the path's digest,
+///  the device and inode of the file the take made,
 ///  the process number and the birth identity.
 /// Why:
 ///   The name is unique to that take:
 ///  no later run of any command can carry that process number and that birth,
+///  and no other take can hold that inode while this pin does,
 ///  so a removal acts on a name no other command's write produces.
 ///  A path alone and an inode alone were not enough:
 ///  one path holds one lock after another,
 ///  and an inode number comes back to a path once its file is gone
 ///  (a review of `f8f5cba090`, finding 1;
 /// a review of `2ac27d2a29`, finding 1).
+///  The file in the name also keeps one take of one Git from sharing a name with its next take:
+///  the second take writes its own record beside the first,
+///  and nothing has to be unlinked before a record exists.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// `${digest}.${pid}.${identity}.hold`
+/// `${digest}.${dev}.${ino}.${pid}.${identity}.hold`
 /// ```
-fn pin_name(digest: &str, holder: &(i64, String)) -> Option<String> {
-    let name: String = format!("{digest}.{}.{}{HOLD_SUFFIX}", holder.0, holder.1);
+fn pin_name(digest: &str, file: (u64, u64), holder: &(i64, String)) -> Option<String> {
+    let name: String = format!("{digest}.{}.{}.{}.{}{HOLD_SUFFIX}", file.0, file.1, holder.0, holder.1);
     if name.len() > MOST_NAME_BYTES || holder.1.contains('/') || holder.1.contains('\0') {
         return None;
     }
@@ -244,7 +249,8 @@ fn pin_name(digest: &str, holder: &(i64, String)) -> Option<String> {
 ///  or nothing when the name is not one of this module's.
 /// Why:
 ///   The name is the whole record,
-///  so a name that is not this shape names nobody.
+///  so a name that is not this shape names nobody,
+///  and the two numbers before the process are checked only for their shape.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -252,11 +258,15 @@ fn pin_name(digest: &str, holder: &(i64, String)) -> Option<String> {
 /// ```
 fn holder_of_pin_name(digest: &str, name: &str) -> Option<(i64, String)> {
     let rest: &str = name.strip_prefix(format!("{digest}.").as_str())?.strip_suffix(HOLD_SUFFIX)?;
-    let (pid, identity) = rest.split_once('.')?;
+    let mut fields = rest.splitn(4, '.');
+    let _device: u64 = fields.next()?.parse::<u64>().ok()?;
+    let _inode: u64 = fields.next()?.parse::<u64>().ok()?;
+    let pid: i64 = fields.next()?.parse::<i64>().ok()?;
+    let identity: &str = fields.next()?;
     if identity.is_empty() {
         return None;
     }
-    return Some((pid.parse::<i64>().ok()?, identity.to_owned()));
+    return Some((pid, identity.to_owned()));
 }
 
 /// What:
@@ -294,9 +304,9 @@ pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<W
     let file: (u64, u64) = (seen.device, seen.inode);
     let digest: String = digest_of_path(lock);
     name_the_path(folder.as_path(), digest.as_str(), lock)?;
-    let name: String = pin_name(digest.as_str(), holder)?;
+    let name: String = pin_name(digest.as_str(), file, holder)?;
     let pin: PathBuf = folder.join(name.as_str());
-    // A pin of a killed run of this very take, or a planted one, goes first: this name belongs to this take alone.
+    // A file of a killed run of this very take, or a planted one, goes first: this name belongs to this one take.
     let _removed = std::fs::remove_file(pin.as_path());
     std::fs::hard_link(lock, pin.as_path()).ok()?;
     let linked: Option<LockMetadata> = crate::index_lock_evidence::read_lock_metadata(pin.as_path()).ok().flatten();

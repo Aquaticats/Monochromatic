@@ -9990,21 +9990,23 @@ So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
   writes none at all when it did not create the lock,
   and writes none beside a PID file it found in the way;
 - the command writes **one file**: the hard link that pins the very inode the lock had, in
-  `<common-git-dir>/cli-git-lock-holders/pinned/<path digest>.<pid>.<birth identity>.hold`,
+  `<common-git-dir>/cli-git-lock-holders/pinned/<path digest>.<device>.<inode>.<pid>.<birth identity>.hold`,
   and the path that digest stands for in `<path digest>.lock-path`, written once per path before any
   record of it.
   While the link exists the file system cannot give that inode to another file,
   so a lock made again at that path is a different file and no record describes it;
-- the record's name is the take's own: the path's digest with the process number and the birth
-  identity of the Git that took the lock,
-  which no later run can be.
+- the record's name is the take's own: the path's digest with the device and inode of the file the
+  take made and the process number and birth identity of the Git that took the lock,
+  which no later run and no next take by the same Git can be.
   A name of the path alone is one name for two commands' locks,
   because one command's Git renames its lock over its target and the next takes the same path
   microseconds later;
   a name of the path and the inode alone is one name for two takes as well,
   because the inode number comes back to the path once the file is gone
   (a review of `f8f5cba090`, finding 1).
-  With the take's own name no removal acts on a name another command's write produces;
+  With the take's own name no removal acts on a name another command's write produces,
+  and a second take by one Git writes its record beside the first instead of in its place,
+  so no step of a write unlinks a record before the next one exists;
 - the record is published by that one `link` and by nothing else,
   so it appears whole or not at all
   (a review of `2ac27d2a29`, finding 1,
