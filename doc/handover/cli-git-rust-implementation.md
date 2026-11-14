@@ -1202,6 +1202,75 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The reload fix's review ran and found no defect: pass 32; issue 6293's author answered (2026-11-14T00:19:46-05:00)
+
+Not final and not approved:
+read by the coordinating session from one review file and one run's last message,
+nothing rerun by it.
+
+- **The reload fix (issue 6286)**
+  (`~/temp/agent/change-reviews/git-policy-cli-reload-fix-answers-the-instance-that-fails-its-start-at-an-upgrade/review.md`,
+  its second run ended 00:13:34,
+  on `05edb83219`):
+  the reading of 23:41 now stands on runs.
+  The build;
+  the controls of the five touched modules,
+  each named and passing;
+  a break planted in the unload's stop,
+  caught by its control and restored;
+  and its two candidates turned into probes with the manager stand-in.
+  The first candidate's mechanism is real
+  (the record is written while the manager still holds the service unit)
+  and loses nothing,
+  since the socket is gone and a start from the held text runs this release.
+  The half that needs a real manager
+  (a retiring service stopping its own socket,
+  a client's start bringing both back)
+  could not be run on this machine;
+  the review says what the author's container proof would have to show.
+  No defect.
+  Pass 32 is queued at the head
+  (`integration-pass-32-with-the-reload-fix-that-keeps-an-older-unit-startable-prompt.md`),
+  told to run that container proof once.
+- What the review met on the way:
+  the short alias for `HOME` that worked for another review did not work for these fixtures,
+  which assert socket path lengths and pass only with a `HOME` of ten bytes or fewer;
+  it used a link in `/dev/shm` and removed it.
+  And cargo-shadow printed "no delegated control group" on each run,
+  its plain statement that it reached no service manager with the bus address unset;
+  not a defect.
+- **Issue 6293**
+  (run `issue-6293-private-runtime-directory-is-the-boundary-and-a-push-to-no-remote-ends-at-once-3`,
+  ended 00:13:21,
+  tip `92fb15b8aa`):
+  both findings of its second review answered,
+  each shown first with the review's harness.
+  The report of a delivered push names the commit the push sent,
+  through one binding both arms use.
+  A failure no retry can mend at a second address
+  (a hook's decline,
+  a login,
+  a conflict)
+  ends the plan with one report;
+  a failure that may pass still keeps it.
+  Seven controls,
+  three of them failing with the classification taken out.
+  It asks the whole output and not the failing address's words alone,
+  and says what follows from that.
+  Its four answer commits go to review alone
+  (`review-git-policy-cli-issue-6293-answers-after-its-second-review`,
+  range `a77f668173...c5ff5defcc`,
+  queued near the head):
+  the branch stands on the no-manager branch at `2fb2e61d90`,
+  whose author is still answering three review defects
+  (its tip is `910ec91650` now),
+  so a review of the whole stack against `main` waits for that answer.
+  The two merges of `main` on this branch,
+  one of them with conflicts resolved from `main`'s side,
+  are read then.
+  It still lands after the no-manager branch.
+- The queue held 52 entries at 00:19:46.
+
 ##### The archives' review verified the substance and found five small defects; the rate-limit plugin's second review found two (2026-11-14T00:08:04-05:00)
 
 Not final and not approved:
