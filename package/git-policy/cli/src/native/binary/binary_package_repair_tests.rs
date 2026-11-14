@@ -87,6 +87,81 @@ fn repository_with_node_modules(fixture: &Fixture) -> PathBuf {
     return repo;
 }
 
+/// What:
+///  A repository whose ignored `.cache/toolchain-launchers` holds two records naming this checkout's lock:
+///  one for a launcher name the repository's lock declares,
+///  and one for a name it declares nowhere,
+///  which is what the 0.6.0 rename left in this repository's own checkout.
+/// Why:
+///  The copy takes the ignored `.cache` of the source,
+///  and `mpm-shadow install` rewrites a record only for a bin the worktree's own lock declares,
+///  so the second record is the one no install of this release can ever answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = repository(fixture, 'repo'); writeFile('.gitignore', '.cache/\n'); writeFile('toolchain.lock.json', declaring('own')); writeRecords('.cache/toolchain-launchers', ['own', 'legacy']);
+/// ```
+fn repository_with_launcher_records(fixture: &Fixture) -> PathBuf {
+    let repo: PathBuf = repository(fixture, OsStr::new("repo"));
+    std::fs::write(repo.join(".gitignore"), b".cache/\n").expect("gitignore");
+    std::fs::write(repo.join("toolchain.lock.json"), b"{\"schemaVersion\":1,\"tools\":{\"cargo:own\":{\"bins\":[\"own\"]}}}\n").expect("lock");
+    git(fixture, repo.as_path(), &["add", "--", ".gitignore", "toolchain.lock.json"]);
+    git(fixture, repo.as_path(), &["commit", "--quiet", "--message=lock"]);
+    let launchers: PathBuf = repo.join(".cache/toolchain-launchers");
+    std::fs::create_dir_all(launchers.as_path()).expect("launchers");
+    for name in ["own", "legacy"] {
+        std::fs::write(launchers.join(name), b"#!/bin/sh\nexit 0\n").expect("launcher");
+        let record: String = format!("{{\"toolId\":\"cargo:{name}\",\"lockFile\":\"{}\",\"real\":\"/tools/{name}\",\"scope\":\"repo\"}}\n", repo.join("toolchain.lock.json").display());
+        std::fs::write(launchers.join(format!("{name}.launch")), record).expect("record");
+    }
+    return repo;
+}
+
+/// A fixture `mpm-shadow` that rewrites the record of the one launcher name the fixture's lock declares,
+/// which is all a real install does,
+/// and prints the summary of what it installed.
+fn fake_mpm_shadow(fixture: &Fixture) {
+    let script: String = String::from(
+        "#!/bin/sh\n\
+         printf '{\"toolId\":\"cargo:own\",\"lockFile\":\"%s/toolchain.lock.json\",\"real\":\"/tools/own\",\"scope\":\"repo\"}' \"$MONOCHROMATIC_WORKTREE_ROOT\" > \"$MONOCHROMATIC_WORKTREE_ROOT/.cache/toolchain-launchers/own.launch\"\n\
+         echo 'toolchain install: 1 installed, 0 unchanged, 0 failed'\n\
+         exit 0\n",
+    );
+    executable(bin(fixture).join("mpm-shadow").as_path(), script.as_bytes());
+}
+
+/// What:
+///  A launcher record the new worktree's lock declares nowhere is a copy of an earlier release's layout:
+///  the service removes it and the record,
+///  instead of reporting a package state that was never relinked.
+/// Why:
+///  Every install of this release answers only for the names the worktree's own lock declares,
+///  so such a record stayed stale on every try:
+///  the relink was retried, given up on, and left a notice telling the person to run an install that answers the same way.
+///  The record the lock declares is the one the install rewrote,
+///  which this control reads to show the copy was not simply the only record there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const created = add(fixture, repo, [], 'one', '../one'); assertInvalid: !existsSync(one + '/.cache/toolchain-launchers/legacy.launch');
+/// ```
+#[test]
+fn a_launcher_record_the_lock_declares_nowhere_is_removed_and_never_fails_the_relink() {
+    let fixture: Fixture = fixture("repair-toolchain-copy");
+    let repo: PathBuf = repository_with_launcher_records(&fixture);
+    fake_mpm_shadow(&fixture);
+    let created: Observed = add(&fixture, repo.as_path(), &[], "one", "../one");
+    assert_eq!(created.code, Some(0), "{}", stderr_of(&created));
+    settle_service_work(repo.as_path());
+    let launchers: PathBuf = fixture.root.join("one/.cache/toolchain-launchers");
+    assert!(!launchers.join("legacy.launch").exists(), "the record no install rewrites is left in the new worktree");
+    assert!(!launchers.join("legacy").exists(), "the launcher beside that record is left in the new worktree");
+    let rewritten: String = std::fs::read_to_string(launchers.join("own.launch")).expect("the record the install rewrote");
+    assert!(rewritten.contains(fixture.root.join("one").to_str().expect("utf8")), "the install did not rewrite its own record: {rewritten}");
+    assert!(repo.join(".cache/toolchain-launchers/legacy.launch").exists(), "the source keeps its own records");
+    remove(&fixture);
+}
+
 /// The lines of a record file,
 /// empty when nothing was recorded.
 /// The commit service runs the tools of a new worktree,
