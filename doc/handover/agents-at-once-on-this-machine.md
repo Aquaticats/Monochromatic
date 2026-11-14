@@ -977,3 +977,30 @@ two things changed in the same hours.
   and the next cleanup,
   which the system starts by its timer.
   The probe records until 10:48 and is started again then.
+  (It was stopped at 08:54:33 instead,
+  when the level went to twenty-four and a probe that ends on slow readings took its place.)
+
+#### Level 24, started 2026-11-14T08:54:35-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+
+- **To 09:22:48**:
+  twenty-nine readings,
+  the agents going rising from five to seventeen as the places filled.
+  One slow reading of the home drive:
+  7,754 ms at 08:55:36,
+  with eight agents going,
+  the kernel's `some` I/O pressure at 22 percent over ten seconds,
+  and neither `snapper-cleanup.service` nor `snapper-timeline.service` running.
+  The build volume took 2,958 ms once,
+  at 09:03:44.
+  Never two slow readings in a row,
+  so the level stands.
+- **What that reading says about the lead**:
+  a stall of the same kind,
+  shorter,
+  with no snapshot cleanup running and fewer agents than any level that failed.
+  So the cleanup is not the only thing that stalls this drive.
+  In the minutes before it this session installed a wrapper release and made several commits in the main checkout;
+  nothing was measured that ties the reading to either.
