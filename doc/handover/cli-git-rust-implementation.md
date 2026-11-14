@@ -1202,6 +1202,411 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The merge that meets a held lock never waits again and goes to review; the cargo fetch's second review has three findings (2026-11-14T01:06:10-05:00)
+
+Not final and not approved:
+read by the coordinating session from one run's last message and one review file,
+nothing rerun by it.
+
+- **A merge that meets a held `index.lock`**
+  (run `merge-that-meets-a-held-index-lock-waits-for-its-live-holder-on-a-machine-with-other-accounts-processes-2`,
+  ended 01:01:25,
+  tip `88cd36ad07`,
+  `main` merged at `e83c332f95`):
+  the wait of up to a minute that its first session had restored is taken out,
+  as the correction of 22:32 asked.
+  The look before a merge is `main`'s one look again:
+  a dead owner is named,
+  and a holder proven alive or a lock nothing proves the owner of both save the merge at once with status 0.
+  The two binary controls that are red on `main` are rewritten to that and pass;
+  each control is shown failing with a wait put back by hand
+  (60 s where it must not wait).
+  Kept from its first session:
+  the count of processes the scan could not look at now says what it counted.
+  Cost,
+  five rounds interleaved against `main`'s code:
+  ratios from 0.96 to 1.06,
+  each inside its rounds' spread.
+  Seven files against `main`.
+  Its review is queued at the head
+  (`review-git-policy-cli-merge-that-meets-a-held-index-lock-never-waits-and-its-two-controls`,
+  range `main...88cd36ad07`).
+  Noticed by it:
+  the binary controls' `short_runtime_directory` makes folders `rt-<pid>-<n>` under `~/temp/agent` and never removes them
+  (two stood from 22:06 and 22:21);
+  a fresh run is queued for it since 01:06:44
+  (`binary-controls-of-the-wrapper-remove-the-short-runtime-directory-they-made`).
+  And its merge of `main` printed the landed sweep's line about pass 27's worktree and process 5289,
+  the defect recorded at 23:10.
+- **The cargo fetch before lint, second review**
+  (`~/temp/agent/change-reviews/mise-cargo-fetch-before-lint-answers-after-its-review/review.md`,
+  ended 01:00:33,
+  recorded `pi-not-stopped`,
+  on `feb7a90a12`):
+  the judgment's ordinary cases are verified by run.
+  Three findings.
+  A cargo home with every tarball and no registry index is judged complete,
+  the fetch is skipped,
+  and the offline closure check then fails where the old unconditional fetch repaired it:
+  reproduced,
+  the change's own,
+  back to the author.
+  The ten-second ceiling on the question to Git does not hold when Git ignores `SIGTERM`
+  (still waiting at 40 s),
+  and the task's own reads of the cargo home have no deadline:
+  the first reproduced,
+  the second read,
+  back to the author.
+  And the comment that a stale lock "fails the lint through the closure check" is not true at that commit,
+  since the check turns Cargo's failure into a warning:
+  that is the queued run `stale-cargo-lock-file-fails-the-lint-through-the-closure-check`,
+  and the order recorded before stands,
+  this branch never before that one;
+  the author is asked only to word the comment so it is true where it stands.
+  Its resume is queued at position 9
+  (`cargo-fetch-before-lint-answers-its-second-review-of-2026-11-14-prompt.md`).
+- The queue held 54 entries at 01:06:10.
+
+##### Five commits over five seconds since alpha.23, in three shapes; the user service manager answers in 8 to 73 s this hour (2026-11-14T00:58:17-05:00)
+
+Not final and not approved;
+measured by the coordinating session from the wrapper's timing record,
+the journal and the recorder of the service manager.
+Causes are named only where a line shows them.
+
+- The repository's timing record
+  (`.git/monochromatic-git-policy-cli-commit-timing.jsonl`,
+  shared by every worktree)
+  holds 49 commits under `0.6.1-alpha.23` since its install.
+  Their median is 758 ms.
+  Five took over five seconds;
+  their lines are kept in
+  `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/timing-lines-of-the-five-commits-over-five-seconds-under-alpha-23-2026-11-14T0056.jsonl`.
+- **Waiting for the service's answer at position 1**,
+  twice,
+  both in the main checkout:
+  44,189 ms at 00:20:52 and 13,077 ms at 00:54:55,
+  of which 43,277 ms and 11,553 ms were that wait
+  and 214 ms and 143 ms the landing's own lock.
+  The shape the branch in passes 29 and 34 answers.
+- **One `git rev-parse` child in the preparation**,
+  twice,
+  in two worktrees:
+  14,262 ms and 9,897 ms,
+  both ending within 50 ms of 00:31:12.9.
+  In the same second the service manager logged the end of four unrelated units within 70 ms
+  (`cargo-shadow-lean.service` and three scopes),
+  and its recorder shows an answer of 23 s asked at 00:30:48.
+  So two commands and the manager all came back together;
+  what held them is not established.
+- **Waiting for the service to start**,
+  once:
+  19,830 ms of a commit of 22,486 ms at 00:38:03.
+  The manager logged the unit started at 00:37:41.777,
+  and the program's own first line is at 00:38:01.556.
+  The same service then logged a background sync of six records that took 11,680 ms.
+- **The machine in that hour**
+  (recorder log
+  `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`):
+  29 slow answers of the user service manager asked between 00:16 and 00:56,
+  from 7,600 ms to 73,292 ms,
+  where the nine hours and twenty minutes before hold 41.
+  In its samples the load average runs from 35 to 96 on eight threads,
+  the kernel's full I/O stall over ten seconds from 3 to 40 percent,
+  and the journal daemon is in uninterruptible sleep in most of them.
+  22 agent units were going at 00:59,
+  the count the judged hour of level thirty-two had.
+- **Against the level's own criterion**
+  (`doc/handover/agents-at-once-on-this-machine.md`):
+  the seventeen Pi runs started since 23:15 all got their first answer,
+  the slowest in 98,843 ms against the bound of 120 s
+  (in the judged hour the slowest was under 75 s),
+  six of them in over a minute.
+  No write-and-sync probe had run since 19:49:23;
+  it is running again since 01:00
+  (unit `disk-ceiling-probe-level-32-while-reviews-and-four-passes-build-20261114T0100`,
+  eight hours,
+  ending early with status 3 when a drive takes over five seconds twice in a row).
+  Nothing is stopped and the level stands until a criterion fails.
+- What differs from the judged hour is not measured.
+  Not ruled out:
+  reviews that build the crate cold
+  (asked for since 23:44,
+  and several did before),
+  four integration passes building at once,
+  and a `cargo-shadow-lean.service` that ran 56 minutes until 00:31.
+- No new run for the second and third shapes yet:
+  with the manager answering in tens of seconds,
+  a commit that waits for a unit to start waits on the manager,
+  and the branch that starts the service without a manager is with its author.
+  Read again when the probe has an hour of readings.
+
+##### The landing's control passed its review: pass 34; a service's exit may wait behind slow work, read and not run (2026-11-14T00:54:04-05:00)
+
+Not final and not approved:
+read by the coordinating session from the review file,
+nothing rerun by it.
+
+- **A commit's landing never waits behind slow work, with its control**
+  (`~/temp/agent/change-reviews/git-policy-cli-landing-never-waits-control-of-a-trash-that-reaches-its-ceiling/review.md`,
+  ended 00:48:24,
+  on `7365315791`,
+  the whole branch read again):
+  no defect in what it was asked to look for.
+  The waves,
+  the claim and its lease,
+  and the withdrawal were traced end to end;
+  both end-to-end controls were run and pass
+  (a commit lands in 1.8 s with every kind of slow work held;
+  the trash left at its ceiling comes back after the lease,
+  132 s).
+  Pass 34 is queued near the head
+  (`integration-pass-34-with-the-control-of-a-trash-that-reaches-its-ceiling-prompt.md`);
+  pass 29 carries the branch's earlier part,
+  so whichever of the two reaches `main` second brings the rest.
+- **Read by that review and not run**:
+  the service's exit calls `drain`,
+  which waits with no timeout,
+  and this branch makes the sync batches it waits for take a place on the slow lane.
+  A service asked to retire while a removal holds that lane would then end only when the removal does.
+  It is the exit's path and not a commit's,
+  and the wait itself was there before.
+  A fresh run is queued from that tip
+  (`commit-service-asked-to-retire-ends-within-a-bound-while-slow-work-holds-its-lane`,
+  base `7365315791`),
+  told to show the sequence first and to stop at that finding where it does not hold a service past its client's wait.
+  It also has a comment that calls the item ceiling half of the lease where both are 120 s.
+- The queue held 53 entries at 00:54:04.
+
+##### The journal's start tests passed their review: pass 33; a pipe at a watch note's name is reproduced on the landing thread (2026-11-14T00:38:14-05:00)
+
+Not final and not approved:
+read by the coordinating session from the review file,
+nothing rerun by it.
+
+- **The tests of the journal read at a start**
+  (`~/temp/agent/change-reviews/git-policy-cli-journal-start-tests-answer-with-a-held-read-after-their-review/review.md`,
+  ended 00:32:05,
+  on `acd357f67a`):
+  no defect in the change.
+  Every wait of the reworked controls is bounded,
+  the hold is taken and let go by the read's own thread,
+  and the four controls pass
+  (the one that binds a socket only under a short `HOME`).
+  The change touches four files and no shipped behaviour.
+  Pass 33 is queued at the head
+  (`integration-pass-33-with-the-journal-start-tests-that-hold-the-read-prompt.md`);
+  it turns three of the twelve tests that are red on `main` green.
+- **Its one finding is in a file the change does not touch**,
+  and is the defect a fresh run already has,
+  going since before midnight
+  (`watch-note-of-the-commit-service-is-read-the-way-every-record-is-read-and-never-waits-on-a-pipe-1`):
+  the watch store reads with `std::fs::read`,
+  so a named pipe at a watch note's name is waited on in `open`.
+  New in this review,
+  and reproduced with the real functions and a control for each:
+  the same read is made on the landing thread,
+  before the client is answered and under no ceiling,
+  when a pipe stands at the exact note name.
+  By its reading a commit that has landed is then never answered and every commit behind it waits.
+  Sent to that run at 00:38 with the probe's path.
+- The queue held 51 entries at 00:38:14.
+
+##### The cargo fetch before lint: its author answered both review findings (2026-11-14T00:27:03-05:00)
+
+Not final and not approved:
+read by the coordinating session from the run's last message.
+
+- Run `cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch-2`,
+  ended 00:22:34,
+  tip `feb7a90a12`,
+  `main` merged,
+  one file changed against `main` (`mise.toml`).
+- Both findings reproduced first,
+  the second only after it corrected the review's own reproduction,
+  which named a database folder by a hash of the review's scratch path.
+- A git source is now matched to the database that recorded its own URL,
+  so two URLs never share a key;
+  and a database that records the URL is asked for the revision,
+  under a bound of ten seconds with the answer taking 30 to 40 ms.
+  Any non-answer fetches.
+  Twenty controls;
+  each fix taken out fails exactly its own control.
+  One pass takes the package-cache lock exclusively no times,
+  and a second Cargo beside it did not wait in seventeen probes.
+- The stale-lock sentence now follows the owner's decision of 2026-11-13.
+- Its review is queued near the head
+  (`review-mise-cargo-fetch-before-lint-answers-after-its-review`,
+  range `main...feb7a90a12`).
+- Unchanged:
+  it reaches `main` with the queued run `stale-cargo-lock-file-fails-the-lint-through-the-closure-check` or after it,
+  never before.
+
+##### A commit in the main checkout took 44 s under alpha.23, waiting for its service's answer (2026-11-14T00:20:52-05:00)
+
+Not final and not approved;
+measured by the coordinating session from the wrapper's own timing record.
+
+- The handover commit `9c5e1521ca` printed
+  "The commit service has not said where this commit stands yet;
+  it has waited 10 seconds.
+  This commit is next."
+  and then landed.
+- Its timing line
+  (kept as `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/timing-line-of-the-commit-that-waited-ten-seconds-2026-11-14T0020.json`):
+  44,189 ms in all,
+  528 ms preparing,
+  43,277 ms waiting for the service's answer at position 1,
+  the landing's own lock held 214 ms,
+  nothing queued behind it.
+  The three commits before it took 414 to 681 ms.
+- So the service was doing something else for 43 s before it took the commit up.
+  What,
+  is not established:
+  the journal of that minute holds no line of the service.
+- That is over the commit-time rule
+  (the larger of five seconds and twice real Git),
+  and it is the shape the branch in pass 29 answers
+  (a commit's landing never waits behind slow work in its service,
+  `08d7a82212`),
+  which is not in `main` yet.
+  No new run:
+  the fix is written and reviewed.
+  After the release that carries pass 29,
+  the same record is read again for a wait of this kind.
+
+##### The reload fix's review ran and found no defect: pass 32; issue 6293's author answered (2026-11-14T00:19:46-05:00)
+
+Not final and not approved:
+read by the coordinating session from one review file and one run's last message,
+nothing rerun by it.
+
+- **The reload fix (issue 6286)**
+  (`~/temp/agent/change-reviews/git-policy-cli-reload-fix-answers-the-instance-that-fails-its-start-at-an-upgrade/review.md`,
+  its second run ended 00:13:34,
+  on `05edb83219`):
+  the reading of 23:41 now stands on runs.
+  The build;
+  the controls of the five touched modules,
+  each named and passing;
+  a break planted in the unload's stop,
+  caught by its control and restored;
+  and its two candidates turned into probes with the manager stand-in.
+  The first candidate's mechanism is real
+  (the record is written while the manager still holds the service unit)
+  and loses nothing,
+  since the socket is gone and a start from the held text runs this release.
+  The half that needs a real manager
+  (a retiring service stopping its own socket,
+  a client's start bringing both back)
+  could not be run on this machine;
+  the review says what the author's container proof would have to show.
+  No defect.
+  Pass 32 is queued at the head
+  (`integration-pass-32-with-the-reload-fix-that-keeps-an-older-unit-startable-prompt.md`),
+  told to run that container proof once.
+- What the review met on the way:
+  the short alias for `HOME` that worked for another review did not work for these fixtures,
+  which assert socket path lengths and pass only with a `HOME` of ten bytes or fewer;
+  it used a link in `/dev/shm` and removed it.
+  And cargo-shadow printed "no delegated control group" on each run,
+  its plain statement that it reached no service manager with the bus address unset;
+  not a defect.
+- **Issue 6293**
+  (run `issue-6293-private-runtime-directory-is-the-boundary-and-a-push-to-no-remote-ends-at-once-3`,
+  ended 00:13:21,
+  tip `92fb15b8aa`):
+  both findings of its second review answered,
+  each shown first with the review's harness.
+  The report of a delivered push names the commit the push sent,
+  through one binding both arms use.
+  A failure no retry can mend at a second address
+  (a hook's decline,
+  a login,
+  a conflict)
+  ends the plan with one report;
+  a failure that may pass still keeps it.
+  Seven controls,
+  three of them failing with the classification taken out.
+  It asks the whole output and not the failing address's words alone,
+  and says what follows from that.
+  Its four answer commits go to review alone
+  (`review-git-policy-cli-issue-6293-answers-after-its-second-review`,
+  range `a77f668173...c5ff5defcc`,
+  queued near the head):
+  the branch stands on the no-manager branch at `2fb2e61d90`,
+  whose author is still answering three review defects
+  (its tip is `910ec91650` now),
+  so a review of the whole stack against `main` waits for that answer.
+  The two merges of `main` on this branch,
+  one of them with conflicts resolved from `main`'s side,
+  are read then.
+  It still lands after the no-manager branch.
+- The queue held 52 entries at 00:19:46.
+
+##### The archives' review verified the substance and found five small defects; the rate-limit plugin's second review found two (2026-11-14T00:08:04-05:00)
+
+Not final and not approved:
+read by the coordinating session from two review files,
+nothing rerun by it.
+
+- **Archives**
+  (`~/temp/agent/change-reviews/doc-tracked-archives-are-removed-and-history-holds-each/review.md`,
+  ended 00:04:02,
+  on `0ef01cf14e`):
+  the substance holds,
+  each part checked by a script of the reviewer's.
+  All 136 removed archives print from history by the record's command with the recorded size and digest;
+  the record's entries equal the deleted set in both directions;
+  all 158 kept members match;
+  910 notes in 71 JSON files are valid and no entry's original text changed;
+  no dead link;
+  nothing in the tree still reads a removed path;
+  by extension and by content,
+  over 23,857 tracked files,
+  the three Java archives are the only archives left;
+  no kept file holds a credential.
+  Five defects,
+  none losing data,
+  all weighed as worth their fix before the merge:
+  the record's closing sentence still says four archives stayed tracked;
+  one note is repeated nineteen times at one site;
+  the record says five documents cite an archive where four do;
+  a document cites a cost model's prediction whose model and input are not among the kept members
+  (kept now,
+  by the branch's own rule that what documents cite is kept);
+  and a README promises a citation map the record does not hold.
+  Also the ignore block's comment claims more spellings than its rules cover.
+  Back to the author in its own session
+  (`tracked-archives-answers-the-review-of-0ef01cf14e-prompt.md`,
+  queued at position 4).
+  The branch is not merged:
+  the merge was recorded at 23:29 as following a review with no defect,
+  and a record with a false sentence in it is a defect.
+- **The rate-limit plugin (issue 6297), second review**
+  (`~/temp/agent/change-reviews/pi-plugin-qwen-token-plan-individual-token-rate-limit-proof-is-bounded-answers-after-its-review/review.md`,
+  ended 00:02:14,
+  on `0e62c1df44`):
+  none of the three requirements is violated;
+  the wrapper's endings,
+  the retry classification and both bounds are confirmed with the installed Pi sources read.
+  Two findings,
+  both reproduced with a positive control,
+  both weighed as standing.
+  In the product:
+  an older refresh's cleanup deletes a newer refresh's controller,
+  so a shutdown cancels nothing and a catalog can be published after it.
+  In the proof's harness:
+  a child that ends by itself is waited on for two more seconds,
+  because the listener for `close` is attached after `close` fired.
+  Back to the author in its own session
+  (`qwen-plan-token-rate-limit-answers-its-second-review-of-2026-11-14-prompt.md`,
+  queued at position 10).
+  The review did not run the proof or the unit suite,
+  since both build into the worktree it may not change;
+  it ran probes through the same source.
+- The queue held 51 entries at 00:08:04.
+
 ##### Two authors answered: the landing's control of a trash at its ceiling, and the journal's start tests with a held read (2026-11-13T23:55:34-05:00)
 
 Not final and not approved:
