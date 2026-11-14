@@ -23,7 +23,7 @@
 
 /// Files,
 /// paths and the length of a call.
-use std::{fs, io, path::{Path, PathBuf}, process::Command, time::{Duration, Instant}};
+use std::{fs, io, os::unix::fs::MetadataExt, path::{Path, PathBuf}, process::Command, time::{Duration, Instant}};
 
 /// One bounded child run,
 /// for asking for the idle disk class.
@@ -32,6 +32,10 @@ use crate::bounded_run::{Bound, RunError, output_within};
 use crate::lean_identity::Deadline;
 /// The one way these tools remove an entry.
 use crate::lean_removal::{Refusal, delete_claimed, item_of, modes_named};
+/// The open that refuses a link and creates nothing it was not asked to.
+use rustix::fs::{Mode, OFlags, open};
+/// The descriptor the open hands back.
+use std::os::fd::OwnedFd;
 /// The reading of the volume's free space the rest of a lean run already takes,
 /// and the lines a removal writes.
 use crate::lean_run_report::{free_bytes, gib};
@@ -60,12 +64,15 @@ pub struct PiecePolicy {
 /// and a later pass finishes it from here.
 pub const RETIRING_DIRECTORY_NAME: &str = ".cargo-shadow-retiring";
 
-/// The file a drive reading is written to and synced,
-/// at the base's own top level.
+/// What a drive reading's own file is called,
+/// before the process id.
 /// Why:
 /// A reading has to reach the drive that holds the folders,
-/// and the base's top level is on that drive while it holds no tree.
-pub const READING_FILE_NAME: &str = ".cargo-shadow-drive-reading";
+/// and the base's own top level is on that drive while it holds no tree.
+/// The name carries the process,
+/// so a reading never writes into a file this tool did not make,
+/// and the open refuses a link at the name instead of following it.
+pub const READING_FILE_PREFIX: &str = ".cargo-shadow-drive-reading-";
 
 /// How many bytes one drive reading writes before its barrier.
 /// Why:
@@ -95,8 +102,8 @@ const IDLE_CLASS_LIMIT: Duration = Duration::from_secs(5);
 pub trait Volume {
     /// The free bytes an unprivileged user can still write on the volume that holds this path.
     fn free_bytes(&self, base: &Path) -> io::Result<u64>;
-    /// One write-and-sync reading on the volume that holds this file.
-    fn reading(&self, probe: &Path) -> io::Result<Duration>;
+    /// One write-and-sync reading on the volume that holds this base.
+    fn reading(&self, base: &Path) -> io::Result<Duration>;
 }
 
 /// The volume of the machine the pass runs on.
@@ -123,11 +130,19 @@ impl Volume for RealVolume {
     }
 
     /// One write and one barrier on the drive.
-    fn reading(&self, probe: &Path) -> io::Result<Duration> {
+    fn reading(&self, base: &Path) -> io::Result<Duration> {
         /// Writes the reading's bytes.
         use std::io::Write;
+        let probe: PathBuf = reading_file(base);
+        // A link at the name is refused and nothing is truncated:
+        // the reading is a write at the start of this run's own file.
+        let flags: OFlags = OFlags::WRONLY | OFlags::CREATE | OFlags::NOFOLLOW | OFlags::CLOEXEC;
+        let opened: OwnedFd = match open(&probe, flags, Mode::from_raw_mode(0o600)) {
+            Ok(found) => found,
+            Err(error) => return Err(io::Error::from(error)),
+        };
         let started: Instant = Instant::now();
-        let mut file: fs::File = fs::File::create(probe)?;
+        let mut file: fs::File = fs::File::from(opened);
         file.write_all(&vec![0_u8; READING_BYTES])?;
         file.sync_all()?;
         return Ok(started.elapsed());
@@ -173,6 +188,20 @@ pub struct Pieces {
 
 
 /// What:
+/// `pub fn reading_file(base: &Path) -> PathBuf` is this process's drive reading file.
+/// Why:
+/// The writer and the reader of it are one process,
+/// and a name of its own is a name no other file of the user's has.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const readingFile = (base: string): string => join(base, `${READING_FILE_PREFIX}${process.pid}`);
+/// ```
+pub fn reading_file(base: &Path) -> PathBuf {
+    return base.join(format!("{READING_FILE_PREFIX}{}", std::process::id()));
+}
+
+/// What:
 /// `pub fn retiring_directory(base: &Path) -> PathBuf` is where a started removal waits for the pass that finishes it.
 /// Why:
 /// The tree pass's own trash and this place are apart:
@@ -185,6 +214,70 @@ pub struct Pieces {
 /// ```
 pub fn retiring_directory(base: &Path) -> PathBuf {
     return base.join(RETIRING_DIRECTORY_NAME);
+}
+
+/// What:
+/// `pub(crate) fn modified_nanos(metadata: &fs::Metadata) -> i64` is an entry's modification time in whole nanoseconds.
+/// Why:
+/// A build that starts and touches its folder inside the second the pass judged it in moves the time by nanoseconds,
+/// and a whole-second comparison would not see it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const modifiedNanos = (s: Stats): number => Math.floor(s.mtimeMs * 1e6);
+/// ```
+pub(crate) fn modified_nanos(metadata: &fs::Metadata) -> i64 {
+    return metadata.mtime().saturating_mul(1_000_000_000).saturating_add(metadata.mtime_nsec());
+}
+
+/// What:
+/// `pub fn is_claim_name(name: &str) -> bool` says whether a name in the retiring directory is one this tool made.
+/// Why:
+/// A claim's name is three numbers and the folder's own name,
+/// so anything else in that directory was put there by something else and is left alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const isClaimName = (name: string): boolean => /^\d+-\d+-\d+-.+$/.test(name);
+/// ```
+pub fn is_claim_name(name: &str) -> bool {
+    let mut parts = name.splitn(4, '-');
+    let mut numbers: usize = 0;
+    for _ in 0..3 {
+        match parts.next() {
+            Some(part) if !part.is_empty() && part.bytes().all(is_digit) => numbers += 1,
+            _other => return false,
+        }
+    }
+    return numbers == 3 && parts.next().is_some_and(is_not_empty);
+}
+
+/// What:
+/// `fn is_digit(byte: u8) -> bool` says whether a byte of a claim's name is a decimal digit.
+/// Why:
+/// The first three parts of a claim's name are numbers,
+/// and a name whose parts are not is not this tool's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isDigit = (byte: number): boolean => byte >= 0x30 && byte <= 0x39;
+/// ```
+fn is_digit(byte: u8) -> bool {
+    return byte.is_ascii_digit();
+}
+
+/// What:
+/// `fn is_not_empty(text: &str) -> bool` says whether a claim names a folder.
+/// Why:
+/// A claim is the folder's own name after the three numbers,
+/// and an empty one names nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const isNotEmpty = (text: string): boolean => text !== '';
+/// ```
+fn is_not_empty(text: &str) -> bool {
+    return !text.is_empty();
 }
 
 /// What:
@@ -314,6 +407,8 @@ pub(crate) fn remove_pieces(entry: &Path, policy: &PiecePolicy, volume: &dyn Vol
                     removed.bytes += deleted.bytes;
                     removed.modes.extend(deleted.modes_added);
                     removed.notes.extend(deleted.remaining);
+                    // What stayed is not a piece that went, so the folder stays a claim of the next pass.
+                    continue;
                 }
                 Err(refusal) => {
                     removed.notes.push(refusal.to_string());
@@ -326,13 +421,20 @@ pub(crate) fn remove_pieces(entry: &Path, policy: &PiecePolicy, volume: &dyn Vol
             }
         }
         removed.gone += 1;
-        if stop_under_bound
-            && index + 1 < pieces.len()
-            && let Ok(free) = volume.free_bytes(entry)
-            && free >= policy.free_space_bound_bytes
-        {
-            removed.stopped = Some(Stop::UnderBound);
-            return removed;
+        if index + 1 < pieces.len() {
+            // A free space that cannot be read is a pass that cannot tell whether to go on,
+            // so it stops rather than removing everything it can reach.
+            match volume.free_bytes(entry) {
+                Ok(free) if stop_under_bound && free >= policy.free_space_bound_bytes => {
+                    removed.stopped = Some(Stop::UnderBound);
+                    return removed;
+                }
+                Ok(_below) => {}
+                Err(_unreadable) => {
+                    removed.stopped = Some(Stop::ReadingFailed);
+                    return removed;
+                }
+            }
         }
         if interrupted_after(index + 1) {
             removed.stopped = Some(Stop::Interrupted);

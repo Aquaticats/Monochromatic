@@ -24,10 +24,21 @@
 //! removes one piece of a folder at a time
 //! (`lean_toolchain_folder_pieces.rs`),
 //! and stops when the drive answers slowly.
+//! Only a directory that holds nothing but two-hex-digit shard directories,
+//! or nothing at all,
+//! is a build folder of this tool's:
+//! anything else a person put under `toolchain/` is left alone and named.
 //! A removal that is stopped is finished by a later pass:
 //! the folder is renamed into `RETIRING_DIRECTORY_NAME` in one atomic step,
 //! so the place the shadow hands a build no longer holds it,
-//! and a build that meets it makes a fresh folder.
+//! and a build that meets it makes a fresh folder there.
+//! A build that starts in the moment between the last look at a folder and that rename loses the old folder and
+//! builds into a fresh one:
+//! cargo makes the directory it was given,
+//! so the cost of that moment is a rebuild and never a write into what is being removed.
+//! A lock the shadow's start would hold for a build's life would close the moment;
+//! there is none,
+//! and the folder's own time set just before cargo starts is what narrows it.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -38,12 +49,10 @@
 /// paths and the system clock.
 use std::{fs, os::unix::fs::MetadataExt, path::{Path, PathBuf}, time::Duration};
 
-/// The user's build base holds the toolchain folders under this name.
-use crate::lean_keyed_folder::KEYED_DIRECTORY;
 /// The proof that nothing uses a folder.
 use crate::lean_guard::GuardEnvironment;
 /// The deadline every pass obeys and the clock ages are measured against.
-use crate::lean_identity::{Deadline, Identity, now_seconds};
+use crate::lean_identity::{Deadline, now_seconds};
 /// The bounds of this mechanism and what each rests on.
 use crate::lean_policy::{
     DRIVE_SLOW_READINGS_IN_A_ROW,
@@ -59,20 +68,25 @@ use crate::lean_removal::{claim_into_trash, item_of};
 /// The lines a removal writes.
 use crate::lean_run_report::{emit, gib};
 /// Directory entries and names.
-use crate::lean_text::{is_directory, name_of};
+use crate::lean_text::name_of;
+/// Which directories are toolchain folders this tool may remove,
+/// and the order a pass takes them in.
+use crate::lean_toolchain_folder_candidates::{Candidate, candidates};
 /// The removal of one folder's pieces,
 /// and the drive it is measured on.
 use crate::lean_toolchain_folder_pieces::{
     PiecePolicy,
     Volume,
-    READING_FILE_NAME,
     Pieces,
     RealVolume,
     Stop,
     ask_for_idle_disk_priority,
     children_of,
     folder_name_of,
+    is_claim_name,
+    modified_nanos,
     piece_line,
+    reading_file,
     remove_pieces,
     retiring_directory,
     stop_line,
@@ -117,70 +131,6 @@ impl Default for ToolchainFolderLimits {
     }
 }
 
-
-/// A folder the pass may remove.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Candidate {
-    /// The folder.
-    pub path: PathBuf,
-    /// Its name under `toolchain/`.
-    pub name: String,
-    /// Its own modification time.
-    pub modified: i64,
-    /// Its identity when it was listed.
-    pub identity: Identity,
-}
-
-
-/// What:
-/// `pub fn candidates(base: &Path) -> (Vec<Candidate>, Vec<String>)` lists the toolchain folders of the base,
-/// the one modified longest ago first,
-/// with one line for each folder it cannot judge.
-/// Why:
-/// The listing is one level deep and each folder costs one `lstat`:
-/// a walk below a folder is what takes hours here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function candidates(base: string): [Candidate[], string[]]
-/// ```
-pub fn candidates(base: &Path) -> (Vec<Candidate>, Vec<String>) {
-    let mut found: Vec<Candidate> = Vec::new();
-    let mut notes: Vec<String> = Vec::new();
-    let Ok(entries) = fs::read_dir(base.join(KEYED_DIRECTORY)) else { return (found, notes) };
-    for entry in entries.flatten() {
-        if !is_directory(&entry) {
-            continue;
-        }
-        let path: PathBuf = entry.path();
-        let name: String = name_of(&path);
-        match fs::symlink_metadata(&path) {
-            Ok(metadata) => found.push(Candidate { path, name, modified: metadata.mtime(), identity: Identity { device: metadata.dev(), inode: metadata.ino() } }),
-            Err(error) => notes.push(format!("kept toolchain folder {}: its own time and identity could not be read: {error}", path.display())),
-        }
-    }
-    found.sort_by(oldest_first);
-    return (found, notes);
-}
-
-/// What:
-/// `fn oldest_first(left: &Candidate, right: &Candidate) -> std::cmp::Ordering` orders folders by their own modification
-/// time and then by name.
-/// Why:
-/// The folder modified longest ago goes first,
-/// and two folders of one time keep one order between passes.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const oldestFirst = (left: Candidate, right: Candidate): number => left.modified - right.modified || left.name.localeCompare(right.name);
-/// ```
-fn oldest_first(left: &Candidate, right: &Candidate) -> std::cmp::Ordering {
-    let by_time: std::cmp::Ordering = left.modified.cmp(&right.modified);
-    return match by_time {
-        std::cmp::Ordering::Equal => left.name.cmp(&right.name),
-        decided => decided,
-    };
-}
 
 /// What:
 /// `fn keep_reason(candidate: &Candidate, keep_toolchain: Option<&str>, limits: &ToolchainFolderLimits, now: i64, scan: Option<&ScanReport>) -> Option<String>`
@@ -260,7 +210,7 @@ pub(crate) fn changed_since(candidate: &Candidate) -> Option<String> {
     if metadata.dev() != candidate.identity.device || metadata.ino() != candidate.identity.inode {
         return Some(String::from("another entry is at its place now"));
     }
-    if metadata.mtime() != candidate.modified {
+    if modified_nanos(&metadata) != candidate.modified_nanos {
         return Some(String::from("a build wrote in it while the pass judged it"));
     }
     return None;
@@ -312,7 +262,6 @@ pub fn retire_toolchain_folders(
     log: &mut Vec<String>,
 ) -> Outcome {
     let retiring: PathBuf = retiring_directory(base);
-    let probe: PathBuf = base.join(READING_FILE_NAME);
     let policy: PiecePolicy = PiecePolicy {
         free_space_bound_bytes: limits.free_space_bound_bytes,
         pass_limit: limits.pass_limit,
@@ -328,18 +277,21 @@ pub fn retire_toolchain_folders(
         if !matches!(fs::symlink_metadata(&claimed), Ok(metadata) if metadata.is_dir()) {
             continue;
         }
+        if !is_claim_name(&name_of(&claimed)) {
+            outcome.lines.push(format!("left alone {}: it is not a claim this tool made, so it is not this tool's to remove", claimed.display()));
+            continue;
+        }
         let name: String = folder_name_of(&claimed);
         let verb: &str = if dry_run { "would finish" } else { "finished" };
-        let removable: Pieces = remove_pieces(&claimed, &policy, volume, &probe, &pass_deadline, dry_run, false);
+        let removable: Pieces = remove_pieces(&claimed, &policy, volume, base, &pass_deadline, dry_run, false);
         let what: String = format!("{verb} the removal of toolchain folder {name} that an earlier pass started");
         let line: String = piece_line(&what, &removable, &claimed);
         outcome.lines.push(line.clone());
         emit(log, line);
         outcome.bytes += removable.bytes;
-        if removable.stopped == Some(Stop::Finished) {
-            if !dry_run {
-                let _ = fs::remove_dir(&claimed);
-            }
+        // A folder is removed only when its directory is really gone:
+        // a piece that stayed keeps the claim for the next pass.
+        if removable.stopped == Some(Stop::Finished) && (dry_run || fs::remove_dir(&claimed).is_ok()) {
             outcome.removed += 1;
         } else {
             outcome.stopped_in = Some(claimed.clone());
@@ -421,13 +373,13 @@ pub fn retire_toolchain_folders(
             }
         };
         serial += 1;
-        let removable: Pieces = remove_pieces(&claimed, &policy, volume, &probe, &pass_deadline, dry_run, true);
+        let removable: Pieces = remove_pieces(&claimed, &policy, volume, base, &pass_deadline, dry_run, true);
         let line: String = piece_line(&what, &removable, &claimed);
         outcome.lines.push(line.clone());
         emit(log, line);
         outcome.bytes += removable.bytes;
-        if removable.stopped == Some(Stop::Finished) {
-            let _ = fs::remove_dir(&claimed);
+        // What stayed keeps the claim, and a folder whose directory is still there is not a folder removed.
+        if removable.stopped == Some(Stop::Finished) && fs::remove_dir(&claimed).is_ok() {
             outcome.removed += 1;
         } else {
             outcome.stopped_in = Some(claimed.clone());
@@ -442,43 +394,16 @@ pub fn retire_toolchain_folders(
         // The free space that decides whether another folder goes is read again after each folder.
         match volume.free_bytes(base) {
             Ok(found) if found >= limits.free_space_bound_bytes => return outcome,
-            _ => {}
+            Ok(_below) => {}
+            Err(error) => {
+                let text: String = format!("toolchain folders: the free space of {} could not be read after a removal ({error}), so the pass stops rather than removing every folder it can reach", base.display());
+                outcome.lines.push(text.clone());
+                emit(log, text);
+                return outcome;
+            }
         }
     }
     return outcome;
-}
-
-/// What:
-/// `pub fn pieces_of(folder: &Path) -> Vec<String>` is the names of a folder's pieces.
-/// Why:
-/// A test says which shards of a fixture are gone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export const piecesOf = (folder: string): string[] => readdirSync(folder).sort();
-/// ```
-pub fn pieces_of(folder: &Path) -> Vec<String> {
-    let mut names: Vec<String> = Vec::new();
-    for piece in children_of(folder) {
-        names.push(name_of(&piece));
-    }
-    return names;
-}
-
-/// What:
-/// `pub fn identity_of_candidate(path: &Path) -> Option<Candidate>` is a folder as the pass judges it,
-/// or nothing when it cannot be read.
-/// Why:
-/// The control of a folder a build changes between the judgement and the claim needs the judgement itself,
-/// and a folder a build is in is one the pass read once and must not carry away on that reading.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export const identityOfCandidate = (path: string): Candidate | undefined => { try { const found = lstatSync(path); return { path, name: basename(path), modified: Math.floor(found.mtimeMs / 1000), identity: { device: found.dev, inode: found.ino } }; } catch { return undefined; } };
-/// ```
-pub fn identity_of_candidate(path: &Path) -> Option<Candidate> {
-    let metadata: fs::Metadata = fs::symlink_metadata(path).ok()?;
-    return Some(Candidate { path: path.to_path_buf(), name: name_of(path), modified: metadata.mtime(), identity: Identity { device: metadata.dev(), inode: metadata.ino() } });
 }
 
 /// What:
@@ -510,5 +435,9 @@ pub fn run_toolchain_folders(base: &Path, dry_run: bool, limits: &ToolchainFolde
         emit(&mut log, text);
     }
     let outcome: Outcome = retire_toolchain_folders(base, keep.as_deref(), limits, &RealVolume, environment, now_seconds(), dry_run, deadline, &mut log);
+    if !dry_run {
+        // The reading's file is this pass's own and holds nothing.
+        let _ = fs::remove_file(reading_file(base));
+    }
     return outcome.lines;
 }

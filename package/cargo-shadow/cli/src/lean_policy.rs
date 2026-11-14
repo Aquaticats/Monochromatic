@@ -146,6 +146,10 @@ pub const RUN_DEADLINE_SECONDS: u64 = 5 * 3_600;
 /// The free space the volume that holds the shared build directory keeps for the runs that write into it:
 /// 296 GiB,
 /// which is the launcher's own floor and the space the longest gap between two passes can take.
+/// This is a disk-pressure policy:
+/// what the bound protects is the room a build needs,
+/// and the room this tool can read without a walk is the volume's,
+/// not the build directory's own size.
 /// Why the volume's free space and not the build directory's own size:
 /// the build directory's size is what the walk for it measures,
 /// and that walk is what takes hours here

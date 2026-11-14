@@ -7,6 +7,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::fs;
 use std::io;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::Duration;
@@ -14,16 +15,9 @@ use std::time::Duration;
 use crate::lean_guard::GuardEnvironment;
 use crate::lean_identity::{Deadline, now_seconds};
 use crate::lean_test_support::{DAY, age_everything, set_time};
+use crate::lean_toolchain_folder_candidates::{Candidate, candidates};
 use crate::lean_toolchain_folder_pieces::{Volume, arm_stop_after_pieces, children_of, disarm_stop_after_pieces, folder_name_of, retiring_directory};
-use crate::lean_toolchain_folders::{
-    Candidate,
-    ToolchainFolderLimits,
-    candidates,
-    changed_since,
-    identity_of_candidate,
-    pieces_of,
-    retire_toolchain_folders,
-};
+use crate::lean_toolchain_folders::{ToolchainFolderLimits, changed_since, retire_toolchain_folders};
 use crate::test_scratch::scratch;
 
 /// A drive a test decides about.
@@ -348,4 +342,89 @@ fn a_folder_younger_than_the_age_stays_even_when_the_volume_is_short() {
     assert!(outcome.lines.iter().any(|line| { return line.contains("kept toolchain folder") && line.contains("within the 86400 s age"); }), "{:?}", outcome.lines);
     assert_eq!(outcome.removed, 0);
     assert_eq!(log.len(), 0, "nothing was removed, so the log says nothing: {log:?}");
+}
+
+#[test]
+fn a_directory_under_the_toolchain_folder_that_is_not_a_build_folder_is_left_alone() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    make_folder(&base, "nightly-2026-11-10", &["00"]);
+    let now: i64 = now_seconds();
+    age_everything(&base.join("toolchain").join("nightly-2026-11-10"), now - 30 * DAY);
+    // A person's own directory under `toolchain/` is not a build folder: the shadow never keys one there.
+    let notes: PathBuf = base.join("toolchain").join("notes");
+    fs::create_dir_all(&notes).expect("a directory a person made");
+    fs::write(notes.join("what-i-was-thinking.txt"), b"keep me\n").expect("a person's file");
+    set_time(&notes, now - 90 * DAY);
+    let keep: PathBuf = notes.join("what-i-was-thinking.txt");
+    let drive: FixtureVolume = volume(1);
+    let mut log: Vec<String> = Vec::new();
+    let outcome = retire_toolchain_folders(&base, None, &limits(), &drive, &environment(), now, false, &deadline(), &mut log);
+    assert!(keep.exists(), "a person's file under the toolchain folder is not this tool's to remove: {outcome:?}");
+    assert!(outcome.lines.iter().any(|line| { return line.contains("left alone") && line.contains("notes") && line.contains("not a layout cargo-shadow makes"); }), "{:?}", outcome.lines);
+    assert_eq!(outcome.removed, 1, "the build folder beside it still went: {outcome:?}");
+    assert!(!base.join("toolchain").join("nightly-2026-11-10").exists());
+}
+
+#[test]
+fn a_directory_in_the_retiring_folder_that_is_not_a_claim_is_left_alone() {
+    let root = scratch();
+    let base: PathBuf = root.path().join("base");
+    make_folder(&base, "nightly-2026-11-10", &["00"]);
+    let retiring: PathBuf = retiring_directory(&base);
+    let not_a_claim: PathBuf = retiring.join("someone-elses-directory");
+    fs::create_dir_all(&not_a_claim).expect("a directory this tool did not make");
+    fs::write(not_a_claim.join("data.txt"), b"not mine\n").expect("a file in it");
+    let drive: FixtureVolume = volume(200 * (1_u64 << 30));
+    let mut log: Vec<String> = Vec::new();
+    let outcome = retire_toolchain_folders(&base, None, &limits(), &drive, &environment(), now_seconds(), false, &deadline(), &mut log);
+    assert!(not_a_claim.exists(), "a directory this tool did not make is not removed: {outcome:?}");
+    assert!(outcome.lines.iter().any(|line| { return line.contains("left alone") && line.contains("not a claim this tool made"); }), "{:?}", outcome.lines);
+}
+
+#[test]
+fn a_drive_reading_refuses_a_link_at_its_own_name_and_leaves_what_the_link_names() {
+    let root = scratch();
+    let target: PathBuf = root.path().join("a-file-of-the-users.txt");
+    fs::write(&target, b"the user's bytes\n").expect("a file");
+    let probe: PathBuf = crate::lean_toolchain_folder_pieces::reading_file(root.path());
+    std::os::unix::fs::symlink(&target, &probe).expect("a link where the reading would write");
+    let drive: crate::lean_toolchain_folder_pieces::RealVolume = crate::lean_toolchain_folder_pieces::RealVolume;
+    let reading = drive.reading(root.path());
+    assert!(reading.is_err(), "a reading does not write through a link: {reading:?}");
+    assert_eq!(fs::read(&target).expect("the user's file is still readable"), b"the user's bytes\n", "the file the link names is untouched");
+}
+
+/// What:
+/// `fn pieces_of(folder: &Path) -> Vec<String>` is the names of a folder's pieces.
+/// Why:
+/// A test says which shards of a fixture are gone.
+fn pieces_of(folder: &Path) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for piece in children_of(folder) {
+        names.push(crate::lean_text::name_of(&piece));
+    }
+    return names;
+}
+
+/// What:
+/// `pub(crate) fn identity_of_candidate(path: &Path) -> Option<Candidate>` is a folder as the pass judges it,
+/// or nothing when it cannot be read.
+/// Why:
+/// The control of a folder a build changes between the judgement and the claim needs the judgement itself,
+/// and a folder a build is in is one the pass read once and must not carry away on that reading.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export const identityOfCandidate = (path: string): Candidate | undefined => { try { const found = lstatSync(path); return { path, name: basename(path), modified: Math.floor(found.mtimeMs / 1000), identity: { device: found.dev, inode: found.ino } }; } catch { return undefined; } };
+/// ```
+fn identity_of_candidate(path: &Path) -> Option<Candidate> {
+    let metadata: fs::Metadata = fs::symlink_metadata(path).ok()?;
+    return Some(Candidate {
+        path: path.to_path_buf(),
+        name: crate::lean_text::name_of(path),
+        modified: metadata.mtime(),
+        modified_nanos: metadata.mtime().saturating_mul(1_000_000_000).saturating_add(metadata.mtime_nsec()),
+        identity: crate::lean_identity::Identity { device: metadata.dev(), inode: metadata.ino() },
+    });
 }

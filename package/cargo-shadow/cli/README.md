@@ -1284,11 +1284,19 @@ Seven mechanisms
   and the pass stops when two readings in a row are over the slow bound,
   when its own time bound is gone,
   or when the volume has its free space back.
+  Only a directory that holds nothing but two-hex-digit shard directories,
+  or nothing at all,
+  is a build folder this tool made:
+  anything else under `toolchain/` is left alone and named,
+  and so is anything in the retiring directory whose name is not a claim.
   A folder half removed is recognisable as being removed,
   is finished whole by the next pass before that pass judges anything new,
   and is never built into again:
   the place the shadow hands a build no longer holds it,
   so a build that meets it makes a fresh folder there and rebuilds into that.
+  A build that starts in the moment between the last look at a folder and its rename loses the old folder and
+  builds into a fresh one,
+  which costs that build a rebuild and never a write into what is being removed.
   The bounds are in `src/lean_policy.rs`,
   each beside the measurement it was sized from,
   and each can be set for a pass:
