@@ -1231,10 +1231,12 @@ nothing rerun by it.
   Its review is queued at the head
   (`review-git-policy-cli-merge-that-meets-a-held-index-lock-never-waits-and-its-two-controls`,
   range `main...88cd36ad07`).
-  Noticed by it and open with no run:
+  Noticed by it:
   the binary controls' `short_runtime_directory` makes folders `rt-<pid>-<n>` under `~/temp/agent` and never removes them
   (two stood from 22:06 and 22:21);
-  and its merge of `main` printed the landed sweep's line about pass 27's worktree and process 5289,
+  a fresh run is queued for it since 01:06:44
+  (`binary-controls-of-the-wrapper-remove-the-short-runtime-directory-they-made`).
+  And its merge of `main` printed the landed sweep's line about pass 27's worktree and process 5289,
   the defect recorded at 23:10.
 - **The cargo fetch before lint, second review**
   (`~/temp/agent/change-reviews/mise-cargo-fetch-before-lint-answers-after-its-review/review.md`,
