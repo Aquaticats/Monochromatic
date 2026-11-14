@@ -1198,6 +1198,90 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's cleanup goes back for downloads a live process holds; the lock shim's answer goes to its reviewer; the driver's scan fails on a process that ended (2026-11-14T11:26:17-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+what the coordinating session read in the driver's source,
+and what it queued.
+
+- **mpm-shadow's cleanup** (`3a96da6dbf`),
+  third review:
+  one reproduced with a harness on the real library and a real holder process:
+  a file of a version's downloads held open by a live process does not protect the version,
+  since all three holder checks compare against the version's folder or marker alone;
+  the harm named is an `update` whose download folder is renamed away,
+  so its install fails.
+  One by reading:
+  `current` is read once,
+  and a repoint between that read and the move aside can leave it naming a deleted version.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/mpm-shadow-removal-of-old-versions-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **The lock shim of Pi** (tip `37287ade63`, ended 11:20:44):
+  the author reports the three findings answered
+  (23 control cases;
+  the review's three reproductions ending with no defect shown;
+  a real start of the installed Pi for five lock states,
+  each ending within about a minute and naming the command where a person must act).
+  Under the adopted reading a lock of the old kind whose holder is gone is not taken over,
+  since an empty directory names no process:
+  it is refused with the command that clears it.
+  That holds for locks left by a Pi started before the new shim is installed,
+  and is the owner's to veto with the reading itself.
+  The change is `.cjs`,
+  which the brief writer does not read yet,
+  so its reviewer is resumed in its own session to check the answer,
+  queued third
+  (`~/temp/agent/pi-runs/go-on-with-the-review-of-the-lock-shim-and-check-the-answer-at-37287ade63-prompt.md`).
+- **A driver defect read from the source**:
+  that run's summary holds `workProblem: Error: ESRCH: no such process, read '/proc/4038785/comm'`,
+  and one other summary holds a work problem.
+  `src/work-the-run-left-running.ts` treats `ENOENT` alone as a path that is gone (line 49),
+  where `src/going-runs.ts` treats `ENOENT` and `ESRCH` alike (line 173);
+  a process that ends between the listing and the read answers `ESRCH`.
+  A fresh run is queued sixth
+  (`~/temp/agent/pi-runs/scan-for-work-a-run-left-running-treats-a-process-that-has-gone-as-gone-prompt.md`).
+- 22 Pi runs were going at 11:26:17;
+  the queue held 60 entries.
+
+##### The landing's author and the no-manager author answered; each answer goes to review (2026-11-14T11:20:59-05:00)
+
+Not final and not approved:
+what two authors report of themselves,
+which this session has not checked,
+and what it queued.
+
+- **A landing never waits behind housekeeping** (tip `af0b824df3`, ended 11:16:05):
+  the author reports the place-starvation finding of its third review answered with three controls
+  (63 tests of the touched modules passing),
+  `main` with pass 37 and the `0.6.1-alpha.28` release commit merged with no conflict.
+  It leaves the review's second finding,
+  an unbounded `recv()` in the exit drain,
+  as it was,
+  and says a commit whose own look stalls with every general place held still ends `Unavailable`.
+  Review queued second (range `main...af0b824df3`, nineteen code files);
+  its reviewer is the one to say whether what was left alone may stay.
+  Passes 29 and 34 wait on that review.
+- **The commit service needs no service manager** (tip `77f5d525e3`, ended 11:17:43):
+  the author reports its review answered
+  (nine new controls,
+  41 tests of the changed modules passing at four CPUs,
+  first and later commits and the takeover path each within its arm's own spread against the commit before).
+  It names one thing left alone:
+  `invocation/management_service_settle_earlier_batches.rs` still advises `systemctl --user stop` for unit names this branch never writes.
+  Review queued third (range `main...77f5d525e3`, 67 code files).
+  Its two questions for the owner
+  (a grace period for a scope's service that answers after `START_WAIT`;
+  another name for the claim file,
+  which is now transient)
+  are kept with the others and block nothing today.
+- Local `main` and `origin/main` are level at 11:20:59 and both hold the `0.6.1-alpha.28` release commit `ddf30651eb`.
+- A run measured `${HOME}/temp/agent` at 261 GiB,
+  82 GiB of it exclusive,
+  by `btrfs filesystem du`;
+  the 330 GiB and 308 GB of other runs count shared data once for each copy.
+- The queue held 59 entries.
+
 ##### Issue 6293's last change is right; two things in files the branch brings go back to its author (2026-11-14T11:16:40-05:00)
 
 Not final and not approved:
@@ -1250,7 +1334,10 @@ and what the coordinating session queued.
   in `hand_over_with` (`worktree_remove_hand_over.rs`, near lines 342 to 356) a renamed subvolume can be left with no owner
   when the service settles the record inside a narrow window and the self-delete then fails;
   no data is lost.
-  Not yet with any agent.
+  A fresh run is queued since 11:17:18 to establish it by the code's own seams and,
+  where it can happen,
+  to make every renamed subvolume have an owner that deletes it
+  (`~/temp/agent/pi-runs/renamed-subvolume-of-a-removal-handed-over-is-never-left-with-no-owner-prompt.md`).
 - **The lock a killed Git left** (`2ac27d2a29`):
   the changed hunk is right and 29 lock tests pass.
   One reproduced end to end with the built wrapper,
