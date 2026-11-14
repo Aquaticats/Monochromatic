@@ -1464,6 +1464,7 @@ fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the
         Examined::Handed(record) => format!("handed: {}", record.oid),
         Examined::Kept(why) => format!("kept: {why}"),
         Examined::RemovedAround(left) => format!("removed-around {}", left.len()),
+        Examined::EmptiedAround => String::from("emptied-around"),
         Examined::Unproven => String::from("unproven"),
     };
     assert!(
