@@ -33,6 +33,13 @@ export type WorkWaitedFor = {
    the run has had neither since it was woken.
    */
   wokenAtSettle?: number;
+
+  /**
+   The last failure a read of the run's work ended with, or nothing while no read has failed since a good one.
+
+   The read is asked again on every look, so one failure that lasts is reported once rather than on each of them.
+   */
+  unreadable?: string;
 };
 
 /**
@@ -68,7 +75,8 @@ export function answeredItsWake({
  */
 export type WorkAsked =
   /**
-   Work still runs, so the run is not over and the driver keeps it.
+   Work still runs, so the run is not over and the driver keeps it. Work whose read failed keeps the run just the same, because
+   nothing about it is known.
    */
   | 'kept'
   /**
@@ -182,18 +190,27 @@ export async function askAboutItsWork({
 }
 
 /**
- Asks what the run left running, and keeps a read that fails beside the end reason rather than in its place.
+ Asks what the run left running, and keeps a run whose work cannot be read rather than ending it as one that finished.
 
  By the time this is asked the agent has ended its turn and the run is only waiting out its own idle time, so a read that fails
- says nothing about whether the run did its work. The failure goes to the feed and the summary under its own name, and the run
- ends as the run it was. Ending it `driver-failed` instead is what reported eleven runs of this machine as failures on
- 2026-11-13 whose reviews were whole and whose Pi had exited 0.
+ says nothing about whether the run did its work: ending the run `driver-failed` instead is what reported eleven runs of this
+ machine as failures on 2026-11-13 whose reviews were whole and whose Pi had exited 0. The failure goes to the feed and the
+ summary under its own name.
+
+ The run is kept all the same, because `nothing` would end it as a run that finished its turn while work of its own may still run:
+ the summary of 2026-11-14 recorded `ESRCH: no such process` under `workProblem` for the run
+ `lock-shim-of-pi-takes-over-a-lock-whose-holder-is-gone-2`, which ended `idle` with its build unread. A run whose work is never
+ readable is ended by its own wall clock, with its worktree kept.
+
+ The one failure that does not keep the run is the driver's own feed having failed, which the summary already reports under
+ `feedProblem` and which rewrites the run's end to `driver-failed`: keeping such a run would hold it to its wall clock to learn
+ what the driver already knows.
 
  @param watch - watch request
 
  @param waited - where the driver stands with the work, which this fills and clears
 
- @returns what stands between the run and its end, which is nothing when the work could not be read
+ @returns what stands between the run and its end, which is work that is not known to have ended
 
  @example
  ```ts
@@ -214,9 +231,26 @@ export async function askAboutItsWorkOrReportAFailure({
     },);
   }
   catch (error) {
-    watch.record
-      .noteWorkProblem(String(error,),);
-    return 'nothing';
+    /**
+     What the failed read said, which names the path and the code it failed with.
+     */
+    const failure = String(error,);
+    // The read is asked on every look, so one failure that lasts is noted once instead of burying the feed under itself.
+    if (waited.unreadable !== failure) {
+      waited.unreadable = failure;
+      watch.record
+        .noteWorkProblem(failure,);
+    }
+    // A driver whose own feed failed has already lost the record of the run, and the summary reports that under `feedProblem`; the
+    // run's end is rewritten to `driver-failed` for it, so keeping the run would only hold it to its wall clock. Every other failed
+    // read keeps it, because nothing is known about the work it left.
+    /**
+     Whether the driver's own record of the run has already failed.
+     */
+    const feedFailed = watch.record
+      .feedProblem()
+      .failed;
+    return feedFailed ? 'nothing' : 'kept';
   }
 }
 

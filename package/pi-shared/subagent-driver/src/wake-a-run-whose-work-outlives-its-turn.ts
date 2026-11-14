@@ -14,21 +14,17 @@
  @module
  */
 
-import {
-  readdir,
-  readFile,
-  readlink,
-} from 'node:fs/promises';
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 import { entriesOrNothingIn, } from './newest-finished-run-of-a-name.ts';
+import {
+  type ProcessFolderReads,
+  ProcessFileUnreadableError,
+  processHasGone,
+  readsOfTheProcessFolder,
+} from './reads-of-the-process-folder.ts';
 import { isDigitsOnly, } from './text-of-an-option.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
 
 /**
  How many times one run's name may be resumed this way. Each resume is a whole session, and a run that ends its turn five times
@@ -148,9 +144,13 @@ export function isOwnFolder({
 /**
  Reads the folder every process of this user works in, and the program each runs.
 
- The process folder is the seam: a test writes its own entries and never reads this machine's process table.
+ The process folder is the seam: a test writes its own entries and never reads this machine's process table. The reads of one
+ entry are the second seam: a test supplies a reader that answers what a process ending between two of its reads answers, which no
+ test can race against a real process for.
 
  @param processFolder - the folder holding one entry per process, `/proc` here
+
+ @param reads - the reads of one process, which a test replaces
 
  @returns one entry per process whose working folder could be read
 
@@ -161,8 +161,10 @@ export function isOwnFolder({
  */
 export async function processesAtTheirFolders({
   processFolder,
+  reads = readsOfTheProcessFolder,
 }: {
   readonly processFolder: string;
+  readonly reads?: ProcessFolderReads;
 },): Promise<readonly ProcessAtAFolder[]> {
   /**
    The entries of the process folder, of which a folder that is not there holds none: no process can be read, which is no work
@@ -176,88 +178,136 @@ export async function processesAtTheirFolders({
     if (!isDigitsOnly(entry,)) {
       return [];
     }
+    /**
+     The process's own folder, which every read of that process is under.
+     */
+    const folder = join(
+      processFolder,
+      entry,
+    );
     try {
-      /**
-       The folder the process works in.
-       */
-      const folder = await readlink(join(
-        processFolder,
-        entry,
-        'cwd',
-      ),);
-      /**
-       The kernel's name for the program it runs, which a process that ended before this read leaves unknown.
-       */
-      const command = await commandNameIn({
-        processFolder,
-        entry,
-      },);
-      return [{
-        pid: Number(entry,),
+      return [await processIn({
         folder,
-        command,
-      },];
+        entry,
+        reads,
+      },),];
     }
     catch (error) {
-      // Another user's process, one that ended between the listing and the read, or one whose folder this account may not read,
-      // works in no folder this run owns. A process list always holds such entries, and the first of them is process 1: on
-      // 2026-11-11 remove-finished-worktrees ended at once because reading process 1's folder was refused.
-      if (SKIPPED_PROCESS_CODES.has(errorCodeOf(error,),)) {
+      // Another user's process, one whose folder this account may not read, or a path that is no such folder, works in no folder
+      // this run owns; neither does a process that ended at any instant of this scan, which is ordinary in a process table of a
+      // working machine. A process list always holds such entries, and the first of them is process 1: on 2026-11-11
+      // remove-finished-worktrees ended at once because reading process 1's folder was refused.
+      if (processHasGone({ code: errorCodeOf(error,), },) || SKIPPED_PROCESS_CODES.has(errorCodeOf(error,),)) {
         return [];
       }
-      throw error;
+      throw (error instanceof ProcessFileUnreadableError) ? error : new ProcessFileUnreadableError({
+        path: folder,
+        error,
+      },);
     }
   },));
   return read.flat();
 }
 
 /**
- The failures that mean a process is none of this run's business: its folder is gone, is not a folder, or may not be read by this
- account.
+ The failures that mean a process is none of this run's business although it has not gone: its folder is not a folder, or may not
+ be read by this account.
  */
 const SKIPPED_PROCESS_CODES: ReadonlySet<string> = new Set<string>([
-  MISSING_PATH_CODE,
   'ENOTDIR',
   'EACCES',
   'EPERM',
 ]);
 
 /**
- Reads the kernel's name for the program one process runs.
+ Reads one process's working folder and the program it runs.
 
- @param processFolder - the folder holding one entry per process
+ @param folder - the process's own folder, inside the process folder
 
- @param entry - the process's entry in that folder
+ @param entry - the process's entry in the process folder, which is its number
 
- @returns the program's name, or `?` when the process ended before this read
+ @param reads - the reads of one process, which a test replaces
+
+ @returns the process, as the process table describes it
 
  @example
  ```ts
- const command = await commandNameIn({ processFolder: '/proc', entry: '12', },);
+ const process = await processIn({ folder: '/proc/12', entry: '12', reads: readsOfTheProcessFolder, },);
+ ```
+ */
+async function processIn({
+  folder,
+  entry,
+  reads,
+}: {
+  readonly folder: string;
+  readonly entry: string;
+  readonly reads: ProcessFolderReads;
+},): Promise<ProcessAtAFolder> {
+  return {
+    pid: Number(entry,),
+    // The folder the process works in.
+    folder: await reads.workingFolderOf(join(
+      folder,
+      'cwd',
+    ),),
+    // The kernel's name for the program it runs, which a process that ended before this read leaves unknown.
+    command: await commandNameIn({
+      folder,
+      reads,
+    },),
+  };
+}
+
+/**
+ Reads the kernel's name for the program one process runs.
+
+ @param folder - the process's own folder, inside the process folder
+
+ @param reads - the reads of one process, which a test replaces
+
+ @returns the program's name, or `?` when the folder holds no such file for it
+
+ @throws ProcessFileUnreadableError when the read failed for a reason other than the process having gone, which the caller skips
+ the process for
+
+ @example
+ ```ts
+ const command = await commandNameIn({ folder: '/proc/12', reads: readsOfTheProcessFolder, },);
  ```
  */
 async function commandNameIn({
-  processFolder,
-  entry,
+  folder,
+  reads,
 }: {
-  readonly processFolder: string;
-  readonly entry: string;
+  readonly folder: string;
+  readonly reads: ProcessFolderReads;
 },): Promise<string> {
+  /**
+   The file holding the name the kernel gives a process.
+   */
+  const path = join(
+    folder,
+    'comm',
+  );
   try {
-    return (await readFile(
-      join(
-        processFolder,
-        entry,
-        'comm',
-      ),
-      'utf8',
-    )).trim();
+    return (await reads.textOf(path,)).trim();
   }
   catch (error) {
-    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (errorCodeOf(error,) === 'ENOTDIR')) {
+    /**
+     The code the operating system gave the read.
+     */
+    const code = errorCodeOf(error,);
+    // A name file that is not a file is no name this run can read, and it says nothing about whether the process is there: the
+    // reads of the process's own folder decide that. One that answered that the process has gone is thrown on, so a process that
+    // ended between two reads of it counts as gone rather than as work this run still has.
+    if (code === 'ENOTDIR') {
       return '?';
     }
-    throw error;
+    throw new ProcessFileUnreadableError({
+      path,
+      error,
+    },);
   }
 }
 

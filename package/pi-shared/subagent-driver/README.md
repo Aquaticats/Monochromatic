@@ -1161,15 +1161,32 @@ The feed is read as it is written,
 so a line its writer has not finished is no record yet and is left alone:
 that is what `src/whole-lines-of-a-feed.ts` does for every reader of a feed.
 
-A read that fails after the agent ended its turn does not change why the run ended.
-The run still ends as the run it was,
-and `workProblem` carries what could not be read,
-together with a `work-unreadable` line on the feed saying the same.
+A read that fails after the agent ended its turn does not fail the run.
+`workProblem` carries what could not be read,
+with one `work-unreadable` line on the feed saying the same,
+and the run is kept rather than ended.
 That is what a reader sees when the process table,
 the feed or the manager cannot be read while the driver asks what the run left running:
-the agent finished its turn and Pi exited 0,
-so the run did its work,
-and only the driver's knowledge of the work left behind is missing.
+the driver cannot tell whether work of the run's still runs,
+and a run ended `idle` there would be a run called finished with its work unread.
+The run's own wall clock ends it,
+and its worktree is kept with it.
+The one failed read that does not keep the run is the driver's own feed having failed:
+that failure is already `feedProblem`,
+and it rewrites the run's end to `driver-failed` anyway,
+so keeping the run would only hold it to its wall clock.
+Before 2026-11-14 such a run ended as the run it was,
+which is how the summary of `lock-shim-of-pi-takes-over-a-lock-whose-holder-is-gone-2` came to hold
+`ESRCH: no such process, read '/proc/4038785/comm'` under `workProblem` while ending `idle`.
+
+A process that ends while the scan reads it is not a failed read.
+`src/reads-of-the-process-folder.ts` holds the measurement and the codes:
+`ENOENT` for a process gone before its file is opened,
+and `ESRCH` for one gone after the open and before the read,
+which is what a scan of a working process table meets on its own.
+Any other code is reported,
+with the path and the code,
+as a read the scan could not finish.
 
 `driver-failed` means the driver itself hit an error before it knew how the run ended,
 or that the feed could not be written:
@@ -1177,7 +1194,7 @@ or that the feed could not be written:
 or `feedProblem` does.
 A run that settled is never reported that way for a read that failed after its work was done:
 that failure is `workProblem`,
-and the end reason stays the one the run earned.
+and the run is kept until its own wall clock ends it.
 
 `model-error` means Pi settled on a last assistant message that ended in an error nothing recovered from,
 and `modelError` holds what the model said.

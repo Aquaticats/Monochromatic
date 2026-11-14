@@ -30,16 +30,12 @@ import {
 } from './pool-limits.ts';
 import { optionIn, } from './option-in.ts';
 import { errorCodeOf, } from './error-code-of.ts';
+import { processHasGone, } from './reads-of-the-process-folder.ts';
 import {
   firstWordOf,
   isDigitsOnly,
   valueOfOption,
 } from './text-of-an-option.ts';
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
 
 /**
  The option that names the provider a run asks for.
@@ -170,7 +166,7 @@ async function commandLineOrNothingIn(path: string,): Promise<readonly string[]>
      The code the operating system gave the read.
      */
     const code = errorCodeOf(error,);
-    if ((code === MISSING_PATH_CODE) || (code === 'ESRCH')) {
+    if (processHasGone({ code, },)) {
       return [];
     }
     throw error;

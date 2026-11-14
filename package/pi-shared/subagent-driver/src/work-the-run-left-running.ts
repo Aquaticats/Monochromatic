@@ -37,6 +37,12 @@ import {
 } from './processes-a-tool-answer-names.ts';
 import { isRecord, } from './read-pi-fields.ts';
 import {
+  type ProcessFolderReads,
+  ProcessFileUnreadableError,
+  processHasGone,
+  readsOfTheProcessFolder,
+} from './reads-of-the-process-folder.ts';
+import {
   type RunCommand,
   runCommandWithChildProcess,
 } from './run-command.ts';
@@ -151,7 +157,12 @@ export function workTheToolReportedIn({ feedShown, }: { readonly feedShown: stri
 
  @param entry - the process's entry in that folder, or `self`
 
- @returns the control group, or empty text when it cannot be read
+ @param reads - the reads of one process, which a test replaces
+
+ @returns the control group, or empty text when the process cannot be read
+
+ @throws ProcessFileUnreadableError when the read failed for a reason that is neither the process having gone nor this account
+ being refused
 
  @example
  ```ts
@@ -161,27 +172,41 @@ export function workTheToolReportedIn({ feedShown, }: { readonly feedShown: stri
 export async function cgroupOf({
   processFolder,
   entry,
+  reads = readsOfTheProcessFolder,
 }: {
   readonly processFolder: string;
   readonly entry: string;
+  readonly reads?: ProcessFolderReads;
 },): Promise<string> {
+  /**
+   The file holding the control groups a process is in.
+   */
+  const path = join(
+    processFolder,
+    entry,
+    'cgroup',
+  );
   try {
-    return (await readFile(
-      join(
-        processFolder,
-        entry,
-        'cgroup',
-      ),
-      'utf8',
-    )).trim();
+    return (await reads.textOf(path,)).trim();
   }
   catch (error) {
-    // A process that ended, or one whose folder this account may not read, is in no control group this run can name.
-    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (errorCodeOf(error,) === 'EACCES')
-      || (errorCodeOf(error,) === 'EPERM')) {
+    /**
+     The code the operating system gave the read.
+     */
+    const code = errorCodeOf(error,);
+    // A process that ended at any instant of this scan, or one whose folder this account may not read, is in no control group this
+    // run can name. A process that ended is ordinary: the scan meets one whenever a build it watched finishes while it looks.
+    if (
+      processHasGone({ code, },)
+        || (code === 'EACCES')
+        || (code === 'EPERM')
+    ) {
       return '';
     }
-    throw error;
+    throw (error instanceof ProcessFileUnreadableError) ? error : new ProcessFileUnreadableError({
+      path,
+      error,
+    },);
   }
 }
 
@@ -191,6 +216,8 @@ export async function cgroupOf({
  @param processFolder - the folder holding one entry per process
 
  @param pid - the process number
+
+ @param reads - the reads of one process, which a test replaces
 
  @returns whether the process is there
 
@@ -202,9 +229,11 @@ export async function cgroupOf({
 async function processIsThere({
   processFolder,
   pid,
+  reads,
 }: {
   readonly processFolder: string;
   readonly pid: number;
+  readonly reads: ProcessFolderReads;
 },): Promise<boolean> {
   /**
    The control group of a process that is there, which is never empty.
@@ -212,6 +241,7 @@ async function processIsThere({
   const cgroup = await cgroupOf({
     processFolder,
     entry: String(pid,),
+    reads,
   },);
   return cgroup !== '';
 }
@@ -293,6 +323,8 @@ function lineOf({ work, }: { readonly work: WorkOfARun },): string {
 
  @param run - how a command is run, which a test replaces
 
+ @param reads - the reads of one process, which a test replaces
+
  @returns one line per process the run still has going, empty when it has none the driver can see
 
  @example
@@ -305,11 +337,13 @@ export async function workOutlivingTheTurnIn({
   workingFolder,
   processFolder,
   run = runCommandWithChildProcess,
+  reads = readsOfTheProcessFolder,
 }: {
   readonly runFolder: string;
   readonly workingFolder: string;
   readonly processFolder: string;
   readonly run?: RunCommand;
+  readonly reads?: ProcessFolderReads;
 },): Promise<readonly string[]> {
   /**
    The feed the run's own tool wrote its answers into.
@@ -328,6 +362,7 @@ export async function workOutlivingTheTurnIn({
   const ownCgroup = await cgroupOf({
     processFolder,
     entry: 'self',
+    reads,
   },);
   /**
    The lines that name the work still going.
@@ -345,6 +380,7 @@ export async function workOutlivingTheTurnIn({
     const alive = (work.pid === undefined) ? false : await processIsThere({
       processFolder,
       pid: work.pid,
+      reads,
     },);
     /**
      Whether the unit the command names still runs it.
@@ -377,7 +413,10 @@ export async function workOutlivingTheTurnIn({
   /**
    What the process table shows working in the run's own folders.
    */
-  const processes = await processesAtTheirFolders({ processFolder, },);
+  const processes = await processesAtTheirFolders({
+    processFolder,
+    reads,
+  },);
   for (const process of processes) {
     if (named.has(process.pid,)) {
       continue;
@@ -403,6 +442,7 @@ export async function workOutlivingTheTurnIn({
     const cgroup = await cgroupOf({
       processFolder,
       entry: String(process.pid,),
+      reads,
     },);
     // A process in the run's own unit is the driver or the Pi of this run, which is no work the run left: a scope the agent
     // made leaves that unit, and a service of its own never joins it. A control group nobody can read is no evidence either

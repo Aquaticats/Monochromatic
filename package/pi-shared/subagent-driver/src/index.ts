@@ -214,6 +214,17 @@ export {
 } from './work-the-run-left-running.ts';
 
 /**
+ Reads of one process's own files from the process folder, and the codes a process that has ended answers to them.
+ */
+export {
+  GONE_PROCESS_CODES,
+  type ProcessFolderReads,
+  ProcessFileUnreadableError,
+  processHasGone,
+  readsOfTheProcessFolder,
+} from './reads-of-the-process-folder.ts';
+
+/**
  A batch started as its own systemd user unit, so it outlives the process that asked for it: `start-a-batch-in-its-own-unit.ts`.
  */
 export {

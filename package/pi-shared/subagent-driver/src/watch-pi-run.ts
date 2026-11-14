@@ -473,7 +473,8 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
       /**
        What the run left running, asked before it may end as a run that finished its turn: an agent that ended its turn while a
        build compiled is waiting for that build, so the run is kept, and sent back to it once it is over. A read of that work that
-       fails is reported beside the end reason, which stays `idle`: the agent finished its turn either way.
+       fails is reported under its own name and keeps the run too, because a run whose work is unknown must not read as one that
+       finished.
        */
       const asked = await askAboutItsWorkOrReportAFailure({
         watch,

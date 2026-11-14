@@ -25,8 +25,11 @@ import {
   FEED_PREVIEW_CHARACTERS,
   preview,
   type PiRecord,
+  type ProcessFolderReads,
+  ProcessFileUnreadableError,
   type RunCommand,
   cgroupOf,
+  readsOfTheProcessFolder,
   startRecordOfPiRun,
   unitNamedBy,
   wakeMessageOf,
@@ -334,6 +337,102 @@ async function writeSelf({
   );
 }
 
+
+/**
+ A failure that carries the code the operating system gave a read of a process's own file.
+ */
+class AReadThatFailedError extends Error {
+  /**
+   The code the operating system gave, which is what a reader of a process folder decides with.
+   */
+  readonly code: string;
+
+  /**
+   Keeps the code and the file in the shape the operating system gives them.
+
+   @param path - the file the read was about
+
+   @param code - the code the read failed with
+   */
+  constructor({
+    path,
+    code,
+  }: {
+    readonly path: string;
+    readonly code: string;
+  },) {
+    super(`${code}: no such file, read '${path}'`,);
+    this.name = 'AReadThatFailedError';
+    this.code = code;
+  }
+}
+
+/**
+ Reads a process folder a test wrote, answering the reads of one path with the code a process that has ended gives.
+
+ This is a reader a test supplies in place of the operating system's, so a scan over a process that ends while it is read is
+ checked without racing a real process for the moment.
+
+ @param folder - the process folder the test wrote
+
+ @param entry - the entry whose reads fail with that code
+
+ @param code - the code those reads fail with, `ESRCH` for a process that ended after its file was opened
+
+ @param failingFile - the one file of that entry whose reads fail, or nothing for every read of the entry
+
+ @returns how a reader of one process answers for this folder
+
+ @example
+ ```ts
+ const reads = readsAnsweringFor({ folder: processes, entry: '102', code: 'ESRCH', },);
+ ```
+ */
+function readsAnsweringFor({
+  folder,
+  entry,
+  code,
+  failingFile = '',
+}: {
+  readonly folder: string;
+  readonly entry: string;
+  readonly code: string;
+  readonly failingFile?: string;
+},): ProcessFolderReads {
+  /**
+   What a failing path starts with: the process's own folder and its separator, or one of its files.
+   */
+  const gone = (failingFile === '')
+    ? `${join(
+      folder,
+      entry,
+    )}/`
+    : join(
+      folder,
+      entry,
+      failingFile,
+    );
+  return {
+    workingFolderOf: async function workingFolderOf(path,) {
+      if (path.startsWith(gone,)) {
+        throw new AReadThatFailedError({
+          path,
+          code,
+        },);
+      }
+      return await readsOfTheProcessFolder.workingFolderOf(path,);
+    },
+    textOf: async function textOf(path,) {
+      if (path.startsWith(gone,)) {
+        throw new AReadThatFailedError({
+          path,
+          code,
+        },);
+      }
+      return await readsOfTheProcessFolder.textOf(path,);
+    },
+  };
+}
 
 /**
  A manager that answers what it says about every unit it is asked about.
@@ -687,6 +786,149 @@ await describe({
               processFolder: processes,
               run: holdingNothing,
             },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'counts a process that ended at any instant of the scan as gone, and goes on with the others',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, holding three processes that work in the run's folder.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'bash',
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 102,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'make',
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 103,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'sleep',
+            },);
+            /**
+             The reader that answers for a process which ended before its folder was read, which is every read of it.
+             */
+            const endedBeforeItsFolderWasRead = readsAnsweringFor({
+              folder: processes,
+              entry: '102',
+              code: 'ESRCH',
+            },);
+            /**
+             The reader that answers for a process which ended between the two reads of it: its folder was read and its name file
+             was not.
+             */
+            const endedBetweenItsTwoReads = readsAnsweringFor({
+              folder: processes,
+              entry: '103',
+              code: 'ESRCH',
+              failingFile: 'comm',
+            },);
+            /**
+             The reader of the whole scan, whose one process that is still there answers as the operating system does.
+             */
+            const reads: ProcessFolderReads = {
+              workingFolderOf: async function workingFolderOf(path,) {
+                return await endedBeforeItsFolderWasRead.workingFolderOf(path,);
+              },
+              textOf: async function textOf(path,) {
+                return await endedBetweenItsTwoReads.textOf(path,);
+              },
+            };
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              reads,
+              run: async function answered() {
+                return {
+                  status: 3,
+                  stdout: 'inactive\n',
+                  stderr: '',
+                };
+              },
+            },),).toEqual(['101 bash',],);
+          },
+        },),
+        it({
+          name: 'counts a process whose control group cannot be read because it has gone as gone, and reports a failure that is not that',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, holding one process that ended while the scan read it.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeProcess({
+              folder: processes,
+              pid: 102,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: aWorktree(),
+              command: 'sleep',
+            },);
+            expect(await cgroupOf({
+              processFolder: processes,
+              entry: '102',
+              reads: readsAnsweringFor({
+                folder: processes,
+                entry: '102',
+                code: 'ESRCH',
+              },),
+            },),).toBe('',);
+            expect(await cgroupOf({
+              processFolder: processes,
+              entry: '102',
+              reads: readsAnsweringFor({
+                folder: processes,
+                entry: '102',
+                code: 'ENOENT',
+              },),
+            },),).toBe('',);
+            /**
+             A read that failed for a reason which is no process having gone names the path and the code, so a reader of a run's
+             summary can see what stopped the scan.
+             */
+            await expect(cgroupOf({
+              processFolder: processes,
+              entry: '102',
+              reads: readsAnsweringFor({
+                folder: processes,
+                entry: '102',
+                code: 'EIO',
+              },),
+            },),).rejects.toThrow('EIO',);
+            await expect(cgroupOf({
+              processFolder: processes,
+              entry: '102',
+              reads: readsAnsweringFor({
+                folder: processes,
+                entry: '102',
+                code: 'EIO',
+              },),
+            },),).rejects.toBeInstanceOf(ProcessFileUnreadableError,);
+            await expect(cgroupOf({
+              processFolder: processes,
+              entry: '102',
+              reads: readsAnsweringFor({
+                folder: processes,
+                entry: '102',
+                code: 'EIO',
+              },),
+            },),).rejects.toHaveProperty('path', join(processes, '102', 'cgroup',),);
           },
         },),
       ],

@@ -105,6 +105,11 @@ const TURN_CAP_ABOVE_RETRIES = 8;
 const RETRY_BASE_SECONDS = 0.05;
 /** Milliseconds between looks at a file a test waits on. */
 const LOOK_MILLISECONDS = 20;
+/**
+ How many looks at a run whose work cannot be read a test waits out, so a note a driver wrote on every look would show as more than
+ one.
+ */
+const LOOKS_AT_A_READ_THAT_FAILS = 4;
 /** Milliseconds in a second. */
 const MILLISECONDS_PER_SECOND = 1_000;
 /**
@@ -817,16 +822,23 @@ await describe({
       },
     },),
     it({
-      name: 'a run that settled and whose Pi exited 0 ends idle when the read of its work fails, and the failure sits beside that ending',
+      name: 'a run whose read of its work fails is kept rather than ended idle, and the failure sits beside that ending',
       fn: async () => {
         // The process folder is a file, so the driver's read of it fails as a damaged process table would. That read is the last
-        // thing between a settled run and its end, and it fails after the agent did its work and Pi exited 0: the run must still
-        // end as the run it was, and the failure is what a reader finds beside that ending.
+        // thing between a settled run and its end, and it fails after the agent did its work and Pi exited 0: ending the run
+        // `idle` would call it finished while work of its own may still run, so the run is kept instead, and its own wall clock
+        // ends it if the read never answers.
         const run = await runDriver({
           scenario: 'normal',
           environment: { PI_RUNS_PROCESS_FOLDER: '/dev/null', },
+          whileRunning: async (running,) => {
+            await waitForFeed({ ...running, text: '"kind":"work-unreadable"', },);
+            // The read is asked again on every look, so a driver that noted each look would leave more than one line here.
+            await wait(LOOKS_AT_A_READ_THAT_FAILS * POLL_MILLISECONDS,);
+            await writeFile(join(running.runFolder, 'stop',), '',);
+          },
         },);
-        expect(run.summary.endReason,).toBe('idle',);
+        expect(run.summary.endReason,).toBe('stop-file',);
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.summary.piExit?.code,).toBe(0,);
         expect(run.summary.settled,).toBe(1,);
@@ -834,7 +846,7 @@ await describe({
         expect(String(run.summary.workProblem,),).toContain('ENOTDIR',);
         expect(run.summary.driverError,).toBeUndefined();
         /**
-         The feed's own line for that failure, under a name of its own.
+         The feed's own line for that failure, written once although the read is asked on every look.
          */
         const unreadable = run.feed.filter((entry,) => entry.kind === 'work-unreadable',);
         expect(unreadable.length,).toBe(1,);
