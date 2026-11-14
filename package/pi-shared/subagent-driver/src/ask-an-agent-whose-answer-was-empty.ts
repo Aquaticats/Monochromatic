@@ -149,11 +149,14 @@ export async function askAnAgentWhoseAnswerWasEmpty({
    What Pi said it did with the message.
    */
   const disposition = dispositionOf(answer,);
-  // Pi began a turn while the message was going, which is the one thing the driver cannot see before it sends. A prompt handed
-  // to a working Pi is refused, and a refusal earned by the agent's own turn is no ask: the agent was never told its answer said
-  // nothing, and ending the run on it would stop that turn. The look after this one reads what the turn produces.
-  if (refusedByPi(answer,) && watch.record
-    .isRunning()) {
+  /**
+   Whether Pi began a turn while the message was going, which is the one thing the driver cannot see before it sends. A prompt
+   handed to a working Pi is refused, and a refusal earned by the agent's own turn is no ask: the agent was never told its answer
+   said nothing, and ending the run on it would stop that turn. The look after this one reads what the turn produces.
+   */
+  const beganWorking = watch.record
+    .isRunning();
+  if (refusedByPi(answer,) && beganWorking) {
     watch.record
       .note({
         kind: 'problem',

@@ -29,13 +29,8 @@ import {
 } from './answer-a-model-error.ts';
 import { preview, } from './previews-of-pi-messages.ts';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
-import {
-  askAboutItsWorkOrReportAFailure,
-  type WorkWaitedFor,
-} from './kept-while-work-runs.ts';
-import {
-  askAnAgentWhoseAnswerWasEmpty,
-} from './ask-an-agent-whose-answer-was-empty.ts';
+import type { WorkWaitedFor, } from './kept-while-work-runs.ts';
+import { endingOfARestingRun, } from './ending-of-a-resting-run.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { mayEndIdle, } from './when-a-run-may-end.ts';
 
@@ -474,55 +469,17 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
         ...(waited.wokenAtSettle === undefined ? {} : { wokenAtSettle: waited.wokenAtSettle, }),
       },))) {
       /**
-       What the run left running, asked before it may end as a run that finished its turn: an agent that ended its turn while a
-       build compiled is waiting for that build, so the run is kept, and sent back to it once it is over. A read of that work that
-       fails is reported beside the end reason, which stays `idle`: the agent finished its turn either way.
+       What the run came to: the work it left running, then what its last answer said. Both steps await inside, so the decision
+       that the run may end is taken again on the state they leave, and a turn Pi began in that window keeps the run up.
        */
-      const asked = await askAboutItsWorkOrReportAFailure({
+      const ending = await endingOfARestingRun({
         watch,
         waited,
       },);
-      if (asked === 'refused') {
-        // Pi would not take the message that sends the agent back to work it left, so the run cannot go on and must not read as
-        // one that finished.
-        return 'prompt-rejected';
-      }
-      if (asked !== 'nothing') {
+      if (ending === 'still-running') {
         continue;
       }
-      /**
-       Whether the run may still end: the scan above awaited, and Pi may have begun a turn in that window, as a steer delivered
-       earlier fires after the settle that opened it. Both endings below turn on a Pi at rest, so the decision is taken again on
-       the state the scan left.
-       */
-      if (!mayEndIdle({
-        watch,
-        ...(waited.wokenAtSettle === undefined ? {} : { wokenAtSettle: waited.wokenAtSettle, }),
-      },)) {
-        continue;
-      }
-      /**
-       What the agent's last answer came to, when it came to nothing: a run that read an empty answer as its end gave its place to
-       the next run with no report written, which is what one of 2026-11-13 did. Asking goes only after the work above, so an agent
-       that ended its turn with an empty answer while a build it started compiles is woken to that build, never asked to repeat
-       itself.
-       */
-      const answeredNothing = await askAnAgentWhoseAnswerWasEmpty({
-        watch,
-        waited,
-      },);
-      if ((answeredNothing === 'asked') || (answeredNothing === 'still-running')) {
-        continue;
-      }
-      if (answeredNothing === 'nothing') {
-        return 'idle';
-      }
-      if ((answeredNothing === 'wall-clock') || (answeredNothing === 'pi-exited')) {
-        return answeredNothing;
-      }
-      // The asks are used up, or Pi refused the one that was left, and the agent's last answer still says nothing: the run ends
-      // on that answer, which is neither a run that came back nor a failure of the driver.
-      return 'empty-answer';
+      return ending;
     }
   }
   /* oxlint-enable eslint/no-await-in-loop */
