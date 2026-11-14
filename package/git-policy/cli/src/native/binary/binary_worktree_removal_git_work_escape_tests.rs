@@ -96,10 +96,10 @@ fn a_repository_with_a_recorded_worktree(name: &str) -> Scene {
     git(&fixture, &repo, &["add", TRACKED]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=a tracked file"]);
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the common Git directory");
-    let task: PathBuf = fixture.root.join("task");
-    let task_text: &str = task.to_str().expect("a UTF-8 fixture path");
+    let added: PathBuf = fixture.root.join("task");
+    let task_text: &str = added.to_str().expect("a UTF-8 fixture path");
     run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", BRANCH, task_text]);
-    let task: PathBuf = std::fs::canonicalize(task.as_path()).expect("the worktree's real path");
+    let task: PathBuf = std::fs::canonicalize(added.as_path()).expect("the worktree's real path");
     record(common.as_path(), task.as_path()).expect("the record that this program made the worktree");
     // A commit of the branch's own, so a sweep reads the branch as one that landed work.
     std::fs::write(task.join("task-file.txt"), "task work\n").expect("a file in the worktree");
@@ -207,8 +207,8 @@ fn the_spellings_the_wrapper_reads_run_and_the_one_after_remove_is_real_gits() {
 #[test]
 fn the_sweep_keeps_a_worktree_that_holds_a_commit_nothing_else_names() {
     let scene: Scene = a_repository_with_a_recorded_worktree("removal-escape-sweep-keeps");
-    let head: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", "HEAD"]);
-    let head: String = String::from_utf8_lossy(head.stdout.as_slice()).trim().to_owned();
+    let asked: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", "HEAD"]);
+    let head: String = String::from_utf8_lossy(asked.stdout.as_slice()).trim().to_owned();
     let made: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["commit-tree", format!("{head}^{{tree}}").as_str(), "-p", head.as_str(), "-m", "a commit only a worktree reference names"]);
     let commit: String = String::from_utf8_lossy(made.stdout.as_slice()).trim().to_owned();
     let kept: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["update-ref", "refs/worktree/person-keep", commit.as_str()]);
