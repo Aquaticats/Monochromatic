@@ -149,16 +149,46 @@ pub(crate) fn ensure_socket_passed_in(listen_pid: Option<&str>, listen_fds: Opti
 ///  it has,
 /// which the commit's own ceiling bounds.
 ///
+/// What:
+///  The takeover is one process's at a time, and the refusal is asked again while that process holds it.
+/// Why:
+///   The question and the two system calls after it are not one step:
+///  two servers that both asked and both were refused both unlinked and bound, and the second unlink removed the
+///  first's live socket (the review of `76a08c9fac`, finding 3).
+///  The claim the kernel grants one process at a time (`service_address_takeover_claim.rs`) is what makes the three
+///  one step,
+///  and asking again under it is what keeps a refusal that another taker acted on from being acted on here as well.
+///  A process that finds the claim held leaves the address alone:
+///  the holder is binding a server there now, and this one would only unlink it.
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// try { return listen(path) } catch (inUse) { if (!refusesConnections(path)) throw inUse; unlink(path); return listen(path) }
+/// try { return listen(path) } catch (inUse) { const claim = tryClaim(address); if (!claim.held || !refusesConnections(path)) throw inUse; unlink(path); return listen(path) }
 /// ```
 pub(crate) fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener> {
+    return bind_path_seamed(path, &mut do_nothing);
+}
+
+/// The call a takeover makes between its question and its unlink:
+/// none.
+fn do_nothing() {}
+
+/// `bind_path` with a call between the refusal and the unlink, where a control may let another server act.
+/// A control holds one server there and shows that the other leaves the address alone.
+pub(crate) fn bind_path_seamed(path: &std::path::Path, after_the_probe: &mut dyn FnMut()) -> std::io::Result<UnixListener> {
     use std::os::unix::fs::FileTypeExt;
     let first: std::io::Error = match UnixListener::bind(path) {
         Ok(listener) => return Ok(listener),
         Err(error) if error.kind() == std::io::ErrorKind::AddrInUse => error,
         Err(error) => return Err(error),
+    };
+    let _claim: crate::service_address_takeover_claim::AddressTakeoverClaim = match crate::service_address_takeover_claim::claim(path) {
+        Ok(crate::service_address_takeover_claim::Claim::Held(held)) => held,
+        // What: Another process is taking this address over right now, so this one takes nothing.
+        // Why:  It is mid-takeover: it has asked, and it will unlink and bind. Unlinking now would remove the socket it binds.
+        Ok(crate::service_address_takeover_claim::Claim::AnotherProcessTakesOver) => return Err(first),
+        // A claim that cannot be made is no takeover: the address stays as it is, and the caller's own wait covers it.
+        Err(_cannot_claim) => return Err(first),
     };
     let is_socket: bool = match std::fs::symlink_metadata(path) {
         Ok(meta) => meta.file_type().is_socket(),
@@ -177,6 +207,7 @@ pub(crate) fn bind_path(path: &std::path::Path) -> std::io::Result<UnixListener>
     if !is_socket || !refused {
         return Err(first);
     }
+    after_the_probe();
     std::fs::remove_file(path)?;
     return UnixListener::bind(path);
 }

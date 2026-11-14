@@ -7,15 +7,18 @@
 //! and two commands that both find nothing must not both start one:
 //! the loser would exit on a socket that is already bound,
 //! after writing its own log and paying its own start.
-//! The coordination is one exclusive file creation,
+//! The coordination is one exclusive publication,
 //! which the kernel grants to exactly one process:
-//! the starter marker names its owner by process birth identity,
+//! the starter marker is made whole in a private file and published with one `link`,
+//! so a command that reads it always reads a name and never half of one,
+//! and it names its owner by process birth identity,
 //! so a marker a killed command left is recognised as nobody's and taken over,
 //! and no lock is taken and no command ever waits on a lock
 //! (`AGENTS.md`, the freedom from locks, and `single_owner_claim.rs` for the same idiom).
 //! The socket itself stays the ownership:
 //! a leaked marker costs a duplicated start and never two servers,
-//! because only one bind succeeds.
+//! because the takeover of the address is one process's at a time
+//! (`service_address_takeover_claim.rs`), so only one bind succeeds.
 //! The wait for the greeting has its own bound,
 //! so a service that starts and dies is reported rather than waited for.
 //!
@@ -157,6 +160,17 @@ impl ServerToStart {
 /// start(server) // greeted | another-command-starts-it | did-not-greet
 /// ```
 pub fn start(server: &ServerToStart) -> StartAttempt {
+    return start_seamed(server, &mut ask_the_manager);
+}
+
+/// The manager's own start, as the caller and a control hand it in.
+fn ask_the_manager(manager: &ManagerStart, server: &ServerToStart) -> std::io::Result<Option<i32>> {
+    return manager.start(server);
+}
+
+/// `start` with the manager's start given by the caller,
+/// so a control can hand in a scope that leaves no process number and starts its server late.
+pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut(&ManagerStart, &ServerToStart) -> std::io::Result<Option<i32>>) -> StartAttempt {
     if answered(server.socket.as_path()) {
         return StartAttempt::Greeted;
     }
@@ -198,8 +212,24 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
         && manager.probe()
     {
         // One scope is made for this start, never two: the leader is kept so a scope that made nothing answer can be ended.
-        let leader: Option<i32> = manager.start(server).ok().flatten();
-        let greeted: bool = leader.is_some() && waits_for_a_greeting(server.socket.as_path(), START_WAIT + MANAGER_START_EXTRA);
+        let (leader, may_still_start): (Option<i32>, bool) = match manager_start(manager, server) {
+            Ok(Some(number)) => (Some(number), false),
+            // What: A scope whose number never came may still be starting its own server, so this command waits for that start
+            //       before it makes one of its own.
+            // Why:  The number is written by the middle process that forks the scope's program; one starved past its own wait
+            //       leaves a `systemd-run` that starts a server seconds later, beside the one the base start would make (the
+            //       review of `76a08c9fac`, finding 3, part 2). The wait is the enhancement's own extra and never the command's
+            //       whole wait, so a manager that failed still leaves the base's start the time it needs.
+            Ok(None) => (None, true),
+            // A manager that refused made no scope, and nothing of its is coming.
+            Err(_refused) => (None, false),
+        };
+        let bound: Duration = match (leader, may_still_start) {
+            (Some(_waiting_for_it), _) => START_WAIT + MANAGER_START_EXTRA,
+            (None, true) => MANAGER_START_EXTRA,
+            (None, false) => Duration::ZERO,
+        };
+        let greeted: bool = bound > Duration::ZERO && waits_for_a_greeting(server.socket.as_path(), bound);
         if greeted {
             return StartAttempt::Greeted;
         }
@@ -295,21 +325,121 @@ pub fn waits_for_a_greeting(socket: &Path, bound: Duration) -> bool {
 
 /// What:
 ///  The right of one command to start one worktree's service,
-/// held as a file only the kernel can create once.
+/// held as a file only the kernel can publish once,
+///  whole.
 /// Why:
 ///   The file's content names its owner by process birth identity,
 /// so a marker whose owner is gone is nobody's,
 /// and taking it needs no lock and no wait.
+///  It is published complete and never written through its own name:
+/// a marker that appears empty to a second command is one that command reads as nobody's,
+///  and removes while the first is still starting (the review of `76a08c9fac`, finding 3, part 1).
+///  It is also removed only by the command whose own text it holds, for the same reason.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const marker = createExclusive(`${instance}.starting`, `${pid} ${identity}`) ?? takeOverIfOwnerIsGone(path);
+/// const marker = publishWhole(`${instance}.starting`, `${pid} ${identity}`) ?? takeOverIfOwnerIsGone(path);
 /// ```
 ///
 /// `take` gives nothing when another live command holds the marker, and an error when the marker could not be created at all.
 struct StarterMarker {
     /// The file to remove when this command's start is over.
     path: PathBuf,
+    /// What:
+    ///  The exact text this command published into it.
+    /// Why:
+    ///  The marker is removed only while it still holds this text,
+    /// so a start that ends never removes a marker another command holds.
+    content: String,
+}
+
+/// Distinguishes the private files one process publishes markers through at the same instant.
+static MARKER_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// A name beside `path` that no other publication can have:
+/// the marker's own name, this process, the clock and a counter.
+fn a_private_name_beside(path: &Path) -> PathBuf {
+    let unique: u64 = MARKER_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let nanos: u128 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|elapsed| { return elapsed.as_nanos(); }).unwrap_or(0);
+    let name: String = format!(
+        ".{}.{}.{nanos}.{unique}",
+        path.file_name().map(std::ffi::OsStr::to_string_lossy).unwrap_or_default(),
+        std::process::id()
+    );
+    return path.with_file_name(name);
+}
+
+/// What:
+///  Makes the marker whole in a private file and publishes it under its own name with one `link`,
+///  which the kernel grants to one process.
+/// Why:
+///   A reader then sees a marker that names its owner or no marker at all, never a marker that names nobody because its
+/// owner has not written yet.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write(private, content); link(private, path); rm(private) // AlreadyExists when another command holds the marker
+/// ```
+fn publish_a_whole_marker(path: &Path, content: &str, before_the_publish: &mut dyn FnMut()) -> std::io::Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let private: PathBuf = a_private_name_beside(path);
+    let written: std::io::Result<()> = (|| {
+        let mut file: std::fs::File = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(&private)?;
+        return file.write_all(content.as_bytes());
+    })();
+    if let Err(error) = written {
+        let _removed: std::io::Result<()> = std::fs::remove_file(&private);
+        return Err(error);
+    }
+    // The call `take` makes where a control may let another command publish its own marker.
+    before_the_publish();
+    let linked: std::io::Result<()> = std::fs::hard_link(&private, path);
+    let _removed: std::io::Result<()> = std::fs::remove_file(&private);
+    return linked;
+}
+
+/// What one attempt to take a marker another command left ended in.
+/// Why:
+///  A marker that names nobody is taken away and the publication tried again;
+/// one that names a live command is that command's, and this one stops.
+enum Taken {
+    /// The marker named nobody, and it is gone now.
+    NobodyIsNamed,
+    /// The marker named a live command and was put back for it.
+    ACommandIsNamed,
+    /// The marker went between this command's look and its own move of it.
+    ItWentAlready,
+}
+
+/// What:
+///  Moves a marker away and asks, of the file this command now holds alone, whether it names a live command.
+/// Why:
+///   Asking about the path and then removing the path are two steps:
+///  another command may have published its own whole marker between them, and removing that one takes the right to start
+///  from a live command.
+///  Renaming the marker away is the one step that says which file this command is asking about, and a marker that turns
+///  out to name a live command is put back where it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// rename(path, grave) ?? return 'it went already'; if (alive(grave)) { link(grave, path); return 'a live command names it' } rm(grave); return 'nobody'
+/// ```
+fn take_away_a_marker_that_names_nobody(path: &Path) -> Taken {
+    let grave: PathBuf = a_private_name_beside(path);
+    if std::fs::rename(path, &grave).is_err() {
+        return Taken::ItWentAlready;
+    }
+    if holder_is_alive(&grave) {
+        // What: The marker this command moved names a live command, so it goes back where it was.
+        // Why:  A publication that lands between the move and this restore means the path holds another command's whole marker
+        //       by then, and that one names its own live owner: the moved marker is then dropped rather than taking its place.
+        let _restored = std::fs::hard_link(&grave, path);
+        let _removed: std::io::Result<()> = std::fs::remove_file(&grave);
+        return Taken::ACommandIsNamed;
+    }
+    let _removed: std::io::Result<()> = std::fs::remove_file(&grave);
+    return Taken::NobodyIsNamed;
 }
 
 impl StarterMarker {
@@ -317,38 +447,36 @@ impl StarterMarker {
     ///  Takes the marker,
     /// or nothing when another live command holds it.
     /// Why:
-    ///   One retry is enough for the takeover:
-    /// a second command that takes the dead holder's marker first either wins the retry
-    /// or leaves this one with a live holder.
+    ///   Three rounds are enough for the takeover:
+    /// each one either publishes this command's marker or takes away a dead command's,
+    /// and a live one ends the attempt.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// take(path) // { path } | undefined
     /// ```
     fn take(path: &Path) -> std::io::Result<Option<Self>> {
+        return Self::take_seamed(path, &mut do_nothing);
+    }
+
+    /// `take` with a call where a control may let a second command act between one marker's making and its publication.
+    fn take_seamed(path: &Path, before_the_publish: &mut dyn FnMut()) -> std::io::Result<Option<Self>> {
         // A platform that cannot name a process's birth cannot hold a marker another command may trust.
         let Ok(identity) = current_birth_identity() else {
             return Err(std::io::Error::other("this platform cannot name a process's birth, so no starter marker can be trusted"));
         };
         let content: String = format!("{} {identity}\n", std::process::id());
-        for _round in 0..2 {
-            match std::fs::OpenOptions::new().write(true).create_new(true).open(path) {
-                Ok(mut created) => {
-                    use std::io::Write;
-                    // The content is written before the marker is believed, so a reader always sees an owner.
-                    let _written = created.write_all(content.as_bytes());
-                    return Ok(Some(Self { path: path.to_path_buf() }));
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                    if holder_is_alive(path) {
-                        return Ok(None);
-                    }
-                    // A killed command's marker is nobody's; the removal races another command's, and the retry decides.
-                    let _removed = std::fs::remove_file(path);
-                }
+        for _round in 0..3 {
+            match publish_a_whole_marker(path, content.as_str(), before_the_publish) {
+                Ok(()) => return Ok(Some(Self { path: path.to_path_buf(), content })),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
                 // A folder that is not there, or one this account may not write, is a start that cannot happen, never another
                 // command's start.
                 Err(refused) => return Err(refused),
+            }
+            match take_away_a_marker_that_names_nobody(path) {
+                Taken::NobodyIsNamed | Taken::ItWentAlready => {}
+                Taken::ACommandIsNamed => return Ok(None),
             }
         }
         return Ok(None);
@@ -357,9 +485,19 @@ impl StarterMarker {
 
 impl Drop for StarterMarker {
     fn drop(&mut self) {
-        let _removed = std::fs::remove_file(&self.path);
+        // What: The marker goes only while it still holds this command's own text.
+        // Why:  Removed by its path alone, a finishing start removed the marker another command had published by then, and a
+        //       third command then took that empty place: two starts beside one worktree (the review of `76a08c9fac`,
+        //       finding 3).
+        if matches!(std::fs::read_to_string(&self.path), Ok(current) if current == self.content) {
+            let _removed: std::io::Result<()> = std::fs::remove_file(&self.path);
+        }
     }
 }
+
+/// The call `take` makes between a marker's making and its publication:
+/// none.
+fn do_nothing() {}
 
 /// Whether the marker's owner is still a process with that birth identity.
 /// A marker that cannot be read or parsed names nobody, so it is nobody's.

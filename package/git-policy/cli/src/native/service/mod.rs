@@ -124,6 +124,10 @@ pub mod service_release_order;
 /// and what this release does about it at its first command.
 pub mod service_server_earlier_release_units;
 
+/// The right to replace the socket file at one worktree's address,
+/// held as a claim the kernel grants one process at a time.
+pub mod service_address_takeover_claim;
+
 /// The enhancement: a transient scope through a service manager that is this account's own,
 /// and the base's start whenever it is absent, slow or failing.
 pub mod service_server_start_through_the_manager;

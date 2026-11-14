@@ -52,13 +52,14 @@ use std::time::Duration;
 pub const PROBE_WAIT: Duration = Duration::from_secs(2);
 
 /// What:
-///  What is done with a probe child the bound ended, on a thread of its own.
+///  What is done with a child the bound of a manager's answer ended, on a thread of its own.
 /// Why:
-///  A probe child that is inside an uninterruptible read or write cannot be ended by a signal until that call returns
+///  A child that is inside an uninterruptible read or write cannot be ended by a signal until that call returns
 ///  (a stuck mount, a kernel stall on the filesystem holding the program),
 ///  and a wait for it on this path would wait for as long as that takes:
-/// the review of `3d5c1a0d8c` found `kill()` then `wait()` with no bound after `PROBE_WAIT`.
-///  So the ending and the reaping happen here, never on the command's path, which goes on without the probe's answer.
+/// the review of `3d5c1a0d8c` found `kill()` then `wait()` with no bound after `PROBE_WAIT` in the probe,
+///  and the review of `76a08c9fac` found the same pattern in the stop of an earlier release's units.
+///  So the ending and the reaping happen here, never on the command's path, which goes on without the child's answer.
 ///  A thread that waits for ever is the price of a child that cannot be ended; it holds no lock, no descriptor of the
 ///  command's, and dies with the process.
 ///

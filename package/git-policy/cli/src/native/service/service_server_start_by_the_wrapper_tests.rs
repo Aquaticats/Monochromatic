@@ -151,3 +151,110 @@ fn an_address_whose_queue_is_full_is_not_answered_on_within_the_bound() {
     drop(queued);
     drop(listener);
 }
+
+/// What:
+///  A marker is never readable without its owner:
+///  a command that publishes at the same instant either finds a whole marker naming a live command, or takes the place.
+/// Why:
+///  The review of `76a08c9fac` (finding 3, part 1) found the marker created and its owner written afterwards, so a second
+///  command read an empty marker in that window, took it for a dead command's, removed it and started its own server:
+///  two starts for one worktree. The hold point here is between the marker's making and its publication.
+#[test]
+fn a_marker_is_never_readable_without_its_owner() {
+    let root: PathBuf = folder("whole-marker");
+    let marker: PathBuf = root.join("3f9a.starting");
+    let publishers: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let second_go: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let first_marker: PathBuf = marker.clone();
+    let first_publishers: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&publishers);
+    let first_second_go: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&second_go);
+    let first = std::thread::spawn(move || {
+        return StarterMarker::take_seamed(first_marker.as_path(), &mut || {
+            first_publishers.wait();
+            first_second_go.wait();
+        });
+    });
+    publishers.wait();
+    // What a second command finds at the marker's name at that instant: nothing at all, or a whole marker naming its owner.
+    let found: Option<String> = std::fs::read_to_string(marker.as_path()).ok();
+    if let Some(text) = found.as_ref() {
+        assert!(crate::service_server_pid_note_of_an_instance::parse(text).is_some(), "a marker that is there names its owner, never nobody: {text:?}");
+        assert!(holder_is_alive(marker.as_path()), "and that owner is a live command");
+    }
+    // The second command runs its own take there, and exactly one of the two ends holding the marker.
+    let second = StarterMarker::take(marker.as_path()).expect("the second command asks for the marker");
+    let second_taken: bool = second.is_some();
+    second_go.wait();
+    let first_taken: bool = first.join().expect("the first command ends").expect("the first command answers").is_some();
+    let held: usize = [first_taken, second_taken].iter().filter(|taken| { return **taken; }).count();
+    assert_eq!(held, 1, "exactly one command holds the marker: the first {first_taken}, the second {second_taken}");
+    let text: String = std::fs::read_to_string(marker.as_path()).expect("the one holder's marker is there");
+    assert!(crate::service_server_pid_note_of_an_instance::parse(text.as_str()).is_some(), "and it names its owner: {text:?}");
+}
+
+/// What:
+///  A start that ends removes the marker only while it still holds its own text.
+/// Why:
+///  Removed by its path alone, a finishing start removed the marker another command had published by then, and a third
+///  command took that place: two starts beside one address (the review of `76a08c9fac`, finding 3).
+#[test]
+fn a_start_that_ends_does_not_remove_a_marker_another_command_published() {
+    let root: PathBuf = folder("marker-of-another");
+    let marker: PathBuf = root.join("3f9a.starting");
+    let taken: StarterMarker = StarterMarker::take(marker.as_path()).expect("the marker is made").expect("the first command takes it");
+    // The marker this command holds is replaced by another command's, as a command that took over a dead marker would.
+    let another: String = format!("1 linux:000000\n");
+    std::fs::write(marker.as_path(), another.as_str()).expect("another command's marker");
+    drop(taken);
+    assert_eq!(std::fs::read_to_string(marker.as_path()).ok(), Some(another), "the marker of another command is left where it is");
+}
+
+/// What:
+///  A scope that leaves no process number is given its own wait before a base server is started beside it.
+/// Why:
+///  The review of `76a08c9fac` (finding 3, part 2) found that a `systemd-run` whose middle process reported no number can
+///  start a server seconds later, beside the one the base start had already made. The scope's own start is what this
+///  command waits for, and the base's start is still there when the scope starts nothing.
+#[test]
+fn a_scope_that_leaves_no_process_number_is_given_its_own_wait_before_a_base_server_starts() {
+    let root: PathBuf = folder("scope-without-a-number");
+    let socket: PathBuf = root.join("3f9a.sock");
+    let base_started: PathBuf = root.join("base-started.txt");
+    // The base's start is a stand-in program that records that it was started.
+    let program: PathBuf = root.join("service-program");
+    std::fs::write(program.as_path(), format!("#!/bin/sh\nprintf 'started\\n' >> '{}'\n", base_started.display())).expect("the stand-in is written");
+    std::fs::set_permissions(program.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the stand-in runs");
+    let server: ServerToStart = ServerToStart {
+        socket: socket.clone(),
+        instance: String::from("3f9a"),
+        journal: root.join("journal"),
+        git: PathBuf::from("/usr/bin/git"),
+        program,
+        manager: Some(ManagerStart { program: PathBuf::from("/bin/true") }),
+        named_runtime_dir: None,
+        bus_address: None,
+    };
+    let late_socket: PathBuf = socket.clone();
+    let mut asked: Box<dyn FnMut(&ManagerStart, &ServerToStart) -> std::io::Result<Option<i32>>> = Box::new(move |_manager, _server| {
+        // What the scope does: a server of its own greets the address a moment later, and no number came back for it.
+        let scope_socket: PathBuf = late_socket.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let Ok(listener) = std::os::unix::net::UnixListener::bind(scope_socket.as_path()) else { return };
+            let line: String = format!("{}\n", crate::service_protocol_encode_messages_to_lines::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::MIN_SERVED_PROTOCOL, release: Some(String::from("test")) }));
+            // The scope's server greets every connection for a few seconds, and ends with this control rather than holding the
+            // address for the rest of the suite.
+            let began: std::time::Instant = std::time::Instant::now();
+            while began.elapsed() < std::time::Duration::from_secs(5) {
+                if let Ok((mut stream, _)) = listener.accept() {
+                    use std::io::Write;
+                    let _sent = stream.write_all(line.as_bytes());
+                }
+            }
+        });
+        return Ok(None);
+    });
+    let attempt: StartAttempt = start_seamed(&server, asked.as_mut());
+    assert_eq!(attempt, StartAttempt::Greeted, "the scope's own server greets, and that is this command's answer");
+    assert!(!base_started.exists(), "no base server was started beside the scope: {}", std::fs::read_to_string(base_started.as_path()).unwrap_or_default());
+}

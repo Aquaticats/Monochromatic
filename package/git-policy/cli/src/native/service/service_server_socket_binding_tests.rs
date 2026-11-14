@@ -94,3 +94,45 @@ fn a_bind_against_a_full_queue_ends_at_its_bound_and_takes_nothing() {
     drop(queued);
     drop(listener);
 }
+
+/// What:
+///  One of two servers that meet the same stale socket takes the address over, and the other leaves that address alone.
+/// Why:
+///  The review of `76a08c9fac` reproduced two live services for one worktree: the takeover was probe, unlink, bind, and
+///  two servers that both probed the same stale socket both unlinked and bound, the second unlink removing the first's
+///  live socket. The hold point here is inside the takeover, between the refusal and the unlink, which is the window a
+///  tracer was needed to hold open before; nothing about it is timing.
+#[test]
+fn one_taker_of_a_stale_address_wins_and_the_other_leaves_the_winner_alone() {
+    let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("bind-one-winner");
+    let path: std::path::PathBuf = root.join("3f9a.sock");
+    // A socket a killed service left: bound once and given up.
+    drop(UnixListener::bind(path.as_path()).expect("a socket a service left"));
+
+    // The hold point: the first taker is inside the takeover, refused and claimed, before its unlink.
+    let reached: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let go: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let first_path: std::path::PathBuf = path.clone();
+    let first_reached: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&reached);
+    let first_go: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&go);
+    let first = std::thread::spawn(move || {
+        return bind_path_seamed(first_path.as_path(), &mut || {
+            first_reached.wait();
+            first_go.wait();
+        });
+    });
+    reached.wait();
+    // The second taker runs its whole takeover while the first holds the claim.
+    let second: std::io::Result<UnixListener> = bind_path(path.as_path());
+    go.wait();
+    let winner: UnixListener = first.join().expect("the first taker ends").expect("the first taker takes the address over");
+
+    let second_error: std::io::Error = second.expect_err("the second taker must not bind an address another is taking over");
+    assert_eq!(second_error.kind(), std::io::ErrorKind::AddrInUse, "the second taker leaves the address as it is: {second_error}");
+    // What the winner bound is what the path names: a connection at the address reaches the winner's own listener, so
+    // nothing unlinked its file after it bound and no second socket stands there.
+    assert!(path.exists(), "the address's file is there after the takeover");
+    let _reaches: UnixStream = UnixStream::connect(path.as_path()).expect("and it answers at the address");
+    let (at_the_address, _) = winner.accept().expect("the connection at the address reaches the winner's own listener");
+    drop(at_the_address);
+}
