@@ -760,6 +760,11 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - The drawn shadow tree (tip `f9557d3e6e`, added 2026-11-14T12:18-05:00):
+    a resident service keeps one drawn tree for each worktree standing with no end,
+    where the sweep removed a drawn tree for its age before.
+    Is that the meaning wanted,
+    with its cost in disk for every worktree a service has served?
   - One string after `PNPR_SECRET=` in a Claude Code transcript of 2026-09-15 that no tracked file holds:
     is it a deployed server's secret?
     (`~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/credentials-to-rotate-names-only.txt`.)
@@ -1224,6 +1229,59 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The drawn shadow tree's author answered; its answer goes to review (2026-11-14T12:18:16-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked.
+
+- **A drawn shadow tree handed to a commit** (tip `f9557d3e6e`, ended 12:14:00):
+  the author reports the three findings of its review answered
+  (343 unit tests and five binary tests passing,
+  Clippy clean),
+  and that the answer path makes no filesystem call,
+  shown by a control with a named pipe;
+  the landing path pays one renewal thread for each draw,
+  216 to 227 µs where it paid 2.6 µs.
+  It names a change of meaning for the owner to confirm:
+  a resident service now keeps one drawn tree for each worktree standing with no end,
+  as the pool keeps two members.
+  That question is added to the kept list.
+  It did not run the gate container.
+  Review queued second (range `main...f9557d3e6e`, six code files).
+- The queue held 63 entries at 12:18:16.
+
+##### The landing's answer gives up a large trash after three rounds, back to its author; the package state's answer goes to review (2026-11-14T12:08:28-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session queued.
+
+- **A landing never waits behind housekeeping** (`af0b824df3`),
+  fourth review:
+  one reproduced by linking the crate and calling functions it ships:
+  a trash that needs more than three bounded rounds is moved to `failed` by the cap of tries,
+  and nothing scans `failed`,
+  so the large trash the change was made for stays on disk with nothing that comes back for it
+  (ten of twelve entries left in its run,
+  twice).
+  No data a person made is lost and no commit fails.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/landing-never-waits-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+  Passes 29 and 34 go on waiting on this branch.
+  This session's first draft of that brief told the author that two passes wait on it;
+  the line was taken out at 12:08:35,
+  before the run started,
+  since no brief may hint at hurry.
+- **Package state of a new worktree** (tip `afc54765d4`, ended 12:06:48):
+  the author reports its review answered,
+  `main` merged with one conflict in `SPEC.md` that it checked by hand after `rerere` resolved it,
+  six controls passing at four CPUs,
+  and one cost it names:
+  the removal of three thousand copies is 160 ms slower.
+  Review queued third (range `main...afc54765d4`, nine code files).
+- The queue held 65 entries at 12:08:28.
 
 ##### The foreign watch note passes and goes into pass 43; one low finding goes back; the driver's empty answer goes to review; the pools, not the cap, hold the count of runs (2026-11-14T12:03:39-05:00)
 
