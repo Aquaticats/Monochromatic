@@ -900,6 +900,76 @@ the coordinating session's reading of two runs that ended at 18:54:36 and 18:57:
   Pass 25 had started at 18:55:49,
   so the two could not share a pass.
 
+##### The discarding-commands answer loses files ten ways; two journal tests are corrected and a third is red (2026-11-13T19:13:13-05:00)
+
+Not final and not approved:
+the coordinating session's reading of two runs that ended at 19:06:08 and 19:09:27.
+
+- **Discarding commands** (`0da808e1e0`).
+  Its second review
+  (`~/temp/agent/change-reviews/git-policy-cli-discarding-commands-answers-after-its-first-review/review.md`)
+  built the wrapper at that commit and reproduced ten sequences in which a command the guard lets run
+  destroys a file a person made,
+  with exit status 0 and no copy,
+  each with a control the wrapper refuses:
+  a zero-byte pathspec file read as "nothing is written" where Git switches the branch by force;
+  quoted pathspec-file entries not unquoted;
+  `restore` reading the first `--source` where Git keeps the last;
+  four places where a path or a revision that is not UTF-8 is decoded lossily before the lookup
+  (`checkout-index --prefix`,
+  `read-tree --prefix`,
+  `restore --source=`,
+  the inline `--pathspec-from-file=` name);
+  the interactive clean's cap to one force not keeping a bare repository while its notice says it does;
+  an interactive clean through a `!` alias never capped;
+  and a `checkout.guess` query ended by a signal read as guessing turned off.
+  It found nothing against "Commits should never fail" and no wait without a bound.
+- Weighed:
+  every one is a reproduced loss through a command the change exists to guard,
+  so all ten go back to the author,
+  resumed with its session
+  (`~/temp/agent/pi-runs/discarding-commands-answers-its-second-review-of-2026-11-13-prompt.md`),
+  queued near the head.
+  The brief also asks for what the review dismissed:
+  the guard's whole-worktree listings are right only while the `require-root` policy refuses guarded forms below the root,
+  and that dependence is either written where it can be met or removed.
+  The branch stays out of every pass until its third review.
+- **Two tests of the journal's start** (`e05bcd57b2`,
+  one test file).
+  Both failed on `main`;
+  the author's reading,
+  with the `SPEC.md` lines and the commit `de74ced87d` behind it:
+  the code is right and the tests stated a read that waits on a pipe,
+  which the project forbids.
+  Both were rewritten and each shown failing against a planted break.
+- The launcher's review reads no file of a change that touches tests alone,
+  so its review is hand-written
+  (`~/temp/agent/change-reviews/git-policy-cli-two-tests-of-the-journal-restored-at-start-state-what-a-plan-read-from-a-pipe-does/brief.md`):
+  it judges each test by whether it fails when the code is broken,
+  and lets the reviewer plant breaks in its own worktree,
+  one at a time,
+  none left.
+  Queued at the head.
+- **A third test is red on `main`** for the same cause:
+  `a_client_is_greeted_beaten_and_landed_while_the_journals_plan_gives_no_answer`
+  in `service_server_greets_before_the_journal_is_restored_tests.rs`.
+  Its fixture stands a pipe that no longer holds the read.
+  Its subject still matters
+  (a service greets, beats and lands while its journal's read has not answered,
+  and a read can be slow here without a pipe),
+  so a fresh run is queued to hold the read through the package's own fault points
+  (`~/temp/agent/pi-runs/control-of-the-greeting-before-the-journal-is-restored-states-a-read-the-code-can-still-make-prompt.md`).
+- A wording corrected in briefs from here on:
+  "nothing you run reaches this machine's service manager" read as a limit that forbids `systemd-run --user --scope`,
+  which the rules file requires.
+  The sentence now says that no fixture of the package's tests reaches it
+  and that a capped scope for the agent's own commands is no contradiction.
+  Briefs queued before 19:10 carry the older sentence.
+- Started since 18:55:
+  pass 26,
+  the review of the issue 6299 fix,
+  and the commit-forms author.
+
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
 Not final and not approved:
