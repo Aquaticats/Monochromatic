@@ -504,26 +504,18 @@ impl WorkHandlers for GitHandlers {
                 //  landed says nothing and leaves no record.
                 Verdict::Delivered { commit: sent, said: result.shown }
             }
-            // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
-            //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
-            //  output: any program a push runs can print a line about a branch of its own.
-            // What: A push that reached no address is answered here; one that reached an address is not.
-            // Why:  A commit a remote holds stays there after the branch is deleted, so a delivery is a fact the branch's fate cannot
-            //       take away: such a push is answered below, with the record that says where the commit is (the third review of
-            //       issue 6293, finding 3, which found this arm answering "this push was not made" over a delivery to the first
-            //       address). It still ends every further attempt, as a deleted branch must.
-            Ok(result)
-                if !crate::push_attempts_of_a_failed_push::arrived_somewhere(result.shown.as_str(), newest.branch_ref.as_str())
-                    && branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false) =>
-            {
-                Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
-            }
             // A push whose address can never be a remote, what a push that reached an address came to, and what the words of any
             //  other failed push mean, are read in `service_work_failed_push_verdict.rs`.
+            // What: A branch the person deleted is answered here, and what became of the push decides what the person is told.
+            // Why:  The branch is not there to push, now or ever, so nothing was sent and nothing can pass by waiting; but a commit a
+            //       remote holds stays there after the branch is deleted, so a push that reached an address is a delivery the branch's
+            //       fate cannot take away, and it keeps the record that says where the commit is (the third review of issue 6293,
+            //       finding 3, which found this arm answering "this push was not made" over a delivery to the first address).
             Ok(failed) => {
                 // What: The push read once, and the branch's own fate asked once, for the one decision below.
                 // Why:  Both answers belong to the same verdict: what the push reached decides whether a record says where the commit
-                //       is, and the branch being gone decides that nothing is tried again for it.
+                //       is, and the branch being gone decides that nothing is tried again for it. The three facts of a push are one
+                //       pass over Git's output, so the output is read here and handed in rather than read a second time.
                 let read: crate::push_attempts_of_a_failed_push::FailedPushByAddress = crate::push_attempts_of_a_failed_push::failed_push_by_address(
                     failed.shown.as_str(),
                     newest.branch_ref.as_str(),
@@ -543,6 +535,12 @@ impl WorkHandlers for GitHandlers {
                 //       once, which the step that settles this verdict writes, named for the commit this push sent.
                 match settled {
                     crate::service_work_failed_push_verdict::SettledFailedPush::Reached(said) => Verdict::Delivered { commit: sent, said },
+                    // What: A push that reached no address on a branch the person deleted is answered as it always was.
+                    // Why:  Nothing was sent, so nothing can pass by waiting, and the repository is asked where the commit still lives,
+                    //       never the words of the output: any program a push runs can print a line about a branch of its own.
+                    crate::service_work_failed_push_verdict::SettledFailedPush::Unreached(_) if branch_is_gone => {
+                        Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
+                    }
                     crate::service_work_failed_push_verdict::SettledFailedPush::Unreached(verdict) => verdict,
                 }
             }
