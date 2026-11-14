@@ -172,6 +172,13 @@ fn launchers_of(destination: &Path) -> Launchers {
 /// for (const record of unrewritable) { unlink(record); unlink(record.withExtension('')); }
 /// ```
 fn remove_what_no_install_rewrites(destination: &Path, records: &[PathBuf]) {
+    // A control's own concurrent `toolchain:update` and install, run once as the removal begins: the window a
+    //  classification cannot see lies between its read and the removal, and a control has to stand in it to show what
+    //  the pass does when something is written there. Taken out, so it runs once; only a control build has it.
+    #[cfg(test)]
+    if let Some(write) = WHEN_THE_REMOVAL_BEGINS.with(|cell| return cell.borrow_mut().take()) {
+        write();
+    }
     for record in records {
         let launcher: PathBuf = record.with_extension("");
         match std::fs::remove_file(record.as_path()) {
@@ -192,6 +199,13 @@ fn remove_what_no_install_rewrites(destination: &Path, records: &[PathBuf]) {
 
 /// Tag used for diagnostics from this module.
 const TAG: &str = "packageRepairToolchain";
+
+// What a control writes inside the removal pass, taken out when it runs so it runs once, and absent in a release build.
+#[cfg(test)]
+thread_local! {
+    /// The writer a control stands in the classification-to-removal window with.
+    pub(crate) static WHEN_THE_REMOVAL_BEGINS: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) };
+}
 
 /// Where mpm-shadow keeps the launchers and their records,
 /// relative to a worktree.
