@@ -1136,6 +1136,162 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 25 is in `main` and `0.6.1-alpha.22` is dispatched; a run ended on an empty answer; the add-never-skips author answered (2026-11-13T22:19:52-05:00)
+
+Not final and not approved:
+written by the coordinating session from its own commands' output and two runs' last messages.
+
+- **The meeting of passes 23 and 25**,
+  checked in a worktree of the coordinating session's own
+  (`.claude/worktrees/meeting-of-passes-23-and-25-before-alpha-22`;
+  the pass's worktree had been removed when its run ended),
+  every log in `~/temp/agent/meeting-of-passes-23-and-25-before-release-0-6-1-alpha-22-2026-11-13/keep/`:
+  the merge of `main` at `b0af2f97c2` into pass 25's branch was clean (`b50ad2d330`,
+  3.5 s);
+  build 107.0 s,
+  the library test compile 52.6 s,
+  the binary test compile 9.0 s,
+  Clippy 43.0 s,
+  all exit 0;
+  `Summary [1.315s] 33 tests run: 33 passed` for the controls pass 23 adds,
+  `Summary [0.231s] 32 tests run: 32 passed` for the removal's library filter
+  (six `btrfs_` controls among them ran and passed,
+  with `CLI_GIT_BTRFS_ABSENT_ACKNOWLEDGED` unset),
+  `Summary [1.517s] 10 tests run: 10 passed` for its binary controls.
+  Not run by this check:
+  the pass's probes through a release build,
+  which it ran at its own tip.
+- `git log b50ad2d330..main -- package/git-policy/` listed nothing.
+  **Pass 25** merged into `main` as `b72d0524f1` (2026-11-13T22:18:10-05:00).
+- **`0.6.1-alpha.22`** dispatched:
+  `native:release -- 0.6.1-alpha.21 0.6.1-alpha.22`,
+  `crate-release.yml` run 43550931395.
+  It carries passes 26,
+  23 and 25.
+  `native:release:wait` is going;
+  then `native:install -- 0.6.1-alpha.22`,
+  a sample commit,
+  and the journal read with the counting script for failed starts.
+- Passes 27,
+  28 and 29,
+  all going,
+  were told by a note in each inbox at 22:20:
+  a pass is fit only at a tip that holds `b72d0524f1`,
+  with the files each of the two merges changed.
+  When two of them report within minutes of each other,
+  the second is checked the same way.
+- **A run that ended on an empty answer**:
+  `five-library-controls-of-main-that-state-what-main-changed-are-true-again-1` ended `idle` after five turns and 285 s.
+  Its feed's last answer has no text and no tool call (`"stop":"stop"`,
+  twelve output tokens,
+  61 s after the turn began);
+  the driver settled it as a run that finished,
+  and the summary's `lastAssistantText` is an earlier turn's
+  ("I'll start by reading the required rules file.").
+  Nothing was changed or reported.
+  The run is queued again in its own session,
+  and a fresh run on the driver is queued
+  (`driver-run-whose-last-answer-is-empty-is-asked-to-go-on-and-never-ends-as-finished`):
+  an empty last answer is told apart,
+  the agent is asked to go on a named number of times,
+  and a run that stays empty says so in a field of its own.
+  Until that is in `main`,
+  a run with few turns and a last message that reports nothing is read from its feed before it is taken as finished.
+- **Add never skips**
+  (run `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried-5`,
+  ended 22:16:45,
+  tip `c69516c715`,
+  `main` merged at `9b2d9d6e90`):
+  the author ran the fourth review's three programs and saw each result
+  (the newer write deleted;
+  both reads held by a pipe),
+  then the same interleavings with its new steps:
+  the newer write is kept at a named path,
+  and a pipe is refused in microseconds.
+  Every read of a lock file goes through one reader
+  (a regular file only,
+  opened without following a link and without blocking,
+  stopped at 1 MiB);
+  the placing deletes only its own bytes.
+  Five controls,
+  each shown failing with its fix taken out.
+  Cost:
+  about 8.6 µs more for each read of the lock.
+  Its fifth review is queued at the head
+  (`review-git-policy-cli-add-never-skips-answers-after-its-fourth-review`,
+  range `main...c69516c715`).
+
+##### Passes 23 and 25 report fit; pass 23 is in `main`; pass 25 is being checked against it (2026-11-13T22:12:20-05:00)
+
+Not final and not approved:
+written by the coordinating session from the two passes' reports and its own commands' output.
+
+- **Pass 23** (a commit no longer starts Git to list every reference) reported fit at 22:07:08,
+  tip `5e60cf7cfc`,
+  which holds `5fdce426c0` and `2e28e65b65`
+  (`~/temp/agent/integration-pass-23-for-alpha-21-scratch/keep/report.md`).
+  Build,
+  both test compiles and Clippy with exit 0 at every one of its four tips;
+  the 33 controls the branch adds and the 83 of the modules it touches pass at each.
+  It resolved two hunks by hand with both meanings kept:
+  `service/service_timing.rs`
+  (the journal's stream and every sink inside the service go to `main`'s writer that never waits;
+  the wrapper's own standard error goes to the branch's queue thread,
+  with `main`'s direct write as the fallback when the queue cannot hold the line)
+  and the README's latency requirement.
+- What it measured,
+  three arms in rotation (real Git,
+  the wrapper built from `main`,
+  the wrapper built from its tip),
+  61 rounds,
+  on the route where the wrapper builds the commit itself:
+  in a repository of two thousand and one references the branch was faster in 40 of 61 rounds,
+  paired median 3 ms of a commit of about 40 ms;
+  in one of six references,
+  paired median 0 ms.
+  Counted as processes:
+  `main`'s wrapper started nine children for one commit,
+  one of them `git for-each-ref`;
+  the branch's started eight and no `for-each-ref`.
+- **What it found that the brief did not ask**:
+  a commit that names a path is built by real Git in a scratch repository and never takes the snapshot,
+  so that route gains nothing from this change.
+  Commits made by agents here name their paths.
+  Open,
+  no run:
+  whether the named-path route should be built by the wrapper too is a design question.
+- Checked before merging:
+  `git log 5e60cf7cfc..main -- package/git-policy/` listed nothing.
+  Merged into `main` as `b0af2f97c2` (2026-11-13T22:12:20-05:00).
+- **Pass 25** (removal goes around a foreign volume) reported fit at 22:09:06,
+  tip `d061db840c`,
+  two clean merges of `main`,
+  36 of 36 controls,
+  its probes as in its first part
+  (`~/temp/agent/integration-pass-25-for-alpha-23-scratch/keep/report.md`,
+  part two).
+  It finished two minutes after pass 23,
+  so its tip does not hold pass 23.
+  The two passes change two files in common,
+  `README.md` and `SPEC.md` of the package.
+- **How the meeting is checked**,
+  changed from sending the pass back:
+  the coordinating session merges `main` into pass 25's branch in that pass's own worktree and runs there what a pass runs after a merge of `main`
+  (build,
+  both test compiles,
+  Clippy,
+  the 33 controls pass 23 adds,
+  the removal's library and binary controls),
+  with every log kept in `~/temp/agent/meeting-of-passes-23-and-25-before-release-0-6-1-alpha-22-2026-11-13/keep/`.
+  Passes that finish minutes apart would otherwise each be sent back by the other's merge,
+  round after round.
+  One release then carries both.
+- What pass 25 saw of the installed release,
+  both sent on:
+  after each of its merges the wrapper said the commit service did not start and left the push to a `git push` by hand;
+  and every later Git command in that worktree printed that the commit "is queued for its push",
+  after the push had been made and `HEAD` equalled its upstream.
+
 ##### The no-manager branch's review found three defects, one of them a deleted directory (2026-11-13T22:04:27-05:00)
 
 Not final and not approved:
