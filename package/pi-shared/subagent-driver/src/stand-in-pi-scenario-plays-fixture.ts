@@ -1,6 +1,7 @@
 /**
  What the stand-in Pi does with a prompt or a steer in a scenario that answers at once and fails on nothing: a refused prompt, a
- prompt handled without a run, a dialog, a tool run, a noisy line, and a slow answer. The plays for a failed attempt are in
+ prompt handled without a run, a dialog, a tool run, a tool answer longer than a feed line keeps, a noisy line, and a slow
+ answer. The plays for a failed attempt are in
  `stand-in-pi-model-error-plays-fixture.ts`, and the dispatcher that chooses between all of them is in
  `stand-in-pi-prompt-plays-fixture.ts`.
 
@@ -9,7 +10,10 @@
 
 import { stdout, } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
-import { POLL_MILLISECONDS, } from '../dist/final/node/index.mjs';
+import {
+  FEED_PREVIEW_CHARACTERS,
+  POLL_MILLISECONDS,
+} from '../dist/final/node/index.mjs';
 import {
   seen,
   writeLogLine,
@@ -36,6 +40,39 @@ const SLOW_ANSWER_MILLISECONDS: number = POLL_MILLISECONDS * LOOKS_A_DELAYED_ANS
  Turns the many-turns scenario starts, above any cap the tests set.
  */
 const MANY_TURNS = 5;
+
+/**
+ The name the stand-in's long answer gives the process it is about, which a reader of the feed matches against.
+ */
+export const REPORTED_PROCESS_ID = 'proc_long1';
+
+/**
+ A `process` tool answer longer than a feed line keeps, about a process that has already ended, so the run has no work to wait
+ for.
+
+ A real answer of this kind carries the tail of a build's log, and the feed keeps only a preview of it: text cut inside a JSON
+ string, which a reader that parses it back cannot read. The record the driver writes beside that line holds the answer whole.
+
+ @returns the answer, as the tool gives it
+ */
+function aLongAnswerAboutEndedWork(): Readonly<Record<string, unknown>> {
+  return {
+    content: [{
+      type: 'text',
+      text: 'x'.repeat(FEED_PREVIEW_CHARACTERS.toolResult * 2,),
+    },],
+    details: {
+      action: 'list',
+      processes: [{
+        id: REPORTED_PROCESS_ID,
+        name: 'native-build',
+        command: 'cargo build',
+        cwd: '/',
+        status: 'exited',
+      },],
+    },
+  };
+}
 
 /**
  Answers a command after a delay, without holding up the reading of the next one, so a test can see whether the driver waited.
@@ -182,6 +219,26 @@ export const scenarioPlays: ReadonlyMap<string, (id: unknown,) => void> = new Ma
       answer({ id, },);
       stdout.write('this line is not JSON\n',);
       finishRun('after the noise',);
+    },
+  ],
+  [
+    'process-answer-longer-than-a-line',
+    function reportLongAnswerAboutEndedWork(id,) {
+      answer({ id, },);
+      emit({ type: 'agent_start', },);
+      emit({ type: 'turn_start', },);
+      emit({
+        type: 'tool_execution_start',
+        toolName: 'process',
+        args: { action: 'list', },
+      },);
+      emit({
+        type: 'tool_execution_end',
+        toolName: 'process',
+        isError: false,
+        result: aLongAnswerAboutEndedWork(),
+      },);
+      finishRun('the build ended and I read what it said',);
     },
   ],
   [

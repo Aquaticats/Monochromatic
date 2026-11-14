@@ -302,7 +302,7 @@ pub struct CommitTiming {
     /// Setting up socket activation,
     /// which is the manager's unit comparison and,
     /// after an upgrade,
-    /// a rewrite and a reload.
+    /// a rename of the program link and the unloading of this worktree's unit.
     pub provision: Duration,
     /// Sending the request and waiting for the answer.
     pub submit: SubmitTrace,

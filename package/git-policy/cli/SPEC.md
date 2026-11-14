@@ -4482,25 +4482,32 @@ of which the two that rewrite link layouts in place are the service's work whene
   Then `cargo clean --offline --package <member>` for every member,
   so registry and git dependencies are reused and
   the worktree's own crates rebuild with the worktree's own paths.
-  That clean is not the add's work, and it runs only where the worktree's own build directory holds
+  That clean is not the add's work,
+  and it runs only where the worktree's own build directory holds
   state a build could reuse:
   Cargo keeps the fingerprints that make an artifact fresh inside the build directory,
   so a worktree that starts without one rebuilds its own crates by itself,
   and a copied `target/` alone is no reason to clean.
   Measured on 2026-11-12 on this repository:
   a copy of a built workspace whose `target/` held the source's binary was rebuilt by the copy's first
-  build, which named the copy's own path,
+  build,
+  which named the copy's own path,
   while the clean a copied `target/` used to ask for was a full workspace resolution that deleted
-  nothing, 32.8 to 47.7 s of work in each of three adds that took that clean 34 times
+  nothing,
+  32.8 to 47.7 s of work in each of three adds that took that clean 34 times
   (`doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`).
   Where the worktree's build directory does hold that state,
   the add moves it to the filling's staging name (`<build directory>.monochromatic-prewarm`) in one
-  rename, under the filling's marker, and adds the workspace to the same `prewarm` record,
+  rename,
+  under the filling's marker,
+  and adds the workspace to the same `prewarm` record,
   so no build that starts at once finds artifacts Cargo would call fresh:
-  it finds no build directory and compiles everything itself, which is correct and only slower.
+  it finds no build directory and compiles everything itself,
+  which is correct and only slower.
   The filling then cleans that staged copy and publishes it back with the rename that never replaces,
   so a worktree that built in the meantime keeps what it made.
-  The add runs no `cargo clean` in that path, which is what keeps an add inside its bound:
+  The add runs no `cargo clean` in that path,
+  which is what keeps an add inside its bound:
   the clean's quiet window is six hundred seconds and its ceiling eighteen minutes.
   Where the state cannot be moved aside at all (a staging name another writer holds,
   or a directory that cannot be renamed),
@@ -7592,17 +7599,24 @@ on the commit path:
   once;
   a second `failed` answer still ends the wait,
   so a unit that cannot start fails the commit in seconds.
-  A unit the manager reports `active` whose service has greeted nothing for `SERVICE_GREETING_SILENCE` is asked to
-  restart,
+  A unit the manager reports `active` whose service has greeted nothing for the whole start ceiling is asked to restart,
   once,
-  and the wait goes on:
+  and the wait goes on with the whole ceiling again:
   a service greets a connection before it restores anything,
-  so a running unit that greets nothing is one whose program stopped inside its own process
+  so a service that has run that long with nothing to say is one whose program stopped inside its own process
   (a frozen control group,
   a debugger,
   a suspended machine,
   a wait in the kernel that nothing ends),
   and no start of a unit the manager believes runs brings it back.
+  Nothing shorter than the ceiling stands in for it:
+  a greeting three seconds late was read as that state on 2026-11-12,
+  and the restart and the manager-wide reload that followed ended the desktop session
+  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+  The service survives being ended by design
+  (its journal,
+  its held commits and its work records are durable),
+  so the commit gets its answer instead of failing
   The service survives being ended by design
   (its journal,
   its held commits and its work records are durable),
@@ -8164,39 +8178,187 @@ and
   Test:
   `an_earlier_service_that_is_still_working_is_asked_to_retire_and_never_stopped_by_the_wrapper`,
   and `an_older_git_is_told_how_to_get_a_service_it_can_work_with`.
-- Provisioning asks the manager for the reload its own writes need,
-  and a kill between writing a template and that reload is repaired
-  by the next commit:
-  the record of the unit texts the manager was told about
+- Provisioning never asks the manager to re-read the units it holds.
+  What a commit changes is two files (`service_provision.rs`):
+  the service template names a per-user program link
+  (`service_instance.rs`,
+  `program_link`,
+  `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`)
+  and not the absolute path of the release that wrote it,
+  so an upgrade,
+  a downgrade and two releases used in turn change no text the manager read.
+  Every commit points that link at the release it is running,
+  the fast path included,
+  because the start that follows may be hours away:
+  the service exits after three idle hours,
+  and the manager starts it again from whatever the link names then.
+  The one thing left is a unit the manager holds at an older text,
+  and it is dropped rather than reloaded (`service_provision_instance_unloaded.rs`):
+  a service that runs is asked to retire first,
+  so the batch it holds is finished,
+  the worktree's socket is stopped,
+  the manager is asked what it holds of the worktree's units until it holds neither,
+  and the socket is started again,
+  so the next start reads the file as it is now.
+  The cost is this worktree's own:
+  measured in a disposable manager holding 4,059 units,
+  the manager held a stopped socket and service no longer on the first 50 ms poll,
+  11 ms after the stop was answered
+  (`doc/planning/git-wrapper-reload-remedy.md`).
+  Why:
+  a reload re-reads every unit the manager holds,
+  at a cost that grows with everything else it runs,
+  and it holds the manager's own event loop for as long as it takes.
+  On 2026-11-12T01:21:10-05:00 one of those,
+  139,770 ms long,
+  expired a reply the manager had already been sent for the desktop session's window manager,
+  and the session ended
+  (`doc/troubleshooting/plasma-session-ended-after-service-manager-timeouts.md`).
+  The wrapper's client of the manager has no `Reload` member at all (`systemd_dbus.rs`),
+  and the guard on the members it may call fails if one comes back
+  (`source_guard/no_start_at_login_tests.rs`,
+  `ALLOWED_MEMBERS`),
+  as does a line-for-line control over every release source
+  (`no_release_code_line_makes_the_manager_read_every_unit_it_holds`).
+  A provisioning that finds the units,
+  the record of what the manager was told,
+  the socket file there and no earlier socket of this worktree listening asks the manager nothing at all.
+  Tests:
+  `a_moved_program_moves_only_the_link`,
+  `a_release_change_of_every_kind_changes_no_unit_text`,
+  `a_provisioning_of_an_installation_that_is_in_place_asks_the_manager_nothing`,
+  `a_unit_of_an_earlier_release_is_rewritten_and_started`,
+  `a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a_reload`,
+  and the container proof
+  `mise run //package/git-policy/cli:test:service-manager`,
+  whose arm from `main` ends an unrelated `Type=dbus` service and its target and whose arm from this release keeps both.
+  The migration those two releases meet is the same one:
+  `0.6.1-alpha.13`'s template names the executable of the release that wrote it and `0.6.1-alpha.14`'s names a program link
+  of its own,
+  so either text is rewritten once and its unit dropped once,
+  with no reload.
+- The record of the unit texts the manager last read is per unit instance
   (`service_provision_loaded_unit_texts.rs`,
-  in the notes folder of the runtime unit directory)
-  is written only after the manager accepted the reload,
-  so a commit that finds the files matching and the record older
-  provisions again and asks for the reload,
+  `<instance>.units-the-manager-read` in the notes folder of the runtime unit directory,
+  removed with the note of a stopped instance by the sweep of a removed worktree).
+  Why:
+  the manager holds one instance at a time,
+  so a digest shared by every worktree would call one worktree's freshly loaded units true for another's stale ones.
+  The record is written after the manager was watched dropping the instance and never before,
+  so a commit that finds the files matching and the record older drops the instance and starts it again,
   and the commits after it find the record and take the fast path.
+  Only a call that proved what the manager holds may write it:
+  the manager was watched dropping this worktree's units (`Unloaded::Dropped` in `service_provision_instance_unloaded.rs`),
+  or the record already said so.
+  A manager that could not be asked keeps the record unwritten,
+  even when the start that followed succeeded,
+  because a start alone does not say which text the manager started from;
+  the next commit drops the unit and starts it again.
   Without it the killed upgrade's files look like an installation the manager runs,
   every later commit reaches the service of the release that was replaced,
   and ends with "The commit service that is running was started from another release of this git wrapper ...",
   however often it is run.
   Test:
-  `an_upgrade_killed_before_the_reload_is_repaired_by_the_next_commit`.
-  Nothing else drops the record.
-  Another release answering used to be taken as proof that the unit the manager loaded and the
-  files on disk disagreed,
-  and `reach_current` dropped the record then,
-  so the next commit wrote the
-  units and reloaded.
-  A unit text no longer names a release,
-  so that answer says only that a service started before
-  the program link moved is still running,
-  which the retire ends:
-  the record is left as it is
-  (findings 2 of the round-2 review and 3 of the round-3 review,
-  superseded by the program link below).
+  `a_commit_killed_before_it_recorded_the_units_is_repaired_by_the_next_commit`,
+  and `a_manager_that_does_not_answer_never_fails_the_commit`,
+  which holds the record unwritten after a manager that timed out.
+  A service of another release answering at all is proof that the manager's copy and the files disagree,
+  and the repair is that service's own retirement:
+  it finishes its batch and exits,
+  the manager unloads the unit once nothing runs in it,
+  and the next start reads the file as it is now.
+  Nothing is asked of the manager for it,
+  and no record is dropped:
+  the record says what the manager read,
+  which the unloaded unit no longer contradicts.
+  Test:
+  `a_service_of_another_release_that_will_not_stop_asks_the_manager_for_nothing_global`.
+  A service of another release that is still there at the end of the wait it was given is ended once there,
+  said once,
+  and waited for again under `START_CEILING`,
+  because the wait's bound is the commit's and a service finishing a batch outlasts it;
+  the ending is this worktree's own unit's `RestartUnit`,
+  and one ending only,
+  since a unit the manager starts from a text an upgrade left behind comes back as the other release and the next
+  commit's provisioning repairs that.
+  Test:
+  `a_service_of_another_release_that_outlasts_the_bound_is_ended_once_and_said_once`.
+- A greeting that has not come is never,
+  by itself,
+  read as a service stopped inside its own process.
+  A start is given the whole start ceiling (`wait_ceilings.rs`,
+  `START_CEILING`,
+  one minute),
+  and only then is a unit the manager reports running restarted once,
+  after which the ceiling is waited out again.
+  Why:
+  on 2026-11-12T01:21:13-05:00 a commit waited three seconds for the greeting of a service that was starting on a
+  machine with dozens of agents on it,
+  read that silence as a service stopped inside its own process,
+  asked the manager to restart it,
+  and the recovery from that asked the manager for the reload that ended the session;
+  the service greeted the next time it was asked,
+  five seconds later.
+  The three seconds had been sized against 52 cold starts measured on an unloaded machine,
+  the slowest 1,041 ms.
   Tests:
-  `a_service_of_another_release_that_will_not_stop_leaves_the_record_of_the_units`,
+  `a_greeting_four_seconds_late_lands_the_commit_and_nothing_is_restarted`,
   and
-  `a_service_of_another_release_that_takes_the_retire_and_never_returns_leaves_the_record`.
+  `a_unit_that_never_greets_is_restarted_once_at_the_start_ceiling_and_nothing_global_is_asked`.
+  What that costs the person:
+  with the three-second rule gone,
+  a service that is truly stopped inside its own process is given two whole start ceilings
+  (one before the restart and one after it)
+  before the commit fails,
+  and the commit prints the starting notice after `START_NOTICE_GRACE`,
+  the line that says the unit was restarted,
+  and the failure that names the journal command.
+- A defect of the service manager is worked around by the wrapper,
+  and it is never a reason for a command to fail,
+  to wait without a bound,
+  or to tell a person to do something by hand.
+  The defects on record,
+  and what this code does about each:
+  - A manager-wide reload holds every start request of every client for as long as it runs.
+    No release code asks for one:
+    the member list the client is checked against holds none
+    (`source_guard/no_start_at_login_tests.rs`),
+    and a control over every release source fails if one comes back
+    (`no_release_code_line_makes_the_manager_read_every_unit_it_holds`).
+    So nothing this wrapper does can put another client's start behind a reload it asked for.
+  - systemd v262.1 reads a reply that expired during such a reload as a lost bus name
+    (`src/core/unit.c:3576`,
+    `src/core/service.c:5975`)
+    and then treats a live service as gone.
+    This code produces no such state by asking for a reload;
+    a unit the manager then reports `inactive` or `failed` is started,
+    or reset and started once,
+    by the client's own wait (`service_client_reach_service.rs`),
+    and the connection it makes is the truth about whether the service is there.
+  - A start request that gets no answer within a bound.
+    Every manager call carries its own bound (`systemd_dbus.rs`,
+    `EXCHANGE_WAIT`),
+    a provisioning call that times out leaves the units written,
+    the record unwritten,
+    and the commit going (`a_manager_that_does_not_answer_never_fails_the_commit`),
+    and the client's wait ends at `START_CEILING` naming the unit and the state the manager gave.
+  - A unit an earlier release left failed,
+    stale,
+    or naming a program that is gone.
+    The two unit texts are compared with this release's and rewritten where they differ,
+    the program link is pointed at the running executable before anything is started
+    (`a_replacement_that_stops_before_its_rename_leaves_the_old_link`),
+    a failed unit is reset and started once by the client's wait,
+    and a unit the manager holds at an older text is dropped and started again,
+    not reloaded
+    (`a_machine_carrying_either_earlier_releases_template_is_brought_over_without_a_reload`).
+  What this release does not do:
+  start the service without a manager.
+  Where no session bus can be reached,
+  provisioning ends the commit with the remedy for an account with no user services
+  (`platform_without_manager`),
+  and the wrapper that starts its own service itself is another change,
+  not this one.
 - What a release change costs a commit,
   measured on 2026-11-11T20:01-05:00 on this host
   (load average 120,
@@ -8217,8 +8379,9 @@ and
   which was false (two commits of 20:11:32,
   20,000 ms of provisioning each).
   The unit names a program link the wrapper replaces instead
-  (`src/native/service/service_provision_program_pointer.rs`):
-  `$XDG_RUNTIME_DIR/systemd/user/monochromatic-git-policy-cli-worktree-notes/service-program`,
+  (`src/native/service/service_instance.rs`,
+  `program_link`):
+  `$XDG_RUNTIME_DIR/monochromatic-git-policy-cli-bin`,
   a symlink replaced by a rename,
   so a reader sees the old program or the new one and never a
   half-written link.
@@ -8637,7 +8800,8 @@ in-process reader can) gives every value of the multi-valued keys.
   so the account of a move the worktree would not allow is read as readily as the account of one that followed.
   Its name carries the report's own prefix,
   so a later successful push of the branch removes the failure records of that branch and not a report nobody has read.
-  The name carries the commit the push sent, which is the commit the branch named before the push read the worktree's verdicts,
+  The name carries the commit the push sent,
+  which is the commit the branch named before the push read the worktree's verdicts,
   and never the newest work record the round claimed:
   a commit that lands after that claim is what the push sends,
   so a record named for the claimed commit would replace an unread account of that commit with words about another one and
@@ -8655,7 +8819,8 @@ in-process reader can) gives every value of the multi-valued keys.
   the display cap of a notice stays on a push that did not finish,
   which a later try says the same thing about.
 - A record that could not be written never leaves its work items settled as if it existed:
-  the words it would have carried go to the service journal, every line of them,
+  the words it would have carried go to the service journal,
+  every line of them,
   and what the items become follows what a later try can say.
   A push that landed,
   whose account the storage refused,
@@ -14583,12 +14748,14 @@ from this invocation's own capture.
 The skeleton is the directory itself,
 `objects`,
 `objects/info` and `refs`:
-`objects/pack`, `refs/heads` and `refs/tags` are left to Git,
+`objects/pack`,
+`refs/heads` and `refs/tags` are left to Git,
 which makes the loose object's own directory and the loose ref it writes,
 and the check answers "no pack and no ref" with one question about each absent directory
 (`shadow_skeleton.rs`,
 `shadow_pool_member.rs`).
-A member that holds one of the three is refused, which is what a shadow a commit has used holds.
+A member that holds one of the three is refused,
+which is what a shadow a commit has used holds.
 
 #### A shadow handed out from the drawn folder
 
@@ -14597,7 +14764,8 @@ and hands it over:
 this is the option of
 `doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`
 that the owner decided for on 2026-11-11,
-in its checked form, so every question a claim asks is asked of the tree that is handed out.
+in its checked form,
+so every question a claim asks is asked of the tree that is handed out.
 
 - The drawn trees live in `<common-dir>/monochromatic-git-policy-cli-shadow-drawn/<worktree>`,
   one entry per tree named `drawn-<identity>`,
@@ -14625,17 +14793,22 @@ in its checked form, so every question a claim asks is asked of the tree that is
   so two commits that ask at once never get one tree;
   a restarted service hands out nothing it did not draw,
   and a tree an earlier one drew is left to the sweep by its age.
-- The ask is bounded at `DRAWN_ANSWER_DEADLINE`, 250 ms,
+- The ask is bounded at `DRAWN_ANSWER_DEADLINE`,
+  250 ms,
   which is a hundred and fifty times the largest answer measured over 3,000 round trips
   (`service_client_shadow_hand_out.rs`).
-  A socket nobody listens on, a service that does not answer, an empty stock,
+  A socket nobody listens on,
+  a service that does not answer,
+  an empty stock,
   and an answer naming a tree that is not this worktree's drawn one are all the same to a commit:
-  it takes the pool's member or makes its creation, within the bounds it has today,
+  it takes the pool's member or makes its creation,
+  within the bounds it has today,
   and says nothing.
 - A commit that is handed a tree runs `refusal` on it,
   which is the same check a claim runs and is all reads,
   then writes the ref store into it as it does into a claimed member.
-  A commit that concludes something is never handed one: it carries the state a conclusion leaves,
+  A commit that concludes something is never handed one:
+  it carries the state a conclusion leaves,
   which the landing that concludes compares at the path its own scratch tree holds.
   A tree this invocation refuses is released in the background and the commit takes the other routes.
 - The tree is renewed every `SCRATCH_REFRESH_EVERY` while the command that holds it lives,
@@ -14645,15 +14818,22 @@ in its checked form, so every question a claim asks is asked of the tree that is
   and the sweep removes the tree once it has not been renewed for `SCRATCH_TREE_ABANDONED_AFTER`.
   `sweep_drawn` runs beside every wrapped command,
   beside the service's own draw,
-  and for a removed worktree, which takes the trees of its own folder that nothing renewed and leaves a fresh one:
-  a tree a live commit holds is fresh, and its Git is reading it while the removal runs.
-- The request that lands a commit names the drawn tree it was built in, in its `shadow` field,
+  and for a removed worktree,
+  which takes the trees of its own folder that nothing renewed and leaves a fresh one:
+  a tree a live commit holds is fresh,
+  and its Git is reading it while the removal runs.
+- The request that lands a commit names the drawn tree it was built in,
+  in its `shadow` field,
   and the service removes that tree with the scratch tree once that landing is over.
-  A request the service answered as not landed, or never took,
-  leaves the tree to the command, which releases it beside itself in the background.
+  A request the service answered as not landed,
+  or never took,
+  leaves the tree to the command,
+  which releases it beside itself in the background.
 - A reftable repository and a linked worktree that keeps its own `info` are drawn for by nothing:
-  their commit makes its creation, and it asks nothing.
-- A commit that concludes a merge, a cherry-pick or a revert is handed no drawn tree yet,
+  their commit makes its creation,
+  and it asks nothing.
+- A commit that concludes a merge,
+  a cherry-pick or a revert is handed no drawn tree yet,
   and takes the pool's member or makes its creation as it did before:
   the landing that concludes compares the state Git left in the shadow with the copy it kept,
   reading the shadow at the path the commit's own scratch tree holds
@@ -14679,8 +14859,10 @@ in its checked form, so every question a claim asks is asked of the tree that is
   It is the service's `rename` that the drawn route moves off the commit's wait:
   `330` measured claims put a median 0.08 ms and at most 5,606 ms in it
   (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
-  "The cost, over 330 commits").
-- A handed-out tree is checked before it is used, and a claimed member is checked before it is used,
+  "The cost,
+  over 330 commits").
+- A handed-out tree is checked before it is used,
+  and a claimed member is checked before it is used,
   and everything the check reads is a read:
   its `config` must be the text this invocation's creation would write,
   its alternates must name this invocation's object directory,

@@ -4,6 +4,11 @@ description = "Run native wrapper tests and Clippy together in bounded container
 # through cargo-shadow's own sweep so the task does not reimplement it (doc/handover/cargo-shadow-lean-build-folders.md).
 run = ["cargo-shadow lean records target/verification", "node bin/test-native-container.ts"]
 
+[tasks."test:service-manager"]
+description = "Prove against a real user manager in a disposable container that a Git command never makes it read every unit it holds, and that an unrelated `Type=dbus` service bound to a target survives first provisioning, an upgrade, a downgrade, two releases used in turn from two worktrees, several callers at once, and a machine that has the earlier release's template installed; `-- --image <tag> --main-wrapper <path>` names the gate image and the executable of the release from `main`, which this task copies into both arms' containers (the candidate is this worktree's build, made first here). The arm from `main` has to end the unrelated service and its target, and the arm from this worktree has to keep them and ask for no reload, so a run that proves neither fails"
+# Mechanism D: this task writes a verification record, so it sweeps this package's run records first.
+run = ["cargo-shadow lean records target/verification", "cargo build --locked --offline --bin monochromatic-git-policy-cli", "node bin/service-manager-proof.ts"]
+
 [tasks."native:mutation"]
 description = "Run the gate, plant guard removals, then run cargo-mutants over the native wrapper in bounded containers; mise passes `-- <options>` to the mutation step only, so the gate runs at its own default bounds (run native:test:container with its own options first to change them)"
 # The gate step sweeps this package's run records before either step writes another (mechanism D).
