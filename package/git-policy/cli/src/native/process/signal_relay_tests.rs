@@ -264,9 +264,16 @@ fn a_relayed_stop_is_kept_for_the_wait_that_asks() {
     let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
     let header: *mut SignalHeader = (&mut info as *mut libc::siginfo_t).cast::<SignalHeader>();
     // SAFETY: `header` points into the live `info` buffer above.
-    unsafe { (*header).code = SI_USER };
+    unsafe {
+        (*header).code = SI_USER;
+        (*header).sender = 4_242;
+    }
     relay_handler(libc::SIGTERM, &mut info, std::ptr::null_mut());
-    assert_eq!(crate::signal_relay_relayed_stop::take(), Some(libc::SIGTERM), "the wait is told which signal the person sent");
+    assert_eq!(
+        crate::signal_relay_relayed_stop::take(),
+        Some((libc::SIGTERM, Some(4_242))),
+        "the wait is told which signal the person sent, and the process the kernel named"
+    );
     assert_eq!(crate::signal_relay_relayed_stop::take(), None, "one stop is applied once");
     PENDING[1].store(0, std::sync::atomic::Ordering::SeqCst);
 }

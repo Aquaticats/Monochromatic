@@ -212,7 +212,13 @@ pub(crate) fn stop_requested() -> Option<i32> {
     if signal != 0 {
         return Some(signal);
     }
-    return crate::signal_relay_relayed_stop::take();
+    // What: A stop the preparation relayed carries the process the kernel named, and the record must name it too.
+    // Why:  A tool that sends `SIGTERM` at its own bound and a person's interrupt send the same number, and only the sender
+    //       tells them apart (`commit_stop_reason.rs`, `client-signal`); the relay keeps the sender beside the signal, so
+    //       the wait hands it to the record as the handler of the wait does.
+    let (relayed, sender): (i32, Option<i32>) = crate::signal_relay_relayed_stop::take()?;
+    STOP_SENDER.store(sender.unwrap_or(0), Ordering::SeqCst);
+    return Some(relayed);
 }
 
 /// What:

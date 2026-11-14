@@ -200,13 +200,20 @@ static PENDING: [std::sync::atomic::AtomicI32; 4] =
 static RELAYING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// What:
-///  The first three fields of `siginfo_t` on every Unix system:
+///  The first four fields of `siginfo_t` on every Unix system:
 /// signal number,
-/// error number and code.
+/// error number,
+/// sender code,
+/// and the process that sent the signal.
 /// Why:
 ///   The C struct's fields differ in name and union layout across systems;
-/// these three share one layout,
+/// these four share one layout,
 ///  and reading them through this view avoids the platform accessors.
+///  The fourth word is `si_pid` in the union the sender codes this module relays through use (`kill`,
+///  `sigqueue` and `tkill`),
+/// which is what the record needs to name the process that stopped a commit
+/// (`service_client_interrupted.rs`,
+///  `sender`).
 #[cfg(unix)]
 #[repr(C)]
 struct SignalHeader {
@@ -218,6 +225,54 @@ struct SignalHeader {
     /// Sender code,
     /// `SI_USER` for `kill` and so on.
     code: c_int,
+    /// The process that sent the signal,
+    /// in the union of the sender codes this module relays;
+    /// zero where the kernel named none.
+    sender: c_int,
+}
+
+/// What:
+///  Whether the kernel attributes this report to a process,
+///  and which process it names.
+/// Why:
+///   The handler may call only what the kernel allows,
+///  so the sender has to come from the report it is handed;
+///  this reads the report once for both answers,
+///  and the record of a stopped commit names that process
+///  (`service_client_interrupted.rs`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [fromProcess, sender] = readReport(info);
+/// ```
+#[cfg(unix)]
+fn read_report(info: *mut libc::siginfo_t) -> (bool, Option<i32>) {
+    if info.is_null() {
+        return (false, None);
+    }
+    // SAFETY: with `SA_SIGINFO` the kernel passes a valid `siginfo_t`, whose first four integers are the header read here.
+    let header: SignalHeader = unsafe { std::ptr::read(info.cast::<SignalHeader>()) };
+    if !is_process_sender(header.code) {
+        return (false, None);
+    }
+    return (true, if header.sender > 0 { Some(header.sender) } else { None });
+}
+
+/// What:
+///  The process a signal's report names as its sender,
+///  where the kernel names one.
+/// Why:
+///   The record of a commit a relayed signal stopped names that process,
+///  and a terminal's own signal names none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// senderInReport(info) // 4242, or undefined
+/// ```
+#[cfg(unix)]
+#[cfg_attr(not(test), allow(dead_code))]
+pub(crate) fn sender_in_report(info: *mut libc::siginfo_t) -> Option<i32> {
+    return read_report(info).1;
 }
 
 /// What:
@@ -239,12 +294,8 @@ extern "C" fn relay_handler(
     info: *mut libc::siginfo_t,
     _context: *mut std::ffi::c_void,
 ) {
-    if info.is_null() {
-        return;
-    }
-    // SAFETY: with `SA_SIGINFO` the kernel passes a valid `siginfo_t`; its first three fields are the header.
-    let code: c_int = unsafe { (*info.cast::<SignalHeader>()).code };
-    if !is_process_sender(code) {
+    let (from_process, sender): (bool, Option<i32>) = read_report(info);
+    if !from_process {
         return;
     }
     // A plain loop, because this is a signal handler: it must not allocate or call anything that is not async-signal-safe.
@@ -260,9 +311,10 @@ extern "C" fn relay_handler(
     };
     PENDING[slot].store(signal, std::sync::atomic::Ordering::SeqCst);
     // The two signals a waiting commit answers are noted as well, because the child this one is relayed to may be gone, and
-    //  the command that waits must still learn that the person stopped it (`signal_relay_relayed_stop.rs`).
+    //  the command that waits must still learn that the person stopped it (`signal_relay_relayed_stop.rs`); the process the
+    //  kernel named is kept with the signal, so the record of that commit can tell a tool's bound from a keyboard's interrupt.
     if signal == libc::SIGINT || signal == libc::SIGTERM {
-        crate::signal_relay_relayed_stop::note(signal);
+        crate::signal_relay_relayed_stop::note(signal, sender);
     }
     relay_pending();
 }

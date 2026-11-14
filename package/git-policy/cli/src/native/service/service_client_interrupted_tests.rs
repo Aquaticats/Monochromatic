@@ -271,3 +271,92 @@ fn a_signal_the_caller_ignored_stays_ignored_and_is_never_a_stop() {
     let _hup = unsafe { libc::sigaction(libc::SIGHUP, &ignored, std::ptr::null_mut()) };
     let _quit = unsafe { libc::sigaction(libc::SIGQUIT, &quit, std::ptr::null_mut()) };
 }
+/// What:
+///  A stop relayed during the preparation keeps its signal and the process the kernel named as its sender,
+///  so the record of a commit a tool's signal ended names that tool and not a keyboard's interrupt.
+/// Why:
+///  A tool that gives up on a slow command sends `SIGTERM`,
+///  which is the signal a person's own stop sends;
+///  the wait learns of either through the relay when the signal arrives while a Git child of the preparation runs,
+///  and a record that says only the number cannot tell the two apart (`commit_stop_reason.rs`,
+/// `client-signal`).
+///  The relay is handed the kernel's `siginfo_t`,
+///  so the sender is one word of the report it already reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// relayNote(SIGTERM, 4242); expect(stopRequested()).toBe(SIGTERM); expect(stopSender()).toBe(4242);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_stop_relayed_during_the_preparation_keeps_the_sender_the_kernel_named() {
+    let _stale = crate::signal_relay_relayed_stop::take();
+    stop_requested_for_test(0, None);
+    crate::signal_relay_relayed_stop::note(libc::SIGTERM, Some(4_242));
+    assert_eq!(stop_requested(), Some(libc::SIGTERM), "the wait learns the signal the relay kept");
+    assert_eq!(stop_sender(), Some(4_242), "and the process the kernel named as its sender");
+    // A relayed stop with no sender is no sender, and never the one the last stop named.
+    crate::signal_relay_relayed_stop::note(libc::SIGTERM, None);
+    assert_eq!(stop_requested(), Some(libc::SIGTERM), "the second stop is taken too");
+    assert_eq!(stop_sender(), None, "a signal no process sent names no process");
+}
+
+/// What:
+///  The relay's handler reads the sender out of the kernel's report,
+///  and takes none where the kernel named none.
+/// Why:
+///  The handler may call only what the kernel allows,
+///  so the sender it keeps has to come from the report it is handed and never from a lookup:
+///  `si_pid` is the one fact that tells a tool's `SIGTERM` from a terminal's.
+///  The report is built here in the layout the kernel uses on every Unix (`si_signo`, `si_errno`, `si_code`, then the
+///  sender's process ID in the union those codes use),
+///  which is the layout the handler reads.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(senderIn(report(SIGTERM, SI_USER, 4242))).toBe(4242);
+/// expect(senderIn(report(SIGINT, SI_KERNEL, 0))).toBeUndefined();
+/// ```
+#[cfg(unix)]
+#[test]
+fn the_relay_reads_the_sender_of_a_signal_the_kernel_attributes() {
+    let mut from_process: libc::siginfo_t = report_of(libc::SIGTERM, libc::SI_USER, 4_242);
+    assert_eq!(
+        crate::signal_relay::sender_in_report(&raw mut from_process),
+        Some(4_242),
+        "a process's own signal names that process"
+    );
+    // A terminal's interrupt carries a sender code that is no process's, and macOS reports no code at all for one, so
+    //  only the systems that name the code say anything here.
+    #[cfg(target_os = "linux")]
+    {
+        let mut from_the_terminal: libc::siginfo_t = report_of(libc::SIGINT, libc::SI_KERNEL, 0);
+        assert_eq!(
+            crate::signal_relay::sender_in_report(&raw mut from_the_terminal),
+            None,
+            "a terminal's interrupt names no process"
+        );
+    }
+}
+
+/// A kernel report of one signal,
+/// in the layout every Unix shares:
+/// the signal number,
+/// the error number,
+/// the sender code,
+/// then the sender's process ID.
+#[cfg(unix)]
+fn report_of(signal: libc::c_int, code: libc::c_int, sender: libc::c_int) -> libc::siginfo_t {
+    // SAFETY: all zero bytes are a valid `siginfo_t`, and the four integers written below are its first four words on
+    //  every Unix this program builds for.
+    let mut report: libc::siginfo_t = unsafe { std::mem::zeroed() };
+    let words: *mut libc::c_int = (&raw mut report).cast();
+    // SAFETY: `words` points at the local report, whose first four integers are the words written here.
+    unsafe {
+        *words = signal;
+        *words.add(1) = 0;
+        *words.add(2) = code;
+        *words.add(3) = sender;
+    }
+    return report;
+}
