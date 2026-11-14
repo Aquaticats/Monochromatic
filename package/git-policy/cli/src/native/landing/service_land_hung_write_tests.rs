@@ -129,7 +129,6 @@ fn client_with_extra_wait(serving: &Serving, answer_ceiling: Duration, withdraw_
         waiting_notice_after: PATIENCE,
         extra_wait,
         start_ceiling: PATIENCE,
-        units_record_dir: None,
     };
 }
 
