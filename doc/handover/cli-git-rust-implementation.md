@@ -1236,6 +1236,42 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The lock shim's three defects are closed and one small one remains; the watch note's ceiling latches after a refused thread; both go back (2026-11-14T13:49:43-05:00)
+
+Not final and not approved:
+what two reviews report of themselves,
+each having run reproductions,
+and what the coordinating session queued.
+
+- **The lock shim of Pi** (`37287ade63`),
+  checked by the reviewer of its first tip (53 commands run):
+  the three original defects are closed,
+  each reproduction now ending with a refusal and the holder alive;
+  a takeover happens on proof alone;
+  two takers racing give one winner;
+  nothing depends on the wall clock.
+  One reproduced:
+  the command it prints to clear a lock is not quoted,
+  so for a path with a space the printed `rmdir` fails and the printed `rm -f` ends with status 0 and removes nothing.
+  Its own limits:
+  the package's suite passed on a third run after two that met child-process timeouts,
+  and it could not rebuild the author's end-to-end starts of Pi.
+  The author is resumed third,
+  for the quoting and to measure the suite that passed only on a third run
+  (`~/temp/agent/pi-runs/lock-shim-of-pi-answers-its-second-review-of-2026-11-14-prompt.md`).
+- **A watch note written within a ceiling** (`4307d45a89`):
+  one reproduced with the changed function and `work_within` copied into a harness and a thread refused by a scope's process limit:
+  the flag that says a write is outstanding is taken before the worker starts and cleared by a guard built inside the worker,
+  so one refused start leaves it set for the life of the process and no landing writes a note again;
+  after a kill of the service a held backup push can then wait for a commit that never comes.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/watch-note-write-ceiling-answers-its-review-of-2026-11-14-prompt.md`).
+- The summary of the lock shim reviewer's run holds a third `workProblem` of the same kind
+  (`ESRCH` reading `/proc/<pid>/comm`);
+  the fresh run for that scan is in the queue.
+- No leftover launcher held either name when the two resumes were queued.
+  The queue held 60 entries at 13:49:43.
+
 ##### The first minutes of `0.6.1-alpha.30` are clean; the killed-Git lock's author answered a second time (2026-11-14T13:44:22-05:00)
 
 Not final and not approved:
