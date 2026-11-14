@@ -92,7 +92,7 @@ fn a_read_tree_writes_the_trees_it_names_below_its_prefix() {
         (vec!["-u", "--reset"], None),
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::ReadTree, words(values.as_slice()).as_slice(), None),
+            written_paths(GuardedCommand::ReadTree, words(values.as_slice()).as_slice()),
             expected,
             "{values:?}"
         );
@@ -115,7 +115,7 @@ fn a_reset_writes_the_tree_it_names() {
         (vec!["other"], None),
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::ResetHard, words(values.as_slice()).as_slice(), None),
+            written_paths(GuardedCommand::ResetHard, words(values.as_slice()).as_slice()),
             expected,
             "{values:?}"
         );
@@ -136,7 +136,7 @@ fn a_checkout_writes_what_its_own_words_name() {
         (vec!["other", "b.txt"], matching(Some("other"), &["b.txt"])),
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::CheckoutPaths, words(values.as_slice()).as_slice(), None),
+            written_paths(GuardedCommand::CheckoutPaths, words(values.as_slice()).as_slice()),
             expected,
             "{values:?}"
         );
@@ -153,7 +153,7 @@ fn a_forced_switch_writes_the_whole_tree() {
         (vec!["--force"], tree(None, true)),
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::SwitchForce, words(values.as_slice()).as_slice(), None),
+            written_paths(GuardedCommand::SwitchForce, words(values.as_slice()).as_slice()),
             expected,
             "{values:?}"
         );
@@ -177,7 +177,7 @@ fn a_restore_writes_the_paths_it_names_over() {
         (vec!["--st", "--", "b.txt"], None),
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::RestoreWorktree, words(values.as_slice()).as_slice(), None),
+            written_paths(GuardedCommand::RestoreWorktree, words(values.as_slice()).as_slice()),
             expected,
             "{values:?}"
         );
@@ -197,7 +197,7 @@ fn the_other_forms_write_no_tree_path() {
         GuardedCommand::Remove,
         GuardedCommand::Stash,
     ] {
-        assert_eq!(written_paths(command, words(&["--force", "other"]).as_slice(), None), None, "{command:?}");
+        assert_eq!(written_paths(command, words(&["--force", "other"]).as_slice()), None, "{command:?}");
     }
 }
 
@@ -226,17 +226,16 @@ fn a_forced_move_names_its_sources_and_its_destination() {
     ];
     for (values, wanted_sources, wanted_destination) in cases {
         assert_eq!(
-            written_paths(GuardedCommand::Move, words(values.as_slice()).as_slice(), None),
+            written_paths(GuardedCommand::Move, words(values.as_slice()).as_slice()),
             Some(WrittenPaths::MoveInto {
                 sources: words(wanted_sources.as_slice()),
                 destination: OsString::from(wanted_destination),
-                directory: None,
             }),
             "{values:?}"
         );
     }
     // A move with no source names nothing: Git refuses it.
-    assert_eq!(written_paths(GuardedCommand::Move, words(&["--force", "b"]).as_slice(), None), None);
+    assert_eq!(written_paths(GuardedCommand::Move, words(&["--force", "b"]).as_slice()), None);
 }
 
 /// A forced `checkout-index` writes the index's paths, all of them with `-a`,
@@ -264,7 +263,7 @@ fn a_forced_checkout_index_writes_the_index_below_its_prefix() {
     ];
     for (values, expected) in cases {
         assert_eq!(
-            written_paths(GuardedCommand::CheckoutIndex, words(values.as_slice()).as_slice(), None),
+            written_paths(GuardedCommand::CheckoutIndex, words(values.as_slice()).as_slice()),
             expected,
             "{values:?}"
         );
@@ -297,7 +296,6 @@ fn from_a_file(
         target,
         file: OsString::from(file),
         nul_separated,
-        directory: None,
         entries,
         guesses_a_remote_branch: guesses,
     });
@@ -365,7 +363,7 @@ fn a_pathspec_file_is_read_in_every_spelling() {
     ];
     for (command, values, expected) in cases {
         assert_eq!(
-            written_paths(command, words(values.as_slice()).as_slice(), None),
+            written_paths(command, words(values.as_slice()).as_slice()),
             expected,
             "{command:?} {values:?}"
         );
@@ -387,14 +385,14 @@ fn a_source_written_twice_is_the_last_one() {
     ] {
         let tree_of: Option<WrittenPaths> = matching(Some(wanted), &["f.txt"]);
         assert_eq!(
-            written_paths(GuardedCommand::RestoreWorktree, words(values.as_slice()).as_slice(), None),
+            written_paths(GuardedCommand::RestoreWorktree, words(values.as_slice()).as_slice()),
             tree_of,
             "{values:?}"
         );
     }
     for values in [vec!["-s", "other", "-s", "main", "--", "f.txt"], vec!["--source=other", "--source=main", "--", "f.txt"]] {
         assert_eq!(
-            written_paths(GuardedCommand::RestoreWorktree, words(values.as_slice()).as_slice(), None),
+            written_paths(GuardedCommand::RestoreWorktree, words(values.as_slice()).as_slice()),
             matching(Some("main"), &["f.txt"]),
             "{values:?}"
         );
@@ -416,7 +414,6 @@ fn a_word_that_is_a_path_or_a_revision_keeps_its_bytes() {
     let read_tree: Option<WrittenPaths> = written_paths(
         GuardedCommand::ReadTree,
         &[word(b"-u"), word(b"--prefix"), word(&read_tree_prefix), word(b"other")],
-        None,
     );
     assert_eq!(
         read_tree,
@@ -429,7 +426,6 @@ fn a_word_that_is_a_path_or_a_revision_keeps_its_bytes() {
     let checkout_index: Option<WrittenPaths> = written_paths(
         GuardedCommand::CheckoutIndex,
         &[word(b"-f"), word(b"--prefix=p-\xff/"), word(b"-a")],
-        None,
     );
     assert_eq!(
         checkout_index,
@@ -444,7 +440,7 @@ fn a_word_that_is_a_path_or_a_revision_keeps_its_bytes() {
         vec![word(b"-sbr-\xff"), word(b"--"), word(b"f.txt")],
     ] {
         assert_eq!(
-            written_paths(GuardedCommand::RestoreWorktree, region.as_slice(), None),
+            written_paths(GuardedCommand::RestoreWorktree, region.as_slice()),
             Some(WrittenPaths::MatchingTree {
                 revision: Some(word(b"br-\xff")),
                 pathspecs: vec![word(b"f.txt")],
@@ -455,7 +451,6 @@ fn a_word_that_is_a_path_or_a_revision_keeps_its_bytes() {
     let inline: Option<WrittenPaths> = written_paths(
         GuardedCommand::CheckoutPaths,
         &[word(b"other"), word(b"--pathspec-from-file=n-\xff")],
-        None,
     );
     match inline {
         Some(WrittenPaths::PathspecFile { file, .. }) => assert_eq!(file, word(b"n-\xff")),
@@ -465,12 +460,99 @@ fn a_word_that_is_a_path_or_a_revision_keeps_its_bytes() {
     let moved: Option<WrittenPaths> = written_paths(
         GuardedCommand::Move,
         &[word(b"-f"), word(b"a.txt"), word(b"p-\xff")],
-        None,
     );
     match moved {
         Some(WrittenPaths::MoveInto { destination, .. }) => assert_eq!(destination, word(b"p-\xff")),
         other => panic!("the move was read as {other:?}"),
     }
+}
+
+//endregion
+
+//region The fourth review: a word the reading mistook (2026-11-14)
+
+/// What:
+///  A revision spelled exactly like the file `--pathspec-from-file` names is still the revision.
+/// Why:
+///  The reading used to drop every positional word equal to the file's name,
+///  which was there to skip a separated value that the option's own table already consumes.
+///  `git checkout -f topic --pathspec-from-file=topic` then named no revision,
+///  so the form was read as aimed at the index,
+///  whose paths do not hold the tree's new `b.txt`,
+///  and the untracked file at that path was written over with no refusal
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writtenPaths('CheckoutPaths', ['-f', 'topic', '--pathspec-from-file=topic']).target === { kind: 'tree', revision: 'topic' }
+/// ```
+#[test]
+fn a_pathspec_file_named_like_the_revision_is_still_the_revision() {
+    assert_eq!(
+        written_paths(
+            GuardedCommand::CheckoutPaths,
+            words(&["-f", "topic", "--pathspec-from-file=topic"]).as_slice()
+        ),
+        from_a_file(PathspecTarget::Tree(Some(OsString::from("topic"))), "topic", false, WrittenEntries::EveryEntry, true)
+    );
+    // The separated spelling puts the file's name with its option, so the revision is the only positional word left.
+    assert_eq!(
+        written_paths(
+            GuardedCommand::CheckoutPaths,
+            words(&["-f", "--pathspec-from-file", "list", "topic"]).as_slice()
+        ),
+        from_a_file(PathspecTarget::Tree(Some(OsString::from("topic"))), "list", false, WrittenEntries::EveryEntry, true)
+    );
+    // A form naming no revision still writes the index's paths.
+    assert_eq!(
+        written_paths(
+            GuardedCommand::CheckoutPaths,
+            words(&["-f", "--pathspec-from-file=topic"]).as_slice()
+        ),
+        from_a_file(PathspecTarget::Index, "topic", false, WrittenEntries::EveryEntry, true)
+    );
+}
+
+/// What:
+///  A `--prefix` value written as the next token is that option's value and no pathspec.
+/// Why:
+///  The reading consumed the value but did not step past it,
+///  so the value was read a second time as a path:
+///  `git checkout-index -f --prefix out/ -- a.txt` wrote the index paths matching `out/` below
+///  `out/` again, naming `out/out/keep.txt`,
+///  a path Git never writes,
+///  and the wrapper refused a command real Git runs
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writtenPaths('CheckoutIndex', ['-f', '--prefix', 'out/', '--', 'a.txt']) === { kind: 'index-under-a-prefix', pathspecs: ['a.txt'], prefix: 'out/' }
+/// ```
+#[test]
+fn a_separated_checkout_index_prefix_is_no_pathspec() {
+    assert_eq!(
+        written_paths(
+            GuardedCommand::CheckoutIndex,
+            words(&["-f", "--prefix", "out/", "--", "a.txt"]).as_slice()
+        ),
+        Some(WrittenPaths::IndexUnderPrefix {
+            pathspecs: words(&["a.txt"]),
+            prefix: OsString::from("out/"),
+        })
+    );
+    // A pathspec that really names an index path below the prefix is still read, and still shifted.
+    assert_eq!(
+        written_paths(
+            GuardedCommand::CheckoutIndex,
+            words(&["-f", "--prefix", "out/", "--", "out/keep.txt"]).as_slice()
+        ),
+        Some(WrittenPaths::IndexUnderPrefix {
+            pathspecs: words(&["out/keep.txt"]),
+            prefix: OsString::from("out/"),
+        })
+    );
 }
 
 //endregion

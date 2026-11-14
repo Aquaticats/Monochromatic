@@ -194,3 +194,57 @@ fn a_lookup_that_fails_for_another_reason_is_a_failure_and_not_an_unchanged_path
     }
     remove(root.as_path());
 }
+
+//region The fourth review: a path read from the wrong folder (2026-11-14)
+
+/// What:
+///  A marked edit at the worktree root is read when the command runs in a subdirectory,
+///  and its bytes are hashed from the file the index names.
+/// Why:
+///  The listing that names the marked paths asks from the top (`--full-name` with `:(top)`),
+///  so those names are root-relative,
+///  while a plain pathspec is matched from the directory Git runs in and a plain file name is
+///  opened from there.
+///  From `sub`, `ls-files -- tracked.txt` matched `sub/tracked.txt` or nothing,
+///  and `hash-object -- tracked.txt` hashed that other file,
+///  so the root edit was not in the answer at all and a `reset --hard` run in `sub` reverted it
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// editsTheStatusHides(factsAt('repo/sub'), 'repo') === ['tracked.txt']
+/// ```
+#[test]
+fn a_marked_edit_above_the_caller_is_read_from_a_subdirectory() {
+    let (root, repository): (PathBuf, PathBuf) = repository_with_tracked_file("facts-edits-read-from-a-subdirectory");
+    let below: PathBuf = repository.join("sub");
+    std::fs::create_dir(below.as_path()).expect("the directory the command runs in");
+    // A file of the same name below the caller holds the index's own bytes, so a hash of that file
+    //  would report the root edit as unedited.
+    std::fs::write(below.join("tracked.txt"), b"one\n").expect("the file below the caller");
+    std::fs::write(repository.join("tracked.txt"), b"the person's edit\n").expect("the edit at the root");
+    git(repository.as_path(), &["update-index", "--assume-unchanged", "tracked.txt"]);
+    let mut facts: GitFacts = facts_in(below.as_path());
+    assert_eq!(
+        edits_the_status_hides(&mut facts, repository.as_path(), false),
+        Ok(vec![String::from("tracked.txt")]),
+        "the edit at the root was not read from the subdirectory"
+    );
+    // The bytes half on its own: the entry is the index's, and the file it names is the root's.
+    let entry: MarkedEntry = MarkedEntry {
+        mode: String::from("100644"),
+        object: String::from("1111111111111111111111111111111111111111"),
+        path: Vec::from(b"tracked.txt".as_slice()),
+        size: 1,
+        modified: (0, 0),
+    };
+    let mut bytes_facts: GitFacts = facts_in(below.as_path());
+    assert!(
+        matches!(differs_from_the_index(&mut bytes_facts, repository.as_path(), &entry), Ok(true)),
+        "the object hashed was the file below the caller and not the one the index names"
+    );
+    remove(root.as_path());
+}
+
+//endregion

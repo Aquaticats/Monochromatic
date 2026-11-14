@@ -23,7 +23,7 @@
 /// The provider whose Git,
 ///  global options and environment answer the queries.
 use super::repository_facts::GitFacts;
-/// The written-path reading this fact answers.
+/// The written-path reading this fact answers, and the pathspec target it may name.
 use crate::command_written_paths::{PathspecTarget, WrittenPaths};
 /// The interface the location is asked through,
 ///  whose `prefix` names the paths a form that names paths writes below.
@@ -32,8 +32,13 @@ use crate::repository_facts::RepositoryFacts;
 ///  and the NUL-separated reading of an answer.
 use crate::git_metadata::MetadataOutput;
 use crate::rule_worktree_dirty::nul_separated_paths;
-/// The ceiling one metadata lookup of the worktree is read under.
-use crate::wait_ceilings::WORKTREE_LOOKUP_CEILING;
+/// The ceiling one metadata lookup of the worktree is read under,
+///  and the bound on the bytes of a pathspec file.
+use crate::wait_ceilings::{PATHSPEC_FILE_READ_LIMIT, WORKTREE_LOOKUP_CEILING};
+/// The worktree a path is named from.
+use crate::worktree_identity::worktree_root;
+/// The caller's global options without the `-C` chain a query started elsewhere already reached.
+use crate::global_arguments::without_directory_changes;
 /// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
 use std::ffi::{OsStr, OsString};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
@@ -43,9 +48,16 @@ use std::path::{Path, PathBuf};
 ///  Every path at which the form writes a file,
 ///  `Result<Vec<Vec<u8>>, String>` is "the paths,
 ///  or why Git could not give one".
+///  `&Path` borrows the directory the command runs in, which every relative word of it is
+///  read from.
 /// Why:
 ///   A query that failed says nothing,
 ///  and a safety check must never read a failure as "nothing is written".
+///  The directory travels with the reading because a command's relative paths mean one place
+///  and one prefix:
+///  the names a path form matches are read from the directory Git runs it in,
+///  which is the top of the worktree for the command a `!` alias's shell runs,
+///  and where the wrapper stands otherwise.
 ///  The directories on the way to a path are not listed:
 ///  Git creates the ones it needs,
 ///  so a directory there loses nothing,
@@ -55,32 +67,28 @@ use std::path::{Path, PathBuf};
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function pathsTheTreeWrites(facts, written): Promise<Buffer[]>; // throws
+/// function pathsTheTreeWrites(facts, written, runIn): Promise<Buffer[]>; // throws
 /// ```
-pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths) -> Result<Vec<Vec<u8>>, String> {
+pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths, run_in: &Path) -> Result<Vec<Vec<u8>>, String> {
     return match written {
         WrittenPaths::Tree { revision, guesses_a_remote_branch, .. } => {
-            tree_paths(facts, revision.as_deref(), &[], *guesses_a_remote_branch)
+            tree_paths(facts, revision.as_deref(), &[], *guesses_a_remote_branch, run_in)
         }
         WrittenPaths::MatchingTree { revision, pathspecs } => {
             // A form that names paths writes the tree of the word before them, and Git resolves that word as a
             //  revision alone: `checkout -f topic -- b.txt` answers `invalid reference: topic` for a remote-only name.
-            tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false)
+            tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false, run_in)
         }
-        WrittenPaths::Index { pathspecs } => index_paths(facts, pathspecs.as_slice()),
-        WrittenPaths::IndexUnderPrefix { pathspecs, prefix } => index_under_prefix_paths(facts, pathspecs, prefix),
-        WrittenPaths::MoveInto { sources, destination, directory } => {
-            let at: Option<&Path> = directory.as_ref().map(|named| return Path::new(named));
-            move_paths(facts, sources.as_slice(), destination, at)
-        }
-        WrittenPaths::ReadTree { revisions, prefix, .. } => read_tree_paths(facts, revisions.as_slice(), prefix.as_deref()),
-        WrittenPaths::PathspecFile { target, file, nul_separated, directory, entries: _, guesses_a_remote_branch } => {
-            let at: Option<&Path> = directory.as_ref().map(|named| return Path::new(named));
-            let pathspecs: Vec<OsString> = pathspecs_in_the_file(file, *nul_separated, at)?;
+        WrittenPaths::Index { pathspecs } => index_paths(facts, pathspecs.as_slice(), run_in),
+        WrittenPaths::IndexUnderPrefix { pathspecs, prefix } => index_under_prefix_paths(facts, pathspecs, prefix, run_in),
+        WrittenPaths::MoveInto { sources, destination } => move_paths(facts, sources.as_slice(), destination, run_in),
+        WrittenPaths::ReadTree { revisions, prefix, .. } => read_tree_paths(facts, revisions.as_slice(), prefix.as_deref(), run_in),
+        WrittenPaths::PathspecFile { target, file, nul_separated, entries: _, guesses_a_remote_branch } => {
+            let pathspecs: Vec<OsString> = pathspecs_in_the_file(file, *nul_separated, run_in)?;
             if !pathspecs.is_empty() {
                 return match target {
-                    PathspecTarget::Tree(revision) => tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false),
-                    PathspecTarget::Index => index_paths(facts, pathspecs.as_slice()),
+                    PathspecTarget::Tree(revision) => tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false, run_in),
+                    PathspecTarget::Index => index_paths(facts, pathspecs.as_slice(), run_in),
                 };
             }
             // Git reads a zero-byte file as "no pathspecs were given", so the form becomes the one without a path at
@@ -88,7 +96,7 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
             //  branch its name stands for, and a `restore` is Git's own refusal, which writes nothing.
             return match target {
                 PathspecTarget::Tree(Some(revision)) => {
-                    tree_paths(facts, Some(revision.as_os_str()), &[], *guesses_a_remote_branch)
+                    tree_paths(facts, Some(revision.as_os_str()), &[], *guesses_a_remote_branch, run_in)
                 }
                 PathspecTarget::Tree(None) | PathspecTarget::Index => Ok(Vec::<Vec<u8>>::new()),
             };
@@ -100,7 +108,7 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
 ///  The paths a forced `git mv` writes,
 ///  read from the worktree the way Git reads them.
 ///  `&[OsString]` borrows the sources, `&OsStr` the destination,
-///  `Option<&Path>` the directory a relative word is read from.
+///  `&Path` the directory Git runs the form in.
 /// Why:
 ///  Git moves every source into a destination that is a directory
 ///  (`git mv -f a.txt b` writes `b/a.txt` and leaves `b/` and its other files alone),
@@ -116,20 +124,20 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
 ///  and a missing source (`bad source`).
 ///  A metadata lookup that gives no answer stops the command,
 ///  because the shape it would write was not seen.
+///  Relative words are read from the directory the command runs in,
+///  which is the worktree's top for the command a `!` alias's shell runs,
+///  and the names this answers are rooted there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function movePaths(facts, ['a.txt'], 'b', undefined): Promise<Buffer[]>;
+/// function movePaths(facts, ['a.txt'], 'b', runIn): Promise<Buffer[]>;
 /// ```
 fn move_paths(
     facts: &mut GitFacts,
     sources: &[OsString],
     destination: &OsStr,
-    directory: Option<&Path>,
+    run_in: &Path,
 ) -> Result<Vec<Vec<u8>>, String> {
-    let location: crate::repository_location::RepositoryLocation = facts.location()?;
-    // Where Git runs the form, which is where its relative words are read.
-    let run_in: PathBuf = crate::command_run_directory::command_run_directory(facts.global_prefix.as_slice(), directory)?;
     let reached: Named = named_entry(run_in.join(destination).as_path())?;
     // Which source is a directory of its own decides two of Git's refusals, and a source that is not there is
     //  Git's `bad source`, which writes nothing.
@@ -155,7 +163,9 @@ fn move_paths(
                 match named_entry(run_in.join(path_from_bytes(target.as_slice()).as_os_str()).as_path())? {
                     // Git refuses to write over a directory of that name (`Cannot overwrite`), and writes nothing.
                     Named::Directory => return Ok(Vec::<Vec<u8>>::new()),
-                    Named::Missing | Named::Other => written.push(inside_the_worktree(&location, target.as_slice())),
+                    Named::Missing | Named::Other => {
+                        written.push(rooted_at_the_run_directory(facts, run_in, target.as_slice())?);
+                    }
                 }
             }
         }
@@ -166,7 +176,7 @@ fn move_paths(
                 || sources.len() > 1
                 || (matches!(reached, Named::Other) && sources_are_directories.first() == Some(&true));
             if !refused {
-                written.push(inside_the_worktree(&location, destination.as_encoded_bytes()));
+                written.push(rooted_at_the_run_directory(facts, run_in, destination.as_encoded_bytes())?);
             }
         }
     }
@@ -249,19 +259,29 @@ fn source_name(source: &OsStr) -> Vec<u8> {
 
 /// What:
 ///  One path a form writes as the worktree root spells it:
-///  below the directory Git runs in, which the location's prefix names.
+///  below the directory the command runs in.
+///  `&Path` borrows that directory, `&[u8]` the path the form's own words name.
 /// Why:
 ///  The entries in the way are named from the worktree root,
-///  and a form run from a directory below it names its own paths from there.
+///  and a form run from a directory below it names its own paths from there,
+///  which is not the caller's directory when Git runs the shell of a `!` alias at the top:
+///  a `git mv` inside an alias that stood below the top wrote a file the guard looked for
+///  one directory down.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const rooted = (location, 'b/a.txt') => Buffer.concat([location.prefix, 'b/a.txt']);
+/// const rooted = (facts, runIn, 'b/a.txt') => Buffer.concat([runPrefix(facts, runIn), 'b/a.txt']);
 /// ```
-fn inside_the_worktree(location: &crate::repository_location::RepositoryLocation, path: &[u8]) -> Vec<u8> {
-    let mut rooted: Vec<u8> = location.prefix.clone();
+fn rooted_at_the_run_directory(facts: &mut GitFacts, run_in: &Path, path: &[u8]) -> Result<Vec<u8>, String> {
+    let location: crate::repository_location::RepositoryLocation = facts.location()?;
+    let prefix: Vec<u8> = match worktree_root(&location.identity) {
+        Some(root) => crate::command_run_directory::run_directory_prefix(root, run_in, location.prefix.as_slice()),
+        // A repository with no worktree of its own has no directory a name is read from.
+        None => location.prefix.clone(),
+    };
+    let mut rooted: Vec<u8> = prefix;
     rooted.extend_from_slice(path);
-    return rooted;
+    return Ok(rooted);
 }
 
 /// What:
@@ -278,12 +298,19 @@ fn inside_the_worktree(location: &crate::repository_location::RepositoryLocation
 ///  A file that cannot be read is a failure, never an empty answer:
 ///  Git refuses the command for the same reason, and a guard must not read that as "nothing is
 ///  written".
+///  A relative name means the directory the command runs in,
+///  which is the worktree's top for the command a `!` alias's shell runs.
+///  The bytes are read through the plain-file reader under a byte bound:
+///  a name that is a pipe is refused rather than waited on,
+///  and a file larger than the bound is refused by its size instead of being read whole,
+///  because the thread that reads it is abandoned when the ceiling passes and a read with no
+///  bound would go on filling this process's memory after the answer.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// function pathspecsInTheFile(file, nulSeparated, directory): string[]; // throws
 /// ```
-fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: Option<&Path>) -> Result<Vec<OsString>, String> {
+fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: &Path) -> Result<Vec<OsString>, String> {
     // Git itself waits for a writer on a FIFO and for a mount that stopped answering
     //  (`timeout 10 git checkout --pathspec-from-file=<fifo>` was still waiting when the probe ended it,
     //  measured on this host with native Git 2.56.0, 2026-11-13),
@@ -300,20 +327,11 @@ fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: Option<&P
     let absolute: PathBuf = if named.is_absolute() {
         named
     } else {
-        let base: PathBuf = match directory {
-            Some(given) => given.to_path_buf(),
-            None => match std::env::current_dir() {
-                Ok(here) => here,
-                Err(error) => {
-                    return Err(format!("Git could not read the pathspecs `{}` names: {error}", named.display()));
-                }
-            },
-        };
-        base.join(named.as_path())
+        directory.join(named.as_path())
     };
     let opened: PathBuf = absolute.clone();
     let Some(answer) = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
-        return std::fs::read(opened.as_path());
+        return crate::plain_file::read_plain_file_through_links(opened.as_path(), PATHSPEC_FILE_READ_LIMIT);
     }) else {
         return Err(format!(
             "the file `{}` that `--pathspec-from-file` names gave no bytes within {} seconds, so the guard cannot tell which paths this command writes over",
@@ -323,6 +341,13 @@ fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: Option<&P
     };
     let bytes: Vec<u8> = match answer {
         Ok(found) => found,
+        // A file past the byte bound says its size, which is what the person acts on.
+        Err(error) if error.kind() == std::io::ErrorKind::InvalidData => {
+            return Err(format!(
+                "Git could not read the pathspecs `{}` names: it holds more than {PATHSPEC_FILE_READ_LIMIT} bytes, which is more than the guard reads, so the guard cannot tell which paths this command writes over",
+                absolute.display()
+            ));
+        }
         Err(error) => {
             return Err(format!("Git could not read the pathspecs `{}` names: {error}", absolute.display()));
         }
@@ -482,7 +507,8 @@ pub(super) fn path_from_bytes(bytes: &[u8]) -> OsString {
 ///  or every path of it when there are none,
 ///  read from the name the command itself turns into a tree.
 ///  `bool` says whether `checkout` and `switch` are free to guess the remote branch a short name
-///  stands for.
+///  stands for,
+///  and `&Path` borrows the directory Git runs the command in.
 /// Why:
 ///   `git ls-tree -r -z --name-only` prints each path of the tree,
 ///  and Git itself matches the pathspecs,
@@ -498,13 +524,14 @@ pub(super) fn path_from_bytes(bytes: &[u8]) -> OsString {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function treePaths(facts, revision, pathspecs, guesses): Promise<Buffer[]>; // throws
+/// function treePaths(facts, revision, pathspecs, guesses, runIn): Promise<Buffer[]>; // throws
 /// ```
 fn tree_paths(
     facts: &mut GitFacts,
     revision: Option<&OsStr>,
     pathspecs: &[OsString],
     guesses_a_remote_branch: bool,
+    run_in: &Path,
 ) -> Result<Vec<Vec<u8>>, String> {
     // `-` is the previous branch only to `switch` and `checkout`, so it is read as the expression Git resolves
     //  wherever an object name is read; `@{-N}` needs no such reading.
@@ -515,8 +542,8 @@ fn tree_paths(
         },
         None => OsString::from("HEAD"),
     };
-    let Some(paths) = listed_paths_of(facts, named.as_os_str(), pathspecs)? else {
-        return tree_of_a_name_git_may_still_reach(facts, named.as_os_str(), pathspecs, guesses_a_remote_branch);
+    let Some(paths) = listed_paths_of(facts, named.as_os_str(), pathspecs, run_in)? else {
+        return tree_of_a_name_git_may_still_reach(facts, named.as_os_str(), pathspecs, guesses_a_remote_branch, run_in);
     };
     return Ok(paths);
 }
@@ -547,6 +574,7 @@ fn tree_of_a_name_git_may_still_reach(
     named: &OsStr,
     pathspecs: &[OsString],
     guesses_a_remote_branch: bool,
+    run_in: &Path,
 ) -> Result<Vec<Vec<u8>>, String> {
     if git_holds_an_object_named(facts, named)? {
         return Err(tree_reading_failure(named, "Git knows an object by that name and did not list its tree"));
@@ -559,7 +587,7 @@ fn tree_of_a_name_git_may_still_reach(
     let Some(remote_branch) = remote_branch_a_checkout_would_create_from(facts, named)? else {
         return Ok(Vec::<Vec<u8>>::new());
     };
-    return match listed_paths_of(facts, remote_branch.as_os_str(), &[])? {
+    return match listed_paths_of(facts, remote_branch.as_os_str(), &[], run_in)? {
         Some(paths) => Ok(paths),
         None => Err(tree_reading_failure(
             remote_branch.as_os_str(),
@@ -591,6 +619,7 @@ fn tree_reading_failure(named: &OsStr, what_git_did: &str) -> String {
 /// What:
 ///  The paths `git ls-tree -r -z --name-only` answers for one name and its pathspecs,
 ///  or nothing when Git exited nonzero.
+///  `&Path` borrows the directory Git runs the command in.
 /// Why:
 ///  A listing that ran and failed says the name did not resolve to a tree Git can list;
 ///  a listing that could not run at all is a failure of the query, never a killed read.
@@ -599,16 +628,28 @@ fn tree_reading_failure(named: &OsStr, what_git_did: &str) -> String {
 ///  measured on this host with native Git 2.56.0, 2026-11-13),
 ///  and every guarded form acts on the whole worktree,
 ///  so the whole-tree reading asks with `--full-tree` and names paths the worktree root holds.
-///  A form that names paths keeps Git's own reading of them, which is relative to the directory the
-///  command runs in,
-///  and its answers are written below that directory as the worktree root sees it.
+///  A form that names paths keeps Git's own reading of them,
+///  which is relative to the directory the command runs in,
+///  and that directory is where the query starts:
+///  `-C` is left out and the directory carries the chain instead, because `-C` reaches the same
+///  place and measures from the one Git was started in.
+///  From a subdirectory, `checkout other -- b.txt` inside a `!` alias writes the top-level
+///  `b.txt` while a query started in the caller's directory found `sub/b.txt` and let the write
+///  through
+///  (measured on this host with native Git 2.56.0, 2026-11-14).
+///  Its answers are written below that directory as the worktree root sees it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function listedPathsOf(facts, 'other', ['b.txt']): Promise<Buffer[] | undefined>;
+/// function listedPathsOf(facts, 'other', ['b.txt'], runIn): Promise<Buffer[] | undefined>;
 /// ```
-fn listed_paths_of(facts: &mut GitFacts, named: &OsStr, pathspecs: &[OsString]) -> Result<Option<Vec<Vec<u8>>>, String> {
-    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
+fn listed_paths_of(
+    facts: &mut GitFacts,
+    named: &OsStr,
+    pathspecs: &[OsString],
+    run_in: &Path,
+) -> Result<Option<Vec<Vec<u8>>>, String> {
+    let mut arguments: Vec<OsString> = without_directory_changes(facts.global_prefix.as_slice());
     for token in ["--no-optional-locks", "ls-tree", "-r", "-z", "--name-only"] {
         arguments.push(OsString::from(token));
     }
@@ -621,7 +662,9 @@ fn listed_paths_of(facts: &mut GitFacts, named: &OsStr, pathspecs: &[OsString]) 
         arguments.push(OsString::from("--"));
         arguments.extend(pathspecs.iter().cloned());
     }
-    let output: MetadataOutput = facts.query(arguments, "the tree this command writes")?;
+    // A whole-tree reading names the worktree's own paths, and a path form's pathspecs mean the directory the
+    //  command runs in, so that is where Git is started for both.
+    let output: MetadataOutput = facts.query_in(run_in, arguments, "the tree this command writes")?;
     if !output.success {
         // A child a signal ended answered nothing at all; only a nonzero exit is an answer about the name.
         if output.code.is_none() {
@@ -636,13 +679,10 @@ fn listed_paths_of(facts: &mut GitFacts, named: &OsStr, pathspecs: &[OsString]) 
         return Ok(Some(paths));
     }
     // A path form's answers are relative to the directory Git runs in, and the entries in the way are named from the
-    //  worktree root, so the directory's own prefix is written before each of them.
-    let location: crate::repository_location::RepositoryLocation = facts.location()?;
+    //  worktree root, so that directory's own prefix is written before each of them.
     let mut rooted: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(paths.len());
     for path in paths.drain(..) {
-        let mut below: Vec<u8> = location.prefix.clone();
-        below.extend(path);
-        rooted.push(below);
+        rooted.push(rooted_at_the_run_directory(facts, run_in, path.as_slice())?);
     }
     return Ok(Some(rooted));
 }
@@ -869,7 +909,8 @@ mod tests;
 /// What:
 ///  The paths of every tree a `git read-tree` form names,
 ///  each below the directory its `--prefix` writes it in.
-///  `&[OsString]` borrows the names the form carries and the prefix it may name.
+///  `&[OsString]` borrows the names the form carries and the prefix it may name,
+///  and `&Path` the directory Git runs the form in.
 /// Why:
 ///   Every path a merge or a reset can write comes from one of the trees it names,
 ///  and `--prefix` moves each of them below a directory the form names,
@@ -879,12 +920,17 @@ mod tests;
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function readTreePaths(facts, ['HEAD', 'other'], 'sub/') ==> ['sub/a.txt', 'sub/b.txt']
+/// function readTreePaths(facts, ['HEAD', 'other'], 'sub/', runIn) ==> ['sub/a.txt', 'sub/b.txt']
 /// ```
-fn read_tree_paths(facts: &mut GitFacts, revisions: &[OsString], prefix: Option<&OsStr>) -> Result<Vec<Vec<u8>>, String> {
+fn read_tree_paths(
+    facts: &mut GitFacts,
+    revisions: &[OsString],
+    prefix: Option<&OsStr>,
+    run_in: &Path,
+) -> Result<Vec<Vec<u8>>, String> {
     let mut paths: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for revision in revisions {
-        for path in tree_paths(facts, Some(revision.as_os_str()), &[], false)? {
+        for path in tree_paths(facts, Some(revision.as_os_str()), &[], false, run_in)? {
             paths.push(under_the_prefix(path, prefix));
         }
     }
@@ -915,37 +961,95 @@ fn under_the_prefix(path: Vec<u8>, prefix: Option<&OsStr>) -> Vec<u8> {
 /// What:
 ///  The paths the index holds that the given pathspecs match,
 ///  each below the directory a `git checkout-index --prefix` names.
-///  `&OsString` borrows them and the directory.
+///  `&OsString` borrows the pathspecs and the directory,
+///  and `&Path` the directory Git runs the form in.
 /// Why:
 ///  `git checkout-index --prefix=<directory>/ --all` writes the index's content there,
 ///  so the worktree entry a form would write over stands at that shifted path,
 ///  and no query of the index knows the directory's name.
+///  Git joins the prefix to the path as text and resolves the pair from the directory it runs
+///  in,
+///  so a relative prefix is read below that directory and an absolute one is its own path:
+///  a prefix naming a directory outside the worktree writes no entry of it,
+///  and a command that writes nothing of the worktree is no reason to refuse.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function indexUnderPrefixPaths(facts, pathspecs, prefix): Promise<Buffer[]>; // throws
+/// function indexUnderPrefixPaths(facts, pathspecs, prefix, runIn): Promise<Buffer[]>; // throws
 /// ```
-fn index_under_prefix_paths(facts: &mut GitFacts, pathspecs: &[OsString], prefix: &OsStr) -> Result<Vec<Vec<u8>>, String> {
-    let mut shifted: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    for path in index_paths(facts, pathspecs)? {
-        shifted.push(under_the_prefix(path, Some(prefix)));
+fn index_under_prefix_paths(
+    facts: &mut GitFacts,
+    pathspecs: &[OsString],
+    prefix: &OsStr,
+    run_in: &Path,
+) -> Result<Vec<Vec<u8>>, String> {
+    let written: Vec<Vec<u8>> = index_paths(facts, pathspecs, run_in)?;
+    if written.is_empty() {
+        return Ok(written);
+    }
+    let location: crate::repository_location::RepositoryLocation = facts.location()?;
+    let Some(root) = worktree_root(&location.identity) else {
+        return Ok(Vec::<Vec<u8>>::new());
+    };
+    let mut base: Vec<u8> = if prefix.as_encoded_bytes().starts_with(b"/") {
+        Vec::<u8>::new()
+    } else {
+        run_in.as_os_str().as_encoded_bytes().to_vec()
+    };
+    if !base.is_empty() && !base.ends_with(b"/") {
+        base.push(b'/');
+    }
+    base.extend_from_slice(prefix.as_encoded_bytes());
+    let mut shifted: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(written.len());
+    for path in written {
+        let mut absolute: Vec<u8> = base.clone();
+        absolute.extend(path);
+        // An entry outside the worktree is not one it holds, so nothing there is lost.
+        if let Some(below) = below_the_worktree_root(root, absolute.as_slice()) {
+            shifted.push(below);
+        }
     }
     return Ok(shifted);
 }
 
 /// What:
-///  The paths the index holds that the given pathspecs match,
-///  or every path of it when there are none.
+///  One absolute path as the worktree root names it,
+///  or nothing when it does not stand below that root.
+///  `&Path` borrows the root, `&[u8]` the path's bytes.
 /// Why:
-///  A restore without a source writes the index's content over the worktree,
-///  and a query that failed is a failure rather than an empty answer.
+///  The entries in the way are the worktree's own, named from its root,
+///  and a path Git writes outside the worktree is an entry of no worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function indexPaths(facts, pathspecs: string[]): Promise<Buffer[]>; // throws
+/// const below = (root, '/r/out/a.txt') => '/r/' === root + '/' ? 'out/a.txt' : undefined;
 /// ```
-fn index_paths(facts: &mut GitFacts, pathspecs: &[OsString]) -> Result<Vec<Vec<u8>>, String> {
-    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
+fn below_the_worktree_root(root: &Path, absolute: &[u8]) -> Option<Vec<u8>> {
+    let mut root_prefix: Vec<u8> = root.as_os_str().as_encoded_bytes().to_vec();
+    if !root_prefix.ends_with(b"/") {
+        root_prefix.push(b'/');
+    }
+    return absolute.strip_prefix(root_prefix.as_slice()).map(<[u8]>::to_vec);
+}
+
+/// What:
+///  The paths the index holds that the given pathspecs match,
+///  or every path of it when there are none.
+///  `&Path` borrows the directory Git runs the command in.
+/// Why:
+///  A restore without a source writes the index's content over the worktree,
+///  and a query that failed is a failure rather than an empty answer.
+///  A pathspec of the form means the directory the command runs in,
+///  so the query starts there and the answers are rooted there;
+///  a listing with no pathspec is scoped to that directory unless `:(top)` is written,
+///  and every guarded form acts on the whole worktree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function indexPaths(facts, pathspecs: string[], runIn): Promise<Buffer[]>; // throws
+/// ```
+fn index_paths(facts: &mut GitFacts, pathspecs: &[OsString], run_in: &Path) -> Result<Vec<Vec<u8>>, String> {
+    let mut arguments: Vec<OsString> = without_directory_changes(facts.global_prefix.as_slice());
     for token in ["--no-optional-locks", "ls-files", "-z", "--cached", "--full-name"] {
         arguments.push(OsString::from(token));
     }
@@ -957,7 +1061,7 @@ fn index_paths(facts: &mut GitFacts, pathspecs: &[OsString]) -> Result<Vec<Vec<u
     } else {
         arguments.extend(pathspecs.iter().cloned());
     }
-    let output: MetadataOutput = facts.query(arguments, "the paths the index holds")?;
+    let output: MetadataOutput = facts.query_in(run_in, arguments, "the paths the index holds")?;
     if !output.success {
         let detail: String = String::from_utf8_lossy(output.stderr.as_slice())
             .lines()
@@ -967,5 +1071,15 @@ fn index_paths(facts: &mut GitFacts, pathspecs: &[OsString]) -> Result<Vec<Vec<u
             .to_string();
         return Err(format!("Git could not read the paths the index holds: {detail}"));
     }
-    return Ok(nul_separated_paths(output.stdout.as_slice()));
+    let mut paths: Vec<Vec<u8>> = nul_separated_paths(output.stdout.as_slice());
+    if pathspecs.is_empty() || paths.is_empty() {
+        return Ok(paths);
+    }
+    // A path form's answers are relative to the directory Git runs in, and the entries in the way are named from the
+    //  worktree root, so that directory's own prefix is written before each of them.
+    let mut rooted: Vec<Vec<u8>> = Vec::<Vec<u8>>::with_capacity(paths.len());
+    for path in paths.drain(..) {
+        rooted.push(rooted_at_the_run_directory(facts, run_in, path.as_slice())?);
+    }
+    return Ok(rooted);
 }

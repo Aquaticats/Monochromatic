@@ -5,10 +5,10 @@
 //!  and a real-Git control that `--no-force -f` really lands Git on one force.
 //! Why:
 //!  The cap changes what Git runs,
-//!  so every clean that carries no menu,
-//!  no descent,
-//!  no ignored mode or only one force must reach Git untouched,
+//!  so every clean that carries no menu or no ignored mode must reach Git untouched,
 //!  and the token pair must be written where Git reads options and never where it reads paths.
+//!  One force is no reason to leave a menu alone:
+//!  it keeps a repository with a `.git` entry and does not keep a bare one.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -48,6 +48,9 @@ fn worktree(name: &str, with_repository: bool) -> Worktree {
         linked.to_str().expect("utf-8 fixture path"),
     ));
     facts.clean_deletes = Ok(vec![b"Would remove cache/".to_vec()]);
+    // The fixture carries no `-e` pattern, so the clean's answer is the same with and without the patterns its own
+    //  tokens add, and a reading asked either way names the same repository.
+    facts.clean_deletes_without_exclusions = Ok(vec![b"Would remove cache/".to_vec()]);
     return Worktree { root, facts };
 }
 
@@ -100,20 +103,18 @@ fn an_interactive_clean_runs_with_one_force_and_names_the_repository_it_keeps() 
 }
 
 /// What:
-///  A clean with no menu,
-///  no ignored mode or only one force is left to Git,
+///  A clean with no menu or no ignored mode is left to Git,
 ///  and nothing is asked about it.
 /// Why:
-///   Git keeps every nested repository by itself at one force,
-///  and only an interactive clean cannot be asked what it will delete;
-///  a transform that asked about every clean would cost a Git process for nothing.
+///   Only an interactive clean cannot be asked what its person will choose,
+///  and only an ignored mode reaches an entry Git's status does not report,
+///  so a transform that asked about every clean would cost a Git process for nothing.
 #[test]
 fn a_clean_that_offers_no_menu_reaches_git_untouched() {
     let found: Worktree = worktree("rule-interactive-nested-leaves", true);
     let mut facts: ScriptedFacts = found.facts.clone();
     for spelling in [
         vec!["clean", "-f", "-f", "-d", "-X"],
-        vec!["clean", "-i", "-f", "-d", "-X"],
         vec!["clean", "-i", "-f", "-f", "-d"],
         vec!["status", "-i", "-f", "-f", "-d", "-X"],
         vec!["clean", "-i", "-f", "-f", "-d", "-X", "--no-such-option"],
@@ -128,6 +129,48 @@ fn a_clean_that_offers_no_menu_reaches_git_untouched() {
         );
         assert!(matches!(decision, CapDecision::Unchanged), "{spelling:?}");
         assert!(facts.asked.is_empty(), "{spelling:?} asked {:?}", facts.asked);
+    }
+    remove(found.root.as_path());
+}
+
+/// What:
+///  An interactive clean with ONE force is read the way a menu at one force is:
+///  the reading is asked,
+///  and a repository it names is kept by the cap.
+/// Why:
+///  Git's hold at one force sees a `.git` entry and not a bare repository,
+///  so a menu at one force offers exactly the repositories a clean at one force
+///  deletes;
+///  a transform that returned before asking left a bare repository in that menu with
+///  no saved copy
+///  (`git clean -fXd` printed `Removing ignored-bare/` at one force, measured on this
+///  host with native Git 2.56.0,
+///  2026-11-13).
+#[test]
+fn an_interactive_clean_at_one_force_is_still_read() {
+    let found: Worktree = worktree("rule-interactive-nested-one-force", true);
+    let mut facts: ScriptedFacts = found.facts.clone();
+    for spelling in [
+        vec!["clean", "-i", "-f", "-d", "-X"],
+        vec!["clean", "-ifdX"],
+    ] {
+        facts.asked.clear();
+        match keep_nested_repositories_out_of_an_interactive_menu(
+            os_arguments(spelling.as_slice()).as_slice(),
+            os_arguments(spelling.as_slice()).as_slice(),
+            None,
+            &mut facts,
+        ) {
+            CapDecision::Capped { arguments, repositories } => {
+                let mut expected: Vec<&str> = spelling.clone();
+                expected.extend(ONE_FORCE);
+                assert_eq!(arguments, os_arguments(expected.as_slice()), "{spelling:?}");
+                assert_eq!(repositories, vec![b"cache/nested".to_vec()], "{spelling:?}");
+            }
+            CapDecision::Unchanged => panic!("{spelling:?} was left alone"),
+            CapDecision::Stopped { message } => panic!("{spelling:?} stopped: {message}"),
+        }
+        assert!(!facts.asked.is_empty(), "{spelling:?} asked nothing");
     }
     remove(found.root.as_path());
 }

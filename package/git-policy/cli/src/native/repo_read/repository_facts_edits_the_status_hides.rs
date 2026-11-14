@@ -163,6 +163,16 @@ struct MarkedEntry {
 ///   `--debug` prints the stat Git kept,
 ///  so a marked entry nothing touched is recognised without reading its bytes;
 ///  a query that failed says nothing about them and is a failure.
+///  The listing that named these paths was asked from the worktree's top (`:(top)`),
+///  so they are root-relative,
+///  while a plain pathspec is matched from the directory Git runs in:
+///  from a subdirectory `a.txt` reaches `sub/a.txt` or nothing,
+///  and the marked entry in the way is then silently absent from this answer
+///  (a `reset --hard` run in `sub` reverted an `assume-unchanged` edit at the top,
+///  measured on this host with native Git 2.56.0,
+///  2026-11-14).
+///  Each path is therefore given back to Git rooted at the top,
+///  and matched literally, which is the name the index holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -174,7 +184,7 @@ fn marked_entries(facts: &mut GitFacts, marked: &[Vec<u8>]) -> Result<Vec<Marked
         arguments.push(OsString::from(token));
     }
     for path in marked {
-        arguments.push(path_argument(path));
+        arguments.push(path_argument(rooted_at_the_top(path).as_slice()));
     }
     let output: MetadataOutput = facts.query(arguments, "the index's own record of the marked paths")?;
     if !output.success {
@@ -182,6 +192,34 @@ fn marked_entries(facts: &mut GitFacts, marked: &[Vec<u8>]) -> Result<Vec<Marked
     }
     return Ok(parse_marked_entries(output.stdout.as_slice()));
 }
+
+/// What:
+///  One worktree-relative path as the pathspec Git matches from the top of the worktree,
+///  literally.
+///  `&[u8]` borrows the path, `Vec<u8>` owns the pathspec.
+/// Why:
+///  `:(top,literal)` is Git's own spelling for "this name, from the top of the worktree,
+///  with no pattern matched":
+///  a path listed with `--full-name` and `:(top)` is relative to the worktree root,
+///  and asking about it from a subdirectory reaches another file or nothing.
+///  `literal` keeps a name holding `*`, `?` or `[` a name and no pattern.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const rooted = (path) => Buffer.concat([Buffer.from(':(top,literal)'), path]);
+/// ```
+fn rooted_at_the_top(path: &[u8]) -> Vec<u8> {
+    let mut pathspec: Vec<u8> = Vec::<u8>::with_capacity(TOP_LITERAL_MAGIC.len() + path.len());
+    pathspec.extend_from_slice(TOP_LITERAL_MAGIC);
+    pathspec.extend_from_slice(path);
+    return pathspec;
+}
+
+/// Git's pathspec magic for a name that is matched literally from the top of the worktree.
+/// Why:
+///  One copy of the spelling keeps every such pathspec the same,
+///  and it is Git's own syntax rather than a string built here.
+const TOP_LITERAL_MAGIC: &[u8] = b":(top,literal)";
 
 /// What:
 ///  The entries one `git ls-files -v --stage --debug -z` answer holds.
@@ -396,24 +434,35 @@ fn differs_from_the_index(facts: &mut GitFacts, root: &Path, entry: &MarkedEntry
     if metadata.len() == entry.size && modified == entry.modified && mode == entry.mode.as_str() {
         return Ok(false);
     }
-    return Ok(worktree_object(facts, entry)? != entry.object);
+    return Ok(worktree_object(facts, root, entry)? != entry.object);
 }
 
 /// What:
 ///  The object the worktree file's bytes make,
 ///  read through the clean filter of the path it is at.
+///  `&Path` borrows the worktree root the file stands below.
 /// Why:
 ///  Git records the filtered object in the index,
 ///  so an unfiltered hash would differ from it for every file a filter touches.
+///  The file is named by its full path below the worktree root,
+///  because the bytes hashed are read from the filesystem by a process that stands where the
+///  wrapper stands:
+///  a root-relative name read from a subdirectory hashes `sub/a.txt` or nothing,
+///  and a hash of nothing decided whether the marked edit was still there
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14).
 ///  A query that failed says nothing about the bytes and is a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function worktreeObject(facts, entry): Promise<string>; // throws
+/// function worktreeObject(facts, root, entry): Promise<string>; // throws
 /// ```
-fn worktree_object(facts: &mut GitFacts, entry: &MarkedEntry) -> Result<String, String> {
+fn worktree_object(facts: &mut GitFacts, root: &Path, entry: &MarkedEntry) -> Result<String, String> {
     let Ok(shown) = String::from_utf8(entry.path.clone()) else {
         // A path that is not text has no `--path` spelling, and its stat already said it changed.
+        return Ok(String::new());
+    };
+    let Some(relative) = relative_path(entry.path.as_slice()) else {
         return Ok(String::new());
     };
     let mut arguments: Vec<OsString> = facts.global_prefix.clone();
@@ -421,7 +470,7 @@ fn worktree_object(facts: &mut GitFacts, entry: &MarkedEntry) -> Result<String, 
     arguments.push(OsString::from("hash-object"));
     arguments.push(OsString::from(format!("--path={shown}")));
     arguments.push(OsString::from("--"));
-    arguments.push(path_argument(entry.path.as_slice()));
+    arguments.push(path_argument(root.join(relative.as_path()).as_os_str().as_encoded_bytes()));
     let output: MetadataOutput = facts.query(arguments, "the object of the worktree copy")?;
     if !output.success {
         return Err(failed(&output, "the object of the worktree copy"));

@@ -179,8 +179,60 @@ fn a_whole_worktree_listing_names_entries_above_the_directory_it_runs_in() {
             entries: WrittenEntries::EveryEntry,
             guesses_a_remote_branch: false,
         },
+        None,
     );
     assert_eq!(named, Ok(vec![String::from("top.txt")]), "the entry above the caller is the one in the way");
+    remove(directory.as_path());
+}
+
+//endregion
+
+//region The fourth review: the directory a form's words mean (2026-11-14)
+
+/// What:
+///  A path form inside a `!` shell alias is read from the worktree's top,
+///  which is where Git runs that shell,
+///  so an untracked file at the top is the one in the way.
+/// Why:
+///  `git checkout other -- b.txt` inside a `!` alias writes the top-level `b.txt`
+///  (`git.c:388` to `git.c:407` puts the shell at the top),
+///  while the caller may stand in `sub`.
+///  A reading that asked from the caller's directory looked for `sub/b.txt`,
+///  found no such path in the tree,
+///  and let the alias overwrite the person's file at the top
+///  (measured on this host with native Git 2.56.0,
+///  2026-11-14).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pathsInTheWay(factsAt('repo/sub'), { kind: 'matching-tree', revision: 'other', pathspecs: ['b.txt'] }, 'repo') === ['b.txt']
+/// ```
+#[test]
+fn a_path_form_inside_a_shell_alias_is_read_from_the_worktree_top() {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_tracked_file("paths-in-the-way-alias-at-the-top");
+    // The branch `other` holds `b.txt` at the top; `main` does not.
+    git(repository.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    std::fs::write(repository.join("b.txt"), b"from the other tree\n").expect("the tracked file on other");
+    git(repository.as_path(), &["add", "--", "b.txt"]);
+    git(repository.as_path(), &["commit", "--quiet", "--message=other", "--", "b.txt"]);
+    git(repository.as_path(), &["checkout", "--quiet", "main"]);
+    let below: PathBuf = repository.join("sub");
+    std::fs::create_dir(below.as_path()).expect("the directory the alias is run from");
+    std::fs::write(repository.join("b.txt"), b"the person's untracked file at the top\n").expect("the untracked file");
+    let mut facts: GitFacts = git_facts(
+        Path::new(REAL_GIT),
+        &[OsString::from("-C"), below.into_os_string()],
+        isolated_overlay().as_slice(),
+    );
+    let named: Result<Vec<String>, String> = paths_in_the_way(
+        &mut facts,
+        &WrittenPaths::MatchingTree {
+            revision: Some(OsString::from("other")),
+            pathspecs: vec![OsString::from("b.txt")],
+        },
+        Some(repository.as_path()),
+    );
+    assert_eq!(named, Ok(vec![String::from("b.txt")]), "the file at the top is the one the alias writes over");
     remove(directory.as_path());
 }
 

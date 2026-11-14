@@ -1266,6 +1266,30 @@ pub const REPORT_SCAN_CEILING: Duration = Duration::from_secs(5);
 pub const PATHSPEC_FILE_READ_CEILING: Duration = Duration::from_secs(5);
 
 /// What:
+///  The most bytes the guard reads from the file a `--pathspec-from-file` names.
+/// Why:
+///  The read runs on a thread this process stops waiting for at
+///  `PATHSPEC_FILE_READ_CEILING`,
+///  and that thread goes on reading whatever the file holds:
+///  with no bound, a file larger than this host's memory raised this process's memory without
+///  end after the command had already been refused,
+///  and the kernel's killer may then pick a process of somebody else's.
+///  A file past the bound is refused with its path named,
+///  and `--no-enforce-worktree` runs the command as Git does.
+///  Measured on this repository,
+///  2026-11-14:
+///  a list of every path of a 20,000-file worktree is 1,171,237 bytes,
+///  so eight mebibytes is about seven times a list longer than any worktree this guard has
+///  been measured on,
+///  and a file that much larger is not one a person wrote as a list of paths.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const PATHSPEC_FILE_READ_LIMIT = 8n << 20n;
+/// ```
+pub const PATHSPEC_FILE_READ_LIMIT: u64 = 8 << 20;
+
+/// What:
 ///  The longest the guard waits for one worktree lookup or one move of a saved repository:
 ///  a metadata lookup,
 ///  a rename,

@@ -1,18 +1,27 @@
 //! What:
 //!  Keeping the nested Git repositories a clean would delete out of an interactive clean's menu,
-//!  by running that clean with the one force at which Git keeps every nested repository.
+//!  by running that clean with the one force at which Git keeps every nested repository,
+//!  and stopping it when one force does not keep one.
 //! Why:
 //!  An interactive clean deletes nothing until its person answers a menu,
 //!  and that answer comes after Git has started,
 //!  so nothing the wrapper runs beforehand can ask what the person will choose.
 //!  Moving a repository aside before the menu takes it out of the choices,
 //!  and a person who then quits has had their worktree changed by a command that deleted nothing.
-//!  Git's own protection at one force keeps every nested repository where it is
+//!  Git's own protection at one force keeps every nested repository with a `.git` entry where it is
 //!  (`builtin/clean.c`,
-//! `if (force > 1) rm_flags = 0`),
+//! `if (force > 1) rm_flags = 0`,
+//! which passes `REMOVE_DIR_KEEP_NESTED_GIT`),
 //!  and `--no-force -f` is how a clean typed with two or more forces runs as though it were typed with one:
 //!  the flag resets Git's count,
 //!  so the menu offers exactly what the clean deletes and the repository is never moved.
+//!  A bare repository has no `.git` entry for that hold to see,
+//!  so one force does not keep it
+//!  (`git clean -fXd` printed `Removing bare/` and kept the `.git` shape,
+//!  measured on this host with native Git 2.56.0,
+//!  2026-11-13),
+//!  and a menu that would offer one is a menu the cap cannot make safe:
+//!  that clean stops and the person is told the ways to run it with the repository in hand.
 //!  The person is told which repository is kept and how to delete it deliberately,
 //!  and the clean as typed (without `-i`) saves it first and then deletes it.
 //!
@@ -200,15 +209,17 @@ pub fn keep_nested_repositories_out_of_an_interactive_menu(
 }
 
 /// What:
-///  Whether this invocation is an interactive clean whose second force removes nested repositories,
+///  Whether this invocation is an interactive clean whose menu can offer a nested repository,
 ///  and where its options end.
 /// Why:
 ///   Every forwarded command reaches this transform,
 ///  so the reading stops at the first token that is not a `clean` subcommand;
 ///  `-i` is what makes the menu,
-///  `-d` is what lets the clean descend into a repository,
-///  an ignored mode is what lets it delete an ignored one,
-///  and one force is Git's own protection of every nested repository.
+///  and an ignored mode is what lets the menu offer an ignored one,
+///  which is the only entry the policy's dirty question cannot see.
+///  How many forces the person wrote is no part of the question:
+///  one force keeps a repository with a `.git` entry and does not keep a bare one,
+///  so a menu at any force count is read the same way.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -223,7 +234,7 @@ fn plan_interactive_clean(arguments: &[OsString], shell_directory: Option<&Path>
         return None;
     }
     let region: &[OsString] = &arguments[layout.prefix_len + 1..];
-    // A region Git refuses runs nothing, and one force keeps every nested repository by Git's own rule.
+    // A region Git refuses runs nothing, and a menu with no ignored mode cannot offer an entry Git's rules cover.
     let parsed: ParsedOptions = parse_options(region, CLEAN_TABLE, DEFAULT_MODE, &[]).ok()?;
     let facts = parse_clean_region(region, &[]).ok()?;
     // Git refuses `-x` together with `-X` before it reads anything, so this clean deletes nothing, offers no menu,
@@ -233,7 +244,8 @@ fn plan_interactive_clean(arguments: &[OsString], shell_directory: Option<&Path>
     }
     // `-d` is not part of the question: a pathspec names a directory Git's menu offers without it
     //  (`clean -ffXi -- vendor`), and a menu that offers a nested repository is one this transform must cap.
-    if !facts.interactive || !facts.deletes_ignored || facts.forces < 2 {
+    //  The force count is no part of it either: one force keeps the `.git` shape and does not keep a bare repository.
+    if !facts.interactive || !facts.deletes_ignored {
         return None;
     }
     return Some(InteractiveClean {

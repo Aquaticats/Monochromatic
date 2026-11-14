@@ -45,6 +45,7 @@ fn tree_of(repository: &Path, revision: &str, guesses: bool) -> Result<Vec<Vec<u
             entries: WrittenEntries::EveryEntry,
             guesses_a_remote_branch: guesses,
         },
+        repository,
     );
 }
 
@@ -198,10 +199,10 @@ fn from_the_file(
             target,
             file: OsString::from(file),
             nul_separated,
-            directory: None,
             entries: WrittenEntries::EveryEntry,
             guesses_a_remote_branch: true,
         },
+        repository,
     );
 }
 
@@ -344,6 +345,7 @@ fn a_query_a_signal_ended_is_a_failure_and_never_an_answer() {
                 entries: WrittenEntries::EveryEntry,
                 guesses_a_remote_branch: true,
             },
+            repository.as_path(),
         );
         match answer {
             Err(cause) => assert!(cause.contains("ended by a signal"), "{word}: {cause}"),
@@ -408,8 +410,8 @@ fn moved_paths(repository: &Path, sources: &[&str], destination: &str) -> Result
         &WrittenPaths::MoveInto {
             sources: sources.iter().map(|source| return OsString::from(*source)).collect(),
             destination: OsString::from(destination),
-            directory: None,
         },
+        repository,
     );
     return answered.map(|paths| {
         return paths.iter().map(|path| return String::from_utf8_lossy(path).into_owned()).collect::<Vec<String>>();
@@ -563,6 +565,69 @@ fn every_shape_of_a_forced_move_is_read_the_way_git_writes_it() {
         }
         remove(directory.as_path());
     }
+}
+
+//endregion
+
+//region The fourth review: the bytes of a pathspec file (2026-11-14)
+
+/// What:
+///  A pathspec file larger than the byte bound is refused by its size,
+///  and a list within the bound is read.
+/// Why:
+///  The read runs on a thread this process stops waiting for at
+///  `PATHSPEC_FILE_READ_CEILING`,
+///  and that thread went on reading the whole file into memory with no bound,
+///  so a file larger than this host's memory raised the wrapper's memory after the command had
+///  already been refused
+///  (found by reading; the file itself is not made here).
+///  The small list is the positive control: the refusal below is the size and not a reader that
+///  refuses everything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fromTheFile(repo, sparseFileOf(PATHSPEC_FILE_READ_LIMIT + 1), tree('topic')) // throws naming the size
+/// fromTheFile(repo, 'b.txt\n', tree('topic'))                                  // ['b.txt']
+/// ```
+#[test]
+fn a_pathspec_file_larger_than_the_bound_is_refused_by_its_size() {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_tracked_file("facts-pathspec-file-size");
+    git(repository.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    std::fs::write(repository.join("b.txt"), b"from the other tree\n").expect("the tracked file");
+    git(repository.as_path(), &["add", "--", "b.txt"]);
+    git(repository.as_path(), &["commit", "--quiet", "--message=other"]);
+    git(repository.as_path(), &["checkout", "--quiet", "main"]);
+    let small: PathBuf = directory.join("small-list");
+    std::fs::write(small.as_path(), b"b.txt\n").expect("the small list");
+    assert_eq!(
+        from_the_file(
+            repository.as_path(),
+            small.to_str().expect("utf-8 path"),
+            PathspecTarget::Tree(Some(OsString::from("other"))),
+            false
+        ),
+        Ok(vec![b"b.txt".to_vec()]),
+        "a list within the bound is read"
+    );
+    // A sparse file: the bytes cost no disk, and reading it is what the bound must stop.
+    let large: PathBuf = directory.join("over-the-bound");
+    let made: std::fs::File = std::fs::File::create(large.as_path()).expect("the large list");
+    made.set_len(crate::wait_ceilings::PATHSPEC_FILE_READ_LIMIT + 1).expect("its length");
+    drop(made);
+    let answer: Result<Vec<Vec<u8>>, String> = from_the_file(
+        repository.as_path(),
+        large.to_str().expect("utf-8 path"),
+        PathspecTarget::Tree(Some(OsString::from("other"))),
+        false,
+    );
+    match answer {
+        Err(cause) => assert!(
+            cause.contains("more than") && cause.contains("bytes"),
+            "the refusal must name the size: {cause}"
+        ),
+        Ok(found) => panic!("a file past the bound was read as {found:?}"),
+    }
+    remove(directory.as_path());
 }
 
 //endregion

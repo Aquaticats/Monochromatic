@@ -187,7 +187,7 @@ impl RepositoryFacts for ScriptedFacts {
         return self.untracked_and_tracked.clone();
     }
 
-    fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
+    fn paths_in_the_way(&mut self, written: &WrittenPaths, _shell_directory: Option<&Path>) -> Result<Vec<String>, String> {
         self.asked.push(format!("paths-in-the-way:{}", written.kind()));
         return self.in_the_way.clone();
     }

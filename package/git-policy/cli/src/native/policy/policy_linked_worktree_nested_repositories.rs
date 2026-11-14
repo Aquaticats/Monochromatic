@@ -2,8 +2,9 @@
 //!  Keeping every nested Git repository a clean in a linked worktree would delete,
 //!  and the one place a discarding form is refused or let through.
 //! Why:
-//!  Git's clean with a second `-f` removes a nested repository whole,
+//!  Git's clean removes a nested repository whole,
 //!  with its own history and its uncommitted files,
+//!  at a second `-f` for a repository with a `.git` entry and at one force for a bare one,
 //!  and the outer worktree reports it as one ignored directory,
 //!  so nothing else the policy reads can see the work inside it.
 //!  The owner's answer for uncommitted work is "save,
@@ -109,37 +110,6 @@ enum NestedRepositories {
 }
 
 /// What:
-///  The prefix Git writes before a name it prints,
-///  as the path from the worktree root to the directory the reading started in,
-///  or `location_prefix` when that directory is not below the root.
-///  `&Path` borrows the root and the reading's directory,
-///  and `&[u8]` the prefix the location query answered.
-/// Why:
-///   Git prints each name relative to the directory the command runs in,
-///  and a clean a `!` alias runs starts at the top of the working tree,
-///  so the prefix of the reading is the one that goes before those names,
-///  which is not the caller's prefix when the caller stood below the top.
-///  A reading whose directory is not below the worktree is one no name can be joined to,
-///  so the prefix the invocation itself has is kept,
-///  which is what every reading in the caller's own directory carries.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function prefixOf(root: string, runIn: string, locationPrefix: Buffer): Buffer;
-/// ```
-fn prefix_of(root: &Path, run_in: &Path, location_prefix: &[u8]) -> Vec<u8> {
-    let Ok(relative) = run_in.strip_prefix(root) else {
-        return location_prefix.to_vec();
-    };
-    let mut prefix: Vec<u8> = Vec::<u8>::new();
-    for component in relative.components() {
-        prefix.extend_from_slice(component.as_os_str().as_encoded_bytes());
-        prefix.push(b'/');
-    }
-    return prefix;
-}
-
-/// What:
 ///  Keep every nested Git repository the clean would delete,
 /// whole,
 /// before it runs.
@@ -166,6 +136,14 @@ fn prefix_of(root: &Path, run_in: &Path, location_prefix: &[u8]) -> Vec<u8> {
 ///  A dry run that did not answer was read by nobody,
 ///  and a nonzero exit is no proof that the clean which runs afterwards refuses,
 ///  so that clean stops instead of running on a guess.
+///  How many forces the person wrote is no part of the question:
+///  Git's hold at one force keeps a repository with a `.git` entry only,
+///  and it deletes a bare one at one force and at none
+///  (`git clean -fXd` printed `Removing ignored-bare/` and kept `ignored-inner/`,
+///  measured on this host with native Git 2.56.0,
+///  2026-11-13),
+///  so the dry run is asked at the force count typed and it names the truth for
+///  every one of them.
 ///  An interactive clean is not moved here at all:
 ///  its menu is answered after Git starts,
 ///  so the fixed transform keeps the repositories out of that menu by one force
@@ -183,15 +161,20 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     shell_directory: Option<&Path>,
     discarded_limits: Limits,
 ) -> NestedRepositories {
-    // A clean removes a nested repository only with a second `-f` (`builtin/clean.c`: `if (force > 1) rm_flags = 0`).
-    //  Every other clean is Git's own business, and one force is Git's own protection of the repository.
-    //  `-d` is not part of the question: it is how a clean reaches an untracked directory, while a pathspec names one
-    //  Git deletes without it (`clean -ffX -- vendor`), so a reading that waited for `-d` let that clean delete a
-    //  repository unsaved. What the clean really deletes is Git's own dry run, read below.
+    // A clean removes a nested repository whatever its force count: one force is Git's own hold on a repository with a
+    //  `.git` entry, and a bare one has no `.git`, so Git deletes it at one force and at none
+    //  (`git clean -fXd` printed `Removing ignored-bare/` and kept the `.git` shape, measured on this host with native
+    //  Git 2.56.0, 2026-11-13; the same clean with `clean.requireForce=false` printed the same line).
+    //  What the clean really deletes is Git's own dry run, read below, so the force count is not asked about at all.
+    //  The ignored modes are: an entry the worktree's rules cover is the one the policy's dirty question cannot see,
+    //  while an untracked one is refused there before this point.
+    //  `-d` is not part of the question either: it is how a clean reaches an untracked directory, while a pathspec names
+    //  one Git deletes without it (`clean -ffX -- vendor`), so a reading that waited for `-d` let that clean delete a
+    //  repository unsaved.
     let Ok(parsed) = parse_clean_region(region, &[]) else {
         return NestedRepositories::Nothing;
     };
-    if !parsed.deletes_ignored || parsed.forces < 2 {
+    if !parsed.deletes_ignored {
         return NestedRepositories::Nothing;
     }
     // Git refuses `-x` together with `-X` before it reads anything (`cmd_clean`), so this clean deletes nothing and
@@ -228,7 +211,7 @@ fn keep_the_nested_repositories_a_clean_would_delete(
     };
     // The names are printed relative to the directory the dry run started in, which is not the caller's own directory
     //  when Git runs the clean inside a `!` alias's shell, so that directory's own prefix is the one read here.
-    let command_prefix: Vec<u8> = prefix_of(root, run_in.as_path(), location.prefix.as_slice());
+    let command_prefix: Vec<u8> = crate::command_run_directory::run_directory_prefix(root, run_in.as_path(), location.prefix.as_slice());
     let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root, command_prefix.as_slice()) {
         Ok(found) => found,
         Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },

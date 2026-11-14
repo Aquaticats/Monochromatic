@@ -55,6 +55,8 @@ use std::path::{Path, PathBuf};
 ///  with the entries below another entry dropped.
 ///  `Result<Vec<String>, String>` is "the paths,
 ///  or why Git could not give one".
+///  `Option<&Path>` is the directory Git runs the shell of a `!` alias in,
+///  when the form is the command that shell runs.
 /// Why:
 ///   Only the outermost entry is named:
 ///  a directory holds everything below it,
@@ -62,13 +64,23 @@ use std::path::{Path, PathBuf};
 ///  A failure is a failure:
 ///  a reading that could not be made says nothing about what the command overwrites,
 ///  and the caller refuses rather than spending a guess.
+///  The directory the command runs in is worked out once here and handed to every reading of the
+///  form's paths,
+///  because a form's relative words mean that directory and its names are rooted there:
+///  one answer stops a reading from using the caller's directory for a command Git runs
+///  somewhere else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function pathsInTheWay(facts, written): Promise<string[]>; // throws
+/// function pathsInTheWay(facts, written, shellDirectory): Promise<string[]>; // throws
 /// ```
-pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> Result<Vec<String>, String> {
-    let mut asked: Vec<Vec<u8>> = paths_the_tree_writes(facts, written)?;
+pub(super) fn paths_in_the_way(
+    facts: &mut GitFacts,
+    written: &WrittenPaths,
+    shell_directory: Option<&Path>,
+) -> Result<Vec<String>, String> {
+    let run_in: PathBuf = crate::command_run_directory::command_run_directory(facts.global_prefix.as_slice(), shell_directory)?;
+    let mut asked: Vec<Vec<u8>> = paths_the_tree_writes(facts, written, run_in.as_path())?;
     if asked.is_empty() {
         return Ok(Vec::<String>::new());
     }

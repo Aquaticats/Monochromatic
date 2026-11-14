@@ -32,10 +32,8 @@ use crate::command_options_query::{is_enabled, positional_tokens, value_bytes};
 use crate::command_reset::{RESET_TABLE, ResetMode, parse_reset_region};
 /// The forms the linked-worktree policy guards.
 use crate::rule_linked_worktree::GuardedCommand;
-/// `OsString` is owned operating-system text of raw bytes.
+/// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-/// `OsStr`/`Path` are borrowed operating-system text and paths.
-use std::path::Path;
 
 /// What:
 ///  Which pathspecs a form reads from a file are matched against:
@@ -186,15 +184,13 @@ pub enum WrittenPaths {
     ///  A reading that put the destination itself in the written set named the directory a form
     ///  replaces whole and refused a safe `git mv -f a.txt b`, which is the false refusal the third
     ///  review found.
+    ///  The directory those words mean is not part of this answer:
+    ///  it is where the reading starts, which the reading knows.
     MoveInto {
         /// The sources, as the person spelled them.
         sources: Vec<OsString>,
         /// The destination, as the person spelled it.
         destination: OsString,
-        /// The directory a relative path of the form is read from,
-        ///  which is the shell's for a command a `!` alias runs
-        ///  and the command's own otherwise.
-        directory: Option<OsString>,
     },
     /// The paths of the tree or the index that the pathspecs of `--pathspec-from-file` match.
     PathspecFile {
@@ -205,10 +201,6 @@ pub enum WrittenPaths {
         file: OsString,
         /// Whether the file separates them with NUL bytes instead of line ends.
         nul_separated: bool,
-        /// The directory the file's name is relative to,
-        ///  which is the shell's for a command a `!` alias runs
-        ///  and the command's own otherwise.
-        directory: Option<OsString>,
         /// What:
         ///  Which entries at the written paths Git writes over,
         ///  when the file holds no pathspec at all.
@@ -290,7 +282,7 @@ impl WrittenPaths {
 /// ```ts
 /// function writtenPaths(command: GuardedCommand, region: string[]): WrittenPaths | undefined;
 /// ```
-pub fn written_paths(command: GuardedCommand, region: &[OsString], shell_directory: Option<&Path>) -> Option<WrittenPaths> {
+pub fn written_paths(command: GuardedCommand, region: &[OsString]) -> Option<WrittenPaths> {
     match command {
         GuardedCommand::ResetHard => {
             // `--soft` and `--mixed` write no worktree file; `--merge` and `--keep` write the tree but refuse an
@@ -312,7 +304,7 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString], shell_directo
                 _ => None,
             };
         }
-        GuardedCommand::CheckoutPaths => return checkout_written_paths(region, shell_directory),
+        GuardedCommand::CheckoutPaths => return checkout_written_paths(region),
         GuardedCommand::SwitchForce => {
             return Some(WrittenPaths::Tree {
                 revision: first_positional(region, SWITCH_TABLE),
@@ -320,9 +312,9 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString], shell_directo
                 guesses_a_remote_branch: guess_is_not_switched_off(region),
             });
         }
-        GuardedCommand::RestoreWorktree => return restore_written_paths(region, shell_directory),
+        GuardedCommand::RestoreWorktree => return restore_written_paths(region),
         GuardedCommand::ReadTree => return read_tree_written_paths(region),
-        GuardedCommand::Move => return move_written_paths(region, shell_directory),
+        GuardedCommand::Move => return move_written_paths(region),
         GuardedCommand::CheckoutIndex => return checkout_index_written_paths(region),
         _ => return None,
     }
@@ -331,8 +323,7 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString], shell_directo
 /// What:
 ///  What a forced `git mv` names: its sources and its destination,
 ///  which the worktree resolves into the paths Git writes.
-///  `&[OsString]` borrows the tokens after the subcommand,
-///  and `Option<&Path>` the directory a `!` alias's shell runs in.
+///  `&[OsString]` borrows the tokens after the subcommand.
 /// Why:
 ///   Git moves each source into a destination that is a directory
 ///  (`git mv -f a.txt b` writes `b/a.txt`, and leaves `b/` and its other files alone),
@@ -352,7 +343,7 @@ pub fn written_paths(command: GuardedCommand, region: &[OsString], shell_directo
 /// ```ts
 /// function moveWrittenPaths(region: string[]): WrittenPaths | undefined;
 /// ```
-fn move_written_paths(region: &[OsString], shell_directory: Option<&Path>) -> Option<WrittenPaths> {
+fn move_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
     let mut words: Vec<&OsString> = Vec::<&OsString>::new();
     let mut after_dash_dash: bool = false;
     for token in region {
@@ -377,7 +368,6 @@ fn move_written_paths(region: &[OsString], shell_directory: Option<&Path>) -> Op
     return Some(WrittenPaths::MoveInto {
         sources,
         destination: destination.clone(),
-        directory: shell_directory.map(|directory| return directory.as_os_str().to_os_string()),
     });
 }
 
@@ -421,7 +411,15 @@ fn checkout_index_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
         if spells_long(written, "prefix", names) {
             match written.iter().position(|byte| return *byte == b'=') {
                 Some(equals) => prefix = Some(word_of(&written[equals + 1..])),
-                None => prefix = region.get(at).cloned(),
+                None => {
+                    // A separated value is that value and no path: the token after `--prefix` is consumed here, and a
+                    //  reading that left it in the loop read it as a pathspec too, which named `<prefix>/<prefix>/…`
+                    //  and refused a command Git runs over nothing of the sort
+                    //  (`git checkout-index -f --prefix out/ -- a.txt` writes `out/a.txt` alone, measured on this host
+                    //  with native Git 2.56.0, 2026-11-14).
+                    prefix = region.get(at).cloned();
+                    at += 1;
+                }
             }
             continue;
         }
@@ -508,12 +506,12 @@ fn read_tree_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
 /// ```ts
 /// function checkoutWrittenPaths(region: string[]): WrittenPaths | undefined; // throws-free
 /// ```
-fn checkout_written_paths(region: &[OsString], shell_directory: Option<&Path>) -> Option<WrittenPaths> {
+fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
     let parsed: ParsedOptions = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok()?;
     // A form that reads its pathspecs from a file reaches paths no token names, so the file is where the
     //  written paths are read.
     if let Some((file, nul_separated)) = pathspec_file(region) {
-        return Some(pathspec_file_written_paths(region, file, nul_separated, shell_directory, is_enabled(&parsed, FORCE)));
+        return Some(pathspec_file_written_paths(region, file, nul_separated, is_enabled(&parsed, FORCE)));
     }
     let names: Vec<&OsString> = positional_tokens(&parsed, region.len())
         .into_iter()
@@ -597,7 +595,7 @@ fn guess_is_not_switched_off(region: &[OsString]) -> bool {
 /// ```ts
 /// function restoreWrittenPaths(region: string[]): WrittenPaths | undefined;
 /// ```
-fn restore_written_paths(region: &[OsString], shell_directory: Option<&Path>) -> Option<WrittenPaths> {
+fn restore_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
     if restores_index_only(region) {
         return None;
     }
@@ -610,8 +608,7 @@ fn restore_written_paths(region: &[OsString], shell_directory: Option<&Path>) ->
             },
             file,
             nul_separated,
-            directory: shell_directory.map(|directory| return directory.as_os_str().to_os_string()),
-            // Git refuses a restore with no path at all: `fatal: you must specify path(s) to restore`
+                // Git refuses a restore with no path at all: `fatal: you must specify path(s) to restore`
             //  (measured on this host with native Git 2.56.0, 2026-11-13), so only the refusal follows an empty file.
             entries: WrittenEntries::EveryEntry,
             guesses_a_remote_branch: false,
@@ -800,7 +797,12 @@ fn pathspec_file(region: &[OsString]) -> Option<(OsString, bool)> {
         }
         match written.iter().position(|byte| return *byte == b'=') {
             Some(equals) => file = Some(word_of(&written[equals + 1..])),
-            None => file = region.get(at).cloned(),
+            None => {
+                // A separated value is that option's value and no token of its own, so the scan steps past it: a value
+                //  that reads as a separator or as an option would otherwise stop or redirect the rest of the scan.
+                file = region.get(at).cloned();
+                at += 1;
+            }
         }
     }
     return file.map(|named| return (named, nul_separated));
@@ -818,21 +820,20 @@ fn pathspec_file(region: &[OsString]) -> Option<(OsString, bool)> {
 /// ```ts
 /// const fromFile = (region, file, nul, shell) => ({ kind: 'pathspec-file', target: revision(region) ?? 'index', file, nul, shell });
 /// ```
-fn pathspec_file_written_paths(
-    region: &[OsString],
-    file: OsString,
-    nul_separated: bool,
-    shell_directory: Option<&Path>,
-    forced: bool,
-) -> WrittenPaths {
+fn pathspec_file_written_paths(region: &[OsString], file: OsString, nul_separated: bool, forced: bool) -> WrittenPaths {
     // The tree-ish is the last word that is neither an option nor the file's name.
+    //  The file's name is never among the positional words: `--pathspec-from-file` takes a value in Git's own table
+    //  (`CHECKOUT_TABLE`), so a separated value is consumed as that option's value and an attached one is part of the
+    //  option's own token.
+    //  A filter that dropped every word equal to the file's name also dropped a revision spelled that way, and
+    //  `git checkout -f topic --pathspec-from-file=topic` was then read as aimed at the index, whose paths do not hold
+    //  `topic`'s new file
+    //  (the untracked `b.txt` was overwritten, measured on this host with native Git 2.56.0, 2026-11-14).
     let read: Option<ParsedOptions> = parse_options(region, CHECKOUT_TABLE, DEFAULT_MODE, &[]).ok();
     let mut revision: Option<OsString> = None;
     if let Some(parsed) = read {
         for index in positional_tokens(&parsed, region.len()) {
-            if let Some(token) = region.get(index)
-                && token.as_encoded_bytes() != file.as_encoded_bytes()
-            {
+            if let Some(token) = region.get(index) {
                 revision = Some(token.clone());
             }
         }
@@ -844,7 +845,6 @@ fn pathspec_file_written_paths(
         },
         file,
         nul_separated,
-        directory: shell_directory.map(|directory| return directory.as_os_str().to_os_string()),
         entries: if forced { WrittenEntries::EveryEntry } else { WrittenEntries::OnlyIgnored },
         guesses_a_remote_branch: guess_is_not_switched_off(region),
     };

@@ -91,10 +91,10 @@ pub(crate) fn entries_a_form_would_write_over(request: WrittenOverRequest<'_>) -
     ) {
         return Ok(Vec::<String>::new());
     }
-    let Some(written): Option<WrittenPaths> = written_paths(request.command, request.region, request.shell_directory) else {
+    let Some(written): Option<WrittenPaths> = written_paths(request.command, request.region) else {
         return Ok(Vec::<String>::new());
     };
-    return request.facts.paths_in_the_way(&written);
+    return request.facts.paths_in_the_way(&written, request.shell_directory);
 }
 
 /// The entries a form would overwrite, read through `written_paths`, and the places a rejection comes from.

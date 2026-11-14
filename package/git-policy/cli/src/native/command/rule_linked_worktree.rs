@@ -345,7 +345,7 @@ pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<Di
         //  the mark named, which is their own decision.
         GuardedCommand::CheckoutPaths | GuardedCommand::RestoreWorktree => {
             let written: Option<crate::command_written_paths::WrittenPaths> =
-                crate::command_written_paths::written_paths(command, region, None);
+                crate::command_written_paths::written_paths(command, region);
             let names_a_tree: bool = matches!(
                 written,
                 Some(crate::command_written_paths::WrittenPaths::MatchingTree { revision: Some(_), .. })

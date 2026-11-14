@@ -61,6 +61,41 @@ pub fn command_run_directory(global_prefix: &[OsString], shell_directory: Option
     return Ok(chain_directory(cwd.as_path(), global_prefix));
 }
 
+/// What:
+///  The path from the worktree root to the directory a command runs in,
+///  with a trailing slash,
+///  which is the prefix Git writes before every name it prints there.
+///  `&Path` borrows the worktree root and that directory,
+///  and `&[u8]` the prefix the location query answered.
+/// Why:
+///  Git prints each name relative to the directory the command runs in,
+///  and a command a `!` alias runs starts at the top of the working tree,
+///  so the prefix of such a reading is the one that goes before those names,
+///  which is not the caller's prefix when the caller stood below the top;
+///  a reading rooted with the caller's prefix names a file in another directory,
+///  and a guard that then finds the entry in the way there refuses a command
+///  that writes nothing of the sort.
+///  A reading whose directory is not below the worktree is one no name can be
+///  joined to,
+///  so the prefix the invocation itself has is kept,
+///  which is what every reading in the caller's own directory carries.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function runDirectoryPrefix(root: string, runIn: string, locationPrefix: Buffer): Buffer;
+/// ```
+pub fn run_directory_prefix(root: &Path, run_in: &Path, location_prefix: &[u8]) -> Vec<u8> {
+    let Ok(relative) = run_in.strip_prefix(root) else {
+        return location_prefix.to_vec();
+    };
+    let mut prefix: Vec<u8> = Vec::<u8>::new();
+    for component in relative.components() {
+        prefix.extend_from_slice(component.as_os_str().as_encoded_bytes());
+        prefix.push(b'/');
+    }
+    return prefix;
+}
+
 /// A command's directory is one answer,
 /// and its spelling of the `-C` chain is read by one other file.
 #[cfg(test)]

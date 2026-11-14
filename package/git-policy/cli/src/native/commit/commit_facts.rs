@@ -142,8 +142,8 @@ impl<F: RepositoryFacts> RepositoryFacts for PrivateIndexFacts<F> {
         return self.inner.untracked_files_the_tree_tracks(revision);
     }
 
-    fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
-        return self.inner.paths_in_the_way(written);
+    fn paths_in_the_way(&mut self, written: &WrittenPaths, shell_directory: Option<&Path>) -> Result<Vec<String>, String> {
+        return self.inner.paths_in_the_way(written, shell_directory);
     }
 
     fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
@@ -221,8 +221,8 @@ impl<F: RepositoryFacts> RepositoryFacts for &mut F {
         return (**self).untracked_files_the_tree_tracks(revision);
     }
 
-    fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
-        return (**self).paths_in_the_way(written);
+    fn paths_in_the_way(&mut self, written: &WrittenPaths, shell_directory: Option<&Path>) -> Result<Vec<String>, String> {
+        return (**self).paths_in_the_way(written, shell_directory);
     }
 
     fn clean_deleted_paths(&mut self, dry_run: CleanDryRun) -> Result<Vec<Vec<u8>>, String> {
