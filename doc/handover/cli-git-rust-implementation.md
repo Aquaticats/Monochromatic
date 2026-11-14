@@ -1202,6 +1202,71 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The merge that meets a held lock never waits again and goes to review; the cargo fetch's second review has three findings (2026-11-14T01:06:10-05:00)
+
+Not final and not approved:
+read by the coordinating session from one run's last message and one review file,
+nothing rerun by it.
+
+- **A merge that meets a held `index.lock`**
+  (run `merge-that-meets-a-held-index-lock-waits-for-its-live-holder-on-a-machine-with-other-accounts-processes-2`,
+  ended 01:01:25,
+  tip `88cd36ad07`,
+  `main` merged at `e83c332f95`):
+  the wait of up to a minute that its first session had restored is taken out,
+  as the correction of 22:32 asked.
+  The look before a merge is `main`'s one look again:
+  a dead owner is named,
+  and a holder proven alive or a lock nothing proves the owner of both save the merge at once with status 0.
+  The two binary controls that are red on `main` are rewritten to that and pass;
+  each control is shown failing with a wait put back by hand
+  (60 s where it must not wait).
+  Kept from its first session:
+  the count of processes the scan could not look at now says what it counted.
+  Cost,
+  five rounds interleaved against `main`'s code:
+  ratios from 0.96 to 1.06,
+  each inside its rounds' spread.
+  Seven files against `main`.
+  Its review is queued at the head
+  (`review-git-policy-cli-merge-that-meets-a-held-index-lock-never-waits-and-its-two-controls`,
+  range `main...88cd36ad07`).
+  Noticed by it:
+  the binary controls' `short_runtime_directory` makes folders `rt-<pid>-<n>` under `~/temp/agent` and never removes them
+  (two stood from 22:06 and 22:21);
+  a fresh run is queued for it since 01:06:44
+  (`binary-controls-of-the-wrapper-remove-the-short-runtime-directory-they-made`).
+  And its merge of `main` printed the landed sweep's line about pass 27's worktree and process 5289,
+  the defect recorded at 23:10.
+- **The cargo fetch before lint, second review**
+  (`~/temp/agent/change-reviews/mise-cargo-fetch-before-lint-answers-after-its-review/review.md`,
+  ended 01:00:33,
+  recorded `pi-not-stopped`,
+  on `feb7a90a12`):
+  the judgment's ordinary cases are verified by run.
+  Three findings.
+  A cargo home with every tarball and no registry index is judged complete,
+  the fetch is skipped,
+  and the offline closure check then fails where the old unconditional fetch repaired it:
+  reproduced,
+  the change's own,
+  back to the author.
+  The ten-second ceiling on the question to Git does not hold when Git ignores `SIGTERM`
+  (still waiting at 40 s),
+  and the task's own reads of the cargo home have no deadline:
+  the first reproduced,
+  the second read,
+  back to the author.
+  And the comment that a stale lock "fails the lint through the closure check" is not true at that commit,
+  since the check turns Cargo's failure into a warning:
+  that is the queued run `stale-cargo-lock-file-fails-the-lint-through-the-closure-check`,
+  and the order recorded before stands,
+  this branch never before that one;
+  the author is asked only to word the comment so it is true where it stands.
+  Its resume is queued at position 9
+  (`cargo-fetch-before-lint-answers-its-second-review-of-2026-11-14-prompt.md`).
+- The queue held 54 entries at 01:06:10.
+
 ##### Five commits over five seconds since alpha.23, in three shapes; the user service manager answers in 8 to 73 s this hour (2026-11-14T00:58:17-05:00)
 
 Not final and not approved;
