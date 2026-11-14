@@ -313,6 +313,7 @@ pub fn write_atomically(target: &Path, bytes: &[u8]) -> Result<(), ToolchainErro
 /// - after the write and before the rename, it holds the whole new content at exactly the kept mode,
 ///   and the target still holds the old one;
 /// - after the rename, the target holds the new content, complete.
+///
 /// Every leftover of the steps above is `.<name>.<pid>.tmp` beside the target,
 /// readable no more widely than the target itself,
 /// and the next atomic write of that same target removes it
@@ -366,11 +367,9 @@ pub(crate) fn write_atomically_at(
     // The descriptor is closed before the rename, so a failure to flush the last bytes is this write's failure and
     // not a surprise for whoever reads the target afterwards.
     drop(file);
-    if let Err(error) = before_rename(&temporary) {
-        // The step stands where a kill lands: nothing after it runs, this write's cleanup included,
-        // so the temporary stays exactly as a killed write leaves it.
-        return Err(error);
-    }
+    // The step stands where a kill lands: nothing after it runs, this write's cleanup included,
+    // so a failure from it leaves the temporary exactly as a killed write leaves it.
+    before_rename(&temporary)?;
     if let Err(error) = fs::rename(&temporary, target) {
         // Best effort: the temporary file is useless now, and a failed removal changes nothing for the caller.
         let _ = fs::remove_file(&temporary);
