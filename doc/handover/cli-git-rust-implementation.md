@@ -1152,6 +1152,15 @@ written by the coordinating session from the pass's report and its own commands'
   `git log a31fcc2333..main -- package/git-policy/` listed nothing,
   and `git diff --stat main...a31fcc2333` listed the two files and 469 insertions.
 - Merged into `main` as `2e28e65b65` (2026-11-13T21:12:33-05:00) and pushed.
+- Passes 23,
+  25 and 27,
+  all going,
+  were told by a note in each inbox at 21:15
+  (`~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/note-for-the-passes-still-going-that-main-holds-pass-26-2026-11-13T2115.md`):
+  a pass is fit only at a tip that holds `2e28e65b65`,
+  and the profile change makes the first build after that merge a full one.
+  Before merging any of them:
+  `git merge-base --is-ancestor 2e28e65b65 <tip>`.
 - **No release for it alone**,
   under "Adopted while the owner was away":
   the released binary would differ from `0.6.1-alpha.21` in its version alone.
