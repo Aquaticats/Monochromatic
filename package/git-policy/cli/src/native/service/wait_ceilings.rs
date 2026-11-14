@@ -495,7 +495,7 @@ pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
 ///  Measured on this host,
 /// 2026-11-13,
 /// 2,000 connections to a socket whose listener accepts,
-/// asked plain and through `unix_socket_connect_within_a_deadline` in one alternating loop,
+/// asked plain and with the bound in one alternating loop,
 /// three runs:
 /// the plain connect took 9 to 10 us at the median,
 /// 15 to 17 us at the 99th percentile and 1,089 to 1,359 us at the slowest;
@@ -506,6 +506,10 @@ pub const WITHDRAW_CEILING: Duration = Duration::from_secs(10 * 60);
 /// (`service_client_shadow_hand_out.rs`,
 /// `DRAWN_ANSWER_DEADLINE`),
 /// because both ask a service for something the command does without when it does not answer.
+/// The connection itself is made through the same helper as every other connection to a service
+/// (`service_client_connect_within_a_bound.rs`),
+/// with its `connect_within_for`,
+/// so one connect into a service queue is bounded one way and this ceiling is its one difference.
 pub const WARM_REQUEST_CONNECT_CEILING: Duration = Duration::from_millis(250);
 
 /// The longest one connection to the commit service is waited for before the client gives it up.
