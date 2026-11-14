@@ -14040,12 +14040,46 @@ rolls its index lock back and never looks for a commit,
 and the status and the bytes Git printed are handed on unchanged
 (`src/native/commit/commit_form_refusal_from_git.rs`),
 so a release that rewords a message changes nothing here.
+The question is `commit`,
+then `--dry-run`,
+then the caller's own options:
+the first token after `commit` is in option position whatever it spells,
+so no option the caller wrote can take `--dry-run` as its value,
+and no `--` the caller wrote can put it after the end of the options
+(`git commit -m -- -i` is asked as `git commit --dry-run -m -- -i`).
+The question is asked in the directory the commit's own Git runs in and with the
+`-C` tokens removed,
+so one `-C` chain moves Git once,
+and `--git-dir`,
+`--work-tree`,
+`--bare` and a `GIT_DIR` or `GIT_WORK_TREE` in the caller's environment keep the
+meaning Git gives them after that last `-C`
+(`commit_command.rs`,
+`where_the_commit_runs`).
+It is given an index of its own,
+a copy of the caller's in the repository scratch directory,
+so that a lost option could not write the caller's index or hold the lock beside it;
+the branch reference and the object store are the repository's own,
+which the option's position is what keeps,
+and a control over every generated command line records `HEAD`,
+every reference,
+the index bytes and the worktree before and after the question.
+A form whose rule stands but whose own answer from Git is that it would run the
+command is not refused:
+zero is Git's answer that the form is one it accepts,
+the dry run made no commit,
+and the transaction that follows makes the one commit the caller asked for,
+so nothing is made twice.
 The refusal comes before the transaction,
 so nothing is staged,
 no reference moves and the commit service is not reached,
 and a command Git accepts costs one comparison of the parsed region and no process.
-Only when real Git cannot be started at all is the sentence the wrapper's own,
-and it then names the form and says so.
+When real Git gives no answer,
+the sentence is the wrapper's own and it names the form and which of the three
+happened:
+Git could not be started,
+Git showed no sign of work for the bound of that step and was ended,
+or Git ended without an exit status.
 A pathspec commit during a revert or a cherry-pick,
 which Git accepts,
 behaves as real Git does,

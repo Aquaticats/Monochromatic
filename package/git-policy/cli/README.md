@@ -4077,17 +4077,38 @@ none is waited out or retried on the moved head yet:
   rolls its index lock back and never looks for a commit
   (`src/native/commit/commit_form_refusal_from_git.rs`),
   so a release that rewords a message changes nothing in the wrapper.
+  `--dry-run` is the **first** token of that question,
+  which is the one place no option of yours can take it as its value and no `--`
+  of yours can put it after the end of the options:
+  `git commit -m -- -i` is asked as `git commit --dry-run -m -- -i`.
+  The question is also given an index of its own,
+  a copy of yours in the repository scratch directory,
+  so even a lost option could not write your index or hold the lock beside it;
+  the branch reference is the repository's own,
+  so the option's position is what keeps that,
+  and a control over every generated command line watches `HEAD`,
+  every reference,
+  the index and the worktree.
+  The question is asked where the commit itself runs:
+  your `-C` chain moves the directory once,
+  the `-C` tokens do not reach the question,
+  and `--git-dir`,
+  `--work-tree`,
+  `--bare` and a `GIT_DIR` in your environment keep the meaning Git gives them there.
+  Where Git's own answer is that it would run the command,
+  nothing is refused:
+  the commit goes on and the transaction makes it,
+  and since the question committed nothing,
+  nothing is made twice.
   Nothing is staged,
   no reference moves and the commit service is not reached,
-  and a commit that is fine costs one comparison of the parsed options and no process
-  (measured:
-  25 paired plain commits on one repository,
-  medians of 52.3 ms before the change and 50.9 ms after it,
-  a paired median 2.1 ms apart,
-  and single pairs from 31 ms faster to 59 ms slower,
-  because the run-to-run spread is that wide).
-  A machine whose real Git will not start still refuses the form,
-  in one sentence that names it and says the words are the wrapper's.
+  and a commit that is fine costs one comparison of the parsed options and no process.
+  When real Git gives no answer at all,
+  the refusal is one sentence that names the form and says which way the question
+  failed:
+  a Git that could not be started,
+  a Git that showed no sign of work for the bound of that step and was ended,
+  or a Git that ended without an exit status.
 - A policy finding at error severity,
   an empty message or a failing signer.
   A named path in conflict is no longer one of these:
