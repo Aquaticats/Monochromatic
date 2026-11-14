@@ -927,7 +927,7 @@ SHA-256 `88073f4fd7a6e22b0c268e63d70eca7e89b01448174917b712adc34a98bcac12`.
 ### `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence/`
 
 Every member these documents cite,
-byte for byte except the seven the repository own guards changed:
+byte for byte except the seven the repository's own guards changed:
 five markdown members re-wrapped and given fence labels,
 one JSON member re-wrapped,
 and one text file whose final newline was made canonical.
