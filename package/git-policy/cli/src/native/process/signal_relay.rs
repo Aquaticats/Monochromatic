@@ -258,22 +258,6 @@ fn read_report(info: *mut libc::siginfo_t) -> (bool, Option<i32>) {
     return (true, if header.sender > 0 { Some(header.sender) } else { None });
 }
 
-/// What:
-///  The process a signal's report names as its sender,
-///  where the kernel names one.
-/// Why:
-///   The record of a commit a relayed signal stopped names that process,
-///  and a terminal's own signal names none.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// senderInReport(info) // 4242, or undefined
-/// ```
-#[cfg(unix)]
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) fn sender_in_report(info: *mut libc::siginfo_t) -> Option<i32> {
-    return read_report(info).1;
-}
 
 /// What:
 ///  The handler for each relayed signal.

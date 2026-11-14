@@ -1638,6 +1638,9 @@ enum StandInAnswer {
     /// Answer a commit with the failure code given,
     /// which is the answer a real service gives without landing anything.
     Fail(git_policy_cli::service_protocol::FailureCode),
+    /// Answer a commit with that failure after waiting,
+    /// so a control can send a signal into the wait and see whether the request is still the service's when it answers.
+    FailAfter { code: git_policy_cli::service_protocol::FailureCode, after: Duration },
     /// Answer a commit with nothing,
     /// so its client waits,
     /// and answer a withdrawal that it will never land.
@@ -1720,6 +1723,16 @@ fn stand_in(places: &Places, saw: &Path, answer: StandInAnswer) -> StandIn {
                 match answer {
                     StandInAnswer::Fail(code) => {
                         reply = git_policy_cli::service_protocol::encode_service(&git_policy_cli::service_protocol::ServiceMessage::Failed { id: String::new(), code });
+                        keep = true;
+                    }
+                    StandInAnswer::FailAfter { code, after } => {
+                        let later: UnixStream = stream.try_clone().expect("a second handle on the same connection");
+                        std::thread::spawn(move || {
+                            std::thread::sleep(after);
+                            let mut answering: String = git_policy_cli::service_protocol::encode_service(&git_policy_cli::service_protocol::ServiceMessage::Failed { id: String::new(), code });
+                            answering.push('\n');
+                            let _answered = (&later).write_all(answering.as_bytes());
+                        });
                         keep = true;
                     }
                     StandInAnswer::Hold => keep = true,
@@ -1949,100 +1962,157 @@ fn a_commit_the_terminal_hangs_up_on_states_the_signal_and_who_sent_it() {
 }
 
 /// What:
-///  A commit whose caller shielded it from the hang-up and the quit, the way `nohup` shields a program, lands:
-///  the wait leaves the caller's own choice of disposition in place, so a hang-up is no stop of that commit.
+///  A signal the caller shielded a commit from, the way `nohup` shields a program, is no stop of that commit:
+///  the request is still the service's when the service answers, so the record names the service's answer.
 /// Why:
-///  `nohup` sets `SIGHUP` to `SIG_IGN` and runs the command, and a caller that does means the command to survive a
+///  `nohup` sets `SIGHUP` to `SIG_IGN` and runs the command, and a caller that does means the commit to survive a
 ///  closing terminal:
-///  native Git lands that commit,
+///  native Git lands such a commit,
 ///  and the wrapper landed it until the wait began answering a hang-up.
 ///  Answering it by replacing the caller's ignore withdrew the request and ended the process by the signal the caller
 ///  shielded it from, which is a commit that fails where real Git lands one (`SPEC.md`,
-/// "Merges and commits never fail").
-///  The preparation's own relay already keeps an inherited ignore for the same reason
-///  (`process/signal_relay.rs`,
+/// "Merges and commits never fail"),
+///  and the preparation's own relay already keeps an inherited ignore for the same reason
+/// (`process/signal_relay.rs`,
 /// "A signal the parent ignores stays ignored").
-///  Both signals this branch added to the wait are shielded here, and the commit is made after the lock it waits behind
-///  is released,
-/// so the control shows a landed commit and not only a command that survived.
+///  The service here answers only after the signal was sent,
+/// so the two endings are told apart by what the service saw:
+/// the answer to the request, or a withdrawal.
 #[test]
-fn a_commit_the_caller_shielded_from_the_hang_up_and_the_quit_lands() {
+fn a_commit_the_caller_shielded_from_the_hang_up_is_not_stopped_by_it() {
+    let record: serde_json::Value = shielded_and_answered("timing-shielded-hangup", libc::SIGHUP);
+    assert_eq!(
+        record["stop"]["kind"], "client-failure",
+        "the request stayed the service's after the hang-up the caller ignored, so its answer is what stopped the commit: {record}"
+    );
+    assert_eq!(record["stop"]["reason"], "refused", "the record names the answer the service gave: {record}");
+}
+
+/// What:
+///  The same for a quit,
+///  which a caller shields the same way and which the wait answers the same way.
+/// Why:
+///  `SIGQUIT` reached the watch in the same change as the hang-up,
+///  and a caller that ignores it means the command to survive it;
+///  one control per signal keeps the fault each one causes legible.
+#[test]
+fn a_commit_the_caller_shielded_from_the_quit_is_not_stopped_by_it() {
+    let record: serde_json::Value = shielded_and_answered("timing-shielded-quit", libc::SIGQUIT);
+    assert_eq!(
+        record["stop"]["kind"], "client-failure",
+        "the request stayed the service's after the quit the caller ignored: {record}"
+    );
+    assert_eq!(record["stop"]["reason"], "refused", "the record names the answer the service gave: {record}");
+}
+
+/// What:
+///  The control that the arms above can tell the two endings apart:
+///  a commit whose caller did **not** ignore the stop withdraws its request,
+///  and the record names the signal instead of the service's answer.
+/// Why:
+///  A shielded signal and an answered one end differently only if the signal reaches the wait at all,
+///  so this arm proves the harness puts one into the wait and the wait acts on a signal it must.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const record = run({signal: 'SIGTERM', ignored: false}); expect(record.stop.kind).toBe('client-signal');
+/// ```
+#[test]
+fn a_commit_the_caller_did_not_shield_is_stopped_by_the_stop() {
     use std::os::unix::process::CommandExt as _;
-    let fixture: Fixture = fixture("timing-shielded");
+    let fixture: Fixture = fixture("timing-unshielded-stop");
     let repo: PathBuf = base_repository(&fixture);
-    let name: String = format!("timing-shielded-{}", std::process::id());
+    let name: String = format!("timing-unshielded-stop-{}", std::process::id());
     let places: Places = places_for(&fixture, name.as_str(), &repo);
-    let instance: String = instance_argument(&repo);
-    let _service: Held = spawn_service(fixture.root.as_path(), &places, SAFETY_IDLE_SECONDS, &["--instance", instance.as_str()]);
-    let base: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]).trim().to_string();
-    std::fs::write(repo.join("a.txt"), b"edit by the shielded control\n").expect("a.txt");
-    // A foreign commit holds the repository's index, so this commit waits in the service's landing.
-    let (holder, release): (Child, PathBuf) = foreign_commit_until_released(&fixture, &repo, 0);
+    let saw: PathBuf = fixture.root.join("saw-commit");
+    // A service that holds the request, so only the wait can end this command.
+    let _stand_in: StandIn = stand_in(&places, saw.as_path(), StandInAnswer::Hold);
+    std::fs::write(repo.join("a.txt"), b"edit by the unshielded control\n").expect("a.txt");
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
     let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE, "--", "a.txt"]);
     command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
-    // SAFETY: between fork and exec only `signal`, an async-signal-safe call, runs, and it sets the two dispositions
-    //  `nohup` sets for the command it starts.
+    // SAFETY: between fork and exec only `setrlimit`, an async-signal-safe call, runs; a quit could dump core.
     unsafe {
         command.pre_exec(|| {
-            libc::signal(libc::SIGHUP, libc::SIG_IGN);
-            libc::signal(libc::SIGQUIT, libc::SIG_IGN);
+            let _core_file: std::io::Result<()> = super::support::LimitKind::CoreFile.apply(0, 0);
             Ok(())
         });
     }
     let running = super::fault_run::spawn_watched(&fixture, &mut command);
-    // The request is in the service's landing when its intent is in the journal, which is the hold point of the batch.
-    let journal: PathBuf = fixture.root.join("journal");
-    let intents: String = format!(".{}", git_policy_cli::service_journal::OPEN_EXTENSION);
     let began: Instant = Instant::now();
-    while !open_intents(journal.as_path(), intents.as_str()) {
-        assert!(began.elapsed() < PATIENCE, "the request never reached the service's landing");
+    while !saw.exists() {
+        assert!(began.elapsed() < PATIENCE, "the request never reached the service");
         std::thread::sleep(Duration::from_millis(20));
     }
     // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
-    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGHUP) }, 0, "the control hangs up on the shielded commit");
-    // SAFETY: as above; a quit the caller ignored is the same question.
-    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGQUIT) }, 0, "the control quits the shielded commit");
-    // A shielded signal reaches nothing, so the request is still the service's to land.
-    std::thread::sleep(Duration::from_millis(500));
-    std::fs::write(&release, b"").expect("the foreign commit is told to let go");
-    let held = holder.wait_with_output().expect("the foreign commit ends");
-    assert!(held.status.success(), "{}", String::from_utf8_lossy(&held.stderr));
+    assert_eq!(unsafe { libc::kill(running.id(), libc::SIGTERM) }, 0, "the control sends the stop the caller did not ignore");
     let finished = running.finish();
     let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
-    println!("SHIELDED COMMIT: status {:?}: {stderr}", finished.status);
-    assert_eq!(finished.status.signal(), None, "the command does not end by a signal its caller ignored: {stderr}");
-    assert_eq!(finished.status.code(), Some(0), "the commit lands as real Git lands it: {stderr}");
-    assert_eq!(
-        git_text(&fixture, &repo, &["log", "--reverse", "--format=%s", format!("{base}..HEAD").as_str()]).trim(),
-        format!("foreign\n{MESSAGE}").as_str(),
-        "the shielded commit is on the branch after the foreign one"
-    );
+    println!("UNSHIELDED COMMIT: status {:?}: {stderr}", finished.status);
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing landed under a stop that was answered: {stderr}");
     let found: Vec<serde_json::Value> = records(&repo);
-    let record: &serde_json::Value = found.last().unwrap_or_else(|| { panic!("the shielded commit wrote no record: {stderr}") });
-    println!("TIMING RECORD (shielded): {record}");
-    assert_eq!(record["outcome"], "landed", "{record}");
-    assert_eq!(record["stop"], serde_json::Value::Null, "nothing stopped it: {record}");
+    let record: serde_json::Value = found.last().cloned().unwrap_or_else(|| { panic!("the stopped commit wrote no record: {stderr}") });
+    println!("TIMING RECORD (unshielded): {record}");
+    assert_eq!(record["stop"]["kind"], "client-signal", "the wait answers a stop its caller did not ignore: {record}");
+    assert_eq!(record["stop"]["signal"], libc::SIGTERM, "{record}");
     remove_settled(&fixture);
 }
 
 /// What:
-///  Whether the journal holds an intent a batch is open with.
+///  One commit with `signal` ignored in the child before it runs (`nohup`'s own shape),
+///  sent `signal` once the service has read its request,
+///  whose service answers the request only afterwards:
+///  the record the commit wrote.
 /// Why:
-///  A request that reached the service's landing is what a control has to wait for before it sends a signal,
-///  and the intent is written before the batch waits for the index.
+///  The caller's ignore is set in `pre_exec`, exactly as `nohup` sets it before it execs,
+///  and the signal is sent after the stand-in read the request but before its answer,
+/// so the signal is in the wait and never in the preparation.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const open = readdir(journal).some((name) => name.endsWith(OPEN_EXTENSION));
+/// const child = spawn(wrapper, ['commit'], {preExec: () => ignore(signal)}); await readRequest(); kill(child, signal); return recordOf(child);
 /// ```
-fn open_intents(journal: &Path, suffix: &str) -> bool {
-    return std::fs::read_dir(journal)
-        .map(|entries| {
-            return entries
-                .flatten()
-                .any(|entry| { return entry.file_name().to_string_lossy().ends_with(suffix); });
-        })
-        .unwrap_or(false);
+fn shielded_and_answered(label: &str, signal: libc::c_int) -> serde_json::Value {
+    use std::os::unix::process::CommandExt as _;
+    let fixture: Fixture = fixture(label);
+    let repo: PathBuf = base_repository(&fixture);
+    let name: String = format!("{label}-{}", std::process::id());
+    let places: Places = places_for(&fixture, name.as_str(), &repo);
+    let saw: PathBuf = fixture.root.join("saw-commit");
+    // The service answers the request a moment after it read it, which is after the signal was sent.
+    let _stand_in: StandIn = stand_in(&places, saw.as_path(), StandInAnswer::FailAfter { code: git_policy_cli::service_protocol::FailureCode::Rejected, after: Duration::from_millis(1_200) });
+    std::fs::write(repo.join("a.txt"), b"edit by the shielded control\n").expect("a.txt");
+    let before: String = git_text(&fixture, &repo, &["rev-parse", "HEAD"]);
+    let mut command: Command = super::fault_run::unbounded_wrapper(&fixture, repo.as_path(), &["commit", "-m", MESSAGE, "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", runtime_for(name.as_str()).as_path());
+    // Why the core limit too: without the fix the command ends by the signal it was shielded from, and a quit dumps core;
+    //  the control states an ending and never leaves a core file behind for it.
+    // SAFETY: between fork and exec only `signal` and `setrlimit`, async-signal-safe calls, run, and they set the
+    //  disposition `nohup` sets for the command it starts.
+    unsafe {
+        command.pre_exec(move || {
+            libc::signal(signal, libc::SIG_IGN);
+            let _core_file: std::io::Result<()> = super::support::LimitKind::CoreFile.apply(0, 0);
+            Ok(())
+        });
+    }
+    let running = super::fault_run::spawn_watched(&fixture, &mut command);
+    let began: Instant = Instant::now();
+    while !saw.exists() {
+        assert!(began.elapsed() < PATIENCE, "the request never reached the service");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    // SAFETY: `kill` takes two numbers and touches no memory of this process; the process is the one the control started.
+    assert_eq!(unsafe { libc::kill(running.id(), signal) }, 0, "the control sends signal {signal} to the commit");
+    let finished = running.finish();
+    let stderr: String = String::from_utf8_lossy(finished.stderr.as_slice()).into_owned();
+    println!("SHIELDED COMMIT (signal {signal}): status {:?}: {stderr}", finished.status);
+    assert_eq!(git_text(&fixture, &repo, &["rev-parse", "HEAD"]), before, "nothing landed in this control: {stderr}");
+    let found: Vec<serde_json::Value> = records(&repo);
+    let record: serde_json::Value = found.last().cloned().unwrap_or_else(|| { panic!("the commit wrote no record: {stderr}") });
+    println!("TIMING RECORD (signal {signal}, shielded): {record}");
+    remove_settled(&fixture);
+    return record;
 }
 
 /// What:
