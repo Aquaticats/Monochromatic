@@ -6,7 +6,7 @@
 //!  A Unix socket address carries 107 bytes of path (`service_instance.rs`),
 //! and a runtime directory is the person's to choose:
 //! a scratch folder under an agent's home,
-//! a container's private directory and a nested session's directory all reach past the 39 bytes a path form leaves,
+//! a container's private directory and a nested session's directory all reach past the 40 bytes a path form leaves,
 //! and the kernel then refuses both the address the manager would bind and the one a commit would connect to.
 //! A commit failed there where real Git made the commit,
 //! which the owner's rule "Commits should never fail" does not allow.
@@ -41,9 +41,8 @@
 use crate::earlier_unix_sockets_that_listen::{ListeningSockets, listening_sockets_exactly};
 use crate::service_instance::{LONGEST_SOCKET_PATH, SOCKET_DIRECTORY, digest_of_bytes, socket_path};
 use crate::service_server::Bind;
-use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 /// Whether an abstract name can be used at all:
 /// the kernel of Linux carries one,
@@ -59,45 +58,68 @@ pub const AN_ABSTRACT_NAME_IS_AVAILABLE: bool = cfg!(target_os = "linux");
 /// the digest and the instance stay under the 107 bytes an abstract name, like a path, may take.
 pub const DIGEST_DIGITS_IN_AN_ABSTRACT_NAME: usize = 16;
 
-/// The place a directory names,
+/// What:
+///  The place a directory names,
 /// as the file system resolves it:
 /// its real path,
-/// or its nearest directory above that exists with the names below that one still to be made.
+/// or the deepest directory above it that exists with what is spelled below that one folded onto it.
 /// Why:
 ///   The name of an abstract socket is made once and then has to match what another process makes,
 /// while two spellings of one directory (a link,
-/// a `..` part) name one place.
+/// a `..` part,
+/// a `.` part) name one place.
 /// A directory that does not exist yet is the state a commit may find its own runtime directory in,
 /// and provisioning creates it a moment later;
-/// the names below the nearest existing directory are made by `mkdir`,
-/// never as links,
-/// so joining them to its real path is what the file system says once they exist.
+/// the client's name is made before that and the socket unit's after,
+/// so the two are one name only if what is still to be made is folded the way the file system will walk it.
+/// A component that does not exist yet is a directory `create_dir_all` makes and never a link,
+/// so the `..` and `.` parts below it are folded by hand: a name joins,
+/// `..` takes the last name away,
+/// and `.` names nothing.
+/// This is what the kernel would answer for those parts once they exist,
+/// and the control `one_spelling_names_one_place_before_and_after_the_directory_exists` holds it.
+/// A spelling nothing can resolve — a part that is a file,
+/// a link that points nowhere,
+/// a directory this account may not read — still gets one name from this fold,
+/// the same name both ends of a commit make;
+/// provisioning then cannot create the directory and stops at once, naming the setting
+/// (`a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// thePlaceADirectoryNames('/home/u/run/../run') // '/var/home/u/run'
+/// thePlaceADirectoryNames('/home/u/missing/../run') // '/var/home/u/run'
 /// ```
 fn the_place_a_directory_names(directory: &Path) -> PathBuf {
+    // The whole spelling resolving is the ordinary case, and the file system itself decides it.
     if let Ok(resolved) = std::fs::canonicalize(directory) {
         return resolved;
     }
-    let mut made_below: Vec<&OsStr> = Vec::new();
-    let mut above: &Path = directory;
-    loop {
-        // Nothing above the root is left to resolve, so the directory stands as it was spelled.
-        let (Some(parent), Some(step)) = (above.parent(), above.file_name()) else {
-            return directory.to_path_buf();
-        };
-        made_below.push(step);
-        above = parent;
-        if let Ok(resolved) = std::fs::canonicalize(above) {
-            let mut built: PathBuf = resolved;
-            for made in made_below.iter().rev() {
-                built = built.join(made);
-            }
-            return built;
+    // What is spelled above the deepest directory that exists, one entry per component and in the order spelled.
+    let spelled: Vec<Component<'_>> = directory.components().collect();
+    for take in (0..spelled.len()).rev() {
+        let mut above: PathBuf = PathBuf::new();
+        for component in &spelled[..take] {
+            above.push(component.as_os_str());
         }
+        // A relative spelling has its deepest directory in this process's working directory, which is what a relative
+        // socket path is resolved against as well.
+        let deepest: &Path = if above.as_os_str().is_empty() { Path::new(".") } else { above.as_path() };
+        let Ok(resolved) = std::fs::canonicalize(deepest) else { continue };
+        let mut built: PathBuf = resolved;
+        for component in &spelled[take..] {
+            match component {
+                Component::CurDir => {}
+                Component::ParentDir => {
+                    let _popped = built.pop();
+                }
+                Component::Normal(name) => built.push(name),
+                Component::RootDir | Component::Prefix(_) => {}
+            }
+        }
+        return built;
     }
+    // Nothing above the root resolves either, which a path from the root always does: the spelling stands as given.
+    return directory.to_path_buf();
 }
 
 /// What:

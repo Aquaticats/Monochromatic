@@ -7,7 +7,7 @@
 //!  A Unix socket address carries 107 bytes of path,
 //! and the runtime directory is the person's to choose:
 //! a scratch folder under an agent's home,
-//! a container's private directory and a nested session's directory all reach past the thirty-nine bytes a path form leaves.
+//! a container's private directory and a nested session's directory all reach past the forty bytes a path form leaves.
 //! Before the abstract form existed the commit failed there while real Git made the commit
 //! (owner's rule, "Commits should never fail").
 //! Each control runs the built wrapper through `git` on a fixture PATH,
@@ -42,7 +42,7 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
     std::fs::create_dir_all(&parent).expect("the scratch directory");
     let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
     // The name holds the tag where there is room for it and padding to the byte the control asks for. A runtime directory of
-    //  thirty-nine bytes leaves seven or eight bytes past this process's own scratch folder, and a process number with another
+    //  forty bytes leaves seven or eight bytes past this process's own scratch folder, and a process number with another
     //  digit narrows that, so a tag that does not fit is replaced by a digest of itself: two controls still get two
     //  directories, whichever number this process runs as.
     // A tag of words needs room for itself; where a control's directory leaves none, a digest of the tag keeps two
@@ -226,17 +226,19 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
     let output: Output = command.output().expect("the wrapped commit runs");
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     let asked: Vec<String> = bus.join().expect("the stand-in bus answers");
-    for service in services.lock().expect("the started services").iter_mut() {
-        let _killed = service.kill();
-        let _waited = service.wait();
-    }
     assert_eq!(output.status.code(), Some(0), "the commit was made: {stderr}\nthe manager was asked {asked:?}");
     assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), SUBJECT, "the commit was made");
+    // A listener holds the address this spelling names: the place it resolves to, which is also the name the client made
+    // from the spelling before the directory existed.
     assert!(
         git_policy_cli::service_address_of_a_worktree::the_address_is_there(&socket_address_of(runtime.as_path(), instance.as_str())),
         "the service answers at the address this spelling names: {}",
         runtime.display()
     );
+    for service in services.lock().expect("the started services").iter_mut() {
+        let _killed = service.kill();
+        let _waited = service.wait();
+    }
     let _removed = std::fs::remove_dir_all(&holder);
     remove_settled(&fixture);
 }

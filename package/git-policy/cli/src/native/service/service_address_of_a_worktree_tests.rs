@@ -40,7 +40,7 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
     std::fs::create_dir_all(&parent).expect("the scratch directory");
     let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
     // The name holds the tag where there is room for it and padding to the byte the control asks for. A runtime directory of
-    //  thirty-nine bytes leaves seven or eight bytes past this process's own scratch folder, and a process number with another
+    //  forty bytes leaves seven or eight bytes past this process's own scratch folder, and a process number with another
     //  digit narrows that, so a tag that does not fit is replaced by a digest of itself: two controls still get two
     //  directories, whichever number this process runs as.
     // A tag of words needs room for itself; where a control's directory leaves none, a digest of the tag keeps two

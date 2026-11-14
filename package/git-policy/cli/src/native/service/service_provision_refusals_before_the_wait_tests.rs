@@ -126,7 +126,7 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
     let parent: PathBuf = short_parent();
     let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
     // The name holds the tag and then padding, never nothing: a path that ends in the separator has one byte less than it
-    //  says it has when anything is joined to it. A runtime directory of thirty-nine bytes leaves a handful of bytes past this
+    //  says it has when anything is joined to it. A runtime directory of forty bytes leaves a handful of bytes past this
     //  process's own scratch folder, and a longer process number narrows that, so a tag that does not fit is replaced by a
     //  digest of itself: two controls still get two directories, whichever number this process runs as.
     // A tag of words needs room for itself; where a control's directory leaves none, a digest of the tag keeps two
