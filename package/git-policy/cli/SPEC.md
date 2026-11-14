@@ -5202,14 +5202,20 @@ the merge tree comes from `git merge-tree --write-tree`,
 the commit from `git commit-tree`,
 the checkout moves with
 `git merge --ff-only`,
-and the whole is preceded by one look at `index.lock` that never waits for another program's command:
+and the whole is preceded by a look at `index.lock` that never waits for a command another program is proven to run:
 a lock a process that no longer runs left is cleared on the commit service's proof of disuse,
-and a lock another program's command holds ends the apply there,
+and a lock a running program holds open, or whose Git lock PID file names a running Git, ends the apply there,
 so the merge commit is kept on `refs/cli-git/kept/<n>` beside a record and the next command in the worktree finishes the checkout
 (the owner's answer for a live foreign `index.lock`;
 a cross-vendor audit of alpha.12,
 "A merge waits for another agent's live index holder",
-found the minute of waiting this replaces).
+found the minute of waiting this replaces),
+while a lock nothing proves the owner of is waited for, bounded and named, until `MERGE_LOCK_CEILING`:
+native Git keeps `index.lock` through its hooks and editor with no descriptor open and, unless `core.lockfilePid` is on,
+no PID file,
+so that owner cannot be told from a gone one,
+and the merge is saved the same way when the minute ends first
+(`look_at_the_index_before_a_merge` in `src/native/lock/index_holder_wait.rs`).
 
 A merge whose paths hold the person's own work carries it forward
 (owner's answer "Carry edits forward (Recommended)",

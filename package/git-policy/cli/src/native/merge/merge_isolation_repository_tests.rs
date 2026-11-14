@@ -1039,6 +1039,11 @@ fn a_capture_ref_a_lock_blocked_leaves_the_record_that_retries_it() {
 /// a cross-vendor audit of
 ///  alpha.12,
 /// "A merge waits for another agent's live index holder").
+///  The holder is a process of this account holding the file open,
+///  which is the proof the scan makes;
+///  a PID file naming this process proves nothing
+///  (`a_program_that_is_not_named_like_git_is_no_holder_whatever_its_start`),
+///  so it cannot stand for the holder here.
 ///  The bound is read around the merge,
 /// so a merge
 ///  that waited the old ceiling is the control's failure rather than a slow host's.
@@ -1050,9 +1055,9 @@ fn a_capture_ref_a_lock_blocked_leaves_the_record_that_retries_it() {
 #[test]
 fn a_merge_that_meets_a_live_index_holder_saves_itself_without_waiting() {
     let (parent, repo): (PathBuf, PathBuf) = diverged_with_staged_work("merge-held-index-live");
-    let index: PathBuf = repo.join(".git/index");
-    std::fs::write(repo.join(".git/index.lock"), b"").expect("the other program's lock");
-    std::fs::write(crate::recovery_files::lock_pid_path(index.as_path()), format!("pid {}\n", std::process::id())).expect("the PID file");
+    let lock: PathBuf = repo.join(".git/index.lock");
+    std::fs::write(lock.as_path(), b"").expect("the other program's lock");
+    let holder: std::process::Child = hold_the_index_open_until_the_scan_sees_it(lock.as_path());
     let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
     let outcome: IsolatedMerge = attempted(repo.as_path(), Route::Direct, &["merge", "--no-ff", "--no-edit", "feature"], &[]);
     let (code, stderr): (i32, String) = match outcome {
@@ -1064,9 +1069,11 @@ fn a_merge_that_meets_a_live_index_holder_saves_itself_without_waiting() {
     //  slow, while the notices appear only when the command waits on the holder.
     assert!(!stderr.contains("waits for the index lock"), "the merge does not wait for another program's command: {stderr}");
     assert!(stderr.contains("does not wait for it"), "the line says the merge did not wait: {stderr}");
-    assert!(stderr.contains(format!("PID {}", std::process::id()).as_str()), "the holder is named: {stderr}");
+    assert!(stderr.contains(format!("PID {}", holder.id()).as_str()), "the holder is named: {stderr}");
+    assert!(stderr.contains("proven by an open descriptor"), "the proof is named: {stderr}");
     assert!(stderr.contains("saved on refs/cli-git/kept/"), "the ref that keeps the merge is named: {stderr}");
     assert_eq!(git_text(repo.as_path(), &["rev-parse", "HEAD"]), head, "nothing of the merge is in the branch yet");
+    assert!(lock.exists(), "the merge removes no lock another program holds");
     let records: Vec<PathBuf> = crate::merge_isolation_journal::list_merge_intents(repo.join(".git").as_path()).expect("the records are listed");
     // The saved merge writes its own record beside the first, and that one names the side ref and the merge the next command
     //  finishes.
@@ -1079,4 +1086,41 @@ fn a_merge_that_meets_a_live_index_holder_saves_itself_without_waiting() {
         .count();
     assert_eq!(saved, 1, "one record names the side ref the next command finishes: {records:?}");
     remove(parent.as_path());
+}
+
+/// How long a holder this control starts may take to appear in the scan,
+/// so a broken start fails the control instead of holding it.
+const HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR: std::time::Duration = std::time::Duration::from_secs(20);
+
+/// What:
+///  Start a process of this account that holds `lock` open on descriptor 3,
+///  and wait, bounded, until the scan the wrapper makes sees it.
+/// Why:
+///   A control about a holder proven alive needs the proof in place before the merge it tests looks,
+/// and a shell that has not reached its redirect yet is a process holding nothing;
+/// the control waits on the same scan, so it waits on the fact the wrapper will read.
+fn hold_the_index_open_until_the_scan_sees_it(lock: &Path) -> std::process::Child {
+    let holder: std::process::Child = crate::test_support::spawn_owned(
+        std::process::Command::new("sh")
+            .args(["-c", "exec 3<\"$0\"; exec sleep 30", lock.to_str().expect("a UTF-8 lock path")])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null()),
+    )
+    .expect("a holder starts");
+    let began: std::time::Instant = std::time::Instant::now();
+    while !the_scan_sees(lock, holder.id()) {
+        assert!(began.elapsed() < HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR, "the scan never saw the holder {}", holder.id());
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    return holder;
+}
+
+/// Whether the host's bounded scan for open holders sees `pid` holding `lock` open.
+fn the_scan_sees(lock: &Path, pid: u32) -> bool {
+    let Ok(Some(metadata)) = crate::index_lock_evidence::read_lock_metadata(lock) else {
+        return false;
+    };
+    let seen = crate::index_lock_holders::scan_platform_holders_bounded(lock, metadata.device, metadata.inode);
+    return seen.holders.iter().any(|holder| { return holder.pid == i64::from(pid); });
 }

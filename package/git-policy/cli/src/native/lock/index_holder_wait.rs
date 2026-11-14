@@ -17,6 +17,8 @@
 //!  the line for the second says what is known and how to remove the lock if no program uses the repository.
 //! A PID file naming
 //!  a process that is gone ends the wait at once with a diagnostic.
+//! The merge's own wait before its apply is the one exception to waiting for a proven holder:
+//! there the merge has its commit and its record already and saves itself instead (`look_at_the_index_before_a_merge`).
 //! Why:
 //!  Native Git never waits for `index.lock`:
 //! a merge that finds it held dies (`Unable to create ... index.lock` or,
@@ -42,6 +44,9 @@
 //! one look at the lock decides whether a gone
 //!  process left it,
 //! and the command goes on either way (`look_at_the_index_lock_once`).
+//!  A merge about to apply waits for a lock nothing proves to be another program's command,
+//! and for a holder it does prove alive it saves itself at once
+//!  (`look_at_the_index_before_a_merge`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -256,32 +261,40 @@ pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
 }
 
 /// What:
-///  The index lock,
-/// looked at once by a merge that is about to change the checkout,
-///  naming the dead owner whose lock it may clear and the live one it will not wait for.
+///  The index lock before a merge's own apply:
+///  one look,
+///  a wait while nothing proves the holder is another program's command,
+///  and the naming of the dead owner whose lock the merge may clear.
 /// Why:
-///   The merge has an answer that needs no wait:
-/// its commit is already made,
-/// so a lock another program
-///  holds is met by saving that merge on a side ref for the next command to finish (`SPEC.md`,
-/// "Merges and commits never fail"),
+///   Three owners are met differently here.
+///  A number this process table does not have is what a killed Git leaves and no process here will release it,
+///  so the lock is named and the merge clears it on the commit service's proof of disuse
+///  (`remove_if_the_owner_is_gone`).
+///  A holder proven alive is another program's command,
+///  and the merge has an answer that needs no wait:
+///  its commit is already made,
+///  so the merge is saved on a side ref for the next command in the worktree to finish
+///  (`SPEC.md`,
+///  "Merges and commits never fail"),
 ///  while waiting on another agent's command is what the owner forbids
-/// (`SPEC.md`,
-/// "Dozens of agents at once is normal
-///  operation").
-///  A lock that stays held for the whole ceiling cost that wait and then reached the same save,
-/// so the
-///  sixty seconds bought nothing a person asked for
-/// (a cross-vendor audit of alpha.12,
-/// "A merge waits for another
-///  agent's live index holder").
+///  (`SPEC.md`,
+///  "Dozens of agents at once is normal operation").
+///  A lock that kept a proven holder waiting for the whole ceiling and then reached the same save bought nothing a person asked for
+///  (a cross-vendor audit of alpha.12,
+///  "A merge waits for another agent's live index holder").
+///  A lock nothing proves the owner of is the third case,
+///  and it is the person's own `git commit` at its editor as often as it is a killed Git's:
+///  native Git keeps `index.lock` through its hooks and editor with no descriptor open and, unless `core.lockfilePid` is on,
+///  no PID file,
+///  so nothing can tell that owner from a gone one and the merge waits for it,
+///  bounded and named,
+///  and is saved at the ceiling instead of failing.
 ///  The holder is classified exactly as the wait classifies it,
-/// so a lock a gone process left is
-///  cleared on the same proof by both.
+///  so a lock a gone process left is cleared on the same proof by both.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const look = lookAtTheIndexBeforeAMerge(gitDir.resolve('index'), stderr); // 'not-held' | { ownerGone } | { heldBy: 'PID 42' }
+/// const look = lookAtTheIndexBeforeAMerge(gitDir.resolve('index'), stderr); // 'not-held' | 'released' | { ownerGone } | { heldBy: 'PID 42' } | { gaveUp }
 /// ```
 pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
     let lock: std::path::PathBuf = lock_path_of(real_index);
@@ -296,8 +309,22 @@ pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(real_index: &Path, ou
             );
             IndexWait::OwnerGone(Duration::ZERO)
         }
-        Proof::Alive(evidence, ..) | Proof::Nothing(Some(evidence)) => IndexWait::HeldByAnotherCommand(blocker_words(&evidence)),
-        Proof::Nothing(None) => IndexWait::HeldByAnotherCommand(String::from("a program whose owner could not be read")),
+        // Another program's command is proven to hold it, so this merge does not wait for it.
+        Proof::Alive(evidence, ..) => IndexWait::HeldByAnotherCommand(blocker_words(&evidence)),
+        // The owner may be the person's own commit at its editor, which lets go by itself, so the merge waits for it within the
+        //  ceiling; a holder proven alive during that wait is left to the next command, and the ceiling saves the merge.
+        Proof::Nothing(_) => wait_with_watches_and_consequence(
+            real_index,
+            "merge",
+            MERGE_CONSEQUENCE,
+            MERGE_NOTICE_ENDING,
+            CLEARS_A_DEAD_OWNERS_LOCK,
+            MERGE_LOCK_CEILING,
+            Cadence::from_environment(),
+            out,
+            &Watch::on,
+            ProvenHolder::LeavesItToTheNextCommand,
+        ),
     };
 }
 
@@ -352,6 +379,7 @@ pub fn wait_for_index_release_while_finishing_a_merge<W: Write + ?Sized>(real_in
         Cadence::from_environment(),
         out,
         &Watch::on,
+        ProvenHolder::Waits,
     );
 }
 
@@ -382,33 +410,18 @@ thread_local! {
     pub(crate) static RECOVERY_LOCK_CEILING_FOR_THIS_THREAD: std::cell::Cell<Option<Duration>> = const { std::cell::Cell::new(None) };
 }
 
-/// What:
-///  The wait a merge makes before its own apply,
-/// whose dead owner's line says the merge clears that lock,
-/// because it does.
+/// What a wait does with a holder a look proves alive.
 /// Why:
-///  A merge that waited on a lock a gone process left now removes it on the commit service's proof of disuse and goes
-///  on (`doc/planning/cli-git-merge-and-repair-route-findings-on-main.md`,
-/// finding 3),
-/// so the line must not promise that the lock was
-///  left in place.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await waitForIndexReleaseBeforeAMergeThatClearsADeadLock(realIndex, stderr)
-/// ```
-pub fn wait_for_index_release_before_a_merge_that_clears_a_dead_lock<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
-    return wait_with_watches_and_consequence(
-        real_index,
-        "merge",
-        MERGE_CONSEQUENCE,
-        MERGE_NOTICE_ENDING,
-        CLEARS_A_DEAD_OWNERS_LOCK,
-        MERGE_LOCK_CEILING,
-        Cadence::from_environment(),
-        out,
-        &Watch::on,
-    );
+///  A holder proven alive is another program's command,
+///  and the answer to it differs by what the waiting command has already done:
+///  a merge that has its commit and its record has nothing of itself in the checkout and saves itself for the next command,
+///  while a recovery finishing an interrupted merge has nothing else to do meanwhile and waits for the holder to the ceiling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ProvenHolder {
+    /// Wait for the proven holder until it lets go or the ceiling comes.
+    Waits,
+    /// Leave it to the next command in the worktree, as the merge's own apply does.
+    LeavesItToTheNextCommand,
 }
 
 /// Write `bytes` to `out`,
@@ -426,11 +439,12 @@ fn write_then_flush<W: Write + ?Sized>(out: &mut W, bytes: &[u8]) -> std::io::Re
 fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
     let consequence: String = format!("git {command} stops waiting and reports what Git says");
     let notice_ending: String = format!("git {command} meets Git's own refusal");
-    return wait_with_watches_and_consequence(real_index, command, consequence.as_str(), notice_ending.as_str(), DEAD_OWNER_LOCK_LEFT, ceiling, cadence, out, set_watch);
+    return wait_with_watches_and_consequence(real_index, command, consequence.as_str(), notice_ending.as_str(), DEAD_OWNER_LOCK_LEFT, ceiling, cadence, out, set_watch, ProvenHolder::Waits);
 }
 
-/// `wait_with_watches` with the sentence the ceiling line ends on given,
-/// so a recovery of an interrupted merge can say what it does instead of reporting what Git says.
+/// `wait_with_watches` with the sentences the ceiling line and a dead owner's line end on given,
+/// so a recovery of an interrupted merge can say what it does instead of reporting what Git says,
+/// and with what a holder proven alive during the wait ends it.
 fn wait_with_watches_and_consequence<W: Write + ?Sized>(
     real_index: &Path,
     command: &str,
@@ -441,6 +455,7 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
     cadence: Cadence,
     out: &mut W,
     set_watch: &dyn Fn(&Path) -> Option<Watch>,
+    proven_holder: ProvenHolder,
 ) -> IndexWait {
     let lock = lock_path_of(real_index);
     // The watch comes before the first look: a release between the look and the wait is then seen as an event.
@@ -466,6 +481,13 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
         if let Proof::Dead(pid) = &proof {
             let _noted = write_then_flush(out, dead_owner_diagnostic(lock.as_path(), *pid, consequence, dead_ending).as_bytes());
             return IndexWait::OwnerGone(elapsed);
+        }
+        // A holder this look proves alive is another program's command, which the merge leaves to the next command rather than
+        //  wait for; it is named before any notice promises a wait that will not happen.
+        if proven_holder == ProvenHolder::LeavesItToTheNextCommand
+            && let Proof::Alive(evidence, ..) = &proof
+        {
+            return IndexWait::HeldByAnotherCommand(blocker_words(evidence));
         }
         if due {
             // A closed terminal is not a reason to stop the command the person asked for.

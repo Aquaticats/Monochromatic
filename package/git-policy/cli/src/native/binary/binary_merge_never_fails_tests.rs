@@ -47,6 +47,12 @@ fn parents(fixture: &Fixture, repo: &Path) -> Vec<String> {
 /// A merge started while another program holds `index.lock` says what it waits for,
 /// and lands when the lock is gone;
 ///  native Git dies on it (`stash failed`) after the work it did before.
+/// The fixture is a lock nothing proves the owner of:
+/// an empty file with no PID file beside it,
+///  which is what a killed Git leaves and what a person's own `git commit` holds through its editor
+/// (`service_index_unheld_removal.rs`,
+///  the measurement of 2026-11-07).
+/// Such an owner cannot be told from a live one, so the merge waits for it rather than clear the lock.
 #[test]
 fn a_merge_waits_for_a_held_index_lock_and_then_lands() {
     for staged in [false, true] {
@@ -398,8 +404,10 @@ fn a_merge_that_may_not_clear_the_lock_saves_itself_and_the_next_command_finishe
 ///  so the merge must not fail,
 /// and its result must not be collectable before it lands.
 /// The lock names this very test process in its PID file,
-/// so it is proven alive and the wait
-///  reaches `MERGE_LOCK_CEILING` instead of ending at once.
+/// which runs and holds no descriptor on the lock;
+///  a process that is not named like Git proves nothing about who holds it
+///  (`classify_index_lock`),
+///  so the wait reaches `MERGE_LOCK_CEILING` as one for an owner nothing proves alive instead of ending at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

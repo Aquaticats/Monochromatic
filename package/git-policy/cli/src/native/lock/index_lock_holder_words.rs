@@ -76,6 +76,10 @@ fn is_time_bound(reason: &&String) -> bool {
     return reason.contains("time bound");
 }
 
+/// The beginning of a reason that names one process the scan could not look at,
+/// of this account or of another.
+const A_PROCESS: &str = "PID ";
+
 /// What:
 ///  The reasons a scan could not see everything,
 /// as one short text:
@@ -88,20 +92,32 @@ fn is_time_bound(reason: &&String) -> bool {
 ///  account's descriptors do not reach),
 /// which buried the one fact a person needs:
 /// the holder may be among them.
+///   A reason that names no process (the scan cut at its own bound, a `/proc` it could not list) is no process,
+/// so the count stays what it says it is:
+/// how many processes the scan could not look at,
+/// and the cut is said for itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// partialSummary(['PID 4: Permission denied', ...]) // '412 reasons, the first: PID 4: Permission denied'
+/// partialSummary(['PID 4: Permission denied', ...]) // '412 processes could not be looked at, the first of them: PID 4: Permission denied'
 /// ```
 pub fn partial_summary(reasons: &[String]) -> String {
     const SHOWN_IN_FULL: usize = 3;
     if reasons.len() <= SHOWN_IN_FULL {
         return reasons.join("; ");
     }
-    let mut text: String = format!("{} processes could not be looked at, the first of them: {}", reasons.len(), reasons[0]);
-    if let Some(cut) = reasons.iter().find(is_time_bound) {
-        text.push_str("; ");
-        text.push_str(cut.as_str());
+    let cut: Option<&String> = reasons.iter().find(is_time_bound);
+    let processes: Vec<&String> = reasons.iter().filter(|reason| { return reason.starts_with(A_PROCESS); }).collect();
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(first) = processes.first() {
+        parts.push(format!("{} processes could not be looked at, the first of them: {first}", processes.len()));
     }
-    return text;
+    match cut {
+        Some(bound) => parts.push(String::from(bound.as_str())),
+        // A scan that named no process and was not cut at its bound could not read the process table at all: its reason is
+        //  the whole of what it can say.
+        None if parts.is_empty() => parts.extend(reasons.iter().cloned()),
+        None => {}
+    }
+    return parts.join("; ");
 }
