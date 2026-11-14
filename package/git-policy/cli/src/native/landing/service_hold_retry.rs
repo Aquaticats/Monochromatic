@@ -108,12 +108,17 @@ pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
 /// runOnce(argv, capturedFd) // { exited: n } | { signaled: n }
 /// ```
 fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], captured: std::fs::File) -> std::io::Result<ChildOutcome> {
+    // What: The watch on this Git's directories is opened before it starts, as every start of a Git that may take a lock
+    //       of this repository makes it.
+    // Why:  A merge run again while the commit service holds the index takes that lock itself, and a record of it must
+    //       exist before a kill that takes this command and that Git together (`lock_watch.rs`).
+    let watch: Option<(crate::lock_watch::Watch, crate::lock_watch::Watched)> = crate::lock_watch::watch_before_starting();
     let mut command = git_command(real_git, arguments, overlay, StartOwner::Person);
     command.stderr(Stdio::from(captured));
     let mut child: std::process::Child = command.spawn_retrying()?;
     // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
     crate::lock_holder_records::note_child_started(child.id());
-    let status: std::process::ExitStatus = child.wait()?;
+    let status: std::process::ExitStatus = crate::lock_watch::wait_for_a_watched_child(&mut child, watch)?;
     return Ok(outcome_of(status));
 }
 

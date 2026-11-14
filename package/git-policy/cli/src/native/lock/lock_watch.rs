@@ -234,6 +234,12 @@ pub struct Tracker {
     unprovable: bool,
 }
 
+impl Default for Tracker {
+    fn default() -> Self {
+        return Self::new();
+    }
+}
+
 impl Tracker {
     /// A tracker that has seen nothing.
     pub fn new() -> Self {
@@ -497,7 +503,12 @@ impl Watch {
                 return events;
             }
             for (watched, mask, name) in events_in(&buffer[..count]) {
-                let Some(directory) = self.directories.iter().find(|(descriptor, _)| *descriptor == watched).map(|(_, root)| root.clone()) else {
+                let found: Option<PathBuf> = self
+                    .directories
+                    .iter()
+                    .find(|(descriptor, _)| { return *descriptor == watched; })
+                    .map(|(_, root)| { return root.clone(); });
+                let Some(directory) = found else {
                     continue;
                 };
                 use std::os::unix::ffi::OsStringExt as _;
@@ -516,6 +527,49 @@ impl Drop for Watch {
             unsafe { libc::close(child) };
         }
     }
+}
+
+/// What:
+///  Open the watch a child's start needs,
+///  from what the plan remembered for this command,
+///  before that child starts.
+/// Why:
+///  A lock is created microseconds after its Git starts,
+///  so a watch opened after the start would miss the events that prove whose lock it is;
+///  a command that remembered nothing watches nothing and starts its Git exactly as before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const watch = watchBeforeStarting(); // undefined when the plan remembered no roots
+/// ```
+pub fn watch_before_starting() -> Option<(Watch, Watched)> {
+    let watched: Watched = remembered()?;
+    let watch: Watch = Watch::over(watched.roots.as_slice())?;
+    return Some((watch, watched));
+}
+
+/// What:
+///  Wait for `child` while the directories its Git was started in are watched,
+///  or wait for it exactly as before when nothing was watched.
+/// Why:
+///   One call is the whole difference between a run that records what its Git took and one that does not,
+///  so every start of a Git that may take a lock of this repository makes it.
+///  The child's identity is read while it runs,
+///  because a record of a number without a birth names nobody once the child has ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const status = await waitForAWatchedChild(child, watch);
+/// ```
+pub fn wait_for_a_watched_child(child: &mut std::process::Child, watch: Option<(Watch, Watched)>) -> std::io::Result<std::process::ExitStatus> {
+    let Some((opened, about)) = watch else {
+        return child.wait();
+    };
+    let Some(identity) = crate::lock_holder_records::identity_of_process(i64::from(child.id())) else {
+        drop(opened);
+        return child.wait();
+    };
+    return wait_and_bind(child, opened, about.common_dir.as_path(), identity.as_str());
 }
 
 /// What:
@@ -545,6 +599,7 @@ pub fn wait_and_bind(
         if let Some(status) = child.try_wait()? {
             tracker.feed(watch.read_events().as_slice());
             bind_what_the_child_took(&tracker, common_dir, child_pid, identity, &mut bound);
+            forget_what_the_child_finished(common_dir, &bound);
             return Ok(status);
         }
         tracker.feed(watch.wait(watch.step()).as_slice());
@@ -569,6 +624,27 @@ fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64
         }
         written.push(lock.clone());
         let _written = lock_bindings::write(common_dir, lock.as_path(), &(child_pid, identity.to_owned()));
+    }
+}
+
+/// What:
+///  Take away the record of every lock this child finished,
+///  which is a child that renamed its lock over its target or rolled it back.
+/// Why:
+///  The record of a lock that is gone explains nothing,
+///  and this command is the one that knows the child finished:
+///  leaving it to the next command's sweep writes a file every index writer would then read and remove.
+///  A lock that still stands as the pin does is the killed child's and keeps its record.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const lock of bound) if (!bindingOf(commonDir, lock)) removeBinding(commonDir, lock);
+/// ```
+fn forget_what_the_child_finished(common_dir: &Path, bound: &[PathBuf]) {
+    for lock in bound {
+        if crate::lock_bindings::of(common_dir, lock.as_path()).is_none() {
+            crate::lock_bindings::remove(common_dir, lock.as_path());
+        }
     }
 }
 
@@ -613,7 +689,9 @@ fn events_in(buffer: &[u8]) -> Vec<(i32, u32, &[u8])> {
         let length: usize = usize::try_from(field_at(buffer, at, 12)).unwrap_or(usize::MAX);
         let start: usize = at + header;
         let end: usize = start.saturating_add(length).min(buffer.len());
-        let name: &[u8] = buffer[start..end].split(|byte: &u8| *byte == 0).next().unwrap_or(&[]);
+        let cut: Option<usize> = buffer[start..end].iter().position(|byte: &u8| { return *byte == 0; });
+        let ended: usize = cut.unwrap_or(end - start);
+        let name: &[u8] = &buffer[start..start + ended];
         let watched: i32 = i32::try_from(field_at(buffer, at, 0)).unwrap_or(-1);
         events.push((watched, field_at(buffer, at, 4), name));
         at = start.saturating_add(length);

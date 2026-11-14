@@ -296,21 +296,12 @@ pub fn run_real_git_naming(
     // What: The watch on the directories this command's Git writes in is opened before the child starts.
     // Why:  A lock this Git takes is created microseconds after it starts, and a watch opened after the start would
     //       miss the event that proves whose lock it is; the watch itself never delays or refuses the start.
-    let watched: Option<crate::lock_watch::Watched> = crate::lock_watch::remembered();
-    let watch: Option<crate::lock_watch::Watch> = watched.as_ref().and_then(|about| crate::lock_watch::Watch::over(about.roots.as_slice()));
+    let watch: Option<(crate::lock_watch::Watch, crate::lock_watch::Watched)> = crate::lock_watch::watch_before_starting();
     let mut child: std::process::Child = git_command(real_git, arguments, overlay, owner).spawn_retrying()?;
     on_started.started(child.id());
     // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
     crate::lock_holder_records::note_child_started(child.id());
-    let status: std::process::ExitStatus = match (watch, watched.as_ref()) {
-        // The child's identity is read while it runs, because a record of a number without a birth names nobody once the
-        //  child has ended.
-        (Some(watch), Some(about)) => match crate::lock_holder_records::identity_of_process(i64::from(child.id())) {
-            Some(identity) => crate::lock_watch::wait_and_bind(&mut child, watch, about.common_dir.as_path(), identity.as_str())?,
-            None => child.wait()?,
-        },
-        _ => child.wait()?,
-    };
+    let status: std::process::ExitStatus = crate::lock_watch::wait_for_a_watched_child(&mut child, watch)?;
     // `Ok(...)` is the success variant carrying how the child ended.
     return Ok(outcome_of(status));
 }

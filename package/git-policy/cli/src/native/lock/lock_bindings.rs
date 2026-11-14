@@ -149,13 +149,15 @@ fn hex_of(bytes: &[u8]) -> String {
 /// Buffer.from('2f686f6d65', 'hex')
 /// ```
 fn bytes_of_hex(text: &str) -> Option<Vec<u8>> {
-    if text.len() % 2 != 0 || !text.bytes().all(|byte: u8| byte.is_ascii_hexdigit()) {
+    let every_byte_is_a_digit: bool = text.bytes().all(|byte: u8| { return byte.is_ascii_hexdigit(); });
+    if text.len() % 2 != 0 || !every_byte_is_a_digit {
         return None;
     }
-    let mut bytes: Vec<u8> = Vec::with_capacity(text.len() / 2);
-    for pair in text.as_bytes().chunks_exact(2) {
-        let digits: &str = std::str::from_utf8(pair).ok()?;
-        bytes.push(u8::from_str_radix(digits, 16).ok()?);
+    let digits: &[u8] = text.as_bytes();
+    let mut bytes: Vec<u8> = Vec::with_capacity(digits.len() / 2);
+    for at in (0..digits.len()).step_by(2) {
+        let pair: &str = std::str::from_utf8(&digits[at..at + 2]).ok()?;
+        bytes.push(u8::from_str_radix(pair, 16).ok()?);
     }
     return Some(bytes);
 }

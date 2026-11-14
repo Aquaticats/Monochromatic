@@ -4,12 +4,35 @@
 //! Why:
 //!  A lock whose holder is proven gone protects nothing,
 //!  and the command that meets it must go on instead of waiting a minute and giving up.
-//!  The proof is about the writer of the lock's PID file,
-//!  never about the number alone (`lock_holder_record_reads.rs`,
+//!  Two proofs decide,
+//!  and the first is the one this pass prefers:
+//!
+//!  - the record a command of this repository wrote about the very lock its own Git took
+//!    (`lock_bindings.rs`,
+//!  `lock_watch.rs`):
+//!    that command kept its process around its Git,
+//!    saw the kernel report the lock created and then its PID file,
+//!    pinned the very inode the lock had,
+//!    and named that Git by the birth identity it read of its own child.
+//!    So the birth times decide nothing on this path,
+//!    which is what makes it act on this volume,
+//!    where the two files one Git writes at once carry one stamp.
+//!    It proves the record's lock,
+//!    and it proves nothing about a lock made again at the same path (the pin holds the old inode),
+//!    about a PID file that no longer names the recorded number,
+//!    or about a Git the record does not name,
+//!    and each of those keeps the lock.
+//!    Only the commands whose Git this process waits for write such a record:
+//!    a command that replaces itself with real Git keeps no process,
+//!    so its lock keeps the second proof or stands.
+//!  - the writer of the lock's PID file,
+//!    where no record exists,
+//!    never the number alone (`lock_holder_record_reads.rs`,
 //! `proved_gone_writer`):
-//!  no live process may have the number the PID file names,
-//!  and every record of this repository naming that number must be a process of this boot,
-//!  this PID namespace and this machine that has ended.
+//!    the PID file must be born strictly after the lock,
+//!    no live process may have the number it names,
+//!    and every record of this repository naming that number must be a process of this boot,
+//!    this PID namespace and this machine that has ended.
 //!  What each way the three facts can disagree does here:
 //!
 //!  - a number used again:
@@ -303,9 +326,10 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
 ///  - and that Git is gone,
 ///    by the birth identity the command read of its own child,
 ///    so a number a live process has now keeps the lock whatever the record says.
+///
 ///  A record whose holder is not gone,
 ///  and every part of one that cannot be read,
-///  leaves the lock to the birth-order gate and the wait it has today.
+///  leave the lock to the birth-order gate and the wait it has today.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

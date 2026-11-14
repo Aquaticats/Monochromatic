@@ -212,7 +212,7 @@ fn a_watch_on_a_real_directory_reports_the_lock_a_child_took() {
     let (directory, lock) = with_lock_and_pid_file("watch-real", i64::from(std::process::id()));
     std::fs::remove_file(lock.as_path()).expect("the control makes the lock while the watch runs");
     std::fs::remove_file(directory.join("index~pid.lock")).expect("the control makes the PID file while the watch runs");
-    let watch: Watch = Watch::over(&[directory.clone()]).expect("a watch on a real directory");
+    let watch: Watch = Watch::over(std::slice::from_ref(&directory)).expect("a watch on a real directory");
     std::fs::write(lock.as_path(), b"a half-written index\n").expect("the lock");
     std::fs::write(directory.join("index~pid.lock"), format!("pid {}\n", std::process::id()).as_bytes()).expect("the PID file");
     let mut tracker: Tracker = Tracker::new();

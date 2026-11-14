@@ -9599,10 +9599,62 @@ the PID namespace and the machine ID.
 A part that cannot be read is left out,
 which makes the judgement unknown instead of wrong.
 
+#### The record of the very lock a command's own Git took
+
+A PID file and the lock beside it are written microseconds apart,
+and this volume's file system dates births to about a millisecond,
+so the two files carry one stamp and the order of their births proves nothing.
+Nothing on disk tells a dead Git's lock from a later Git's lock standing beside that dead Git's PID file.
+A command that keeps its process around its Git knows what no later reader can:
+it watched that Git create the lock and write the PID file after it.
+So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
+`src/native/lock/lock_bindings.rs`):
+
+- a watch on the Git directory and the common Git directory is opened **before** the child starts,
+  so no lock it takes is created outside it;
+- the kernel's own events are read as they arrive,
+  and a lock counts only when its name still refers to the file that was created,
+  when the PID file beside it was created **after** it,
+  and when that PID file names the command's own child
+  (`Tracker::locks_taken`).
+  Git writes the PID file only after it created the lock (`lockfile.c:182-184`, Git 2.56.0),
+  writes none at all when it did not create the lock,
+  and writes none beside a PID file it found in the way;
+- the command writes `<common-git-dir>/cli-git-lock-holders/pinned/<digest>.holder`,
+  naming the lock's path and the child's birth identity,
+  and **pins** the very inode with a hard link beside it.
+  While the link exists the file system cannot give that inode to another file,
+  so a lock made again at that path is a different file and no record describes it;
+- a record whose lock the child finished, by renaming it over its target or rolling it back,
+  is taken away as the child ends,
+  and one whose lock no longer stands is swept by the next command
+  (`sweep`).
+  A record whose lock still stands is kept.
+
+The events are the whole proof, so a queue the kernel dropped (`IN_Q_OVERFLOW`),
+a watch that ended,
+and more names than one run follows leave the lock to the birth-order gate and the wait it has today.
+
 #### The proof
 
-A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_proving.rs`):
+A lock is abandoned when all of these hold (`src/native/lock/abandoned_lock_proving.rs`),
+and the record a command wrote about the very lock its Git took decides where it exists:
 
+- that record's pin holds the file standing at this path now,
+  so the lock was replaced,
+  renamed over its target,
+  cleared and made again,
+  or the pin holds a different file, and none of those describes the state;
+- the PID file standing beside the lock still names the number the record does;
+- the Git the record names is gone,
+  by the birth identity the command read of its own child,
+  and every record of this repository naming that number judges `gone`
+  (`holder_state`,
+  `proved_gone_writer`);
+- and the facts below that are about the file rather than about who wrote the PID file.
+
+Where no such record exists,
+the birth order of the PID file and the lock decides instead:
 - its PID file names a number,
   and it was born **strictly after** the lock,
   so it is this lock's holder rather than an earlier one's
@@ -9721,6 +9773,20 @@ and what each does:
   so a live service's lock is waited for and a killed one's is removed by its owner.
 - A lock a command has open is a live writer whatever the record says,
   so it is kept.
+- A command the wrapper replaces with real Git (`exec`) keeps no process around it,
+  so nothing watches the Git of `git status`,
+  `git log` or another command that is not an index writer,
+  and a lock such a Git took keeps the birth-order gate:
+  on this volume it stands and is reported.
+  The proof covers the commands that write the index
+  (`add`, `reset`, `checkout`, `merge` and the rest of `index_writer_commands.rs`),
+  whose Git the wrapper waits for as a child.
+- A record names the command's own child by the identity this process table gave it,
+  so a Git of a sibling PID namespace whose number happens to equal that child's,
+  taking the same lock at the same instant,
+  would be described as that child's.
+  The same coincidence is what a PID file alone has always allowed,
+  and a repository shared with a container is the state the reference-lock judgement keeps for that reason.
 
 The cost of looking at other processes is bounded as the reference lock judgement bounds it:
 the scan runs only when a lock exists and its record is already proven dead,
@@ -9749,7 +9815,8 @@ one claim and no repository-wide lock:
    no marker may have appeared,
    and the PID file must still name the number the record explained.
 6. The lock is unlinked,
-   then its PID file.
+   then its PID file,
+   then the record of that lock and its pin.
 
 Two commands that meet the same abandoned lock therefore cannot both remove it and both take it:
 each must hold the `flock` to reach the unlink,

@@ -117,7 +117,12 @@ pub fn standing_lock_line(lock: &Path, common_dir: &Path) -> Option<String> {
         // Why:  A person who meets a lock nothing here may remove must hear which file it is and what is known, and this is
         //       the state a Git the wrapper did not start leaves behind (item 2 of the lock pass's own words).
         crate::stale_ref_lock_found::PidFile::Unproven(found) => *found,
-        crate::stale_ref_lock_found::PidFile::Older(_) | crate::stale_ref_lock_found::PidFile::Absent => return None,
+        // What: A PID file born before the lock is an earlier holder's, so the lock standing here is one nothing explains,
+        //       and it is named too.
+        // Why:  That is the state a person makes by removing a killed Git's lock alone: the stale PID file stays, a later
+        //       Git takes the name and writes none, and nothing here may remove it (`PidFile::Older`).
+        crate::stale_ref_lock_found::PidFile::Older(found) => *found,
+        crate::stale_ref_lock_found::PidFile::Absent => return None,
     };
     let recorded: bool = !identities_recorded(common_dir, pid).is_empty();
     let live: bool = matches!(crate::process_identity::process_birth_identity(pid), Ok(Some(_running)));
@@ -133,6 +138,9 @@ pub fn standing_lock_line(lock: &Path, common_dir: &Path) -> Option<String> {
         // The record proves its writer gone, and the PID file still cannot be pinned to this lock.
         (crate::stale_ref_lock_found::PidFile::Unproven(_), false, true, _) => {
             "which no process in this process table has, and this repository's own record names a process that ended; its own birth time and the lock's cannot be told apart, or this file system records no birth time for one of them, so nothing shows the file was written for this lock"
+        }
+        (crate::stale_ref_lock_found::PidFile::Older(_), _, _, _) => {
+            "which a PID file born before the lock names, so that file is an earlier holder's and nothing here shows who holds this lock"
         }
         (crate::stale_ref_lock_found::PidFile::Unproven(_), false, false, _) => {
             "which no process in this process table has, which no record of the processes this repository's own commands started names, and whose own birth time and the lock's cannot be told apart, or whose file system records no birth time for one of them, so nothing shows the file was written for this lock"
