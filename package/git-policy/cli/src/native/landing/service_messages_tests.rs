@@ -4,6 +4,7 @@
 //! and text that derives from the named constants.
 
 use super::*;
+use std::collections::BTreeSet;
 
 /// One sample of every failure,
 /// and every platform,
@@ -73,47 +74,87 @@ fn samples() -> Vec<ClientFailure> {
     return all;
 }
 
-/// Compile-time proof that `samples` covers every variant:
-/// adding one breaks this match until a sample exists.
-fn variant_index(failure: &ClientFailure) -> usize {
-    return match failure {
-        ClientFailure::DidNotStart => 0,
-        ClientFailure::NoActivation(_) => 1,
-        ClientFailure::OtherAccount => 2,
-        ClientFailure::MayNotHaveLanded => 3,
-        ClientFailure::NoCommonVersion => 4,
-        ClientFailure::RepositoryFull(_) => 5,
-        ClientFailure::RepositoryReadOnly(_) => 6,
-        ClientFailure::BranchKeepsChanging { .. } => 7,
-        ClientFailure::ServiceSilent => 8,
-        ClientFailure::ServiceSilentAfterPreparing { .. } => 24,
-        ClientFailure::Refused => 9,
-        ClientFailure::IndexInUse(_) => 10,
-        ClientFailure::ReferenceLocked { .. } => 25,
-        ClientFailure::Unavailable => 11,
-        ClientFailure::ProgramMissing(_) => 12,
-        ClientFailure::CouldNotStart(_) => 13,
-        ClientFailure::UnitInTheWay(_) => 15,
-        ClientFailure::WorkNotHandedOver(_) => 14,
-        ClientFailure::BranchMoved { .. } => 16,
-        ClientFailure::BranchMovedMessageSaved { .. } => 17,
-        ClientFailure::OtherRelease => 18,
-        ClientFailure::BranchSwitched { .. } => 19,
-        ClientFailure::ContentPruned => 23,
-        ClientFailure::PermissionDenied(_) => 27,
-        ClientFailure::RepositoryFrozen(_) => 25,
-        ClientFailure::ConclusionStateChanged { .. } => 26,
-        ClientFailure::StepTooSlow => 22,
-        ClientFailure::StillWithService { .. } => 20,
-        ClientFailure::WithdrawalUnconfirmed { .. } => 21,
-        ClientFailure::SocketPathTooLong { .. } => 28,
-        ClientFailure::ServiceElsewhere { .. } => 29,
-        ClientFailure::NothingAnswered { .. } => 32,
-        ClientFailure::Interrupted { .. } => 30,
-        ClientFailure::InterruptedNotKnown { .. } => 31,
-        ClientFailure::ServiceNotReading { .. } => 33,
+//region One line for each variant of `ClientFailure`: the name this file knows it by, and the path of the variant.
+
+/// What:
+///  Every variant of `ClientFailure` on a line of its own:
+///  the name this file knows it by,
+/// and the path of the variant.
+/// Why:
+///   The macro writes the pattern around that path,
+/// so `ClientFailure::RepositoryFrozen` becomes `ClientFailure::RepositoryFrozen { .. }`,
+/// and a line can only ever match one variant:
+///  neither an or-pattern (`A | B`) nor a catch-all (`_`) is a path,
+/// so `each_failure_variant!` does not accept one,
+/// and counting two variants as one does not compile.
+/// The compiler also checks that the lines cover every variant of the enum,
+/// so a variant added to `ClientFailure` breaks this file until it has a line here.
+/// The name sits on the line of the path it names,
+/// so there is no number,
+/// and no second list,
+/// to keep in step.
+///  A number two variants shared is what let `every_failure_variant_is_rendered` pass
+///  with the sample of `RepositoryFrozen` taken away (measured 2026-11-14).
+///  Writing the name out keeps a repeated name expressible,
+/// which is the mistake that test has to catch.
+///  The two forms the path closes were reproduced against the pattern-taking macro on 2026-11-14:
+///  folding two lines into one or-pattern arm passed the test,
+///  and so did a catch-all,
+///  because neither repeated a name and the match stayed exhaustive.
+macro_rules! each_failure_variant {
+    ( $( $name:literal => $variant:path ),* $(,)? ) => {
+        /// The name of `failure`'s variant.
+        fn variant_name(failure: &ClientFailure) -> &'static str {
+            return match failure {
+                $( $variant { .. } => $name, )*
+            };
+        }
+
+        /// Every name `variant_name` can give,
+        /// one for each variant of `ClientFailure`.
+        const VARIANT_NAMES: &[&str] = &[ $( $name ),* ];
     };
 }
+
+each_failure_variant! {
+    "DidNotStart" => ClientFailure::DidNotStart,
+    "NothingAnswered" => ClientFailure::NothingAnswered,
+    "NoActivation" => ClientFailure::NoActivation,
+    "OtherAccount" => ClientFailure::OtherAccount,
+    "MayNotHaveLanded" => ClientFailure::MayNotHaveLanded,
+    "NoCommonVersion" => ClientFailure::NoCommonVersion,
+    "OtherRelease" => ClientFailure::OtherRelease,
+    "RepositoryFull" => ClientFailure::RepositoryFull,
+    "RepositoryReadOnly" => ClientFailure::RepositoryReadOnly,
+    "PermissionDenied" => ClientFailure::PermissionDenied,
+    "RepositoryFrozen" => ClientFailure::RepositoryFrozen,
+    "BranchKeepsChanging" => ClientFailure::BranchKeepsChanging,
+    "BranchMoved" => ClientFailure::BranchMoved,
+    "ConclusionStateChanged" => ClientFailure::ConclusionStateChanged,
+    "BranchMovedMessageSaved" => ClientFailure::BranchMovedMessageSaved,
+    "BranchSwitched" => ClientFailure::BranchSwitched,
+    "ServiceSilent" => ClientFailure::ServiceSilent,
+    "ServiceNotReading" => ClientFailure::ServiceNotReading,
+    "ServiceSilentAfterPreparing" => ClientFailure::ServiceSilentAfterPreparing,
+    "StillWithService" => ClientFailure::StillWithService,
+    "WithdrawalUnconfirmed" => ClientFailure::WithdrawalUnconfirmed,
+    "Interrupted" => ClientFailure::Interrupted,
+    "InterruptedNotKnown" => ClientFailure::InterruptedNotKnown,
+    "StepTooSlow" => ClientFailure::StepTooSlow,
+    "Refused" => ClientFailure::Refused,
+    "IndexInUse" => ClientFailure::IndexInUse,
+    "ReferenceLocked" => ClientFailure::ReferenceLocked,
+    "Unavailable" => ClientFailure::Unavailable,
+    "ProgramMissing" => ClientFailure::ProgramMissing,
+    "CouldNotStart" => ClientFailure::CouldNotStart,
+    "SocketPathTooLong" => ClientFailure::SocketPathTooLong,
+    "ServiceElsewhere" => ClientFailure::ServiceElsewhere,
+    "UnitInTheWay" => ClientFailure::UnitInTheWay,
+    "WorkNotHandedOver" => ClientFailure::WorkNotHandedOver,
+    "ContentPruned" => ClientFailure::ContentPruned,
+}
+
+//endregion
 
 /// The text without the parts between backticks,
 /// which quote commands the user types.
@@ -149,16 +190,31 @@ fn contains_whole(text: &str, word: &str) -> bool {
     return false;
 }
 
-/// Every variant has a sample,
-/// and every sample is a variant of its own:
-/// a number two variants share would let one of them go unrendered.
-/// The highest number is the last one,
-/// so a sample added without a number of its own fails here.
+/// What:
+///  Every variant of `ClientFailure` has a sample of its own,
+/// and no two variants are counted as one.
+/// Why:
+///   `samples` promises one of every failure and the other tests here read it as if it did,
+/// so a variant no sample names would go unrendered.
+/// The names,
+/// and how many there are,
+/// come from the one line each variant has above:
+/// nothing here is a number or a list kept in step by hand,
+/// and since a line matches one variant only the count is the number of variants.
+///  Measured 2026-11-14:
+///  with the sample of `RepositoryFrozen` taken away,
+///  the numbered form of this test passed.
 #[test]
 fn every_failure_variant_is_rendered() {
-    let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::ServiceNotReading { took_nothing: false }) + 1;
-    assert_eq!(covered.len(), expected);
+    let covered: BTreeSet<&'static str> = samples().iter().map(variant_name).collect();
+    let expected: BTreeSet<&'static str> = VARIANT_NAMES.iter().copied().collect();
+    let unsampled: Vec<&str> = expected.difference(&covered).copied().collect();
+    assert!(unsampled.is_empty(), "these variants of `ClientFailure` have no sample: {unsampled:?}");
+    assert_eq!(
+        covered.len(),
+        VARIANT_NAMES.len(),
+        "two variants of `ClientFailure` share one name, so one of them could go unrendered; the samples gave these names: {covered:?}",
+    );
 }
 
 /// No failure text contains a term from the denylist,
