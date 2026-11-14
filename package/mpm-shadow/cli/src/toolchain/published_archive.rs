@@ -14,6 +14,7 @@
 //! the SHA-256 a fresh machine checks before it runs the first `mpm-shadow`),
 //! and it gets the same treatment as a `monochromatic-` crate on the `cargo-binstall` route:
 //! the newest version only,
+//! except a version a visible lock names or a running process of this user uses (`store_keeps.rs`),
 //! a `current` link,
 //! a launcher that warns on every run,
 //! and warnings from every command.

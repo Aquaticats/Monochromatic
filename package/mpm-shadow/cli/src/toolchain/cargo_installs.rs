@@ -8,7 +8,9 @@
 //! (`doc/troubleshooting/toolchain-sync-older-lock-downgrades-shared-cargo-installs.md`).
 //! Third-party crates coexist per version;
 //! crates this repository publishes keep only the newest installed version,
-//! reached through a `current` link inside the crate directory.
+//! reached through a `current` link inside the crate directory,
+//! except a version a visible lock names or a running process of this user uses
+//! (`store_keeps.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

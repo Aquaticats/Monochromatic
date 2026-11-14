@@ -16,6 +16,8 @@
 //! it may not be absent, since a file that said what to keep cannot be read as keeping nothing.
 //! A crate directory the scan cannot read refuses the command too:
 //! reading it as empty would remove the whole directory, including a version a lock names.
+//! A version a running process of this user uses is never pruned,
+//! and a process table the command cannot read refuses it with nothing deleted (`store_keeps.rs`).
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

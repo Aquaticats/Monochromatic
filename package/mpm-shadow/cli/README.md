@@ -990,6 +990,10 @@ The bounds are set by `MPM_SHADOW_STORE_SIZE_BOUND`,
 and `MPM_SHADOW_STORE_WORK_LIMIT`;
 `doc/toolchain-version-cleanup.md` gives the measurement each was sized from.
 
+The newest-only removal of this repository's own tools and `prune --toolchain` are older than this pass,
+and they keep a version a running process of this user uses too;
+`doc/toolchain-version-cleanup.md` lists each removal an install makes and what it keeps.
+
 ## Cargo tool installs
 
 Each `cargo-binstall` tool installs into a cargo root of its own,
@@ -1085,8 +1089,9 @@ cargo binstall --no-confirm --root <toolchain root>/cargo/monochromatic-mpm-shad
 
 ### Repository-published tools keep only the newest version
 
-Older repository-published tools are never kept once a newer one is installed,
-whichever route installed them.
+Older repository-published tools are not kept once a newer one is installed,
+whichever route installed them,
+except a version that is in use (see the bullets below).
 
 - `install` never installs a version older than the newest finished one in either toolchain root
   (see "One set across both toolchain roots"),
@@ -1096,6 +1101,21 @@ whichever route installed them.
   a release-archive version is finished when its directory carries the completion marker `.mpm-shadow-installed`
   and the tool's first declared bin is found in it as an executable file
   (a tool that declares no bin finishes on the marker alone).
+- What that deletion keeps is the version it just installed and every version that is in use:
+  one a running process of this user runs,
+  works inside,
+  or has a file of it open,
+  and one a lock names:
+  this scope's lock,
+  the lock of every worktree `git worktree list` reports,
+  and the machine scope's lock.
+  The locks and the process table are read once,
+  before any older version is judged,
+  and a lock or a process table that cannot be read keeps every version and says so in one line
+  (`src/toolchain/store_keeps.rs`,
+  `doc/toolchain-version-cleanup.md`).
+  A version old enough to have left every lock is removed by this rule when a newer one is installed,
+  and by the size- and write-time cleanup once the stores are over their bound.
 - An archive is unpacked into a hidden staging directory beside the version directory
   (`.<version>.staging.<process id>`),
   the first bin of a release archive is looked for in it,
@@ -1230,18 +1250,28 @@ After its own installs and links,
 every `install` removes the older managed copies of this repository's tools:
 - Every finished version older than the one that runs,
   in either root,
-  is removed (a release archive's downloads with it).
+  is removed (a release archive's downloads with it),
+  unless a running process of this user uses it:
+  the process table is read before anything is judged,
+  and one it cannot read keeps every older copy with a line saying so
+  (`src/toolchain/store_keeps.rs`).
+- A version a lock names does not stop this removal:
+  the rule of this section is that these tools are one set across both roots,
+  so a tree whose lock pins an older version runs the newer one and is warned,
+  and the scope keeps no older copy of its own.
 - Equal versions stay,
   and a directory that is not finished is never judged.
 - Links that resolve to such a version (in `~/.local/bin`,
   the global farm and every checkout's `.cache/*-bin`) move to the copy that runs first,
   with the same atomic replacement as for old copies in the shared cargo bin directory,
   and the places are searched again before the removal.
-- The emptied root keeps its `current` link,
-  which now forwards to the other root's `current`:
-  a launcher record or a link that names the emptied root's `current` keeps running the newest copy and never dangles.
-  The forward is made before the versions go,
-  and only if the root still holds no finished version outside the ones being removed when the plan is applied
+- The root's `current` link is settled before the versions go,
+  so no launcher record or link through it ever sees it dangle.
+  A root that keeps a finished version (one a running process uses,
+  or one equal to the version that runs) points it at the newest version that stays there,
+  and a root that keeps none forwards it to the other root's `current`.
+  The decision is made when the plan is applied,
+  and a forward happens only while the root still holds no finished version outside the ones being removed
   (another tree may have installed a newer one meanwhile,
   and it owns its `current`).
 - When the emptied root's scope installs a newer version,
@@ -1480,6 +1510,14 @@ It runs only when asked;
   then the worktrees',
   then each `--lock` file).
 - A `--lock` is the only way to protect a tree that git does not list.
+- A version a running process of this user uses is kept whatever the locks say:
+  its program,
+  its working directory,
+  a file it has mapped or one it has open.
+  The process table is read after the locks and before anything is judged,
+  and one it cannot read refuses the command,
+  deleting nothing,
+  rather than delete a version a service may run (`src/toolchain/store_keeps.rs`).
 - What it reads is a snapshot:
   a lock another command replaces between this run's read and its deletions is not read again,
   so the plan can delete a version the newer lock names.

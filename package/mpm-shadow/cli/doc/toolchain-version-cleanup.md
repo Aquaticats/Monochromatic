@@ -117,6 +117,9 @@ A version is kept when any of these holds,
   its working directory (`/proc/<pid>/cwd`),
   a file it has mapped (`/proc/<pid>/maps`),
   or a file it has open (the `/proc/<pid>/fd` links).
+  Those paths carry every symbolic link resolved,
+  so a store root spelled through `$HOME` is compared by both spellings as well;
+  before this a root under a linked home (`/home` to `/var/home` on this machine) matched no holder at all.
   A process the kernel refuses to describe is matched by the name it calls itself,
   and its versions are kept with that name in the line.
 - **it was written inside the age floor**.
@@ -180,6 +183,47 @@ Each is set in the environment and has the shipped default when unset.
   more than any single version the stores hold,
   so an install never waits on a long deletion and later installs finish the rest.
   `5s` and `500ms` both read.
+
+## The other removals an install makes
+
+Three removals are older than this pass and run beside it.
+Each asks the same question this pass asks about a running process,
+so a version in use is not taken away by one rule and kept by another.
+
+- `install`,
+  after it installs a version of a tool this repository publishes,
+  deletes every older finished version:
+  a release archive (`remove_older_archives` in `src/toolchain/published_archive.rs`)
+  or a crate (`remove_older_than_newest` in `src/toolchain/cargo_installs.rs`).
+  It keeps what this pass keeps,
+  apart from the age floor and the size bound:
+  a version any visible lock names,
+  a version a running process of this user uses,
+  and the version it just installed,
+  so a concurrent newer install cannot undo this run's own work.
+  Both lists come from `src/toolchain/store_keeps.rs`,
+  and a lock or a process table that cannot be read keeps every version.
+- `install`,
+  at its end,
+  deletes the older managed copies of this repository's tools
+  in the root that does not hold the newest one (`src/toolchain/managed_losers.rs`).
+  It keeps a version a running process of this user uses.
+  It does not keep a version a lock names:
+  the owner's rule is that these tools are one set across both roots,
+  so a tree whose lock pins an older version runs the newer one and is warned
+  (`doc/decision/file-enforcer-rust-rewrite.md`).
+  A root that keeps a version because a process runs it ends with its `current` link naming that version,
+  never one this run removed,
+  and only a root that keeps no finished version forwards its link to the other root.
+- `prune --toolchain` deletes the versions no known lock names (see the package README).
+  It keeps a version a running process of this user uses,
+  and a process table it cannot read refuses the command instead of deleting anything.
+
+The name a process the kernel hides calls itself is not used by these three,
+though this pass uses it:
+this pass judges only while the stores are over their bound,
+while they run whenever a newer version arrives,
+and a hidden name that happened to match a tool would keep every version of that tool for good.
 
 ## What it does not touch
 
