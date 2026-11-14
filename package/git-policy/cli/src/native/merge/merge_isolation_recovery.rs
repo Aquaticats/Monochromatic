@@ -26,6 +26,8 @@ pub use crate::merge_isolation_recovery_steps::{
 /// so the controls of the folder reach the names they had.
 #[cfg(test)]
 use crate::merge_isolation_recovery_steps::{finish_asides, merge_changes};
+/// The log line of a merge that could not be installed after its reference moved.
+use crate::diagnostic_log::debug;
 use crate::merge_isolation_recovery_cleanup::{
     a_landed_merge_in_another_branchs_worktree, edits_on_the_merges_own_paths, no_commit_names_the_merges_parent,
     staged_work_on_the_merges_paths,
@@ -160,7 +162,7 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                     Ok(found) => found,
                     Err(error) => return Err(MergeRefusal { error, began: true }),
                 };
-                install_entries_awaiting(
+                match install_entries_awaiting(
                     place,
                     root,
                     changes.as_slice(),
@@ -169,7 +171,20 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                     intent.owner.transaction_id.as_str(),
                     out,
                 )
-                .await?;
+                .await
+                {
+                    Ok(Installed::Written) => {}
+                    // What: nothing of the merge was written, so the record stays and the next command finishes it.
+                    // Why: a merge never waits behind a held index lock, and a command is not stopped for a checkout that
+                    //      nothing of the merge reached; a refusal that did write part of it still stops the command
+                    //      (integration pass 37, and a review of commit `c15fc5a7b1`, its finding 3).
+                    Ok(Installed::IndexHeld) => return Ok(MergeRecoveryAction::IndexHeld),
+                    Err(refusal) if refusal.began => return Err(refusal),
+                    Err(refusal) => {
+                        debug("installAfterTheReferenceMoved", &format!("the merge was not installed: {}", refusal.error.0));
+                        return Ok(MergeRecoveryAction::IndexHeld);
+                    }
+                }
             }
             let put_back: Vec<PathBuf> =
                 put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), intent.owner.transaction_id.as_str(), out).await;

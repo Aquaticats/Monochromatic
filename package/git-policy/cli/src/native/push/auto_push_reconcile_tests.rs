@@ -3834,3 +3834,87 @@ fn the_report_names_the_branch_the_worktree_shows_after_the_repair() {
     );
     remove(&s.scenario.root);
 }
+
+/// What:
+///  A record a killed ref-only repair left waits for a held index lock instead of stopping the command:
+///  the command goes on, the record stays, and the next command once the lock is gone finishes the repair.
+/// Why:
+///  A merge never waits behind a held index lock, and a command is not stopped for a checkout that nothing of the
+///  merge reached; the rule of integration pass 37 meets the record of this change here.
+#[test]
+fn a_record_a_killed_repair_left_waits_for_a_held_index_lock_and_goes_on() {
+    use crate::merge_isolation_journal::{MERGE_INTENT_DIRECTORY, MergeIntent, write_merge_intent};
+    let s = nowhere("ar-killed-ref-repair-held-index");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", taker.to_str().expect("utf-8"), "topic"]);
+    let git_dir: PathBuf = PathBuf::from(
+        String::from_utf8_lossy(&git(&taker, &["rev-parse", "--absolute-git-dir"]).stdout).trim(),
+    );
+    git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
+    let mut owner: crate::transaction_owner::TransactionOwner =
+        crate::transaction_owner::current_transaction_owner("7f0c4d20-0000-4000-8000-000000000004", "2026-11-14T00:00:00.000Z")
+            .expect("an owner record");
+    owner.owner_identity = String::from("linux:1");
+    let record: PathBuf = write_merge_intent(
+        git_dir.as_path(),
+        &MergeIntent {
+            owner,
+            repository_root: taker.clone(),
+            target_ref: Some(String::from("refs/heads/topic")),
+            old_oid: s.local_tip.clone(),
+            new_oid: s.merge.clone(),
+            side_ref: None,
+            carried: None,
+        },
+    )
+    .expect("the record a kill leaves");
+    // Another program holds the index: the repair writes nothing and the command must not wait or stop.
+    std::fs::write(git_dir.join("index.lock"), b"").expect("the held lock");
+    let place: crate::merge_isolation_recovery::RecoveryPlace = crate::merge_isolation_recovery::RecoveryPlace {
+        git: crate::transaction_git::GitContext {
+            real_git: PathBuf::from("/usr/bin/git"),
+            overlay: fixture_environment(),
+            global_prefix: Vec::new(),
+            common_dir: Some(git_dir.clone()),
+        },
+        cwd: taker.clone(),
+        common_dir: git_dir.clone(),
+        git_dir: git_dir.clone(),
+    };
+    let mut stderr: Vec<u8> = Vec::new();
+    let outcomes = await_it(crate::merge_isolation_recovery_records::recover_interrupted_merges_awaiting(
+        &place,
+        git_dir.as_path(),
+        &mut stderr,
+    ))
+    .expect("the command goes on");
+    assert_eq!(outcomes.len(), 1, "the record was read");
+    assert_eq!(
+        outcomes[0].action,
+        crate::merge_isolation_recovery::MergeRecoveryAction::IndexHeld,
+        "and nothing was written while the lock stood"
+    );
+    assert!(record.exists(), "the record stays for the next command");
+    assert_eq!(
+        text_of(&taker, &["status", "--porcelain=v1"]),
+        "A  local.txt\nD  remote.txt",
+        "the checkout is as the kill left it"
+    );
+    // The lock goes, and the next command finishes the repair.
+    std::fs::remove_file(git_dir.join("index.lock")).expect("the lock goes");
+    let again = await_it(crate::merge_isolation_recovery_records::recover_interrupted_merges_awaiting(
+        &place,
+        git_dir.as_path(),
+        &mut stderr,
+    ))
+    .expect("the next command runs the recovery");
+    assert_eq!(again.len(), 1, "the record is still read");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and the repair is finished");
+    assert!(!record.exists(), "with the record gone");
+    assert!(
+        !git_dir.join(MERGE_INTENT_DIRECTORY).is_dir()
+            || std::fs::read_dir(git_dir.join(MERGE_INTENT_DIRECTORY)).expect("the directory").next().is_none(),
+        "no record is left"
+    );
+    remove(&s.scenario.root);
+}
