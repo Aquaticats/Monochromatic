@@ -115,13 +115,14 @@ async function aCutOffRunSavesNothing({ reason }: { readonly reason: string },):
    */
   const sessionFile = join(folder.path, 'session.jsonl',);
   await mkdir(runFolder, { recursive: true, },);
-  await writeFile(sessionFile, JSON.stringify({
+  // The session as Pi leaves it, with a line feed after every record.
+  await writeFile(sessionFile, `${JSON.stringify({
     type: 'message',
     message: {
       role: 'assistant',
       content: [{ type: 'text', text: 'Let me check the build target location.', },],
     },
-  },),);
+  },)}\n`,);
   await writeFile(join(runFolder, 'summary.json',), JSON.stringify({
     endReason: reason,
     sessionStats: { sessionFile, },
@@ -173,11 +174,24 @@ await describe({
           name: 'answers nothing for a session with no assistant message, and skips a record that is no message',
           fn: async () => {
             expect(lastAssistantTextIn({
-              shown: [
-                JSON.stringify({ type: 'session', id: 's', },),
-                sessionLine('user', ['only the question'],),
-              ].join('\n',),
+              shown: `${
+                [
+                  JSON.stringify({ type: 'session', id: 's', },),
+                  sessionLine('user', ['only the question'],),
+                ].join('\n',)
+              }\n`,
             },),).toBe('',);
+          },
+        },),
+        it({
+          name: 'reads the last message of a session whose final record is still being written, and leaves that fragment alone',
+          fn: async () => {
+            // A resumed run continues the session of the run before it, so Pi can be appending to this file while the command
+            // that saves a review reads it. The fragment is no record yet, and parsing it throws `Unterminated string in JSON`.
+            const shown = `${sessionLine('assistant', ['a finding that stands',],)}\n`
+              + '{"type":"message","message":{"role":"assistant","cont';
+
+            expect(lastAssistantTextIn({ shown, },),).toBe('a finding that stands',);
           },
         },),
       ],

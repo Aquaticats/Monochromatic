@@ -267,26 +267,72 @@ pub fn replaced_answers(asked: &[Vec<u8>], tracked: &[Vec<u8>], answer: &[Vec<u8
 /// function ignoredPathsQueries(globalPrefix: string[], paths: string[]): string[][];
 /// ```
 pub fn ignored_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
-    let head: Vec<OsString> = listing_head(global_prefix, &["--others", "--ignored", "--exclude-standard"]);
-    return chunked_pathspec_queries(head.as_slice(), paths);
+pub fn ignored_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
+    return others_paths_queries(global_prefix, paths, &["--ignored"]);
 }
 
 /// What:
-///  The arguments of one `git ls-files` listing of the whole worktree,
-///  after the invocation's global options.
-///  `&[&str]` borrows the listing's own option words.
+///  The queries that list which of `paths` the worktree holds as untracked files.
+///  `&[Vec<u8>]` borrows the paths as their tree holds them.
 /// Why:
-///   A rule that lists what the worktree holds asks Git once over the whole worktree
-///  instead of once per path it wrote,
-///  with every directory it holds whole collapsed into one entry;
-///  the listing starts the way the ones that name paths do,
-///  from the top of the worktree and with `-z` so every answer's bytes are exactly the path's,
-///  so one reading of an answer serves both.
+///   An abort that restores a tree Git will not write over an untracked file refuses the whole reset,
+///  and Git's answer names those files:
+///  the same bounded start `ignored_paths_queries` makes,
+///  without the flag that would limit it to ignored files.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function listingArguments(globalPrefix: string[], selection: string[]): string[];
+/// function untrackedPathsQueries(globalPrefix: string[], paths: string[]): string[][];
 /// ```
+pub fn untracked_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>]) -> Vec<Vec<OsString>> {
+    return others_paths_queries(global_prefix, paths, &[]);
+}
+
+/// What:
+///  One `git ls-files --others` query per bounded start over exactly `paths`.
+///  `&[&str]` borrows the selection flags the caller adds.
+/// Why:
+///   Ignored files and untracked files are asked for the same way,
+///  in the bounded starts, the literal pathspecs and the exact bytes;
+///  only the flag that narrows the answer to ignored ones differs,
+///  so both readings share this builder rather than repeating it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function othersPathsQueries(globalPrefix: string[], paths: string[], modes: string[]): string[][];
+/// ```
+fn others_paths_queries(global_prefix: &[OsString], paths: &[Vec<u8>], modes: &[&str]) -> Vec<Vec<OsString>> {
+    let mut head: Vec<OsString> = global_prefix.to_vec();
+    for token in ["--no-optional-locks", "--no-literal-pathspecs", "ls-files", "--others"] {
+        head.push(OsString::from(token));
+    }
+    for token in modes {
+        head.push(OsString::from(*token));
+    }
+    for token in ["--exclude-standard", "-z", "--full-name", "--"] {
+        head.push(OsString::from(token));
+    }
+    let mut queries: Vec<Vec<OsString>> = Vec::<Vec<OsString>>::new();
+    let mut current: Vec<OsString> = head.clone();
+    let mut carried: usize = 0;
+    for path in paths {
+        let mut spec: Vec<u8> = TOP_LITERAL_PATHSPEC.to_vec();
+        spec.extend_from_slice(path);
+        // A chunk that already holds a path opens a new one rather than overrunning the system's limit.
+        if carried > 0 && carried + spec.len() > IGNORED_PATHS_QUERY_BYTES {
+            queries.push(current);
+            current = head.clone();
+            carried = 0;
+        }
+        carried += spec.len();
+        current.push(spec_argument(spec.as_slice()));
+    }
+    if carried > 0 {
+        queries.push(current);
+    }
+    return queries;
+}
+
 pub fn listing_arguments(global_prefix: &[OsString], selection: &[&str]) -> Vec<OsString> {
     return listing_head(global_prefix, selection);
 }
@@ -309,6 +355,17 @@ pub fn listing_arguments(global_prefix: &[OsString], selection: &[&str]) -> Vec<
 fn listing_head(global_prefix: &[OsString], selection: &[&str]) -> Vec<OsString> {
     let mut head: Vec<OsString> = global_prefix.to_vec();
     for token in ["--no-optional-locks", "--no-literal-pathspecs", "ls-files"] {
+        head.push(OsString::from(token));
+    }
+    for token in selection {
+        head.push(OsString::from(*token));
+    }
+    for token in ["-z", "--full-name", "--"] {
+        head.push(OsString::from(token));
+    }
+    return head;
+}
+
         head.push(OsString::from(token));
     }
     for token in selection {

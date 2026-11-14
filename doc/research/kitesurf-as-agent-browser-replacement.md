@@ -9,9 +9,29 @@ answering "Should we replace agent-browser with kitesurf.dev?".
 It used vendor pages,
 the installed `agent-browser --help`,
 and searches of this repository.
-It did not clone,
-build,
-or run Kitesurf.
+It did not build Kitesurf.
+At 2026-11-13T17:04:07-05:00 it read Kitesurf's source from a shallow clone at commit
+`4a2903813a22b08d4f3cc64a4b35339d0293a5d1`,
+to settle questions the vendor pages leave open;
+the section "What the source shows" holds the result.
+At 2026-11-13T17:11:49-05:00 it drove the public playground with `agent-browser` on a public page;
+the section "What a run on the playground shows" holds the result.
+The same session corrected it at 2026-11-13T16:56:35-05:00,
+after a second pass by the advisor model,
+which comes from the same vendor and so is not an independent review.
+The corrections are in the Kitesurf build requirements,
+the source for the Boa fallback,
+the file that holds the stay-on-this-machine rule,
+and the reading of the EAGAIN troubleshooting doc.
+A qwen4-max-preview review through Pi,
+from another vendor and so independent,
+read the record as of commit `b68463d293` at 2026-11-13T17:08:06-05:00.
+It found two defects,
+the troubleshooting version range and an overbroad claim in the ranking,
+both fixed at 2026-11-13T17:12:29-05:00.
+It did not see the later sections on the source,
+page retention,
+and the playground run.
 
 Kitesurf exits at screening,
 so there is no vet report under `doc/audit/`:
@@ -39,7 +59,7 @@ It is the command-line driver agents call:
 `set media`,
 named `--session`s.
 By default it launches a local Chromium.
-Its `--help` also lists `--engine lightpanda` and `--engine obscura` (marked experimental),
+Its `--help` also lists `lightpanda` and `obscura` as `--engine` values besides the default `chrome`,
 and `--cdp <port|url>` with `--cdp-headers <json>` to attach to any Chrome DevTools Protocol endpoint.
 
 ### Kitesurf
@@ -48,21 +68,20 @@ Kitesurf is a browser engine,
 not a driver.
 It runs on Cloudflare Workers and exposes a Chrome DevTools Protocol endpoint
 ([landing page][kitesurf-landing]).
-Layout and paint come from Blitz,
-CSS from Stylo,
-and page JavaScript from Dynamic Workers with Boa as a fallback
-([repository README][kitesurf-readme-engine]).
+Layout and paint come from Blitz and CSS from Stylo ([repository README][kitesurf-readme-engine]);
+page JavaScript runs in Dynamic Workers,
+with Boa in WebAssembly "[as the last resort][kitesurf-boa-fallback]" ([announcement][kitesurf-open-source]).
 It comes in these forms:
 
-- the public playground at `wss://kitesurf.dev/devtools/browser`,
-  no account needed;
+- the public playground at kitesurf.dev,
+  which agents can try "[without an account][kitesurf-playground-no-account]";
 - managed Browser Run,
   opted into with `browser=kitesurf` on a Cloudflare account with an API token;
 - a self-run engine,
   possible since Cloudflare published the source under Apache 2.0 on 2026-11-12
   ([announcement][kitesurf-open-source]),
   started with `wrangler dev` on `127.0.0.1:8787`
-  and built with Bazel and a pinned nightly Rust ([README][kitesurf-readme-bazel]).
+  and built with Bazel ([README][kitesurf-readme-bazel]).
 
 Because Kitesurf is an engine,
 the only way it fits the existing workflow is behind `agent-browser --cdp`.
@@ -85,9 +104,16 @@ Recorded uses include:
   with hover and focus,
   against two local servers;
 - `doc/troubleshooting/axe-modal-dialog-contrast.md`:
-  contrast checks after `set media light`;
+  contrast checks after `set media light`,
+  with `agent-browser` attached over `--cdp` to a running Helium (a Chromium-based browser);
 - `set viewport` across several `agent-browser` troubleshooting docs,
   and `--allow-file-access` for local files.
+
+The computed-style runbook goes further:
+it names real Safari the portfolio's "golden browser" and says "Chromium is not a gate"
+(`doc/runbook/css-refactor-computed-style-regression.md:281`),
+so its checks want real browser engines,
+not a stand-in for one.
 
 Cloudflare's own Kitesurf page says it trades away
 "[pixel-perfect rendering][kitesurf-pixel-perfect]",
@@ -97,24 +123,137 @@ Its layout and style engines are not Chromium's,
 so a check that passes on Kitesurf does not show how Chromium-based browsers render the page.
 Kitesurf cannot take over this job,
 and that alone rules out the replacement.
+Its source makes the gap concrete for color schemes and forced colors
+(section "What the source shows"),
+and a run confirmed the color-scheme gap
+(section "What a run on the playground shows").
 
 ### Hosted forms cannot reach the pages being checked
 
 The playground and Browser Run run on Cloudflare's network.
 The rendering checks this repository records run against `file://` paths or loopback servers,
 which a remote engine cannot open without a tunnel exposing them to that host.
-`AGENTS.md` keeps agent-authored pages on this machine.
-This record did not check whether Browser Run keeps copies of page content.
+`CLAUDE.md` keeps agent-authored pages on this machine.
+For CDP sessions,
+Cloudflare's Browser Run FAQ says it "[does not retain customer-submitted HTML][browser-run-faq-retention]"
+or generated output beyond the rendering operation,
+except opt-in session recordings (kept 30 days) and `/crawl` results (kept 14 days).
+The kitesurf.dev playground is not Browser Run,
+and its page links only Cloudflare's general website terms and privacy policy,
+with no retention statement of its own.
+That privacy policy covers personal information,
+not page content,
+and says "[Cloudflare collects and stores Network Data][cloudflare-privacy-network-data]"
+derived from traffic in the course of its services,
+for as long as its business purposes need.
+Either way the page leaves this machine,
+which `CLAUDE.md` rules out.
 
 ### The self-run form is new and has a heavy build
 
 The source was published one day before this record.
 The README calls the engine "[experimental][kitesurf-readme-engine]"
 and the announcement says it is "[under heavy development][kitesurf-heavy-development]".
-A local engine needs Bazel,
-a pinned nightly Rust,
+A local engine needs Bazelisk (Bazel then downloads its own pinned Rust toolchains),
+Node 22 or newer,
 and pnpm 9.15.4,
-none of which `toolchain:install` provides today.
+and its first build compiles the Rust core.
+This repository's `toolchain.plan.jsonc` has `pnpm` and `wrangler` entries but no Bazel or Bazelisk entry.
+
+## What the source shows
+
+These are readings of the Kitesurf source at commit `4a2903813a22b08d4f3cc64a4b35339d0293a5d1`,
+not runs.
+
+### Color scheme cannot be set over CDP
+
+`packages/engine/src/cdp/dispatch.ts:278` answers `Emulation.setEmulatedMedia`
+by reading only its `media` value (print or screen),
+and ignores `features`,
+the parameter that carries `prefers-color-scheme` in that call
+([protocol reference][cdp-set-emulated-media]).
+The page's `prefers-color-scheme` follows `state.darkColorScheme`
+(`packages/page-script/src/globals.ts:2562`),
+which only a `ks_color_scheme` query parameter on the navigation URL sets
+(`packages/engine/src/tty/nav-params.ts:31`).
+So a client that emulates dark mode through `features` leaves the page light.
+
+### Forced colors stay off
+
+`packages/page-script/src/globals.ts` starts `forcedColors` at `none`,
+and no code under `packages/` assigns it
+(searched with `rg 'forcedColors *='`).
+
+### No text-fragment support
+
+No code under `packages/` handles `fragmentDirective` or the `:~:` delimiter
+(searched with `rg 'fragmentDirective|:~:'`),
+so Kitesurf cannot confirm a `#:~:text=` link.
+
+### A self-run engine can open loopback pages
+
+`packages/engine/src/eval/outbound.ts` exempts the document the client asked to open from its private-network check,
+and `packages/engine/src/eval/private-network.ts:53` lets a page reach addresses of its own rank or wider,
+so a loopback page's own loopback subresources pass;
+`KITESURF_ALLOW_PRIVATE_NETWORK=1` lifts the check entirely.
+This narrows the "Hosted forms cannot reach the pages being checked" finding to the hosted forms.
+
+### `file://` has no loader of its own
+
+A navigation is an outbound Workers fetch,
+made by `walkRedirects` (`packages/engine/src/eval/redirect-walk.ts:89`),
+called from `packages/engine/src/cdp/page.ts:853`;
+a search of `packages/` for `file:` handling found only URL-parsing scheme lists and tests,
+and no loader.
+Whether a `file://` page loads therefore depends on whether `workerd`'s `fetch` serves that scheme;
+on the playground it does not
+(section "What a run on the playground shows").
+
+## What a run on the playground shows
+
+At 2026-11-13T17:11:49-05:00 a script ran the same `agent-browser` 0.43.0 steps in two arms:
+a local Chromium launch as the control,
+and `--cdp wss://kitesurf.dev/devtools/browser`,
+the public playground,
+whose `/json/version` reports `Kitesurf/0.0.1`.
+Only the public page `https://example.com/` was opened.
+The raw output sits in `${HOME}/temp/agent/agent-browser-driving-kitesurf-playground-probe-2026-11-13/keep/`.
+
+- `agent-browser` drives the playground:
+  `open`,
+  `eval`,
+  `set media`,
+  and `screenshot` each exited 0,
+  and `eval document.title` returned "Example Domain".
+- After `set media dark`,
+  `matchMedia('(prefers-color-scheme: dark)').matches` turned from `false` to `true` on Chromium
+  and stayed `false` on the playground,
+  as the source reading predicts.
+- `open file:///kitesurf-probe.html` failed on Chromium with `net::ERR_FILE_NOT_FOUND`,
+  after trying the file;
+  the playground refused the scheme with `Fetch API cannot load: file:///kitesurf-probe.html`
+  and stayed on `https://example.com/`.
+- Both screenshots show example.com,
+  but the viewports differed (1280 by 577 on Chromium,
+  1280 by 720 on the playground),
+  so they were not compared pixel by pixel.
+
+A self-run engine was not run.
+It uses the same Workers `fetch` under `wrangler dev`,
+so the same `file://` refusal is expected there,
+but unmeasured.
+
+### The Homebrew client
+
+`brew install cloudflare/cloudflare/kitesurf`,
+which the owner ran,
+compiled the `kitesurf` 0.0.5 terminal client with cargo in 54 seconds.
+Its `--help` says it opens pages "using Cloudflare Browser Run" after a Cloudflare OAuth login,
+or on the playground with `--playground`,
+or on an engine named by `KITESURF_SERVER`.
+Its README says it draws the engine's scenes in the terminal with a downloaded Wasm rasterizer.
+It runs no engine locally,
+so it changes none of the findings.
 
 ## What Kitesurf would offer
 
@@ -124,10 +263,12 @@ as "[medians of five Browser Run Quick Action runs][kitesurf-benchmark]" over it
 That is a hosted benchmark,
 not a measurement on this machine.
 
-Host pressure matters here:
+No repository record ties an `agent-browser` failure to Chromium's CPU or memory.
 `doc/troubleshooting/agent-browser-eagain.md` records `Resource temporarily unavailable`
-during heavy parallel `agent-browser` use.
-The `agent-browser` troubleshooting docs cover versions 0.36.0 to 0.39.1,
+during heavy parallel use,
+but its root cause section names the per-user task ceiling and a read timeout,
+so it is no evidence that a lighter engine would help.
+The `agent-browser` troubleshooting docs cover versions 0.36.0 to 0.41.0,
 not the installed 0.43.0,
 so nobody has shown they are current defects.
 
@@ -143,7 +284,8 @@ then `chrome-devtools-mcp` driving Kitesurf.
 In its favor,
 Chromium is the engine the verification rules need to observe,
 local pages stay on this machine,
-and every runbook and troubleshooting doc already targets it.
+and the repository's `agent-browser` runbooks and troubleshooting docs are written for it,
+some attaching it over `--cdp` to a running Chromium-based browser such as Helium.
 Against it,
 Chromium costs CPU and memory under parallel agent use.
 It ranks above Kitesurf behind `--cdp` because both keep the same driver,
@@ -161,7 +303,8 @@ WebGL,
 or persistent authenticated state,
 a hosted engine cannot reach local pages,
 and a self-run one needs a new Bazel build.
-Whether `agent-browser` 0.43.0 works against Kitesurf's partial Chrome DevTools Protocol was not tested.
+A playground run showed that `agent-browser` 0.43.0 drives it,
+but `set media dark` did not reach the page.
 It ranks above `chrome-devtools-mcp` with Kitesurf because it keeps the driver the repository's rules,
 runbooks,
 and troubleshooting docs name,
@@ -180,26 +323,38 @@ and it also replaces the command-line driver the repository's rules and runbooks
 - Broad discovery:
   not run,
   because the candidates were the named one and the incumbent.
-- Clone,
-  source audit,
+- Full source audit,
   maintenance audit,
-  and execution:
+  and the vetting skill's isolated execution:
   not run,
   because Kitesurf exits on limits its vendor documents.
-  No third-party code ran.
-- Unverified:
-  whether Kitesurf loads `file://` pages,
-  honors `#:~:text=` fragments,
-  or emulates `prefers-color-scheme`,
-  and whether Browser Run retains page content.
+  Only the source paths named in the section "What the source shows" were read.
+  On this machine the only third-party code that ran was the owner-installed `kitesurf` client's `--help`;
+  the playground run executed Kitesurf on Cloudflare,
+  driven by `agent-browser`.
+- Still open:
+  whether a self-run engine refuses `file://` as the playground does,
+  which needs the Bazel build,
+  and what the kitesurf.dev playground keeps of page content,
+  which no Cloudflare page read for this record states
+  (the playground page,
+  the Browser Run FAQ,
+  and the general privacy policy).
 
-## Possible follow-up
+## Follow-up vet declined
 
 A narrower role,
 such as a cheap engine for reading public pages during research,
 would need its own vet.
-`agent-browser` 0.43.0 already offers `--engine lightpanda` and `--engine obscura` for that role,
+`agent-browser` 0.43.0 already accepts `--engine lightpanda` and `--engine obscura`,
 so such a vet would compare those with Kitesurf behind `--cdp`.
+
+Offered that vet,
+or a vet of a self-run Kitesurf alone,
+the owner chose "No follow-up" at 2026-11-13T17:00:57-05:00.
+A suggestion,
+not a decision:
+a recorded `agent-browser` failure tied to Chromium's CPU or memory would be a reason to offer it again.
 
 Sources accessed 2026-11-13.
 
@@ -208,6 +363,11 @@ Sources accessed 2026-11-13.
 [kitesurf-readme-bazel]: https://github.com/cloudflare/kitesurf#:~:text=Bazel%20builds%20everything
 [kitesurf-open-source]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=open%20source%20on%20GitHub%20under%20the%20Apache%202.0%20license
 [kitesurf-heavy-development]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=under%20heavy%20development
+[browser-run-faq-retention]: https://developers.cloudflare.com/browser-run/faq/#:~:text=does%20not%20retain%20customer%2Dsubmitted%20HTML
+[cloudflare-privacy-network-data]: https://www.cloudflare.com/privacypolicy/#:~:text=Cloudflare%20collects%20and%20stores%20Network%20Data
+[cdp-set-emulated-media]: https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#:~:text=Media%20features%20to%20emulate
+[kitesurf-boa-fallback]: https://blog.cloudflare.com/kitesurf-open-source/#:~:text=as%20the%20last%20resort
+[kitesurf-playground-no-account]: https://kitesurf.dev/#:~:text=without%20an%20account
 [kitesurf-pixel-perfect]: https://developers.cloudflare.com/browser-run/kitesurf/#:~:text=pixel%2Dperfect%20rendering
 [kitesurf-video-webgl]: https://developers.cloudflare.com/browser-run/kitesurf/#:~:text=Play%20video%20or%20render%20WebGL
 [kitesurf-auth-session]: https://developers.cloudflare.com/browser-run/kitesurf/#:~:text=long%2Drunning%2C%20authenticated%20session

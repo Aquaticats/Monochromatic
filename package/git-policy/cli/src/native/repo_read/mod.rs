@@ -40,9 +40,13 @@ pub mod repository_facts_staged_selection;
 ///  read beside the provider so its interface file stays within its line bound.
 pub mod repository_facts_ignored_files;
 
-/// The listed paths whose only content is the index,
+/// The worktree's untracked files whose paths a revision's tree tracks,
 ///  read beside the provider so its interface file stays within its line bound.
-pub mod repository_facts_index_only_paths;
+pub mod repository_facts_untracked_files;
+
+/// The listed paths whose staged content an abort would discard,
+///  read beside the provider so its interface file stays within its line bound.
+pub mod repository_facts_staged_entries;
 
 /// The worktree entries that stand where one guarded form writes,
 ///  whatever Git's status calls them.
@@ -57,6 +61,15 @@ pub mod repository_facts_edits_the_status_hides;
 
 /// What one abort form would discard besides the state of the operation it undoes.
 pub mod repository_facts_abort_discard;
+
+/// The record of the commit an abort restores,
+/// read in bounded time from a regular file only,
+///  read beside the reading that asks for it.
+pub mod repository_facts_abort_discard_record;
+
+/// Whether the worktree still holds an entry at a path a listing named,
+///  read beside the reading that asks for it.
+pub mod repository_facts_abort_discard_worktree_entries;
 
 /// Files-backend ref reads that answer without a Git process or decline.
 pub mod ref_files;

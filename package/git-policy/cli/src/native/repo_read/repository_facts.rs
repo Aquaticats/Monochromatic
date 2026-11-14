@@ -133,6 +133,11 @@ pub trait RepositoryFacts {
     /// an unreadable `HEAD` is a failure,
     ///  never an empty answer.
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String>;
+    /// The worktree's untracked files whose paths the given revision's tree also tracks,
+    /// asked before an abort restores that tree.
+    /// A reset refuses an untracked file at one of those paths and loses nothing,
+    ///  so the command does not run and no copy is owed.
+    fn untracked_files_the_tree_tracks(&mut self, revision: &OsStr) -> Result<Vec<String>, String>;
     /// The worktree entries a discarding form would overwrite or delete,
     ///  whatever Git's status calls them:
     ///  untracked,
@@ -556,6 +561,10 @@ impl RepositoryFacts for GitFacts {
     fn ignored_files_the_tree_tracks(&mut self, revision: Option<&OsStr>) -> Result<Vec<String>, String> {
         // The query and its reading live beside this provider, as the `git add` fact's do.
         return crate::repository_facts_ignored_files::ignored_files_the_tree_tracks(self, revision);
+    }
+
+    fn untracked_files_the_tree_tracks(&mut self, revision: &OsStr) -> Result<Vec<String>, String> {
+        return crate::repository_facts_untracked_files::untracked_files_the_tree_tracks(self, revision);
     }
 
     fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {

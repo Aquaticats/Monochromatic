@@ -50,7 +50,13 @@ fn rejected_by_policy(observed: &Observed) -> bool {
         && stderr_of(observed).contains("\"policyId\":\"linked-worktree-only\"");
 }
 
-/// Every discarding form is rejected in the main worktree and changes nothing.
+/// Every form that overwrites or deletes is rejected in the main worktree and changes nothing.
+///  The abort and skip forms are not among them:
+///  the owner decided on 2026-11-13 ("Same rule everywhere") that they are judged by the work they would
+///  discard in the main worktree as in a linked one,
+/// and the two outcomes have their own controls in
+///  `abort_during_an_operation` (`an_abort_in_the_main_worktree_runs_when_it_discards_nothing`,
+///  `an_abort_in_the_main_worktree_refuses_a_hand_resolution`).
 #[test]
 fn every_discarding_form_is_rejected_in_the_main_worktree() {
     let fixture: Fixture = fixture("discard-main");
@@ -73,11 +79,6 @@ fn every_discarding_form_is_rejected_in_the_main_worktree() {
         vec!["read-tree", "-m", "-u", "HEAD"],
         vec!["read-tree", "HEAD"],
         vec!["read-tree", "--empty"],
-        vec!["merge", "--abort"],
-        vec!["rebase", "--abort"],
-        vec!["cherry-pick", "--abort"],
-        vec!["revert", "--abort"],
-        vec!["am", "--abort"],
     ] {
         let observed: Observed = run_wrapped(&fixture, repo.as_path(), arguments.as_slice());
         assert!(
@@ -144,6 +145,12 @@ fn hatch_invocations(command: GuardedCommand) -> Vec<Vec<&'static str>> {
         GuardedCommand::AbortRebase => vec![vec!["rebase", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
         GuardedCommand::AbortPick => vec![vec!["cherry-pick", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"], vec!["revert", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
         GuardedCommand::AbortAm => vec![vec!["am", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--abort"]],
+        GuardedCommand::SkipRebase => vec![vec!["rebase", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--skip"]],
+        GuardedCommand::SkipPick => vec![
+            vec!["cherry-pick", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--skip"],
+            vec!["revert", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--skip"],
+        ],
+        GuardedCommand::SkipAm => vec![vec!["am", WORKTREE_ENFORCEMENT_ESCAPE_HATCH, "--skip"]],
     };
 }
 
