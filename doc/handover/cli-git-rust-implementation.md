@@ -1121,6 +1121,70 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 26, the smaller build tree, is in `main`; no release is made for it alone (2026-11-13T21:14:18-05:00)
+
+Not final and not approved:
+written by the coordinating session from the pass's report and its own commands' output.
+
+- **Pass 26** reported at 21:09:09 that its branch is fit for what a pass owns
+  (`~/temp/agent/integration-pass-26-for-alpha-24-scratch/keep/report.md`),
+  at tip `a31fcc2333`,
+  which holds both releases `main` took while it worked (`33ba2a906b` and `5fdce426c0`).
+  It built,
+  compiled both test targets and ran Clippy after each of its merges of `main`,
+  all with exit 0.
+- What the change is:
+  the package's `[profile.dev]` keeps line tables only and writes no incremental data,
+  and one new document of measurements.
+  The pass read Cargo's unit graph for both profiles,
+  showed the release profile blocks byte for byte equal to `main`'s,
+  and showed a failing test under the new profile still naming its file and line
+  (with a control built without debug information that names none).
+- Its sizes:
+  1,847 MiB for the build folder and `target/` together after one build,
+  both test compiles and Clippy;
+  3,926 MiB at the end of the pass,
+  of which 2,046 MiB are three generations of the package's own artifacts,
+  because Cargo keeps every unit's earlier outputs.
+- A commit of one changed file through the wrapper built from its tip added 21 to 44 ms over real Git's 4 to 18 ms,
+  and 284 and 321 ms in the first measured round at each of two tips.
+- Checked before merging:
+  `git log a31fcc2333..main -- package/git-policy/` listed nothing,
+  and `git diff --stat main...a31fcc2333` listed the two files and 469 insertions.
+- Merged into `main` as `2e28e65b65` (2026-11-13T21:12:33-05:00) and pushed.
+- **No release for it alone**,
+  under "Adopted while the owner was away":
+  the released binary would differ from `0.6.1-alpha.21` in its version alone.
+  The next pass that changes the wrapper's behaviour is released as `0.6.1-alpha.22` and carries it.
+- **One test failure it could not name.**
+  The slice `native:test:host -- push_progress` failed once at its last tip
+  (`5/21 tests were not run due to test failure`,
+  exit 100)
+  between passing runs with no code change;
+  the pass had piped the run through `tail`,
+  so the name is lost.
+  None of the twelve red tests of `main` is in that slice
+  (`red-main.txt` of the issue 6293 author's run names none under `push_progress`).
+  A fresh run is queued
+  (`push-progress-tests-of-the-library-never-decide-by-how-long-the-machine-took`):
+  what each test of the slice decides by,
+  each cause a slow step can reach reproduced by a held step,
+  and removed.
+- **What it noticed in the document**,
+  for the document's author when that branch is next touched,
+  no run started:
+  the sizes cover one clean tree and not a tree rebuilt across merges;
+  "build script outputs: 8 MiB" does not match 696 MiB under `debug/build/` for the other crates in its tree
+  (not investigated);
+  Cargo's summary line prints `[unoptimized + debuginfo]` for a line-tables-only build.
+- **A relink given up**:
+  the merge printed that the package state of the worktree
+  `pi-driver-unit-test-of-the-silence-after-a-compaction-passes-in-its-suite-as-it-does-alone`
+  was not relinked after 3 tries.
+  The run in that worktree was told by a note in its inbox at 21:13,
+  with the remedy the wrapper printed.
+  The run for relinks that are given up is in the queue.
+
 ##### The commit-forms author answered its first review; the landing that never waits is written; both go to review (2026-11-13T21:11:17-05:00)
 
 Not final and not approved:
@@ -1892,6 +1956,16 @@ each from a record:
   one message's condition).
   Both are answered on the author's branch (`ca3b4f34d5`) and under review;
   the pass was pinned to the reviewed commit by the rule that a commit after a review has not been reviewed.
+- Pass 26 (the development profile of the wrapper package) is merged and not released by itself
+  (2026-11-13T21:14:18-05:00).
+  No record settles this one;
+  it is the coordinating session's judgement,
+  taken because it is the choice that can be undone:
+  a release can be dispatched at any time,
+  and an install is not free here
+  (after the install of `0.6.1-alpha.21` the main checkout's commit service stood failed for 97 s).
+  The pass showed the release profile untouched,
+  so the binary would change in its version alone.
 
 #### Pass 21, with the jam fix, is in `main` and `0.6.1-alpha.19` is dispatched (2026-11-13T18:45:20-05:00)
 
