@@ -240,7 +240,7 @@ fn a_new_request_is_added_to_the_plan_and_installed() {
     )
     .expect("the install runs");
     assert!(synced.resolved.iter().any(|(id, version)| return id == "cargo:fastmod" && version == "0.4.4"), "{synced:?}");
-    assert!(synced.installed.contains(&"cargo:fastmod".to_string()), "{synced:?}");
+    assert!(synced.installed.iter().any(|id| return id == "cargo:fastmod"), "{synced:?}");
     assert!(
         fixture.runner.lines().iter().any(|line| return line.contains("--version 0.4.4 fastmod")),
         "{:?}",
@@ -581,7 +581,7 @@ fn a_machine_global_run_stopped_between_the_two_writes_leaves_files_a_later_run_
     assert_eq!(fixture.lock_text(), lock_before, "the machine lock was not written");
     let synced = run_sync_with(&fixture.scope, &fixture.env, &fixture.runner, &fixture.http, &fixture.host, LockPolicy::Resolve)
         .expect("a plain install finishes it");
-    assert!(synced.installed.contains(&"cargo:fastmod".to_string()), "{synced:?}");
+    assert!(synced.installed.iter().any(|id| return id == "cargo:fastmod"), "{synced:?}");
     let lock: serde_json::Value = serde_json::from_str(&fixture.lock_text()).expect("the lock is JSON");
     assert_eq!(lock["tools"]["cargo:fastmod"]["version"], "0.4.4");
 }
@@ -656,7 +656,7 @@ fn the_machine_global_scope_adds_and_installs_the_same_way() {
         &report.added_ids(),
     )
     .expect("the install runs");
-    assert!(synced.installed.contains(&"cargo:fastmod".to_string()), "{synced:?}");
+    assert!(synced.installed.iter().any(|id| return id == "cargo:fastmod"), "{synced:?}");
     assert!(fixture.scope.toolchain_root.starts_with(fixture.directory.path()), "the toolchain root is the disposable one");
 }
 
