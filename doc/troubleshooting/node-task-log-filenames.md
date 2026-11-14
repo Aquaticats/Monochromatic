@@ -11,7 +11,9 @@ The child had already executed,
 but its output and receipt row were not retained.
 Those lost rows do not qualify the complete shared-build or logger owner.
 The immutable first-handoff raw logs are retained in
-[`depot-current-host-first-handoff-2026-10-18.evidence.json.gz`](../audit/depot-current-host-first-handoff-2026-10-18.evidence.json.gz).
+`depot-current-host-first-handoff-2026-10-18.evidence.json.gz`.
+`depot-current-host-first-handoff-2026-10-18.evidence.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Root cause and verified correction
 

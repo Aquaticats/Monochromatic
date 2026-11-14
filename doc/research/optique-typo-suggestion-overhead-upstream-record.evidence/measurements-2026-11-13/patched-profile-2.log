@@ -1,0 +1,82 @@
+{"script":"token-scaling","runtime":"node","runtimeVersion":"26.13.1","library":"file:///work/optique/packages/core/dist/primitives.js","counts":[4000,8000],"results":[{"tokens":4000,"parsedTokens":4000,"runs":20,"medianMs":53.169,"minMs":50.96,"maxMs":63.216,"nsPerToken":13292.32},{"tokens":8000,"parsedTokens":8000,"runs":20,"medianMs":163.085,"minMs":156.708,"maxMs":175.211,"nsPerToken":20385.61
+{"script":"token-scaling","runtime":"node","runtimeVersion":"26.13.1","library":"file:///work/optique/packages/core/dist/primitives.js","counts":[16000,32000],"results":[{"tokens":16000,"parsedTokens":16000,"runs":5,"medianMs":823.453,"minMs":803.632,"maxMs":894.364,"nsPerToken":51465.803},{"tokens":32000,"parsedTokens":32000,"runs":5,"medianMs":5702.489,"minMs":5656.195,"maxMs":5811.639,"nsPerToken":178202.78}],"fitExponent":2.792,"growthLastToFirst":6.925}
+== 4000,8000
+{
+  "profile": "patched-4000-8000.cpuprofile",
+  "wallMs": 4960.35,
+  "parseMs": 3070.45,
+  "sampleCount": 4698,
+  "parseSamples": 2932,
+  "samplingUs": 1047.2
+}
+
+self time per file, in ms of parse time
+  1195.68	38.9%	modifiers.js
+  543.82	17.7%	short-option.js
+  486.44	15.8%	primitives.js
+  239.60	7.8%	constructs.js
+  159.26	5.2%	dependency-runtime.js
+  144.05	4.7%	immutable-string-map.js
+  81.41	2.7%	failure.js
+  76.17	2.5%	execution-context.js
+  54.32	1.8%	input-trace.js
+  21.30	0.7%	passthrough.js
+  18.01	0.6%	annotations.js
+  16.91	0.6%	annotation-state.js
+  13.29	0.4%	mode-dispatch.js
+  9.51	0.3%	dependency.js
+  5.33	0.2%	valueparser.js
+
+self time per function, in ms of parse time (top 12)
+  715.01	23.3%	modifiers.js#:1461
+  448.28	14.6%	modifiers.js#parseSync:1264
+  408.50	13.3%	primitives.js#:1275
+  147.83	4.8%	short-option.js#withParserOptionScope:153
+  140.63	4.6%	short-option.js#forkOptionScope:166
+  106.39	3.5%	immutable-string-map.js#setEntry:129
+  100.40	3.3%	short-option.js#withOptionScopeChild:50
+  95.30	3.1%	constructs.js#parseSync:2757
+  85.07	2.8%	short-option.js#:216
+  81.41	2.7%	failure.js#createDeferredFailure:7
+  56.98	1.9%	constructs.js#:2683
+  55.97	1.8%	dependency-runtime.js#collectSourcesFromState:1730
+== 16000,32000
+{
+  "profile": "patched-16000-32000.cpuprofile",
+  "wallMs": 38862.69,
+  "parseMs": 28779.73,
+  "sampleCount": 36743,
+  "parseSamples": 27245,
+  "samplingUs": 1056.3
+}
+
+self time per file, in ms of parse time
+  21134.53	73.4%	modifiers.js
+  5610.38	19.5%	primitives.js
+  724.99	2.5%	short-option.js
+  372.10	1.3%	constructs.js
+  257.62	0.9%	immutable-string-map.js
+  216.32	0.8%	dependency-runtime.js
+  133.51	0.5%	execution-context.js
+  122.35	0.4%	failure.js
+  71.77	0.2%	input-trace.js
+  31.76	0.1%	mode-dispatch.js
+  29.61	0.1%	passthrough.js
+  28.50	0.1%	annotation-state.js
+  19.11	0.1%	annotations.js
+  12.34	0.0%	dependency.js
+  8.47	0.0%	message.js
+
+self time per function, in ms of parse time (top 12)
+  20485.59	71.2%	modifiers.js#parseSync:1264
+  5489.64	19.1%	primitives.js#:1275
+  579.19	2.0%	modifiers.js#:1461
+  202.73	0.7%	immutable-string-map.js#setEntry:129
+  188.71	0.7%	short-option.js#forkOptionScope:166
+  166.68	0.6%	short-option.js#withParserOptionScope:153
+  165.70	0.6%	constructs.js#parseSync:2757
+  159.28	0.6%	short-option.js#withOptionScopeChild:50
+  122.35	0.4%	failure.js#createDeferredFailure:7
+  105.68	0.4%	short-option.js#:216
+  71.84	0.2%	dependency-runtime.js#resolveDeferredInState:1777
+  67.63	0.2%	dependency-runtime.js#collectSourcesFromState:1730

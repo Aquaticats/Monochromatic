@@ -192,6 +192,9 @@ and the line names where the library was loaded from:
 The records are `cross-runtime/deno-variants.log` and `close-review-2-gaps.jsonl`,
 under `measurements-2026-11-13`
 in `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`.
+`optique-typo-suggestion-overhead-upstream-record.evidence.zip` left the tree on 2026-11-13.
+Its cited records are in `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence/`.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ## Verified workarounds
 

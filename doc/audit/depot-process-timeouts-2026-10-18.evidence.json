@@ -843,6 +843,18 @@
     "path": "depot-process-timeouts-2026-10-18.archives.json.gz",
     "bytes": 4979,
     "sha256": "ae7580dcf37185b3422befd024f4f1fd7fa342e79f3c4d92c3dffafceb899d4e",
-    "originalZipCount": 3
+    "originalZipCount": 3,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show d43f5c400319d6f5f33b919dccc3817aaf070aa9:doc/audit/depot-process-timeouts-2026-10-18.archives.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   }
 }

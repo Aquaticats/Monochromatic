@@ -1,0 +1,12 @@
+{"round":1,"arm":"base","build":0,"exit":0,"seconds":0,"summary":["35 pass","0 fail","Ran 35 tests across 1 file. [290.00ms]"],"failing":[],"signals":[]}
+{"round":1,"arm":"multiple-final","build":0,"exit":0,"seconds":0,"summary":["35 pass","0 fail","Ran 35 tests across 1 file. [288.00ms]"],"failing":[],"signals":[]}
+{"round":2,"arm":"base","build":0,"exit":0,"seconds":0,"summary":["35 pass","0 fail","Ran 35 tests across 1 file. [290.00ms]"],"failing":[],"signals":[]}
+{"round":2,"arm":"multiple-final","build":0,"exit":0,"seconds":0,"summary":["35 pass","0 fail","Ran 35 tests across 1 file. [276.00ms]"],"failing":[],"signals":[]}
+{"round":3,"arm":"base","build":0,"exit":0,"seconds":0,"summary":["35 pass","0 fail","Ran 35 tests across 1 file. [282.00ms]"],"failing":[],"signals":[]}
+{"round":3,"arm":"multiple-final","build":0,"exit":0,"seconds":0,"summary":["35 pass","0 fail","Ran 35 tests across 1 file. [306.00ms]"],"failing":[],"signals":[]}
+{"round":4,"arm":"base","build":0,"exit":0,"seconds":0,"summary":["35 pass","0 fail","Ran 35 tests across 1 file. [290.00ms]"],"failing":[],"signals":[]}
+{"round":4,"arm":"multiple-final","build":0,"exit":0,"seconds":0,"summary":["35 pass","0 fail","Ran 35 tests across 1 file. [292.00ms]"],"failing":[],"signals":[]}
+{"round":5,"arm":"base","build":0,"exit":0,"seconds":0,"summary":["35 pass","0 fail","Ran 35 tests across 1 file. [280.00ms]"],"failing":[],"signals":[]}
+{"round":5,"arm":"multiple-final","build":0,"exit":0,"seconds":0,"summary":["35 pass","0 fail","Ran 35 tests across 1 file. [435.00ms]"],"failing":[],"signals":[]}
+{"done":true}
+{"containerExit":0}

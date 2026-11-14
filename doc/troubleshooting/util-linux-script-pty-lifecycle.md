@@ -103,7 +103,9 @@ it does not infer cleanup from a requested signal.
 
 ## Verification
 
-The [source archive][sources] retains:
+The source archive (`../audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz`) retains:
+`depot-native-ssh-acceptance-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 - `controller/mise.toml`,
   containing the runnable `qualify-native-cli-pty-bridge` task.
@@ -216,5 +218,4 @@ That narrow search is not a claim that no related history exists.
 The upstream-fault gate already fails.
 
 [receipt]: ../audit/depot-native-ssh-acceptance-2026-10-18.evidence.json
-[sources]: ../audit/depot-native-ssh-acceptance-2026-10-18.sources.json.gz
 [upstream]: https://github.com/util-linux/util-linux
