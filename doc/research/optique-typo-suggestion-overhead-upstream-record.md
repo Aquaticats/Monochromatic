@@ -46,12 +46,18 @@
    None ran on Deno,
    whose maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
    with no new feature work.
-   A model from another vendor reviewed the rewrite as of commit `ce2cc36df5`,
-   recomputed its figures from the archive and found them to match;
+   A model from another vendor reviewed the rewrite as of commit `ce2cc36df5`
+   and reported that each ratio,
+   share and exponent it traced reproduced from the archive;
    its findings on this document,
    a missing note on Deno and one ratio of two separate measurements that carried no scale label,
    are corrected.
-   The corrections made after that commit have had no review.
+   That pass did not flag the two times given for the sweep over token length,
+   which at that commit were the lowest of the rounds,
+   as the section says of its milliseconds;
+   they were restated by round afterwards.
+   A second review by that vendor's model read the corrections as of commit `2907e3a444`
+   and found each of them to match the records.
 - Scope:
    how the eager "did you mean" cost entered `@optique/core`,
    how upstream handled it,

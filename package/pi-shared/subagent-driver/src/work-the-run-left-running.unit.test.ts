@@ -8,6 +8,7 @@
 import {
   mkdir,
   mkdtemp,
+  readFile,
   rm,
   symlink,
   writeFile,
@@ -21,8 +22,12 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   type CommandOutput,
+  FEED_PREVIEW_CHARACTERS,
+  preview,
+  type PiRecord,
   type RunCommand,
   cgroupOf,
+  startRecordOfPiRun,
   unitNamedBy,
   wakeMessageOf,
   workOutlivingTheTurnIn,
@@ -86,7 +91,10 @@ function aScopeOfItsOwn(): string {
 }
 
 /**
- One line of a run's feed, holding what the `process` tool answered.
+ One line of a feed written before the driver kept a tool's answer whole, holding the answer itself in `result`.
+
+ A feed written now keeps only a preview of the answer there, which is why the driver writes a `processes` record beside it: the
+ preview of an answer longer than a feed line is cut inside a JSON string and cannot be read back.
 
  @param details - what the tool's answer holds
 
@@ -106,6 +114,81 @@ function aToolAnswer(details: unknown, isError = false,): string {
     isError,
     result: JSON.stringify({ details, },),
   },);
+}
+
+/**
+ What one answer of the `process` tool holds when the agent read a build's log: text longer than a feed line keeps, beside the
+ process it is about.
+
+ @param process - the process the answer is about
+
+ @returns the answer
+
+ @example
+ ```ts
+ const answer = aLongAnswerAbout(aProcess({},),);
+ ```
+ */
+function aLongAnswerAbout(process: Readonly<Record<string, unknown>>,): PiRecord {
+  return {
+    content: [{
+      type: 'text',
+      // A real answer of this kind carries the tail of a build's log, which is what makes it longer than a feed line holds: the
+      // preview of it ends inside a JSON string and cannot be read back.
+      text: 'x'.repeat(FEED_PREVIEW_CHARACTERS.toolResult * 2,),
+    },],
+    details: {
+      action: 'output',
+      process,
+    },
+  };
+}
+
+/**
+ Writes a feed through the driver's own record, from the events Pi emits, so a test reads what a real run left on disk rather
+ than a shape a test made up.
+
+ @param folder - the run folder a test owns
+
+ @param answers - one `process` tool answer per event, in the order the run produced them
+
+ @returns the feed's text, as a reader of it sees it
+
+ @example
+ ```ts
+ const shown = await aFeedTheDriverWrote({ folder: '/runs/a-1', answers: [aLongAnswerAbout(aProcess({},),)], },);
+ ```
+ */
+async function aFeedTheDriverWrote({
+  folder,
+  answers,
+}: {
+  readonly folder: string;
+  readonly answers: readonly PiRecord[];
+},): Promise<string> {
+  /**
+   The feed the driver writes.
+   */
+  const feedFile = join(folder, 'feed.jsonl',);
+  /**
+   The record of that run.
+   */
+  const record = startRecordOfPiRun({ feedFile, },);
+  for (const result of answers) {
+    record.observe({
+      event: {
+        type: 'tool_execution_end',
+        toolName: 'process',
+        isError: false,
+        result,
+      },
+      declineDialog: function declined() {
+        // No dialog is asked in an event of this kind.
+      },
+    },);
+  }
+  await record.close();
+  return await readFile(feedFile, 'utf8',);
 }
 
 /**
@@ -348,6 +431,93 @@ await describe({
               cwd: aWorktree(),
               status: 'running',
             },],);
+          },
+        },),
+        it({
+          name: 'reads the process a tool answered with from the feed the driver writes, where the answer is longer than a line keeps',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The feed a run of this driver leaves behind.
+             */
+            const shown = await aFeedTheDriverWrote({
+              folder: folder.path,
+              answers: [aLongAnswerAbout(aProcess({},),),],
+            },);
+            /**
+             The tool_end line the feed kept, whose result is only a preview of that answer.
+             */
+            const toolEnd = shown.split('\n',)
+              .filter((line,) => line !== '')
+              .map((line,) => JSON.parse(line,) as PiRecord,)
+              .find((entry,) => entry.kind === 'tool_end',);
+            // The fixture is the defect: the line the feed keeps holds text that is no JSON document, so a reader parsing it
+            // throws `Unterminated string in JSON`. The record beside it holds the answer whole.
+            expect(function parsedTheLine() {
+              return JSON.parse(String(toolEnd?.result,),) as unknown;
+            },).toThrow(SyntaxError,);
+            expect(workTheToolReportedIn({ feedShown: shown, },),).toEqual([{
+              id: 'proc_7adb',
+              name: 'native-build-2',
+              pid: 486_667,
+              command: `cd ${aWorktree()} && systemd-run --user --scope -- mise run build`,
+              cwd: aWorktree(),
+              status: 'running',
+            },],);
+          },
+        },),
+        it({
+          name: 'reads no work from a feed that kept only a cut preview of the tool answer',
+          fn: async () => {
+            /**
+             A feed written before the record of a whole tool answer existed, whose one answer is longer than a line keeps.
+             */
+            const shown = `${JSON.stringify({
+              kind: 'tool_end',
+              tool: 'process',
+              isError: false,
+              result: preview({
+                value: aLongAnswerAbout(aProcess({},),),
+                length: FEED_PREVIEW_CHARACTERS.toolResult,
+              },),
+            },)}\n`;
+            expect(workTheToolReportedIn({ feedShown: shown, },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'reads the work a feed\'s whole records name while the driver is still writing the line after them',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A feed the driver wrote.
+             */
+            const written = await aFeedTheDriverWrote({
+              folder: folder.path,
+              answers: [aLongAnswerAbout(aProcess({},),),],
+            },);
+            /**
+             The same feed as a reader sees it while the driver is still writing its next record.
+             */
+            const beingWritten = `${written}{"kind":"processes","processes":[{"id":"proc_9`;
+            expect(workTheToolReportedIn({ feedShown: beingWritten, },),).toEqual([{
+              id: 'proc_7adb',
+              name: 'native-build-2',
+              pid: 486_667,
+              command: `cd ${aWorktree()} && systemd-run --user --scope -- mise run build`,
+              cwd: aWorktree(),
+              status: 'running',
+            },],);
+          },
+        },),
+        it({
+          name: 'names a whole line that is no record rather than reading the run\'s work as none',
+          fn: async () => {
+            expect(
+              () =>
+                workTheToolReportedIn({
+                  feedShown: `${aToolAnswer({ action: 'list', processes: [aProcess({},),], },)}\nnot a record at all\n`,
+                },),
+            ).toThrow(SyntaxError,);
           },
         },),
       ],
