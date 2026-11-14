@@ -570,6 +570,45 @@ fn keeps_a_version_a_process_starts_in_between_the_look_and_the_removal() {
 
 //endregion the removals an earlier run left, and a process that starts mid-pass
 
+/// What:
+/// A removal put back because something holds it is deleted when the version's name holds another copy by then,
+/// and no marker is left behind for the next pass to retry forever.
+/// Why:
+/// Another run may install the same version while a pass holds the old copy out of its name;
+/// restoring the old copy over the new one would discard the install,
+/// and leaving the marker would make every later pass retry a restore that cannot succeed.
+#[test]
+fn deletes_a_held_copy_whose_name_another_run_took() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let marker: PathBuf = tombstone_of(&version);
+    // What: the state a pass leaves when the version was moved aside and the run was killed before the delete,
+    // and a newer copy of the same version was installed afterwards.
+    fs::rename(&version, &marker).expect("move the version aside");
+    fs::create_dir_all(&version).expect("install the newer copy");
+    fs::write(version.join("program"), b"fresh copy").expect("write the newer copy");
+    let mut held = std::process::Command::new("sleep")
+        .arg("60")
+        .current_dir(&marker)
+        .spawn()
+        .expect("start a process working inside the moved-aside copy");
+
+    let finished = finish_removals(&fixture.run());
+    let _ = held.kill();
+    let _ = held.wait();
+
+    assert!(version.join("program").exists(), "{:?}", finished.lines);
+    assert_eq!(fs::read(version.join("program")).expect("read the newer copy"), b"fresh copy");
+    assert!(!marker.exists(), "the held copy was restored over the newer one: {:?}", finished.lines);
+    assert!(finished.unfinished.is_empty(), "a removal is still pending: {:?}", finished.lines);
+    assert!(
+        finished.lines.iter().any(|line| return line.contains("a newer copy holds")),
+        "{:?}",
+        finished.lines
+    );
+    assert!(crate::toolchain::store_versions::removal_markers(&fixture.root).is_empty());
+}
+
 //region replaying a real store's listing
 
 /// One version directory of the replayed listing.

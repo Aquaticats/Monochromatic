@@ -670,28 +670,88 @@ fn move_aside(candidate: &TrimCandidate) -> Result<Option<MovedAside>, String> {
     return Ok(Some(MovedAside { version_marker, downloads_marker }));
 }
 
+/// What putting a version back under its name ended in.
+enum PutBack {
+    /// The version is back under its name.
+    Back,
+    /// The name holds another copy,
+    /// so this copy is deleted instead of restored.
+    NameTaken,
+    /// Neither worked,
+    /// and the marker stays.
+    Failed(String),
+}
+
 /// What:
-/// Puts a moved-aside version and its downloads back under their names.
+/// Puts a moved-aside version and its downloads back under their names,
+/// or deletes them when the name is taken again.
 /// Why:
 /// A version that turns out to be in use is not removed,
 /// and its name is the only thing it lost.
+/// A name that holds a copy again means another run installed that version while this pass held the old copy out
+/// of the way, and then the old copy is the one to delete:
+/// leaving it a marker would retry the restore on every later pass.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function undoMoved(candidate: TrimCandidate, moved: MovedAside): string | undefined  // the failure, if any
+/// function putBack(candidate: TrimCandidate, moved: MovedAside): 'back' | 'nameTaken' | { failed: string }
 /// ```
-fn undo_moved(candidate: &TrimCandidate, moved: &MovedAside) -> Option<String> {
-    let mut failure: Option<String> = None;
-    if let Err(error) = fs::rename(&moved.version_marker, &candidate.directory) {
-        failure = Some(format!("{} could not be put back: {error}", candidate.directory.display()));
+fn put_back(candidate: &TrimCandidate, moved: &MovedAside) -> PutBack {
+    return restore_or_delete(
+        &moved.version_marker,
+        &candidate.directory,
+        moved.downloads_marker.as_deref(),
+        candidate.downloads.as_deref(),
+    );
+}
+
+/// What:
+/// Puts a version and its downloads back under their names,
+/// or deletes them when the version's name was taken again,
+/// and says which way it went.
+/// Why:
+/// The removal a pass made and the removal an earlier run left are the same shape,
+/// so both put a version back through this one answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function restoreOrDelete(versionMarker: string, versionDirectory: string, downloadsMarker?: string, downloadsDirectory?: string): PutBack
+/// ```
+fn restore_or_delete(
+    version_marker: &Path,
+    version_directory: &Path,
+    downloads_marker: Option<&Path>,
+    downloads_directory: Option<&Path>,
+) -> PutBack {
+    if fs::symlink_metadata(version_directory).is_ok() {
+        return match remove_trees(version_marker, downloads_marker) {
+            None => PutBack::NameTaken,
+            Some(failure) => PutBack::Failed(failure),
+        };
     }
-    if let (Some(marker), Some(downloads)) = (&moved.downloads_marker, &candidate.downloads)
-        && let Err(error) = fs::rename(marker, downloads)
-        && failure.is_none()
+    if let Err(error) = fs::rename(version_marker, version_directory) {
+        return PutBack::Failed(format!("{} could not be put back: {error}", version_directory.display()));
+    }
+    if let (Some(marker), Some(directory)) = (downloads_marker, downloads_directory)
+        && let Err(error) = fs::rename(marker, directory)
     {
-        failure = Some(format!("{} could not be put back: {error}", downloads.display()));
+        return PutBack::Failed(format!("{} could not be put back: {error}", directory.display()));
     }
-    return failure;
+    return PutBack::Back;
+}
+
+/// Deletes the trees a removal moved aside,
+/// whichever of them exist.
+fn remove_trees(version_marker: &Path, downloads_marker: Option<&Path>) -> Option<String> {
+    if let Some(failure) = remove_dir_or_file(version_marker) {
+        return Some(format!("{} is left half removed: {failure}", version_marker.display()));
+    }
+    if let Some(marker) = downloads_marker
+        && let Some(failure) = remove_dir_or_file(marker)
+    {
+        return Some(format!("{} is left half removed: {failure}", marker.display()));
+    }
+    return None;
 }
 
 /// What:
@@ -705,12 +765,8 @@ fn undo_moved(candidate: &TrimCandidate, moved: &MovedAside) -> Option<String> {
 /// function deleteMoved(candidate: TrimCandidate, moved: MovedAside): string | undefined  // the failure, if any
 /// ```
 fn delete_moved(candidate: &TrimCandidate, moved: &MovedAside) -> Option<String> {
-    for marker in [Some(&moved.version_marker), moved.downloads_marker.as_ref()].into_iter().flatten() {
-        match fs::remove_dir_all(marker) {
-            Ok(()) => {}
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => return Some(format!("{} is left half removed: {error}", marker.display())),
-        }
+    if let Some(failure) = remove_trees(&moved.version_marker, moved.downloads_marker.as_deref()) {
+        return Some(failure);
     }
     if let Some(downloads) = &candidate.downloads
         && let Some(tool_downloads) = downloads.parent()
@@ -802,9 +858,17 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                 },
             };
             match reason {
-                Some(why) => match undo_moved(&candidate, &aside) {
-                    None => lines[index] = Some(kept_line(&candidate, &why)),
-                    Some(failure) => {
+                Some(why) => match put_back(&candidate, &aside) {
+                    PutBack::Back => lines[index] = Some(kept_line(&candidate, &why)),
+                    PutBack::NameTaken => {
+                        outcome.removed += 1;
+                        outcome.removed_bytes = outcome.removed_bytes.saturating_add(candidate.bytes);
+                        lines[index] = Some(format!(
+                            "{}, and a newer copy took its name while it was held, so the held copy was deleted",
+                            removed_line(&candidate)
+                        ));
+                    }
+                    PutBack::Failed(failure) => {
                         outcome.unfinished.insert(candidate.root.clone());
                         lines[index] = Some(kept_line(&candidate, &format!("{why}; {failure}")));
                     }
@@ -929,7 +993,7 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
             }
         };
         match restore_marker(&marker) {
-            None => {
+            Restored::Back => {
                 outcome.put_back.insert(marker.version_directory.clone(), candidate_reason.clone());
                 outcome.lines.push(format!(
                     "mpm-shadow: kept {} ({}): {candidate_reason}; the removal an earlier run started is undone",
@@ -937,7 +1001,13 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
                     format_size(bytes)
                 ));
             }
-            Some(failure) => {
+            Restored::NameTaken => outcome.lines.push(format!(
+                "mpm-shadow: removed {} ({}) and finished a removal an earlier run started, and a newer copy holds \
+                 its name",
+                marker.version_marker.display(),
+                format_size(bytes)
+            )),
+            Restored::Failed(failure) => {
                 outcome.unfinished.insert(marker.root.clone());
                 outcome.lines.push(format!(
                     "mpm-shadow: kept {}: {candidate_reason}; it is still being removed: {failure}",
@@ -989,28 +1059,33 @@ fn remove_dir_or_file(path: &Path) -> Option<String> {
 
 /// Deletes what one removal marker holds.
 fn remove_marker(marker: &RemovalMarker) -> Option<String> {
-    if let Some(failure) = remove_dir_or_file(&marker.version_marker) {
-        return Some(format!("{} is left half removed: {failure}", marker.version_marker.display()));
-    }
-    if let Some(downloads) = &marker.downloads_marker
-        && let Some(failure) = remove_dir_or_file(downloads)
-    {
-        return Some(format!("{} is left half removed: {failure}", downloads.display()));
-    }
-    return None;
+    return remove_trees(&marker.version_marker, marker.downloads_marker.as_deref());
 }
 
-/// Puts a removal marker's version and downloads back under their names.
-fn restore_marker(marker: &RemovalMarker) -> Option<String> {
-    if let Err(error) = fs::rename(&marker.version_marker, &marker.version_directory) {
-        return Some(format!("{} could not be put back: {error}", marker.version_directory.display()));
-    }
-    if let (Some(downloads_marker), Some(downloads_directory)) = (&marker.downloads_marker, &marker.downloads_directory)
-        && let Err(error) = fs::rename(downloads_marker, downloads_directory)
-    {
-        return Some(format!("{} could not be put back: {error}", downloads_directory.display()));
-    }
-    return None;
+/// What putting a removal marker's version back ended in.
+enum Restored {
+    /// The version is back under its name.
+    Back,
+    /// The name holds another copy,
+    /// so the marker is deleted instead.
+    NameTaken,
+    /// Neither worked.
+    Failed(String),
+}
+
+/// Puts a removal marker's version and downloads back under their names,
+/// or deletes them when the name is taken again.
+fn restore_marker(marker: &RemovalMarker) -> Restored {
+    return match restore_or_delete(
+        &marker.version_marker,
+        &marker.version_directory,
+        marker.downloads_marker.as_deref(),
+        marker.downloads_directory.as_deref(),
+    ) {
+        PutBack::Back => Restored::Back,
+        PutBack::NameTaken => Restored::NameTaken,
+        PutBack::Failed(failure) => Restored::Failed(failure),
+    };
 }
 
 /// What:
