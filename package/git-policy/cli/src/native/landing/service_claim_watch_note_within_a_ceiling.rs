@@ -36,7 +36,8 @@
 //!   The place of the one write is taken before the job and carried into it,
 //! so every path that does not write gives it back:
 //! the end of the write,
-//! and the system refusing the thread, which drops the closure and the place with it.
+//! and the system refusing the thread,
+//! which drops the closure and the place with it.
 //! A refused thread leaves the note owed like a write that gave no answer,
 //! and the landing is told which of the two happened,
 //! because something that never ran and something that may still be writing are not the same.
@@ -93,7 +94,8 @@ static A_NOTE_WRITE_IS_OUTSTANDING: AtomicBool = AtomicBool::new(false);
 /// Why:
 ///   The place is built by the frame that took it and carried into the job,
 /// so its `Drop` runs in both shapes of "no write":
-/// when the job's body ends, and when the system refused the thread and the closure holding it is dropped
+/// when the job's body ends,
+/// and when the system refused the thread and the closure holding it is dropped
 /// without ever running.
 /// A place built inside the body would survive a refused start,
 /// and a process whose first note write was refused would then never write a note again

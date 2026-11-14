@@ -27,6 +27,8 @@
 //! ```
 
 use std::io::Write;
+// The refusal is a control's stand-in and is no part of the release executable.
+#[cfg(test)]
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::time::Duration;
@@ -118,7 +120,8 @@ where
 ///  a thread the system refuses is "no answer" too,
 /// because nothing ran.
 /// That is all a caller whose answer is optional data needs;
-/// a caller that holds something until the work ends takes `work_within_reporting`, which tells the two apart.
+/// a caller that holds something until the work ends takes `work_within_reporting`,
+/// which tells the two apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -139,7 +142,8 @@ where
 /// so `work_within_reporting` answers `NoThreadToStart` and its job never runs.
 /// Why:
 ///  A control cannot exhaust this process's threads reliably,
-/// and a process limit (`TasksMax`, `RLIMIT_NPROC`) refuses other threads too,
+/// and a process limit (`TasksMax`,
+/// `RLIMIT_NPROC`) refuses other threads too,
 ///  which no control of one step should reach;
 /// the flag is the seam,
 /// and nextest gives every control its own process,

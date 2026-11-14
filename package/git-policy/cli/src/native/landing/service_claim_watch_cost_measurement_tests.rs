@@ -47,6 +47,7 @@
 
 use super::*;
 use crate::service_claim_watch_note_within_a_ceiling::{NoteForTheNextService, note_for_the_next_service_within};
+use crate::service_instance::instance_of;
 use std::time::Instant;
 
 /// How many notes each arm writes,

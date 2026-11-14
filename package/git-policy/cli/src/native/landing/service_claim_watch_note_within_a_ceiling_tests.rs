@@ -80,9 +80,12 @@ fn a_second_note_is_not_handed_over_while_the_first_has_not_ended() {
 ///  so the next landing that asks a healthy store writes the note.
 /// Why:
 ///  A place built inside the job would survive a refused start and no landing of that process would
-///  ever write a note again: a service killed before the work loop's own write then leaves a repository
-///  a restart never looks at, which is the unbounded wait the note exists to prevent
-///  (the review of `4307d45a89`, finding 1).
+///  ever write a note again:
+/// a service killed before the work loop's own write then leaves a repository
+///  a restart never looks at,
+/// which is the unbounded wait the note exists to prevent
+///  (the review of `4307d45a89`,
+/// finding 1).
 /// The refusal is the code's own seam,
 ///  not a process limit,
 /// so the control cannot be starved of threads by whatever else runs on the machine.
