@@ -1198,6 +1198,135 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Real credentials reached model providers in six Pi sessions; pass 37 is in `main` and `0.6.1-alpha.28` is dispatched (2026-11-14T10:31:58-05:00)
+
+Not final and not approved:
+what the coordinating session measured,
+merged and queued,
+and what four runs report of themselves.
+
+###### Credentials shown to model providers
+
+- **How it was found**:
+  integration pass 37 said in its own report that a `mise env` it ran through `head` put environment lines into a tool result.
+  A tool result is sent whole to the run's model provider.
+- **What was measured**:
+  a scan of the 1,837 Pi sessions that the run folders under `~/temp/agent/pi-runs` name,
+  for the real values of the 35 names `.env.local.json` declares,
+  by exact match
+  (the values were read inside the scanning process and never printed;
+  `~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/scan-for-real-values-by-exact-match.txt` holds names,
+  runs,
+  counts and times alone).
+  The session of pass 37 is the scan's positive control:
+  it is found.
+- **Result**:
+  real values of 30 of the 35 names,
+  in six sessions,
+  each in a tool result.
+  - `mpm-shadow-install-removes-no-version-that-a-lock-names-or-a-process-runs-1`,
+    2026-11-14T01:08:25-05:00,
+    provider `neuralwatt`:
+    29 names in one result,
+    from `mise env --json 2>/dev/null | head -40`.
+    Among them `MISE_GITHUB_TOKEN`,
+    `HCLOUD_TOKEN` and the keys of every model and search provider the file declares.
+  - `integration-pass-37-…-1`,
+    2026-11-14T09:11:15-05:00,
+    `neuralwatt`:
+    `AUTO_MODE_LIQUID_API_KEY`,
+    from `mise env 2>&1 | head -3`.
+  - `tokio-step-t12` (2026-11-08),
+    `wrapper-small-robustness-items-1` (2026-11-08) and `wrapper-issues-655-1135-1` (2026-11-10),
+    all `neuralwatt`:
+    `MISE_GITHUB_TOKEN`,
+    from `/proc/<pid>/environ` and `env` filtered for the word `MISE`,
+    and from printing lines of `~/.bashrc`,
+    which holds that token in clear.
+  - `wg-quicker-model-providers-off-the-tunnel-1` (2026-11-09),
+    provider `opencode-go`:
+    `TRANSLATION_REPAIR_SYNTHETIC_API_KEY` and `LLMGATEWAY_DEVPASS_API_KEY`,
+    from printing `~/.pi/agent/models.json`,
+    which holds keys in clear.
+- **Outside the scan**:
+  sessions of other harnesses (Claude Code and its subagents),
+  Pi sessions no run folder names,
+  credentials that `.env.local.json` does not declare,
+  and a value a command transformed before printing.
+  The six session files hold the values in clear on this machine.
+- **Done by this session**:
+  the rules file names `mise env`,
+  `sops --decrypt` and the credential-holding files beside `env` and `printenv`
+  (`package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md`);
+  the 23 going runs got a note at 10:31:58
+  (`~/temp/agent/notes-to-send/note-for-every-going-run-that-mise-env-prints-credentials-to-the-model-provider-2026-11-14T1032.md`);
+  a fresh driver run is queued first so that a tool result is masked before it reaches a model
+  (`~/temp/agent/pi-runs/value-of-the-secret-environment-never-reaches-a-pi-run-model-prompt.md`).
+  A rule in a file did not hold six times,
+  so the rule is not the fix.
+- **The owner's**:
+  rotating the credentials,
+  and whether runs go on before the masking is in.
+  Asked through the question tool at this time.
+
+###### Passes and routed runs
+
+- **Pass 37** (tip `93d99d1b6c`:
+  passes 33,
+  35 and 36 together)
+  reported fit at 10:23:37:
+  no conflict,
+  build,
+  both test compiles,
+  Clippy and the release build green,
+  every control of the three passes passing at 600% and at four CPUs,
+  a commit of one changed file at a ratio of 3.82 to 6.99 to real Git within a round
+  (21.5 to 36.2 ms over 4.3 to 10.4 ms),
+  eight of the twelve library tests red on `main` still red.
+  `main` held nothing of the wrapper's crate that the tip lacked
+  (the fuzz sidecar's merge alone),
+  so it was merged as `0f57509d36` at 10:27:04.
+  The sidecar's type check on `main` after it ended with status 0 at 10:27:29.
+  `0.6.1-alpha.28` was dispatched at 10:27:16
+  (run 43610258560).
+- **Things pass 37 names and leaves**:
+  the push trigger declines a merge on a branch with no upstream and says nothing
+  (pass 36 recorded the same);
+  one composed sentence where two passes' words meet reads awkwardly;
+  a module comment in `lock/index_holder_wait.rs` still describes a merge that waits;
+  two arms in `merge/merge_isolation_apply.rs` cannot be reached any more.
+- **Discarding commands** (`588ed1a936`),
+  fourth review:
+  five reproduced and one by reading.
+  With default settings:
+  a clean with one force deletes an ignored bare nested repository with no save;
+  a revision named like the pathspec file makes a forced checkout write over an untracked file;
+  `checkout-index --prefix <value>` is refused for a path Git never writes.
+  With `require-root: off`:
+  two paths measured from the wrong folder.
+  By reading:
+  a pathspec file read with no bound on size.
+  The author is resumed second and asked first to say what in the design lets a new form slip by at each review
+  (`~/temp/agent/pi-runs/discarding-commands-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- **Push of a branch that is not checked out** (`c15fc5a7b1`),
+  fourth review:
+  two reproduced
+  (a published merge the remote moved past is reported as rejected;
+  that path never moves the branch or says where it is),
+  one sequence by reading with its consequence shown by a run
+  (the move of a reference alone writes no record of intent,
+  so a kill leaves a checkout no recovery repairs),
+  two narrow races in the report's words by reading.
+  The author is resumed third
+  (`~/temp/agent/pi-runs/push-of-a-branch-not-checked-out-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- **mpm-shadow's stale launchers** (tip `30257b681f`):
+  the author reports the review's findings answered
+  (749 tests passing on the merged tree,
+  nine system calls more on an install with nothing to do).
+  Review queued fourth (range `main...30257b681f`).
+- The queue held 57 entries at 10:31:58;
+  23 Pi runs were going.
+
 ##### The main checkout holds no run's files again; the fuzz sidecar is in `main` and type-checks there; the merge that ends saved goes back (2026-11-14T10:23:19-05:00)
 
 Not final and not approved:
