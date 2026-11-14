@@ -992,7 +992,8 @@ Read-only commands,
      which names the volumes and words the way on by what the tree in front of it is,
      and `--force` removes everything around a volume and still leaves it.
      A tree whose only trouble is entries missing from it is the shape a removal left:
-     the wrapper writes a record of the worktree, its registration and its path before it deletes the first
+     the wrapper writes a record of the worktree,
+     its registration and its path before it deletes the first
      entry,
      and the same unforced command reads it and finishes the removal,
      so a command killed in that pass costs the person one more run of what they typed.
@@ -2414,7 +2415,7 @@ When a relink does not finish:
 the service tries a tool that failed again on its next round (the record allows three tries),
  so two installers meeting in one `node_modules` costs a wait rather than the relink.
 A record whose tries run out leaves one line for the next command in that worktree,
- which says how many times the wrapper tried,
+ which says how many times the record allows a try,
 what the last try failed with,
 and the command that finishes
  the job,
@@ -4124,8 +4125,10 @@ none is waited out or retried on the moved head yet:
   A request is a JSON object and a framing newline,
   and the service takes it only when the whole line arrived:
   a line that ends with the connection instead of its newline is refused and never queued.
-  So a commit is called "not made, and it cannot land later" only when no attempt of it put one whole line on the wire;
-  after an attempt that did, the same give-up is reported as a result that is not known,
+  So a commit is called "not made,
+  and it cannot land later" only when no attempt of it put one whole line on the wire;
+  after an attempt that did,
+  the same give-up is reported as a result that is not known,
   and the commit's staged work and scratch tree stay where they are.
   A commit whose whole request did reach the service is never described as one a waking service cannot land:
   that message says the service may still make it and names `git log -1`.
@@ -4137,7 +4140,8 @@ none is waited out or retried on the moved head yet:
   whether the commit was made,
   that your staged changes and working files are as they were,
   and the three steps that end it.
-  Those steps are, in this order:
+  Those steps are,
+  in this order:
   `git monochromatic-git-policy-cli service status`,
   which says whether this worktree's service answers and names the unit that serves it;
   a restart of that one unit (`systemctl --user restart` and the name the status printed),
@@ -4148,7 +4152,8 @@ none is waited out or retried on the moved head yet:
   never the `@*` pattern of every service of the account,
   because restarting them all stops the commits of every other worktree.
   A service that wakes after the command ended makes no commit:
-  the request it still holds is dropped, because the command on that connection is gone.
+  the request it still holds is dropped,
+  because the command on that connection is gone.
 - The branch keeps changing:
   `LANDING_ATTEMPTS` (3,
   `service_land.rs`) landings lost to other commits end with

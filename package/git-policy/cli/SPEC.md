@@ -3475,7 +3475,8 @@ The same look runs for a worktree that is no subvolume,
 before the removal is handed to Git,
 and again in the commit service immediately before it removes a worktree it was handed,
 because Git's own removal is the route that would delete through a mount point.
-`look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume, which the
+`look_for_boundaries` is that look and `find_boundary_below` is the walk that stops at the first volume,
+which the
 registration's own proof still uses.
 
 A removal that found such a volume proves what every removal proves before it deletes anything:
@@ -3484,7 +3485,8 @@ not locked,
 no conversion's copy lies beside it,
 the worktree root and its registration are held open and are still the objects that were proven,
 and it is clean or the person forced it.
-The clean proof stays Git's own, exactly as the decision of 2026-11-12T13:04:14 requires:
+The clean proof stays Git's own,
+exactly as the decision of 2026-11-12T13:04:14 requires:
 an unforced removal deletes no untracked file and no modified tracked file,
 and a foreign volume that Git lists as untracked (one no ignore rule covers) is such an entry,
 so it keeps a typed unforced removal from happening.
@@ -3492,8 +3494,12 @@ That removal then refuses with one report that says what the command itself did,
 names each volume,
 gives the reason Git refuses,
 and words the way on by what the tree in front of it is:
-`git worktree remove --force`, which removes every other entry of the tree and leaves the volume exactly as it
-stands, and, for a tree whose entries are all present, clearing or moving what Git would delete.
+`git worktree remove --force`,
+which removes every other entry of the tree and leaves the volume exactly as it
+stands,
+and,
+for a tree whose entries are all present,
+clearing or moving what Git would delete.
 A tree whose only trouble is entries missing from it is the shape a pass of this program leaves,
 and the report says which of the two it read:
 a record of this very worktree's own pass (the next paragraph but one) makes the same unforced command finish it,
@@ -3503,7 +3509,8 @@ and never claims that nothing was removed.
 The tree is never handed to Git to get Git's own sentence,
 because Git's removal is what would delete through the mount;
 the report says so instead of pretending to be Git's words.
-A forced removal is served without the clean proof, as it always was.
+A forced removal is served without the clean proof,
+as it always was.
 
 With that proof in hand the removal empties the tree around the volumes:
 one pass over the tree,
@@ -3522,7 +3529,8 @@ The mode of a kept directory is given back after the pass,
 and the directories the pass widened to empty are those it deletes,
 so what is left stands with the modes and owners it had.
 The pass judges and empties one opened object and never a name twice:
-it opens the entry as a handle that follows nothing, crosses no mount and needs no permission on it,
+it opens the entry as a handle that follows nothing,
+crosses no mount and needs no permission on it,
 asks that handle what kind of directory it is,
 gives the owner access through that same handle,
 and only then opens the name again for reading,
@@ -3534,19 +3542,24 @@ and a volume renamed over a directory in the moment between the two lookups is l
 emptied.
 The look that decides the removal (`look_for_boundaries`) resolves each name once and asks the device of the very
 descriptor it then reads.
-Nothing in the pass renames, unmounts, moves or deletes a volume;
+Nothing in the pass renames,
+unmounts,
+moves or deletes a volume;
 the only names it touches are those of the worktree's own entries.
 
 A removal that was killed inside that pass leaves the worktree's own entries deleted,
 the volumes standing and the registration kept,
 and the next unforced command would meet a worktree Git reports as changed.
-The pass therefore writes, before its first deletion,
+The pass therefore writes,
+before its first deletion,
 a record under `monochromatic-git-policy-cli/around-removals-begun/<registration id>` naming the registration's
-identity, the worktree root's identity and the path the removal was given
+identity,
+the worktree root's identity and the path the removal was given
 (`src/native/worktree/worktree_removal_around_begun.rs`).
 A later unforced removal of that same worktree,
 whose registration and root are those two identities,
-reads the record, asks Git whether anything is reported about the tree but the entries a pass removed
+reads the record,
+asks Git whether anything is reported about the tree but the entries a pass removed
 (leaving out what stands inside the volumes it leaves,
 because the pass often deletes the ignore rule that hid one),
 and finishes the removal when nothing else stands there.
@@ -3560,19 +3573,26 @@ which is where the log of what a removal deletes joins it
 When the pass ends the removal looks again through the descriptor it holds:
 a volume that went away while the pass ran leaves a tree that is now empty,
 and the root goes as any other removal takes it,
-which is one `rmdir` under the held parent, or the destroy where the caller takes that route.
+which is one `rmdir` under the held parent,
+or the destroy where the caller takes that route.
 A tree that still holds one is finished without the destroy:
 the registration is emptied and removed through the descriptors the removal holds,
 one of its `worktrees` directory last,
 and the worktree's subvolume (or its plain directory) stays,
 holding nothing but the volumes and the directories that lead to them.
 The outcome is neither `removed` nor `refused`:
-it is `RemovedAround`, which carries every volume that was left,
+it is `RemovedAround`,
+which carries every volume that was left,
 and `src/native/worktree/worktree_removal_goes_around_a_foreign_volume.rs` words it.
 A removal that stopped halfway is `Incomplete` with its own words:
-files it removed are gone, the worktree is still registered, and the report says which of the two happened.
+files it removed are gone,
+the worktree is still registered,
+and the report says which of the two happened.
 A pass that emptied the tree but could not remove the registration is reported in the around route's own words:
-the worktree was emptied around what was left, the path still stands with it, Git still lists the worktree, and
+the worktree was emptied around what was left,
+the path still stands with it,
+Git still lists the worktree,
+and
 `git worktree prune` or another run of the same removal finishes it.
 
 The person's own `git worktree remove` prints that report on standard error and exits 0,
@@ -3590,7 +3610,8 @@ and a file in that directory that is not a record is neither shown nor moved.
 
 What frees the path is said in every one of those reports:
 the person moves each volume out of the directory it stands in;
-a mount point is released with `umount`, which keeps what is mounted there;
+a mount point is released with `umount`,
+which keeps what is mounted there;
 a subvolume that is another repository's worktree is removed with `git worktree remove` in that repository,
 which keeps its branch;
 and the directories that are then empty are removed from the deepest one up with `rmdir`,
@@ -8160,7 +8181,8 @@ now inside these bounds:
   A line is read in chunks under the bound the connection carries,
   because one `read_line` restarts the operating system's read timeout with every chunk a service sends,
   so a service that dribbles bytes and never ends its line held a client inside one call for ever.
-- A request is a JSON object and a framing newline, and the service takes it only when the whole line arrived.
+- A request is a JSON object and a framing newline,
+  and the service takes it only when the whole line arrived.
   A line that ends with the connection instead of its newline is not decoded,
   not queued,
   and refused in the service's log
@@ -8169,13 +8191,15 @@ now inside these bounds:
   and neither carries the proof alone:
   the client's chunked write can leave every byte of the object and only the newline unsent,
   and the service used to decode that at end of stream and land it
-  (the review of this change, finding 1).
+  (the review of this change,
+  finding 1).
 - The client says the service never took a request only when it never put one whole request line on the wire.
   A give-up on the write ends with `ClientFailure::ServiceNotReading`,
   which says the commit was not made and cannot land later
   (`landing/service_messages_of_a_service_that_stopped.rs`),
   only when no attempt of this command delivered a whole line;
-  after an attempt that did, a give-up ends with the "not known" failure,
+  after an attempt that did,
+  a give-up ends with the "not known" failure,
   whose commit's scratch tree stays with the service's claim on it.
   The failure that says the branch holds no commit of this command's yet does not say a waking service drops it:
   the landing's client-gone check races the connection writer's heartbeat,
@@ -19715,7 +19739,8 @@ The bound holds for each commit,
 not for a percentile of them.
 It is the owner's change of 2026-11-12,
 "The five-second rule is changed":
-"Change the 5s rule to max(5s, double what native git takes)",
+"Change the 5s rule to max(5s,
+double what native git takes)",
 read as the extra over real Git.
 The requirements it replaces were the flat 5,000 ms,
 which is what the owner set on 2026-11-01:
