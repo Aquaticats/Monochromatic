@@ -687,14 +687,24 @@ pub fn log_entry(priority: Priority, line: &str, fields: &[(&str, String)]) -> D
         return Delivery::Stderr;
     }
     let text: String = stamped_line(one_line(masked.as_str(), MESSAGE_LIMIT).as_str(), at_ms);
-    // On the journal's stream a line that finds no room is dropped, never waited for.
-    if sink().on_stream() {
-        return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut StreamWriter::stderr());
+    // On the journal's stream, and everywhere in the service, a line that finds no room is dropped, never waited for: a
+    //  service's standard error is the journal, a pipe or a FIFO, and a reader that stops reading holds `write_all` in the
+    //  kernel for as long as it does not read (the audit of 0.6.1-alpha.14 held a landing 7.35 s that way, and the journal's
+    //  own disk was the busy one on 2026-11-12). The service's entries travel to the journal as datagrams as well, so what a
+    //  FIFO drops is what the stream would have dropped anyway (`journald_native.rs`).
+    if sink().on_stream() || in_service() {
+        let mut never_waits: StreamWriter = StreamWriter::stderr();
+        return sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut never_waits);
     }
-    // Any other stream (a terminal, a file, a FIFO) is written by a thread of its own, for the same reason: a landing that
-    //  waited for its own log's reader was held 7.35 seconds by a full FIFO on 2026-11-12, and the journal's disk was the busy
-    // one while that day's commits took 56 to 199 seconds (`service_log_lines_off_the_calling_thread.rs`).
-    return if crate::service_log_lines_off_the_calling_thread::hand(text.as_str()) { Delivery::Stderr } else { Delivery::Dropped };
+    // The wrapper's own standard error, where a person reads it, is written by a thread of its own, for the same reason: a
+    //  command that waited for its own log's reader was held 7.35 seconds by a full FIFO on 2026-11-12
+    //  (`service_log_lines_off_the_calling_thread.rs`). A line the queue cannot hold is written here instead, because the
+    //  wrapper's own stream, unlike a landing's, is the one worth waiting for.
+    return if crate::service_log_lines_off_the_calling_thread::hand(text.as_str()) {
+        Delivery::Stderr
+    } else {
+        sink().deliver(priority, message.as_str(), all.as_slice(), text.as_str(), &mut std::io::stderr())
+    };
 }
 
 /// What:

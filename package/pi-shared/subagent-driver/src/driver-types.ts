@@ -230,6 +230,13 @@ export type RunSummary = {
   readonly driverError?: string;
 
   /**
+   What the driver failed to read when it asked what the run left running, which is why it cannot say whether anything of the
+   run's still runs. It sits beside the end reason rather than in its place: the agent had ended its turn and Pi had exited by the
+   time it was asked, so the run did its work whether or not the answer could be read.
+   */
+  readonly workProblem?: string;
+
+  /**
    What Pi reported of the compaction it could not finish while the run waited for its prompt: the failure, or the compaction
    still running when the run's own bound ended it. Absent when the run never waited on a compaction.
    */
@@ -356,6 +363,12 @@ export type RecordOfPiRun = {
    Keeps what went wrong in the driver itself, for the summary.
    */
   readonly noteDriverFailure: (failure: string,) => void;
+
+  /**
+   Keeps what the driver failed to read when it asked what the run left running, which the feed notes under its own name and the
+   summary carries beside the end reason.
+   */
+  readonly noteWorkProblem: (failure: string,) => void;
 
   /**
    Why the feed is incomplete, when writing it failed. A run whose feed failed did not end clean.

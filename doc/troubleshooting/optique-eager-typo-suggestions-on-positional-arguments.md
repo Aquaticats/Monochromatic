@@ -34,9 +34,9 @@ is corrected,
 and those corrections have had no review.
 The reply draft was then tightened on the owner's choice,
 as the note before it says.
-A fresh session of that vendor's model reviewed the tightened form as of commit `629e7b84d7`;
-the note before the draft says what it found and what was changed for it,
-and those changes have had no review.
+A fresh session of that vendor's model reviewed the tightened form as of commit `629e7b84d7`,
+and another the changes made for it as of commit `7771aa14fc`;
+the note before the draft says what each found.
 Deno appears only as one of the runtimes the reproduction scripts and the suite were run on;
 its maintainers said on 2026-10-15 that they [will maintain it until October 2027][deno state],
 with no new feature work.
@@ -782,7 +782,8 @@ on two choices the owner made that afternoon when shown the Node and Bun timing 
    left this draft and stays in the draft issue at the end of
    `doc/troubleshooting/optique-input-trace-copies-its-map-for-each-recorded-token.md`.
 - "Tighten the reply first":
-   the draft went from 66 lines to 44.
+   the draft went from 66 lines to 44,
+   and stands at 45 since a correction from its review took one more.
    What left it,
    with where each now lives:
    the rounds that showed no difference,
@@ -827,7 +828,14 @@ on two choices the owner made that afternoon when shown the Node and Bun timing 
    the second patch's figures are those of the patch before its last change,
    to how a view answers a request for its `length` descriptor,
    which the linked write-up says and the reply does not.
-   Those corrections have had no review.
+   Another fresh session of that model read those corrections as of commit `7771aa14fc`,
+   recomputed the ratios they touch from the raw rounds,
+   and found each correction faithful to the records and no figure changed.
+   It pointed out that this note still gave the draft's length as 44,
+   and that the draft issue's count of places that slice the buffer could be read as fifteen
+   where the write-up says sixteen;
+   the issue now says two in `argument()` and fourteen more,
+   which was checked against upstream's source at the merge.
 
 ~~~md
 Thanks for #992 and #997, and for #1120 and #1121: you got to the short-option cost from the notes here before I
