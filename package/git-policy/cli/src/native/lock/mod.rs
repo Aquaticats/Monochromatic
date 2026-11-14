@@ -113,6 +113,24 @@ pub mod lock_holder_record_reads;
 /// and the one removal that acts on it.
 pub mod abandoned_lock_proving;
 
+/// The record a command writes about a lock its own Git took,
+/// and the pin that keeps the record from matching another lock.
+pub mod lock_bindings;
+
+/// The watch a command keeps on its Git's directories while that Git runs,
+/// and the events that prove which locks it took.
+pub mod lock_watch;
+
+/// Controls of the records about taken locks.
+#[cfg(test)]
+#[path = "lock_bindings_tests.rs"]
+mod lock_bindings_tests;
+
+/// Controls of the events that justify a record.
+#[cfg(test)]
+#[path = "lock_watch_tests.rs"]
+mod lock_watch_tests;
+
 /// The two lines a person reads about a lock:
 /// what was cleared,
 /// and what stands.

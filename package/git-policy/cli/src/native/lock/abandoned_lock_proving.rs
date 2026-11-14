@@ -185,6 +185,9 @@ pub enum Evidence {
     /// The lock's own PID file,
     ///  written because `core.lockfilePid` is on.
     PidFile,
+    /// The record a command of this repository wrote about the very lock its own Git took,
+    ///  whose pin holds the file that stood here.
+    Binding,
     /// The commit service's marker,
     ///  which the service itself wrote into the lock.
     ServiceMarker,
@@ -223,13 +226,26 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
             _ => None,
         };
     }
-    let born: Option<std::time::SystemTime> = born_of(lock);
-    // Only a PID file Git wrote for this very lock names its holder: one born before the lock belongs to an earlier holder.
-    let crate::stale_ref_lock_found::PidFile::Names(pid) = Judge::pid_file_state(lock, born) else {
-        return None;
+    // What: The record a command of this repository wrote about this very lock decides first, and the PID file's birth
+    //       order decides only when there is none.
+    // Why:  A command that kept its process around its Git watched that Git create the lock and wrote the record down with
+    //       a pin on the very inode it took (`lock_bindings.rs`, `lock_watch.rs`), so no birth time is needed on that path:
+    //       a file system of coarse times gives the lock and its PID file one stamp and proves nothing.
+    let pid_file: PathBuf = pid_file_beside(lock);
+    let (pid, evidence): (i64, Evidence) = match bound_holder(lock, common_dir, pid_file.as_path()) {
+        Some(found) => found,
+        None => {
+            let born: Option<std::time::SystemTime> = born_of(lock);
+            // Only a PID file Git wrote for this very lock names its holder: one born before the lock belongs to an
+            // earlier holder.
+            let crate::stale_ref_lock_found::PidFile::Names(found) = Judge::pid_file_state(lock, born) else {
+                return None;
+            };
+            // The writer of this PID file must be proved gone. A number a live process has now is no proof of anything.
+            proved_gone_writer(common_dir, found)?;
+            (found, Evidence::PidFile)
+        }
     };
-    // The writer of this PID file must be proved gone. A number a live process has now is no proof of anything.
-    proved_gone_writer(common_dir, pid)?;
     // Nothing may be able to write into the file when its name goes:
     //  the kernel's read lease is refused while any program has it open for writing,
     //  and the scan of a platform without leases is the whole answer there.
@@ -247,7 +263,6 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     if !same_file(lock, &file).unwrap_or(false) || marker_of_file(&file).is_some() {
         return None;
     }
-    let pid_file: PathBuf = pid_file_beside(lock);
     if crate::stopped_git_locks::pid_named_by(pid_file.as_path()) != Some(i32::try_from(pid).ok()?) {
         return None;
     }
@@ -262,9 +277,51 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     {
         let _removed = std::fs::remove_file(pid_file.as_path());
     }
+    // The record of this lock goes with it, and so does the pin that held its inode.
+    crate::lock_bindings::remove(common_dir, lock);
     // The lease, where this platform offers one, is released only now: both names are gone.
     drop(proof);
-    return Some(Clearance { lock: lock.to_path_buf(), pid, evidence: Evidence::PidFile });
+    return Some(Clearance { lock: lock.to_path_buf(), pid, evidence });
+}
+
+/// What:
+///  The holder a record of this repository's own command names for this very lock,
+///  when that record still describes the file standing here and that holder is proved gone.
+/// Why:
+///  This is the proof a lock's PID file cannot give on a file system of coarse birth times:
+///  the command watched its own Git create the lock and write the PID file after it,
+///  pinned the very inode Git took,
+///  and named the Git by the birth identity it read of its own child.
+///  So each of these must hold,
+///  and each one is a way the state is not the one the record describes:
+///
+///  - the pin holds the file standing at this path now,
+///    or the lock was replaced,
+///    renamed over its target,
+///    or cleared and made again;
+///  - the PID file standing beside it still names the number the command recorded;
+///  - and that Git is gone,
+///    by the birth identity the command read of its own child,
+///    so a number a live process has now keeps the lock whatever the record says.
+///  A record whose holder is not gone,
+///  and every part of one that cannot be read,
+///  leaves the lock to the birth-order gate and the wait it has today.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const bound = bindingOf(commonDir, lock);
+/// if (!bound || !pinnedIs(lock) || !pidFileIs(bound) || holderState(bound) !== 'gone') return undefined;
+/// ```
+fn bound_holder(lock: &Path, common_dir: &Path, pid_file: &Path) -> Option<(i64, Evidence)> {
+    let bound: crate::lock_bindings::Binding = crate::lock_bindings::of(common_dir, lock)?;
+    if crate::stopped_git_locks::pid_named_by(pid_file) != Some(i32::try_from(bound.pid).ok()?) {
+        return None;
+    }
+    if crate::service_index_identity::holder_state(Some(&(bound.pid, bound.identity.clone()))) != crate::service_index_identity::HolderState::Gone {
+        return None;
+    }
+    proved_gone_writer(common_dir, bound.pid)?;
+    return Some((bound.pid, Evidence::Binding));
 }
 
 /// What:

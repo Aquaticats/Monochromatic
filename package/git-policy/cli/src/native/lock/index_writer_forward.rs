@@ -187,6 +187,10 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
             let Some(facts) = typed.copy.as_ref() else {
                 return CoordinatedRun::NotCoordinated;
             };
+            // What: The Git runs of this command are watched from here on, before the first of them starts.
+            // Why:  A lock the Git of this command takes is created microseconds after its start, and a watch opened
+            //       later would miss the events that prove whose lock it is (`lock_watch.rs`).
+            crate::lock_watch::remember(crate::lock_watch::watched_of(&typed.identity));
             return from_forwarded(run_forwarded_git(
                 typed.real_git.as_path(),
                 typed.arguments.as_slice(),
@@ -196,6 +200,10 @@ pub fn run_coordinated_forward(typed: &CoordinatedForward) -> CoordinatedRun {
         }
         Err(reason) => return failed_with(EngineFailureCode::ContentUnavailable, reason.as_str()),
     };
+    // What: The Git runs of this command are watched from here on, before the first of them starts.
+    // Why:  A lock the Git of this command takes is created microseconds after its start, and a watch opened later
+    //       would miss the events that prove whose lock it is (`lock_watch.rs`).
+    crate::lock_watch::remember(crate::lock_watch::watched_of(&typed.identity));
     // The version check runs once per process, before the first work that depends on Git's behavior.
     if let Err(reason) = check_git_version(&context) {
         return failed_with(EngineFailureCode::ContentUnavailable, reason.as_str());

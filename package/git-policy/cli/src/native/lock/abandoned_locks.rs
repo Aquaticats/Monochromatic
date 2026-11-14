@@ -266,6 +266,10 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
     if searched.complete {
         sweep(common_dir.as_path(), standing_lock_pids(outcome.standing.as_slice()).as_slice());
     }
+    // What: The records of locks this command's own Git runs took go as soon as the lock each pinned is gone.
+    // Why:  Such a record is decided one by one against its own path and the file its pin holds, so the walk's bounds
+    //       cannot make it decide anything wrong; a record left behind holds the inode of a file nothing names.
+    crate::lock_bindings::sweep(common_dir.as_path());
     return outcome;
 }
 

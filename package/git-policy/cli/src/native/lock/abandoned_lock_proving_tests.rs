@@ -581,3 +581,121 @@ fn wait_until_open(lock: &Path, pid: i64) -> bool {
     }
     return false;
 }
+
+/// What:
+///  Plant one lock and the PID file Git writes beside it,
+///  as a kill leaves them,
+///  and the record a command that watched its Git take the lock writes.
+/// Why:
+///   This is the state the change exists for:
+///  the two files are written microseconds apart and a file system of coarse times gives them one
+///  stamp,
+///  and only the record ties the PID file to this lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantBound({ commonDir, name: 'index.lock', pid, identity });
+/// ```
+fn plant_bound(common_dir: &Path, name: &str, pid: i64, identity: &str) {
+    let lock: PathBuf = common_dir.join(name);
+    std::fs::write(lock.as_path(), b"a half-written copy the dead holder never renamed\n").expect("the lock");
+    let pid_file: PathBuf = pid_file_beside(lock.as_path());
+    std::fs::write(pid_file.as_path(), format!("pid {pid}\n").as_bytes()).expect("the PID file");
+    let file: PathBuf = folder_of(common_dir).join(format!("record-{name}"));
+    std::fs::write(file, record_text(&[("child", pid, String::from(identity))])).expect("the record");
+    assert_eq!(
+        crate::lock_bindings::write(common_dir, lock.as_path(), &(pid, String::from(identity))),
+        Some(()),
+        "the lock that stands can be pinned"
+    );
+}
+
+/// What:
+///  A lock whose record names a dead Git is cleared
+///  though the lock and its PID file carry one birth stamp.
+/// Why:
+///  This is the state no other proof on this volume can act on:
+///  the birth order of the two files is not proven,
+///  and the record a command wrote while its Git ran is the tie the PID file cannot give.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// withBirthTimes(coarse(3600), () => expect(looked()).toEqual(clearedWith(deadPid)))
+/// ```
+#[test]
+fn a_bound_lock_of_a_dead_git_is_cleared_though_the_two_births_are_equal() {
+    use crate::lock_birth_times::{BirthTimes, with_birth_times};
+    let common_dir: PathBuf = a_git_directory("bound-cleared");
+    let (pid, identity) = dead_holder();
+    plant_bound(common_dir.as_path(), "index.lock", pid, identity.as_str());
+    let ended: Ended = with_birth_times(BirthTimes::Coarse(std::time::Duration::from_secs(3600)), || {
+        return looked(common_dir.as_path(), "index.lock");
+    });
+    let Ended::Cleared(clearance) = ended else { panic!("a lock bound to a dead Git's own record is cleared: {ended:?}"); };
+    assert_eq!(clearance.pid, pid);
+    assert_eq!(clearance.evidence, Evidence::Binding, "the line says which proof acted");
+    assert!(!pid_file_beside(common_dir.join("index.lock").as_path()).exists(), "the PID file of a cleared lock goes with it");
+    assert_eq!(crate::lock_bindings::of(common_dir.as_path(), common_dir.join("index.lock").as_path()), None, "the record of a cleared lock goes with it");
+    remove(common_dir.as_path());
+}
+
+/// What:
+///  A lock made again at the path the record pinned is kept,
+///  and so is a lock whose PID file names another process than the one the record does.
+/// Why:
+///  The first is the sequence a record of an inode alone would clear wrongly:
+///  a later Git's lock at the same path.
+///  The second is a lock whose PID file another Git wrote,
+///  which is not the file the record's holder was named in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantBound(…); rm(lock); writeFileSync(lock, ''); expect(looked()).toEqual(kept)
+/// ```
+#[test]
+fn a_lock_the_record_does_not_describe_is_kept() {
+    let common_dir: PathBuf = a_git_directory("bound-replaced-lock");
+    let (pid, identity) = dead_holder();
+    plant_bound(common_dir.as_path(), "index.lock", pid, identity.as_str());
+    let lock: PathBuf = common_dir.join("index.lock");
+    std::fs::remove_file(lock.as_path()).expect("the pinned lock goes");
+    std::fs::write(lock.as_path(), b"a later Git's own lock\n").expect("a later lock at the same path");
+    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept), "a record describes the file it pinned and no later one");
+    remove(common_dir.as_path());
+    let renamed: PathBuf = a_git_directory("bound-pid-file-of-another");
+    let (second_pid, second_identity) = dead_holder();
+    plant_bound(renamed.as_path(), "index.lock", second_pid, second_identity.as_str());
+    let pid_file: PathBuf = pid_file_beside(renamed.join("index.lock").as_path());
+    std::fs::write(pid_file.as_path(), b"pid 1\n").expect("a PID file naming another process");
+    assert!(matches!(looked(renamed.as_path(), "index.lock"), Ended::Kept), "the PID file must still name the number the record does");
+    remove(renamed.as_path());
+}
+
+/// What:
+///  A lock bound to a Git that runs now is kept,
+///  and so is one bound to a process no record of this repository explains.
+/// Why:
+///  A number a live process has proves nothing about the lock,
+///  and a lock of a Git the wrapper did not start is the one a person must clear.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantBound(…, live.pid, live.identity); expect(looked()).toEqual(kept)
+/// ```
+#[test]
+fn a_bound_lock_of_a_live_or_unrecorded_git_is_kept() {
+    let common_dir: PathBuf = a_git_directory("bound-live");
+    let (pid, identity, _holder) = live_holder();
+    plant_bound(common_dir.as_path(), "index.lock", pid, identity.as_str());
+    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept), "a lock bound to a live Git is that Git's own");
+    remove(common_dir.as_path());
+    let unrecorded: PathBuf = a_git_directory("bound-unrecorded");
+    let (dead_pid, dead_identity) = dead_holder();
+    let lock: PathBuf = unrecorded.join("index.lock");
+    std::fs::write(lock.as_path(), b"a lock of a Git no command of this repository started\n").expect("the lock");
+    let pid_file: PathBuf = pid_file_beside(lock.as_path());
+    std::fs::write(pid_file.as_path(), format!("pid {dead_pid}\n").as_bytes()).expect("the PID file");
+    assert_eq!(crate::lock_bindings::write(unrecorded.as_path(), lock.as_path(), &(dead_pid, dead_identity)), Some(()));
+    assert!(matches!(looked(unrecorded.as_path(), "index.lock"), Ended::Kept), "a record naming a process no record of this repository explains proves nothing");
+    remove(unrecorded.as_path());
+}

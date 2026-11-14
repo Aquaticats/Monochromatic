@@ -47,6 +47,10 @@ pub fn clearance_line(clearance: &Clearance) -> String {
             "the commit service's own marker in it names {}, and that process no longer runs",
             gone_holder_words(clearance.pid)
         ),
+        Evidence::Binding => format!(
+            "the record this repository's own command wrote when its Git took the lock pinned the very file that stood here, and names PID {}, which this boot, this process table and this machine no longer have",
+            clearance.pid
+        ),
     };
     return format!(
         "monochromatic-git-policy-cli: cleared {}, which a Git that no longer runs left: {who}. A Git fills a lock and renames it over its target, so the file it never renamed held only that Git's unfinished copy of the index, the reference list, HEAD or the shallow file, and the repository has the file it had before.\n",
@@ -75,18 +79,23 @@ pub fn clearance_line(clearance: &Clearance) -> String {
 pub fn standing_lock_line(lock: &Path, common_dir: &Path) -> Option<String> {
     let born: Option<std::time::SystemTime> = crate::lock_birth_times::birth_time_of(lock);
     let standing: crate::stale_ref_lock_found::PidFile = Judge::pid_file_state(lock, born);
-    let pid: i64 = match standing {
-        crate::stale_ref_lock_found::PidFile::Names(found) => found,
+    let pid: i64 = match &standing {
+        crate::stale_ref_lock_found::PidFile::Names(found) => *found,
         // A PID file whose birth cannot be told apart from the lock's proves nothing either way,
         //  so a lock whose record still proves the recorded writer gone is the one case worth a line:
         //  the wrapper could not pin the file to this lock, and the person is told which file to remove
         //  if no program is using the repository. A live writer's own lock has no such record and stays silent.
-        crate::stale_ref_lock_found::PidFile::Unproven(found) if crate::lock_holder_record_reads::proved_gone_writer(common_dir, found).is_some() => found,
+        crate::stale_ref_lock_found::PidFile::Unproven(found) if crate::lock_holder_record_reads::proved_gone_writer(common_dir, *found).is_some() => *found,
         crate::stale_ref_lock_found::PidFile::Unproven(_) | crate::stale_ref_lock_found::PidFile::Older(_) | crate::stale_ref_lock_found::PidFile::Absent => return None,
     };
     let recorded: bool = !identities_recorded(common_dir, pid).is_empty();
     let live: bool = matches!(crate::process_identity::process_birth_identity(pid), Ok(Some(_running)));
     let held: bool = crate::abandoned_lock_proving::a_writer_holds_it_open(lock);
+    // What: Whether the PID file beside the lock still exists, so the command the person reads names it too.
+    // Why:  A later Git finds a PID file left in front of its lock, writes none of its own, and inherits a number that
+    //       names a process which has ended; removing both files keeps that from happening
+    //       (a review of `675771e759`, finding 4).
+    let pid_file_stands: bool = !matches!(standing, crate::stale_ref_lock_found::PidFile::Absent);
     let why: &str = match (standing, live, recorded, held) {
         // Nothing is claimed about a live number: the lock may be that program's, and its own command ends by itself.
         (_, true, _, _) => "which a live process has now, so nothing here proves the lock is not its own write",
@@ -100,9 +109,21 @@ pub fn standing_lock_line(lock: &Path, common_dir: &Path) -> Option<String> {
         (_, false, true, true) => "which no process in this process table has, and a program holds it open for writing now, so its name may not go",
         (_, false, true, false) => "which no process in this process table has, and whose records this repository holds name a process of another boot, another PID namespace or another machine, so nothing here proves it gone",
     };
+    use std::os::unix::ffi::OsStrExt as _;
+    let clearing: String = match pid_file_stands {
+        true => format!(
+            "rm -- {} {}",
+            crate::shell_quote::shell_quote(lock.as_os_str().as_bytes()).as_str(),
+            crate::shell_quote::shell_quote(crate::stale_ref_lock_walk::pid_file_beside(lock).as_os_str().as_bytes()).as_str()
+        ),
+        false => format!("rm -- {}", crate::shell_quote::shell_quote(lock.as_os_str().as_bytes()).as_str()),
+    };
+    let what_it_removes: &str = match pid_file_stands {
+        true => "this command removes the lock and the PID file beside it, so that the next Git writes its own number in its own file",
+        false => "this command removes the lock",
+    };
     return Some(format!(
-        "monochromatic-git-policy-cli: {}, whose PID file names {pid}, {why}, so nothing was removed. A Git in another PID namespace, or one on another machine that shares this repository, writes a number this table has never had. If no program is using this repository, the lock was left by a program that was killed or has ended, and removing the file {} lets the command run.\n",
-        lock.display(),
+        "monochromatic-git-policy-cli: {}, whose PID file names {pid}, {why}, so nothing was removed. A Git in another PID namespace, or one on another machine that shares this repository, writes a number this table has never had. If no program is using this repository, the lock was left by a program that was killed or has ended, and {what_it_removes}: {clearing}\n",
         lock.display()
     ));
 }
