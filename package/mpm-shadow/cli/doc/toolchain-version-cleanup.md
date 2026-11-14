@@ -137,6 +137,11 @@ the most specific first:
   with the reason in the line.
 - **this run installed it**.
 - **the tool's `current` link names it**.
+  The pass reads every link once, before it plans,
+  and another command can repoint one in between,
+  so the link is read again at the moment of the removal:
+  a version the link names then is not moved aside,
+  and a version the link came to name after it was moved aside is put back.
 - **a running process of this user uses it**:
   its program (`/proc/<pid>/exe`),
   its working directory (`/proc/<pid>/cwd`),
@@ -153,6 +158,16 @@ the most specific first:
   which is the moment the removals become final.
   A version something holds then is renamed back and kept,
   with the hold in its line.
+  Both trees a version owns are asked about:
+  its directory and the archives downloaded for it,
+  which `install_archive` writes under `downloads/<tool>/<version>`.
+  Those two are the whole of what an install writes for a version:
+  the cargo and Android routes write only inside the version directory,
+  and a `cargo binstall` crate keeps its record there.
+  A removal moves both aside,
+  so a hold may name either tree or either marker,
+  and one list of the paths a version owns answers that question at all three checks:
+  the plan, the second look, and the pass that finishes a removal an earlier run left.
 - **it was written inside the age floor**.
 - **another run wrote it after the scan**:
   the directory write time is read again before the rename,
@@ -180,8 +195,15 @@ printing one line saying it did.
 That step reads no lock:
 the version is condemned already,
 so a lock that cannot be read must not hide it.
-A `.mpm-shadow-removing.*` directory something holds is renamed back instead,
-and a later pass removes it once its holder is gone.
+A `.mpm-shadow-removing.*` directory something holds,
+or one the tool's `current` link came to name,
+is renamed back instead,
+and a later pass removes it once nothing holds it,
+and the link names another version.
+What a kill leaves at each step is the same in both cases:
+before a rename, nothing changed;
+after it, the markers and the store-root marker the next install reads,
+which asks about the paths a version owns and the link again before it deletes anything.
 The two renames are not one step,
 so a kill between them leaves a marker for the downloads with the version still under its name;
 that state reads as a removal that never got past its first rename,
