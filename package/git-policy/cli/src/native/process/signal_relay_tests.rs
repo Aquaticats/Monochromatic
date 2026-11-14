@@ -222,7 +222,7 @@ fn handler_marks_a_signal_only_for_a_process_sender() {
     let _statics: std::sync::MutexGuard<'_, ()> = RELAY_STATICS.lock().expect("relay statics lock");
     // SAFETY: a zeroed `siginfo_t` is a valid buffer; only its header fields are written below.
     let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-    let header: *mut SignalHeader = (&mut info as *mut libc::siginfo_t).cast::<SignalHeader>();
+    let header: *mut crate::signal_report::SignalHeader = (&mut info as *mut libc::siginfo_t).cast::<crate::signal_report::SignalHeader>();
     // SAFETY: `header` points into the live `info` buffer above.
     unsafe { (*header).code = KERNEL_CODE };
     relay_handler(libc::SIGINT, &mut info, std::ptr::null_mut());
@@ -262,7 +262,7 @@ fn a_relayed_stop_is_kept_for_the_wait_that_asks() {
     let _cleared = crate::signal_relay_relayed_stop::take();
     // SAFETY: a zeroed `siginfo_t` is a valid buffer; only its header fields are written below.
     let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-    let header: *mut SignalHeader = (&mut info as *mut libc::siginfo_t).cast::<SignalHeader>();
+    let header: *mut crate::signal_report::SignalHeader = (&mut info as *mut libc::siginfo_t).cast::<crate::signal_report::SignalHeader>();
     // SAFETY: `header` points into the live `info` buffer above.
     unsafe {
         (*header).code = SI_USER;

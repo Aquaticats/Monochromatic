@@ -69,6 +69,14 @@ use std::process::Command;
 use crate::forwarding::ChildOutcome;
 /// The record of a step the wait had to end itself at its ceiling.
 use crate::child_awaited_until_it_exits_the_stop_or_the_ceiling::CeilingStop;
+/// What the kernel's own report of a signal says:
+/// whether a process sent it,
+/// and which one.
+///
+/// Why a sibling file:
+/// `rust/max-lines` and the report's own controls live beside it
+/// (`process/signal_report.rs`).
+use crate::signal_report::read_report;
 
 /// What:
 ///  Whether the kernel recorded a signal as sent by a process rather than by the terminal or the kernel.
@@ -198,65 +206,6 @@ static PENDING: [std::sync::atomic::AtomicI32; 4] =
 ///  and a guard made meanwhile relays nothing.
 #[cfg(unix)]
 static RELAYING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
-/// What:
-///  The first four fields of `siginfo_t` on every Unix system:
-/// signal number,
-/// error number,
-/// sender code,
-/// and the process that sent the signal.
-/// Why:
-///   The C struct's fields differ in name and union layout across systems;
-/// these four share one layout,
-///  and reading them through this view avoids the platform accessors.
-///  The fourth word is `si_pid` in the union the sender codes this module relays through use (`kill`,
-///  `sigqueue` and `tkill`),
-/// which is what the record needs to name the process that stopped a commit
-/// (`service_client_interrupted.rs`,
-///  `sender`).
-#[cfg(unix)]
-#[repr(C)]
-struct SignalHeader {
-    /// Signal number.
-    signal: c_int,
-    /// Error number,
-    /// unused here.
-    error: c_int,
-    /// Sender code,
-    /// `SI_USER` for `kill` and so on.
-    code: c_int,
-    /// The process that sent the signal,
-    /// in the union of the sender codes this module relays;
-    /// zero where the kernel named none.
-    sender: c_int,
-}
-
-/// What:
-///  Whether the kernel attributes this report to a process,
-///  and which process it names.
-/// Why:
-///   The handler may call only what the kernel allows,
-///  so the sender has to come from the report it is handed;
-///  this reads the report once for both answers,
-///  and the record of a stopped commit names that process
-///  (`service_client_interrupted.rs`).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const [fromProcess, sender] = readReport(info);
-/// ```
-#[cfg(unix)]
-fn read_report(info: *mut libc::siginfo_t) -> (bool, Option<i32>) {
-    if info.is_null() {
-        return (false, None);
-    }
-    // SAFETY: with `SA_SIGINFO` the kernel passes a valid `siginfo_t`, whose first four integers are the header read here.
-    let header: SignalHeader = unsafe { std::ptr::read(info.cast::<SignalHeader>()) };
-    if !is_process_sender(header.code) {
-        return (false, None);
-    }
-    return (true, if header.sender > 0 { Some(header.sender) } else { None });
-}
 
 
 /// What:
@@ -649,7 +598,8 @@ pub struct CeilingDuty<'a> {
     pub while_held: Option<&'a std::sync::mpsc::SyncSender<String>>,
     /// The one decision this ceiling shares with the notice's thread,
     /// so neither enforcer can end the step at the usual ceiling after the other has stood aside;
-    /// nothing when no notice thread watches this step, and the wait then decides on its own.
+    /// nothing when no notice thread watches this step,
+    /// and the wait then decides on its own.
     pub stall: Option<&'a crate::scratch_step_stall_decided_once::TheStallDecidedOnce>,
 }
 

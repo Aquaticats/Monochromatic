@@ -390,7 +390,8 @@ const BEYOND_THE_CEILING_SECONDS: u64 = 60;
 
 /// How long the stand-in Git sleeps in the control of a step that outlasts the ceiling it really runs under,
 /// in seconds:
-/// twice that ceiling, so only the stop can end the step.
+/// twice that ceiling,
+/// so only the stop can end the step.
 ///  The 60 a sleep equal to the ceiling was cannot tell the stop from the step's own end:
 /// the ceiling reached 60 s in `wait_ceilings.rs`
 /// (`SCRATCH_COMMIT_STEP_CEILING_FLOOR`),
@@ -1648,7 +1649,8 @@ fn a_checkout_that_changes_the_rules_text_asks_the_running_service_to_compile_it
 /// The name of the repository configuration the wrapper reads.
 const CONFIG_FILE_NAME: &str = "monochromatic-git-policy-cli.config.jsonc";
 
-/// The wall-clock bound of the commit these controls run, in seconds,
+/// The wall-clock bound of the commit these controls run,
+/// in seconds,
 /// as the text `timeout` takes.
 /// Why not the landing commit's bound:
 ///  the commit here is refused by a policy the command itself applies,
@@ -1663,7 +1665,8 @@ const REFUSAL_BOUND_SECONDS: &str = "20";
 ///  it compiles the rules itself and publishes them (`cache_access`).
 const GIVE_UP_SLACK_CEILINGS: u32 = 2;
 
-/// The rules of one control's repository, written where its configuration names them.
+/// The rules of one control's repository,
+/// written where its configuration names them.
 fn configuration_naming_the_rules_file(rules_file: &str) -> String {
     return format!("{{ \"policies\": {{ \"security/forbidden-strings\": [\"error\", {{ \"builtinRules\": false, \"rulesFile\": {rules_file:?} }}] }} }}\n");
 }
@@ -1671,7 +1674,8 @@ fn configuration_naming_the_rules_file(rules_file: &str) -> String {
 /// A repository whose own rules file holds `needle`,
 /// with a staged change that matches it.
 /// Why real Git stages it:
-///  the policy reads the index, and the wrapper's own `add` would refuse the same text first.
+///  the policy reads the index,
+/// and the wrapper's own `add` would refuse the same text first.
 fn repository_with_a_staged_match(fixture: &Fixture, name: &OsStr, needle: &str) -> PathBuf {
     let repo: PathBuf = repository(fixture, name);
     std::fs::write(repo.join(WARM_RULES_FILE), format!("{needle}\n")).expect("the rules text");
@@ -1693,7 +1697,8 @@ fn refused_the_match(observed: &Observed) -> bool {
 ///  which nothing in the control accepts from.
 /// Why:
 ///  `std::os::unix::net::UnixListener::bind` asks the kernel for the largest queue it allows
-/// (`/proc/sys/net/core/somaxconn`, 4,096 here),
+/// (`/proc/sys/net/core/somaxconn`,
+/// 4,096 here),
 /// and a control of a connect that waits fills a queue of its own making instead of thousands of descriptors.
 ///
 /// In TS you'd write (pseudocode):
@@ -1752,7 +1757,8 @@ struct Refusal {
     elapsed: Duration,
 }
 
-/// The refusing commit of `repo`, under `runtime` and `cache`.
+/// The refusing commit of `repo`,
+/// under `runtime` and `cache`.
 fn refusing_commit(fixture: &Fixture, repo: &Path, runtime: &Path, cache: &Path) -> Refusal {
     return refusing_commit_with(fixture, repo, runtime, cache, &[]);
 }
@@ -1842,7 +1848,8 @@ fn beside(where_the_control_holds_it: &Path, what: &str) -> PathBuf {
 ///  a plain connect into that queue waits until the service resumes,
 ///  which for a stopped one is never (`wait_ceilings.rs`,
 ///  `WARM_REQUEST_CONNECT_CEILING`).
-///  The request is a help, so the commit's own time must not grow by more than that ceiling.
+///  The request is a help,
+/// so the commit's own time must not grow by more than that ceiling.
 #[test]
 fn a_commit_whose_rules_are_cold_answers_at_its_usual_time_when_the_service_takes_no_connection() {
     let fixture: Fixture = fixture("warm-request-full-queue");
@@ -1898,7 +1905,8 @@ fn a_commit_whose_rules_are_cold_answers_at_its_usual_time_when_the_service_take
 ///  (`service_warm_request_control_window.rs`),
 ///  which is this machine's own hand:
 ///  the state the ceiling exists for is built by another session's process and may not be built here
-///  (`rules-every-pi-brief-carries.md`, the FUSE incident),
+///  (`rules-every-pi-brief-carries.md`,
+/// the FUSE incident),
 ///  and a held answer ends at the ceiling exactly as a read that never returns does.
 #[test]
 fn a_commit_whose_look_at_the_processes_does_not_answer_gives_the_request_up_and_publishes_the_rules() {
@@ -1940,7 +1948,8 @@ fn a_commit_whose_look_at_the_processes_does_not_answer_gives_the_request_up_and
 ///  and it kills the service the look found while the request waits at the point its own seam offers,
 ///  so the order is the control's and not a race.
 ///  What it shows is the promise this file may keep:
-///  the client writes no unit, asks no manager and starts no process,
+///  the client writes no unit,
+/// asks no manager and starts no process,
 ///  and a start by the manager is not something a check before the connection can prevent.
 #[test]
 fn a_service_killed_between_the_look_and_the_connection_is_started_by_the_connection() {
@@ -2332,22 +2341,28 @@ fn a_commit_the_terminal_hangs_up_on_states_the_signal_and_who_sent_it() {
 }
 
 /// What:
-///  A signal the caller shielded a commit from, the way `nohup` shields a program, is no stop of that commit:
-///  the request is still the service's when the service answers, so the record names the service's answer.
+///  A signal the caller shielded a commit from,
+/// the way `nohup` shields a program,
+/// is no stop of that commit:
+///  the request is still the service's when the service answers,
+/// so the record names the service's answer.
 /// Why:
-///  `nohup` sets `SIGHUP` to `SIG_IGN` and runs the command, and a caller that does means the commit to survive a
+///  `nohup` sets `SIGHUP` to `SIG_IGN` and runs the command,
+/// and a caller that does means the commit to survive a
 ///  closing terminal:
 ///  native Git lands such a commit,
 ///  and the wrapper landed it until the wait began answering a hang-up.
 ///  Answering it by replacing the caller's ignore withdrew the request and ended the process by the signal the caller
-///  shielded it from, which is a commit that fails where real Git lands one (`SPEC.md`,
+///  shielded it from,
+/// which is a commit that fails where real Git lands one (`SPEC.md`,
 /// "Merges and commits never fail"),
 ///  and the preparation's own relay already keeps an inherited ignore for the same reason
 /// (`process/signal_relay.rs`,
 /// "A signal the parent ignores stays ignored").
 ///  The service here answers only after the signal was sent,
 /// so the two endings are told apart by what the service saw:
-/// the answer to the request, or a withdrawal.
+/// the answer to the request,
+/// or a withdrawal.
 #[test]
 fn a_commit_the_caller_shielded_from_the_hang_up_is_not_stopped_by_it() {
     let record: serde_json::Value = shielded_and_answered("timing-shielded-hangup", libc::SIGHUP);
@@ -2434,7 +2449,8 @@ fn a_commit_the_caller_did_not_shield_is_stopped_by_the_stop() {
 ///  whose service answers the request only afterwards:
 ///  the record the commit wrote.
 /// Why:
-///  The caller's ignore is set in `pre_exec`, exactly as `nohup` sets it before it execs,
+///  The caller's ignore is set in `pre_exec`,
+/// exactly as `nohup` sets it before it execs,
 ///  and the signal is sent after the stand-in read the request but before its answer,
 /// so the signal is in the wait and never in the preparation.
 ///

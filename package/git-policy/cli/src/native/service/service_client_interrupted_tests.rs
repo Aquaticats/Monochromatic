@@ -234,7 +234,8 @@ fn the_actions_in_place_come_back_when_the_watch_ends() {
 ///  which is a commit that fails where real Git lands one
 ///  (`SPEC.md`,
 /// "Merges and commits never fail",
-/// and the preparation's own relay: "A signal the parent ignores stays ignored",
+/// and the preparation's own relay:
+/// "A signal the parent ignores stays ignored",
 /// `process/signal_relay.rs`).
 ///
 /// In TS you'd write (pseudocode):

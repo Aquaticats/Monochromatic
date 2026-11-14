@@ -43,8 +43,15 @@ pub mod process_start;
 pub mod signal_relay;
 
 /// The stop signal this process relayed to a child,
+/// and the process the kernel named as its sender,
 /// kept for the command that waits after it.
 pub mod signal_relay_relayed_stop;
+
+/// What the kernel's own report of a signal says:
+/// whether a process sent it,
+/// and which one,
+/// which the relay and the wait both read.
+pub mod signal_report;
 
 /// Whether this process has a controlling terminal,
 /// and so may have a person to answer a login question.
