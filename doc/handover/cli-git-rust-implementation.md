@@ -1225,12 +1225,12 @@ and what one review reports of itself.
   the baked inputs and every raw record of both rounds are in its evidence archive;
   of that archive's 240 files 160 are kept as plain text and 80 are in history alone,
   none of the `scripts/` folder's 35 among the kept.
-- **Adopted from the record, open to veto**:
-  what that sentence names is kept as plain text.
-  The owner's words for the task
-  ("If something would break, represent the data another way")
-  and the rule that git history is no home for a durable fact answer it,
-  and the branch's own rule is that what documents cite is kept.
+- **Decided by the owner at about 09:05**,
+  through the question tool,
+  after this session had adopted the same from the record:
+  "Keep as plain text (Recommended)".
+  What that sentence names is kept as plain text
+  ("Owner decisions in force", "Answers on the owner's return").
   The author is resumed in its own session
   (`~/temp/agent/pi-runs/tracked-archives-what-the-research-record-says-is-kept-is-kept-as-plain-text-prompt.md`),
   told to list and not silently keep or drop a file that is not text or is large,
@@ -25914,6 +25914,20 @@ the owner picked the first option of each.
   the commit is not made and the words say why and what to change.
   The wrapper does not fall back to real Git;
   `SPEC.md`'s rule that the service is the only writer stands.
+- **The files of a removed archive that a document says are kept**
+  (asked separately,
+  answered by 09:05:56-05:00,
+  after the archives' removal reached `main` as `635539ca67`):
+  "Keep as plain text (Recommended)".
+  One research record says its harness,
+  check scripts,
+  baked inputs and every raw record are in its evidence archive;
+  eighty of that archive's 240 files were in history alone.
+  The files the sentence covers are extracted beside the 160 already kept;
+  any that is not text or is large is listed,
+  and neither silently kept nor silently dropped;
+  each is checked against the archive in history by digest.
+  The three `.jar` files stay tracked by the owner's earlier override in `.gitignore`.
 
 ## Working rules for this effort
 
