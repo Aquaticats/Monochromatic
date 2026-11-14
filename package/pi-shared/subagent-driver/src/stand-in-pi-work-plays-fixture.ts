@@ -17,6 +17,7 @@ import {
 } from './stand-in-pi-log-fixture.ts';
 import {
   answer,
+  assistantSilence,
   emit,
   finishRun,
 } from './stand-in-pi-records-fixture.ts';
@@ -108,13 +109,18 @@ async function startWork(milliseconds: number,): Promise<number> {
  @param id - command's identifier
 
  @param milliseconds - how long the work lives
+
+ @param answersWithNothing - whether the agent ends its turn with an answer that says nothing, which is the case where an empty
+ answer is not the run's end because work of the agent's still runs
  */
 async function leaveWorkRunning({
   id,
   milliseconds,
+  answersWithNothing = false,
 }: {
   readonly id: unknown;
-  readonly milliseconds: number
+  readonly milliseconds: number;
+  readonly answersWithNothing?: boolean
 },): Promise<void> {
   // The message the driver sends once the work ended is the agent going on: it reads what the build said and finishes its task.
   if (seen.prompts > 1) {
@@ -155,6 +161,14 @@ async function leaveWorkRunning({
       },
     },
   },);
+  if (answersWithNothing) {
+    emit({ type: 'agent_start', },);
+    emit({ type: 'turn_start', },);
+    emit(assistantSilence(),);
+    emit({ type: 'agent_end', },);
+    emit({ type: 'agent_settled', },);
+    return;
+  }
   finishRun('started the build and ended my turn',);
 }
 
@@ -170,6 +184,16 @@ export const workPlays: ReadonlyMap<string, (id: unknown,) => void> = new Map<st
       void leaveWorkRunning({
         id,
         milliseconds: WORK_MILLISECONDS,
+      },);
+    },
+  ],
+  [
+    'leaves-work-running-after-an-empty-answer',
+    function leaveWorkThatEndsAfterSilence(id,) {
+      void leaveWorkRunning({
+        id,
+        milliseconds: WORK_MILLISECONDS,
+        answersWithNothing: true,
       },);
     },
   ],

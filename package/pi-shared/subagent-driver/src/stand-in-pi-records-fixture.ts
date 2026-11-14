@@ -62,6 +62,22 @@ export const STANDARD_ERROR_TEXT = 'the stand-in wrote this to its standard erro
 const LONG_REPLY_SENTENCE = 'a reply long enough to need cutting.';
 
 /**
+ How many characters the empty answer's thinking holds, which is what the fifth turn of a real run thought on 2026-11-13
+ (`pi-runs/five-library-controls-of-main-that-state-what-main-changed-are-true-again-1`).
+ */
+const SILENT_THINKING_CHARACTERS = 54;
+
+/**
+ The words a run of 2026-11-13 began its first turn with, for the tool turns a run takes before it stops answering.
+ */
+export const FIRST_TURN_REPLY = 'I\'ll start by reading the required rules file.';
+
+/**
+ What an agent answers when the driver asks it to go on after an empty answer, and so what a run that went on ended with.
+ */
+export const GO_ON_REPLY = 'the report the agent owed';
+
+/**
  A reply longer than a feed line keeps, so a summary that held only the preview would show.
  */
 export const LONG_REPLY: string = `${LONG_REPLY_SENTENCE} `.repeat(
@@ -141,6 +157,75 @@ export function assistantReply(text: string,): PiRecord {
 }
 
 /**
+ The record of an assistant message that made a tool call, and carried the given words when it had any.
+
+ @param text - what the message said, empty for the turns that only worked
+
+ @returns the `message_end` record
+
+ @example
+ ```ts
+ emit(assistantToolCall({},),);
+ ```
+ */
+export function assistantToolCall({ text = '' }: { readonly text?: string } = {},): PiRecord {
+  return {
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      content: [
+        {
+          type: 'text',
+          text,
+        },
+        {
+          type: 'toolCall',
+          id: 'call-1',
+          name: 'bash',
+          arguments: { command: 'ls', },
+        },
+      ],
+      stopReason: 'toolUse',
+      usage: {
+        input: 1,
+        output: 1,
+        cost: { total: 0, },
+      },
+    },
+  };
+}
+
+/**
+ The record of an assistant message that answered with nothing: no text, no tool call, and one thinking part. This is the
+ message the fifth turn of a real run ended with on 2026-11-13, which the driver read as a run that had come back.
+
+ @returns the `message_end` record
+
+ @example
+ ```ts
+ emit(assistantSilence(),);
+ ```
+ */
+export function assistantSilence(): PiRecord {
+  return {
+    type: 'message_end',
+    message: {
+      role: 'assistant',
+      content: [{
+        type: 'thinking',
+        thinking: 'x'.repeat(SILENT_THINKING_CHARACTERS,),
+      },],
+      stopReason: 'stop',
+      usage: {
+        input: 1,
+        output: 1,
+        cost: { total: 0, },
+      },
+    },
+  };
+}
+
+/**
  The record of an assistant message that ended in an error.
 
  @param error - what the model said
@@ -183,6 +268,22 @@ export function finishRun(text: string,): void {
   emit({ type: 'agent_start', },);
   emit({ type: 'turn_start', },);
   emit(assistantReply(text,),);
+  emit({ type: 'agent_end', },);
+  emit({ type: 'agent_settled', },);
+}
+
+/**
+ Writes a run whose single turn ended with an answer that said nothing.
+
+ @example
+ ```ts
+ finishRunSilently();
+ ```
+ */
+export function finishRunSilently(): void {
+  emit({ type: 'agent_start', },);
+  emit({ type: 'turn_start', },);
+  emit(assistantSilence(),);
   emit({ type: 'agent_end', },);
   emit({ type: 'agent_settled', },);
 }

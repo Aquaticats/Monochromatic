@@ -20,8 +20,13 @@ import {
 } from './stand-in-pi-log-fixture.ts';
 import {
   answer,
+  assistantSilence,
+  assistantToolCall,
   emit,
   finishRun,
+  finishRunSilently,
+  FIRST_TURN_REPLY,
+  GO_ON_REPLY,
   LONG_REPLY,
 } from './stand-in-pi-records-fixture.ts';
 
@@ -40,6 +45,17 @@ const SLOW_ANSWER_MILLISECONDS: number = POLL_MILLISECONDS * LOOKS_A_DELAYED_ANS
  Turns the many-turns scenario starts, above any cap the tests set.
  */
 const MANY_TURNS = 5;
+
+/**
+ Turns a run here takes before its agent stops answering: the four tool turns the run of 2026-11-13 took before its fifth turn
+ ended with no text and no tool call.
+ */
+const TOOL_TURNS_BEFORE_SILENCE = 4;
+
+/**
+ Which turn of those carries the words the agent began with, which is the turn a summary of that run carried as its last.
+ */
+const FIRST_TURN = 0;
 
 /**
  The name the stand-in's long answer gives the process it is about, which a reader of the feed matches against.
@@ -83,6 +99,40 @@ async function answerSlowly(id: unknown,): Promise<void> {
   await wait(SLOW_ANSWER_MILLISECONDS,);
   seen.answering -= 1;
   answer({ id, },);
+}
+
+/**
+ Writes the tool turns a run takes before its agent stops answering: the first with the words the agent began with, the rest
+ calling a tool and saying nothing.
+ */
+function emitToolTurns(): void {
+  for (let turn = 0; turn < TOOL_TURNS_BEFORE_SILENCE; turn += 1) {
+    emit({ type: 'turn_start', },);
+    emit(assistantToolCall(turn === FIRST_TURN ? { text: FIRST_TURN_REPLY, } : {},),);
+    emit({
+      type: 'tool_execution_start',
+      toolName: 'bash',
+      args: { command: 'ls', },
+    },);
+    emit({
+      type: 'tool_execution_end',
+      toolName: 'bash',
+      isError: false,
+      result: 'ok',
+    },);
+  }
+}
+
+/**
+ Writes the tool turns, and then an answer that said nothing, which is the ending a run of 2026-11-13 had.
+ */
+function emitToolTurnsThenSilence(): void {
+  emit({ type: 'agent_start', },);
+  emitToolTurns();
+  emit({ type: 'turn_start', },);
+  emit(assistantSilence(),);
+  emit({ type: 'agent_end', },);
+  emit({ type: 'agent_settled', },);
 }
 
 /**
@@ -211,6 +261,30 @@ export const scenarioPlays: ReadonlyMap<string, (id: unknown,) => void> = new Ma
       },);
       emit({ type: 'auto_retry_start', },);
       emit({ type: 'agent_settled', },);
+    },
+  ],
+  [
+    'empty-answer-after-tools',
+    function stopAfterToolWork(id,) {
+      answer({ id, },);
+      if (seen.prompts > 1) {
+        // The driver asked the agent to go on after an answer that said nothing, and this is the agent answering with what it
+        // owed.
+        finishRun(GO_ON_REPLY,);
+        return;
+      }
+      emitToolTurnsThenSilence();
+    },
+  ],
+  [
+    'empty-answer-always',
+    function answerNothingHoweverOftenAsked(id,) {
+      answer({ id, },);
+      if (seen.prompts === 1) {
+        emitToolTurnsThenSilence();
+        return;
+      }
+      finishRunSilently();
     },
   ],
   [
