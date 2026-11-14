@@ -391,6 +391,8 @@ fn a_postinstall_link_the_lock_declares_inside_the_farm_stays() {
         link_name: "mpm".to_string(),
         link_dir: Some(".cache/toolchain-bin".to_string()),
     }));
+    // The retirement reads the lock file now, so the declaration the test names must be on disk, as an install leaves it.
+    fs::write(&rig.scope.lock_file, render_lock(&rig.lock)).expect("write the lock the test declares");
     let launcher: PathBuf = make_launcher(&rig, DECLARED_BIN, SHADOW_TOOL);
     let declared: PathBuf = make_link(&rig, "mpm", &launcher);
 
@@ -444,7 +446,7 @@ fn a_link_a_tools_own_postinstall_command_keeps_is_neither_removed_nor_warned_ab
 
 #[test]
 fn a_launcher_a_newer_lock_declares_is_kept_whatever_this_install_loaded() {
-    let mut rig = rig_with_installed_shadow();
+    let rig = rig_with_installed_shadow();
     let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
     let record: PathBuf = record_path(&launcher);
     let link: PathBuf = make_link(&rig, RENAMED_BIN, &launcher);

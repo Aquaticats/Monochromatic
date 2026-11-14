@@ -1038,13 +1038,13 @@ fn declared_at(ctx: &Context, made_links: &[String]) -> Option<Declared> {
 /// That question at that instant is the whole ownership test of a removal:
 /// if a newer lock declares the item, it is not a leftover whatever this run's lock said.
 /// `None` means the lock cannot be read now, and then nothing may be removed.
-fn still_undeclared(ctx: &Context, made_links: &[String], name: &str, path: Option<&Path>) -> Option<bool> {
+fn still_undeclared(ctx: &Context, made_links: &[String], name: &str, given: Option<&Path>) -> Option<bool> {
     let now: Declared = declared_at(ctx, made_links)?;
     if now.launchers.contains(name) || now.links.contains(name) {
         return Some(false);
     }
-    if let Some(path) = path
-        && now.paths.contains(path)
+    if let Some(link_path) = given
+        && now.paths.contains(link_path)
     {
         return Some(false);
     }
@@ -1097,6 +1097,10 @@ pub fn retire_undeclared_launchers(ctx: &Context, made_links: &[String]) -> Laun
     let launchers: Vec<fs::DirEntry> = sorted_entries(&ctx.scope.launcher_dir, &mut notices);
     let farm: Vec<fs::DirEntry> = sorted_entries(&ctx.scope.exposure_dir, &mut notices);
     if launchers.is_empty() && farm.is_empty() {
+        return notices;
+    }
+    // A scope whose lock is not on disk has nothing this pass can prove declared, and nothing to retire either.
+    if fs::symlink_metadata(&ctx.scope.lock_file).is_err() {
         return notices;
     }
     // What the lock on disk declares now, for the cheap filtering; every removal asks it again (`still_undeclared`).

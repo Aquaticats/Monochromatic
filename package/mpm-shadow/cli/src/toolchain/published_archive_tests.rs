@@ -320,6 +320,10 @@ fn a_tree_pinning_an_older_release_keeps_the_newer_install_runs_it_and_is_warned
     let scope_old = second_tree(&rig);
     let lock_new = lock_at(&rig, "0.2.1");
     let lock_old = lock_at(&rig, "0.2.0");
+    // The retirement reads the scope's lock file at each removal, so a tree whose lock the test names must have it on disk,
+    // as every real tree has.
+    fs::write(&rig.scope.lock_file, render_lock(&lock_new)).expect("write this tree's lock");
+    fs::write(&scope_old.lock_file, render_lock(&lock_old)).expect("write the other tree's lock");
     let root = rig.scope.toolchain_root.clone();
 
     let report_new = sync_tools(&context_of(&rig, &rig.scope, &lock_new), None);
