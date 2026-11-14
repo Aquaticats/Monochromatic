@@ -111,3 +111,34 @@ fn one_socket_address_holds_a_name_of_the_longest_length_and_no_more() {
     assert!(error.to_string().contains("SUN_LEN"), "the refusal names the address limit: {error}");
     remove(root.as_path());
 }
+
+/// What:
+///  The number the prose states for the longest runtime directory a socket path carries is the one the function returns.
+/// Why:
+///   Two places state it — this module's doc of `longest_runtime_directory` and `SPEC.md`, "Where the service listens" —
+/// and a number in prose that no test holds drifted once already:
+/// the change that introduced the address forms first said 39 where the code gives 40.
+/// A control that reads both files makes the next drift fail the suite instead of a person.
+#[test]
+fn the_longest_runtime_directory_the_prose_states_is_the_one_the_function_returns() {
+    let instance: &str = "0123456789abcdef0123456789abcdef";
+    let longest: usize = longest_runtime_directory(instance);
+    let doc: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/native/service/service_instance.rs")).expect("this module's source");
+    let spec: String = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/SPEC.md")).expect("the specification");
+    for (where_, text, stated) in [
+        ("the doc of longest_runtime_directory", &doc, format!("it is {longest} bytes")),
+        ("SPEC.md, \"Where the service listens\"", &spec, format!("at most {longest} bytes")),
+    ] {
+        assert!(
+            text.contains(stated.as_str()),
+            "{where_} must state the number the function returns, as {stated:?}; the function returns {longest}"
+        );
+    }
+    // The doc's other claim about it: how many bytes a session's own runtime directory has spare.
+    let session: usize = "/run/user/1000".len();
+    let spare: usize = longest.saturating_sub(session);
+    assert!(
+        doc.contains(format!("which is {spare} fewer").as_str()),
+        "the doc must state {spare} fewer than a session's runtime directory, which is {session} bytes"
+    );
+}
