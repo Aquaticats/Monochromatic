@@ -113,7 +113,10 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
         //       and a service that takes the connection and greets nothing is one that is running and recovering — from the
         //       batches an earlier release left open, or from the build of its own runtime. Saying "nothing answered" about
         //       the second failed commits a live service would have served (the review of `77f5d525e3`, finding 3).
-        let connected_ceiling: Duration = config.start_ceiling.max(config.recovering_ceiling);
+        // What: The bound of a service that is there is its own, not the start's: it is longer in production (`RECOVERING_CEILING`
+        //       is the sum of the two recoveries a live service may be inside), and a control shortens it without touching the
+        //       start's bound, which is what the binary control of these words does.
+        let connected_ceiling: Duration = config.recovering_ceiling;
         // A start this command made, or a service that keeps answering with something that is not this protocol, ends at the
         // start's bound; without an executable to start, the bound is the start wait, which is the same kind of bound.
         let start_bound: Duration = match &config.starter {
