@@ -78,6 +78,14 @@ pub const DISPLACED_DIRECTORY: &str = "monochromatic-git-policy-cli-displaced-lo
 /// and not one of the copies a read displaced.
 const STAGING_SUFFIX: &str = "restoring";
 
+/// The most bytes of one `Cargo.lock` this module reads.
+/// Why:
+///   The lock is the person's own file,
+/// and a read whose size somebody else decides is not a read this module takes:
+/// a lock far larger than Cargo's own is not a lock any step here has to judge,
+/// and refusing it costs one workspace's repair rather than a wait.
+pub const LOCK_READ_LIMIT: u64 = 1 << 20;
+
 /// The most bytes of one lock's hexadecimal path that go into one directory name.
 /// Why:
 ///   A file system refuses a name longer than 255 bytes,
@@ -99,8 +107,66 @@ const NAME_BYTES: usize = 200;
 /// ```ts
 /// const lock = readLock(root); // Uint8Array | undefined
 /// ```
-pub fn read_lock(root: &Path) -> Option<Vec<u8>> {
-    return std::fs::read(root.join(LOCK_FILE)).ok();
+pub fn read_lock(root: &Path) -> Result<Option<Vec<u8>>, String> {
+    return read_the_lock_at(root.join(LOCK_FILE).as_path());
+}
+
+/// What:
+///  The bytes of a lock file, read the way the wrapper reads a regular file:
+/// a regular file only,
+/// opened without following a link and without waiting for a writer,
+/// and stopped at `LOCK_READ_LIMIT` bytes.
+/// Why:
+///   A lock may be read at the filling's start,
+/// while the person works in the worktree,
+///  and after an exchange has moved whatever stood at its name into a staging file.
+/// A plain read of a named pipe at that name never returns,
+/// and no ceiling could expire on the thread
+/// (`SPEC.md`,
+/// "Every wait has a bound");
+/// the marker beside it and the repository's exclude file are read the same way.
+/// A file that is not a regular file is a person's,
+/// so the caller is told what stands there and touches nothing of it:
+/// nothing is placed over it and nothing of it is removed.
+///
+/// # Errors
+///
+/// A lock that is not a regular file,
+/// one larger than `LOCK_READ_LIMIT`,
+/// and one the operating system refused to read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const readTheLockAt = (path) => readRegularFile(path, LOCK_READ_LIMIT) // Ok(bytesOrNone) | Err(whatStandsThere)
+/// ```
+fn read_the_lock_at(path: &Path) -> Result<Option<Vec<u8>>, String> {
+    return match crate::private_storage::read_regular_file(path, LOCK_READ_LIMIT) {
+        Ok(bytes) => Ok(Some(bytes)),
+        // Nothing stands at the name, which is a state every step here has an answer for.
+        Err(crate::private_storage::ReadRefusal::Missing) => Ok(None),
+        Err(refusal) => Err(format!("{} {}, so nothing of it was read", path.display(), refusal_words(&refusal))),
+    };
+}
+
+/// What:
+///  Why a lock file could not be read,
+/// in the words a person reads.
+/// Why:
+///   What stands at that name decides what to do about it,
+/// and a pipe, a link, a directory and a file past the limit are four different things to fix.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusalWords = (refusal) => refusal.kind === 'not-regular' ? 'is not a regular file (a link, a directory or a named pipe)' : ...;
+/// ```
+fn refusal_words(refusal: &crate::private_storage::ReadRefusal) -> String {
+    use crate::private_storage::ReadRefusal;
+    return match refusal {
+        ReadRefusal::Missing => String::from("is not there"),
+        ReadRefusal::NotRegular => String::from("is not a regular file (a link, a directory or a named pipe)"),
+        ReadRefusal::TooLarge => format!("holds more than {LOCK_READ_LIMIT} bytes"),
+        ReadRefusal::Io(error) => format!("could not be read ({error})"),
+    };
 }
 
 /// What:
@@ -170,7 +236,13 @@ pub fn restore_only_the_cleans_own(root: &Path, before: Option<&[u8]>, kept_in: 
 /// ```
 fn put_the_checkout_back(root: &Path, before: Option<&[u8]>, kept_in: Option<&Path>, only_when: Option<&[u8]>) -> Option<String> {
     let path: PathBuf = root.join(LOCK_FILE);
-    let after: Option<Vec<u8>> = std::fs::read(&path).ok();
+    let after: Option<Vec<u8>> = match read_the_lock_at(path.as_path()) {
+        Ok(bytes) => bytes,
+        // Something that is not a regular file stands there, so nothing of it is read, written over or removed.
+        Err(refusal) => {
+            return Some(format!("{refusal}, so the file is left exactly as it is found; `git diff -- {LOCK_FILE}` in that worktree shows it"));
+        }
+    };
     if after.as_deref() == before {
         return None;
     }
@@ -402,11 +474,36 @@ pub fn place_the_resolution(root: &Path, resolution: &[u8], before: Option<&[u8]
         ));
     }
     // The exchange hands back the file that stood there, judged here and not from a reading taken earlier.
-    let handed_back: Option<Vec<u8>> = std::fs::read(staged.as_path()).ok();
+    let handed_back: Option<Vec<u8>> = match read_the_lock_at(staged.as_path()) {
+        Ok(bytes) => bytes,
+        // Something that is not a regular file stood at the lock's name, and the exchange moved it here. It is a person's, and it is
+        //  not read, not written over and not removed: it goes back where it stood in one step, and the resolution with it.
+        Err(refusal) => {
+            return match crate::rename_that_never_replaces::exchange(staged.as_path(), path.as_path()) {
+                Ok(()) => {
+                    // The person's thing is back at the lock; the resolution stands at the staged name again, and it is this step's own.
+                    let _dropped = std::fs::remove_file(staged.as_path());
+                    Placed::GaveWay(format!("{refusal}, so it was put back where it stood and nothing was placed over it"))
+                }
+                Err(error) => Placed::GaveWay(format!(
+                    "{refusal} and putting it back failed ({error}), so it is kept at {} and the resolution is at the file; nothing of it was removed",
+                    staged.display()
+                )),
+            };
+        }
+    };
     if handed_back.as_deref() == Some(standing) {
+        // What came out is the bytes the filling read at its start: they are the checkout's own and the branch holds them.
         let _dropped = std::fs::remove_file(staged.as_path());
         return Placed::Placed;
     }
+    #[cfg(test)]
+    BETWEEN_THE_READING_AND_THE_ROLLBACK.with(|hook| {
+        if let Some(write) = hook.borrow().as_ref() {
+            write();
+        }
+    });
+    // A person wrote while the resolution was made, so their bytes go back where they wrote them.
     if let Err(error) = crate::rename_that_never_replaces::exchange(staged.as_path(), path.as_path()) {
         return Placed::GaveWay(format!(
             "the {LOCK_FILE} of {} was written while the repair resolved it, and putting those bytes back failed ({error}), so they are kept at {}",
@@ -414,11 +511,31 @@ pub fn place_the_resolution(root: &Path, resolution: &[u8], before: Option<&[u8]
             staged.display()
         ));
     }
-    // Their file is back where they wrote it; the kept name is gone with the exchange.
-    let _dropped = std::fs::remove_file(staged.as_path());
+    // Whatever that exchange displaced is judged, and only this step's own bytes are ever removed: the resolution is the one thing
+    //  written here, and anything else is a write that landed after the rollback began.
+    let displaced: Option<Vec<u8>> = match read_the_lock_at(staged.as_path()) {
+        Ok(bytes) => bytes,
+        Err(refusal) => {
+            return Placed::GaveWay(format!(
+                "{refusal}, which stood at the lock's name when the person's write was put back, so it is kept at {} and the repair gives way",
+                staged.display()
+            ));
+        }
+    };
+    if displaced.as_deref() == Some(resolution) {
+        let _dropped = std::fs::remove_file(staged.as_path());
+        return Placed::GaveWay(format!(
+            "the {LOCK_FILE} of {} was written while the repair resolved it, so it is left exactly as it is found and the repair gives way",
+            path.display()
+        ));
+    }
+    // A newer write landed while the person's earlier one was being put back. The lock holds the earlier write and the newer
+    //  bytes are kept where the exchange left them, under a name this line gives; nothing of theirs was removed.
     return Placed::GaveWay(format!(
-        "the {LOCK_FILE} of {} was written while the repair resolved it, so it is left exactly as it is found and the repair gives way",
-        path.display()
+        "the {LOCK_FILE} of {} was written twice while the repair resolved it, so the earlier write is back at the file and the newer bytes are \
+         kept at {}; `git diff -- {LOCK_FILE}` in that worktree shows the difference",
+        path.display(),
+        staged.display()
     ));
 }
 
@@ -565,7 +682,11 @@ fn replace_after_a_second_look(path: &Path, checkout: &[u8], read: &[u8], direct
         Ok(staged) => staged,
         Err(reason) => return Restored::LeftAsFound(reason),
     };
-    let standing: Option<Vec<u8>> = std::fs::read(path).ok();
+    let standing: Option<Vec<u8>> = match read_the_lock_at(path) {
+        Ok(bytes) => bytes,
+        // What stands there is not a regular file, so it is a person's and it stays where it is.
+        Err(_refusal) => return Restored::TheirWriteStays(Some(staged)),
+    };
     if standing.as_deref() != Some(read) {
         // The bytes that stand there are not the ones the reading named, so they are a person's and stay.
         return Restored::TheirWriteStays(Some(staged));
@@ -591,7 +712,11 @@ fn replace_after_a_second_look(path: &Path, checkout: &[u8], read: &[u8], direct
 /// if (read(displaced) === read) { unlink(displaced); return theCheckoutIsBack(); } await exchange(displaced, lock); return theirWriteStays(displaced);
 /// ```
 fn judge_the_displaced(path: &Path, displaced: &Path, read: &[u8]) -> Restored {
-    let handed_back: Option<Vec<u8>> = std::fs::read(displaced).ok();
+    let handed_back: Option<Vec<u8>> = match read_the_lock_at(displaced) {
+        Ok(bytes) => bytes,
+        // It is not a regular file, so it is somebody's and it is kept where the exchange left it.
+        Err(_refusal) => return Restored::TheirWriteStays(Some(displaced.to_path_buf())),
+    };
     if handed_back.as_deref() == Some(read) {
         let _dropped = std::fs::remove_file(displaced);
         return Restored::TheCheckoutIsBack;
@@ -627,7 +752,12 @@ fn take_the_file_away(path: &Path, read: &[u8], directory: &Path) -> Restored {
         }
         return Restored::LeftAsFound(format!("{} could not be moved aside ({error})", path.display()));
     }
-    let moved: Option<Vec<u8>> = std::fs::read(moving.as_path()).ok();
+    let moved: Option<Vec<u8>> = match read_the_lock_at(moving.as_path()) {
+        Ok(bytes) => bytes,
+        Err(refusal) => {
+            return Restored::LeftAsFound(format!("{refusal}, so it is kept where the move left it, at {}", moving.display()));
+        }
+    };
     if moved.as_deref() == Some(read) {
         // What the clean resolved is kept already (`keep_the_bytes`), so this name goes.
         let _dropped = std::fs::remove_file(moving.as_path());
@@ -727,6 +857,13 @@ thread_local! {
     ///   The window cannot be reached from outside the writer on a wall clock,
     /// and a control that waited on one would pass whatever the code did.
     pub(crate) static BETWEEN_THE_READING_AND_THE_RESTORE: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
+
+    /// A control may write the lock between the reading of what the first exchange displaced and the rollback that
+    /// puts a person's write back, which is the window a save of theirs can land in.
+    /// Why:
+    ///   The window cannot be reached from outside the writer on a wall clock,
+    /// and a control that waited on one would pass whatever the code did.
+    pub(crate) static BETWEEN_THE_READING_AND_THE_ROLLBACK: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Controls stay out of the release executable.

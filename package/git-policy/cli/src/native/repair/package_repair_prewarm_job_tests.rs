@@ -1475,3 +1475,48 @@ fn a_link_or_an_oversized_exclude_file_is_refused_before_anything_is_written() {
     assert_eq!(std::fs::read(exclude.as_path()).expect("the oversized file"), oversized, "and nothing was appended to it");
     remove(root.as_path());
 }
+
+/// What:
+///  A filling whose worktree has a named pipe where its `Cargo.lock` belongs gives that workspace up at once,
+///  says what stands there,
+///  and leaves the pipe untouched.
+/// Why:
+///   The filling reads the lock before any bounded step of the clean,
+/// and a plain read of a pipe with no writer never returns:
+/// no ceiling could expire on the thread that polls the runtime
+/// (`SPEC.md`, "Every wait has a bound").
+/// The lock is the person's file, so nothing is read of it, nothing is placed over it and nothing of it is removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(join(entry.root, 'Cargo.lock')); expect(within(10_000, () => fillOne(fill, entry))).toBeFailedNamingThePipe()
+/// ```
+#[test]
+fn a_named_pipe_at_the_lock_never_holds_the_filling() {
+    let root: PathBuf = fixture("prewarm-lock-pipe");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    let lock: PathBuf = entry.root.join(LOCK_FILE);
+    named_pipe_at(lock.as_path());
+    let covered: PathBuf = root.clone();
+    let filling_root: PathBuf = root.clone();
+    let covered_entry: PrewarmEntry = entry.clone();
+    let filling: Option<Result<Filled, String>> = crate::test_support::finished_within_at(FILLING_DEADLINE, move || {
+        let fill: Fill = Fill {
+            cargo: cargo_that_succeeds(filling_root.as_path()),
+            limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
+            kept_in: Some(filling_root.join("git-dir")),
+            worktree: filling_root.clone(),
+        };
+        return super::fill_one_in_a_control(&fill, &entry);
+    });
+    let filled: Result<Filled, String> = filling.expect("the filling must not wait on a named pipe at the lock's name");
+    let Err(reason) = filled else { panic!("a named pipe at the lock is refused: {filled:?}") };
+    assert!(reason.contains("not a regular file"), "the answer names what stands there: {reason}");
+    let standing: std::fs::Metadata = std::fs::symlink_metadata(lock.as_path()).expect("the pipe is still there");
+    {
+        use std::os::unix::fs::FileTypeExt as _;
+        assert!(standing.file_type().is_fifo(), "the person's pipe is where it stood, untouched");
+    }
+    assert!(!covered_entry.to.exists(), "nothing was published");
+    remove(covered.as_path());
+}

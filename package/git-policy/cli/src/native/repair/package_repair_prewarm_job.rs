@@ -493,7 +493,15 @@ async fn resolve_the_workspace_elsewhere(fill: &Fill, entry: &PrewarmEntry) -> R
     let arguments: Vec<OsString> = ["metadata", "--offline", "--format-version", "1"].iter().map(OsString::from).collect();
     let command: ToolCommand = ToolCommand { arguments, directory: mirrored.clone(), set: Vec::new() };
     let run: ToolRun = run_tool_awaiting(fill.cargo.as_path(), &command, fill.limits).await;
-    let resolved: Option<Vec<u8>> = read_lock(mirrored.as_path());
+    // The mirror is this job's own, so a lock of it that cannot be read is a failure of this step and not a person's file:
+    //  the same answer as one that was never written.
+    let resolved: Option<Vec<u8>> = match read_lock(mirrored.as_path()) {
+        Ok(bytes) => bytes,
+        Err(reason) => {
+            let _mirror_cleared = std::fs::remove_dir_all(root.as_path());
+            return Err(format!("{reason}, so the workspace of {} was not resolved", entry.root.display()));
+        }
+    };
     let _mirror_cleared = std::fs::remove_dir_all(root.as_path());
     return match (run.end, resolved) {
         (ToolEnd::Succeeded, Some(bytes)) => Ok(bytes),
@@ -1142,7 +1150,19 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
     //  runs after the add returned, when the person may be working in the worktree, so the clean itself must never write
     //  that lock (`--locked`): a lock it refuses is resolved by Cargo first, and the checked-out lock goes back only when
     //  the file still holds exactly the bytes that resolution wrote (`package_repair_cargo_lock.rs`).
-    let lock_before: Option<Vec<u8>> = read_lock(entry.root.as_path());
+    let lock_before: Option<Vec<u8>> = match read_lock(entry.root.as_path()) {
+        Ok(bytes) => bytes,
+        // Something that is not a regular file stands at the lock's name. It is the person's, so it is not read, not
+        //  written over and not removed: this workspace gives way and says what stands there.
+        Err(reason) => {
+            let _removed = remove_if_any(names.staging.as_path());
+            return Err(format!(
+                "{reason}, so nothing of this workspace was cleaned and the copy of it was removed. {} Nothing was placed over that file \
+                 and nothing of it was removed.",
+                what_to_do_next(entry, LOCK_FILE),
+            ));
+        }
+    };
     let mut run: ToolRun = clean_the_copy(fill, entry, names).await;
     if !matches!(run.end, ToolEnd::Succeeded) {
         // A `--locked` clean refuses a lock that no longer matches its manifest, and making it match means writing that lock.

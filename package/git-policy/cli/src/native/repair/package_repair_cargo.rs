@@ -392,7 +392,15 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
         }
     }
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
-    let lock_before: Option<Vec<u8>> = read_lock(workspace.root.as_path());
+    let lock_before: Option<Vec<u8>> = match read_lock(workspace.root.as_path()) {
+        Ok(bytes) => bytes,
+        // A lock that is not a regular file is a person's, so its bytes are unknown here and the restore below leaves it exactly
+        //  as it is found; the add reports the clean as it always does and never fails for it.
+        Err(reason) => {
+            debug(TAG, format!("{reason}; the clean runs, and the lock is left exactly as it is found").as_str());
+            None
+        }
+    };
     let run: ToolRun = timed_clean_awaiting(tool, &command).await;
     // The bytes the clean displaced are kept before the checked-out lock comes back, and the line says where they are
     //  (`package_repair_cargo_lock.rs`).
