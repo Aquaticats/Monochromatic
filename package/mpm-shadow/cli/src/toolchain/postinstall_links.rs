@@ -43,6 +43,8 @@ use super::model::{LockedTool, Postinstall};
 use super::scope::ScopeKind;
 /// Imports `write_atomically` from `super::publish`.
 use super::publish::write_atomically;
+/// Imports what this module uses from `super::removal`.
+use super::removal::{Judged, Removal, judged_of_metadata, remove_if_still};
 
 /// The file name of the record,
 /// inside the scope's launcher directory.
@@ -207,8 +209,10 @@ fn is_own_link(ctx: &Context, path: &Path) -> bool {
 enum Held {
     /// Nothing.
     Nothing,
-    /// The symlink the record names.
-    OwnLink,
+    /// The symlink the record names,
+    /// with the entry that was read,
+    /// so its removal can tell it from a file a person put there afterwards.
+    OwnLink(Judged),
     /// Something else,
     /// described for the warning.
     Foreign(
@@ -228,8 +232,9 @@ fn inspect(path: &Path, recorded_target: &Path) -> Held {
     if !metadata.file_type().is_symlink() {
         return Held::Foreign("it is not a symlink".to_string());
     }
+    let judged: Judged = judged_of_metadata(&metadata);
     return match fs::read_link(path) {
-        Ok(target) if target == recorded_target => Held::OwnLink,
+        Ok(target) if target == recorded_target => Held::OwnLink(judged),
         Ok(target) => Held::Foreign(format!("it points at {}", target.display())),
         Err(error) => Held::Foreign(format!("its target cannot be read: {error}")),
     };
@@ -267,14 +272,20 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
         }
         match inspect(path, target) {
             Held::Nothing => {}
-            Held::OwnLink => match fs::remove_file(path) {
-                Ok(()) => notices.retired.push(format!(
+            Held::OwnLink(judged) => match remove_if_still(path, judged) {
+                Ok(Removal::Retired) => notices.retired.push(format!(
                     "retired the postinstall link {} (it pointed at {}) because the lock no longer declares it",
                     path.display(),
                     target.display()
                 )),
-                Err(error) => {
-                    notices.warnings.push(format!("cannot remove the stale postinstall link {}: {error}", path.display()));
+                Ok(Removal::Gone) => {}
+                Ok(Removal::Replaced) => notices.warnings.push(format!(
+                    "left {} alone: the lock no longer declares a postinstall link there, but something replaced it between reading it \
+                     and removing it, so it was put back",
+                    path.display()
+                )),
+                Err(reason) => {
+                    notices.warnings.push(format!("cannot remove the stale postinstall link {}: {reason}", path.display()));
                     kept.insert(path.clone(), target.clone());
                 }
             },

@@ -116,6 +116,9 @@ pub mod launcher_source;
 /// records and exposed links of names the lock declares nowhere.
 pub mod stale_launchers;
 
+/// Removing one entry only when it is still the entry that was judged.
+mod removal;
+
 /// Where tools install and how their binaries are found.
 pub mod layout;
 
@@ -398,6 +401,10 @@ mod launcher_source_tests;
 /// The unit tests of the retirement of launchers the lock declares nowhere.
 #[cfg(all(test, unix))]
 mod stale_launchers_tests;
+
+/// The unit tests of removing one entry only when it is still the entry that was judged.
+#[cfg(all(test, unix))]
+mod removal_tests;
 
 /// The unit tests of the cleanup of unnamed cargo versions.
 #[cfg(test)]

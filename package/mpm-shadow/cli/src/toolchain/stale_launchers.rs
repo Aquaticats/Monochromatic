@@ -26,7 +26,8 @@
 //! so a person's broken link that shares a name with a launcher stays.
 //! A file whose own bytes are not provably `mpm-shadow`'s stays where it is,
 //! and the install names it and why.
-//! The removal moves the entry it judged aside in one atomic step and compares what moved with what was judged,
+//! The removal moves the entry it judged aside in one atomic step and compares what moved with what was judged
+//! (`super::removal`),
 //! so a file a person puts at the path while the proof runs is put back rather than deleted.
 //! An install that cannot read the lock never reaches here at all,
 //! the caller holds the scope's lock over these writes so no install running beside this one is seen half done,
@@ -69,6 +70,8 @@ use super::model::Postinstall;
 use super::postinstall_links::{declared_link_paths, recorded_link_paths};
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, global_scope};
+/// Imports what this module uses from `super::removal`.
+use super::removal::{Judged, Removal, judged_of_metadata, remove_if_still};
 
 //region The crate mpm-shadow places, the folders it links into, and how much of a file is read at a time
 
@@ -90,116 +93,6 @@ const LINK_DIRECTORY_SUFFIX: &str = "-bin";
 /// and nothing is read at all unless a name the lock declares nowhere is waiting,
 /// so the whole file is compared in a handful of blocks.
 const COMPARE_BLOCK: usize = 64 * 1024;
-
-//endregion
-
-//region One judged entry and the one atomic step that removes it
-
-/// What:
-/// The entry at a path when it was judged:
-/// the file it was, by the two numbers every Unix file carries.
-/// Why:
-/// The proofs read a few hundred bytes of a record and up to five million of a program,
-/// and a person can put a file of their own at the path while they run.
-/// Keeping the identity of what was judged lets the removal tell the judged entry from a later one.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) struct Judged {
-    /// The device of the file system the entry is on.
-    #[cfg(unix)]
-    device: u64,
-    /// The entry's inode on that file system.
-    #[cfg(unix)]
-    inode: u64,
-}
-
-/// What a removal did.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum Removal {
-    /// This call removed the entry that was judged.
-    Retired,
-    /// Nothing stood at the path any more.
-    Gone,
-    /// Something that was not judged stood there: it was put back and left alone.
-    Replaced,
-}
-
-/// The identity of an entry from its metadata.
-#[cfg(unix)]
-fn judged_of_metadata(metadata: &fs::Metadata) -> Judged {
-    /// Imports `MetadataExt` from `std::os::unix::fs`.
-    use std::os::unix::fs::MetadataExt;
-    return Judged { device: metadata.dev(), inode: metadata.ino() };
-}
-
-/// Without inodes nothing tells one file at a path from another,
-/// so the removal can only remove.
-#[cfg(not(unix))]
-fn judged_of_metadata(_metadata: &fs::Metadata) -> Judged {
-    return Judged {};
-}
-
-/// The identity of the entry at `path`, without following a symbolic link.
-/// The pass itself judges from the metadata it already holds, so this is the seam its tests judge by.
-#[cfg(test)]
-pub(super) fn judged_of(path: &Path) -> Result<Judged, String> {
-    return match fs::symlink_metadata(path) {
-        Ok(metadata) => Ok(judged_of_metadata(&metadata)),
-        Err(error) => Err(format!("it cannot be inspected: {error}")),
-    };
-}
-
-/// What:
-/// A free hidden name beside `path`, for the one atomic step of a removal.
-/// Why:
-/// The passes never judge a hidden name,
-/// so a run killed between moving an entry aside and removing it leaves nothing a later pass takes for a launcher,
-/// a record or a link.
-fn temporary_name_beside(path: &Path) -> PathBuf {
-    let name: String = path.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
-    for attempt in 0..8 {
-        let candidate: PathBuf = path.with_file_name(format!(".{name}.{}.{attempt}.retired", std::process::id()));
-        if fs::symlink_metadata(&candidate).is_err() {
-            return candidate;
-        }
-    }
-    return path.with_file_name(format!(".{name}.{}.retired", std::process::id()));
-}
-
-/// What:
-/// Removes `path` only when the entry standing there is still the one judged,
-/// and puts back whatever else stands there.
-/// Why:
-/// A check followed by a remove deletes a file a person put at the path in between,
-/// and the proof of a launcher reads megabytes while that can happen.
-/// Moving the entry aside is one atomic step,
-/// so whatever stood there is in hand and can be compared with the judged entry before anything is deleted;
-/// a file that arrived after the judgement goes back exactly where it was.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function removeIfStill(path: string, judged: Judged): Removal  // throws
-/// ```
-pub(super) fn remove_if_still(path: &Path, judged: Judged) -> Result<Removal, String> {
-    let temporary: PathBuf = temporary_name_beside(path);
-    match fs::rename(path, &temporary) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Removal::Gone),
-        Err(error) => return Err(format!("it cannot be removed: {error}")),
-    }
-    let moved: Option<Judged> = fs::symlink_metadata(&temporary).ok().map(|metadata| return judged_of_metadata(&metadata));
-    if moved != Some(judged) {
-        return match fs::rename(&temporary, path) {
-            Ok(()) => Ok(Removal::Replaced),
-            Err(error) => Err(format!(
-                "something replaced it while it was judged, and what replaced it cannot be put back: {error}"
-            )),
-        };
-    }
-    return match fs::remove_file(&temporary) {
-        Ok(()) => Ok(Removal::Retired),
-        Err(error) => Err(format!("it was moved aside as the entry judged and then could not be removed: {error}")),
-    };
-}
 
 //endregion
 

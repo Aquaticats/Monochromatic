@@ -23,8 +23,12 @@
 
 /// Imports what this module uses from `std::fs`.
 use std::fs::{self, File, OpenOptions};
+/// Imports the write trait the holder's note is written with.
+use std::io::Write;
 /// Imports what this module uses from `std::path`.
 use std::path::Path;
+/// Imports the clock and the pause the bounded wait is measured with.
+use std::time::{Duration, Instant};
 
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
@@ -92,6 +96,20 @@ pub fn read_revisions(scope: &Scope) -> Result<Revisions, ToolchainError> {
 }
 
 /// What:
+/// How long a command waits for the scope's lock before it goes on without it, or refuses.
+/// Why:
+/// Nothing waits forever, so a holder that is stopped or hung must not stop another command.
+/// The lock covers one checkout's link and launcher writes: the whole `install` measured on this machine takes about
+/// 60 ms on a checkout with 174 declared bins (README, "The launcher"), and the one member of the held region that can take
+/// long is the bounded check of the repository's link, which waits at most `repository_link_cause::CHECK_DEADLINE`
+/// (10 s). The bound is smaller than that check's own bound on purpose: a waiter that gives up only loses this run's
+/// retirement of the names the lock declares nowhere, which the next install does, and never any data.
+pub const GUARD_WAIT: Duration = Duration::from_secs(5);
+
+/// The pause between two attempts at the lock.
+const GUARD_POLL: Duration = Duration::from_millis(20);
+
+/// What:
 /// The exclusive OS lock for one scope,
 /// held for as long as the value lives.
 /// Why:
@@ -99,6 +117,7 @@ pub fn read_revisions(scope: &Scope) -> Result<Revisions, ToolchainError> {
 /// which releases the lock,
 /// so an early return or a panic cannot leave
 ///           the scope locked.
+/// It also clears the note it left in the file, so a later holder's note is never a dead process's number.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -107,8 +126,32 @@ pub fn read_revisions(scope: &Scope) -> Result<Revisions, ToolchainError> {
 #[derive(Debug)]
 pub struct Guard {
     /// The open file that holds the lock;
-    /// kept only so it stays open.
-    _file: File,
+    /// kept open so the lock stays taken,
+    /// and truncated on drop so the holder's note does not outlive it.
+    file: File,
+}
+
+/// The methods of `Guard`.
+impl Guard {
+    /// What:
+    /// Leaves this process's number in the guard file,
+    /// for a command that cannot take the lock to name it.
+    /// Why:
+    /// The file is the one thing on disk that a waiter can read,
+    /// and a note that cannot be written costs the note, never the lock.
+    fn leave_a_note(&self) {
+        let _ = self.file.set_len(0);
+        let note: String = format!("{}\n", std::process::id());
+        let mut borrowed: &File = &self.file;
+        let _ = borrowed.write_all(note.as_bytes());
+    }
+}
+
+/// Clears the holder's note; the lock itself is released when the file closes after this.
+impl Drop for Guard {
+    fn drop(&mut self) {
+        let _ = self.file.set_len(0);
+    }
 }
 
 /// Opens (creating it and its directory) the scope's guard file.
@@ -124,17 +167,52 @@ fn open_guard_file(path: &Path) -> Result<File, ToolchainError> {
     };
 }
 
+/// What:
 /// Takes the scope's exclusive lock,
-/// waiting until another mpm-shadow run releases it.
-pub fn acquire_guard(scope: &Scope) -> Result<Guard, ToolchainError> {
-    let file: File = open_guard_file(&scope.guard_file)?;
-    if let Err(error) = file.lock() {
-        return Err(ToolchainError::failure(format!(
-            "cannot take the scope lock {}: {error}",
-            scope.guard_file.display()
-        )));
+/// waiting no longer than `GUARD_WAIT`,
+/// or `None` when another command holds it for that long.
+/// Why:
+/// The wait has a stated bound,
+/// so a holder that is stopped or hung cannot stop this command for ever;
+/// the caller says in words what it does without the lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function acquireGuard(scope: Scope): Guard | undefined  // throws
+/// ```
+pub fn acquire_guard(scope: &Scope) -> Result<Option<Guard>, ToolchainError> {
+    let deadline: Instant = Instant::now() + GUARD_WAIT;
+    loop {
+        match try_acquire_guard(scope)? {
+            Some(guard) => return Ok(Some(guard)),
+            None => {
+                if Instant::now() >= deadline {
+                    return Ok(None);
+                }
+                std::thread::sleep(GUARD_POLL);
+            }
+        }
     }
-    return Ok(Guard { _file: file });
+}
+
+/// What:
+/// Who holds the scope's lock,
+/// as far as the guard file says.
+/// Why:
+/// A command that could not take the lock says so in words,
+/// and the holder's note is what can name it;
+/// a note that is absent or unreadable is said to be so rather than guessed at.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function holderOf(scope: Scope): string
+/// ```
+pub fn holder_of(scope: &Scope) -> String {
+    let text: String = fs::read_to_string(&scope.guard_file).unwrap_or_default();
+    return match text.trim().parse::<u32>() {
+        Ok(pid) => format!("another mpm-shadow (process {pid}, the last one that took it)"),
+        Err(_) => "another command in this checkout (it left no note of its process)".to_string(),
+    };
 }
 
 /// Takes the scope's exclusive lock without waiting;
@@ -142,7 +220,11 @@ pub fn acquire_guard(scope: &Scope) -> Result<Guard, ToolchainError> {
 pub fn try_acquire_guard(scope: &Scope) -> Result<Option<Guard>, ToolchainError> {
     let file: File = open_guard_file(&scope.guard_file)?;
     return match file.try_lock() {
-        Ok(()) => Ok(Some(Guard { _file: file })),
+        Ok(()) => {
+            let guard: Guard = Guard { file };
+            guard.leave_a_note();
+            Ok(Some(guard))
+        }
         Err(std::fs::TryLockError::WouldBlock) => Ok(None),
         Err(std::fs::TryLockError::Error(error)) => Err(ToolchainError::failure(format!(
             "cannot test the scope lock {}: {error}",
@@ -195,7 +277,16 @@ pub fn write_atomically(target: &Path, text: &str) -> Result<(), ToolchainError>
 /// export function publishLock(scope: Scope, expected: Revisions, text: string): void
 /// ```
 pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(), ToolchainError> {
-    let guard: Guard = acquire_guard(scope)?;
+    let Some(guard) = acquire_guard(scope)? else {
+        return Err(ToolchainError::failure(format!(
+            "{} is held by {}, and this command waited {} s for it, so {} was not written and nothing was changed; \
+             run the command again when the other one has finished",
+            scope.guard_file.display(),
+            holder_of(scope),
+            GUARD_WAIT.as_secs(),
+            scope.lock_file.display()
+        )));
+    };
     let observed: Revisions = read_revisions(scope)?;
     let moved: Vec<String> = moved_files(expected, &observed, scope);
     if !moved.is_empty() {
