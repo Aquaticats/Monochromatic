@@ -7,6 +7,10 @@
 //! A test that needs a delegated scope must fail loudly where none can be had,
 //! not pass without proving anything;
 //! `CARGO_SHADOW_ALLOW_NO_CGROUP=1` turns that into a printed skip for hosts that cannot delegate (some CI runners).
+//! The package's `test` task asks the same question before it starts the suite,
+//! through `cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope`:
+//! where the answer is no,
+//! the task sets the variable itself and prints the name of every test it had to leave out.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -59,7 +63,7 @@ pub(crate) fn delegated_route() -> Option<Route> {
                 std::env::var_os(ALLOW_NO_CGROUP).is_some(),
                 "this host cannot give the test a delegated scope ({unavailable}); set {ALLOW_NO_CGROUP}=1 to skip the tests that need one"
             );
-            eprintln!("SKIPPED (not evidence for this schedule): no delegated scope ({unavailable}); unset {ALLOW_NO_CGROUP} for a certification run");
+            eprintln!("SKIPPED, which is no evidence that this host ran the test: this host cannot give it a delegated control group ({unavailable}); the test runs where a user manager on a cgroup v2 mount answers, for example inside `systemd-run --user --scope --property=Delegate=yes -- ...`, and unsetting {ALLOW_NO_CGROUP} turns this skip into a failure instead");
             None
         }
     };

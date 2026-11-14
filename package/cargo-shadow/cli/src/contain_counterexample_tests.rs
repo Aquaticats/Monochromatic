@@ -472,8 +472,13 @@ fn wrapper_with_an_escaped_writer_fixture() {
 /// the wrapper and the direct child die while a writer in another session lives:
 /// a recovery that finds the journal must not restore the lockfile,
 /// because the writer may still change it.
+/// The run it kills records a launcher inside a delegated scope (the record read below),
+/// so a host that cannot give one asks here first and skips the test instead of failing on a record the run never writes.
 #[test]
 fn a_killed_wrapper_with_an_escaped_writer_stops_the_recovery() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
     let root = scratch();
     fs::create_dir_all(root.path().join(CRATE_DIR)).expect("crate dir");
     fs::create_dir_all(root.path().join("fixture")).expect("fixture dir");

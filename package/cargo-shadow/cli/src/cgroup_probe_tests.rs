@@ -44,6 +44,23 @@ fn group_of(pid: &str) -> String {
     return fs::read_to_string(format!("/proc/{pid}/cgroup")).expect("a group").trim().to_string();
 }
 
+/// Probe 0,
+/// the question the package's test task asks before it runs the suite:
+/// can this host give the tests a delegated control group,
+/// with no acknowledgement set (`CARGO_SHADOW_ALLOW_NO_CGROUP`)?
+/// Why:
+/// The task runs this test alone and reads nothing of it but the status:
+/// green names the slice the scopes are made in,
+/// red carries the reason this host has none.
+/// The answer is the very guard every test that needs a scope begins with,
+/// so no second copy of the route question can disagree with the tests,
+/// and a test that would have failed is never counted as the product's.
+#[test]
+fn probe_0_the_host_can_give_the_tests_a_delegated_scope() {
+    let Some(route) = delegated_route() else { return; };
+    eprintln!("cargo-shadow tests: this host can give a delegated control group ({} in {})", route.slice, route.slice_dir.display());
+}
+
 /// Probe 1:
 /// the program started through the launcher runs in the scope that was planned,
 /// and the starting process stays in its own group.

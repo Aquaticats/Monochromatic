@@ -1538,9 +1538,42 @@ two of them failed that window once (`the judged run ended after 15.294850135s, 
 and the same controls passed in a later run of the whole suite;
 the stop is bounded every time,
 a few seconds past the window.
-`mise run //package/cargo-shadow/cli:test -- --no-fail-fast` runs the whole suite instead of cancelling the tests beside a
-failed one,
-so one such window does not hide the other 800 results.
+The task runs the whole suite (`--no-fail-fast`),
+so one such window does not hide the other 800 results,
+and it takes no arguments:
+`cargo nextest run --release <filter>` runs a subset.
+
+Most of these tests need a delegated control group,
+which every run of the shadow makes for its child with
+`systemd-run --user --scope --unit=<name> --property=Delegate=yes --collect`.
+Before it starts the suite,
+the test task asks this host whether it can give one:
+it runs `cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope` alone,
+which is the same guard every test that needs a scope begins with,
+with nothing acknowledged.
+Where the answer is yes,
+the suite runs as the gate always did,
+and a test that needs a scope and finds none fails the run.
+Where it is no,
+the answer a container or a check without a user manager gives,
+the task recognizes that from the exit status alone and parses no text,
+and runs the suite with `CARGO_SHADOW_ALLOW_NO_CGROUP=1`:
+every test that needs a scope prints one line naming itself and the reason it could not run,
+`--success-output=final` brings that line of a passing test into the log,
+and the task closes by naming the reason and the command that runs them:
+
+```sh
+# package/cargo-shadow/cli/README.md
+systemd-run --user --scope --property=Delegate=yes -- mise run //package/cargo-shadow/cli:test
+```
+
+Nothing in that run is reported as a failure of cargo-shadow,
+and unsetting `CARGO_SHADOW_ALLOW_NO_CGROUP` turns each of those skips into a failure,
+which is what a gate on a capable host wants.
+Measured 2026-11-14 in a scope without `Delegate=yes` and with `$DBUS_SESSION_BUS_ADDRESS` and `$XDG_RUNTIME_DIR` unset:
+the run ended green with `872 tests run: 872 passed, 21 skipped`,
+and the one line per test that needed a scope named all 66 of them plus the question;
+the run before the change had 66 failures there.
 
 [pnpm-build]: https://pnpm.io/settings/build
 [pnpm-store]: https://pnpm.io/settings/store

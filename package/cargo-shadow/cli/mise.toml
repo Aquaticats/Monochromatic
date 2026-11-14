@@ -19,8 +19,57 @@ description = "Apply clippy's machine-applicable suggestions in place"
 run = "cargo clippy --fix --allow-dirty --allow-staged"
 
 [tasks.test]
-description = "cargo nextest run"
-run = "cargo nextest run --release"
+description = "cargo nextest run --release where this host can give the tests a delegated control group; where it cannot (a container, a check that has no user manager) the same run names every test it had to leave out, with the reason and with the command that runs them, and counts none of them as a failure of cargo-shadow; the task takes no arguments (run `cargo nextest run --release <filter>` for a subset)"
+shell = "node --input-type=module-typescript -e"
+run = '''
+const { spawnSync } = await import('node:child_process')
+
+// The one test whose whole body is the guard every test that needs a delegated control group begins with, so this answer comes from
+// the code those tests use and no second copy of the route question can disagree with them.
+const QUESTION = 'cgroup_probe_tests::probe_0_the_host_can_give_the_tests_a_delegated_scope'
+const ACKNOWLEDGEMENT = 'CARGO_SHADOW_ALLOW_NO_CGROUP'
+// The answer is a status and never a text: 0 when a scope can be had, 100 when this host has none, anything else when the question
+// could not be asked at all (a build error, or a filter that names no test), which excuses nothing.
+const NO_DELEGATED_CONTROL_GROUP = 100
+
+// Nothing is acknowledged while the question is asked, so a host with a scope answers green and a host without one answers red with
+// the reason the tests themselves would give.
+const unacknowledged = { ...process.env }
+delete unacknowledged[ACKNOWLEDGEMENT]
+const asked = spawnSync('cargo', ['nextest', 'run', '--release', '-E', `test(=${QUESTION})`], { encoding: 'utf8', env: unacknowledged })
+if (asked.status !== 0 && asked.status !== NO_DELEGATED_CONTROL_GROUP) {
+  process.stderr.write((asked.stdout ?? '') + (asked.stderr ?? ''))
+  console.error(`the test task could not ask ${QUESTION} whether this host can give the tests a delegated control group (status ${asked.status}); nothing was excused`)
+  process.exit(asked.status ?? 1)
+}
+
+if (asked.status === 0) {
+  // The gate as it always was, one failed window excepted: a test that needs a delegated control group and cannot find one fails
+  // the run, and --no-fail-fast runs the rest anyway so one slow window does not hide the other eight hundred results.
+  process.exit(spawnSync('cargo', ['nextest', 'run', '--release', '--no-fail-fast'], { stdio: 'inherit', env: unacknowledged }).status ?? 1)
+}
+
+// This host has none, so every test that needs one is excused and prints a line naming itself and the reason; --success-output=final
+// brings the line of a passing test into the log, and what did not run then comes from the tests themselves, so no list of their names
+// can go stale as tests are added.
+const suite = spawnSync('cargo', ['nextest', 'run', '--release', '--no-fail-fast', '--success-output=final'], { stdio: 'inherit', env: { ...unacknowledged, [ACKNOWLEDGEMENT]: '1' } })
+const reason = (asked.stderr ?? '').split('\n').map((line) => { return line.trim(); }).find((line) => { return line.includes('cannot give the test a delegated scope'); }) ?? ''
+console.error(
+  [
+    '',
+    'This host cannot give the tests a delegated control group.',
+    reason === '' ? 'The reason is in the output of the question above.' : `The reason, as the tests put it: ${reason}`,
+    'Every test that needs one printed a SKIPPED line above, in this run: it did not run, so nothing it stands for was checked here,',
+    'and none of those tests is a failure of cargo-shadow.',
+    'They run where this account has a user manager on a cgroup v2 mount, for example inside a delegated scope of it:',
+    '  systemd-run --user --scope --property=Delegate=yes -- mise run //package/cargo-shadow/cli:test',
+    `Unsetting ${ACKNOWLEDGEMENT} turns each of those skips into a failure, which is what a gate wants where a scope can be had.`,
+    '',
+  ].join('\n'),
+)
+process.exit(suite.status ?? 1)
+// mise appends extra task arguments to the end of this script, where they would be read as TypeScript, so this task takes no arguments.
+'''
 
 [tasks.package]
 description = "Build and verify the crates.io package tarball"

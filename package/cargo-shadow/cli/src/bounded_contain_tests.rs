@@ -136,8 +136,16 @@ fn a_child_whose_group_cannot_be_recorded_is_not_started() {
 /// Round 6 (5b2 6):
 /// dropping an inner transaction does not stop the recording of the outer one,
 /// and dropping the outer one first does not stop the inner one's.
+/// The record it reads is a delegated scope's (the scope,
+/// its launcher,
+/// its end),
+/// which a host that cannot give one never writes,
+/// so this test asks for the route first like every other test that needs a scope.
 #[test]
 fn nested_transactions_keep_their_own_records() {
+    if crate::cgroup_test_support::delegated_route().is_none() {
+        return;
+    }
     let first = scratch();
     let second = scratch();
     for root in [&first, &second] {
