@@ -7,7 +7,22 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **16** agents run on this machine at once,
+At most **24** agents run on this machine at once since 2026-11-14T08:54:33-05:00,
+by the owner's answer of that morning
+("Resume at 24":
+halve the gap between 16, which held, and 32 again,
+with the probe ending the level on two slow readings in a row as before;
+`doc/handover/cli-git-rust-implementation.md`,
+"Answers on the owner's return").
+Should twenty-four fail,
+the rule gives twenty.
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-24-20261114T085433`
+(eight hours,
+no successor)
+and the probe a unit named `disk-ceiling-probe-level-24-` with the second it was started in.
+What stood before,
+and why:
+at most 16 agents ran at once,
 counted across every session
 (raised from 4 to 8 on 2026-11-13 at 11:57,
 from 8 to 16 at 12:58:50

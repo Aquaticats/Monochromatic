@@ -720,44 +720,22 @@ by the rules that already stand:
   and no change to the pools:
   about twenty-five agents stays the most.
 - The units this depends on and when each ends by itself:
-  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-16-20261114T024816`
-  (started 2026-11-14T02:48:16-05:00 for eight hours,
-  so it is started again by 10:48;
-  the one at level seventeen was stopped in the same second,
-  when that level failed),
-  the drive probe `disk-probe-for-readings-only-at-level-16-20261114T024816`
-  (eight hours from the same second;
-  it records and ends on no reading),
+  the filling unit `fill-free-places-and-put-ended-reviews-back-at-level-24-20261114T085433`
+  (started 2026-11-14T08:54:33-05:00 for eight hours,
+  so it is started again by 16:54;
+  the one at level sixteen was stopped in the same second,
+  on the owner's answer that the cap resumes at twenty-four),
+  the drive probe at level twenty-four
+  (a unit named `disk-ceiling-probe-level-24-` with its start second,
+  started within a minute of the filling unit for eight hours;
+  it ends with status 3 on two slow home-drive readings in a row,
+  and the rule then gives twenty),
   and the waiter of the moment
   (eight hours from its start,
   started again each time it reports).
 
 Questions kept for the owner's return:
 
-- The agent cap went from thirty-two to sixteen between 01:16 and 02:48 on 2026-11-14,
-  each step by the search's own rule,
-  while the count of agents fell and the home drive kept stalling
-  (up to 143 s on a 4 KiB write-and-sync,
-  every other reading by 01:50;
-  seven of forty readings at seventeen,
-  the longest 33 s).
-  The count that held an hour on 2026-11-13 was twenty to twenty-two.
-  Does the cap stay where the criterion put it,
-  or go back up once the stalls are explained?
-  What is known:
-  they do not go with the daily update
-  (they went on after it ended at 01:40:01);
-  a snapshot cleanup of the system has run since 00:00:07,
-  was still running at 02:48:37,
-  and is the one lead,
-  untested
-  (`doc/handover/agents-at-once-on-this-machine.md`,
-  "Level 18 fails after the daily update ended; a snapshot cleanup has run since midnight, 2026-11-14T01:42:20-05:00 to 01:54:55-05:00" and
-  "Level 17 fails and the search ends at sixteen, 2026-11-14T02:03:18-05:00 to 02:47:00-05:00").
-  The search has ended at sixteen and this session takes it no lower.
-  The earlier form of this question,
-  about hours that hold the daily update,
-  is withdrawn.
 - Is the lock of Pi's files to be cleared by hand again if it is left again before the shim is fixed?
   It was cleared once at 02:02:59 on 2026-11-14 after twenty minutes in which no Pi run could start
   (the section of 2026-11-14T02:05:16-05:00);
@@ -782,27 +760,6 @@ Questions kept for the owner's return:
   This account can neither open nor remove them.
   Removing them takes the owner's `sudo`;
   whether a test of `wg-quicker-exempt` may leave root-owned files in a build folder at all is a question for that package.
-- Is the plugin change that lets Pi retry the reviewer's passing token-rate limit taken into `main`
-  and built in the main checkout,
-  so that every Pi run of this machine on that provider loads it,
-  other sessions' runs too?
-  Its product code passed its review at 20:06;
-  its proof's harness is being corrected.
-  What it changes for a run:
-  a passing limit is retried by Pi for up to about three minutes where it ended the run at once
-  (twenty-one reviews ended so on 2026-11-13,
-  each put back by the filling unit).
-  What it cannot show:
-  no recorded answer of a spent paid plan exists,
-  and one documented message would have a spent plan retried for those three minutes before it ends as today.
-  The author's own report leaves the reading of the 2026-11-11 decision to the owner.
-- Does the launcher's review read a change that touches tests alone?
-  It answers such a change as nothing to review,
-  by a requirement given to the run that just changed it for manifests.
-  On 2026-11-13 a change of one test file needed a review
-  (two stale tests of the journal's start),
-  got one from a hand-written brief,
-  and that review found coverage lost.
 - May the three files of the old name `cli-git-native` be moved out of the main checkout's `.cache`
   (`toolchain-launchers/cli-git-native`,
   `toolchain-launchers/cli-git-native.launch`,
@@ -834,13 +791,6 @@ Questions kept for the owner's return:
   by the owner's answer of 2026-11-07 ("Service removes it").
   Which of the two is changed to match the other?
   The answer on record points at the module text.
-- Where no address can reach a commit service
-  (a runtime directory too long for a socket path,
-  on a system without abstract socket names),
-  a commit stops with its reason.
-  May the wrapper make that commit through real Git instead?
-  `SPEC.md` says the service is the only writer,
-  and "Commits should never fail." pulls the other way.
 - OpenSnitch saves a reject rule for each program an agent builds that tries the network
   (two for one run's `mpm-shadow` on 2026-11-13,
   named in `/var/log/opensnitchd.log`).
@@ -25854,6 +25804,43 @@ The reading stands in `package/crate-release/cli/README.md` ("What an alpha rele
 and `package/git-policy/cli/README.md` ("Development"),
 with those quotes and dates,
 so he can veto it.
+
+### Answers on the owner's return (2026-11-14, answered by 08:54:33-05:00)
+
+Through the question tool,
+four questions,
+each with its ranking;
+the owner picked the first option of each.
+
+- **Agent cap**:
+  "Resume at 24 (Recommended)":
+  halve the gap between 16, which held, and 32 again,
+  with the probe ending the level on two slow readings in a row as before.
+  Carried out at 08:54:33;
+  the number and the search's state are in `doc/handover/agents-at-once-on-this-machine.md`.
+  Not asked and not decided:
+  whether the criterion counts readings taken while the system's snapshot cleanup runs.
+- **A change that touches tests alone**:
+  "Writer reviews tests (Recommended)":
+  when a range has no other code,
+  the driver package's writer of review briefs lists the changed test files,
+  and its brief asks the reviewer to plant a break under each changed test and say whether it fails.
+  A fresh run in the driver package carries it out
+  (`~/temp/agent/pi-runs/review-brief-writer-takes-a-change-that-touches-tests-alone-prompt.md`);
+  until it is in `main`,
+  such a change gets a brief written by hand in the writer's form.
+- **The plugin that lets Pi retry the reviewer provider's passing token-rate limit** (issue 6297):
+  "Yes, after review (Recommended)":
+  when its author's answer has a review with no defect,
+  this session merges it into `main` and builds it in the main checkout,
+  where every Pi run of this machine on that provider loads it.
+- **Where no address can reach a commit service**
+  (a runtime directory too long for a socket path,
+  on a system without abstract socket names):
+  "Stop with the reason (Recommended)":
+  the commit is not made and the words say why and what to change.
+  The wrapper does not fall back to real Git;
+  `SPEC.md`'s rule that the service is the only writer stands.
 
 ## Working rules for this effort
 
