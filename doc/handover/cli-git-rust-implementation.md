@@ -1295,6 +1295,134 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The gate's new failure passes on this machine and in 94 earlier gate logs; pass 44 changed the lock code whose words it printed; a fresh run has it (2026-11-14T18:55:33-05:00)
+
+Not final and not approved:
+what the coordinating session measured and queued.
+
+- **`worktree_copy_concurrent::an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_copy`**,
+  the one failure of the gate on `0.6.1-alpha.34` that the 28 do not hold:
+  its `FAIL` line is in that one gate log and its `PASS` line in 94 of the gate logs kept;
+  run once on this machine at `main` at 18:55:33 with the five other controls of its module,
+  6 of 6 passed
+  (`~/temp/agent/gate/keep/host-run-of-the-worktree-copy-concurrent-controls-at-main-after-the-gate-on-c6a7e45273.txt`).
+  No file of its own module changed with pass 44,
+  and three under `src/native/lock/` did
+  (`index_holder_wait.rs`,
+  `index_lock_evidence.rs`,
+  `index_lock_evidence_words.rs`),
+  which is the code whose words the wrapper printed when the control failed.
+  One failure in one run cannot tell a rare timing from something the change brought.
+  A fresh run is queued at the head to reproduce it under the container's conditions,
+  say whether `4576839066` shows it,
+  and make the control's own sentence true
+  (`~/temp/agent/pi-runs/add-finishes-while-another-adds-real-git-holds-the-index-lock-in-the-gate-container-prompt.md`).
+  By the owner's answer it does not hold the next release.
+
+##### The gate on `0.6.1-alpha.34` fails the same 28 and one more, a control of two adds at once; its first six minutes are clean (2026-11-14T18:53:57-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **The gate on `c6a7e45273`** (`0.6.1-alpha.34`),
+  started 18:32:42,
+  log written until 18:53:51:
+  `9075 tests run: 9046 passed (7 slow), 29 failed, 27 skipped`,
+  `gate-exit-status=1`.
+  Twenty-eight of the 29 failed in both gates before it.
+  One is new:
+  `native_binary worktree_copy_concurrent::an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_copy`,
+  failing in 0.174 s at `binary_worktree_copy_concurrent_tests.rs:182`,
+  with the wrapper's words that an `index.lock` of the worktree `held` has a PID file naming a process that is alive,
+  "so nothing here proves the lock" abandoned.
+  Pass 44 changed no file of that control's module
+  (`git diff --name-only 4576839066..c6a7e45273` names none with `worktree_copy` in it).
+  The suite grew by 30 tests since the gate before.
+  The comparison and the panics are kept:
+  `~/temp/agent/gate/keep/failing-tests-of-the-gate-on-c6a7e45273-against-the-two-gates-before-it.txt`,
+  `…/panics-of-the-failing-tests-of-the-gate-on-c6a7e45273-2026-11-14T183242.txt`.
+  The control's module is run once on this machine at `main`,
+  and the older gate logs are searched for it,
+  before it goes to an author;
+  by the owner's answer it does not hold the next release.
+- **`0.6.1-alpha.34`**,
+  the user journal from 18:32:25 to 18:38:25:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit;
+  four starts saying `0.6.1-alpha.34`,
+  each the installed program in its own unit,
+  and five saying `0.6.1-alpha.31`,
+  each a program built in an agent's fixture folder under `/var/mnt/encrypted/temp/agent/`,
+  in a scope.
+
+##### Six reviews are going on Kimi and the machine is at its cap; the read-only main checkout's third answer goes to review (2026-11-14T18:50:48-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+and what the coordinating session measured and queued.
+
+- **Counted at 18:50:48**:
+  24 Pi units going,
+  18 on `deepseek-v4.1-flash-flex` and six on `kimi-k3.1-pro-flex`.
+  The six are the reviews of the masking,
+  the queue filling,
+  mpm-shadow's removal of old versions,
+  the push of a branch not checked out,
+  the test services' journal change and the drawn shadow tree.
+  The reviews of the scan for a process that has gone,
+  of the empty last answer and of the lock a killed Git left wait for a place.
+- **A Pi run cannot write into the main checkout** (tip `0a9d5c3c93`, ended 18:46:10):
+  the author reports that a run that happened and whose worktree is gone is now told so,
+  with what it left and where,
+  while a unit that never started is still told no run happened;
+  and a new control that asks this machine's manager for one capped transient unit for each of ten awkward paths,
+  all ten passing,
+  each skipped with its reason where no manager answers.
+  197 tests pass by name.
+  Review queued (range `main...0a9d5c3c93`, eight code files).
+- Read at 18:50:48:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  That author measured `~/temp/agent` at 410 GiB.
+- Measured by this session at 18:51:10:
+  `/var/home` 496 G free at 72% used,
+  against 498 G at 16:54:04,
+  so the drive gave up about 2 G in two hours while runs' `du` counts of `~/temp/agent` rose from 306 to 331 GiB to 410 GiB;
+  `du` counts data that copy-on-write worktrees share once for each.
+  `change-reviews` 94 GiB and `pi-runs` 7 GiB by `du`,
+  the first unchanged since 17:00.
+
+##### `0.6.1-alpha.34` is installed and its gate is running; the masking's review is going on Kimi (2026-11-14T18:32:42-05:00)
+
+Not final and not approved:
+what the coordinating session ran,
+read and sent.
+
+- **`0.6.1-alpha.34`** (pass 44):
+  published by 18:32:29,
+  installed here from 18:32:29 to 18:32:41,
+  sample commit 1,551 ms,
+  `--version` answering `0.6.1-alpha.34`.
+  Its gate was started at 18:32:42 on `c6a7e45273`
+  (unit and log `gpc-gate-wrapper-next-alpha-on-c6a7e45273-20261114T183242-0500`).
+  One background command waits,
+  bounded,
+  for the verdict,
+  compares its failing tests with the two gates before it,
+  and then reads the journal for 18:32:25 to 18:38:25.
+- **The review of the masking** was going on Kimi by 18:24:32,
+  its unit's command line naming provider `neuralwatt` and model `kimi-k3.1-pro-flex`.
+  Its reviewer got the note at 18:24:39:
+  stand-in values and a disposable store only,
+  and the Qwen attempt's last line as a lead to check after its own review
+  (`~/temp/agent/notes-to-send/note-for-the-reviewer-on-kimi-of-the-masking-of-secret-values-stand-in-values-only-2026-11-14T1827.md`).
+- **Looked for and left open**:
+  whether Pi carries a session from one provider's model to another's.
+  Three probes for the installed Pi's own source found no folder of `pi-ai` or `pi-coding-agent` under the repository's `node_modules/.pnpm`.
+  Nothing depends on it:
+  the reviews started anew from their briefs.
+
 ##### Pass 44 is in `main` and `0.6.1-alpha.34` is dispatched; the first review on Kimi is going; two more authors' answers go to review (2026-11-14T18:24:04-05:00)
 
 Not final and not approved:
