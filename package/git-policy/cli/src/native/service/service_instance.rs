@@ -249,7 +249,11 @@ pub const EARLIER_RELEASES_PROGRAM_POINTER: &str = "service-program";
 
 /// The path of the link the releases before this one named in their unit texts.
 pub fn earlier_releases_program_pointer(runtime_dir: &Path) -> PathBuf {
-    return crate::service_provision_host_and_manager::runtime_unit_dir(runtime_dir)
+    // The folder an earlier release's units lived in, named here without building it: this release writes no unit file and asks
+    //  no manager for anything, and the pointer is only what a start of an earlier release reads.
+    return runtime_dir
+        .join("systemd")
+        .join("user")
         .join(crate::service_files_of_a_stopped_instance::NOTES_FOLDER)
         .join(EARLIER_RELEASES_PROGRAM_POINTER);
 }

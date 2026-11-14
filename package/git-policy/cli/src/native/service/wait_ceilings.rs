@@ -1038,7 +1038,7 @@ pub const A_FINISHED_RECORD_IS_READ: Duration =
 /// How long a command that stopped an instance's service waits for the manager to report its processes gone
 /// before it leaves the instance's journal to a later sweep.
 /// Why:
-///   A stop call returns when the job is queued (`systemd_dbus.rs`),
+///   A stop the manager was asked for returned when the job was queued,
 /// so the journal may still be written while the report says the stop was taken,
 /// and removing it then can delete a record the service published in between
 /// or make its next write fail.

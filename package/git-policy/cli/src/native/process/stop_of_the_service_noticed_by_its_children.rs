@@ -47,9 +47,10 @@ use tokio::sync::{Notify, watch};
 /// so this bound is that wait,
 /// the grace of the kill that follows it,
 /// and the unwinding.
-/// The unit sets its own stop timeout,
-/// written from these bounds (`STOP_TIMEOUT_SECONDS` in `service_provision_host_and_manager.rs`),
-/// so the shutdown ends before the manager would kill the unit.
+/// The unit an earlier release ran set its own stop timeout,
+/// written from these bounds,
+/// so the shutdown ended before the manager would kill the unit;
+/// this release starts its service itself and has no unit and no stop timeout.
 /// The host's default (15 s on this host,
 /// `DefaultTimeoutStopSec=` in `/etc/systemd/user.conf.d/timeout.conf`) is shorter than these bounds:
 /// the first version of this step assumed ninety seconds and the unit set none.
