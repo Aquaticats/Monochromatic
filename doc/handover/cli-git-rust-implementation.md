@@ -1202,6 +1202,56 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The warm request's author answered; a review ended on the rate limit (2026-11-13T23:17:55-05:00)
+
+Not final and not approved:
+read by the coordinating session from one run's last message and one unfinished review file.
+
+- **Warm request of a commit**
+  (run `warm-request-of-a-commit-connects-to-its-service-within-a-bound-2`,
+  ended 23:12:42,
+  tip `f09d836d55`,
+  `main` merged at alpha.22):
+  the review's reproduction shown first
+  (the look at the processes gave no answer in 30 s where one process's command line cannot be read).
+  The look now runs on a thread of its own and is given up at 250 ms,
+  the same ceiling as the connection;
+  no answer counts as no service,
+  and the command publishes the rules itself.
+  The value's measurement stands beside it
+  (25 looks,
+  12.3 ms median,
+  18.7 ms slowest).
+  The review's second finding
+  (a service killed between the look and the connection)
+  is answered as one that cannot be closed and loses nothing:
+  the connection starts the successor,
+  shown by a control;
+  the promise in the file,
+  `SPEC.md` and the README is corrected to what the client does.
+  Cost,
+  two builds alternating in one fixture:
+  one millisecond between medians.
+  Its review is queued at the head
+  (`review-git-policy-cli-warm-request-of-a-commit-connects-within-a-bound-answers-after-its-review`,
+  range `main...f09d836d55`).
+- **The review of the push of a branch that is not checked out**
+  (run `review-git-policy-cli-push-of-a-branch-not-checked-out-answers-after-its-second-review-1`)
+  ended at 23:15:51 on the provider's rate limit after 78 turns,
+  its review file still the first draft of 23:02
+  (five candidates,
+  none confirmed)
+  and a reproduction folder named for a staged edit destroyed by the repair after the move.
+  The filling unit puts such a review back at the head to go on in its own session;
+  whether it did is read at the next pass.
+- **The journal after the install of alpha.23**,
+  23:14:00 to 23:17:55,
+  231 lines:
+  no manager-wide reload,
+  no start that failed at the EXEC step,
+  no service at its start limit;
+  two services said alpha.23 at their start.
+
 ##### 0.6.1-alpha.23 is published and installed (2026-11-13T23:14:59-05:00)
 
 Not final and not approved;
