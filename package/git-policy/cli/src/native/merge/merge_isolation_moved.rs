@@ -36,7 +36,7 @@ use crate::merge_isolation_journal::MergeIntent;
 /// The shared steps of recovery.
 use crate::merge_isolation_recovery_cleanup::an_installed_merge_behind_a_held_index;
 use crate::merge_isolation_recovery_steps::{
-    Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_holds_the_merge_awaiting,
+    IndexHeldAt, Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, index_holds_the_merge_awaiting,
     install_entries_awaiting, judge_changes_awaiting, merge_changes_awaiting, put_back_stranded_takes_awaiting, remove_record,
 };
 use crate::merge_isolation_index_reading::{entries_by_path, index_entries_awaiting, standing_of_index};
@@ -235,7 +235,11 @@ pub(crate) async fn settle_moved_branch_awaiting<W: std::io::Write + ?Sized>(
                 record,
             )));
         }
-        return Ok(MergeRecoveryAction::IndexHeld);
+        return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
+            the_merges_entries_in_the_checkout: false,
+            landed: false,
+            branch_moved: true,
+        }));
     }
     if !keep_record {
         remove_record(record).map_err(partly_installed)?;

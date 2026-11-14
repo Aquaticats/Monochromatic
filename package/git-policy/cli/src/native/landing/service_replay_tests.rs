@@ -547,6 +547,7 @@ fn a_private_index_that_is_gone_is_named_instead_of_read_as_the_empty_tree() {
         TransactionStop::Failed { message, .. } => message,
         TransactionStop::NativeExit(status) => panic!("a message, not Git's own exit {status}"),
         TransactionStop::EndedBySignal { signal, .. } => panic!("a message, not a death by signal {signal}"),
+        TransactionStop::Client(failure) => panic!("a message, not a failure the command decided {failure:?}"),
     };
     assert!(text.contains(gone.display().to_string().as_str()), "the index is named: {text}");
     assert!(text.contains(crate::service_messages::NOTHING_CHANGED), "nothing changed: {text}");
