@@ -227,6 +227,11 @@ impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
                 // The report had already given up on this job, so the work was not done and the index is as it was.
                 Ok(None) => String::from("not rewritten, because the report gave up on this work before it ran"),
                 Err(refused) => match refused {
+                    // No place came within its ceiling, so the write did not run and the index is as it was.
+                    BlockingJobError::NoPlaceWithinTheCeiling if claim.the_reporter_takes_it() => {
+                        self.gave_no_result.never_started.fetch_add(1, Ordering::SeqCst);
+                        format!("not rewritten ({refused})")
+                    }
                     BlockingJobError::NoThreadToStart if claim.the_reporter_takes_it() => {
                         self.gave_no_result.never_started.fetch_add(1, Ordering::SeqCst);
                         format!("not rewritten ({refused})")
@@ -234,7 +239,12 @@ impl OrderedAwaitingWork<IndexTarget, String> for RewriteEachIndex {
                     // The kinds of end that leave the index unknown: the job started on another thread after the report gave
                     //  up on it (or took this item's own claim first), it panicked, or it was cut off, or the runner took no
                     //  claim on the queued closure and nothing here can say it will not run.
-                    BlockingJobError::MayStillRunAfterItsThreadWasRefused | BlockingJobError::NoThreadToStart | BlockingJobError::StartedAfterItsThreadWasRefused | BlockingJobError::Panicked | BlockingJobError::Cancelled => {
+                    BlockingJobError::MayStillRunAfterItsThreadWasRefused
+                    | BlockingJobError::NoThreadToStart
+                    | BlockingJobError::StartedAfterItsThreadWasRefused
+                    | BlockingJobError::NoPlaceWithinTheCeiling
+                    | BlockingJobError::Panicked
+                    | BlockingJobError::Cancelled => {
                         self.gave_no_result.ended_without_a_result.fetch_add(1, Ordering::SeqCst);
                         format!("ended without a known result, so this index may have been written or may be as it was ({refused})")
                     }

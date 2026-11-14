@@ -164,6 +164,19 @@ pub(super) const RULES: &[Rule] = &[
         },
     },
     Rule {
+        id: "unbounded-place-wait",
+        reason: "waits for a place of the process's bound with no ceiling, and a place is held by the job that has it until \
+                 that job's work ends: the next such call is caught here before a review, and a wait that ends is a \
+                 `tokio::time::timeout` around the acquire with `PLACE_WAIT_CEILING`",
+        place: Place::Everywhere,
+        matches: |_line, joined| {
+            if !joined.contains("acquire_owned()") {
+                return false;
+            }
+            return !joined.contains("timeout(");
+        },
+    },
+    Rule {
         id: "unbounded-channel-wait",
         reason: "waits on a channel with no end; on an exit path it keeps a worktree the manager is already restarting, \
                  and on a worker it stops the task that would send, so a wait that ends is `recv_timeout` or an awaited receive",

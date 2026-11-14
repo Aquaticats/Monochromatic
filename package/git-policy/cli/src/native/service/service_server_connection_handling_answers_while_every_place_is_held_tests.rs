@@ -154,7 +154,10 @@ fn write_the_landing_threads_stuck_write(journal: &Path) {
 ///  A withdrawal is answered with the words of the write the landing is inside before the decision itself
 /// (`service_server_connection_handling.rs`, `withdraw`),
 /// so a control that read one message would read the notice and never the answer.
-async fn the_answer_within(client: &mut tokio::io::BufReader<UnixStream>, bound: Duration) -> Option<ServiceMessage> {
+async fn the_answer_within<R>(client: &mut tokio::io::BufReader<R>, bound: Duration) -> Option<ServiceMessage>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
     let deadline: tokio::time::Instant = tokio::time::Instant::now() + bound;
     loop {
         let left: Duration = deadline.saturating_duration_since(tokio::time::Instant::now());
@@ -342,4 +345,54 @@ fn a_commit_request_named(id: &str) -> crate::service_protocol::CommitRequest {
         captured: 0,
         holder: String::new(),
     };
+}
+
+/// What:
+///  A withdrawal is decided while a beat's note read is stuck on storage,
+///  so the place kept for a withdrawal's answer is not held by a note.
+/// Why:
+///  Withdrawals and notes once shared one answering place, and a note read that stopped on stopped journal storage held it
+///  until its work ended, so every later withdrawal lost its early decision (the review of `0b847be249`, F3). The note now
+///  waits on a job of its own and takes none of those places.
+#[test]
+fn a_withdrawal_is_decided_while_a_note_read_is_stuck() {
+    let (shared, journal, mut jobs) = shared_in_a_control("connection-withdrawal-beside-a-stuck-note");
+    // The journal holds the record of a write the landing thread is inside, which is the state a withdrawal is decided in.
+    write_the_landing_threads_stuck_write(journal.as_path());
+    // A note read is held on whichever thread reaches it, as storage that stopped answering holds one.
+    let (reached, was_reached) = tokio::sync::oneshot::channel::<()>();
+    let (let_go, still_held) = std::sync::mpsc::channel::<()>();
+    hooks::hold_on_any_thread(hooks::HoldOnAnyThread { point: String::from(IN_THE_NOTE_READ), reached, let_go: still_held });
+    let board_for_the_note: Arc<LandingBoard> = Arc::clone(&shared.board);
+    let note_task = crate::lazy_runtime::spawn_on_runtime(async move {
+        let mut notice: StuckNotice = stuck_notice(board_for_the_note, Some(String::from(A_REQUEST)));
+        let _words = notice.note().await;
+    })
+    .expect("a worker for the note");
+    let note_is_stuck: bool = crate::lazy_runtime::run_on_runtime(async {
+        return tokio::time::timeout(A_BOUND, was_reached).await.is_ok();
+    })
+    .expect("the runtime");
+    assert!(note_is_stuck, "the note read never reached the storage it reads");
+    // The withdrawal, with this body playing the landing thread that answers it if it is handed on.
+    let line: String = encode_client(&ClientMessage::Withdraw { id: String::from(A_REQUEST) });
+    let heard: Option<ServiceMessage> = crate::lazy_runtime::run_on_runtime(async move {
+        let (service, client_end) = UnixStream::pair().expect("a connected pair");
+        let serving = crate::lazy_runtime::spawn_on_runtime(handle_connection(service, shared)).expect("a worker for the connection");
+        let (mut read_half, mut write_half) = client_end.into_split();
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, format!("{line}\n").as_bytes()).await.expect("the withdrawal line is sent");
+        let mut reader = tokio::io::BufReader::new(read_half);
+        let heard: Option<ServiceMessage> = the_answer_within(&mut reader, A_BOUND).await;
+        serving.abort();
+        return heard;
+    })
+    .expect("the runtime");
+    let handed_on: bool = jobs.try_recv().is_ok();
+    let _let_the_note_go = let_go.send(());
+    note_task.abort();
+    assert!(!handed_on, "the withdrawal was handed to a landing thread instead of being decided beside a stuck note read");
+    match heard {
+        Some(ServiceMessage::Withdrawn { id }) => assert_eq!(id, A_REQUEST),
+        other => panic!("the withdrawal was not decided while a note read was stuck: {other:?}"),
+    }
 }

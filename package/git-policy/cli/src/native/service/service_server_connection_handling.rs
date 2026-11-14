@@ -185,13 +185,32 @@ impl NoteSource for StuckNotice {
             // Cloned rather than taken: the words said last stay the words that were said until a read answers with the next
             //  ones, and a read that outlives its beat answers only beats later.
             let last: Option<String> = self.last.clone();
-            // A note is an answer a client waits for, so it takes one of the places kept for those and waits for it no longer
-            //  than its ceiling: the work of the service can hold every one of its own places, and a note must not wait on it.
-            self.still_reading = Some(Box::pin(run_an_answer_to_a_client(
-                crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING,
-                (board, request, last),
-                note_from_the_board_in_a_job,
-            )));
+            // What:
+            //  The note is read by an unbudgeted job of the blocking pool and awaited no longer than one ceiling,
+            //  and it takes none of the places kept for the answers a client waits for.
+            // Why:
+            //  A note read that stopped on stopped journal storage would hold that place until its work ended,
+            //  and a withdrawal queued behind it would lose the early decision the place exists for
+            //  (the review of `0b847be249`, F3); so the note waits on its own thread and the withdrawal keeps the place.
+            //  A read that gives no answer is left behind on its thread, as any stuck job of the pool is, and the beat after
+            //  it asks once more; the beat itself is written first.
+            let reading = crate::blocking_job::run_blocking_job(move || { return note_from_the_board_in_a_job((board, request, last)); });
+            self.still_reading = Some(Box::pin(async move {
+                return match tokio::time::timeout(crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING, reading).await {
+                    Ok(Ok(answer)) => TheAnswerOfAJobAwaited::Ran(answer),
+                    Ok(Err(refused)) => {
+                        crate::service_warn!("the note of what the landing is inside could not be read for a waiting client: {refused}");
+                        TheAnswerOfAJobAwaited::NotRun
+                    }
+                    Err(_no_answer) => {
+                        crate::service_warn!(
+                            "the note of what the landing is inside gave no answer within {:?}, so it is left behind and the beat itself is still written",
+                            crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING
+                        );
+                        TheAnswerOfAJobAwaited::NoAnswer
+                    }
+                };
+            }));
         }
         let running: &mut NoteRead = self.still_reading.as_mut().expect("the read of this connection's note was just started");
         // A wait that passes here leaves the read in `still_reading`, so the beat behind this one waits for the same read instead
@@ -462,11 +481,20 @@ async fn queue_a_commit(request: Box<crate::service_protocol::CommitRequest>, wr
         let began: Instant = Instant::now();
         let mut asked: usize = 0;
         let answer: Option<bool> = loop {
+            // What:
+            //  How many general places are free before this ask, so a retry never starts a job while the ask before it still
+            //  holds a place.
+            // Why:
+            //  A look that outlasts its ceiling keeps the place it took until its work ends, and a retry that started beside it
+            //  would fill the general places one step at a time (the review of `0b847be249`, F1).
+            let free_before: usize = crate::blocking_jobs_within_the_budget::places_free();
             match is_foreign(&deciding_shared, deciding_git_dir.clone()).await {
                 Some(foreign) => break Some(foreign),
                 None if began.elapsed() < crate::wait_ceilings::ROUTING_LOOK_PATIENCE => {
                     asked += 1;
-                    tokio::time::sleep(crate::wait_ceilings::ROUTING_LOOK_RETRY_PAUSE).await;
+                    while crate::blocking_jobs_within_the_budget::places_free() < free_before && began.elapsed() < crate::wait_ceilings::ROUTING_LOOK_PATIENCE {
+                        tokio::time::sleep(crate::wait_ceilings::ROUTING_LOOK_RETRY_PAUSE).await;
+                    }
                 }
                 None => {
                     crate::service_error!(

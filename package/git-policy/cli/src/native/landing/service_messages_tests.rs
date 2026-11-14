@@ -454,3 +454,18 @@ fn an_older_git_is_told_how_to_get_a_service_it_can_work_with() {
     assert!(text.contains(NOTHING_CHANGED), "nothing landed: {text}");
     assert!(!text.contains(RESTART_COMMAND), "a restart starts the newer service again, so it is not the remedy here: {text}");
 }
+
+/// What:
+///  The message for a service that answered neither the request nor its withdrawal promises nothing about what will not
+///  happen later, and says the request may still land.
+/// Why:
+///  The service may complete a branch write it began: its checks for a gone client are prefilters, not a cancellation
+///  (the review of `0b847be249`, F2). A reader told "it will not land later by itself" would look at the branch and run the
+///  command again, and the change could land twice.
+#[test]
+fn the_unconfirmed_service_message_promises_nothing_about_a_later_landing() {
+    let words: String = render(&ClientFailure::ServiceGoneUnconfirmed { blocker: Some(String::from("a branch write")) });
+    assert!(!words.contains("will not land later by itself"), "the message must not promise that the request will not land: {words}");
+    assert!(words.contains("may still land"), "the message says the request may still land: {words}");
+    assert!(words.contains("Do not run the commit again until"), "the message tells the person what not to do yet: {words}");
+}

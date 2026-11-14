@@ -108,6 +108,18 @@ pub enum OrderedRunError {
     /// the items after it in its lane were not run,
     ///  and whether it ran is not known from here.
     MayStillRunAfterItsThreadWasRefused,
+    /// What:
+    ///  No place of the process's bound came within the ceiling,
+    ///  so the item's step did not run and nothing it would have changed was changed.
+    /// Why:
+    ///  A place is held by the job that has it until that job's work ends,
+    /// so a step that waited for one without a ceiling would wait with no end (`PLACE_WAIT_CEILING`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// type OrderedRunError = ... | 'noPlaceWithinTheCeiling';
+    /// ```
+    NoPlaceWithinTheCeiling,
     /// A job panicked,
     /// so the items after it in its lane were not run.
     Panicked,
@@ -121,6 +133,12 @@ pub enum OrderedRunError {
 impl std::fmt::Display for OrderedRunError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         return match self {
+            OrderedRunError::NoPlaceWithinTheCeiling => write!(
+                formatter,
+                "no place on this process's bound on blocking jobs came within {:?}, so this item's step did not run and nothing \
+                 of it was changed; the run says what it could not do and the caller goes on",
+                crate::wait_ceilings::PLACE_WAIT_CEILING
+            ),
             OrderedRunError::NoThreadToStart => write!(
                 formatter,
                 "the system refused a thread for a step of this run, so the items after it in its lane were not run and the \
@@ -156,6 +174,8 @@ impl From<BlockingJobError> for OrderedRunError {
             BlockingJobError::StartedAfterItsThreadWasRefused => OrderedRunError::StartedAfterItsThreadWasRefused,
             BlockingJobError::Panicked => OrderedRunError::Panicked,
             BlockingJobError::Cancelled => OrderedRunError::Cancelled,
+            // No place came for the item's step, so it did not run and nothing it would have changed was changed.
+            BlockingJobError::NoPlaceWithinTheCeiling => OrderedRunError::NoPlaceWithinTheCeiling,
         };
     }
 }

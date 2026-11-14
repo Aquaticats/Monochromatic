@@ -330,10 +330,11 @@ fn a_wave_removes_the_entries_it_names_and_leaves_the_rest_for_the_next_one() {
     assert!(half > 0 && half < ENTRIES, "the control needs a wave between one entry and all of them: {half}");
     let first: Vec<usize> = (0..half).collect();
     let later: Vec<usize> = (half..ENTRIES).collect();
-    let (first_wave, removed_by_the_first_wave): (Vec<String>, usize) =
+    let (first_wave, removed_by_the_first_wave, without_a_place): (Vec<String>, usize, usize) =
         crate::lazy_runtime::run_on_runtime(remove_these_entries_awaiting(&request, first.as_slice())).expect("the runtime removes the first wave");
     assert!(first_wave.is_empty(), "{first_wave:?}");
     assert_eq!(removed_by_the_first_wave, first.len(), "every entry the first wave named was there and is gone");
+    assert_eq!(without_a_place, 0, "every entry the first wave named was examined: a place came for each");
     for index in &first {
         assert!(!root.join("trash").join(entry_name(*index)).exists(), "d{index} of the first wave is gone");
     }
@@ -341,7 +342,7 @@ fn a_wave_removes_the_entries_it_names_and_leaves_the_rest_for_the_next_one() {
         assert!(root.join("trash").join(entry_name(*index)).exists(), "d{index} of the later wave is still there for it");
     }
     // The identity the manifest recorded still holds for what is left, so the next wave removes exactly those entries.
-    let (next_wave, removed_by_the_next_wave): (Vec<String>, usize) =
+    let (next_wave, removed_by_the_next_wave, _without_a_place): (Vec<String>, usize, usize) =
         crate::lazy_runtime::run_on_runtime(remove_these_entries_awaiting(&request, later.as_slice())).expect("the runtime removes the next wave");
     assert!(next_wave.is_empty(), "{next_wave:?}");
     assert_eq!(removed_by_the_next_wave, later.len(), "every entry the next wave named was there and is gone");

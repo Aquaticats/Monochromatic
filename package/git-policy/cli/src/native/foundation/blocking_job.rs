@@ -57,6 +57,19 @@ pub enum BlockingJobError {
     /// it has started,
     ///  and whether it finished is not known from here.
     StartedAfterItsThreadWasRefused,
+    /// What:
+    ///  No place of the process's bound came within the ceiling the caller granted,
+    ///  so the job never started and changed nothing.
+    /// Why:
+    ///  A place is held by the job that took it until its work ends,
+    /// and a job that outlasts its own ceiling keeps its place:
+    /// a wait for one without a ceiling is a wait with no end (`PLACE_WAIT_CEILING` in `wait_ceilings.rs`).
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// type BlockingJobError = ... | 'noPlaceWithinTheCeiling';
+    /// ```
+    NoPlaceWithinTheCeiling,
     /// The job ran and panicked.
     Panicked,
     /// The runtime ended before the job did.
@@ -83,6 +96,12 @@ impl std::fmt::Display for BlockingJobError {
                 "the system refused a thread for a blocking step, and the pool then ran that step on another thread: it has \
                  started, and whether it finished is not known from here. Hint: check the process limit (`ulimit -u`) and the \
                  control group's `pids.max`, and check what the step was doing before running the command again"
+            ),
+            BlockingJobError::NoPlaceWithinTheCeiling => write!(
+                formatter,
+                "no place on this process's bound on blocking jobs came within {:?}, and a place is held by the job that has it \
+                 until that job's work ends, so the step did not run and changed nothing; the caller goes on and says so",
+                crate::wait_ceilings::PLACE_WAIT_CEILING
             ),
             BlockingJobError::Panicked => write!(formatter, "a blocking step panicked; this is a defect of monochromatic-git-policy-cli"),
             BlockingJobError::Cancelled => write!(formatter, "a blocking step was cancelled because the runtime was ending"),

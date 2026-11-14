@@ -1113,6 +1113,17 @@ pub const TRASH_ITEM_CEILING: Duration = Duration::from_secs(120);
 ///  and the client's waits bound the person's side (`ANSWER_CEILING`, `WITHDRAW_CEILING`).
 pub const CLIENT_ANSWER_PLACE_CEILING: Duration = crate::service_protocol_messages_and_name_checks::HEARTBEAT_SILENCE;
 
+/// The longest any job of this process waits for a place before it says that it did not run:
+/// five seconds, the silence a client lets the service keep (`HEARTBEAT_SILENCE`).
+/// Why a bound at all:
+///  a place is held by the job that took it until that job's work ends, and a job that outlasts its caller's ceiling keeps
+///  its place until its work ends, which storage that stopped answering can outlast with no end.
+///  A caller that waited for a place without one would be the sixth unbounded wait of this branch's subject
+///  (the review of `0b847be249`): the slow lane, its trashes, its entries and the exit all stand behind one place.
+/// A job that gets no place changes nothing and the caller answers that it did not run, so the lane goes on to the next
+/// repository and says so.
+pub const PLACE_WAIT_CEILING: Duration = Duration::from_secs(5);
+
 /// The longest one listing of a trash's directory waits for a place of slow work, and for the listing itself:
 /// a minute,
 /// which is the wait a state step of the service is granted (`LANDING_STATE_CEILING`).

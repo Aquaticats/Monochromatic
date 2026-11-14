@@ -73,6 +73,9 @@ pub async fn empty_trash_awaiting(item: &WorkItem) -> Verdict {
         //  and a retry spends one of the three tries the recovery gives a failure before the record is given up on in `failed`,
         //  where nothing reads it again: a trash of more than a few rounds was left on the disk that way.
         //  A round that removed nothing is a different thing, and three of those do end it.
+        // No place came for one of the item's own steps, so it did not run and nothing of it failed: it is queued again for a
+        //  later look with the tries it had, and the lane goes on to the next repository.
+        EmptiedTrash::LeftForALaterLook(left) => Verdict::Deferred(left.reason),
         EmptiedTrash::LeftForALaterRound { left, removed: 0 } => Verdict::Retry(left.reason),
         EmptiedTrash::LeftForALaterRound { left, removed: _progress } => Verdict::Deferred(left.reason),
     };

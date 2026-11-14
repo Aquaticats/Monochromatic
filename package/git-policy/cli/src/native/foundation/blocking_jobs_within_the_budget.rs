@@ -136,6 +136,21 @@ fn decide_the_budget() -> TheBudget {
 pub const PLACES_KEPT_TO_ANSWER_A_CLIENT: usize = 1;
 
 /// What:
+///  How many places of the process's bound are free right now.
+/// Why:
+///  A caller that asks a question in slices must not start a job while the ask before it still holds a place
+/// (`service_server_connection_handling.rs`, the look that says whose a commit's request is),
+/// and this is the one place that count is kept.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const freePlaces = () => budget().places.availablePermits();
+/// ```
+pub fn places_free() -> usize {
+    return budget().places.available_permits();
+}
+
+/// What:
 ///  How many places the service's own work may take at once:
 /// the process's places less those kept for the answers a client waits for.
 /// Why:
@@ -253,10 +268,12 @@ where
     // A control can wait on this ask instead of on a clock, so work that bypasses the bound cannot pass it.
     #[cfg(test)]
     let _asking: jobs_waiting_for_a_place::AJobWaits = jobs_waiting_for_a_place::note_that_a_job_waits();
-    let place: tokio::sync::OwnedSemaphorePermit = match Arc::clone(&budget().places).acquire_owned().await {
-        Ok(taken) => taken,
+    let place: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(crate::wait_ceilings::PLACE_WAIT_CEILING, Arc::clone(&budget().places).acquire_owned()).await {
+        Ok(Ok(taken)) => taken,
         // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
-        Err(_closed) => return Err(BlockingJobError::Cancelled),
+        Ok(Err(_closed)) => return Err(BlockingJobError::Cancelled),
+        // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
+        Err(_no_place) => return Err(BlockingJobError::NoPlaceWithinTheCeiling),
     };
     // The place is this job's, so it is no longer one of the jobs waiting for one.
     #[cfg(test)]
@@ -405,10 +422,12 @@ where
     T: Send + 'static,
     J: FnOnce() -> T + Send + 'static,
 {
-    let slow: tokio::sync::OwnedSemaphorePermit = match Arc::clone(slow_places()).acquire_owned().await {
-        Ok(taken) => taken,
+    let slow: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(crate::wait_ceilings::PLACE_WAIT_CEILING, Arc::clone(slow_places()).acquire_owned()).await {
+        Ok(Ok(taken)) => taken,
         // The semaphore lives as long as the process, so a closed one is a defect rather than a state: nothing is run.
-        Err(_closed) => return Err(BlockingJobError::Cancelled),
+        Ok(Err(_closed)) => return Err(BlockingJobError::Cancelled),
+        // No place came within the ceiling, so the job never started and nothing it would have changed was changed.
+        Err(_no_place) => return Err(BlockingJobError::NoPlaceWithinTheCeiling),
     };
     let answer: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(job).await;
     drop(slow);
@@ -429,9 +448,11 @@ where
 /// try { return await runASlowJobWithinTheBudget(() => work(state)); } catch (refused) { if (!refused.noThreadToStart) raise(refused); return work(state); }
 /// ```
 pub async fn run_a_slow_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
-    let slow: tokio::sync::OwnedSemaphorePermit = match Arc::clone(slow_places()).acquire_owned().await {
-        Ok(taken) => taken,
-        Err(_closed) => return Err(BlockingJobError::Cancelled),
+    let slow: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(crate::wait_ceilings::PLACE_WAIT_CEILING, Arc::clone(slow_places()).acquire_owned()).await {
+        Ok(Ok(taken)) => taken,
+        Ok(Err(_closed)) => return Err(BlockingJobError::Cancelled),
+        // No place of slow work came within the ceiling, so nothing ran.
+        Err(_no_place) => return Err(BlockingJobError::NoPlaceWithinTheCeiling),
     };
     // The place for slow work is held on this frame, so the work done in turn below it is covered too.
     let answer: Result<T, BlockingJobError> = run_a_job_or_in_turn(state, work).await;
@@ -471,7 +492,7 @@ pub async fn run_a_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(
     return match outcome {
         Ok(value) => Ok(value),
         // The job will not run and changed nothing, so the same work runs here, and its place is held until it ends.
-        Err(BlockingJobError::NoThreadToStart) => match Arc::clone(&budget().places).acquire_owned().await {
+        Err(BlockingJobError::NoThreadToStart) => match tokio::time::timeout(crate::wait_ceilings::PLACE_WAIT_CEILING, Arc::clone(&budget().places).acquire_owned()).await {
             // The place is this frame's and it is dropped after the work, never before it.
             Ok(_place) => Ok(work(state)),
             // The semaphore lives as long as the process, so a closed one is a defect: nothing is run.

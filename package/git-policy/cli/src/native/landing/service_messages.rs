@@ -410,9 +410,10 @@ pub fn render(failure: &ClientFailure) -> String {
         ClientFailure::ServiceGoneUnconfirmed { blocker } => format!(
             "The commit service stopped answering while this commit waited, and it did not answer this command's ask to \
              drop the commit either, so it is not known whether the commit was made and the request may still land when the \
-             service answers again.{} Run `{}` to see whether the branch holds it, and `{}` to see what is still staged. \
-             If the branch does not hold it, the request will not land later by itself: look at why the service is stuck \
-             with `{LOG_COMMAND}`, restart it with `{RESTART_COMMAND}`, and run the commit again.",
+             service answers again.{} Do not run the commit again until the service answers and `{}` shows the branch does \
+             not hold it: until then the request may still land, so a second commit could make the same change twice. When \
+             the service answers again, look at why it was stuck with `{LOG_COMMAND}` and restart it with `{RESTART_COMMAND}` \
+             before running the commit again; `{}` shows what is still staged.",
             it_had_said(blocker.as_deref()),
             CHECK_COMMANDS[0],
             CHECK_COMMANDS[1]

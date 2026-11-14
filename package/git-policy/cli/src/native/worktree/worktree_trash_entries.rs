@@ -23,6 +23,7 @@
 //! const left = await removeEntries({ inside, trash, manifest, host, remove }); // one reason per entry that stays
 //! ```
 
+use crate::blocking_job::BlockingJobError;
 use crate::blocking_jobs_within_the_budget::{places_a_round_may_take, run_a_slow_job_within_the_budget};
 use crate::lazy_runtime::{RuntimeError, run_on_runtime};
 use crate::parallel_budget::{BudgetRequest, HostResources, worker_budget};
@@ -31,6 +32,18 @@ use crate::parallel_runner_on_the_runtime::LinesToTheConsumer;
 use crate::parallel_runner_on_the_runtime_awaiting::{OrderedAwaitingWork, OrderedRunOfAwaitingOwned, run_ordered_awaiting_on_the_runtime};
 use crate::worktree_trash_manifest::{TrashManifest, entry_name};
 use crate::worktree_trash_remove::Removal;
+/// What:
+///  The mark a reason carries when the entry's removal never started because no place came within its ceiling.
+/// Why:
+///  A caller that cannot tell it from an entry that stayed would settle a trash nothing failed,
+/// and a record in `failed` is read by nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const NO_PLACE = 'no place came for this entry';
+/// ```
+const NO_PLACE: &str = "no place came for this entry";
+
 use std::ffi::OsStr;
 use std::fs::File;
 use std::future::Future;
@@ -209,6 +222,9 @@ impl OrderedAwaitingWork<usize, Result<Removal, String>> for RemoveEachEntry {
             .await;
             return match removal {
                 Ok(outcome) => outcome,
+                // No place of slow work came within the ceiling, so this entry was neither examined nor removed: it is not an
+                //  entry that stayed, and the caller must not read it as one.
+                Err(BlockingJobError::NoPlaceWithinTheCeiling) => Err(format!("{NO_PLACE}: {}", entry_name(entry))),
                 // Which entry this was is what makes the reason usable, since the list keeps no index.
                 Err(refused) => Err(format!("{}: {refused}", entry_name(entry))),
             };
@@ -333,7 +349,7 @@ fn remove_entries_in_turn(request: &EntryRemoval) -> Vec<String> {
 /// ```
 pub async fn remove_entries_awaiting(request: &EntryRemoval) -> Vec<String> {
     let all: Vec<usize> = (0..request.manifest.entries.len()).collect();
-    let (left, _removed) = remove_these_entries_awaiting(request, all.as_slice()).await;
+    let (left, _removed, _without_a_place) = remove_these_entries_awaiting(request, all.as_slice()).await;
     return left;
 }
 
@@ -376,7 +392,7 @@ pub(crate) fn entries_a_wave_may_remove(host: &HostResources) -> usize {
 /// ```ts
 /// const left = await removeTheseEntries({ inside, trash, manifest, host, remove }, [3, 4, 5]);
 /// ```
-pub(crate) async fn remove_these_entries_awaiting(request: &EntryRemoval, entries: &[usize]) -> (Vec<String>, usize) {
+pub(crate) async fn remove_these_entries_awaiting(request: &EntryRemoval, entries: &[usize]) -> (Vec<String>, usize, usize) {
     let indices: Arc<[usize]> = Arc::from(entries.to_vec());
     // One lane per entry, so no entry waits for another.
     // A lane names the *position* of an item and not the entry's own number, which differ once a trash is emptied a wave at
@@ -393,6 +409,7 @@ pub(crate) async fn remove_these_entries_awaiting(request: &EntryRemoval, entrie
         .min(places_a_round_may_take());
     let mut left: Vec<String> = Vec::new();
     let mut gone: usize = 0;
+    let mut without_a_place: usize = 0;
     let stopped_run = run_ordered_awaiting_on_the_runtime(OrderedRunOfAwaitingOwned {
         items: indices,
         lanes: Arc::from(lanes),
@@ -405,7 +422,11 @@ pub(crate) async fn remove_these_entries_awaiting(request: &EntryRemoval, entrie
         // The entries the run did not reach stay, so what ended the run is a reason among the others.
         left.push(format!("the removal of the other entries stopped: {stopped}"));
     }
-    return (left, gone);
+    // The entries whose place never came are told apart from the ones that stayed: they were not examined, and a caller that
+    //  read them as stayed would settle a trash that nothing failed.
+    without_a_place += left.iter().filter(|reason| { return reason.starts_with(NO_PLACE); }).count();
+    left.retain(|reason| { return !reason.starts_with(NO_PLACE); });
+    return (left, gone, without_a_place);
 }
 
 /// The controls for the entries of a trash removed side by side stay out of the release executable.

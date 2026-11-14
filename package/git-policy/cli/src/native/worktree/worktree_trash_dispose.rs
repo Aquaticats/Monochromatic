@@ -34,6 +34,7 @@
 //! ```
 
 use crate::blocking_jobs_within_the_budget::run_a_slow_job_or_in_turn;
+use crate::blocking_job::BlockingJobError;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
 use crate::idle_io_priority::with_idle_io_priority;
@@ -541,6 +542,19 @@ pub enum EmptiedTrash {
     Emptied,
     /// Something in the trash stays, with the reason it gives.
     Kept(TrashLeft),
+    /// What:
+    ///  No place of the process's bound came within the ceiling for one of this item's own steps,
+    ///  so the item did not run and nothing of it failed.
+    /// Why:
+    ///  A step that gets no place changes nothing (`PLACE_WAIT_CEILING`),
+    /// and an item queued again for a later look is not a failure and spends no try:
+    /// a trash left out of its places by another stuck job must not be given up on.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// type EmptiedTrash = 'emptied' | { kept } | { leftForALaterRound } | { leftForALaterLook }
+    /// ```
+    LeftForALaterLook(TrashLeft),
     /// The item's bound ran out with entries still to remove, and they are left for a later round.
     LeftForALaterRound {
         /// What is left, with the reason it gives.
@@ -575,6 +589,15 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
         Ok(Ok(held)) => held,
         // A directory that is not the recorded one is left alone with its reason, and nothing was removed.
         Ok(Err(reason)) => return EmptiedTrash::Kept(TrashLeft::kept(reason)),
+        // No place of slow work came within the ceiling, so the trash was not examined and nothing was removed: the item is
+        //  queued again for a later look and nothing of it failed.
+        Err(BlockingJobError::NoPlaceWithinTheCeiling) => {
+            return EmptiedTrash::LeftForALaterLook(TrashLeft::kept(format!(
+                "the directories of the trash {} were not examined, because no place of slow work came within {:?}",
+                manifest.name,
+                crate::wait_ceilings::PLACE_WAIT_CEILING
+            )));
+        }
         // Nothing was opened and nothing was removed, and the reason the system gave is why.
         Err(refused) => return EmptiedTrash::Kept(TrashLeft::kept(format!("the directories of the trash {} could not be examined ({refused})", manifest.name))),
     };
@@ -682,7 +705,15 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
         if names.is_empty() {
             break;
         }
-        let (left, gone): (Vec<String>, usize) = remove_these_entries_awaiting(&request, names.as_slice()).await;
+        let (left, gone, without_a_place): (Vec<String>, usize, usize) = remove_these_entries_awaiting(&request, names.as_slice()).await;
+        if without_a_place > 0 {
+            // No place came for these entries, so nothing of them was examined: the item is queued again for a later look.
+            return EmptiedTrash::LeftForALaterLook(TrashLeft::kept(format!(
+                "{without_a_place} entries of the trash {} were not examined, because no place of slow work came within {:?}",
+                manifest.name,
+                crate::wait_ceilings::PLACE_WAIT_CEILING
+            )));
+        }
         removed += gone;
         left_behind.extend(left);
         if !left_behind.is_empty() {
@@ -694,6 +725,13 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
     return match run_a_slow_job_or_in_turn(held, settle_trash_removal).await {
         Ok(Ok(())) => EmptiedTrash::Emptied,
         Ok(Err(left)) => EmptiedTrash::Kept(left),
+        // No place of slow work came within the ceiling, so the directory was not settled: the entries are gone and the item
+        //  is queued again for a later look, which settles it.
+        Err(BlockingJobError::NoPlaceWithinTheCeiling) => EmptiedTrash::LeftForALaterLook(TrashLeft::kept(format!(
+            "the entries of the trash {} are gone and its directory was not settled, because no place of slow work came within {:?}",
+            manifest.name,
+            crate::wait_ceilings::PLACE_WAIT_CEILING
+        ))),
         // The entries are gone and the directory above them stays, which the words say.
         Err(refused) => EmptiedTrash::Kept(TrashLeft::kept(format!("the trash directory {} stays ({refused})", manifest.name))),
     };
