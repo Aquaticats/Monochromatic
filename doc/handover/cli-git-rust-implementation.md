@@ -1121,6 +1121,68 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Commit forms and the landing that never waits each passed a review; pass 29 carries both (2026-11-13T21:41:57-05:00)
+
+Not final and not approved:
+read by the coordinating session from the two review files,
+nothing here rerun by it.
+
+- **Commit forms real Git refuses**
+  (review `~/temp/agent/change-reviews/git-policy-cli-commit-forms-answers-after-its-first-review/review.md`,
+  ended 21:37:24,
+  on `b631f80970`):
+  no defect found.
+  Twelve refused forms through the built wrapper beside real Git:
+  the same status and the same words byte for byte,
+  the repository's `HEAD`,
+  references and index unchanged,
+  no lock left.
+  A kill at nine moments of a refusal left nothing behind and the next commit landed;
+  eight refusals at once beside a real commit landed that commit once.
+  The rule is exactly as wide as Git 2.56.0,
+  the only Git measured.
+  Two things it names and does not count as defects:
+  a question that hangs is waited for about 607 s before the wrapper answers in its own words;
+  and `--pathspec-from-file` beside `-i` or `-o` is not asked about,
+  as before the change,
+  where real Git refuses an empty or missing file.
+- **The landing that never waits**
+  (review `~/temp/agent/change-reviews/git-policy-cli-landing-of-a-commit-never-waits-behind-housekeeping-a-push-or-a-package-repair-in-its-service/review.md`,
+  ended 21:36:21,
+  on `08d7a82212`):
+  no defect found.
+  The branch's controls pass,
+  a commit landed in 42 ms with every kind of slow work held,
+  and six candidates were dismissed by reading with the lines that dismiss them
+  (double removal of trash,
+  a wave with no worker,
+  a permit held across sub-steps,
+  a withdrawn request that later lands,
+  heartbeats under a full pool,
+  hold points in a shipped run).
+  Its limit,
+  which the author's report names too:
+  the path from an item of trash at its ceiling to the round that takes it up again has no control from end to end.
+- **Pass 29** is queued at the head for both,
+  commit forms first
+  (`integration-pass-29-with-commit-forms-and-the-landing-that-never-waits`,
+  branch `integrate/git-policy-cli-pass-29-commit-forms-git-refuses-and-landing-never-waits-behind-slow-work`).
+  The landing branch stands on `main` before four releases;
+  the brief says where it meets `main` (`service/service_client.rs`:
+  every connect bounded,
+  and a withdrawal before the client gives up)
+  and that a branch that cannot be merged with both meanings kept is left out while the other still makes a pass.
+- The landing author is resumed for the missing control and nothing else
+  (`landing-never-waits-gets-a-control-of-an-item-of-trash-that-reaches-its-ceiling-prompt.md`,
+  queued near the head):
+  a commit after `08d7a82212`,
+  reviewed and merged after the pass.
+- The two things the commit-forms review names are open with no run:
+  the size of the bound on a hung question,
+  and the pathspec-file forms.
+  The second is a difference from real Git that the change did not make;
+  it belongs with the next change to `commit/rule_commit_region_git_refuses.rs`.
+
 ##### The index-lock fix passed its fourth review and is pass 28; the issue 6293 answer has two reproduced defects (2026-11-13T21:36:20-05:00)
 
 Not final and not approved:
