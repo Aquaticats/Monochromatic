@@ -151,11 +151,16 @@ fn gather_here(real_index: &Path) -> std::io::Result<Option<Evidence>> {
 }
 
 /// The notice:
-/// what the command waits for,
+/// what the step waiting has and has not written,
+/// what it waits for,
 /// why it is safe to wait,
 /// then the holder,
 /// and how long the wait lasts before the ending the wait's own caller states happens.
-fn notice(command: &str, real_index: &Path, waited: Duration, ceiling: Duration, proof: &Proof, first: bool, ending: &str) -> String {
+///  The opening is the caller's:
+///  a merge that has not applied has changed nothing yet,
+///  and a step of a settle says only what it wrote itself,
+///  because a clear before it may have written the branch's content over the person's bytes.
+fn notice(opening: &str, real_index: &Path, waited: Duration, ceiling: Duration, proof: &Proof, first: bool, ending: &str) -> String {
     let end: WaitEnd<'_> = WaitEnd { within: ceiling, ending };
     let tail: String = match proof {
         Proof::Alive(evidence, pid, by_descriptor, holder_command) => {
@@ -170,7 +175,7 @@ fn notice(command: &str, real_index: &Path, waited: Duration, ceiling: Duration,
         Proof::Dead(_) => unproven_wait_line(lock_path_of(real_index).as_path(), None, end),
     };
     return format!(
-        "monochromatic-git-policy-cli: git {command} has changed nothing yet and waits for the index lock of this repository; {}",
+        "monochromatic-git-policy-cli: {opening} and waits for the index lock of this repository; {}",
         tail.strip_prefix("monochromatic-git-policy-cli: ").unwrap_or(tail.as_str())
     );
 }
@@ -376,7 +381,9 @@ const RECOVERY_NOTICE_ENDING: &str = RECOVERY_UNFINISHED;
 pub fn wait_for_index_release_while_finishing_a_merge<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
     return wait_with_watches_and_consequence(
         real_index,
-        "merge",
+        // The clear may already have written the branch's content over the person's bytes, so this notice says what the
+        //  step itself wrote and never that the merge changed nothing.
+        "the merge being settled has written nothing more",
         RECOVERY_CONSEQUENCE,
         // The ending says the lock is cleared when nothing else holds it, and every caller of this wait does clear one, so
         //  the dead owner's line must not first say the merge stays unfinished.
@@ -432,14 +439,26 @@ fn write_then_flush<W: Write + ?Sized>(out: &mut W, bytes: &[u8]) -> std::io::Re
 fn wait_with_watches(real_index: &Path, command: &str, ceiling: Duration, cadence: Cadence, out: &mut dyn Write, set_watch: &dyn Fn(&Path) -> Option<Watch>) -> IndexWait {
     let consequence: String = format!("git {command} stops waiting and reports what Git says");
     let notice_ending: String = format!("git {command} meets Git's own refusal");
-    return wait_with_watches_and_consequence(real_index, command, consequence.as_str(), consequence.as_str(), notice_ending.as_str(), DEAD_OWNER_LOCK_LEFT, ceiling, cadence, out, set_watch);
+    let opening: String = format!("git {command} has changed nothing yet");
+    return wait_with_watches_and_consequence(
+        real_index,
+        opening.as_str(),
+        consequence.as_str(),
+        consequence.as_str(),
+        notice_ending.as_str(),
+        DEAD_OWNER_LOCK_LEFT,
+        ceiling,
+        cadence,
+        out,
+        set_watch,
+    );
 }
 
 /// `wait_with_watches` with the sentence the ceiling line ends on given,
 /// so a recovery of an interrupted merge can say what it does instead of reporting what Git says.
 fn wait_with_watches_and_consequence<W: Write + ?Sized>(
     real_index: &Path,
-    command: &str,
+    opening: &str,
     consequence: &str,
     dead_consequence: &str,
     notice_ending: &str,
@@ -476,7 +495,7 @@ fn wait_with_watches_and_consequence<W: Write + ?Sized>(
         }
         if due {
             // A closed terminal is not a reason to stop the command the person asked for.
-            let _noted = write_then_flush(out, notice(command, real_index, elapsed, ceiling, &proof, !announced, notice_ending).as_bytes());
+            let _noted = write_then_flush(out, notice(opening, real_index, elapsed, ceiling, &proof, !announced, notice_ending).as_bytes());
             announced = true;
         }
         // The owner, 2026-11-03: "nothing should ever wait forever or indefinitely". At the ceiling the wait names the blocker and ends;
