@@ -179,6 +179,11 @@ metadata.json
 index.meta
 *.managed.json
 
+# One kept archive member is a record a measurement baked in, not a generated index: the
+# context the Optique measurements read. The re-include sits below `meta.json` because the
+# last matching pattern wins.
+!doc/research/optique-typo-suggestion-overhead-upstream-record.evidence/ctx/meta.json
+
 # Local agent and editor-tool state
 .aider*
 .crush/
