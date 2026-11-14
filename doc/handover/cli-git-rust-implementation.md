@@ -1198,6 +1198,41 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's Clippy fix passed its review and goes into an integration with issue 6300; the journal after `0.6.1-alpha.27` is clean (2026-11-14T08:59:29-05:00)
+
+Not final and not approved:
+what the coordinating session measured and queued,
+and what one review reports of itself.
+
+- **The journal after the install of `0.6.1-alpha.27`**,
+  from 08:50:00 to 08:57:00:
+  266 lines,
+  no manager-wide reload,
+  no start that failed at its EXEC step,
+  no service at its start limit,
+  and one service said `0.6.1-alpha.27` at its start.
+- **mpm-shadow's Clippy fix** (`682b1072df`):
+  its review ended at 08:54:28 with no defect
+  (`~/temp/agent/change-reviews/mpm-shadow-cli-clippy-passes-under-the-nightly-of-2026-11-14/review.md`).
+  By its report it ran the package's Clippy task (exit 0 under `nightly-2026-11-14`),
+  the package's tests (731 of 731)
+  and a probe of its own that the two forms of the membership test agree in eighteen cases.
+- **Measured by this session**:
+  `git log <tip>..main -- package/mpm-shadow` is empty for that tip and for issue 6300's (`01c60626b8`),
+  so `main` holds nothing of that package that either lacks.
+  Both have passed their reviews and neither was checked against the other,
+  so they are one integration,
+  queued first
+  (`~/temp/agent/pi-runs/mpm-shadow-integration-of-issue-6300-and-the-clippy-fix-prompt.md`).
+  When it reports fit:
+  merge,
+  a release of mpm-shadow through the package's `release` task,
+  then `toolchain:update`.
+- Going at 08:59:29:
+  nine Pi runs,
+  with the cap at twenty-four.
+  The queue held 71 entries.
+
 ##### No run started for four hours and forty minutes: a queue entry that fails every start; thirty-one runs read; `0.6.1-alpha.26` and `0.6.1-alpha.27` are installed (2026-11-14T08:50:39-05:00)
 
 Not final and not approved:
