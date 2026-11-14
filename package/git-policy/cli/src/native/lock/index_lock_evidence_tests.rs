@@ -529,13 +529,16 @@ fn an_unidentified_holder_keeps_a_pid_file_from_naming_the_number_as_absent() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// withUnreadableProcesses([{ pid: 55, command: 'git' }]) // { holders: [...], partial: ['PID of another account 4103389: ...', 'PID 0: ...', ...] }
+/// // { holders: [{ pid: 55, command: 'git' }], partial: ['PID of another account 4103389: ...', 'PID 0: ...'] }
+/// withUnreadableProcesses([{ pid: 55, command: 'git' }])
 /// ```
 fn with_unreadable_processes(holders: Vec<Holder>) -> HolderEvidence {
     let mut reasons: Vec<String> = vec![String::from("PID of another account 4103389: Permission denied (os error 13)")];
     for number in 0..200 {
         reasons.push(format!("PID {number}: Permission denied (os error 13)"));
     }
+    // The scan's own cut names no process, so it is the one reason the count must not count.
+    reasons.push(String::from("stopped at the time bound after 400 of 1200 processes"));
     return HolderEvidence {
         method: "proc-fd",
         holders,
@@ -549,8 +552,8 @@ fn with_unreadable_processes(holders: Vec<Holder>) -> HolderEvidence {
 ///  leave a number this table does not have read as that,
 ///  and leave a lock with no proof of its owner unproven.
 /// Why:
-///  The two binary controls of a held `index.lock` on a host with hundreds of refused descriptor directories met an owner
-///  nothing proved alive,
+///  The two binary controls of a held `index.lock` met an owner nothing proved alive,
+///  on a host with hundreds of refused descriptor directories,
 ///  and a reader of that message could take the processes the scan could not look at for the reason:
 ///  a process of another account cannot write into a file of this account's repository,
 ///  which is why a removal tolerates that reason
@@ -581,8 +584,9 @@ fn processes_the_scan_could_not_look_at_leave_each_verdict_as_it_was() {
     assert_eq!(classify_index_lock(&unproven), Verdict::EvidenceFree, "a lock no proof names an owner for is evidence-free");
     let words: String = blocker_words(&unproven);
     assert!(words.contains("an owner nothing proves alive"), "{words}");
-    assert!(words.contains("201 processes could not be looked at"), "the count is the count of processes the scan could not look at: {words}");
+    assert!(words.contains("201 processes could not be looked at"), "the count is the count of processes the scan could not look at, not of its reasons: {words}");
     assert!(words.contains("PID of another account 4103389"), "the first of them is named: {words}");
+    assert!(words.contains("stopped at the time bound after 400 of 1200 processes"), "the scan's own cut is said for itself: {words}");
 }
 
 /// How long evidence that must not wait may take to answer in a control.

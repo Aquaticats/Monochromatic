@@ -80,6 +80,11 @@ fn is_time_bound(reason: &&String) -> bool {
 /// of this account or of another.
 const A_PROCESS: &str = "PID ";
 
+/// Whether a reason names one process the scan could not look at.
+fn names_a_process(reason: &&String) -> bool {
+    return reason.starts_with(A_PROCESS);
+}
+
 /// What:
 ///  The reasons a scan could not see everything,
 /// as one short text:
@@ -92,14 +97,17 @@ const A_PROCESS: &str = "PID ";
 ///  account's descriptors do not reach),
 /// which buried the one fact a person needs:
 /// the holder may be among them.
-///   A reason that names no process (the scan cut at its own bound, a `/proc` it could not list) is no process,
-/// so the count stays what it says it is:
+///   A reason that names no process is no process:
+///  the scan cut at its own bound,
+/// or a `/proc` it could not list.
+///  So the count stays what it says it is:
 /// how many processes the scan could not look at,
 /// and the cut is said for itself.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// partialSummary(['PID 4: Permission denied', ...]) // '412 processes could not be looked at, the first of them: PID 4: Permission denied'
+/// // '412 processes could not be looked at, the first of them: PID 4: Permission denied'
+/// partialSummary(['PID 4: Permission denied', ...])
 /// ```
 pub fn partial_summary(reasons: &[String]) -> String {
     const SHOWN_IN_FULL: usize = 3;
@@ -107,7 +115,7 @@ pub fn partial_summary(reasons: &[String]) -> String {
         return reasons.join("; ");
     }
     let cut: Option<&String> = reasons.iter().find(is_time_bound);
-    let processes: Vec<&String> = reasons.iter().filter(|reason| { return reason.starts_with(A_PROCESS); }).collect();
+    let processes: Vec<&String> = reasons.iter().filter(names_a_process).collect();
     let mut parts: Vec<String> = Vec::new();
     if let Some(first) = processes.first() {
         parts.push(format!("{} processes could not be looked at, the first of them: {first}", processes.len()));

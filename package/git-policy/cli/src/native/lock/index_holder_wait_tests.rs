@@ -20,6 +20,7 @@
 //! ```
 
 use super::*;
+use crate::stale_ref_lock_killed_git::Helper;
 use crate::test_support::{SharedSink, fixture, remove};
 use std::time::Duration;
 
@@ -340,12 +341,19 @@ mod lock_remover {
 /// so a look that waited would be the control's failure rather than a slow host's.
 ///  The holder is a process of this account holding the file open,
 ///  which is the proof the scan makes;
-///  a PID file naming this process proves nothing (`a_program_that_is_not_named_like_git_is_no_holder_whatever_its_start`),
+///  a PID file naming this process,
+///  which holds no descriptor on the lock,
+///  proves nothing
+///  (`a_program_that_is_not_named_like_git_is_no_holder_whatever_its_start`),
 ///  so it cannot stand for the holder here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const holder = holdOpen(lock); const began = performance.now(); expect(lookAtTheIndexBeforeAMerge(index, sink).kind).toBe('held-by-another-command'); expect(performance.now() - began).toBeLessThan(10000);
+/// const holder = holdOpen(lock)
+/// const began = performance.now()
+/// // 'held-by-another-command', and well inside the second this control allows
+/// expect(lookAtTheIndexBeforeAMerge(index, sink).kind).toBe('held-by-another-command')
+/// expect(performance.now() - began).toBeLessThan(10000)
 /// ```
 #[test]
 fn a_merge_does_not_wait_for_a_holder_proven_alive() {
@@ -356,13 +364,13 @@ fn a_merge_does_not_wait_for_a_holder_proven_alive() {
     assert_eq!(look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone()), IndexWait::NotHeld, "a free index ends the look");
     assert_eq!(sink.text(), "", "a free index prints nothing");
     std::fs::write(&lock, b"").expect("the other program's lock");
-    let holder: std::process::Child = hold_open_until_the_scan_sees_it(lock.as_path());
+    let holder: Helper = hold_open_until_the_scan_sees_it(lock.as_path());
     let began: std::time::Instant = std::time::Instant::now();
     let looked: IndexWait = look_at_the_index_before_a_merge(index.as_path(), &mut sink.clone());
     assert!(began.elapsed() < Duration::from_secs(10), "the look does not wait for a proven holder: {:?}", began.elapsed());
     match looked {
         IndexWait::HeldByAnotherCommand(named) => {
-            assert!(named.contains(format!("PID {}", holder.id()).as_str()), "the holder is named: {named}");
+            assert!(named.contains(format!("PID {}", holder.pid()).as_str()), "the holder is named: {named}");
             assert!(named.contains("proven by an open descriptor"), "the proof is named: {named}");
         }
         other => panic!("a holder proven alive ends the look at once: {other:?}"),
@@ -377,35 +385,39 @@ const HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR: Duration = Duration::from_secs(20);
 
 /// What:
 ///  Start a process of this account that holds `lock` open on descriptor 3,
-///  and wait, bounded, until the scan the wrapper makes sees it.
+///  and wait for the scan the wrapper makes to see it,
+///  bounded,
+///  so the look it tests meets a holder that is there.
 /// Why:
 ///   A control about a holder proven alive needs the proof in place before the look it tests,
-/// and a shell that has not reached its redirect yet is a process holding nothing;
-/// the control waits on the same scan, so it waits on the fact the wrapper will read.
-fn hold_open_until_the_scan_sees_it(lock: &std::path::Path) -> std::process::Child {
-    let holder: std::process::Child = crate::test_support::spawn_owned(
+/// and a shell that has not reached its redirect yet is a process holding nothing.
+///  The control waits on the same scan the wrapper reads,
+/// so it waits on the fact the wrapper will find.
+fn hold_open_until_the_scan_sees_it(lock: &std::path::Path) -> Helper {
+    let holder: Helper = Helper(
         std::process::Command::new("sh")
             .args(["-c", "exec 3<\"$0\"; exec sleep 30", lock.to_str().expect("a UTF-8 lock path")])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null()),
-    )
-    .expect("a holder starts");
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("a holder starts"),
+    );
     let began: std::time::Instant = std::time::Instant::now();
-    while !the_scan_sees(lock, holder.id()) {
-        assert!(began.elapsed() < HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR, "the scan never saw the holder {}", holder.id());
+    while !the_scan_sees(lock, holder.pid()) {
+        assert!(began.elapsed() < HOW_LONG_A_HOLDER_MAY_TAKE_TO_APPEAR, "the scan never saw the holder {}", holder.pid());
         std::thread::sleep(Duration::from_millis(20));
     }
     return holder;
 }
 
 /// Whether the host's bounded scan for open holders sees `pid` holding `lock` open.
-fn the_scan_sees(lock: &std::path::Path, pid: u32) -> bool {
+fn the_scan_sees(lock: &std::path::Path, pid: i64) -> bool {
     let Ok(Some(metadata)) = crate::index_lock_evidence::read_lock_metadata(lock) else {
         return false;
     };
     let seen = scan_platform_holders_bounded(lock, metadata.device, metadata.inode);
-    return seen.holders.iter().any(|holder| { return holder.pid == i64::from(pid); });
+    return seen.holders.iter().any(|holder| { return holder.pid == pid; });
 }
 
 /// A lock a gone process left is named by the same look,

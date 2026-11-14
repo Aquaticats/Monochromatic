@@ -49,10 +49,12 @@ fn parents(fixture: &Fixture, repo: &Path) -> Vec<String> {
 ///  native Git dies on it (`stash failed`) after the work it did before.
 /// The fixture is a lock nothing proves the owner of:
 /// an empty file with no PID file beside it,
-///  which is what a killed Git leaves and what a person's own `git commit` holds through its editor
+///  which is what a killed Git leaves,
+/// and what a person's own `git commit` holds through its editor
 /// (`service_index_unheld_removal.rs`,
 ///  the measurement of 2026-11-07).
-/// Such an owner cannot be told from a live one, so the merge waits for it rather than clear the lock.
+/// Such an owner cannot be told from a live one,
+/// so the merge waits for it rather than clear the lock.
 #[test]
 fn a_merge_waits_for_a_held_index_lock_and_then_lands() {
     for staged in [false, true] {

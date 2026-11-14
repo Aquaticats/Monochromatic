@@ -279,14 +279,17 @@ pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
 ///  while waiting on another agent's command is what the owner forbids
 ///  (`SPEC.md`,
 ///  "Dozens of agents at once is normal operation").
-///  A lock that kept a proven holder waiting for the whole ceiling and then reached the same save bought nothing a person asked for
+///  A lock that kept a proven holder waiting for the whole ceiling,
+///  and then reached the same save,
+///  bought nothing a person asked for
 ///  (a cross-vendor audit of alpha.12,
 ///  "A merge waits for another agent's live index holder").
 ///  A lock nothing proves the owner of is the third case,
 ///  and it is the person's own `git commit` at its editor as often as it is a killed Git's:
-///  native Git keeps `index.lock` through its hooks and editor with no descriptor open and, unless `core.lockfilePid` is on,
-///  no PID file,
-///  so nothing can tell that owner from a gone one and the merge waits for it,
+///  native Git keeps `index.lock` through its hooks and editor with no descriptor open,
+///  and writes no PID file unless `core.lockfilePid` is on,
+///  so nothing can tell that owner from a gone one,
+///  and the merge waits for it,
 ///  bounded and named,
 ///  and is saved at the ceiling instead of failing.
 ///  The holder is classified exactly as the wait classifies it,
@@ -294,7 +297,8 @@ pub fn look_at_the_index_lock_once(real_index: &Path) -> IndexLook {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const look = lookAtTheIndexBeforeAMerge(gitDir.resolve('index'), stderr); // 'not-held' | 'released' | { ownerGone } | { heldBy: 'PID 42' } | { gaveUp }
+/// // 'not-held' | 'released' | { ownerGone } | { heldBy: 'PID 42' } | { gaveUp }
+/// lookAtTheIndexBeforeAMerge(gitDir.resolve('index'), stderr)
 /// ```
 pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(real_index: &Path, out: &mut W) -> IndexWait {
     let lock: std::path::PathBuf = lock_path_of(real_index);
@@ -414,13 +418,16 @@ thread_local! {
 /// Why:
 ///  A holder proven alive is another program's command,
 ///  and the answer to it differs by what the waiting command has already done:
-///  a merge that has its commit and its record has nothing of itself in the checkout and saves itself for the next command,
-///  while a recovery finishing an interrupted merge has nothing else to do meanwhile and waits for the holder to the ceiling.
+///  a merge that has its commit and its record has nothing of itself in the checkout,
+///  and saves itself for the next command;
+///  a recovery finishing an interrupted merge has nothing else to do meanwhile,
+///  and waits for the holder to the ceiling.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ProvenHolder {
     /// Wait for the proven holder until it lets go or the ceiling comes.
     Waits,
-    /// Leave it to the next command in the worktree, as the merge's own apply does.
+    /// Leave it to the next command in the worktree,
+    /// as the merge's own apply does.
     LeavesItToTheNextCommand,
 }
 
