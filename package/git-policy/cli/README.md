@@ -2593,7 +2593,11 @@ The rule is:
   (`git clean -fXd` prints `Removing ignored-bare/` and `Skipping repository ignored-inner`,
   measured on this host with native Git 2.56.0, 2026-11-14);
   a clean with no `-f` under `clean.requireForce=false` deletes the same repository and is kept the
-  same way.
+  same way,
+  and a clean with no `-f` while that setting is on is one Git refuses:
+  nothing is moved for it, Git prints `clean.requireForce is true and -f not given: refusing to clean`
+  as it would without this wrapper,
+  and your repository is where you left it.
   An interactive clean whose menu would offer a bare repository is stopped at any force count,
   naming the repository and the two ways to run that clean with it in hand:
   without `-i`, so it is saved first, or with `--no-enforce-worktree`, so the menu and your choice
@@ -2651,8 +2655,21 @@ The rule is:
   A revision spelled exactly like that file's name is still the revision
   (`git checkout -f topic --pathspec-from-file=topic` writes `topic`'s tree, which is what the
   guard then refuses over an untracked file it would replace),
-  and a `--prefix` value written as the next word is that option's value alone
-  (`git checkout-index -f --prefix out/ -- a.txt` writes `out/a.txt` and nothing else).
+  a `--prefix` value written as the next word is that option's value alone
+  (`git checkout-index -f --prefix out/ -- a.txt` writes `out/a.txt` and nothing else),
+  and a `--stage` value is that option's stage number and no path.
+  `git checkout-index --prefix` writes below the prefix at the top of the working tree,
+  not below the directory you stand in,
+  so the guard names `out/sub/b.txt` for a command run in `sub/` that writes it,
+  and it refuses it from that subdirectory as it does from the root
+  (`--no-enforce-require-root` lifts only the root rule).
+  A forced `git mv` whose source ends in a slash (`git mv -f a.txt/ b.txt`) renames as Git does,
+  and the file standing where the rename lands is still refused.
+  An unforced `git rm --sparse <path>` that reaches a `skip-worktree` edit is refused,
+  because Git deletes the edit there;
+  every other unforced `git rm` is Git's own,
+  and `git checkout-index --stdin` is judged over every path of the index,
+  because the guard cannot read the list Git is about to read.
   It is read the way Git reads it: a line that begins with a double quote is C-unquoted,
   a carriage return is dropped, and a zero-byte file is no pathspec at all, so the form becomes the
   whole-tree form Git really runs (`checkout -f other --pathspec-from-file=<empty>` switches the

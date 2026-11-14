@@ -18844,8 +18844,24 @@ because Git's hold at one force sees a `.git` entry and not a bare repository:
 (measured on this host with native Git 2.56.0, 2026-11-14),
 and with `clean.requireForce=false` a clean with no `-f` does the same.
 The dry run is asked at the force count the person typed,
+with no `-f` of the wrapper's own,
 so it names the truth for every count,
 and the force count is no gate anywhere in this reading.
+A clean with no force is one Git may refuse before it reads anything
+(`cmd_clean`: `if (!interactive && !dry_run && force == 0 && clean_require_force) die(...)`),
+and that refusal is invisible to the dry run:
+`git clean -n -X` lists a path while `git clean -X` exits 128 and deletes nothing
+(measured on this host with native Git 2.56.0,
+2026-11-14).
+So the guard reads `clean.requireForce` itself for a clean with no force
+(`RepositoryFacts::clean_require_force`, the default true, and `-c` is part of the global options Git
+reads),
+and answers "nothing to do" when Git will refuse:
+nothing is moved,
+the command is forwarded,
+and Git's own sentence answers the person.
+An answer that was not read stops the clean with the reason,
+and `-i` is outside that condition in Git and outside it here.
 Every one of those dry runs is started in the directory the clean runs in
 (`CleanDryRun` in `src/native/command/command_clean.rs`,
 whose directory comes from `command_run_directory` in `src/native/policy/command_run_directory.rs`
@@ -18984,6 +19000,24 @@ so that clean runs and Git's own refusal answers the person.
 The forms are `Clean`,
 `CleanIgnored` and `CleanIgnoredOnly`,
 so a rejection says which files that spelling deletes.
+
+Two places where this guard and Git still differ, written here as limits with their reason:
+`git checkout-index --stdin` reads its paths from standard input,
+which the guard cannot read without consuming what Git needs,
+so that form is judged as if it wrote every path of the index:
+an untracked or ignored entry at any of them refuses the command,
+which can refuse a command whose own list names nothing in the way
+(the opt-out runs it),
+and never lets one through that writes over a file.
+And an unforced `git rm` of a file whose edit an `assume-unchanged` mark hides deletes that edit
+with exit 0
+(`git rm s.txt` where `s.txt` is marked and edited, measured on this host with native Git 2.56.0,
+2026-11-14);
+the policy guards a removal when it carries a force or reaches the `skip-worktree` edit
+`--sparse` uncovers,
+and leaves every other unforced removal to Git,
+because guarding all of them would refuse `git rm` in the main worktree and in any linked worktree
+that holds a marked edit, which is the owner's decision to make rather than this branch's.
 A form with no question of its own asks only for the location,
 so its one audit line stands beside the exempt and hatch lines that name no measurement either.
 A `HEAD`-moving form is rejected only while tracked changes exist.
@@ -19242,10 +19276,18 @@ The places, each with the directory its own query starts Git in:
 the `ls-tree` of a whole tree asks with `--full-tree` and needs no directory;
 the `ls-tree` of a path form starts in the run directory, so its pathspecs mean what they mean to
 the command, and its answers are rooted with that directory's prefix;
-`ls-files --cached` does the same, with `:(top)` when the form names no path;
-`checkout-index --prefix` joins the value to the run directory, or takes it whole when it is
-absolute, and writes no entry when the pair lands outside the worktree;
-`mv`'s sources and destination are read from the filesystem there;
+`ls-files --cached` starts there too, with `:(top)` when the form names no path,
+and its `--full-name` answers are already the worktree root's own, so no prefix is written before them;
+`checkout-index --prefix` is joined to the index path as text and read from the worktree root
+(`setup_work_tree` moves there before any entry is written), so a relative prefix is a root-relative
+name and an absolute one is stripped of the root, with no entry for a pair that lands outside the
+worktree
+(`git checkout-index -f --prefix=out/ -- b.txt` run in `sub/` writes `out/sub/b.txt`,
+and `--prefix=out2` writes `out2sub/b.txt`, measured on this host with native Git 2.56.0,
+2026-11-14);
+`mv`'s sources and destination are read from the filesystem there,
+and a source's trailing separators are dropped before the lookup because Git reads `a.txt/` as
+`a.txt` and renames it;
 a pathspec file's relative name is read from there;
 the clean's dry run starts there (`CleanDryRun`);
 the two listings of the worktree ask with `-- :(top)`;
@@ -19258,6 +19300,9 @@ Before this, a path form inside a `!` alias was looked for below the caller
 an `assume-unchanged` edit at the top was invisible to a `reset --hard` run in `sub`,
 and a pathspec file's relative name was read from the wrong directory when `-C` moved the command
 (measured on this host with native Git 2.56.0, 2026-11-14).
+A name with a component below a file (`a.txt/.`) is Git's own `bad source`,
+so the lookup answers "nothing there" rather than a failure,
+and the form runs and meets Git's refusal.
 Two words a reading used to mistook are read as Git reads them:
 a separated `--prefix` value is the option's value and no pathspec
 (`git checkout-index -f --prefix out/ -- a.txt` writes `out/a.txt` alone,
@@ -19265,8 +19310,30 @@ which the reading named `out/out/keep.txt` and refused),
 and no positional word is dropped for being equal to the `--pathspec-from-file` name,
 because the option's own table already consumes a separated value
 (`git checkout -f topic --pathspec-from-file=topic` was read as aimed at the index, whose paths do
-not hold `topic`'s new file, and wrote over an untracked `b.txt`).
-Both measured on this host with native Git 2.56.0, 2026-11-14.
+not hold `topic`'s new file, and wrote over an untracked `b.txt`),
+and a separated `--stage` value is that option's stage number and no pathspec
+(`git checkout-index -f --stage 2 -- a.txt`, whose value was once read as a path named `2`).
+All measured on this host with native Git 2.56.0, 2026-11-14.
+
+What the guard still models itself, because Git has no dry run for it,
+each with what Git does there and the control that pins it:
+the folder a relative path is read from (`command_run_directory`), pinned by the alias, subdirectory and
+`-C` controls above;
+`checkout-index --prefix` and `read-tree --prefix` as text joined to the index or tree path from the
+worktree root,
+pinned by `a_prefix_names_the_entry_git_writes_from_the_worktree_root` and
+`a_read_tree_writes_the_trees_it_names_below_its_prefix`;
+the shapes a forced `mv` takes and the five it refuses,
+pinned by `every_shape_of_a_forced_move_is_read_the_way_git_writes_it` and
+`a_source_with_a_trailing_separator_is_read_as_its_name`;
+which entries a forced `reset`, a `read-tree -u` and a `checkout --force` write over,
+pinned by the matrix rows of `binary_discard_in_the_way_matrix_tests`;
+which entries `git rm` deletes (`-f`, `--cached`, and the marks `--sparse` reaches),
+pinned by `a_removal_asks_about_hidden_edits_only_where_it_reaches_them` and the unforced-removal row;
+the parse of a pathspec file (quoting, separators, an empty entry, its byte bound),
+pinned by the pathspec-file controls;
+and the remote-branch guess a forced `checkout` or `switch` makes,
+pinned by the guess controls.
 `--directory` names a directory the worktree holds whole as one entry (`nested/`),
 which is the entry a refusal must name,
 and bounds a listing to one entry per such directory instead of one per file inside it.
