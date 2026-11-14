@@ -67,6 +67,133 @@ which would persist model metadata this plugin refuses to write.
  ASR,
  realtime),
  which refuse chat completions.
+- Hands pi this provider's passing token-rate limit in the one form pi's own
+ automatic retry takes,
+ so a burst of runs slows down and asks again instead of each ending on its
+ provider's first answer
+ ([The provider's token-rate limit](#the-providers-token-rate-limit)).
+
+## The provider's token-rate limit
+
+The provider answers a request that outstrips the tokens it allows a second or
+ a minute with status `429` and OpenAI's `insufficient_quota` code.
+Its own error-code page
+([`error-code`](https://www.alibabacloud.com/help/en/model-studio/error-code),
+ "429 - Throttling.AllocationQuota/insufficient_quota",
+ read 2026-11-13)
+gives two messages under that heading,
+ each caused by "Token consumption per second or minute (TPS/TPM) triggered
+ rate limiting":
+
+- `Allocated quota exceeded, please increase your quota limit.`
+- `You exceeded your current quota, please check your plan and billing details.`
+
+So the answer passes by itself,
+and the layer that answers a `429` here is pi's
+ own automatic retry
+ (`package/pi-shared/subagent-driver/README.md`,
+"Which layer retries what",
+ owner decision of 2026-11-11).
+Pi 1.5.2 does not retry it:
+`isRetryableAssistantError` in `@earendil-works/pi-ai/dist/utils/retry.js`
+ tests `NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN` before the list holding
+ `429`,
+and that first list carries `insufficient_quota` and `quota exceeded`
+ for OpenAI's billing answer and for budgets nothing refills inside a turn.
+On 2026-11-13 that ended fifteen review runs on `qwen4-max-preview` after one
+ attempt each.
+
+This package therefore translates the answer where it hands pi the stream.
+Both `stream` and `streamSimple` forward every event as the provider's own
+ stream produced it,
+ and only the terminal error of that one limit is rebuilt:
+
+- the error text becomes
+ `429: token rate limit reached: the token allowance this provider gives a
+ second or a minute, which passes by itself. Pi retries it, and the provider's
+ own answer is carried in this message's diagnostics and in the log.`,
+ which names the status and the limit in words
+ `isRetryableAssistantError` accepts and holds none of the words it tests
+ first;
+- the provider's own answer stays word for word in a diagnostic on the
+ message (`type` `qwen-token-plan-individual.passing-token-rate-limit`,
+ with its `message` and `details` holding the status and code),
+ so it survives in pi's session and in any transcript that carries the
+ message,
+ and one `warn` record per attempt names it on standard error,
+ which is where a run's `stderr.log` keeps it.
+
+What matches is narrow on purpose,
+ so a plan that is really spent,
+ a bill that is overdue and a credential that is refused still end a run at
+ once:
+
+- the error text has to start with `429: `,
+ which is where pi writes the status it received;
+- what follows has to parse as a JSON object;
+- its `code` or `type` has to be `insufficient_quota`,
+ and neither may disagree;
+- its `message` has to open with one of the two documented TPS/TPM messages,
+ in any letter case and ended at a word boundary,
+ so the provider's own trailing details still fit and
+ `Free allocated quota exceeded.` never does.
+
+Everything else passes through exactly as pi received it.
+The answers that look alike and stay final:
+
+- `Free allocated quota exceeded.`
+ is a spent free quota under the same status and code,
+  and its opening word
+ keeps it apart from `Allocated quota exceeded, ...`;
+- `PrepaidBillOverdue` and `PostpaidBillOverdue` are unsettled bills;
+- `AllocationQuota.FreeTierOnly` is a spent free tier,
+  sent as a `403`;
+- a body that is not JSON,
+ a body cut short,
+  and any status other than `429`
+ are answers this package cannot read,
+  so they are left as they arrived.
+
+The same `insufficient_quota` code is OpenAI's own spent-credit answer,
+and
+ that answer stays final:
+ this translation lives in this plugin's provider,
+ whose `baseUrl` is this route's,
+ and OpenAI never reaches this module's matcher with a message this page
+ documents.
+
+A person reading a run sees it in two places:
+
+- `feed.jsonl` carries pi's own `auto_retry_start` line before each wait,
+ with this package's text as its `errorMessage`,
+ then `auto_retry_end` with `success: true` when a later reply worked;
+ that run ends `idle` with the reply and `rateLimitErrors` counting the failed
+ attempts.
+- A limit that outlasts pi's retry budget ends the run `model-error` after
+ those attempts:
+ `modelError` in `summary.json` then carries this package's text (not the
+ provider's,
+  which is the one departure from the driver's word-for-word rule),
+ `piRetryGaveUp` names how many attempts pi made and its `finalError`,
+ and the provider's own words are in the session message's `diagnostics` and
+ in the run's `stderr.log`.
+
+This translation is a workaround for a pi release,
+not for this provider:
+when pi classifies the recorded answer as retryable itself,
+it is deleted.
+Upstream has the report
+ ([issue 10656](https://github.com/earendil-works/pi/issues/10656)) and a pull
+ request its contributor gate closed unmerged
+ ([#10677](https://github.com/earendil-works/pi/pull/10677)),
+ so the fix would arrive in a pi-ai release newer than 1.5.2.
+A reader checks it in one step:
+`src/passing-token-rate-limit.unit.test.ts`,
+ "pi leaves the recorded answer alone and takes the rewritten one",
+ asserts that pi refuses the recorded text;
+ when that assertion starts failing on a newer pi,
+ the release carries the fix and this module,
+ its tests and this section can go.
 
 ## Credential homes
 
@@ -153,6 +280,17 @@ Then supply the credential through one of the homes in
 The `install:global` task applies the same settings edit with a guard that
 refuses to touch unrelated settings or packages.
 
+A settings entry names the **package directory**,
+and pi loads the file that
+entry's `package.json` lists under `pi.extensions`,
+which here is `./dist/final/node/index.mjs`.
+So a pi run on a machine whose settings name a checkout loads that checkout's
+**built bundle**,
+never `src/`:
+a change reaches the runs only after
+`mise run //package/pi-plugin/qwen-token-plan-individual:build` in that
+checkout.
+
 ## Tasks
 
 [`mise.toml`](mise.toml) defines this package's tasks:
@@ -174,6 +312,13 @@ refuses to touch unrelated settings or packages.
  set,
  the never-persist guard,
  and the projection facts)
+- `verify:token-rate-limit-retried`
+ (builds first,
+ then runs a real pi twice against a loopback stand-in,
+ once with this checkout's bundle and once with a bundle built from the commit
+ before this translation,
+ and asserts that the first retried and the second did not;
+ no request reaches the real provider)
 - `fixture:builtin-catalog`
  (regenerates `src/builtin-catalog.fixture.json` from the installed pi-ai
  catalog)
@@ -195,4 +340,15 @@ refuses to touch unrelated settings or packages.
  the never-persist byte-identity guard over `models-store.json`,
  `models.json`,
  and `enabledModels`,
- and the characterization fixture over the installed builtin rows.
+ the characterization fixture over the installed builtin rows,
+ and the passing token-rate limit:
+ every answer the matcher accepts and refuses,
+ the rewritten text accepted by pi's own `isRetryableAssistantError`,
+ the stream wrapper's forwarding and its guard for a stream that reports no
+ answer,
+ and both dispatch entry points over the recorded `429` and a reply.
+
+`verify:token-rate-limit-retried` proves the same boundary with a real pi:
+ its `retried` run shows `auto_retry_start` and ends on the stand-in's reply,
+ and its `unchanged` run ends on the provider's own `429` with no attempt,
+ and it keeps both feeds under the proof folder it prints.

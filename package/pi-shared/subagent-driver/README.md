@@ -1206,7 +1206,18 @@ both in `@earendil-works/pi-ai/dist/utils/retry.js` in Pi 1.5.2:
 - the overload, `5xx`, timeout, dropped-connection and interrupted-stream texts are retried beside it;
 - a quota, a plan and a billing limit are not,
   even when a provider sends one as a `429`:
-  nothing refills those inside a turn, so Pi leaves them to the run;
+  nothing refills those inside a turn, so Pi leaves them to the run.
+  One answer this list would refuse is not a spent budget,
+  and the provider's own plugin presents it so Pi retries it:
+  `qwen-token-plan-individual` answers its per-second or per-minute token
+  limit as a `429` carrying OpenAI's `insufficient_quota` code,
+  and `package/pi-plugin/qwen-token-plan-individual` gives that answer the
+  text Pi retries
+  (`package/pi-plugin/qwen-token-plan-individual/README.md`,
+  "The provider's token-rate limit").
+  Nothing in this driver changed for it:
+  a `429` is still Pi's to answer, and the plugin only decides which text Pi
+  classifies;
 - a context overflow is not,
   because Pi compacts the session instead.
 
@@ -1253,7 +1264,16 @@ Once Pi settles on one, the run ends `model-error` on the next look,
 with that error's own text standing:
 
 - `modelError` in `summary.json` carries what the 429 said,
-  word for word and cut to no length;
+  word for word and cut to no length,
+  with one exception measured on 2026-11-13:
+  `qwen-token-plan-individual`'s passing token-rate limit reaches Pi with the
+  text its plugin writes,
+  because the provider's own words hold `insufficient_quota` and
+  `quota exceeded`, which Pi never retries.
+  `modelError` then carries the plugin's text,
+  the provider's own answer stays word for word in the assistant message's
+  `diagnostics` and in a `warn` line of the run's `stderr.log`,
+  and Pi's `auto_retry_start` line repeats the plugin's text;
 - `piRetryGaveUp` carries what Pi itself reported when it stopped retrying:
   how many attempts it made, and its `finalError` text;
 - `rateLimitErrors` counts every failed attempt Pi made at it,
