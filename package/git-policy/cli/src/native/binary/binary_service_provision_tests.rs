@@ -251,7 +251,7 @@ pub(super) fn fake_bus_many_answering(runtime: &Path, refuse: bool, connections:
 
 /// A stand-in for the session bus for one wrapper connection:
 /// the methods it was asked for.
-fn fake_bus(runtime: &Path, refuse: bool, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<String>> {
+pub(super) fn fake_bus(runtime: &Path, refuse: bool, starter: Box<dyn FnOnce() + Send>) -> std::thread::JoinHandle<Vec<String>> {
     let many = fake_bus_many(runtime, refuse, 1, starter);
     return std::thread::spawn(move || { return many.join().expect("bus").into_iter().flatten().collect(); });
 }

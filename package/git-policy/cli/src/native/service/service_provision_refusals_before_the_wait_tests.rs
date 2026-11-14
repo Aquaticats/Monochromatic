@@ -605,3 +605,40 @@ fn the_bytes_a_socket_path_adds_are_the_ones_it_really_adds() {
     }
     assert_eq!(longest_runtime_directory(INSTANCE) + socket_path_suffix_bytes(INSTANCE), LONGEST_SOCKET_PATH);
 }
+
+/// What:
+///  A runtime directory no spelling can make — a path through a file, a path through a link that points nowhere — stops
+///  provisioning at once and names the setting, rather than waiting for a start that cannot come.
+/// Why:
+///   Such a spelling stands in no place a service could listen at,
+/// so there is no address to bind and no service to be had;
+/// the address function still gives it one name before and after
+/// (`a_spelling_that_cannot_be_resolved_still_gives_one_name` in `service_address_of_a_worktree_tests.rs`),
+/// and what is left is that the commit says what to change and does not wait.
+/// `SPEC.md`, "Machines with no way to reach the service", is the rule: the service is the only writer, so a command
+/// that cannot reach it changes nothing and stops, with the input and every way to change it named.
+#[test]
+#[cfg(target_os = "linux")]
+fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {
+    let parent: PathBuf = short_parent();
+    // Long enough that only a name can carry the service's address, which is the branch a long runtime directory takes.
+    let through_a_file: PathBuf = parent.join("a-file-with-room").join("run");
+    std::fs::write(parent.join("a-file-with-room"), b"not a directory\n").expect("a file where a directory has to be");
+    let through_a_link: PathBuf = parent.join("dangling-link").join("run");
+    std::os::unix::fs::symlink(parent.join("nowhere"), parent.join("dangling-link")).expect("a link that points nowhere");
+    crate::test_support::track_for_this_thread(through_a_file.as_path());
+    crate::test_support::track_for_this_thread(through_a_link.as_path());
+    for (tag, runtime) in [("a file in the path", through_a_file), ("a link that points nowhere", through_a_link)] {
+        assert!(matches!(socket_address_of(runtime.as_path(), INSTANCE), Bind::Abstract(_)), "{tag}: the runtime directory is long enough for a name");
+        let mut manager: Addressing = Addressing::default();
+        let began: std::time::Instant = std::time::Instant::now();
+        let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager).expect_err("{tag}: nothing can make this directory");
+        let took: std::time::Duration = began.elapsed();
+        assert!(took < AT_ONCE, "{tag}: the refusal takes {took:?}, not a wait");
+        let ClientFailure::CouldNotStart(said) = &refused else { panic!("{tag}: a directory that cannot be made is a start that cannot be, not {refused:?}") };
+        assert!(said.contains(runtime.to_string_lossy().as_ref()), "{tag}: the message names the directory: {said}");
+        assert!(said.contains("XDG_RUNTIME_DIR"), "{tag}: the message names the setting that decides it: {said}");
+        assert!(said.contains("make that one writable"), "{tag}: the message names the way out: {said}");
+        assert!(!manager.calls.iter().any(|call| { return call.starts_with("start "); }), "{tag}: nothing was started: {:?}", manager.calls);
+    }
+}

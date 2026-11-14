@@ -21,7 +21,8 @@ use git_policy_cli::service_instance::{instance_of, longest_runtime_directory, s
 use git_policy_cli::service_server::Bind;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use std::process::Output;
+use std::process::{Child, Command, Output, Stdio};
+use std::sync::{Arc, Mutex};
 
 /// The subject of the newest commit,
 /// which is what says the commit was made.
@@ -162,4 +163,103 @@ fn a_commit_with_a_short_runtime_directory_is_made_as_it_is_today() {
         "the short runtime directory keeps the socket file"
     );
     remove_settled(&fixture);
+}
+
+/// What:
+///  A first commit is made where the long runtime directory is spelled with a `..` part and is not there yet.
+/// Why:
+///   The client's abstract name is made before anything is created, and the socket unit's a moment later,
+/// after provisioning has made the directory.
+/// A `..` part over a directory that was not there gave those two names different places,
+/// so the stand-in manager started the service where the unit names it and the commit waited at an address nothing
+/// held, which is a commit real Git makes in the same directory.
+/// The stand-in for the manager is the package's own: a bus of the fixture's, and the service started at whatever
+/// address the wrapper's own function gives the runtime directory when the unit is started.
+#[test]
+#[cfg(target_os = "linux")]
+fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_and_is_not_there_yet() {
+    let (fixture, repo) = edited("long-runtime-relative-part");
+    let instance: String = instance_of(repo.join(".git").as_path());
+    let (holder, runtime): (PathBuf, PathBuf) = runtime_directory_spelled_through_a_missing_directory(&instance, "relative-part");
+    assert!(!runtime.exists(), "the spelling's directory is not there when the first commit starts");
+    // The stand-in manager's bus stands in a directory of its own, because a bus inside the spelling would make the
+    // directory the commit has not made yet.
+    let bus_directory: PathBuf = super::support::short_runtime_directory(&fixture);
+    let services: Arc<Mutex<Vec<Child>>> = Arc::new(Mutex::new(Vec::new()));
+    let start: Box<dyn FnOnce() + Send> = {
+        let runtime: PathBuf = runtime.clone();
+        let instance: String = instance.clone();
+        let journal: PathBuf = fixture.root.join("journal");
+        let home: PathBuf = fixture.root.join("home");
+        let started: Arc<Mutex<Vec<Child>>> = Arc::clone(&services);
+        Box::new(move || {
+            let address: Bind = socket_address_of(runtime.as_path(), instance.as_str());
+            let mut command: Command = super::support::service_command();
+            command.args(["--journal"]).arg(journal.to_str().expect("a UTF-8 fixture path"));
+            match &address {
+                Bind::Path(path) => {
+                    command.arg("--path").arg(path);
+                }
+                Bind::Abstract(name) => {
+                    command.arg("--abstract").arg(name);
+                }
+                Bind::Inherited => panic!("the stand-in manager names the address it starts a service at"),
+            }
+            command
+                .args(["--instance", instance.as_str()])
+                .env_clear()
+                .env("PATH", "/usr/bin:/bin")
+                .env("HOME", home)
+                .env("GIT_CONFIG_NOSYSTEM", "1")
+                .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::inherit());
+            let child: Child = command.spawn().expect("the service the stand-in manager starts");
+            started.lock().expect("the started services").push(child);
+        })
+    };
+    let bus = super::service_provision::fake_bus(bus_directory.as_path(), false, start);
+    let mut command = wrapped_commit(&fixture, &repo, &["commit", "--message", SUBJECT, "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", runtime.as_path());
+    command.env("DBUS_SESSION_BUS_ADDRESS", format!("unix:path={}", bus_directory.join("bus").display()));
+    let output: Output = command.output().expect("the wrapped commit runs");
+    let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
+    let asked: Vec<String> = bus.join().expect("the stand-in bus answers");
+    for service in services.lock().expect("the started services").iter_mut() {
+        let _killed = service.kill();
+        let _waited = service.wait();
+    }
+    assert_eq!(output.status.code(), Some(0), "the commit was made: {stderr}\nthe manager was asked {asked:?}");
+    assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), SUBJECT, "the commit was made");
+    assert!(
+        git_policy_cli::service_address_of_a_worktree::the_address_is_there(&socket_address_of(runtime.as_path(), instance.as_str())),
+        "the service answers at the address this spelling names: {}",
+        runtime.display()
+    );
+    let _removed = std::fs::remove_dir_all(&holder);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A runtime directory spelled through a directory that is not there yet,
+/// and the holder of that spelling,
+/// long enough that no socket path carries its socket.
+/// Why:
+///   A runtime directory of forty bytes leaves no room for the socket's name,
+/// so the address is an abstract name;
+/// the plain spelling is what the other controls use, and this one is the spelling the file system has to fold.
+fn runtime_directory_spelled_through_a_missing_directory(instance: &str, tag: &str) -> (PathBuf, PathBuf) {
+    let base: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory")).join("temp/agent");
+    std::fs::create_dir_all(&base).expect("the scratch directory");
+    // `<holder>` exists; `<holder>/<name>/missing` does not, and `..` steps back over it.
+    let holder: PathBuf = base.join(format!("{tag}-{}", std::process::id()));
+    std::fs::create_dir_all(&holder).expect("the holder of the spelling");
+    let spelled: PathBuf = holder.join("name").join("missing").join("..").join("run");
+    assert!(
+        spelled.as_os_str().len() > longest_runtime_directory(instance),
+        "the spelling is long enough for a name: {} bytes",
+        spelled.as_os_str().len()
+    );
+    return (holder, spelled);
 }
