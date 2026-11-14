@@ -127,6 +127,11 @@ Editing the silent stub to add the carve-out for one consumer weakens the stub c
       no retry-with-jitter),
       so it does not protect against crashed pi processes leaving stale lock dirs.
 
+   Superseded by the amendment of 2026-11-14:
+    the lock is now a record file created by hard link,
+    a dead holder is taken over under an arbitration record,
+    and `onCompromised` is called.
+
 2. **Silent stub.
    **
    Add `proper-lockfile` to `.pnpmfile.mjs` `POLICY` with `action: 'silent'`.
@@ -184,6 +189,9 @@ Package root:
   `lock` retries internally per `options.retries` (number or object form) with exponential backoff
   from `minTimeout` to `maxTimeout`,
    no jitter.
+  Superseded by the amendment of 2026-11-14:
+   the lock is a record file created by hard link and released by `unlinkSync`,
+   and a lock whose recorded holder is gone is taken over.
 - `index.d.cts`:
    declares the upstream's exported shape with `export = lock` and a merged namespace.
 - `mise.toml`:
@@ -226,16 +234,26 @@ Upstream uses this pattern and we follow it for maximum compatibility.
   If pi crashes while holding the lock,
    the next pi invocation throws ELOCKED until the user removes `<agentDir>/.auth.json.lock`
    or `<agentDir>/.settings.json.lock` manually.
+  Superseded by the amendment of 2026-11-14:
+   the lock names its holder,
+   a lock whose holder is gone is taken over,
+   and no freshness write is needed.
 - **No `onCompromised` callback.
   **
   The option is accepted but never invoked;
    pi-coding-agent's `auth-storage.js` reads the callback's effect via a `lockCompromised` flag that stays false,
    so its `throwIfCompromised()` checks are no-ops.
+  Superseded by the amendment of 2026-11-14:
+   the callback is called while the lock is held,
+   through the ownership check that runs every `stale / 2` milliseconds.
 - **No `retries.randomize`.
   **
   Backoff is strictly exponential.
   The workspace does not run concurrent pi instances,
    so deterministic backoff is acceptable.
+  Superseded by the amendment of 2026-11-14:
+   this machine runs sixteen to twenty-two pi agents at once,
+   and a lock whose holder is gone is now taken over instead of retried forever.
 
 The sync/async retry asymmetry mirrors the upstream contract:
 
@@ -328,6 +346,8 @@ To force the lock path on a fresh machine:
     the next pi invocation throws ELOCKED until the user `rmdir`s the lock directory.
    Manual recovery is acceptable in single-instance workflows;
     document in the README so the operator knows where to look.
+   Superseded by the amendment of 2026-11-14:
+    the next invocation takes the lock over and no manual removal is needed.
 2. **Concurrent pi instances are not supported.
    **
    Upstream's locking provides cross-process safety with retry+jitter;
@@ -337,6 +357,9 @@ To force the lock path on a fresh machine:
    The workspace does not run multiple concurrent pi instances;
     if that changes,
     revisit the shim.
+   Superseded by the amendment of 2026-11-14:
+    this machine runs sixteen to twenty-two pi agents at once,
+    so the condition for revisiting was met and the shim was revisited.
 3. **NFS-mounted home directories.
    **
    The upstream's `realpath` option exists partly to normalize symlinks before locking on NFS.
@@ -355,3 +378,104 @@ To force the lock path on a fresh machine:
     not if specific named functions are absent) but the call site throws `TypeError: lockfile.unlock is not a function`.
    When that happens,
     add the missing functions to the shim and re-pin the audit entry.
+
+## Amendment, 2026-11-14T03:13:43-05:00: a lock whose holder is gone is taken over
+
+The shim as first written never takes a lock over.
+On 2026-11-14 an empty `<agentDir>/.models-store.json.lock` directory appeared at
+ 01:43:06 and stood until it was removed by hand at 02:02:59,
+ and every pi run started in those twenty minutes died while loading an extension with
+ `Lock file is already held (lock: /home/user/.pi/agent/.models-store.json.lock)`.
+Sixteen pi processes that were already running went on working;
+ a lock nobody was inside stopped everything that started.
+This record's own condition for revisiting the shim was met,
+ because this machine runs sixteen to twenty-two pi agents at once,
+ started by a launcher with nobody watching,
+ so risk callout 2 above no longer describes the workspace.
+
+### What proves a holder gone
+
+The lock is a file, `.<basename>.lock`, holding a record of the process that took it:
+ that process's pid,
+ the process start tick the kernel reports at field 22 of `/proc/<pid>/stat`,
+ and this boot's id.
+A caller that finds the lock reads the record and asks the kernel whether that exact process still exists.
+A process that no longer exists,
+ or one whose pid now belongs to a process started at a different tick,
+ or a record from a different boot,
+ is gone,
+ and the caller takes the lock over.
+A process that exists is alive,
+ and its lock is never taken over,
+ whatever the lock file's age.
+
+The three cases:
+
+- The holder is alive and blocked, as this machine's home drive did for up to 143 seconds on a small write
+   in the night of 2026-11-14.
+  Its process exists, so the answer is "alive" and the lock is left alone.
+  This is what a freshness bound cannot promise and why upstream's `stale` was not adopted:
+   a live process can be slow for longer than any bound,
+   and time since a lock was made is not evidence about its holder on this machine.
+- The holder was killed at any instruction.
+  The lock is created by hard-linking a fully written record onto its path,
+   and that link is the only step that takes the lock,
+   so a killed holder leaves either no lock at all or a lock whose record names it.
+  There is no instruction at which a kill leaves a lock that cannot be attributed.
+- Two callers find the same dead lock in the same instant.
+  Replacing a dead lock requires creating the arbitration record `<lock path>.takeover`,
+   which is created the same atomic way,
+   so exactly one caller replaces the dead lock and the others are refused with `ELOCKED`.
+  A caller that has the record re-reads the lock before replacing it,
+   so a lock that changed under it is left alone.
+  A takeover record whose own process is gone is cleared by the next caller.
+
+A lock nobody can be named for, which is an empty lock directory from the shim before this amendment and a lock file
+ whose record a machine crash emptied before its data reached the disk,
+ is taken over once it is older than the grace:
+ `options.stale` when the caller passes one, ten seconds otherwise.
+Neither shape is ever written by the amended shim,
+ so the grace covers only states no live holder of this version can be in,
+ and an empty directory from the previous shim is taken over rather than left forever.
+
+### A lock taken away from its holder
+
+`release()` reads the record before removing the lock,
+ so it never removes a lock that no longer names it.
+When the record names another process, or no record is there at all,
+ the caller's `onCompromised` is given an error with `code === 'ECOMPROMISED'` and the lock is left alone.
+While the lock is held, the same check runs every `stale / 2` milliseconds when the caller passed a callback,
+ which is what makes `auth-storage.js`'s `throwIfCompromised()` guard meaningful:
+ the caller learns its lock is gone before it writes, not after.
+
+### What the change costs and what it does not wait for
+
+One lock and release with no contention now does a small write,
+ a hard link,
+ an unlink of the temporary record,
+ one `lstat` and one read of the record,
+ and reads of `/proc/<pid>/stat` and `/proc/sys/kernel/random/boot_id` (each cached for the process lifetime)
+ instead of one `mkdir` and one `rmdir`.
+Measured on this machine with both shims alternating inside each of thirty rounds of five hundred lock-and-release
+ pairs,
+ the middle cost of one pair is 41 to 50 microseconds before and 124 to 133 microseconds after,
+ a ratio of 2.6 to 3.1 (2.1 to 4.4 over the rounds),
+ against a spread of 25 to 29 percent in the unchanged arm run twice in one round.
+The section such a lock guards is a read and a write of a JSON file,
+ so the added microseconds do not change what the caller waits for.
+The shim adds no wait the caller did not ask for:
+ a dead holder's lock is taken over inside the caller's first attempt,
+ and the only retries are the caller's own loop or the `retries` the caller passed.
+
+### What this amendment leaves out
+
+- No freshness writes.
+  `stale` is now the ownership check interval and the grace on a lock nobody can be named for;
+   it is not a freshness bound, because age does not decide anything for a named holder.
+- No `lockfilePath` option, so pi's trust store still locks the sibling of its directory
+   rather than the path it names.
+- No process identity outside `/proc`:
+   on a platform without it the record carries the pid alone and a reused pid reads as alive,
+   which refuses takeover rather than stealing a live holder's lock.
+- Nothing signals a holder that its lock is gone except `onCompromised`:
+   `lockSync` callers that pass no callback learn of a taken lock at their next write, as they did before.
