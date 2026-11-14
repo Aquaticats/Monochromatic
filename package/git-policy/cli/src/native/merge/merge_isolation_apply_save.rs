@@ -153,6 +153,9 @@ pub(crate) fn save_for_a_later_finish(
     debug(TAG, format!("the merge is saved on {side_ref} beside its first record {}", record.display()).as_str());
     // The ref the captured bytes are kept on, when this merge captured any: the line names it, because a restore the lock
     //  stopped leaves those bytes only there and the person has to be told where they are.
-    let kept: Option<&str> = plan.carried.as_ref().and_then(|capture| capture.reference.as_deref());
+    let mut kept: Option<&str> = None;
+    if let Some(capture) = plan.carried.as_ref() {
+        kept = capture.reference.as_deref();
+    }
     return Ok(IsolatedMerge::Finished { code: 0, stdout: String::new(), stderr: a_deferred_save_finding(reference, lock.as_path(), side_ref.as_str(), why, kept) });
 }
