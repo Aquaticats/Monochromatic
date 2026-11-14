@@ -1,6 +1,6 @@
 //! What:
 //!  Controls for the refusals provisioning makes before the client waits for a start:
-//! a runtime directory that leaves no room for one socket address,
+//! a socket address this system can only name as a path when that path is too long,
 //! a service the manager made listen where this command does not look,
 //! and the operating system's words without its error number.
 //! Why:
@@ -10,11 +10,17 @@
 //! and its message names the input that has to change.
 //! Every check also has a control that proves it lets a working arrangement through,
 //! because a refusal that is wrong fails a commit that would have landed.
+//! A runtime directory too long for a path is served at an abstract name instead,
+//! so the controls here hold the two forms against each other: what the unit names,
+//! what the manager answers,
+//! and what two spellings of one directory make.
 
 use super::*;
+use crate::service_address_of_a_worktree::{abstract_name_of, socket_address_of, the_address_is_there};
 use crate::service_instance::{LONGEST_SOCKET_PATH, longest_runtime_directory, service_unit_instance, socket_path, socket_path_suffix_bytes, socket_unit_instance};
-use crate::service_provision::{in_place, provision, provision_with};
+use crate::service_provision::{in_place, provision_with};
 use crate::service_provision_host_and_manager::Manager;
+use crate::service_server::Bind;
 use crate::systemd_dbus::CallError;
 use std::path::{Path, PathBuf};
 
@@ -129,9 +135,21 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
     let parent: PathBuf = short_parent();
     let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a name long enough to build");
     // The name holds the tag and then padding, never nothing: a path that ends in the separator has one byte less than it
-    //  says it has when anything is joined to it.
-    assert!(room > tag.len(), "the tag {tag:?} leaves room to pad a name of {room} bytes");
-    let runtime: PathBuf = parent.join(format!("{tag}{}", "x".repeat(room - tag.len())));
+    //  says it has when anything is joined to it. A runtime directory of forty bytes leaves a handful of bytes past this
+    //  process's own scratch folder, and a longer process number narrows that, so a tag that does not fit is replaced by a
+    //  digest of itself: two controls still get two directories, whichever number this process runs as.
+    // A tag of words needs room for itself; where a control's directory leaves none, a digest of the tag keeps two
+    //  controls apart, and the digest needs eight bytes.
+    assert!(room >= 2, "a runtime directory of {length} bytes leaves {room} bytes past this process's scratch folder, too little to name a control in");
+    let name: String = if room > tag.len() {
+        format!("{tag}{}", "x".repeat(room - tag.len()))
+    } else {
+        assert!(room >= 8, "the tag {tag:?} does not fit {room} bytes, and a digest of it needs eight");
+        let mut digest: String = crate::service_instance::digest_of_bytes(tag.as_bytes());
+        digest.truncate(room);
+        digest
+    };
+    let runtime: PathBuf = parent.join(name);
     std::fs::create_dir_all(&runtime).expect("the runtime directory");
     assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
     crate::test_support::track_for_this_thread(runtime.as_path());
@@ -247,12 +265,85 @@ fn a_spelling_through_relative_parts(runtime: &Path, rounds: usize) -> PathBuf {
 }
 
 /// What:
+///  A runtime directory one byte past the longest a path may carry is served at an abstract name,
+///  the socket unit names that same address with `%i` for the instance,
+///  and the manager's answer about it is not a service out of reach.
+/// Why:
+///  The kernel refuses a socket path of 108 bytes,
+/// so before this form existed the manager bound nothing and the commit failed,
+///  where real Git made the commit (owner's rule, "Commits should never fail").
+/// The unit is what the manager binds,
+/// and the answer is what this command compares with the address it connects to,
+/// so both are read here.
+#[test]
+#[cfg(target_os = "linux")]
+fn a_runtime_directory_past_the_longest_is_served_at_an_abstract_name() {
+    let longest: usize = longest_runtime_directory(INSTANCE);
+    let too_long: PathBuf = runtime_directory_of_length(longest + 1, "abstract");
+    let Bind::Abstract(name) = socket_address_of(too_long.as_path(), INSTANCE) else {
+        panic!("a runtime directory past the longest is an abstract name")
+    };
+    let mut manager: Addressing = Addressing { addresses: Some(vec![format!("@{name}")]), ..Addressing::default() };
+    provision_with(&host_with(too_long.clone()), &mut manager).expect("a runtime directory past the longest is set up");
+    let unit: String = std::fs::read_to_string(too_long.join("systemd/user/monochromatic-git-policy-cli@.socket")).expect("the socket unit was written");
+    let line: String = format!("ListenStream=@{}", name.replace(INSTANCE, "%i"));
+    assert!(unit.contains(line.as_str()), "the unit names the abstract address, with the instance to the manager's `%i`: {unit}");
+    assert!(!unit.contains("%t/"), "the unit names no path under a runtime directory: {unit}");
+    assert!(manager.calls.iter().any(|call| { return call.starts_with("start "); }), "the socket was started: {:?}", manager.calls);
+}
+
+/// What:
+///  A service the manager made listen at a socket file is out of reach of a command whose runtime directory is too
+///  long for a path,
+///  and the refusal names the abstract address this command waits at.
+/// Why:
+///   The two forms are two addresses,
+/// and the commit must not wait a start for the one the manager never made.
+/// The message names both,
+/// which is what tells a person that `XDG_RUNTIME_DIR` is the setting that decides it.
+#[test]
+#[cfg(target_os = "linux")]
+fn a_service_the_manager_made_at_a_path_is_out_of_reach_of_a_command_that_waits_at_a_name() {
+    let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(INSTANCE) + 1, "name-and-path");
+    let Bind::Abstract(name) = socket_address_of(runtime.as_path(), INSTANCE) else { panic!("an abstract name") };
+    let made: String = socket_path(Path::new("/run/user/1000"), INSTANCE).display().to_string();
+    let mut manager: Addressing = Addressing { addresses: Some(vec![made.clone()]), ..Addressing::default() };
+    let began: std::time::Instant = std::time::Instant::now();
+    let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager).expect_err("the manager made another address");
+    let took: std::time::Duration = began.elapsed();
+    assert!(took < AT_ONCE, "the refusal takes {took:?}, not a wait");
+    assert_eq!(
+        refused,
+        ClientFailure::ServiceElsewhere {
+            made: made.clone(),
+            looked_for: format!("the name {name}"),
+            manager_runtime: String::from("/run/user/1000"),
+            client_runtime: runtime.display().to_string(),
+        }
+    );
+    let said: String = message_of(&refused);
+    for part in [made.as_str(), name.as_str(), "XDG_RUNTIME_DIR"] {
+        assert!(said.contains(part), "the message names {part:?}: {said}");
+    }
+    assert!(!manager.calls.iter().any(|call| { return call.starts_with("start "); }), "nothing was started: {:?}", manager.calls);
+}
+
+/// What:
 ///  The socket the manager made,
 /// bound so the installation is whole.
 /// Why:
-///  `in_place` reads the socket's file,
-/// and a control of the address a commit connects to needs the file a real manager would have made.
+///  `in_place` looks for the address,
+/// and a control of the address a commit connects to needs the socket a real manager would have made.
 fn the_socket_the_manager_made(runtime: &Path) {
+    use std::os::linux::net::SocketAddrExt;
+    if let Bind::Abstract(name) = socket_address_of(runtime, INSTANCE) {
+        let address = std::os::unix::net::SocketAddr::from_abstract_name(name.as_bytes()).expect("the name fits");
+        let listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind_addr(&address).expect("the abstract socket the manager made");
+        // The listener stays for the rest of the test process: the table of unix sockets is what `in_place` reads, and a
+        //  control binds a name of its own, so nothing else can take it.
+        std::mem::forget(listener);
+        return;
+    }
     let socket: PathBuf = socket_path(runtime, INSTANCE);
     std::fs::create_dir_all(socket.parent().expect("the folder of the sockets")).expect("the folder of the sockets");
     let _listener: std::os::unix::net::UnixListener = std::os::unix::net::UnixListener::bind(&socket).expect("the socket the manager made");
@@ -280,36 +371,28 @@ fn message_of(failure: &ClientFailure) -> String {
 }
 
 /// What:
-///  A runtime directory one byte past the longest this program can serve is refused,
-/// and nothing is written or asked for.
+///  The address form is decided by the runtime directory alone:
+///  the longest that a path can carry keeps its socket file,
+///  and one byte past it is an abstract name,
+///  so no commit refuses over a length and none waits for a path no address can carry.
 /// Why:
-///   The kernel refuses such an address when the manager binds it,
-/// so the service can never answer under one,
-/// and the client waited two minutes to learn only that it did not start.
+///   This is the boundary the kernel has,
+///  and a form chosen a byte early or late would move the socket of an ordinary session
+///  or leave a long one to fail as it did.
 #[test]
-fn a_runtime_directory_past_the_longest_is_refused_before_anything_is_asked() {
+#[cfg(target_os = "linux")]
+fn the_longest_runtime_directory_that_keeps_a_path_and_the_one_past_it_that_does_not() {
     let longest: usize = longest_runtime_directory(INSTANCE);
-    let too_long: PathBuf = runtime_directory_of_length(longest + 1, "past");
-    let mut manager: Addressing = Addressing::default();
-    let began: std::time::Instant = std::time::Instant::now();
-    let refused: ClientFailure = provision_with(&host_with(too_long.clone()), &mut manager).expect_err("no address that long exists");
-    let took: std::time::Duration = began.elapsed();
-    assert!(took < AT_ONCE, "the refusal takes {took:?}, not a wait");
-    assert_eq!(
-        refused,
-        ClientFailure::SocketPathTooLong {
-            path: socket_path(too_long.as_path(), INSTANCE).display().to_string(),
-            length: socket_path(too_long.as_path(), INSTANCE).as_os_str().len(),
-            longest: LONGEST_SOCKET_PATH,
-            longest_runtime: longest,
-        }
+    let at_the_longest: PathBuf = runtime_directory_of_length(longest, "boundary");
+    assert!(
+        matches!(socket_address_of(at_the_longest.as_path(), INSTANCE), Bind::Path(_)),
+        "a runtime directory of exactly {longest} bytes keeps the socket file"
     );
-    assert!(manager.calls.is_empty(), "the manager was not asked: {:?}", manager.calls);
-    assert!(!too_long.join("systemd").exists(), "no unit was written for a service that could never start");
-    let said: String = message_of(&refused);
-    for part in [too_long.display().to_string().as_str(), "XDG_RUNTIME_DIR", longest.to_string().as_str()] {
-        assert!(said.contains(part), "the message names {part:?}: {said}");
-    }
+    let past: PathBuf = runtime_directory_of_length(longest + 1, "past-boundary");
+    assert!(
+        matches!(socket_address_of(past.as_path(), INSTANCE), Bind::Abstract(_)),
+        "one byte past it is an abstract name"
+    );
 }
 
 /// What:
@@ -425,40 +508,45 @@ fn two_spellings_of_one_runtime_directory_are_one_service() {
 }
 
 /// What:
-///  An installation that looks current behind an address no connect can carry stops at once,
-/// instead of waiting out the ceilings for a start that cannot come.
+///  A runtime directory too long for a path is one service however its spelling is written,
+///  and the next commit finds the installation the first one made.
 /// Why:
-///   The check about the room an address needs ran after the fast path,
-/// and the fast path reads the units,
-/// the record and the socket through any spelling the file system still resolves.
-/// A longer spelling of an installed runtime directory therefore returned as provisioned,
-/// and the commit then spent the start ceiling and the reload's second one connecting to an address the kernel refuses,
-/// ending with "The commit service did not start" and nothing about the setting that caused it.
+///   The abstract name is made from the place the runtime directory names,
+/// never from the text of the spelling that reached it,
+/// which is what the kernel does for a socket path.
+/// A `..` part makes the text longer than one address can carry,
+/// and a name made from that text would give the manager one address and the client another,
+///  which is the ten-second wait this change ends.
 #[test]
-fn an_installed_service_behind_an_address_too_long_to_connect_stops_at_once() {
-    let runtime: PathBuf = a_runtime_directory_to_spell("b");
-    let mut manager: Addressing = Addressing { addresses: Some(vec![socket_path(runtime.as_path(), INSTANCE).display().to_string()]), ..Addressing::default() };
+#[cfg(target_os = "linux")]
+fn a_runtime_directory_too_long_for_a_path_is_one_service_however_it_is_spelled() {
+    let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(INSTANCE) + 1, "spelled");
+    let dotted: PathBuf = a_spelling_through_relative_parts(runtime.as_path(), 2);
+    let linked: PathBuf = a_link_beside(runtime.as_path(), "link-to-a-long-runtime-directory");
+    assert!(socket_path(dotted.as_path(), INSTANCE).as_os_str().len() > LONGEST_SOCKET_PATH, "the longer spelling is no path any address carries");
+    let name: String = abstract_name_of(runtime.as_path(), INSTANCE);
+    let mut manager: Addressing = Addressing { addresses: Some(vec![format!("@{name}")]), ..Addressing::default() };
     provision_with(&host_with(runtime.clone()), &mut manager).expect("the units are written and the manager was told");
     the_socket_the_manager_made(runtime.as_path());
     assert!(in_place(&host_with(runtime.clone())), "the installation looks current under its own spelling");
-    let padded: PathBuf = a_spelling_through_relative_parts(runtime.as_path(), 2);
-    assert_eq!(std::fs::canonicalize(&padded).expect("the longer spelling resolves"), std::fs::canonicalize(&runtime).expect("the runtime directory"), "the longer spelling reaches the installed directory");
-    let address: PathBuf = socket_path(padded.as_path(), INSTANCE);
-    assert!(address.as_os_str().len() > LONGEST_SOCKET_PATH, "the address of that spelling takes {} bytes, more than one can carry", address.as_os_str().len());
-    let began: std::time::Instant = std::time::Instant::now();
-    let refused: ClientFailure = provision(&host_with(padded.clone())).expect_err("no connect can carry that address, so the commit must not go on");
-    let took: std::time::Duration = began.elapsed();
-    assert!(took < AT_ONCE, "the refusal takes {took:?}, not a wait");
-    assert_eq!(
-        refused,
-        ClientFailure::SocketPathTooLong {
-            path: address.display().to_string(),
-            length: address.as_os_str().len(),
-            longest: LONGEST_SOCKET_PATH,
-            longest_runtime: longest_runtime_directory(INSTANCE),
-        }
-    );
-    provision(&host_with(runtime.clone())).expect("the same installation under its own spelling is used, so the refusal is about the spelling alone");
+    for spelled in [dotted, linked] {
+        assert_eq!(abstract_name_of(spelled.as_path(), INSTANCE), name, "one place, one name, whatever the spelling is");
+        assert!(
+            the_address_is_there(&socket_address_of(spelled.as_path(), INSTANCE)),
+            "the socket the manager made before answers this spelling too: {} is reached through it",
+            spelled.display()
+        );
+        let mut spelled_manager: Addressing = Addressing { addresses: Some(vec![format!("@{name}")]), ..Addressing::default() };
+        provision_with(&host_with(spelled.clone()), &mut spelled_manager).expect("the same installation under another spelling is used, not refused");
+        // The units name the program's link by the runtime directory's spelling, so a spelling that differs from the one the
+        //  record was written under has the units written again and the manager asked to reload them: one write and one
+        //  reload, and never a second service.
+        assert!(
+            spelled_manager.calls.iter().any(|call| { return call.starts_with("start "); }),
+            "the same socket unit is started, not another: {:?}",
+            spelled_manager.calls
+        );
+    }
 }
 
 /// What:
@@ -525,4 +613,41 @@ fn the_bytes_a_socket_path_adds_are_the_ones_it_really_adds() {
         }
     }
     assert_eq!(longest_runtime_directory(INSTANCE) + socket_path_suffix_bytes(INSTANCE), LONGEST_SOCKET_PATH);
+}
+
+/// What:
+///  A runtime directory no spelling can make — a path through a file, a path through a link that points nowhere — stops
+///  provisioning at once and names the setting, rather than waiting for a start that cannot come.
+/// Why:
+///   Such a spelling stands in no place a service could listen at,
+/// so there is no address to bind and no service to be had;
+/// the address function still gives it one name before and after
+/// (`a_spelling_that_cannot_be_resolved_still_gives_one_name` in `service_address_of_a_worktree_tests.rs`),
+/// and what is left is that the commit says what to change and does not wait.
+/// `SPEC.md`, "Machines with no way to reach the service", is the rule: the service is the only writer, so a command
+/// that cannot reach it changes nothing and stops, with the input and every way to change it named.
+#[test]
+#[cfg(target_os = "linux")]
+fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {
+    let parent: PathBuf = short_parent();
+    // Long enough that only a name can carry the service's address, which is the branch a long runtime directory takes.
+    let through_a_file: PathBuf = parent.join("a-file-with-room").join("run");
+    std::fs::write(parent.join("a-file-with-room"), b"not a directory\n").expect("a file where a directory has to be");
+    let through_a_link: PathBuf = parent.join("dangling-link").join("run");
+    std::os::unix::fs::symlink(parent.join("nowhere"), parent.join("dangling-link")).expect("a link that points nowhere");
+    crate::test_support::track_for_this_thread(through_a_file.as_path());
+    crate::test_support::track_for_this_thread(through_a_link.as_path());
+    for (tag, runtime) in [("a file in the path", through_a_file), ("a link that points nowhere", through_a_link)] {
+        assert!(matches!(socket_address_of(runtime.as_path(), INSTANCE), Bind::Abstract(_)), "{tag}: the runtime directory is long enough for a name");
+        let mut manager: Addressing = Addressing::default();
+        let began: std::time::Instant = std::time::Instant::now();
+        let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager).expect_err("{tag}: nothing can make this directory");
+        let took: std::time::Duration = began.elapsed();
+        assert!(took < AT_ONCE, "{tag}: the refusal takes {took:?}, not a wait");
+        let ClientFailure::CouldNotStart(said) = &refused else { panic!("{tag}: a directory that cannot be made is a start that cannot be, not {refused:?}") };
+        assert!(said.contains(runtime.to_string_lossy().as_ref()), "{tag}: the message names the directory: {said}");
+        assert!(said.contains("XDG_RUNTIME_DIR"), "{tag}: the message names the setting that decides it: {said}");
+        assert!(said.contains("make that one writable"), "{tag}: the message names the way out: {said}");
+        assert!(!manager.calls.iter().any(|call| { return call.starts_with("start "); }), "{tag}: nothing was started: {:?}", manager.calls);
+    }
 }

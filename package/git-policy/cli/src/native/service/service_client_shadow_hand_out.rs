@@ -74,9 +74,10 @@ pub const DRAWN_ANSWER_DEADLINE: Duration = Duration::from_millis(250);
 ///  even though the service is this wrapper's own,
 ///  because a commit removes the tree it was handed and must never remove one the wrapper did not make.
 ///  A socket with no name in the filesystem is not asked:
-///  this release serves one with a name under the runtime directory,
-///  and a socket that is not checked before it is connected to would be started by the connection itself,
-///  which would put a service start on a commit's build.
+///  this ask holds a connection to a deadline and looks for the socket's file before it connects,
+///  and an abstract address has no file (`service_address_of_a_worktree.rs`).
+///  A commit under a runtime directory too long for a path therefore builds its own shadow,
+///  which is the path this ask saves a second off.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,7 +86,6 @@ pub const DRAWN_ANSWER_DEADLINE: Duration = Duration::from_millis(250);
 pub fn ask_for_a_drawn_shadow(address: &Bind, template: &ShadowTemplate, scratch: &Path) -> Option<PathBuf> {
     let socket: &Path = match address {
         Bind::Path(path) => path.as_path(),
-        // A connection to an abstract socket cannot be checked first, so nothing is asked of one.
         Bind::Abstract(_) | Bind::Inherited => return None,
     };
     // A socket file that is not there is no service, and asking would start one: the commit keeps today's path.
