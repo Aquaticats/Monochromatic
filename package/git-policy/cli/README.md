@@ -5037,8 +5037,13 @@ on the blocking pool and never on the landing thread:
   `rebase` or `reset` exits 0,
   the client compares a digest of the rules text it would load before and after,
   and when it differs sends a one-way `warm` message to the service of that worktree that already runs.
-  The client never starts a service or a process for this,
-  and a command whose rules text did not change reads two small files and sends nothing.
+  The client writes no unit,
+  asks no manager for a start,
+  and starts no process for this;
+  the service it found by its start arguments is asked,
+  and a service killed between that look and the connection is started by the connection itself,
+  because the socket unit keeps listening.
+  A command whose rules text did not change reads two small files and sends nothing.
 
 The client still compiles on a cache miss,
 so a commit that starts before the warm ends compiles as well (the two compiles race and the cache keeps one result).
@@ -5065,12 +5070,12 @@ because nothing else can make it:
   (or the default appendix) instead.
   A configuration that names files wins over the variable,
   so a repository with both lists leaves them to the service;
-- a service that takes no connection within its bound.
-  The request's connection is made within 250 ms (`wait_ceilings.rs`,
-  `WARM_REQUEST_CONNECT_CEILING`),
-  so a service whose queue of unaccepted connections is full,
+- a service that takes no connection within its bound, or a look at the processes that gives no answer.
+  The request's look is made within 250 ms (`wait_ceilings.rs`,
+  `WARM_SCAN_CEILING`) and its connection within 250 ms (`WARM_REQUEST_CONNECT_CEILING`),
+  so a process stuck in the kernel and a service whose queue of unaccepted connections is full,
   which is what a service stopped inside its own process leaves,
-  costs the command that bound and no more;
+  each cost the command a ceiling and no more;
   a request that is not made is not sent,
   and the command compiles and publishes the rules itself.
   The line that follows the connection is a few hundred bytes into a send buffer of 212,992 bytes,

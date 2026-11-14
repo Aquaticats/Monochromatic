@@ -49,7 +49,8 @@ use crate::service_instance::{instance_of, socket_for};
 use crate::service_protocol_encode_messages_to_lines::encode_client;
 use crate::service_protocol_messages_and_name_checks::ClientMessage;
 use crate::service_server::Bind;
-use crate::wait_ceilings::WARM_REQUEST_CONNECT_CEILING;
+use crate::wait_ceilings::{WARM_REQUEST_CONNECT_CEILING, WARM_SCAN_CEILING};
+use crate::work_awaited_within_a_ceiling::work_within;
 #[cfg(unix)]
 use crate::earlier_service_command_line_read::{CommandLine, command_line_of};
 #[cfg(unix)]
@@ -110,7 +111,9 @@ fn is_nul(byte: &u8) -> bool {
 /// const runs = workWithin(WARM_SCAN_CEILING, () => scanProc(instance, procRoot)) ?? false;
 /// ```
 pub fn service_process_runs(instance: &str, proc_root: &Path) -> bool {
-    return service_runs_in(instance, proc_root);
+    let looked_for: String = instance.to_owned();
+    let root: PathBuf = proc_root.to_path_buf();
+    return work_within(WARM_SCAN_CEILING, move || return service_runs_in(looked_for.as_str(), root.as_path())).unwrap_or(false);
 }
 
 /// What:
