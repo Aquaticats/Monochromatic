@@ -32,6 +32,11 @@ use crate::service_claim_watch::ClaimWatch;
 use std::path::PathBuf;
 use std::time::Duration;
 
+/// The point at which the start reads the journal,
+/// for a control that holds that read (`service_fault_hooks_test_support.rs`).
+#[cfg(test)]
+pub(crate) const THE_READ_AT_A_START: &str = "the-read-at-a-start";
+
 /// What:
 ///  `plan_directory`'s plan and `watch_directory`'s notes,
 /// read on a thread of their own and awaited no longer than `ceiling`,
@@ -49,6 +54,9 @@ pub fn restored_within(ceiling: Duration, plan_directory: PathBuf, watch_directo
     let (plan_of_the_read, watch_of_the_read, instance_of_the_read): (PathBuf, PathBuf, Option<String>) =
         (plan_directory.clone(), watch_directory.clone(), instance.clone());
     let restored = crate::work_awaited_within_a_ceiling::work_within(ceiling, move || {
+        // A control holds this read on the thread that runs it, which is this read's own and not the thread that set the hold.
+        #[cfg(test)]
+        crate::service_fault::hooks::run_on_any_thread(THE_READ_AT_A_START);
         let retries: PushRetries = PushRetries::restored_from_environment(plan_of_the_read.as_path());
         let watch: ClaimWatch = ClaimWatch::restored(watch_of_the_read.as_path(), instance_of_the_read.as_deref());
         return (retries, watch);
