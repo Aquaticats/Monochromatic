@@ -1202,6 +1202,74 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The removal-refuses review found Git work a removal still destroys; the archives are all removed and go to review (2026-11-13T23:29:22-05:00)
+
+Not final and not approved:
+read by the coordinating session from one review file and one run's last message,
+nothing rerun by it.
+
+- **A typed removal refuses a busy worktree, third review**
+  (`~/temp/agent/change-reviews/git-policy-cli-removal-refuses-a-busy-worktree-answers-after-its-review-of-01d26607ce/review.md`,
+  ended 23:23:05,
+  on `d34ecbc2ac`):
+  the refusal itself works in its controls,
+  and three findings are reproduced with the built wrapper,
+  each measured against the record's sentence that Git work is never destroyed by a removal.
+  A nested worktree's edit hidden by `assume-unchanged` or `skip-worktree` is not seen by the new refusal,
+  which reads the status,
+  so a typed removal deletes it and the log names nothing:
+  the change's own.
+  The deletions log leaves out a detached nested worktree and its files,
+  because its reader drops registrations whose `HEAD` names no branch:
+  the change's own.
+  The landed sweep and the commit service remove a worktree holding a detached nested worktree with an edited tracked file,
+  through the same reader:
+  in `main` before this change,
+  and inside the task of the landed-removal author,
+  whose run is going.
+  All three weighed as standing.
+  The first two and the false sentence in the new file go back to the author in its own session
+  (`removal-refuses-answers-its-third-review-of-2026-11-13-prompt.md`,
+  queued at position 6),
+  told to write no second guard for the automatic routes.
+  The third went at 23:29 as a note with the two reproduction scripts to
+  `landed-removal-never-destroys-a-nested-repository-a-detached-worktree-a-late-commit-or-a-hidden-edit-4`.
+  The two branches still land together or in that order.
+- **Archives**
+  (run `tracked-archives-are-removed-with-what-documents-cite-kept-as-plain-text-and-archive-formats-are-ignored-2`,
+  ended 23:26:06,
+  tip `0ef01cf14e`,
+  `main` merged at `63b55a57d0` with no conflict):
+  the four that stood are removed as adopted at 21:20.
+  For the two whose records disagreed,
+  every version in history was hashed and both recorded pairs are real earlier versions,
+  now noted beside each record with the commit that holds them.
+  The self-recording one carries a note that its pair cannot be current.
+  The kept file the guard refused is trimmed to the two records documents cite,
+  and the secret scanner reports nothing on it.
+  136 archives removed in all,
+  none of the named formats tracked,
+  three Java archives left;
+  all 136 print from history and match by digest,
+  by its own check.
+  Against `main` the branch adds 164 files,
+  deletes 136 and modifies 115
+  (counted at 23:29).
+  Its review has a hand-written brief
+  (`~/temp/agent/change-reviews/doc-tracked-archives-are-removed-and-history-holds-each/brief.md`),
+  queued at the head;
+  the merge follows a review with no defect.
+  Its open questions,
+  none of them blocking the review:
+  an eighth note field with a `null` pair for the self-recording file;
+  a formatting defect in one evidence file that `main` has too;
+  `doc/handover/depot-trial-grilling.md` carries `merge=union`,
+  so its note wants a look at the merge.
+- Seen in that run's merge of `main`:
+  the wrapper named three other worktrees it left in place,
+  the landed sweep's behaviour recorded at 23:10.
+- The queue held 49 entries at 23:29:22.
+
 ##### The reload fix's author found what fails a start at an upgrade; the discarding commands' third review has two defects (2026-11-13T23:22:53-05:00)
 
 Not final and not approved:
