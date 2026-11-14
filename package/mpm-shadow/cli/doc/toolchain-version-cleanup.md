@@ -252,9 +252,10 @@ Each is set in the environment and has the shipped default when unset.
   `2h`,
   `90m`
   and `3600` all read as seconds.
-  A value above one hundred years is read as one hundred years:
+  A value that reads as more than one hundred years is read as one hundred years:
   both mean "keep everything",
   and the unbounded value used to overflow the line that names the floor.
+  A value that is not a span at all leaves the shipped default.
 - `MPM_SHADOW_STORE_WORK_LIMIT`:
   how long one pass may spend removing,
   two seconds.
@@ -263,9 +264,10 @@ Each is set in the environment and has the shipped default when unset.
   more than any single version the stores hold,
   so an install never waits on a long deletion and later installs finish the rest.
   `5s` and `500ms` both read.
-  A value above one year is read as one year:
+  A value that reads as more than one year is read as one year:
   both mean "no limit",
   and the unbounded value used to overflow the deadline and end the install with a panic.
+  A value that is not a span at all leaves the shipped default.
 
 ## What it does not touch
 
