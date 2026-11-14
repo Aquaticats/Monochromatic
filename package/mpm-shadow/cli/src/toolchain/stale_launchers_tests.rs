@@ -342,3 +342,42 @@ fn a_link_whose_launcher_is_gone_everywhere_stays() {
     assert_eq!(notices.warnings.len(), 1, "{notices:?}");
     assert!(notices.warnings[0].contains("cannot be proven"), "{notices:?}");
 }
+
+//region Links no record knows about, and links that were never mpm-shadow's
+// The review of the first commit found both: a postinstall link a killed install made before it wrote the record was
+// invisible to the links this pass asked about, so its launcher was removed and the link dangled; and a link that did
+// not resolve was judged by the name of its target alone, so a person's own broken link went with it.
+
+#[test]
+fn a_postinstall_link_no_record_knows_of_is_retired_with_its_launcher() {
+    let rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    // The state of a first install killed after it made its postinstall links and before it wrote the record of them,
+    // and the same state with an unreadable record: nothing names this link.
+    let link_directory: PathBuf = rig.scope.root.join(".cache").join(format!("{RENAMED_BIN}-bin"));
+    fs::create_dir_all(&link_directory).expect("make the postinstall link folder");
+    let link: PathBuf = link_directory.join("linked");
+    symlink(&launcher, &link).expect("the link a killed install made");
+
+    let notices = retire(&rig);
+
+    assert!(!exists_at(&link), "the link names a launcher of a name the lock dropped, so it goes too: {notices:?}");
+    assert!(!exists_at(&launcher) && !exists_at(&record_path(&launcher)));
+}
+
+#[test]
+fn a_broken_link_that_names_nothing_in_a_launcher_folder_is_left_alone() {
+    let rig = rig_with_installed_shadow();
+    // The stale launcher this pass would judge, with the name the person's link happens to share.
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    let elsewhere: PathBuf = rig.scope.root.join("elsewhere").join(RENAMED_BIN);
+    let link: PathBuf = make_link(&rig, RENAMED_BIN, &elsewhere);
+
+    let notices = retire(&rig);
+
+    assert!(exists_at(&link), "the link named a path in no launcher folder, so nothing proves mpm-shadow made it: {notices:?}");
+    assert_eq!(fs::read_link(&link).expect("still the person's link"), elsewhere);
+    assert!(!exists_at(&launcher), "the launcher itself is still retired; the person's own broken link is not");
+}
+
+//endregion
