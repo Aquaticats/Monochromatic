@@ -48,7 +48,6 @@ use crate::maintenance_run::{AutoMaintenanceOutcome, run_auto_maintenance_with_a
 use crate::auto_push::AutoPushOutcome;
 use crate::claim_time::ClaimTime;
 use crate::push_retry::Retrying;
-use crate::push_failure_notice::record_push_report;
 use crate::service_claim_renewal_running::Renewal;
 use crate::service_review::{options_for, review_item, review_item_awaiting, review_variables};
 use crate::service_review_key::ReviewKey;
@@ -516,18 +515,14 @@ impl WorkHandlers for GitHandlers {
                     newest.branch_ref.as_str(),
                     newest.repository.as_path(),
                 );
-                // A push that reached an address is backed up, so what is left to say is where the commit is and which address was
-                //  given up: a report, which the next command shows once and which no later push of the branch removes.
-                if let Some(report) = settled.report
-                    && let Err(reason) = record_push_report(newest.git_dir.as_path(), newest.branch_ref.as_str(), newest.oid.as_str(), report.as_str())
-                {
-                    crate::service_error!(
-                        "what the push of {} {} did could not be recorded for the person: {reason}",
-                        newest.oid,
-                        crate::service_timing::in_the_repository_at(newest.repository.as_path())
-                    );
+                // What: A push that reached an address is a push that landed, whatever another address did.
+                // Why:  The branch is backed up, so nothing is retried and nothing failed; what is left to say is where the commit is and
+                //       which address was given up, and that goes where every accepted push's words go: a record the next command shows
+                //       once, which the step that settles this verdict writes.
+                match settled.report {
+                    Some(said) => Verdict::Delivered { commit: newest.oid.clone(), said },
+                    None => settled.verdict,
                 }
-                settled.verdict
             }
             Err(error) => Verdict::Retry(format!("{error}")),
         };
