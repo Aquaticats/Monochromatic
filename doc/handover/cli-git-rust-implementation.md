@@ -1121,6 +1121,50 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The warm request's connect has a bound and goes to review (2026-11-13T20:20:44-05:00)
+
+Not final and not approved:
+the coordinating session's reading of a run that ended at 20:16:02.
+
+- The run on `service_warm_request.rs:107` ended with seven commits on
+  `fix/git-policy-cli-warm-request-of-a-commit-connects-to-its-service-within-a-bound`
+  (tip `0378d82c37`,
+  `main` merged in;
+  report in `~/temp/agent/warm-request-of-a-commit-connects-to-its-service-within-a-bound-scratch/keep/report.md`).
+- It showed the jam through the built wrapper of `main` before changing anything:
+  with a stopped service whose accept queue was filled
+  (4,097 connections),
+  a commit whose rules are cold printed nothing and waited in `unix_wait_for_peer` for the whole twenty seconds of the probe's bound,
+  with nothing committed.
+- The change:
+  the warm request connects through the helper every client connect of `main` now uses,
+  under a ceiling of its own of 250 ms
+  (sixty times the slowest connect it measured,
+  and the value of the other request whose answer a command does not need);
+  a request that cannot be made is not sent and the command publishes the rules itself.
+  After it the same commit ends in 300 ms with the policy's answer.
+  The bound costs about one microsecond at the median of 2,000 alternating connects.
+- Its control fails on `main` at the harness's own bound and passes after.
+  A landing commit against a service that accepts nothing ends in 10,327 ms saying the service did not start:
+  bounded since `0.6.1-alpha.19`,
+  not landed.
+- It also corrected a test of the same file that could not pass
+  (a sleep equal to the 60 s ceiling it runs under),
+  outside what its brief named;
+  no product code changed for it,
+  and the review reads it with the rest.
+- Routed:
+  its review is queued at the head.
+  With it the one unbounded connect left on `main` in shipped code is the binding probe
+  (`service_server_socket_binding.rs:151`),
+  which is with the no-manager author.
+- One binary test failed once in that author's module run and passed three times after
+  (`commit_timing::the_second_commit_of_a_service_finds_its_marker_made_ahead_and_nothing_is_left_when_it_retires`,
+  61 s then 1.97 s).
+  By the rule `SUF` it gets a run of its own,
+  queued
+  (`~/temp/agent/pi-runs/binary-test-of-the-second-commit-finding-its-marker-passes-in-its-suite-as-it-does-alone-prompt.md`).
+
 ##### The guards-refuse answer passed its third review and is pass 27 (2026-11-13T20:15:36-05:00)
 
 Not final and not approved:
