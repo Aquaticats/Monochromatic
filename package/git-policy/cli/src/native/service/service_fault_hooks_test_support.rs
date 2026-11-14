@@ -120,7 +120,7 @@ static HELD_ON_ANY_THREAD: std::sync::Mutex<Vec<HoldOnAnyThread>> = std::sync::M
 /// ```
 pub(crate) fn hold_on_any_thread(held: HoldOnAnyThread) {
     let mut holds: std::sync::MutexGuard<'_, Vec<HoldOnAnyThread>> = HELD_ON_ANY_THREAD.lock().expect("the hold registry");
-    holds.retain(|one| one.point != held.point);
+    holds.retain(|one| { return one.point != held.point; });
     holds.push(held);
 }
 
