@@ -1121,6 +1121,86 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Two reviews with reproduced defects, the issue 6293 answer, and twelve red library tests on `main` (2026-11-13T21:03:15-05:00)
+
+Not final and not approved:
+the coordinating session's reading of three runs that ended between 20:56:21 and 21:00:03.
+
+- **Warm request** (`0378d82c37`).
+  The review
+  (`~/temp/agent/change-reviews/git-policy-cli-warm-request-of-a-commit-connects-to-its-service-within-a-bound/review.md`)
+  measured the connect's bound working
+  (262 to 266 ms against a queue nothing accepts).
+  It reproduced one defect on the same path:
+  before the connect,
+  the warm request reads the command line of every process on the machine with no deadline and no check of whose it is,
+  and a process stuck in the kernel holds that read without end.
+  With such a process built in a private mount namespace the real function gave no answer in 30 s,
+  where the package's own bounded scan answered at 10,002 ms.
+  One more by reading,
+  rated low:
+  between the scan and the connect a killed service's socket still listens,
+  so the request can start a service it promises never to start.
+  Both went to the author,
+  resumed with its session
+  (`~/temp/agent/pi-runs/warm-request-answers-its-review-of-2026-11-13-prompt.md`),
+  queued near the head.
+- **Add never skips**, the fourth review (`7f3b425d9a`,
+  `~/temp/agent/change-reviews/git-policy-cli-add-never-skips-answers-after-its-third-review/review.md`).
+  The third review's answers are sound.
+  Two findings in code the change adds:
+  the rollback of a placed `Cargo.lock` exchanges back and then removes what the exchange brought out,
+  so a write that arrives between its read and that exchange is deleted,
+  and the function answers that the file was left as found
+  (one interleaving, made to happen by a standalone program);
+  and the filling reads `Cargo.lock` with a plain read that waits on a named pipe without end,
+  once at its start and once after the exchange.
+  It did not run the crate's tests.
+  Both went to the author,
+  resumed with its session
+  (`~/temp/agent/pi-runs/add-never-skips-answers-its-fourth-review-of-2026-11-13-prompt.md`),
+  queued near the head.
+- **Issue 6293**, the author's answer (tip `6db694c52c`,
+  report in `~/temp/agent/issue-6293-private-runtime-directory-is-the-boundary-and-a-push-to-no-remote-ends-at-once-scratch/keep/report.md`).
+  The four findings sent to it reproduced on the reviewed build and are answered,
+  with eleven controls each shown failing without its code:
+  a delivered push is reported as delivered,
+  a plan ends only for the address Git failed at when that can never be a remote,
+  no address is trimmed,
+  and records move into the runtime directory only for a session proven to be another one.
+  It merged `main` with fourteen conflicts resolved by hand.
+  Its run ended `driver-failed` by issue 6299's defect,
+  having started before that fix reached `main`.
+- Its review is written by the launcher's command over the two ranges of its own commits
+  (`3d5c1a0d8c...2385a02b09` and `541f5e3ec7...6db694c52c`),
+  and the brief was given one paragraph and one file more by hand:
+  Git's combined diff of the merge commit,
+  because no range shows what a merge's resolutions decided.
+  Queued at the head.
+  The branch still lands after the no-manager branch it stands on.
+- **Twelve tests of the library suite are red on `main`**,
+  measured by that author on `main`'s tip `4604def143` with the whole suite,
+  the same twelve as on its branch.
+  Alpha releases do not run the release gate,
+  and a pass runs its branch's controls by name,
+  so nothing had shown it.
+  Three are the journal tests,
+  already with their author.
+  Five state something `main` changed on one side only
+  (a status test whose listener never greets;
+  an assertion of `Verdict::Done` where the code answers `Delivered`;
+  a message text;
+  a lock in `service_shadow_draw.rs` that is not on the lock inventory;
+  three blocking calls the runtime guard does not allow):
+  a fresh run is queued
+  (`~/temp/agent/pi-runs/five-library-controls-of-main-that-state-what-main-changed-are-true-again-prompt.md`).
+  Four pass alone and fail inside the suite:
+  a fresh run is queued
+  (`~/temp/agent/pi-runs/four-library-tests-that-pass-alone-and-fail-inside-the-suite-have-their-cause-removed-prompt.md`).
+  With the two lock-wait tests of the binary suite,
+  that is every test known red on `main` with a run of its own.
+- At 21:03 the queue held 42 entries.
+
 ##### Pass 25 reports fit at a tip two releases behind `main`, and goes back to merge `main` again (2026-11-13T20:51:01-05:00)
 
 Not final and not approved:
