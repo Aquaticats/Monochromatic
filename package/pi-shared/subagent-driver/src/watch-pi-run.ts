@@ -26,6 +26,7 @@ import {
   type HeldMessage,
   holdMessagesTheRunOwes,
   readyMessages,
+  recoverClaimsOfGoneDrivers,
 } from './messages-from-the-inbox.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { mayEndIdle, } from './when-a-run-may-end.ts';
@@ -88,6 +89,13 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
    Pi rests, within the run's deadline. Disposing it keeps and names every message still owed when the run ends, or throws.
    */
   await using owed = holdMessagesTheRunOwes(watch,);
+  /**
+   What a driver that is gone claimed before this watch took anything: each such message is kept under its name and named, so a
+   kill never leaves an inbox message behind under a name nothing reads again.
+   */
+  await recoverClaimsOfGoneDrivers({
+    watch,
+  },);
   return await watchWhileItGoesOn({
     watch,
     held: owed.claimed,

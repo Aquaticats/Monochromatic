@@ -189,6 +189,13 @@ export async function startsOfARun({
    */
   const startFailures: PiStartFailure[] = [];
   /**
+   The folder holding one entry per process, which the work a run left running and the claims of an earlier driver are read from.
+   A test may point it elsewhere; `/proc` is where this machine keeps it.
+   */
+  const processFolder = process.env
+    .PI_RUNS_PROCESS_FOLDER
+    ?? '/proc';
+  /**
    The channel of the start now running, set as each start is made. It is a shape rather than a bare variable so the time before
    the first start reads as an absence the way this package says one.
    */
@@ -277,13 +284,12 @@ export async function startsOfARun({
       options,
       inbox,
       deadline,
+      processFolder,
       workLeftRunning: async function workLeftRunning() {
         return await workOutlivingTheTurnIn({
           runFolder: options.runFolder,
           workingFolder: options.workingFolder,
-          processFolder: process.env
-            .PI_RUNS_PROCESS_FOLDER
-            ?? '/proc',
+          processFolder,
           run: runCommandWithChildProcess,
         },);
       },

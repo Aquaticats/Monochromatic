@@ -22,6 +22,12 @@ export type WatchRequest = {
   readonly deadline: number;
 
   /**
+   The folder holding one entry per process, `/proc` here, which tells a claim whose driver is gone from one whose driver is
+   merely slow. Absent, the inbox reads `/proc`.
+   */
+  readonly processFolder?: string;
+
+  /**
    The work this run left running, asked before the run may end as one that finished its turn.
 
    A run that ends its turn while a build it started still compiles is not a run with nothing to do, and a driver that ended

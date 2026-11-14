@@ -68,6 +68,10 @@ export {
   type MessageToPi,
 } from './what-pi-did-with-a-message.ts';
 export {
+  INBOX_CLAIMS_FOLDER,
+  recoverClaimsOfGoneDrivers,
+} from './messages-from-the-inbox.ts';
+export {
   cgroupOf,
   unitNamedBy,
   wakeMessageOf,
