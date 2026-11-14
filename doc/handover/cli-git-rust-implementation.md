@@ -1202,6 +1202,172 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The journal's start tests passed their review: pass 33; a pipe at a watch note's name is reproduced on the landing thread (2026-11-14T00:38:14-05:00)
+
+Not final and not approved:
+read by the coordinating session from the review file,
+nothing rerun by it.
+
+- **The tests of the journal read at a start**
+  (`~/temp/agent/change-reviews/git-policy-cli-journal-start-tests-answer-with-a-held-read-after-their-review/review.md`,
+  ended 00:32:05,
+  on `acd357f67a`):
+  no defect in the change.
+  Every wait of the reworked controls is bounded,
+  the hold is taken and let go by the read's own thread,
+  and the four controls pass
+  (the one that binds a socket only under a short `HOME`).
+  The change touches four files and no shipped behaviour.
+  Pass 33 is queued at the head
+  (`integration-pass-33-with-the-journal-start-tests-that-hold-the-read-prompt.md`);
+  it turns three of the twelve tests that are red on `main` green.
+- **Its one finding is in a file the change does not touch**,
+  and is the defect a fresh run already has,
+  going since before midnight
+  (`watch-note-of-the-commit-service-is-read-the-way-every-record-is-read-and-never-waits-on-a-pipe-1`):
+  the watch store reads with `std::fs::read`,
+  so a named pipe at a watch note's name is waited on in `open`.
+  New in this review,
+  and reproduced with the real functions and a control for each:
+  the same read is made on the landing thread,
+  before the client is answered and under no ceiling,
+  when a pipe stands at the exact note name.
+  By its reading a commit that has landed is then never answered and every commit behind it waits.
+  Sent to that run at 00:38 with the probe's path.
+- The queue held 51 entries at 00:38:14.
+
+##### The cargo fetch before lint: its author answered both review findings (2026-11-14T00:27:03-05:00)
+
+Not final and not approved:
+read by the coordinating session from the run's last message.
+
+- Run `cargo-fetch-before-lint-takes-the-package-cache-lock-only-when-something-is-to-fetch-2`,
+  ended 00:22:34,
+  tip `feb7a90a12`,
+  `main` merged,
+  one file changed against `main` (`mise.toml`).
+- Both findings reproduced first,
+  the second only after it corrected the review's own reproduction,
+  which named a database folder by a hash of the review's scratch path.
+- A git source is now matched to the database that recorded its own URL,
+  so two URLs never share a key;
+  and a database that records the URL is asked for the revision,
+  under a bound of ten seconds with the answer taking 30 to 40 ms.
+  Any non-answer fetches.
+  Twenty controls;
+  each fix taken out fails exactly its own control.
+  One pass takes the package-cache lock exclusively no times,
+  and a second Cargo beside it did not wait in seventeen probes.
+- The stale-lock sentence now follows the owner's decision of 2026-11-13.
+- Its review is queued near the head
+  (`review-mise-cargo-fetch-before-lint-answers-after-its-review`,
+  range `main...feb7a90a12`).
+- Unchanged:
+  it reaches `main` with the queued run `stale-cargo-lock-file-fails-the-lint-through-the-closure-check` or after it,
+  never before.
+
+##### A commit in the main checkout took 44 s under alpha.23, waiting for its service's answer (2026-11-14T00:20:52-05:00)
+
+Not final and not approved;
+measured by the coordinating session from the wrapper's own timing record.
+
+- The handover commit `9c5e1521ca` printed
+  "The commit service has not said where this commit stands yet;
+  it has waited 10 seconds.
+  This commit is next."
+  and then landed.
+- Its timing line
+  (kept as `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/timing-line-of-the-commit-that-waited-ten-seconds-2026-11-14T0020.json`):
+  44,189 ms in all,
+  528 ms preparing,
+  43,277 ms waiting for the service's answer at position 1,
+  the landing's own lock held 214 ms,
+  nothing queued behind it.
+  The three commits before it took 414 to 681 ms.
+- So the service was doing something else for 43 s before it took the commit up.
+  What,
+  is not established:
+  the journal of that minute holds no line of the service.
+- That is over the commit-time rule
+  (the larger of five seconds and twice real Git),
+  and it is the shape the branch in pass 29 answers
+  (a commit's landing never waits behind slow work in its service,
+  `08d7a82212`),
+  which is not in `main` yet.
+  No new run:
+  the fix is written and reviewed.
+  After the release that carries pass 29,
+  the same record is read again for a wait of this kind.
+
+##### The reload fix's review ran and found no defect: pass 32; issue 6293's author answered (2026-11-14T00:19:46-05:00)
+
+Not final and not approved:
+read by the coordinating session from one review file and one run's last message,
+nothing rerun by it.
+
+- **The reload fix (issue 6286)**
+  (`~/temp/agent/change-reviews/git-policy-cli-reload-fix-answers-the-instance-that-fails-its-start-at-an-upgrade/review.md`,
+  its second run ended 00:13:34,
+  on `05edb83219`):
+  the reading of 23:41 now stands on runs.
+  The build;
+  the controls of the five touched modules,
+  each named and passing;
+  a break planted in the unload's stop,
+  caught by its control and restored;
+  and its two candidates turned into probes with the manager stand-in.
+  The first candidate's mechanism is real
+  (the record is written while the manager still holds the service unit)
+  and loses nothing,
+  since the socket is gone and a start from the held text runs this release.
+  The half that needs a real manager
+  (a retiring service stopping its own socket,
+  a client's start bringing both back)
+  could not be run on this machine;
+  the review says what the author's container proof would have to show.
+  No defect.
+  Pass 32 is queued at the head
+  (`integration-pass-32-with-the-reload-fix-that-keeps-an-older-unit-startable-prompt.md`),
+  told to run that container proof once.
+- What the review met on the way:
+  the short alias for `HOME` that worked for another review did not work for these fixtures,
+  which assert socket path lengths and pass only with a `HOME` of ten bytes or fewer;
+  it used a link in `/dev/shm` and removed it.
+  And cargo-shadow printed "no delegated control group" on each run,
+  its plain statement that it reached no service manager with the bus address unset;
+  not a defect.
+- **Issue 6293**
+  (run `issue-6293-private-runtime-directory-is-the-boundary-and-a-push-to-no-remote-ends-at-once-3`,
+  ended 00:13:21,
+  tip `92fb15b8aa`):
+  both findings of its second review answered,
+  each shown first with the review's harness.
+  The report of a delivered push names the commit the push sent,
+  through one binding both arms use.
+  A failure no retry can mend at a second address
+  (a hook's decline,
+  a login,
+  a conflict)
+  ends the plan with one report;
+  a failure that may pass still keeps it.
+  Seven controls,
+  three of them failing with the classification taken out.
+  It asks the whole output and not the failing address's words alone,
+  and says what follows from that.
+  Its four answer commits go to review alone
+  (`review-git-policy-cli-issue-6293-answers-after-its-second-review`,
+  range `a77f668173...c5ff5defcc`,
+  queued near the head):
+  the branch stands on the no-manager branch at `2fb2e61d90`,
+  whose author is still answering three review defects
+  (its tip is `910ec91650` now),
+  so a review of the whole stack against `main` waits for that answer.
+  The two merges of `main` on this branch,
+  one of them with conflicts resolved from `main`'s side,
+  are read then.
+  It still lands after the no-manager branch.
+- The queue held 52 entries at 00:19:46.
+
 ##### The archives' review verified the substance and found five small defects; the rate-limit plugin's second review found two (2026-11-14T00:08:04-05:00)
 
 Not final and not approved:
