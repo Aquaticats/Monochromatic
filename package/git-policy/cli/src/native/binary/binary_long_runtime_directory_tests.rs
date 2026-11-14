@@ -78,11 +78,14 @@ fn edited(name: &str) -> (Fixture, PathBuf) {
 ///   The runtime directory is the control's to place,
 /// and the service is started at whatever address the wrapper's own function gives that directory,
 /// which is the address the commit computes for itself.
+/// The service is left in the fixture, so it runs until the control ends and the assertion that its address really
+///  answers is made while it does.
 fn commit_through(fixture: &Fixture, repo: &Path, runtime: PathBuf) -> Output {
-    let service = start_fixture_service_in(runtime);
+    let service = start_fixture_service_in(runtime.clone());
     service.serve(fixture, repo.join(".git").as_path());
+    *fixture.service.lock().expect("the fixture's service lock") = Some(service);
     let mut command = wrapped_commit(fixture, repo, &["commit", "--message", SUBJECT, "--", "a.txt"]);
-    command.env("XDG_RUNTIME_DIR", service.runtime.as_path());
+    command.env("XDG_RUNTIME_DIR", runtime.as_path());
     return command.output().expect("the wrapped commit runs");
 }
 

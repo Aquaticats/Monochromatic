@@ -205,6 +205,8 @@ pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
 ///  The service is started at whatever address `socket_address_of` gives that directory,
 ///  which is the address the wrapper's own client computes.
 pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
+    // The socket file stands in a folder of its own, which a socket unit's `DirectoryMode=` makes in production.
+    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("the folder of the sockets");
     return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
 }
 
