@@ -1,0 +1,7 @@
+separator 1.1.1              median=41.506 ms min=33.186 max=68.87 rounds=[42.78,36.615,34.42,54.368,36.143,41.417,49.93]
+separator 1.3.6              median=42.933 ms min=36.747 max=86.167 rounds=[39.372,45.994,41.319,53.298,37.886,41.33,58.865]
+separator 1.4.0-dev.2664     median=75.921 ms min=67.634 max=99.517 rounds=[75.097,68.521,74.403,86.647,72.059,75.188,79.831]
+separator 1.4.0-dev.2971     median=79.667 ms min=68.959 max=144.059 rounds=[83.299,79.428,71.548,92.198,73.455,79.135,89.059]
+separator spread 1.3.6              copies=8 median=40.221 range=4.686 ms (11.7%)
+separator spread 1.4.0-dev.2971     copies=8 median=76.95 range=10.977 ms (14.3%)
+2971 over 1.3.6: 1.856x (worst-case spread 2.072x, best-case 1.604x)
