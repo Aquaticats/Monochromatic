@@ -639,7 +639,8 @@ fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
 #[path = "service_claim_watch_tests.rs"]
 mod tests;
 
-/// The measurement of what one write of a note costs, and so of what the bound costs a commit,
+/// The measurement of what one write of a note costs,
+/// and so of what the bound costs a commit,
 /// stays out of the release executable.
 #[cfg(test)]
 #[path = "service_claim_watch_cost_measurement_tests.rs"]

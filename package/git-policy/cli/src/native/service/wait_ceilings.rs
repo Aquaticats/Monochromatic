@@ -684,25 +684,32 @@ pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 
 /// The longest a landing waits for the note that names its repository to the service that starts next,
 /// once the write has been handed to a thread of its own
-/// (`landing/service_claim_watch.rs`, `note_for_the_next_service_within`).
+/// (`landing/service_claim_watch.rs`,
+/// `note_for_the_next_service_within`).
 ///  Why:
 ///   That note is written between a commit landing and the answer its client waits for,
-/// and the write is a directory creation, an exclusive file and a rename,
+/// and the write is a directory creation,
+/// an exclusive file and a rename,
 /// any of which waits in the kernel with no end on a filesystem that stopped answering.
 /// By then the commit has landed and its push is held,
 /// so a store that does not answer costs the note and never the commit:
 /// the work loop writes the same note when the wake of the answer sends it to look at the repository,
 /// the next landing writes it again,
 /// and a service that starts looks at every note already there
-/// (`service_server_work_loop_awaiting.rs`, `remember_awaiting`).
+/// (`service_server_work_loop_awaiting.rs`,
+/// `remember_awaiting`).
 /// The owner's rule is "nothing should ever wait forever or indefinitely".
 ///  Measured:
-/// a write of this note on this machine, 2,000 per arm with the two ways of writing it interleaved in every round
-/// (`landing/service_claim_watch_cost_measurement_tests.rs`, 2026-11-14,
-/// three runs: two on the build volume and one on the file system this user's journals are on):
+/// a write of this note on this machine,
+/// 2,000 per arm with the two ways of writing it interleaved in every round
+/// (`landing/service_claim_watch_cost_measurement_tests.rs`,
+/// 2026-11-14,
+/// three runs:
+/// two on the build volume and one on the file system this user's journals are on):
 /// 169 to 180 us at the middle,
 /// 277 to 290 us at the 99th percentile,
-/// and 56 ms at the slowest of the 6,000, which is a host stall of the kind other sessions' load causes here.
+/// and 56 ms at the slowest of the 6,000,
+/// which is a host stall of the kind other sessions' load causes here.
 /// One second is about 5,800 times that middle and 18 times the slowest write seen,
 /// and it is a fifth of the five seconds `SPEC.md` lets a commit take over native Git,
 /// so a store that answers at all is waited for,

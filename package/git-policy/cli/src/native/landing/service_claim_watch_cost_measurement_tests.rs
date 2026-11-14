@@ -19,7 +19,8 @@
 //! each naming a directory that is not there yet,
 //! so every sample is a note created rather than one read back.
 //! The directories named are made beside the stores so that the instance check inside the call answers for a real
-//!  directory, as it does in a service.
+//!  directory,
+//! as it does in a service.
 //! The root is the package's build directory unless `CLI_GIT_WATCH_NOTE_COST_ROOT` names another,
 //! which is how the run measured the pair on the file system the journals of this user are on as well.
 //!

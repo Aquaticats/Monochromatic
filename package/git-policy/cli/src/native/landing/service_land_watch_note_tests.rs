@@ -1,5 +1,6 @@
 //! Controls for the note a landing writes for the service that starts next
-//! (`service_claim_watch.rs`, `note_for_the_next_service_within`):
+//! (`service_claim_watch.rs`,
+//! `note_for_the_next_service_within`):
 //! the note's write is held on the thread that makes it,
 //! which is what a journal directory on a filesystem that stopped answering does to it,
 //! and the commit that waits for that note,
@@ -24,12 +25,14 @@ use crate::test_support::{git_text, remove};
 use std::time::{Duration, Instant};
 
 /// The ceiling the landings of these controls grant a note's write:
-/// short, so a control ends in seconds,
+/// short,
+/// so a control ends in seconds,
 /// and its value plays no part in what a commit is answered.
 const NOTE_CEILING: Duration = Duration::from_millis(500);
 
 /// The ceiling the landing of a run whose store answers is granted in these controls:
-/// long, so a commit that waited for it would be seen waiting.
+/// long,
+/// so a commit that waited for it would be seen waiting.
 const A_CEILING_NOBODY_WAITS_FOR: Duration = Duration::from_secs(30);
 
 /// The most a commit may wait beside the ceiling for its own note:
@@ -152,8 +155,10 @@ fn store_of(world: &World) -> PathBuf {
 ///   The wake is the step that sends the work loop to look at the repository,
 /// which is what makes up for a note the landing gave up on,
 /// so a control of that promise has to take the step,
-///  and the promotion is the step beside it in the same command (`commit/commit_command.rs`, `post_commit`).
-/// The gate itself is not run: the controls here are of the note and not of the checks,
+///  and the promotion is the step beside it in the same command (`commit/commit_command.rs`,
+/// `post_commit`).
+/// The gate itself is not run:
+/// the controls here are of the note and not of the checks,
 /// and this is the path a gate that allows takes.
 ///
 /// In TS you'd write (pseudocode):
