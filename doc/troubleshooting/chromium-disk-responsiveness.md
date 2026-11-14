@@ -24,7 +24,45 @@ The supporting evidence is split by the affected execution path:
 - [Renderer storage, mobile UI, and lifecycle paths](chromium-disk-responsiveness/mobile-renderer-lifecycle.md).
 - [Runtime dependencies and their Chromium callers](chromium-disk-responsiveness/dependencies.md).
 - [Machine-readable scan results](chromium-disk-responsiveness/scan-summary.json)
-  and [candidate inventory](chromium-disk-responsiveness/candidates.jsonl.gz).
+  and candidate inventory (`chromium-disk-responsiveness/candidates.jsonl.gz`).
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
+  `candidates.jsonl.gz` left the tree on 2026-11-13.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The complete-tree searches are finished;
 the inventory is not an exhaustive proof of every reachable operation in every Chromium dependency.
@@ -317,7 +355,7 @@ tools,
 comments,
 and declarations remain in the full inventory for inspection.
 
-A [supplementary pass](chromium-disk-responsiveness/supplemental-raw.jsonl.gz)
+A supplementary pass (`chromium-disk-responsiveness/supplemental-raw.jsonl.gz`)
 adds `base::File` construction,
 object `Read`/`Write`/`Flush` calls,
 and managed metadata or commit calls.
@@ -328,8 +366,10 @@ These passes overlap;
 their counts must not be summed as distinct operations or defects.
 The [supplementary summary](chromium-disk-responsiveness/supplemental-summary.json)
 and [patterns](chromium-disk-responsiveness/supplemental-patterns.txt) are retained.
+`supplemental-raw.jsonl.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
-A [native-library-loader pass](chromium-disk-responsiveness/loader-raw.jsonl.gz)
+A native-library-loader pass (`chromium-disk-responsiveness/loader-raw.jsonl.gz`)
 searched the same core files and found `371` matching lines in `226` files.
 Its [patterns](chromium-disk-responsiveness/loader-patterns.txt)
 and [summary](chromium-disk-responsiveness/loader-summary.json) are retained separately.
@@ -337,6 +377,8 @@ The [inventory verification](chromium-disk-responsiveness/scan-verification.json
 recounts the compressed primary artifact,
 checks its distinct-file total,
 and confirms named source positive controls plus a non-matching declaration control.
+`loader-raw.jsonl.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The first primary-scan attempt rejected ripgrep's base64 representation for a non-UTF-8 text line.
 That parser was corrected and the complete scan rerun successfully.
@@ -378,11 +420,13 @@ and proprietary graphics or printer drivers are outside the inspected source cor
 The [top-level gitlink manifest](chromium-disk-responsiveness/gitlinks.json)
 retains their exact paths and revisions.
 The [dependency manifest](chromium-disk-responsiveness/dependencies/summary.json)
-and [combined dependency candidates](chromium-disk-responsiveness/dependencies/dependencies-candidates.jsonl.gz)
+and combined dependency candidates (`chromium-disk-responsiveness/dependencies/dependencies-candidates.jsonl.gz`)
 retain the selected repositories' results.
 The core and selected dependency scans together cover `649,500` files.
 This scope is broader than a Chromium-directory keyword search,
 but it is not a complete audit of the transitive dependency universe.
+`dependencies-candidates.jsonl.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 ### Browser-validation resource limit
 

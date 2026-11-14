@@ -295,6 +295,121 @@ listed so the reader can find the note:
   last changed in commit `9d19767001013fb3d7cdee990a3a1135ab301689`,
   printed by `git show 9d19767001013fb3d7cdee990a3a1135ab301689:doc/planning/depot-complete-coverage-workflows.json.gz`.
 
+## Chromium disk-responsiveness records
+
+22 archives left the tree in this family.
+
+- `doc/troubleshooting/chromium-disk-responsiveness/candidates.jsonl.gz`:
+  7169576 bytes,
+  SHA-256 `f0d1d30edc245d9017817199fa363488b6bf76a55af519ebffb27e003ac1fe4a`,
+  last changed in commit `7467f5f7c72086fe8137a29c20235d11fc6310ca`,
+  printed by `git show 7467f5f7c72086fe8137a29c20235d11fc6310ca:doc/troubleshooting/chromium-disk-responsiveness/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/dependencies-candidates.jsonl.gz`:
+  298922 bytes,
+  SHA-256 `0784e9fa0c5b52a98251d96b73a4d09490d2369ace88570392f9a504c89d3a8d`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/dependencies/dependencies-candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_angle/candidates.jsonl.gz`:
+  2302 bytes,
+  SHA-256 `6bb4f853f91e927dda6141cb5a5a7ab4cb3096c30253d0cdff73c158eaaf2a22`,
+  last changed in commit `c8dce0da318b4767349da177bf59f7963bf078d5`,
+  printed by `git show c8dce0da318b4767349da177bf59f7963bf078d5:doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_angle/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_dawn/candidates.jsonl.gz`:
+  692 bytes,
+  SHA-256 `e9568fccadadfe646dd91fc5b0c94a8e0743db6bec478e0b659a3fc8c128fe2a`,
+  last changed in commit `c8dce0da318b4767349da177bf59f7963bf078d5`,
+  printed by `git show c8dce0da318b4767349da177bf59f7963bf078d5:doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_dawn/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_icu/candidates.jsonl.gz`:
+  345 bytes,
+  SHA-256 `c8fa1109c54987bf6409a133f669cb817e1d8bf64fa9fc61c8fa2e829ad3dd2b`,
+  last changed in commit `c8dce0da318b4767349da177bf59f7963bf078d5`,
+  printed by `git show c8dce0da318b4767349da177bf59f7963bf078d5:doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_icu/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_leveldatabase_src/candidates.jsonl.gz`:
+  20 bytes,
+  SHA-256 `59869db34853933b239f1e2219cf7d431da006aa919635478511fabbfc8849d2`,
+  last changed in commit `c8dce0da318b4767349da177bf59f7963bf078d5`,
+  printed by `git show c8dce0da318b4767349da177bf59f7963bf078d5:doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_leveldatabase_src/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_pdfium/candidates.jsonl.gz`:
+  268 bytes,
+  SHA-256 `fb80a55167ffe91f8b51dd5339dda22ed60746fdf156948c9a882af07fc5805e`,
+  last changed in commit `c8dce0da318b4767349da177bf59f7963bf078d5`,
+  printed by `git show c8dce0da318b4767349da177bf59f7963bf078d5:doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_pdfium/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_skia/candidates.jsonl.gz`:
+  992 bytes,
+  SHA-256 `000d3a046a1c22f07922f38fd7434375e0a7d39a5be3a61d33e3c23406fcd234`,
+  last changed in commit `c8dce0da318b4767349da177bf59f7963bf078d5`,
+  printed by `git show c8dce0da318b4767349da177bf59f7963bf078d5:doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_skia/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_sqlite_src/candidates.jsonl.gz`:
+  1261 bytes,
+  SHA-256 `b81bc4028e950f16cd9129888e01ed3eeb2dba729872fb3d6aa2cecd0bc95870`,
+  last changed in commit `c8dce0da318b4767349da177bf59f7963bf078d5`,
+  printed by `git show c8dce0da318b4767349da177bf59f7963bf078d5:doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_sqlite_src/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_webrtc/candidates.jsonl.gz`:
+  752 bytes,
+  SHA-256 `4bd2d966b79c63bdc0ad30aa8ca20fd91ddd8c0a6e34891e192b7d7b0442b4f0`,
+  last changed in commit `c8dce0da318b4767349da177bf59f7963bf078d5`,
+  printed by `git show c8dce0da318b4767349da177bf59f7963bf078d5:doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/third_party_webrtc/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/v8/candidates.jsonl.gz`:
+  385 bytes,
+  SHA-256 `887ff114ca940e3f7375ac25da1c0290f1de491448491209f390ad9c7f157c72`,
+  last changed in commit `c8dce0da318b4767349da177bf59f7963bf078d5`,
+  printed by `git show c8dce0da318b4767349da177bf59f7963bf078d5:doc/troubleshooting/chromium-disk-responsiveness/dependencies/loaders/v8/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_angle/candidates.jsonl.gz`:
+  13471 bytes,
+  SHA-256 `4dd82eceb2fdb9463cd68072758b0981dd4b55badef0ef5be0822520d08307da`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_angle/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_dawn/candidates.jsonl.gz`:
+  32052 bytes,
+  SHA-256 `466cc50cdf0fe0ca4887d191c9ae18a7e11cab7f7009e1619d1fe8bfe7be70df`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_dawn/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_icu/candidates.jsonl.gz`:
+  16602 bytes,
+  SHA-256 `06ef194be8dc6cadbe068e105919b7c4f6922c0bd536d427f489d4e492575919`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_icu/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_leveldatabase_src/candidates.jsonl.gz`:
+  6890 bytes,
+  SHA-256 `d149f49aad090b63eec48da9016684328ac3c73ecb8c747b2e5e897fa4b8b2fc`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_leveldatabase_src/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_pdfium/candidates.jsonl.gz`:
+  5054 bytes,
+  SHA-256 `e85287851c8d63f979101cac40a396970eba27b819d3eda879580c198f204889`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_pdfium/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_skia/candidates.jsonl.gz`:
+  52366 bytes,
+  SHA-256 `eb807ae474d8e3358c9b90563d8c8ddacd1351d0059ca6e90187e95ae610cbec`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_skia/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_sqlite_src/candidates.jsonl.gz`:
+  99166 bytes,
+  SHA-256 `a615fe012cc57c66a248c27a48a94f1a7aed8166247b76b3cf9a83a8b7c06fec`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_sqlite_src/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_webrtc/candidates.jsonl.gz`:
+  27464 bytes,
+  SHA-256 `30a3538ffce99c58c1403f23d3b17fbe3cd9a35ce98fb1bf5792c38de134348c`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/dependencies/third_party_webrtc/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/dependencies/v8/candidates.jsonl.gz`:
+  37663 bytes,
+  SHA-256 `f77c27335b784833e3364a454dde0443554932bda57258682eb65e52a36a8238`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/dependencies/v8/candidates.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/loader-raw.jsonl.gz`:
+  22509 bytes,
+  SHA-256 `797127c51ff0a4342654aaeea9a42a0e8c7d0cd0d991d52d21106edcaf8a8cc1`,
+  last changed in commit `f776290a3bbfa31d5f76a266717e5135060b9f2f`,
+  printed by `git show f776290a3bbfa31d5f76a266717e5135060b9f2f:doc/troubleshooting/chromium-disk-responsiveness/loader-raw.jsonl.gz`.
+- `doc/troubleshooting/chromium-disk-responsiveness/supplemental-raw.jsonl.gz`:
+  7050252 bytes,
+  SHA-256 `ebcc6b24b53b98979eaf801f747cb2f23c8f3962a5439cc4a50caef3a3aa00a1`,
+  last changed in commit `7467f5f7c72086fe8137a29c20235d11fc6310ca`,
+  printed by `git show 7467f5f7c72086fe8137a29c20235d11fc6310ca:doc/troubleshooting/chromium-disk-responsiveness/supplemental-raw.jsonl.gz`.
+
 ## Records kept in the tree for a removed archive
 
 0 of the removed archives are cited for something a reader can
