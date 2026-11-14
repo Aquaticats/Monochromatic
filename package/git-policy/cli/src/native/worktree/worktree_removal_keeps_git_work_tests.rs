@@ -12,7 +12,7 @@
 //! gitWorkARemovalWouldStrand(context, common, worktree, admin) // ['its detached HEAD names the commit ...']
 //! ```
 
-use super::git_work_a_removal_would_strand;
+use super::{detached_head, git_work_a_removal_would_strand};
 use crate::test_support::{fixture, git, git_context, git_text, repository};
 use crate::transaction_git::GitContext;
 use std::path::PathBuf;
@@ -188,24 +188,36 @@ fn a_head_that_cannot_be_read_is_the_reason_nothing_is_removed() {
 }
 
 /// What:
-///  A `HEAD` a killed writer left torn keeps the removal from running,
-///  in each shape that is neither a reference nor a full object name.
+///  A `HEAD` a killed writer left torn is a record this program cannot read,
+///  and the question that keeps a worktree for such a record answers so of the question itself and of the whole
+///  removal.
 /// Why:
 ///  Only two shapes are states Git writes:
 ///  a line naming a reference, whose commit survives the removal,
 ///  and a full object name, which is a commit only the worktree's own directory names.
-///  Every other shape is a record this program cannot read,
-///  and a commit it might hold would be reported unstranded and deleted if the question answered "not detached".
+///  Every other shape may name a commit this program cannot see,
+///  and answering "not detached" there would report that commit unstranded and delete the only thing that names it
+///  (a review of this change, finding F2).
+///  Both halves are asked:
+///  the reader itself, and the whole question on a worktree whose own Git directory holds no per-worktree reference,
+///  because a reference there would make the question ask Git instead, which fails on a torn `HEAD` and so hides the
+///  divergence.
 #[test]
 fn a_head_that_names_neither_a_branch_nor_a_commit_is_the_reason_nothing_is_removed() {
     for torn in ["0f1af2e0f295", "the record a killed writer left behind", "gggggggggggggggggggggggggggggggggggggggg"] {
         let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-torn-head");
         std::fs::write(fixture.admin.join("HEAD").as_path(), format!("{torn}\n")).expect("a torn HEAD record");
+        let read: Result<Option<String>, String> = detached_head(fixture.admin.as_path());
+        match read {
+            Err(reason) => assert!(reason.contains("names neither a branch nor a commit"), "{torn:?} answered: {reason}"),
+            Ok(named) => panic!("a HEAD that names neither a branch nor a commit must be a record this program cannot read, but it answered {named:?} for {torn:?}"),
+        }
+        // The whole question, with no per-worktree reference to make it ask Git instead.
+        let _removed = std::fs::remove_dir_all(fixture.admin.join("refs").as_path());
         let said: Result<Vec<String>, String> = fixture.stranded();
-        let reason: String = match said {
-            Err(reason) => reason,
-            Ok(empty) => panic!("a HEAD that names neither a branch nor a commit must keep the removal, but it answered {empty:?} for {torn:?}"),
-        };
-        assert!(reason.contains("names neither a branch nor a commit"), "{torn:?} answered: {reason}");
+        match said {
+            Err(reason) => assert!(reason.contains("names neither a branch nor a commit"), "{torn:?} answered: {reason}"),
+            Ok(empty) => panic!("a removal of a worktree whose HEAD cannot be read must keep it, but it answered {empty:?} for {torn:?}"),
+        }
     }
 }
