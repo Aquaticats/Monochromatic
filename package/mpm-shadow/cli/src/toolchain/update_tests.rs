@@ -179,7 +179,7 @@ fn a_changed_pin_resolves_to_the_pinned_version_without_a_lookup() {
         outcome_of(&report, "npm:wrangler"),
         &OutcomeKind::Updated { old_version: "4.156.0".to_string(), new_version: "3.0.0".to_string() }
     );
-    assert!(!quiet.requests().contains(&NPM_URL.to_string()), "a pin needs no registry lookup");
+    assert!(!quiet.requests().iter().any(|url| return url == NPM_URL), "a pin needs no registry lookup");
     run_update(&scope, &env, &FakeRunner::new(), &quiet, &linux(), false).expect("again");
     assert_eq!(*outcome_of(&run_update(&scope, &env, &FakeRunner::new(), &quiet, &linux(), true).expect("checked"), "npm:wrangler"), OutcomeKind::Pinned);
 }
