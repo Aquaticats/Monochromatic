@@ -507,16 +507,35 @@ impl WorkHandlers for GitHandlers {
             // A branch the person deleted is not there to push, now or ever: nothing was sent, so nothing can pass by waiting, and
             //  the commit is named for the person with wherever it still lives. The repository is asked, never the words of the
             //  output: any program a push runs can print a line about a branch of its own.
-            Ok(_result) if branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false) => {
+            // What: A push that reached no address is answered here; one that reached an address is not.
+            // Why:  A commit a remote holds stays there after the branch is deleted, so a delivery is a fact the branch's fate cannot
+            //       take away: such a push is answered below, with the record that says where the commit is (the third review of
+            //       issue 6293, finding 3, which found this arm answering "this push was not made" over a delivery to the first
+            //       address). It still ends every further attempt, as a deleted branch must.
+            Ok(result)
+                if !crate::push_attempts_of_a_failed_push::arrived_somewhere(result.shown.as_str(), newest.branch_ref.as_str())
+                    && branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false) =>
+            {
                 Verdict::Skipped(branch_is_gone_words_awaiting(&git, newest).await)
             }
             // A push whose address can never be a remote, what a push that reached an address came to, and what the words of any
             //  other failed push mean, are read in `service_work_failed_push_verdict.rs`.
             Ok(failed) => {
+                // What: The push read once, and the branch's own fate asked once, for the one decision below.
+                // Why:  Both answers belong to the same verdict: what the push reached decides whether a record says where the commit
+                //       is, and the branch being gone decides that nothing is tried again for it.
+                let read: crate::push_attempts_of_a_failed_push::FailedPushByAddress = crate::push_attempts_of_a_failed_push::failed_push_by_address(
+                    failed.shown.as_str(),
+                    newest.branch_ref.as_str(),
+                    failed.push_addresses.as_slice(),
+                );
+                let branch_is_gone: bool = branch_exists_awaiting(&git, newest.branch_ref.as_str()).await == Some(false);
                 let settled: crate::service_work_failed_push_verdict::SettledFailedPush = crate::service_work_failed_push_verdict::verdict_of_a_failed_push(
                     failed,
+                    read,
                     newest.branch_ref.as_str(),
                     newest.repository.as_path(),
+                    branch_is_gone,
                 );
                 // What: A push that reached an address is a push that landed, whatever another address did.
                 // Why:  The branch is backed up, so nothing is retried and nothing failed; what is left to say is where the commit is and

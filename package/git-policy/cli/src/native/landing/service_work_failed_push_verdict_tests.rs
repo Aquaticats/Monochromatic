@@ -9,6 +9,8 @@
 //! so a Git release that changes one breaks a control here rather than a person's notice.
 
 use super::*;
+/// The reading of one push's output, which the handlers make and this file makes the same way.
+use crate::push_attempts_of_a_failed_push::failed_push_by_address;
 use crate::auto_push::AutoPushOutcome;
 
 /// The addresses of the two-remote cases:
@@ -20,6 +22,22 @@ const TWO_ADDRESSES: [&str; 2] = ["/srv/receives.git", "/srv/answers.git"];
 fn failed(exit_code: i64, shown: &str, addresses: &[&str]) -> AutoPushResult {
     let configured: Vec<String> = addresses.iter().map(|address| { return (*address).to_owned(); }).collect();
     return AutoPushResult { outcome: AutoPushOutcome::Failed, exit_code, shown: shown.to_owned(), push_addresses: configured };
+}
+
+/// What:
+///  What one push's output says about the addresses it reached,
+///  read the way the handlers read it.
+/// Why:
+///   The verdict is handed the reading rather than making it,
+///  so the handlers read a push's addresses once for the branch-gone question and once for the verdict's own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const read = failedPushByAddress({ output, destinationRef: 'refs/heads/main', configured: addresses })
+/// ```
+fn read(output: &str, addresses: &[&str]) -> FailedPushByAddress {
+    let configured: Vec<String> = addresses.iter().map(|address| { return (*address).to_owned(); }).collect();
+    return failed_push_by_address(output, "refs/heads/main", configured.as_slice());
 }
 
 /// What:
@@ -61,7 +79,7 @@ const NOTHING_DELIVERED_AND_A_HOOK_DECLINED: &str =
 #[test]
 fn a_decline_at_the_second_address_after_a_delivery_ends_the_plan_with_one_report() {
     let settled: SettledFailedPush =
-        verdict_of_a_failed_push(failed(1, DELIVERED_THEN_A_HOOK_DECLINED, &TWO_ADDRESSES), "refs/heads/main", Path::new("/srv/repo"));
+        verdict_of_a_failed_push(failed(1, DELIVERED_THEN_A_HOOK_DECLINED, &TWO_ADDRESSES), read(DELIVERED_THEN_A_HOOK_DECLINED, &TWO_ADDRESSES), "refs/heads/main", Path::new("/srv/repo"), false);
     let SettledFailedPush::Reached(said) = settled else { panic!("a branch that reached an address is done, not {settled:?}") };
     assert!(said.contains("/srv/receives.git"), "the words name the address that holds the commit: {said}");
     assert!(said.contains("/srv/answers.git"), "and the address that refused it: {said}");
@@ -80,7 +98,13 @@ fn a_decline_at_the_second_address_after_a_delivery_ends_the_plan_with_one_repor
 #[test]
 fn a_login_at_the_second_address_after_a_delivery_ends_the_plan_with_one_report() {
     let settled: SettledFailedPush =
-        verdict_of_a_failed_push(failed(128, DELIVERED_THEN_A_LOGIN, &["/srv/receives.git", "http://127.0.0.1:39197/r.git"]), "refs/heads/main", Path::new("/srv/repo"));
+        verdict_of_a_failed_push(
+        failed(128, DELIVERED_THEN_A_LOGIN, &["/srv/receives.git", "http://127.0.0.1:39197/r.git"]),
+        read(DELIVERED_THEN_A_LOGIN, &["/srv/receives.git", "http://127.0.0.1:39197/r.git"]),
+        "refs/heads/main",
+        Path::new("/srv/repo"),
+        false,
+    );
     let SettledFailedPush::Reached(said) = settled else { panic!("a branch that reached an address is done, not {settled:?}") };
     assert!(said.contains("the login it has lacks permission") || said.contains("wants a login"), "the cause is a login: {said}");
     assert!(said.contains("http://127.0.0.1:39197/r.git"), "the address Git named, with the slash Git appends removed: {said}");
@@ -98,12 +122,57 @@ fn a_login_at_the_second_address_after_a_delivery_ends_the_plan_with_one_report(
 fn a_host_that_does_not_answer_at_the_second_address_keeps_the_plan() {
     let settled: SettledFailedPush = verdict_of_a_failed_push(
         failed(128, DELIVERED_THEN_A_HOST_THAT_DOES_NOT_ANSWER, &["/srv/receives.git", "https://unreachable-host.invalid/repo.git"]),
+        read(DELIVERED_THEN_A_HOST_THAT_DOES_NOT_ANSWER, &["/srv/receives.git", "https://unreachable-host.invalid/repo.git"]),
         "refs/heads/main",
         Path::new("/srv/repo"),
+        false,
     );
     let SettledFailedPush::Unreached(Verdict::Retry(said)) = settled else { panic!("a failure that may pass is retried, not {settled:?}") };
     assert!(said.contains("/srv/receives.git"), "the retry's words say where the commit is: {said}");
     assert!(said.contains("https://unreachable-host.invalid/repo.git"), "and which address failed: {said}");
+}
+
+/// What:
+///  A decline at the second address ends the plan with the branch-gone sentence when the branch was deleted while the
+///  push ran.
+/// Why:
+///  The third review of issue 6293 (finding 3): the record is the last thing said about this push, and a person who is
+/// not told the branch is gone waits for a retry that will not come.
+#[test]
+fn a_decline_at_the_second_address_with_the_branch_gone_says_so_and_tries_nothing_again() {
+    let settled: SettledFailedPush = verdict_of_a_failed_push(
+        failed(1, DELIVERED_THEN_A_HOOK_DECLINED, &TWO_ADDRESSES),
+        read(DELIVERED_THEN_A_HOOK_DECLINED, &TWO_ADDRESSES),
+        "refs/heads/main",
+        Path::new("/srv/repo"),
+        true,
+    );
+    let SettledFailedPush::Reached(said) = settled else { panic!("a branch that reached an address is done, not {settled:?}") };
+    assert!(said.contains("the branch main no longer exists in this repository"), "the words say the branch is gone: {said}");
+    assert!(said.contains("nothing is tried again for it"), "and that nothing is tried again: {said}");
+    assert!(said.contains("/srv/receives.git"), "the words still name where the commit is: {said}");
+    assert!(!said.contains("was not made"), "and never say the push was not made: {said}");
+    assert_eq!(said.matches("pre-receive hook declined").count(), 1, "Git's own output is printed once: {said}");
+}
+
+/// What:
+///  A failure at the second address that may pass keeps the plan only while the branch is there to push.
+/// Why:
+///  The other side of the rule: a deleted branch ends every further attempt, but the delivery is still reported, so the
+///  answer is a record and not a retry.
+#[test]
+fn a_failure_that_may_pass_at_the_second_address_ends_when_the_branch_is_gone() {
+    let addresses: [&str; 2] = ["/srv/receives.git", "https://unreachable-host.invalid/repo.git"];
+    let settled: SettledFailedPush = verdict_of_a_failed_push(
+        failed(128, DELIVERED_THEN_A_HOST_THAT_DOES_NOT_ANSWER, &addresses),
+        read(DELIVERED_THEN_A_HOST_THAT_DOES_NOT_ANSWER, &addresses),
+        "refs/heads/main",
+        Path::new("/srv/repo"),
+        true,
+    );
+    let SettledFailedPush::Reached(said) = settled else { panic!("with the branch gone nothing is retried, not {settled:?}") };
+    assert!(said.contains("the branch main no longer exists in this repository"), "the words say the branch is gone: {said}");
+    assert!(said.contains("https://unreachable-host.invalid/repo.git"), "and name the address that failed: {said}");
 }
 
 /// What:
@@ -118,7 +187,13 @@ fn a_host_that_does_not_answer_at_the_second_address_keeps_the_plan() {
 #[test]
 fn a_decline_with_nothing_delivered_is_failed_once() {
     let settled: SettledFailedPush =
-        verdict_of_a_failed_push(failed(1, NOTHING_DELIVERED_AND_A_HOOK_DECLINED, &["/srv/answers.git"]), "refs/heads/main", Path::new("/srv/repo"));
+        verdict_of_a_failed_push(
+        failed(1, NOTHING_DELIVERED_AND_A_HOOK_DECLINED, &["/srv/answers.git"]),
+        read(NOTHING_DELIVERED_AND_A_HOOK_DECLINED, &["/srv/answers.git"]),
+        "refs/heads/main",
+        Path::new("/srv/repo"),
+        false,
+    );
     let SettledFailedPush::Unreached(Verdict::Failed(said)) = settled else { panic!("a decline that delivered nothing fails once, not {settled:?}") };
     assert!(said.contains("a hook on the server"), "the cause is named: {said}");
 }
@@ -134,7 +209,13 @@ fn a_decline_with_nothing_delivered_is_failed_once() {
 #[test]
 fn a_delivery_before_the_reserved_word_is_done_with_the_delivery_line() {
     let delivered: &str = "To /srv/receives.git\n * [new branch]      main -> main\nfatal: 'DISABLED' does not appear to be a git repository\n";
-    let settled: SettledFailedPush = verdict_of_a_failed_push(failed(128, delivered, &["/srv/receives.git", "DISABLED"]), "refs/heads/main", Path::new("/srv/repo"));
+    let settled: SettledFailedPush = verdict_of_a_failed_push(
+        failed(128, delivered, &["/srv/receives.git", "DISABLED"]),
+        read(delivered, &["/srv/receives.git", "DISABLED"]),
+        "refs/heads/main",
+        Path::new("/srv/repo"),
+        false,
+    );
     let SettledFailedPush::Reached(said) = settled else { panic!("a branch that reached an address is done, not {settled:?}") };
     assert!(said.contains("`DISABLED`") && said.contains("/srv/receives.git"), "both addresses are named: {said}");
 }

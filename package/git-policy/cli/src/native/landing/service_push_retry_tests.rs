@@ -216,6 +216,97 @@ fn a_delivered_pushs_record_is_named_for_the_tip_it_sent_not_the_item_it_claimed
 }
 
 /// What:
+///  The bare remote whose `pre-receive` hook deletes the worktree's branch and then declines the push.
+/// Why:
+///  A branch a person deletes while a push runs is the case the third review of issue 6293 (finding 3) measured:
+/// the push delivers to the first address and fails at this one, and the branch's own name is gone by the time the
+/// service asks about it.
+fn declining_remote_that_deletes_the_branch(root: &Path, repo: &Path) -> PathBuf {
+    let remote: PathBuf = root.join("deletes-the-branch.git");
+    git(root, &["init", "--quiet", "--bare", "--initial-branch=main", remote.to_str().expect("a UTF-8 path")]);
+    let hook: String = format!(
+        "#!/bin/sh\nunset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_QUARANTINE_PATH\n{{ '{real}' -C '{repo}' checkout --quiet --detach; \
+         '{real}' -C '{repo}' branch -D main; }} > '{log}' 2>&1\nexit 1\n",
+        real = crate::test_support::REAL_GIT,
+        repo = repo.display(),
+        log = root.join("hook.log").display(),
+    );
+    let path: PathBuf = remote.join("hooks").join("pre-receive");
+    std::fs::write(path.as_path(), hook.as_str()).expect("hook");
+    std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the hook is executable");
+    return remote;
+}
+
+/// What:
+///  A push that delivered the commit to one address and failed at another says where the commit is, even when the
+///  branch was deleted while it ran.
+/// Why:
+///  The third review of issue 6293 (finding 3) measured the opposite:
+/// the branch-gone arm answered "this push was not made: the branch was deleted" over a delivery the first address had
+/// already taken, and the delivery was recorded nowhere. A commit a remote holds stays there after the branch's name
+/// is gone, so the person is told where it is, and a deleted branch still ends every further attempt.
+#[test]
+fn a_push_that_delivered_before_its_branch_was_deleted_says_where_the_commit_is() {
+    let stage: Stage = stage_without_a_hook("push-delivered-before-the-branch-went");
+    let gone: PathBuf = declining_remote_that_deletes_the_branch(stage.root.as_path(), stage.repo.as_path());
+    for address in [stage.remote.to_str().expect("a UTF-8 path"), gone.to_str().expect("a UTF-8 path")] {
+        git(stage.repo.as_path(), &["config", "--add", "remote.origin.pushurl", address]);
+    }
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let first: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(remote_tip(&stage), stage.landed, "the first address received the commit");
+    assert!(
+        git_text(stage.repo.as_path(), &["branch", "--list", "main"]).trim().is_empty(),
+        "the hook deleted the branch while the push ran: {}",
+        std::fs::read_to_string(stage.root.join("hook.log")).unwrap_or_default()
+    );
+    assert_eq!(first, None, "a branch that is gone ends every further attempt");
+    let due_after_any_pause: Vec<Due> = retries.take_due(git_dir.as_path(), Instant::now() + Duration::from_secs(3600));
+    assert!(due_after_any_pause.is_empty(), "and no try of the branch is planned");
+    let names: Vec<String> = record_names(git_dir.as_path());
+    assert_eq!(names.len(), 1, "one record for the person: {names:?}");
+    assert!(names[0].starts_with("report"), "the commit is on a remote, so the record is a report: {names:?}");
+    let shown: Vec<String> = crate::test_support::shown_notices(push_failures(git_dir.as_path()));
+    let said: &str = shown[0].as_str();
+    assert!(said.contains(stage.remote.to_str().expect("a UTF-8 path")), "the words name the address that holds the commit: {said}");
+    assert!(said.contains(gone.to_str().expect("a UTF-8 path")), "and the address that refused it: {said}");
+    assert!(said.contains("no longer exists in this repository"), "and say the branch is gone: {said}");
+    assert!(said.contains("nothing is tried again for it"), "and that nothing is tried again: {said}");
+    assert!(!said.contains("was not made"), "the words never say a push that reached an address was not made: {said}");
+    assert!(!said.contains("nothing was pushed"), "and never say nothing was pushed: {said}");
+    assert_eq!(said.matches("error: failed to push some refs").count(), 1, "Git's own output is printed once: {said}");
+    remove(stage.root.as_path());
+}
+
+/// What:
+///  A push that reached no address, on a branch deleted while it ran, is still answered as it was.
+/// Why:
+///  The other side of the same arm:
+/// nothing reached a remote and the branch is gone, so nothing can pass by waiting, and the person is told where the
+/// commit still lives in this repository.
+#[test]
+fn a_push_that_reached_no_address_whose_branch_was_deleted_is_still_skipped() {
+    let stage: Stage = stage_without_a_hook("push-not-delivered-before-the-branch-went");
+    let gone: PathBuf = declining_remote_that_deletes_the_branch(stage.root.as_path(), stage.repo.as_path());
+    git(stage.repo.as_path(), &["config", "--add", "remote.origin.pushurl", gone.to_str().expect("a UTF-8 path")]);
+    let git_dir: PathBuf = stage.repo.join(".git");
+    let handlers: Arc<GitHandlers> = Arc::new(GitHandlers::new(git_context()));
+    let mut retries: PushRetries = PushRetries::with_first_pause(PAUSE);
+    let first: Option<Duration> = round_of(git_dir.as_path(), &handlers, &mut retries);
+    assert_eq!(first, None, "a branch that is gone is not tried again");
+    let names: Vec<String> = record_names(git_dir.as_path());
+    assert_eq!(names.len(), 1, "one record for the person: {names:?}");
+    assert!(names[0].starts_with("push"), "nothing reached a remote, so the record is a skip: {names:?}");
+    let shown: Vec<String> = crate::test_support::shown_notices(push_failures(git_dir.as_path()));
+    let said: &str = shown[0].as_str();
+    assert!(said.contains("this push was not made: the branch was deleted"), "the skip says what happened: {said}");
+    assert!(said.contains(stage.landed.as_str()), "and names the commit where it still lives: {said}");
+    remove(stage.root.as_path());
+}
+
+/// What:
 ///  A push delivered to the first address and declined at the second ends its plan,
 /// once.
 /// Why:

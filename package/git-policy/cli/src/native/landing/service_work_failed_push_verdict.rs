@@ -59,8 +59,9 @@ use crate::auto_push::AutoPushResult;
 /// and the lines the person reads for them.
 use crate::push_address_that_cannot_be_a_remote::{CannotBeARemote, cannot_be_a_remote, words, words_after_delivery};
 /// What one failed push did,
-/// address by address.
-use crate::push_attempts_of_a_failed_push::{FailedPushByAddress, failed_push_by_address};
+/// address by address,
+/// which the caller reads once and hands in.
+use crate::push_attempts_of_a_failed_push::FailedPushByAddress;
 /// What a failed push's own words mean,
 /// and which of those failures no retry can mend.
 use crate::push_retry_failure::{FinalFailure, final_failure, plain_words, unrecognised_rejection};
@@ -113,20 +114,32 @@ pub(crate) enum SettledFailedPush {
 /// The configuration's other addresses never decide anything on their own,
 /// which is what the first review of this branch found wrong twice
 /// (findings 2 and 3).
+/// The branch's own fate is handed in rather than asked here:
+/// a commit a remote holds stays there after the branch is deleted,
+/// so a push that reached an address is reported as one even when the branch is gone,
+/// and the branch being gone only ends every further attempt
+/// (the third review of issue 6293,
+/// finding 3,
+/// which found the branch-gone answer taking a recorded delivery away).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const read = failedPushByAddress({ output: result.shown, destinationRef: branchRef, configured: result.pushAddresses });
 /// const failing = read.failing && cannotBeARemote(read.failing);
 /// if (read.arrived) {
-///   if (failing) return { reached: wordsAfterDelivery(...) };
-///   return finalFailure(shown) ? { reached: deliveredThenGivenUp(...) } : { unreached: { retry: reachedThenFailed(...) } };
+///   const words = failing ? wordsAfterDelivery(...) : finalFailure(shown) ? deliveredThenGivenUp(...) : reachedThenFailed(...);
+///   if (!failing && !finalFailure(shown) && !branchIsGone) return { unreached: { retry: words + '\n' + shown } };
+///   return { reached: words + (branchIsGone ? '\n' + branchGoneLine : '') + '\n' + shown };
 /// }
 /// if (failing) return { unreached: { failed: words(...) } };
 /// return { unreached: fromWords(shown) };
 /// ```
-pub(crate) fn verdict_of_a_failed_push(result: AutoPushResult, branch_ref: &str, repository: &Path) -> SettledFailedPush {
-    let read: FailedPushByAddress = failed_push_by_address(result.shown.as_str(), branch_ref, result.push_addresses.as_slice());
+pub(crate) fn verdict_of_a_failed_push(
+    result: AutoPushResult,
+    read: FailedPushByAddress,
+    branch_ref: &str,
+    repository: &Path,
+    branch_is_gone: bool,
+) -> SettledFailedPush {
     let failing: Option<(&str, CannotBeARemote)> = match read.failing.as_deref() {
         Some(address) => match cannot_be_a_remote(address) {
             Some(reason) => Some((address, reason)),
@@ -135,30 +148,54 @@ pub(crate) fn verdict_of_a_failed_push(result: AutoPushResult, branch_ref: &str,
         None => None,
     };
     if read.arrived {
-        if let Some((address, reason)) = failing {
-            return SettledFailedPush::Reached(format!(
-                "{}\n{}",
-                words_after_delivery(address, reason, read.arrived_at().as_slice()),
-                result.shown
-            ));
-        }
-        // What: A failure no retry can mend at the address that failed ends the plan here too, with one report.
-        // Why:  The branch is backed up at another address, so nothing is retried; and the refusal repeats on every try (a hook that
-        //       declines, a login the service does not have), so a plan that kept it would retry for ever while the person was told
-        //       nothing new. The words say where the commit is, which address refused it, and what to do about it.
-        return match final_failure(result.shown.as_str()) {
-            Some(cause) => SettledFailedPush::Reached(format!(
-                "{}\n{}",
-                delivered_then_given_up(&read, cause, result.shown.as_str()),
-                result.shown
-            )),
-            None => SettledFailedPush::Unreached(Verdict::Retry(reached_then_failed(&read, result.shown.as_str()))),
+        // What: The words of a push that reached an address, chosen by what Git said at the address that failed.
+        // Why:  Each says where the commit is;
+        // only the case that keeps a plan goes back to the retry, and only while nothing else ends the branch.
+        // What: The words of this arm, with Git's own output appended once below them.
+        // Why:  Each arm's words say where the commit is and what happened at the address that failed; the output is evidence and is
+        //       printed once, whichever arm is chosen.
+        let said: String = if let Some((address, reason)) = failing {
+            words_after_delivery(address, reason, read.arrived_at().as_slice())
+        } else if let Some(cause) = final_failure(result.shown.as_str()) {
+            // A failure no retry can mend at the address that failed ends the plan here too, with one report.
+            delivered_then_given_up(&read, cause)
+        } else if !branch_is_gone {
+            return SettledFailedPush::Unreached(Verdict::Retry(format!("{}\n{}", reached_then_failed(&read), result.shown)));
+        } else {
+            // The address would have been tried again, and the branch it would send is gone: nothing is tried again.
+            reached_then_failed(&read)
         };
+        // What: One sentence more when the branch is gone, so the person knows nothing more will be tried for it.
+        // Why:  The record is the last thing said about this push, and a branch deleted while it ran is what keeps its plan from
+        //       going on; the record must not leave the person waiting for another try.
+        let gone: String = if branch_is_gone { format!("\n{}", branch_gone_line(branch_ref)) } else { String::new() };
+        return SettledFailedPush::Reached(format!("{said}{gone}\n{}", result.shown));
     }
     if let Some((address, reason)) = failing {
         return SettledFailedPush::Unreached(Verdict::Failed(format!("{}\n{}", words(address, reason), result.shown)));
     }
     return SettledFailedPush::Unreached(verdict_from_the_words(result.shown.as_str(), repository));
+}
+
+/// What:
+///  The one sentence a record carries when the branch it pushed was deleted while the push ran.
+/// Why:
+///   The commit is a fact of the remote and the branch is a name in this repository,
+/// so the record says where the commit is and that the name is gone,
+/// and says plainly that nothing is tried again for it:
+/// a reader who is not told that waits for a retry that will not come.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// branchGoneLine('refs/heads/main') // 'the branch main no longer exists in this repository, ...'
+/// ```
+fn branch_gone_line(branch_ref: &str) -> String {
+    let branch: &str = branch_ref.strip_prefix("refs/heads/").unwrap_or(branch_ref);
+    return format!(
+        "the branch {branch} no longer exists in this repository (it was deleted while this push ran), so nothing is tried again for \
+         it. The commit is where this record says it is; a commit you want on a branch again can be pushed by hand after naming it \
+         with `git branch`."
+    );
 }
 
 /// What:
@@ -202,7 +239,8 @@ fn verdict_from_the_words(shown: &str, repository: &Path) -> Verdict {
 /// nothing tries that address again by itself,
 /// and what to do about it is the words this release already uses for that cause
 /// (`plain_words`),
-/// with Git's own words under both.
+/// with Git's own words under both,
+/// appended once by the caller that builds the whole record.
 /// A conflict arrives here only if another address took the commit first,
 /// and then its words say that only a person can settle the two histories.
 ///
@@ -210,7 +248,7 @@ fn verdict_from_the_words(shown: &str, repository: &Path) -> Verdict {
 /// ```ts
 /// deliveredThenGivenUp(read, cause) // 'monochromatic-git-policy-cli: the push of this branch reached ...'
 /// ```
-fn delivered_then_given_up(read: &FailedPushByAddress, cause: FinalFailure, shown: &str) -> String {
+fn delivered_then_given_up(read: &FailedPushByAddress, cause: FinalFailure) -> String {
     let holders: String = read.arrived_at().join(", ");
     let failed_at: &str = read.failing.as_deref().unwrap_or("another address");
     // What: The cause's own advice, which already says the service stops pushing this branch until the next commit.
@@ -221,8 +259,7 @@ fn delivered_then_given_up(read: &FailedPushByAddress, cause: FinalFailure, show
     );
     return format!(
         "monochromatic-git-policy-cli: the push of this branch reached {holders}, so the commit is backed up there, and the push to \
-         {failed_at} is the one that failed. No retry can mend it, so the commit service is not trying that branch through it again.\n{why}\n\
-         {shown}"
+         {failed_at} is the one that failed. No retry can mend it, so the commit service is not trying that branch through it again.\n{why}"
     );
 }
 
@@ -231,7 +268,8 @@ fn delivered_then_given_up(read: &FailedPushByAddress, cause: FinalFailure, show
 /// Why:
 ///   The retry's record says the branch is backed up,
 /// so the address that failed is the one to look at,
-/// and Git's own words follow.
+/// and Git's own words follow once,
+/// appended by the caller that builds the whole record.
 /// Without this line the record said the remote "may or may not have taken that commit" about a commit a remote
 /// already held.
 ///
@@ -239,7 +277,7 @@ fn delivered_then_given_up(read: &FailedPushByAddress, cause: FinalFailure, show
 /// ```ts
 /// `the push reached ${arrivedAt.join(', ')}; the push to ${failing} failed\n${shown}`
 /// ```
-fn reached_then_failed(read: &FailedPushByAddress, shown: &str) -> String {
+fn reached_then_failed(read: &FailedPushByAddress) -> String {
     let mut holders: String = String::new();
     for holder in read.arrived_at() {
         if !holders.is_empty() {
@@ -250,7 +288,7 @@ fn reached_then_failed(read: &FailedPushByAddress, shown: &str) -> String {
     let failed_at: &str = read.failing.as_deref().unwrap_or("another address");
     return format!(
         "monochromatic-git-policy-cli: the push of this branch reached {holders}, so the commit is backed up there, and the push to \
-         {failed_at} is the one that failed.\n{shown}"
+         {failed_at} is the one that failed."
     );
 }
 
