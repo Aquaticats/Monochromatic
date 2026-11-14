@@ -328,7 +328,7 @@ fn refuse_a_form_git_refuses(command: &CommitCommand<'_>) -> Option<CommitEnding
         Decision::EndWithGit { status, stderr } => {
             debug("commit-form-refusal", format!("real Git answers {} with status {status}", form.name()).as_str());
             write_stderr_bytes(stderr.as_slice());
-            return Some(CommitEnding { code: status });
+            return Some(CommitEnding { code: status, signal: None });
         }
         Decision::Accept => {
             // Git runs this command line, so the rule's word is not enough to refuse it. The question was a dry run, so
@@ -342,7 +342,7 @@ fn refuse_a_form_git_refuses(command: &CommitCommand<'_>) -> Option<CommitEnding
                 format!("real Git gave no answer about {} ({}), so the wrapper refuses it in its own words", form.name(), reason_name(why)).as_str(),
             );
             write_stderr(unavailable_words(form.name(), why).as_str());
-            return Some(CommitEnding { code: 128 });
+            return Some(CommitEnding { code: 128, signal: None });
         }
     }
 }
