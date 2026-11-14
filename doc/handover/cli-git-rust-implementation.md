@@ -1236,6 +1236,40 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The merge that ends saved and the commit that says what stopped it both pass; pass 44 carries them (2026-11-14T13:54:43-05:00)
+
+Not final and not approved:
+what two reviews report of themselves,
+and what the coordinating session queued and measured.
+
+- **The merge that ends saved** (`1e04fc59d0`),
+  second review:
+  "no concrete defect",
+  over the whole branch and not the tip alone.
+  Four binary tests through the built program and 143 unit tests run
+  (26 commands);
+  the three tests that hold a lock take about a minute each,
+  which is the bound of the wait and not a wait without one.
+  One thing it names as design and not a defect:
+  the settle's restore waits up to a minute on a foreign lock before it saves.
+- **A commit that does not land says what stopped it** (`f7fe3be7ee`),
+  third review:
+  "no concrete defect found".
+  Nine binary controls and 32 library controls run
+  (30 commands),
+  the race of signal and sender among them.
+  It did not run the whole suite or the gate container.
+  The branch keeps a caller's inherited ignore of signals,
+  which is the reading this session adopted and the kept question asks the owner about.
+- **Integration pass 44** is queued first with both
+  (`~/temp/agent/pi-runs/integration-pass-44-with-the-merge-that-ends-saved-and-the-commit-that-says-what-stopped-it-prompt.md`).
+  Passes 38 and 41 to 43 are going beside it.
+- The check of queued entries at 13:54:43:
+  62 names queued by this session since 08:54,
+  none missing,
+  none twice in the queue;
+  61 entries in the queue.
+
 ##### The lock shim's three defects are closed and one small one remains; the watch note's ceiling latches after a refused thread; both go back (2026-11-14T13:49:43-05:00)
 
 Not final and not approved:
