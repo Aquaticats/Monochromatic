@@ -395,7 +395,9 @@ This record's own condition for revisiting the shim was met,
 
 ### What proves a holder gone
 
-The lock is a file, `.<basename>.lock`, holding a record of the process that took it:
+The lock is a file,
+`.<basename>.lock`,
+holding a record of the process that took it:
  that process's pid,
  the process start tick the kernel reports at field 22 of `/proc/<pid>/stat`,
  and this boot's id.
@@ -411,9 +413,11 @@ A process that exists is alive,
 
 The three cases:
 
-- The holder is alive and blocked, as this machine's home drive did for up to 143 seconds on a small write
+- The holder is alive and blocked,
+  as this machine's home drive did for up to 143 seconds on a small write
    in the night of 2026-11-14.
-  Its process exists, so the answer is "alive" and the lock is left alone.
+  Its process exists,
+  so the answer is "alive" and the lock is left alone.
   This is what a freshness bound cannot promise and why upstream's `stale` was not adopted:
    a live process can be slow for longer than any bound,
    and time since a lock was made is not evidence about its holder on this machine.
@@ -430,13 +434,18 @@ The three cases:
    so a lock that changed under it is left alone.
   A takeover record whose own process is gone is cleared by the next caller.
 
-A lock nobody can be named for, which is an empty lock directory from the shim before this amendment and a lock file
+A lock nobody can be named for,
+which is an empty lock directory from the shim before this amendment and a lock file
  whose record a machine crash emptied before its data reached the disk,
  is taken over once it is older than the grace:
- `options.stale` when the caller passes one, ten seconds otherwise.
+ `options.stale` when the caller passes one,
+ten seconds otherwise.
 Neither shape is ever written by the amended shim,
  so the grace covers only states no live holder of this version can be in,
  and an empty directory from the previous shim is taken over rather than left forever.
+Superseded by the amendment of 2026-11-14T10:45:08-05:00:
+ age is no longer a reason to take a lock over,
+ so a lock nobody can be named for is refused with the command that clears it and left for a person.
 
 ### A lock taken away from its holder
 
@@ -445,12 +454,16 @@ Neither shape is ever written by the amended shim,
 Each holding carries a nonce of its own,
  so a release callback kept from an earlier holding of the same file by the same process removes nothing of the later
  holding either;
- a record of pid, start tick and boot alone would have made the two holdings indistinguishable.
-When the record is another holding's, or no record is there at all,
+ a record of pid,
+start tick and boot alone would have made the two holdings indistinguishable.
+When the record is another holding's,
+or no record is there at all,
  the caller's `onCompromised` is given an error with `code === 'ECOMPROMISED'` and the lock is left alone.
-While the lock is held, the same check runs every `stale / 2` milliseconds when the caller passed a callback,
+While the lock is held,
+the same check runs every `stale / 2` milliseconds when the caller passed a callback,
  which is what makes `auth-storage.js`'s `throwIfCompromised()` guard meaningful:
- the caller learns its lock is gone before it writes, not after.
+ the caller learns its lock is gone before it writes,
+not after.
 
 Removing a lock this shim wrote is conditional on it still being the entry judged dead,
  because POSIX has no unlink-if-content:
@@ -469,7 +482,8 @@ One lock and release with no contention now does a small write,
  and reads of `/proc/<pid>/stat` and `/proc/sys/kernel/random/boot_id` (each cached for the process lifetime)
  instead of one `mkdir` and one `rmdir`.
 Measured on this machine with both shims alternating inside each of thirty rounds of five hundred lock-and-release
- pairs, in three rounds of that measurement,
+ pairs,
+in three rounds of that measurement,
  the middle cost of one pair is 41 to 57 microseconds before and 124 to 147 microseconds after,
  a ratio of 2.6 to 3.1 per round (1.4 to 4.7 over the individual rounds),
  against run-to-run spreads of 25 to 136 percent in the unchanged arm.
@@ -483,17 +497,150 @@ The shim adds no wait the caller did not ask for:
 
 - No freshness writes.
   `stale` is now the ownership check interval and the grace on a lock nobody can be named for;
-   it is not a freshness bound, because age does not decide anything for a named holder.
-- No `lockfilePath` option, so pi's trust store still locks the sibling of its directory
+   it is not a freshness bound,
+  because age does not decide anything for a named holder.
+- No `lockfilePath` option,
+  so pi's trust store still locks the sibling of its directory
    rather than the path it names.
 - No process identity outside `/proc`:
    on a platform without it the record carries the pid alone and a reused pid reads as alive,
    which refuses takeover rather than stealing a live holder's lock.
 - No hard-link-free filesystem:
-   taking a lock hard-links a written record onto its path, so a filesystem without hard links fails loudly instead of
+   taking a lock hard-links a written record onto its path,
+  so a filesystem without hard links fails loudly instead of
    locking.
 - No record to compare on a directory an earlier shim left:
-   its removal is decided by age, so a caller that replaced that directory inside one removal can be affected in the way
+   its removal is decided by age,
+  so a caller that replaced that directory inside one removal can be affected in the way
    the file path no longer can.
+  Superseded by the amendment of 2026-11-14T10:45:08-05:00:
+   such a directory is no longer removed at all,
+  and the caller is given the command that clears it.
 - Nothing signals a holder that its lock is gone except `onCompromised`:
-   `lockSync` callers that pass no callback learn of a taken lock at their next write, as they did before.
+   `lockSync` callers that pass no callback learn of a taken lock at their next write,
+  as they did before.
+
+## Amendment, 2026-11-14T10:45:08-05:00: only a proven holder's lock is taken over
+
+The amendment above took a lock over on two grounds besides a named holder that is gone:
+ a lock nobody could be named for was aged out after a grace,
+ and a record written in another PID namespace was looked up in the reader's own namespace.
+A review of that version reproduced three ways for a live holder to lose its lock,
+ each ending with two live processes that both believed they held one lock:
+
+- a live holder's valid lock whose record could not be read,
+  which is what the stalled home drive gives,
+  was treated as naming nobody and aged out;
+- a live holder inside a private PID namespace records the process number its namespace gives it,
+  which in the reader's namespace names another process with another start tick,
+  so the reader judged it gone;
+- a live holder of the shim before this one,
+  whose lock is an empty directory,
+  was aged out and removed,
+  which is every pi process started before the new shim was installed.
+
+The reading this amendment implements is the coordinating session's,
+adopted from this record and from two requirements
+the project holds together:
+nothing a person made is lost,
+and nothing waits forever.
+A lock is taken over only on proof that its holder is gone,
+and nowhere else.
+Where that cannot be judged,
+this record already names what happens:
+a person removes the lock by hand.
+So a caller that meets such a lock ends within the bound its own retry loop allows,
+ and says what it found,
+ why it cannot tell,
+ and the one command that clears it.
+Age alone is never proof,
+and an error reading the record is never proof.
+
+### The two proofs
+
+The record now also carries the inode of the PID namespace its holder was in,
+ and both proofs are about the process the record names:
+
+- the record was written in an earlier boot,
+  so that process cannot exist now;
+- the record names a process of this shim's own PID namespace that no longer exists,
+  has exited,
+  or whose number now belongs to a process started at another tick.
+
+A record from another PID namespace is not judged:
+ the reader cannot look the number up,
+and nothing else in the record identifies the process across namespaces.
+There is no boot-wide process identity on Linux to record instead,
+ since a process's number in the initial namespace is not something a namespaced process can learn.
+
+A lock with no record at all cannot be judged either.
+The suggestion that a record-less lock's maker is gone when no process this reader can see started before the lock's
+mtime was considered and is not used,
+because it is not a proof:
+
+- a maker in another PID namespace is invisible to this reader,
+  so a live holder looks like no process at all;
+- a wall clock stepped forward after the lock was made makes the live maker appear to have started after it,
+   which is the direction that steals;
+- a forward or backward step also moves the comparison between a file's mtime and a process start computed from
+   uptime,
+  and the two clocks are not the same clock;
+- a directory's mtime can be moved by anything that writes in it,
+  and `touch -d` can set it.
+
+The same reasoning applies to a record whose bytes a machine crash emptied:
+unreadable bytes name no process,
+ so such a lock is refused and named rather than aged out.
+
+### What a caller sees, end to end
+
+`dist/core/models-store.js` and `dist/core/auth-storage.js` call
+ `lockfile.lock(path, { retries: 0, stale: 30_000, onCompromised })` and loop for thirty seconds,
+ so a lock this shim cannot judge is answered at once as `ELOCKED` and retried by the caller's own loop,
+ whose deadline ends the wait and whose last error is this shim's.
+The message travels to the person who reads the run:
+ an installed pi 1.5.2 run against a disposable agent directory holding an empty lock directory prints,
+after about
+ thirty-eight seconds and its own retries,
+the extension load failure followed by
+ "The lock at … is an empty lock directory that an earlier version of this shim wrote.
+… remove it and start again with:
+ rmdir …".
+A prompt run of the same ends with exit 1,
+and the lock is still there afterwards.
+A pi that meets a lock whose holder is proven gone starts clean.
+A start that ends this way is then the driver's to start again,
+which is a task another agent holds.
+
+A read that fails is also not a lost lock for a holder:
+ the ownership check says nothing,
+and the release rethrows the read's error and stays un-released,
+ so a stalled drive cannot make a live holder abandon a section it still holds.
+
+### What the change costs and what it does not wait for
+
+Nothing was added to the uncontended path:
+the namespace inode is read once per process and cached,
+ and the ownership check compares it in memory.
+The measured cost recorded above therefore stands.
+The shim adds no wait:
+an unjudgeable lock is answered on the caller's first attempt,
+ and a proven-gone holder's lock is taken over on it.
+
+### What this amendment leaves out
+
+- No proof for a record-less lock,
+  so an empty directory made by the shim before this one is cleared by hand.
+  Within one version this costs nothing,
+  because every lock is a record file and a killed holder's record is proof;
+   it costs the upgrade window only,
+  where a pi started before this shim can still hold a directory.
+- No proof across PID namespaces,
+  so a lock a container took on a shared filesystem is cleared by hand,
+   and the message names both namespaces so a person can tell what happened.
+- No proof without `/proc`:
+  a platform that publishes no process identity cannot take a lock over at all.
+- No `lockfilePath` option,
+  no freshness writes,
+  and no signal to a holder except `onCompromised`,
+   as recorded above.

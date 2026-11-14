@@ -4,8 +4,9 @@ const {
   linkSync,
   lstatSync,
   readFileSync,
+  readdirSync,
   renameSync,
-  rmdirSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } = require('node:fs',);
@@ -22,17 +23,6 @@ const DEFAULT_MIN_TIMEOUT = 100;
 /** Match upstream's ceiling on a single retry wait in ms. */
 const DEFAULT_MAX_TIMEOUT = 10000;
 /**
- * How long a lock nobody can be named for stands before it is taken over, when
- * the caller passed no `stale` of its own.
- *
- * This bound covers the only locks a holder cannot be named for: an empty lock
- * directory left by an earlier version of this shim, and a lock file whose
- * record a machine crash emptied before its data reached the disk. Neither names
- * a process, so neither can be proven dead, and both are aged out instead.
- * Ten seconds is upstream proper-lockfile's own default `stale` bound.
- */
-const DEFAULT_UNOWNED_LOCK_GRACE_MS = 10000;
-/**
  * Shortest interval between two ownership checks of a held lock, in ms.
  *
  * Upstream rechecks at `stale / 2`; the floor keeps a caller that passes a tiny
@@ -45,6 +35,12 @@ const RECORD_FORMAT = 'shim-proper-lockfile/1';
 const DEAD_PROCESS_STATES = new Set(['X', 'x', 'Z',],);
 /** Suffix of the record file written to disk temp-for-link; see `createExclusiveFile`. */
 const TEMPORARY_SUFFIX = '.tmp';
+/** The kernel's per-process stat line, whose fields 3 and 22 are the state and the start tick. */
+const PROC_SELF_STAT = '/proc/self/stat';
+/** This boot's identity, so a record from an earlier boot is recognisable. */
+const PROC_BOOT_ID = '/proc/sys/kernel/random/boot_id';
+/** This process's PID namespace, whose inode is the same number for every process in it. */
+const PROC_SELF_PID_NAMESPACE = '/proc/self/ns/pid';
 
 /**
  * Compute the path of the lock file that guards `target`: a `.<basename>.lock`
@@ -76,6 +72,7 @@ function takeoverPathFor(lockPath,) {
 let probedProcStat;
 let cachedBootIdentity;
 let cachedOwnStartTicks;
+let cachedOwnPidNamespace;
 let temporaryCounter = 0;
 
 /**
@@ -87,7 +84,7 @@ let temporaryCounter = 0;
 function procStatAvailable() {
   if (probedProcStat === undefined) {
     try {
-      readFileSync('/proc/self/stat', { encoding: 'utf8', },);
+      readFileSync(PROC_SELF_STAT, { encoding: 'utf8', },);
       probedProcStat = true;
     }
     catch (error) {
@@ -109,16 +106,49 @@ function procStatAvailable() {
 function bootIdentity() {
   if (cachedBootIdentity === undefined) {
     try {
-      cachedBootIdentity = readFileSync('/proc/sys/kernel/random/boot_id', { encoding: 'utf8', },).trim();
+      cachedBootIdentity = readFileSync(PROC_BOOT_ID, { encoding: 'utf8', },).trim();
     }
     catch (error) {
-      // A site that publishes no boot id keeps pid-plus-start-tick identity and
-      // loses only the reboot discrimination.
+      // A site that publishes no boot id loses only the reboot discrimination, and
+      // a lock from another boot then reads as one this shim cannot judge.
       void error;
       cachedBootIdentity = '';
     }
   }
   return cachedBootIdentity === '' ? undefined : cachedBootIdentity;
+}
+
+/**
+ * Inode of a PID namespace, the number every process inside it reports for it.
+ * Two processes see the same number exactly when they share a namespace, which is
+ * what lets a reader know whether a recorded pid names anything it can look up.
+ *
+ * `/proc/<pid>/ns/pid` is a symbolic link into `nsfs`, and the link's own inode is
+ * a per-process procfs number that changes with every process, so the target is
+ * examined rather than the link.
+ *
+ * @param {string} path - `/proc/<pid>/ns/pid`
+ * @returns {number | undefined} The namespace inode, or `undefined` when it cannot be read
+ */
+function pidNamespaceAt(path,) {
+  try {
+    return statSync(path, { throwIfNoEntry: false, },)?.ino;
+  }
+  catch (error) {
+    void error;
+    return undefined;
+  }
+}
+
+/**
+ * This process's own PID namespace, read once and reused for every lock it takes.
+ *
+ * @returns {number | undefined}
+ */
+function ownPidNamespace() {
+  if (cachedOwnPidNamespace === undefined)
+    cachedOwnPidNamespace = pidNamespaceAt(PROC_SELF_PID_NAMESPACE,) ?? 0;
+  return cachedOwnPidNamespace === 0 ? undefined : cachedOwnPidNamespace;
 }
 
 /**
@@ -143,7 +173,7 @@ function identityFromStat(stat,) {
 }
 
 /**
- * Read one process's state and start tick.
+ * Read one process's state and start tick, as this process's PID namespace shows it.
  *
  * @param {number} pid
  * @returns {{ state: string, startTicks: number | null } | null | undefined} The identity; `undefined` when no such process exists, `null` when it exists but cannot be read
@@ -186,7 +216,7 @@ function processIdentityOf(pid,) {
 function ownStartTicks() {
   if (cachedOwnStartTicks === undefined) {
     try {
-      cachedOwnStartTicks = identityFromStat(readFileSync('/proc/self/stat', { encoding: 'utf8', },),)?.startTicks ?? null;
+      cachedOwnStartTicks = identityFromStat(readFileSync(PROC_SELF_STAT, { encoding: 'utf8', },),)?.startTicks ?? null;
     }
     catch (error) {
       // Without `/proc` a record carries the pid alone, and this shim then says so
@@ -205,7 +235,7 @@ function ownStartTicks() {
  * process: a release callback left over from an earlier holding sees a different
  * nonce in the lock it did not write, so it removes nothing.
  *
- * @returns {{ format: string, pid: number, startTicks: number | null, boot: string | null, nonce: string }}
+ * @returns {{ format: string, pid: number, startTicks: number | null, boot: string | null, ns: number | null, nonce: string }}
  */
 function selfRecord() {
   return {
@@ -213,6 +243,7 @@ function selfRecord() {
     pid: process.pid,
     startTicks: ownStartTicks(),
     boot: bootIdentity() ?? null,
+    ns: ownPidNamespace() ?? null,
     nonce: randomUUID(),
   };
 }
@@ -221,7 +252,7 @@ function selfRecord() {
  * Parse the record of a lock file.
  *
  * @param {string} text
- * @returns {{ pid: number, startTicks: number | null, boot: string | null, nonce: string | null } | undefined} The record, or `undefined` when this shim did not write the text
+ * @returns {{ pid: number, startTicks: number | null, boot: string | null, ns: number | null, nonce: string | null } | undefined} The record, or `undefined` when this shim did not write the text
  */
 function parseRecord(text,) {
   let parsed;
@@ -243,6 +274,7 @@ function parseRecord(text,) {
     pid: parsed.pid,
     startTicks: typeof parsed.startTicks === 'number' ? parsed.startTicks : null,
     boot: typeof parsed.boot === 'string' ? parsed.boot : null,
+    ns: Number.isInteger(parsed.ns,) ? parsed.ns : null,
     nonce: typeof parsed.nonce === 'string' ? parsed.nonce : null,
   };
 }
@@ -250,8 +282,8 @@ function parseRecord(text,) {
 /**
  * Whether two records describe the same holding.
  *
- * @param {{ pid: number, startTicks: number | null, boot: string | null, nonce: string | null } | undefined} left
- * @param {{ pid: number, startTicks: number | null, boot: string | null, nonce: string | null } | undefined} right
+ * @param {{ pid: number, startTicks: number | null, boot: string | null, ns: number | null, nonce: string | null } | undefined} left
+ * @param {{ pid: number, startTicks: number | null, boot: string | null, ns: number | null, nonce: string | null } | undefined} right
  * @returns {boolean}
  */
 function sameRecord(left, right,) {
@@ -260,31 +292,95 @@ function sameRecord(left, right,) {
   return left.pid === right.pid
     && left.startTicks === right.startTicks
     && left.boot === right.boot
+    && left.ns === right.ns
     && left.nonce === right.nonce;
 }
 
 /**
- * Whether the process a record names is gone. This is the proof that a lock may
- * be taken over: the named process no longer exists, and a later process that
- * holds the same pid does not match the recorded start tick.
+ * What this process can tell about the holder a record names: that the process is
+ * gone, that it is running, or that neither can be established from here.
  *
- * @param {{ pid: number, startTicks: number | null, boot: string | null }} record
- * @returns {boolean}
+ * `gone` is the only answer a lock may be taken over on. It is reached two ways,
+ * both of them about the named process and neither of them about the lock's age:
+ * the record was written in an earlier boot, so that process cannot exist now, or
+ * the record names a process of this PID namespace that no longer exists, has
+ * exited, or whose number now belongs to a process started at another tick.
+ *
+ * @param {{ pid: number, startTicks: number | null, boot: string | null, ns: number | null }} record
+ * @returns {{ state: 'gone' | 'alive' | 'unknown', why: string, reason: string }} The answer and why it was given
  */
-function holderIsGone(record,) {
+function holderState(record,) {
   const currentBoot = bootIdentity();
-  if (record.boot !== null && currentBoot !== undefined && record.boot !== currentBoot)
-    return true;
+  if (record.boot !== null && currentBoot !== undefined && record.boot !== currentBoot) {
+    return {
+      state: 'gone',
+      why: 'Its record was written in an earlier boot, so the process it names cannot exist now.',
+      reason: 'earlier-boot',
+    };
+  }
+  if (record.ns === null) {
+    return {
+      state: 'unknown',
+      why: 'Its record does not say which PID namespace its holder was in, so its process number cannot be looked up with confidence.',
+      reason: 'no-namespace',
+    };
+  }
+  const ownNamespace = ownPidNamespace();
+  if (ownNamespace === undefined) {
+    return {
+      state: 'unknown',
+      why: 'This process cannot read its own PID namespace, so it cannot tell whether the recorded process number is one it can look up.',
+      reason: 'no-namespace-of-reader',
+    };
+  }
+  if (record.ns !== ownNamespace) {
+    return {
+      state: 'unknown',
+      why: `Its holder ran in PID namespace ${record.ns} and this process runs in PID namespace ${ownNamespace}, so the process number it records names nothing this process can look up.`,
+      reason: 'other-namespace',
+    };
+  }
   const identity = processIdentityOf(record.pid,);
-  if (identity === undefined)
-    return true;
-  if (identity === null)
-    return false;
-  if (DEAD_PROCESS_STATES.has(identity.state,))
-    return true;
-  if (record.startTicks === null || identity.startTicks === null)
-    return false;
-  return identity.startTicks !== record.startTicks;
+  if (identity === undefined) {
+    return {
+      state: 'gone',
+      why: `The process it names, ${record.pid}, no longer exists.`,
+      reason: 'process-gone',
+    };
+  }
+  if (identity === null) {
+    return {
+      state: 'unknown',
+      why: `The process it names, ${record.pid}, exists but cannot be inspected from here.`,
+      reason: 'process-unreadable',
+    };
+  }
+  if (DEAD_PROCESS_STATES.has(identity.state,)) {
+    return {
+      state: 'gone',
+      why: `The process it names, ${record.pid}, has exited.`,
+      reason: 'process-exited',
+    };
+  }
+  if (record.startTicks === null || identity.startTicks === null) {
+    return {
+      state: 'unknown',
+      why: `The start time of the process it names, ${record.pid}, cannot be compared with the one in the record.`,
+      reason: 'start-time-unknown',
+    };
+  }
+  if (identity.startTicks !== record.startTicks) {
+    return {
+      state: 'gone',
+      why: `The process number ${record.pid} now belongs to a process started later than the holder this record names.`,
+      reason: 'process-number-reused',
+    };
+  }
+  return {
+    state: 'alive',
+    why: `The process it names, ${record.pid}, is running.`,
+    reason: 'process-running',
+  };
 }
 
 //endregion Process identity
@@ -337,78 +433,124 @@ function removeTemporaryRecord(temporary,) {
 }
 
 /**
- * What is at a lock path, and whether its holder can be named.
- *
- * `held` and `gone` carry the record of the process that wrote the lock; the
- * other shapes are locks this shim did not write, which are judged by age
- * because nothing in them names a holder.
+ * The bytes at a lock path, or the reason they could not be read.
  *
  * @param {string} lockPath
- * @returns {{ shape: 'absent' | 'held' | 'gone' | 'unreadable' | 'directory' | 'other', ageMs?: number, record?: { pid: number, startTicks: number | null, boot: string | null }, code?: string }} The inspection
+ * @returns {{ present: boolean, text?: string, readError?: Error }} What the read gave
+ */
+function lockTextAt(lockPath,) {
+  try {
+    return { present: true, text: readFileSync(lockPath, { encoding: 'utf8', },), };
+  }
+  catch (error) {
+    if (error.code === 'ENOENT')
+      return { present: false, };
+    return { present: true, readError: error, };
+  }
+}
+
+/**
+ * The command that clears one lock this shim will not take over, for the caller's
+ * message to name.
+ *
+ * @param {{ what: string, entries?: number }} inspection
+ * @param {string} lockPath
+ * @returns {string}
+ */
+function clearingCommand(inspection, lockPath,) {
+  if (inspection.entries !== undefined)
+    return inspection.entries === 0 ? `rmdir ${lockPath}` : `rm -r ${lockPath}`;
+  return `rm -f ${lockPath}`;
+}
+
+/**
+ * What is at a lock path, and what this process can tell about its holder.
+ *
+ * Only `gone` may be taken over. `held` is a running holder. Every other answer is
+ * `unknown`, carrying what was found and why it cannot be judged, because this
+ * shim takes a lock over on proof and alone.
+ *
+ * @param {string} lockPath
+ * @returns {{ shape: 'absent' } | { shape: 'held' | 'gone', record: object, ino: number, dev: number } | { shape: 'unknown', what: string, why: string, reason: string, command: string, ino?: number, dev?: number }} The inspection
  */
 function inspectLock(lockPath,) {
   const stats = lstatSync(lockPath, { throwIfNoEntry: false, },);
   if (stats === undefined)
     return { shape: 'absent', };
   const identity = { ino: stats.ino, dev: stats.dev, };
-  const ageMs = Date.now() - stats.mtimeMs;
-  if (stats.isDirectory())
-    return { shape: 'directory', ageMs, ...identity, };
-  if (!stats.isFile())
-    return { shape: 'other', ageMs, ...identity, };
-  let text;
-  try {
-    text = readFileSync(lockPath, { encoding: 'utf8', },);
+  if (stats.isDirectory()) {
+    let entries;
+    try {
+      entries = readdirSync(lockPath,).length;
+    }
+    catch (error) {
+      const inspection = {
+        shape: 'unknown',
+        what: `a lock directory this process could not list (${String(error.code,)})`,
+        why: 'Nothing in a lock directory names the process that made it.',
+        reason: 'directory',
+        ...identity,
+      };
+      return { ...inspection, command: clearingCommand(inspection, lockPath,), };
+    }
+    const inspection = {
+      shape: 'unknown',
+      what: entries === 0
+        ? 'an empty lock directory that an earlier version of this shim wrote'
+        : `a lock directory that holds ${String(entries,)} ${entries === 1 ? 'entry' : 'entries'}`,
+      why: 'Nothing in a lock directory names the process that made it.',
+      reason: 'directory',
+      entries,
+      ...identity,
+    };
+    return { ...inspection, command: clearingCommand(inspection, lockPath,), };
   }
-  catch (error) {
-    if (error.code === 'ENOENT')
-      return { shape: 'absent', };
-    return { shape: 'unreadable', ageMs, code: error.code, ...identity, };
+  if (!stats.isFile()) {
+    const inspection = {
+      shape: 'unknown',
+      what: 'an entry that is neither a lock file nor a lock directory',
+      why: 'Nothing in it says which process, if any, is inside the lock.',
+      reason: 'not-a-lock-file',
+      ...identity,
+    };
+    return { ...inspection, command: clearingCommand(inspection, lockPath,), };
   }
-  const record = parseRecord(text,);
-  if (record === undefined)
-    return { shape: 'unreadable', ageMs, ...identity, };
-  return { shape: holderIsGone(record,) ? 'gone' : 'held', ageMs, record, ...identity, };
-}
-
-/**
- * Whether two inspections describe the same lock, so a takeover acts only on the
- * lock it judged dead.
- *
- * @param {{ shape: string, record?: object }} left
- * @param {{ shape: string, record?: object }} right
- * @returns {boolean}
- */
-function sameLockState(left, right,) {
-  if (left.shape === 'absent' || right.shape === 'absent')
-    return false;
-  if (left.record !== undefined && right.record !== undefined)
-    return sameRecord(left.record, right.record,);
-  return left.shape === right.shape;
-}
-
-/**
- * The record at a lock path, for the ownership questions that only compare records: what is holding, what is
- * releasing, and what holds the takeover record.
- * Cheaper than {@link inspectLock}, because it never asks the kernel whether a holder is alive.
- *
- * @param {string} lockPath
- * @returns {{ present: boolean, record?: { pid: number, startTicks: number | null, boot: string | null } }} What is at the path; `record` is present only when this shim wrote it
- */
-function lockRecordAt(lockPath,) {
-  const stats = lstatSync(lockPath, { throwIfNoEntry: false, },);
-  if (stats === undefined)
-    return { present: false, };
-  if (!stats.isFile())
-    return { present: true, };
-  let text;
-  try {
-    text = readFileSync(lockPath, { encoding: 'utf8', },);
+  const read = lockTextAt(lockPath,);
+  if (!read.present)
+    return { shape: 'absent', };
+  if (read.readError !== undefined) {
+    const inspection = {
+      shape: 'unknown',
+      what: 'a lock file this process could not read',
+      why: `The read failed with "${read.readError.message}", and a lock whose record cannot be read may still be held.`,
+      reason: 'unreadable-record',
+      ...identity,
+    };
+    return { ...inspection, command: clearingCommand(inspection, lockPath,), };
   }
-  catch (error) {
-    return { present: error.code !== 'ENOENT', };
+  const record = parseRecord(read.text,);
+  if (record === undefined) {
+    const inspection = {
+      shape: 'unknown',
+      what: 'a lock file whose bytes are not a record this shim wrote',
+      why: 'A machine that loses power can empty a record before its bytes reach the disk, and nothing else writes one.',
+      reason: 'unwritten-record',
+      ...identity,
+    };
+    return { ...inspection, command: clearingCommand(inspection, lockPath,), };
   }
-  return { present: true, record: parseRecord(text,), };
+  const holder = holderState(record,);
+  if (holder.state === 'unknown') {
+    const inspection = {
+      shape: 'unknown',
+      what: 'a lock file whose record this process cannot judge',
+      why: holder.why,
+      reason: holder.reason,
+      ...identity,
+    };
+    return { ...inspection, command: clearingCommand(inspection, lockPath,), };
+  }
+  return { shape: holder.state === 'gone' ? 'gone' : 'held', record, ...identity, };
 }
 
 /**
@@ -417,13 +559,12 @@ function lockRecordAt(lockPath,) {
  * moved.
  *
  * Moving first is what makes the check worth making: the entry examined is the
- * entry acted on, so a lock that another caller replaced in the meantime is
- * moved back instead of deleted.
+ * entry acted on, so a lock that another caller replaced in the meantime is put
+ * back instead of deleted.
  * A moved entry that is not the judged one is put back with a hard link, which is
- * the one restore POSIX offers for anything that is not a directory; callers pass
- * only entries that are not directories.
+ * the one restore POSIX offers.
  *
- * @param {{ path: string, expected: { ino?: number, dev?: number, record?: object } }} params
+ * @param {{ path: string, expected: { ino: number, dev: number, record: object } }} params
  * @returns {boolean} `true` when the judged entry was removed, `false` when the path no longer held it
  */
 function removeJudgedEntry({ path, expected, },) {
@@ -439,12 +580,9 @@ function removeJudgedEntry({ path, expected, },) {
     throw error;
   }
   const moved = lstatSync(aside, { throwIfNoEntry: false, },);
-  // Record inside the entry that was moved, when there is one to read.
-  const movedRecord = moved === undefined || !moved.isFile()
-    ? undefined
-    : parseRecord(readFileSync(aside, { encoding: 'utf8', },),);
+  const movedRecord = readRecordOrUndefined(aside,);
   const sameEntry = moved !== undefined && (moved.ino === expected.ino) && (moved.dev === expected.dev);
-  const matched = sameEntry && (expected.record === undefined || sameRecord(movedRecord, expected.record,));
+  const matched = sameEntry && sameRecord(movedRecord, expected.record,);
   if (!matched) {
     try {
       linkSync(aside, path,);
@@ -461,33 +599,43 @@ function removeJudgedEntry({ path, expected, },) {
 }
 
 /**
- * Remove a lock path, whether it is a record file or a directory an earlier
- * version of this shim left.
+ * The record in a file, when it has one that can be read.
+ *
+ * @param {string} path
+ * @returns {object | undefined}
+ */
+function readRecordOrUndefined(path,) {
+  const read = lockTextAt(path,);
+  if (!read.present || read.readError !== undefined)
+    return undefined;
+  return parseRecord(read.text,);
+}
+
+/**
+ * The record at a lock path, for the ownership questions that only compare
+ * records: what is holding, what is releasing, and what holds the takeover
+ * record. Cheaper than {@link inspectLock}, because it never asks the kernel
+ * whether a holder is alive.
+ *
+ * `readError` is separate from `record: undefined` on purpose: a read that failed
+ * says nothing about who holds the lock, and a holder must not be told it lost a
+ * lock it still holds.
  *
  * @param {string} lockPath
- * @param {{ shape: string }} inspection
- * @throws Error with `code === 'ELOCKED'` when the path is a directory holding entries, which this shim will not delete
+ * @returns {{ present: boolean, record?: object, readError?: Error }} What is at the path
  */
-function removeLockPath(lockPath, inspection,) {
-  try {
-    if (inspection.shape === 'directory')
-      rmdirSync(lockPath,);
-    else
-      unlinkSync(lockPath,);
-  }
-  catch (error) {
-    if (error.code === 'ENOENT')
-      return;
-    if (error.code === 'ENOTEMPTY' || error.code === 'EEXIST') {
-      const blocked = new Error(
-        `A lock directory this shim did not write holds entries and was not removed (lock: ${lockPath});`
-        + ' remove it by hand once no pi run is using it',
-      );
-      blocked.code = 'ELOCKED';
-      throw blocked;
-    }
-    throw error;
-  }
+function lockRecordAt(lockPath,) {
+  const stats = lstatSync(lockPath, { throwIfNoEntry: false, },);
+  if (stats === undefined)
+    return { present: false, };
+  if (!stats.isFile())
+    return { present: true, };
+  const read = lockTextAt(lockPath,);
+  if (!read.present)
+    return { present: false, };
+  if (read.readError !== undefined)
+    return { present: true, readError: read.readError, };
+  return { present: true, record: parseRecord(read.text,), };
 }
 
 /**
@@ -499,6 +647,35 @@ function removeLockPath(lockPath, inspection,) {
 function lockedError(lockPath,) {
   const error = new Error(`Lock file is already being held (lock: ${lockPath})`,);
   error.code = 'ELOCKED';
+  error.reason = 'held';
+  return error;
+}
+
+/**
+ * The error for a lock this process cannot judge: what was found, why it cannot be
+ * told whether a run is still inside the lock, and the one command that clears it.
+ *
+ * The code is `ELOCKED` because every caller in this workspace treats that code as
+ * "try again within my own bound", which is what a record that could not be read
+ * once deserves; the caller's bound, not this shim, is what ends the wait, and the
+ * message survives to the caller's own error.
+ *
+ * @param {{ lockPath: string, inspection: object, context?: string }} params
+ * @returns {Error} An error with `code === 'ELOCKED'` whose message names the command
+ */
+function unjudgeableError({ lockPath, inspection, context, },) {
+  const sentences = [
+    context ?? '',
+    `The lock at ${lockPath} is ${inspection.what}.`,
+    inspection.why,
+    'This shim takes a lock over only when the process that wrote it is proven gone, and it cannot prove that here.',
+    `If no run that uses this file is inside the lock, remove it and start again with: ${inspection.command}`,
+  ];
+  const error = new Error(sentences.filter(sentence => sentence !== '').join(' ',),);
+  error.code = 'ELOCKED';
+  error.reason = inspection.reason;
+  error.lockPath = lockPath;
+  error.remedy = inspection.command;
   return error;
 }
 
@@ -507,60 +684,39 @@ function lockedError(lockPath,) {
 //region Taking over a dead holder's lock
 
 /**
- * How old a lock nobody can be named for must be before it is taken over.
- *
- * @param {{ stale?: number } | undefined} options
- * @returns {number} Milliseconds
- */
-function unownedLockGraceMs(options,) {
-  const stale = options?.stale;
-  if (typeof stale === 'number' && stale > 0)
-    return stale;
-  return DEFAULT_UNOWNED_LOCK_GRACE_MS;
-}
-
-/**
- * Whether the lock an inspection found may be taken over: a lock whose recorded
- * holder is proven gone at once, and a lock nobody can be named for only once it
- * is older than the grace, because a live holder may still be inside the step
- * that names it.
- *
- * @param {{ shape: string, ageMs?: number }} inspection
- * @param {{ stale?: number } | undefined} options
- * @returns {boolean}
- */
-function mayTakeOver(inspection, options,) {
-  if (inspection.shape === 'gone')
-    return true;
-  if (inspection.shape === 'held')
-    return false;
-  return (inspection.ageMs ?? 0) > unownedLockGraceMs(options,);
-}
-
-/**
  * Claim the right to replace one dead lock. Of two callers that find the same
  * dead lock in the same instant, exactly one creates this record, so exactly one
  * proceeds to remove the dead lock and only that one can end up holding it.
  *
- * @param {{ takeoverPath: string, record: object }} params
+ * @param {{ takeoverPath: string, lockPath: string, record: object }} params
  * @returns {boolean} `true` when this caller may proceed
+ * @throws Error with `code === 'ELOCKED'` when another taker is at work right now, or when the record it left behind cannot be judged
  */
-function claimTakeover({ takeoverPath, record, },) {
+function claimTakeover({ takeoverPath, lockPath, record, },) {
   if (createExclusiveFile({ path: takeoverPath, record, },))
     return true;
   const existing = inspectLock(takeoverPath,);
-  const abandoned = existing.shape === 'gone'
-    || (existing.shape !== 'held' && existing.shape !== 'absent'
-      && (existing.ageMs ?? 0) > DEFAULT_UNOWNED_LOCK_GRACE_MS);
-  if (!abandoned)
+  if (existing.shape === 'absent') {
+    // The other taker finished between this caller's link and its look.
     return false;
-  // A taker that died while arbitrating leaves the record behind, and clearing it
-  // is what lets the caller's own next attempt arbitrate. The clear is
-  // conditional on the entry judged abandoned, so it can never take away the
-  // record a live taker wrote in the meantime.
-  if (existing.shape === 'directory')
-    removeLockPath(takeoverPath, existing,);
-  else if (!removeJudgedEntry({ path: takeoverPath, expected: existing, },))
+  }
+  if (existing.shape === 'held') {
+    const error = new Error(`Another caller is taking this lock over right now (lock: ${lockPath})`,);
+    error.code = 'ELOCKED';
+    error.reason = 'takeover-in-progress';
+    throw error;
+  }
+  if (existing.shape !== 'gone') {
+    throw unjudgeableError({
+      lockPath: takeoverPath,
+      inspection: existing,
+      context: `Another caller began taking the lock at ${lockPath} over and left its own record there, and that record is what cannot be judged.`,
+    },);
+  }
+  // The taker that wrote this record is proven gone, so clearing it is what lets
+  // this attempt arbitrate. The clear is conditional on the entry judged gone, so
+  // it can never take away the record a live taker wrote in the meantime.
+  if (!removeJudgedEntry({ path: takeoverPath, expected: existing, },))
     return false;
   return createExclusiveFile({ path: takeoverPath, record, },);
 }
@@ -594,19 +750,15 @@ function dropTakeover({ takeoverPath, record, },) {
  */
 function takeOver({ lockPath, inspection, record, },) {
   const takeoverPath = takeoverPathFor(lockPath,);
-  if (!claimTakeover({ takeoverPath, record, },))
+  if (!claimTakeover({ takeoverPath, lockPath, record, },))
     throw lockedError(lockPath,);
   try {
     const current = inspectLock(lockPath,);
-    if (!sameLockState(inspection, current,))
+    if (current.shape !== 'gone' || !sameRecord(current.record, inspection.record,))
       throw lockedError(lockPath,);
-    // A record file is removed only while it is still the entry judged dead, so a
-    // lock another caller took in the meantime is put back rather than deleted.
-    // A directory an earlier shim left has no record to compare, and its age was
-    // the whole judgement.
-    if (current.shape === 'directory')
-      removeLockPath(lockPath, current,);
-    else if (!removeJudgedEntry({ path: lockPath, expected: current, },))
+    // The entry is removed only while it is still the one judged gone, so a lock
+    // another caller took in the meantime is put back rather than deleted.
+    if (!removeJudgedEntry({ path: lockPath, expected: current, },))
       throw lockedError(lockPath,);
     if (!createExclusiveFile({ path: lockPath, record, },))
       throw lockedError(lockPath,);
@@ -640,8 +792,12 @@ function compromiseCheckIntervalMs(options,) {
  * watching the lock while it is held so a holder learns through `onCompromised`
  * that its lock is no longer its own.
  *
+ * A read that fails says nothing about who holds the lock, so neither the watch
+ * nor the release treats one as a loss: the watch says nothing, and the release
+ * rethrows the read's error and stays un-released, so a later call retries.
+ *
  * @param {{ lockPath: string, record: object, options: { stale?: number, onCompromised?: (error: Error) => void } | undefined }} params
- * @returns {() => void} Release callback: removes the lock only while the record in it is this process's, tolerates the lock already being gone, and rethrows any other removal failure so a later call retries
+ * @returns {() => void} Release callback: removes the lock only while the record in it is this process's, tolerates the lock already being gone, and rethrows any other failure so a later call retries
  */
 function beginHold({ lockPath, record, options, },) {
   const hold = { released: false, compromised: false, timer: undefined, };
@@ -667,6 +823,8 @@ function beginHold({ lockPath, record, options, },) {
 
   function checkStillHeld() {
     const current = lockRecordAt(lockPath,);
+    if (current.readError !== undefined)
+      return;
     if (sameRecord(current.record, record,))
       return;
     hold.released = true;
@@ -690,6 +848,8 @@ function beginHold({ lockPath, record, options, },) {
       return;
     }
     const current = lockRecordAt(lockPath,);
+    if (current.readError !== undefined)
+      throw current.readError;
     if (!sameRecord(current.record, record,)) {
       hold.released = true;
       reportCompromise(current.present
@@ -714,12 +874,13 @@ function beginHold({ lockPath, record, options, },) {
 }
 
 /**
- * Acquire the lock, taking over a lock whose holder is proven gone.
+ * Acquire the lock, taking it over only when the process that wrote it is proven
+ * gone, and refusing with words when that cannot be told.
  *
  * @param {string} target
  * @param {{ stale?: number, onCompromised?: (error: Error) => void } | undefined} options
  * @returns {() => void} Release callback
- * @throws Error with `code === 'ELOCKED'` when a live holder, or another taker of the same dead lock, holds it
+ * @throws Error with `code === 'ELOCKED'`: naming the lock when a live holder has it, and naming the command that clears it when this process cannot judge it
  */
 function acquire(target, options,) {
   const lockPath = lockPathFor(target,);
@@ -733,8 +894,10 @@ function acquire(target, options,) {
       return beginHold({ lockPath, record, options, },);
     throw lockedError(lockPath,);
   }
-  if (!mayTakeOver(inspection, options,))
+  if (inspection.shape === 'held')
     throw lockedError(lockPath,);
+  if (inspection.shape !== 'gone')
+    throw unjudgeableError({ lockPath, inspection, },);
   takeOver({ lockPath, inspection, record, },);
   return beginHold({ lockPath, record, options, },);
 }
@@ -747,11 +910,13 @@ function acquire(target, options,) {
  * to 62) and `settings-manager.js` (lines 117 to 143) both wrap this in their
  * own sync retry loop.
  *
- * A dead holder's lock is taken over inside this call, so the caller's first
- * attempt already succeeds where a crashed run left the lock behind.
+ * A lock whose holder is proven gone is taken over inside this call, so the
+ * caller's first attempt already succeeds where a killed run left the lock
+ * behind. A lock this process cannot judge is refused with an error naming the
+ * command that clears it.
  *
  * @param {string} target
- * @param {{ realpath?: boolean, stale?: number, onCompromised?: (error: Error) => void }} [_options] `realpath` is ignored: every caller passes `false`, so the target is treated as already resolved. `stale` bounds how long a lock nobody can be named for stands. `onCompromised` is called when the held lock stops being this process's.
+ * @param {{ realpath?: boolean, stale?: number, onCompromised?: (error: Error) => void }} [_options] `realpath` is ignored: every caller passes `false`, so the target is treated as already resolved. `stale` is the interval of the ownership check of a held lock. `onCompromised` is called when the held lock stops being this process's.
  * @returns {() => void}
  * @example
  *   const release = lockSync('/tmp/auth.json', { realpath: false });
@@ -828,12 +993,14 @@ async function attemptLock({ target, options, config, attempt, timeout, },) {
 /**
  * Async lock with internal retry.
  *
- * `stale` is the bound on how long a lock nobody can be named for stands, and
- * the interval of the ownership checks of a held lock is half of it; a lock
- * whose recorded holder is proven gone is taken over without waiting for any
- * bound. `onCompromised` is called while the lock is held as soon as it stops
- * being this process's, and again at release if it was taken from this process
- * before release ran. `realpath` is ignored, as on the sync path.
+ * `onCompromised` is called while the lock is held as soon as it stops being this
+ * process's, and the interval of that ownership check is half of `stale`.
+ * `realpath` is ignored, as on the sync path.
+ *
+ * A lock whose holder is proven gone is taken over without waiting for any bound.
+ * A lock this process cannot judge is refused with an error whose message names
+ * the command that clears it, after the caller's own retries, which are the only
+ * retries there are.
  *
  * The returned release callback is the sync function `acquire` produced, so
  * `await release()` in async callers resolves immediately because `await

@@ -56,14 +56,35 @@ const DENIED_CODE = 'EACCES';
 const READ_ONLY_DIRECTORY_MODE = 0o500;
 /** The mode a fixture directory needs back before its own removal. */
 const WRITABLE_DIRECTORY_MODE = 0o700;
+/** The mode a lock file has while its holder holds it, so a case can give a record its read access back. */
+const OWN_LOCK_MODE = 0o600;
 /** What a holder writes in its report once it holds the lock. */
 const HELD_REPORT = 'held';
 /** The `stale` bound `@earendil-works/pi-coding-agent` passes on its async lock path, in milliseconds. */
 const CALLER_STALE_MS = 30_000;
 /** A `stale` small enough that the ownership watch of a held lock reports within one case, in milliseconds. */
 const SHORT_STALE_MS = 500;
-/** How old a case makes a lock that must be older than any grace bound, in milliseconds. */
-const OLD_ENOUGH_TO_BE_TAKEN_OVER_MS = 10 * 60 * 1_000;
+/** How long a case pretends a lock has been held, in milliseconds: long enough that no bound in the caller's hands matters. */
+const AGED_LOCK_MS = 10 * 60 * 1_000;
+/** A boot id no boot has, standing in for the boot a record was written in before a machine restarted. */
+const EARLIER_BOOT_ID = '00000000-0000-4000-8000-000000000000';
+/** The system path a namespaced holder is started with, because `spawn` looks its program up in the child's own PATH. */
+const SYSTEM_PATH = '/usr/local/bin:/usr/bin:/bin';
+/** Longest the shim may take to refuse a lock it cannot judge, far under the thirty seconds the caller's own loop allows. */
+const NO_WAIT_BOUND_MS = 5_000;
+/** The mode that makes a lock file unreadable to its own owner, standing in for a read that fails on a stalled drive. */
+const UNREADABLE_FILE_MODE = 0o000;
+/** The `unshare` options that give a holder a PID namespace of its own, with its own private mount table. */
+const OWN_PID_NAMESPACE_OPTIONS = [
+  '--user',
+  '--map-root-user',
+  '--mount',
+  '--propagation',
+  'private',
+  '--pid',
+  '--fork',
+  '--mount-proc',
+];
 /** How many rounds the two-taker race runs, so one unlucky interleaving cannot pass as a rule. */
 const TAKER_ROUNDS = 6;
 /** How long before the shared barrier both racing takers are started, in milliseconds. */
@@ -121,6 +142,31 @@ const TAKER_SOURCE = [
   '  setInterval(() => {}, 1000);',
   '  void release;',
   '}, Math.max(0, barrier - Date.now()));',
+].join('\n',);
+
+/**
+ Source of a holder of the lock the previous version of this shim made: a directory with nothing in it, so nothing
+ in the lock names the process holding it.
+ */
+const OLD_HOLDER_SOURCE = [
+  "const { mkdirSync, writeFileSync } = require('node:fs');",
+  'mkdirSync(process.env.LOCK_PATH);',
+  "writeFileSync(process.env.REPORT_PATH, 'held');",
+  '// Never released: the holder keeps the directory until its case ends this process.',
+  'setInterval(() => {}, 1000);',
+].join('\n',);
+
+/**
+ Source of a holder that takes the lock inside a PID namespace of its own, the way a container sharing this machine's
+ filesystem does.
+ */
+const NAMESPACED_HOLDER_SOURCE = [
+  "const { writeFileSync } = require('node:fs');",
+  "const lockfile = require(process.env['SHIM_PATH']);",
+  "const release = lockfile.lockSync(process.env['LOCK_TARGET'], { realpath: false });",
+  "writeFileSync(process.env.REPORT_PATH, 'held');",
+  'setInterval(() => {}, 1000);',
+  'void release;',
 ].join('\n',);
 
 /**
@@ -294,6 +340,92 @@ async function startHolder(target: string, reportPath: string,): Promise<Holder>
     throw new Error(`a holder process reported ${report} instead of holding`,);
   }
   return holder;
+}
+
+/**
+ Starts a real holder of the lock the previous version of this shim made: an empty directory, with nothing in it that
+ names the process holding it.
+
+ @param lockPath - the lock directory the holder makes
+
+ @param reportPath - file the holder reports in
+
+ @returns the holder, already holding
+ */
+async function startOldStyleHolder(lockPath: string, reportPath: string,): Promise<Holder> {
+  const child = spawn(process.execPath, ['--input-type=commonjs', '-e', OLD_HOLDER_SOURCE,], {
+    env: { LOCK_PATH: lockPath, REPORT_PATH: reportPath, },
+    stdio: ['ignore', 'ignore', 'ignore',],
+  },);
+  const holder: Holder = {
+    child,
+    async [Symbol.asyncDispose]() {
+      await killChild(child,);
+    },
+  };
+  const report = await reportOfChild(reportPath, Date.now() + CHILD_REPORT_TIMEOUT_MS,);
+  if (report !== HELD_REPORT) {
+    await killChild(child,);
+    throw new Error(`an old-style holder process reported ${report} instead of holding`,);
+  }
+  return holder;
+}
+
+/**
+ Starts a real holder that takes the lock inside a PID namespace of its own, so the process number it records means
+ nothing in this process's namespace.
+
+ @param target - file the holder locks
+
+ @param reportPath - file the holder reports in
+
+ @returns the holder, already holding
+ */
+async function startHolderInOwnPidNamespace(target: string, reportPath: string,): Promise<Holder> {
+  const child = spawn('unshare', [
+    ...OWN_PID_NAMESPACE_OPTIONS,
+    process.execPath,
+    '--input-type=commonjs',
+    '-e',
+    NAMESPACED_HOLDER_SOURCE,
+  ], {
+    env: {
+      PATH: SYSTEM_PATH,
+      SHIM_PATH,
+      LOCK_TARGET: target,
+      REPORT_PATH: reportPath,
+    },
+    stdio: ['ignore', 'ignore', 'inherit',],
+  },);
+  const holder: Holder = {
+    child,
+    async [Symbol.asyncDispose]() {
+      await killChild(child,);
+    },
+  };
+  const report = await reportOfChild(reportPath, Date.now() + CHILD_REPORT_TIMEOUT_MS,);
+  if (report !== HELD_REPORT) {
+    await killChild(child,);
+    throw new Error(`a namespaced holder process reported ${report} instead of holding`,);
+  }
+  return holder;
+}
+
+/**
+ Asserts a lock call was refused because the lock cannot be judged: the caller's own code, the lock path, and the one
+ command that clears it, all in the words the caller sees.
+
+ @param thrown - what the call threw
+
+ @param expected - the lock path, and the command that clears it
+ */
+function expectUnjudgeable(thrown: unknown, expected: { readonly lockPath: string; readonly command: string },): void {
+  expect(thrown,).toHaveProperty('code', HELD_CODE,);
+  const { message, } = thrown as Error;
+  expect(message,).toContain(expected.lockPath,);
+  expect(message,).toContain(expected.command,);
+  expect(message,).toContain('proven gone',);
+  expect(message,).not.toContain('Lock file is already being held',);
 }
 
 /**
@@ -476,6 +608,25 @@ await describe({
           timeout: ASYNC_CASE_TIMEOUT_MS,
         },),
         it({
+          name: 'is taken over when its record was written in an earlier boot, even though its process number is in use',
+          fn: async () => {
+            await using fixture = await makeTarget();
+            // A record written in the boot before a restart names a process that cannot
+            // exist now, which is a proof about the holder and not about the lock's age.
+            // The record is this process's own, so its process number is in use: only the
+            // boot it names can prove it gone.
+            const own = lockfile.lockSync(fixture.target,);
+            const record = JSON.parse(readFileSync(fixture.lockPath, 'utf8',),) as Record<string, unknown>;
+            own();
+            writeFileSync(fixture.lockPath, JSON.stringify({ ...record, boot: EARLIER_BOOT_ID, },),);
+
+            const release = lockfile.lockSync(fixture.target,);
+            release();
+
+            expect(existsSync(fixture.lockPath,),).toBe(false,);
+          },
+        },),
+        it({
           name: 'is left alone while its holder process is alive, however old the lock file is',
           fn: async () => {
             await using fixture = await makeTarget();
@@ -483,7 +634,7 @@ await describe({
             await using holder = await startHolder(fixture.target, reportPath,);
             // A live holder blocked on a stalled drive makes no younger impression,
             // so the age of the lock file must not be what decides.
-            const longAgo = new Date(Date.now() - OLD_ENOUGH_TO_BE_TAKEN_OVER_MS,);
+            const longAgo = new Date(Date.now() - AGED_LOCK_MS,);
             utimesSync(fixture.lockPath, longAgo, longAgo,);
 
             const syncThrown = caughtFrom(() => {
@@ -570,56 +721,157 @@ await describe({
     },),
     //endregion Two takers of one dead lock
 
-    //region Locks nobody can be named for
+    //region A lock this shim cannot judge
 
     describe({
-      name: 'a lock nobody can be named for',
+      name: 'a lock this shim cannot judge',
       children: [
         it({
-          name: 'is taken over once an empty lock directory left by an earlier version is older than the grace',
+          name: 'is left alone, and named, when it is the empty lock directory a live holder of the previous shim made',
           fn: async () => {
             await using fixture = await makeTarget();
-            mkdirSync(fixture.lockPath,);
-            const longAgo = new Date(Date.now() - OLD_ENOUGH_TO_BE_TAKEN_OVER_MS,);
-            utimesSync(fixture.lockPath, longAgo, longAgo,);
+            const reportPath = join(fixture.root, 'old-holder.report',);
+            await using holder = await startOldStyleHolder(fixture.lockPath, reportPath,);
+            const longHeld = new Date(Date.now() - AGED_LOCK_MS,);
+            utimesSync(fixture.lockPath, longHeld, longHeld,);
 
-            const release = lockfile.lockSync(fixture.target,);
-            release();
+            const syncThrown = caughtFrom(() => {
+              lockfile.lockSync(fixture.target,);
+            },);
+            const asyncThrown = await rejectionFrom(async () => {
+              await lockfile.lock(fixture.target, { retries: 0, stale: CALLER_STALE_MS, },);
+            },);
 
-            expect(existsSync(fixture.lockPath,),).toBe(false,);
+            expectUnjudgeable(syncThrown, {
+              lockPath: fixture.lockPath,
+              command: `rmdir ${fixture.lockPath}`,
+            },);
+            expectUnjudgeable(asyncThrown, {
+              lockPath: fixture.lockPath,
+              command: `rmdir ${fixture.lockPath}`,
+            },);
+            expect(childFinished(holder.child,),).toBe(false,);
+            expect(existsSync(fixture.lockPath,),).toBe(true,);
           },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
         },),
         it({
-          name: 'is left alone while an empty lock directory is younger than the grace, because a live holder may still be naming itself',
+          name: 'is left alone, and named, when its record cannot be read while its holder is alive',
           fn: async () => {
             await using fixture = await makeTarget();
-            mkdirSync(fixture.lockPath,);
+            const reportPath = join(fixture.root, 'unreadable-holder.report',);
+            await using holder = await startHolder(fixture.target, reportPath,);
+            // A read that fails, standing in for the stalled home drive this machine has:
+            // the holder is alive and its lock is valid, and only the read is refused.
+            chmodSync(fixture.lockPath, UNREADABLE_FILE_MODE,);
+            const longHeld = new Date(Date.now() - AGED_LOCK_MS,);
+            utimesSync(fixture.lockPath, longHeld, longHeld,);
+
+            const syncThrown = caughtFrom(() => {
+              lockfile.lockSync(fixture.target,);
+            },);
+            const asyncThrown = await rejectionFrom(async () => {
+              await lockfile.lock(fixture.target, { retries: 0, stale: CALLER_STALE_MS, },);
+            },);
+
+            expectUnjudgeable(syncThrown, {
+              lockPath: fixture.lockPath,
+              command: `rm -f ${fixture.lockPath}`,
+            },);
+            expectUnjudgeable(asyncThrown, {
+              lockPath: fixture.lockPath,
+              command: `rm -f ${fixture.lockPath}`,
+            },);
+            expect((syncThrown as Error).message,).toContain('could not read',);
+            expect(childFinished(holder.child,),).toBe(false,);
+            expect(existsSync(fixture.lockPath,),).toBe(true,);
+            // A third caller is refused as well, so no second holder appears beside the live one.
+            const thirdThrown = caughtFrom(() => {
+              lockfile.lockSync(fixture.target,);
+            },);
+            expect(thirdThrown,).toHaveProperty('code', HELD_CODE,);
+          },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
+        },),
+        it({
+          name: 'is left alone, and named, when its bytes are not a record this shim wrote',
+          fn: async () => {
+            await using fixture = await makeTarget();
+            writeFileSync(fixture.lockPath, '',);
+            const longHeld = new Date(Date.now() - AGED_LOCK_MS,);
+            utimesSync(fixture.lockPath, longHeld, longHeld,);
 
             const thrown = caughtFrom(() => {
               lockfile.lockSync(fixture.target,);
             },);
 
-            expect(thrown,).toHaveProperty('code', HELD_CODE,);
+            expectUnjudgeable(thrown, {
+              lockPath: fixture.lockPath,
+              command: `rm -f ${fixture.lockPath}`,
+            },);
+            expect(thrown,).toHaveProperty('reason', 'unwritten-record',);
             expect(existsSync(fixture.lockPath,),).toBe(true,);
           },
         },),
         it({
-          name: 'is taken over once a lock file with no readable record is older than the grace',
+          name: 'is left alone, and named, when its record was written in another PID namespace, and stays so after that holder dies',
           fn: async () => {
             await using fixture = await makeTarget();
-            writeFileSync(fixture.lockPath, '',);
-            const longAgo = new Date(Date.now() - OLD_ENOUGH_TO_BE_TAKEN_OVER_MS,);
-            utimesSync(fixture.lockPath, longAgo, longAgo,);
+            const reportPath = join(fixture.root, 'namespaced-holder.report',);
+            const holder = await startHolderInOwnPidNamespace(fixture.target, reportPath,);
 
-            const release = lockfile.lockSync(fixture.target,);
-            release();
+            const thrown = caughtFrom(() => {
+              lockfile.lockSync(fixture.target,);
+            },);
 
-            expect(existsSync(fixture.lockPath,),).toBe(false,);
+            expectUnjudgeable(thrown, {
+              lockPath: fixture.lockPath,
+              command: `rm -f ${fixture.lockPath}`,
+            },);
+            expect((thrown as Error).message,).toContain('PID namespace',);
+            expect(holder.child.exitCode,).toBe(null,);
+            expect(existsSync(fixture.lockPath,),).toBe(true,);
+
+            // The holder is gone, but nothing here proves it: its process number names
+            // nothing in this namespace, so the lock is cleared by hand and not by this shim.
+            await killChild(holder.child,);
+            const afterDeath = caughtFrom(() => {
+              lockfile.lockSync(fixture.target,);
+            },);
+            expectUnjudgeable(afterDeath, {
+              lockPath: fixture.lockPath,
+              command: `rm -f ${fixture.lockPath}`,
+            },);
+            expect(afterDeath,).toHaveProperty('reason', 'other-namespace',);
           },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
+        },),
+        it({
+          name: 'ends within the bound the caller itself allows, with the command in the words it leaves',
+          fn: async () => {
+            await using fixture = await makeTarget();
+            mkdirSync(fixture.lockPath,);
+
+            const started = Date.now();
+            const thrown = await rejectionFrom(async () => {
+              // The options `@earendil-works/pi-coding-agent` passes on its async path.
+              await lockfile.lock(fixture.target, { retries: 0, stale: CALLER_STALE_MS, },);
+            },);
+            const elapsed = Date.now() - started;
+
+            expectUnjudgeable(thrown, {
+              lockPath: fixture.lockPath,
+              command: `rmdir ${fixture.lockPath}`,
+            },);
+            // The shim adds no wait of its own: the caller's thirty-second loop is the only bound.
+            expect(elapsed,).toBeLessThan(NO_WAIT_BOUND_MS,);
+            expect(existsSync(fixture.lockPath,),).toBe(true,);
+          },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
         },),
       ],
     },),
-    //endregion Locks nobody can be named for
+    //endregion A lock this shim cannot judge
 
     //region Release when the lock is no longer the holder's
 
@@ -686,6 +938,37 @@ await describe({
             secondRelease();
             expect(existsSync(fixture.lockPath,),).toBe(false,);
           },
+        },),
+        it({
+          name: 'reports no compromise and removes nothing while the lock it holds cannot be read',
+          fn: async () => {
+            await using fixture = await makeTarget();
+            const compromises: Error[] = [];
+            const release = lockfile.lockSync(fixture.target, {
+              stale: SHORT_STALE_MS,
+              onCompromised: (error: Error,) => {
+                compromises.push(error,);
+              },
+            },);
+            // A read that fails, standing in for the stalled drive: the holder still holds
+            // its lock, so neither its watch nor its release may say otherwise.
+            chmodSync(fixture.lockPath, UNREADABLE_FILE_MODE,);
+
+            // Two ownership checks pass by while the record cannot be read.
+            await sleep(SHORT_STALE_MS * 2,);
+            expect(compromises.length,).toBe(0,);
+
+            const thrown = caughtFrom(release,);
+            expect(thrown,).toHaveProperty('code', DENIED_CODE,);
+            expect(compromises.length,).toBe(0,);
+            expect(existsSync(fixture.lockPath,),).toBe(true,);
+
+            // Once the record can be read again, the same callback removes its own lock.
+            chmodSync(fixture.lockPath, OWN_LOCK_MODE,);
+            release();
+            expect(existsSync(fixture.lockPath,),).toBe(false,);
+          },
+          timeout: ASYNC_CASE_TIMEOUT_MS,
         },),
         it({
           name: 'calls onCompromised while the lock is still held, so the caller can stop writing',
