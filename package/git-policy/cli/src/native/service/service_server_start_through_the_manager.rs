@@ -72,13 +72,6 @@ pub fn end_and_reap_off_the_path(mut probe_child: std::process::Child) {
     let _reaped = probe_child.wait();
 }
 
-/// The extra a start through the manager is given past the base's own start wait,
-/// after which the scope is ended and the base's start is used instead.
-/// Why:
-///   One second pays for the extra process the manager runs;
-///  a start that needs more than that is a manager or a scope in a state this command does not wait for.
-pub const MANAGER_START_EXTRA: Duration = Duration::from_secs(1);
-
 /// The manager's program, as the account's session has it.
 pub const PROGRAM: &str = "systemd-run";
 
@@ -173,17 +166,21 @@ impl ManagerStart {
 
     /// What:
     ///  Starts the server as a transient scope of the manager,
-    ///  and gives the scope leader's process number.
+    ///  and gives the leader's process number when the middle process reported one.
     /// Why:
     ///   `systemd-run --user --scope -- <program> <words>` runs the program itself as its child in the caller's
     ///  environment and returns when the program ends (`systemd-run(1)`),
     /// so the wrapper's own detaching (a session of its own, `/dev/null`, one log) applies to `systemd-run`,
     /// and the server is the leader's child in the scope the manager made.
     /// Nothing of the manager's own bookkeeping is named: no unit file is written and no reload is asked for.
+    ///  The number is evidence that a leader was reported and nothing else: it is never signalled, because a number read
+    /// now and used eleven seconds later is not proof of what it names by then.
+    ///  The proven handle on a scope's service is the note the service itself writes, with its own birth identity
+    /// (`end_the_service_the_note_names`; the review of `55f236a0a8`, finding 1).
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// spawnDetached({ program: 'systemd-run', arguments: ['--user', '--scope', '--', server.program, ...server.arguments()], log: server.log() })
+    /// spawnDetached({ program: 'systemd-run', arguments: ['--user', '--scope', '--', server.program, ...server.arguments()], log: server.log() }) // the leader's number, or none
     /// ```
     pub fn start(&self, server: &ServerToStart) -> std::io::Result<Option<i32>> {
         let mut arguments: Vec<std::ffi::OsString> = vec![
@@ -236,10 +233,44 @@ pub fn find_on_path(name: &str) -> Option<PathBuf> {
     return None;
 }
 
-/// Ends a leader and everything in its group, which is the scope's own group.
-pub fn end_the_group_of(pid: i32) {
-    // SAFETY: a negative number names the process group the leader was made the head of (`setsid` in the spawn).
-    let _signalled: libc::c_int = unsafe { libc::kill(-pid, libc::SIGKILL) };
+/// What:
+///  Ends the service a scope started for this worktree,
+///  when the service's own note proves which process serves it.
+/// Why:
+///   A scope that made nothing answer, or answered with no process number, is a scope this command may have to end
+/// before it starts the base's server.
+///  What must never be ended is a process this command did not start,
+/// and a process number read eleven seconds ago is not proof of anything:
+/// the kernel may have given it to another process group by then
+///  (the review of `55f236a0a8`, finding 1).
+/// The proof that exists is the note the service writes when it binds
+/// (`service_server_pid_note_of_an_instance.rs`):
+/// the process number, one space, and the birth identity that shows the number still names that process.
+///  So this ends the service of this worktree and nothing else:
+/// the service dies,
+/// `systemd-run` waits for the child it started and leaves,
+/// and the scope ends with it.
+///  A service that wrote no note is a service that did not bind, so there is nothing of the scope's to end:
+/// the scope's own program exits on its own,
+/// and a server it starts later finds the address taken by the base's server and exits with its reason in the log
+///  (`service_server_socket_binding.rs`, the takeover of a stale address is one process's at a time).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const note = readPidNote(dir, instance); if (note && stillTheProcess(note)) kill(note.pid, 'SIGKILL')
+/// ```
+pub fn end_the_service_the_note_names(directory: &Path, instance: &str) -> bool {
+    let note: PathBuf = crate::service_server_pid_note_of_an_instance::path(directory, instance);
+    let Some(service) = crate::service_server_pid_note_of_an_instance::read(note.as_path()) else { return false };
+    // What: The birth identity is compared immediately before the signal, so a number the kernel gave to another process
+    //       since the note was written is never signalled.
+    // Why:  This is the same proof `service stop` acts on, and the only handle on a service this command did not fork itself.
+    if !crate::service_server_pid_note_of_an_instance::is_still_the_process(&service) {
+        return false;
+    }
+    // SAFETY: a positive number and one signal, with no memory touched; the process is the one the note proves.
+    let _signalled: libc::c_int = unsafe { libc::kill(service.pid, libc::SIGKILL) };
+    return true;
 }
 
 /// Controls of the enhancement stay out of the release executable.

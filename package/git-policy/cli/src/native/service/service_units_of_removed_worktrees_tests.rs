@@ -54,3 +54,97 @@ fn a_service_removes_only_the_note_that_names_it() {
     assert!(!socket.exists() && !pid_note(directory.as_path(), instance).exists(), "this service's own files go");
     drop(listening);
 }
+
+/// What:
+///  The files a gone worktree's instance left go together, and a claim file goes with them.
+/// Why:
+///  A claim file is a file the wrapper wrote in a runtime directory it served, and the worktree that made the takeover
+///  possible is gone (the review of `55f236a0a8`, finding 3).
+#[test]
+fn a_gone_worktrees_instance_loses_its_claim_file_with_its_other_files() {
+    let runtime: PathBuf = machine("claim-gone");
+    let instance: &str = "3f9a";
+    let socket: PathBuf = socket_path(runtime.as_path(), instance);
+    let claim: PathBuf = crate::service_address_takeover_claim::path(socket.as_path());
+    // A socket a killed service left, and the claim file its takeover made.
+    drop(std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a socket a killed service left"));
+    std::fs::write(claim.as_path(), b"").expect("the claim file a takeover made");
+    remove_what_a_stopped_instance_left(runtime.as_path(), instance);
+    assert!(!socket.exists(), "the address goes");
+    assert!(!claim.exists(), "and the claim file with it: {}", claim.display());
+}
+
+/// What:
+///  A live address keeps its claim file, because a takeover of it may still be in flight.
+/// Why:
+///  The socket file goes only when nothing answers; the claim file of an instance whose service still runs is the one a
+///  taking-over process holds, and removing it would let two claims be made on one address.
+#[test]
+fn a_live_address_keeps_its_claim_file() {
+    let runtime: PathBuf = machine("claim-live");
+    let instance: &str = "3f9a";
+    let socket: PathBuf = socket_path(runtime.as_path(), instance);
+    let claim: PathBuf = crate::service_address_takeover_claim::path(socket.as_path());
+    let listening = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("a live server's address");
+    std::fs::write(claim.as_path(), b"").expect("a claim file");
+    remove_what_a_stopped_instance_left(runtime.as_path(), instance);
+    assert!(claim.exists(), "a live address keeps its claim file");
+    drop(listening);
+}
+
+/// What:
+///  The sweep that forgets a stopped instance removes its claim file too.
+/// Why:
+///  That sweep is the one a person runs for a worktree that is gone, and a claim file left there is a file the wrapper
+///  leaves for good (the review of `55f236a0a8`, finding 3).
+#[test]
+fn forgetting_a_stopped_instance_removes_its_claim_file() {
+    let runtime: PathBuf = machine("claim-forgotten");
+    let instance: &str = "3f9a";
+    let socket: PathBuf = socket_path(runtime.as_path(), instance);
+    let claim: PathBuf = crate::service_address_takeover_claim::path(socket.as_path());
+    let note: PathBuf = note_path(runtime.as_path(), instance);
+    std::fs::create_dir_all(note.parent().unwrap_or(runtime.as_path())).expect("the folder the note sits in");
+    std::fs::write(note.as_path(), b"gitdirHex=2f7265706f2f2e676974").expect("the note of the worktree");
+    std::fs::write(socket.as_path(), b"").expect("a socket file");
+    std::fs::write(claim.as_path(), b"").expect("a claim file");
+    forget_stopped_instance(runtime.as_path(), instance);
+    assert!(!note.exists() && !socket.exists(), "the note and the socket go");
+    assert!(!claim.exists(), "and the claim file: {}", claim.display());
+}
+
+/// What:
+///  A service's own end removes a claim file a killed command left,
+///  and leaves one another process is holding.
+/// Why:
+///  The claim file exists only while a takeover does, and a takeover that was killed leaves it; the service's own end is
+///  the one moment its worktree's address is provably free, so that is where a leftover goes (the review of `55f236a0a8`,
+///  finding 3). A file another process holds is that process's to remove.
+#[test]
+fn a_service_removes_a_leftover_claim_file_and_leaves_a_held_one() {
+    let runtime: PathBuf = machine("claim-leftover");
+    let instance: &str = "3f9a";
+    let socket: PathBuf = socket_path(runtime.as_path(), instance);
+    let claim_path: PathBuf = crate::service_address_takeover_claim::path(socket.as_path());
+    let listening = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("this service's address");
+    let files = crate::service_server_files_of_a_running_instance::take(socket.as_path(), Some(instance)).expect("the address is this process's");
+    // A file a killed command left: nobody holds it.
+    std::fs::write(claim_path.as_path(), b"").expect("a claim file a killed taker left");
+    files.remove();
+    assert!(!socket.exists(), "the address goes");
+    assert!(!claim_path.exists(), "and the claim file a killed command left goes with it: {}", claim_path.display());
+
+    // A file another process holds: this claim stands where that process's would.
+    let again = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("the address again");
+    let files_again = crate::service_server_files_of_a_running_instance::take(socket.as_path(), Some(instance)).expect("the address is this process's again");
+    let held = match crate::service_address_takeover_claim::claim(socket.as_path()).expect("the claim is made") {
+        crate::service_address_takeover_claim::Claim::Held(held) => held,
+        crate::service_address_takeover_claim::Claim::AnotherProcessTakesOver => panic!("nothing held this claim"),
+    };
+    files_again.remove();
+    assert!(claim_path.exists(), "a claim file another process holds is left where it is");
+    drop(held);
+    assert!(!claim_path.exists(), "and it goes when that claim ends");
+    drop(again);
+    drop(listening);
+}

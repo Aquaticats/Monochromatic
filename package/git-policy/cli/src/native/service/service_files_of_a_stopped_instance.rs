@@ -476,20 +476,25 @@ pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: 
 }
 
 /// What:
-///  Removes the files that say an instance has units once its units are stopped:
-/// its note and its socket file.
+///  Removes the files that say an instance has a service once that service is stopped:
+/// its note, its socket file, and the claim file a takeover left.
 /// Why:
 ///   The manager leaves the socket file of a stopped socket unit where it was (`RemoveOnStop=` is off),
 /// and a file that stays makes the survey count the instance again and the next sweep stop it again.
 /// The worktree is gone,
 /// so nothing will make that socket listen at that path again.
+///  A claim file is left only by a command killed inside the microseconds of a takeover, or by a command whose own
+/// unlink could not run; a worktree that is gone needs it for nothing, and the takeovers that would have taken it over
+/// have no command left to make them (`service_address_takeover_claim.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// for (const path of [notePath(runtimeDir, instance), socketPath(runtimeDir, instance)]) await rm(path);
+/// for (const path of [notePath(runtimeDir, instance), socketPath(runtimeDir, instance), claimPathOf(socketPath(runtimeDir, instance))]) await rm(path);
 /// ```
 pub fn forget_stopped_instance(runtime_dir: &Path, instance: &str) {
-    for path in [note_path(runtime_dir, instance), socket_path(runtime_dir, instance)] {
+    let socket: PathBuf = socket_path(runtime_dir, instance);
+    let claim: PathBuf = crate::service_address_takeover_claim::path(socket.as_path());
+    for path in [note_path(runtime_dir, instance), socket, claim] {
         if let Err(error) = std::fs::remove_file(path.as_path())
             && error.kind() != std::io::ErrorKind::NotFound
         {

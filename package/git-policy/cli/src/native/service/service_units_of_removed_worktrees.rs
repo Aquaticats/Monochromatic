@@ -417,16 +417,18 @@ pub fn stop_units(folders: &UnitFolders<'_>, instance: &str) -> Result<(), Strin
 }
 
 /// What:
-///  Removes the socket file and the note of an instance that is gone.
+///  Removes the socket file, the note and the claim file of an instance that is gone.
 /// Why:
-///   A killed service leaves both,
+///   A killed service leaves them,
 /// and a file that stayed would count the instance again and the next sweep stop it again.
 /// The socket file goes only when nothing answers on it:
 /// a service that still runs owns it.
+///  A claim file belongs to the same set: the takeover it was made for is one this worktree can no longer make, and a
+/// worktree that is gone needs nothing of it (`service_address_takeover_claim.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!serviceIsGone(dir, instance) || accepts(socket)) return; unlink(socket); unlink(note);
+/// if (!serviceIsGone(dir, instance) || accepts(socket)) return; unlink(socket); unlink(note); unlink(claimPathOf(socket));
 /// ```
 fn remove_what_a_stopped_instance_left(runtime_dir: &Path, instance: &str) {
     let directory: PathBuf = runtime_dir.join(SOCKET_DIRECTORY);
@@ -438,7 +440,9 @@ fn remove_what_a_stopped_instance_left(runtime_dir: &Path, instance: &str) {
     if !service_is_gone(directory.as_path(), instance) || crate::service_server_start_by_the_wrapper::accepts(socket.as_path()) {
         return;
     }
+    let claim: PathBuf = crate::service_address_takeover_claim::path(socket.as_path());
     let _removed = std::fs::remove_file(socket);
+    let _also = std::fs::remove_file(claim);
     remove_pid_note(pid_note_path(directory.as_path(), instance).as_path());
 }
 

@@ -136,3 +136,20 @@ fn one_taker_of_a_stale_address_wins_and_the_other_leaves_the_winner_alone() {
     let (at_the_address, _) = winner.accept().expect("the connection at the address reaches the winner's own listener");
     drop(at_the_address);
 }
+
+/// What:
+///  A takeover of a stale address leaves no claim file behind.
+/// Why:
+///  The claim is the kernel's lock on a file beside the address, made for the three system calls of a takeover and for
+///  nothing else; a file that stayed was a file the wrapper left in a runtime directory it served for good (the review of
+///  `55f236a0a8`, finding 3).
+#[test]
+fn a_takeover_of_a_stale_address_leaves_no_claim_file() {
+    let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("bind-claim-gone");
+    let path: std::path::PathBuf = root.join("3f9a.sock");
+    let claim: std::path::PathBuf = crate::service_address_takeover_claim::path(path.as_path());
+    drop(UnixListener::bind(path.as_path()).expect("a socket a killed service left"));
+    let taken: UnixListener = bind_path(path.as_path()).expect("a refused socket is taken over");
+    assert!(!claim.exists(), "the claim file goes with the takeover that made it: {}", claim.display());
+    drop(taken);
+}

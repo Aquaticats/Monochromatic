@@ -76,12 +76,24 @@ impl OwnFiles {
     /// ```
     pub fn remove(&self) {
         use std::os::unix::fs::MetadataExt;
-        if let (Some(socket), Some((device, inode))) = (self.socket.as_ref(), self.socket_identity)
-            && let Ok(metadata) = std::fs::symlink_metadata(socket)
-            && metadata.dev() == device
-            && metadata.ino() == inode
+        let address_was_ours: bool = match (self.socket.as_ref(), self.socket_identity) {
+            (Some(socket), Some((device, inode))) => match std::fs::symlink_metadata(socket) {
+                Ok(metadata) if metadata.dev() == device && metadata.ino() == inode => {
+                    let _removed = std::fs::remove_file(socket);
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        };
+        // What: A claim file a killed command left goes once this service's own address is gone.
+        // Why:  The address is unlinked first (`address_was_ours`), so no takeover can start now: whoever arrives binds the
+        //       free address, and nothing claims anything. A file another process holds is left where it is
+        //       (`service_address_takeover_claim.rs`, `remove_a_leftover_claim`).
+        if address_was_ours
+            && let Some(socket) = self.socket.as_ref()
         {
-            let _removed = std::fs::remove_file(socket);
+            let _no_leftover: bool = crate::service_address_takeover_claim::remove_a_leftover_claim(socket.as_path());
         }
         if let (Some(note), Some(text)) = (self.pid_note.as_ref(), self.note_text.as_ref())
             && matches!(std::fs::read_to_string(note), Ok(current) if current == *text)

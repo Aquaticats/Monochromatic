@@ -33,7 +33,7 @@ use crate::service_server::Bind;
 use crate::service_server_log_file_of_an_instance::{self as log_file, LOG_ENDING};
 use crate::service_server_pid_note_of_an_instance::PID_NOTE_ENDING;
 use crate::service_server_start_spawns_a_detached_process::{Detached, spawn, text_argument};
-use crate::service_server_start_through_the_manager::{MANAGER_START_EXTRA, ManagerStart};
+use crate::service_server_start_through_the_manager::ManagerStart;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -163,7 +163,8 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
     return start_seamed(server, &mut ask_the_manager);
 }
 
-/// The manager's own start, as the caller and a control hand it in.
+/// The manager's own start, as the caller and a control hand it in: the leader's number when the middle process reported
+/// one, and nothing when it reported none.
 fn ask_the_manager(manager: &ManagerStart, server: &ServerToStart) -> std::io::Result<Option<i32>> {
     return manager.start(server);
 }
@@ -211,36 +212,43 @@ pub(crate) fn start_seamed(server: &ServerToStart, manager_start: &mut dyn FnMut
     if let Some(manager) = server.manager.as_ref()
         && manager.probe()
     {
-        // One scope is made for this start, never two: the leader is kept so a scope that made nothing answer can be ended.
-        let (leader, may_still_start): (Option<i32>, bool) = match manager_start(manager, server) {
-            Ok(Some(number)) => (Some(number), false),
-            // What: A scope whose number never came may still be starting its own server, so this command waits for that start
-            //       before it makes one of its own.
-            // Why:  The number is written by the middle process that forks the scope's program; one starved past its own wait
-            //       leaves a `systemd-run` that starts a server seconds later, beside the one the base start would make (the
-            //       review of `76a08c9fac`, finding 3, part 2). The wait is the enhancement's own extra and never the command's
-            //       whole wait, so a manager that failed still leaves the base's start the time it needs.
-            Ok(None) => (None, true),
+        // What: A scope this command made is given the base start's own wait for its greeting, and a scope that reported no
+        //       process number is given none.
+        // Why:  The bound is `START_WAIT` and nothing more: it is the number `wait_ceilings.rs` measured (9.6 times the
+        //       slowest of 52 cold starts, 1.04 s), and the manager path has no measurement of its own that would justify a
+        //       second one (the review of `55f236a0a8`, finding 2, and the rule that a shipped bound cites a measurement or
+        //       the owner).
+        //       A start whose number never came has a scope that may still start a server; nothing is waited for it, because
+        //       the base's start binds first, and a server that arrives later finds the address taken and exits with its
+        //       reason in the log (`service_server_socket_binding.rs`, one takeover at a time). Waiting here would spend the
+        //       command's own wait on a scope that has not answered, and then make the base's start too late to help.
+        // What: The number is kept as the answer to one question, "did the middle process report a leader", and is never
+        //       signalled.
+        // Why:  A number read now and used eleven seconds later names whatever the kernel has given it by then, and
+        //       signalling that is what the review of `55f236a0a8` found. What is ended below is the service this
+        //       worktree's own note proves.
+        let (scope_asked, leader): (bool, Option<i32>) = match manager_start(manager, server) {
+            Ok(number) => (true, number),
             // A manager that refused made no scope, and nothing of its is coming.
-            Err(_refused) => (None, false),
+            Err(_refused) => (false, None),
         };
-        let bound: Duration = match (leader, may_still_start) {
-            (Some(_waiting_for_it), _) => START_WAIT + MANAGER_START_EXTRA,
-            (None, true) => MANAGER_START_EXTRA,
-            (None, false) => Duration::ZERO,
-        };
-        let greeted: bool = bound > Duration::ZERO && waits_for_a_greeting(server.socket.as_path(), bound);
+        let greeted: bool = leader.is_some() && waits_for_a_greeting(server.socket.as_path(), START_WAIT);
         if greeted {
             return StartAttempt::Greeted;
         }
         // What: A scope that made nothing answer is ended, and the base's start is what this command does instead.
-        // Why:  A manager that made a scope and then failed costs one extra second and never a commit, and the scope's group is
-        //       what this command started, so ending it is its own to do.
-        if let Some(process) = leader {
-            crate::service_server_start_through_the_manager::end_the_group_of(process);
-        }
-        if answered(server.socket.as_path()) {
-            return StartAttempt::Greeted;
+        // Why:  A manager that made a scope and then failed costs one start's wait and never a commit. What is ended is the
+        //       service this worktree's own note proves, never a number this command read earlier: a process killed at any
+        //       instruction, and a number the kernel gave to another process group, must cost nobody else their processes
+        //       (the review of `55f236a0a8`, finding 1).
+        if scope_asked {
+            // What: A service that answers is not ended, whatever the scope's wait came to.
+            // Why:  One that greeted after the bound is a service other commands may be waiting on, and ending it takes
+            //       their service away (the review of `55f236a0a8`, finding 1).
+            if answered(server.socket.as_path()) {
+                return StartAttempt::Greeted;
+            }
+            let _ended: bool = crate::service_server_start_through_the_manager::end_the_service_the_note_names(server.directory().as_path(), server.instance.as_str());
         }
     }
     let detached: Detached = Detached { program: server.program.clone(), arguments: server.arguments(), log: log.clone() };

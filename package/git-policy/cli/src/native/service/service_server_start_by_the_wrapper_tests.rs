@@ -210,17 +210,21 @@ fn a_start_that_ends_does_not_remove_a_marker_another_command_published() {
 }
 
 /// What:
-///  A scope that leaves no process number is given its own wait before a base server is started beside it.
+///  A scope that reports no process number does not hold the base's start back, and the server it starts later is
+///  greeted by the caller's own wait.
 /// Why:
-///  The review of `76a08c9fac` (finding 3, part 2) found that a `systemd-run` whose middle process reported no number can
-///  start a server seconds later, beside the one the base start had already made. The scope's own start is what this
-///  command waits for, and the base's start is still there when the scope starts nothing.
+///  The review of `55f236a0a8` (finding 2) found `MANAGER_START_EXTRA`, a shipped second with no measurement and no owner
+///  decision behind it, and asked for a measurement or for the wait to go. The wait goes: a scope whose middle process
+///  reported no number may still start a server, and the base's start is what makes the commit's service exist: waiting
+///  the second spends the command's own wait on a scope that has not answered, and the server that arrives later finds
+///  the address taken (`service_server_socket_binding.rs`). This control shows the base starting at once and the
+///  scope's server's greeting still being this command's answer.
 #[test]
-fn a_scope_that_leaves_no_process_number_is_given_its_own_wait_before_a_base_server_starts() {
+fn a_scope_that_reports_no_process_number_does_not_hold_the_base_start_back() {
     let root: PathBuf = folder("scope-without-a-number");
     let socket: PathBuf = root.join("3f9a.sock");
     let base_started: PathBuf = root.join("base-started.txt");
-    // The base's start is a stand-in program that records that it was started.
+    // The base's start is a stand-in program that records that it was started, and binds nothing.
     let program: PathBuf = root.join("service-program");
     std::fs::write(program.as_path(), format!("#!/bin/sh\nprintf 'started\\n' >> '{}'\n", base_started.display())).expect("the stand-in is written");
     std::fs::set_permissions(program.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the stand-in runs");
@@ -256,5 +260,103 @@ fn a_scope_that_leaves_no_process_number_is_given_its_own_wait_before_a_base_ser
     });
     let attempt: StartAttempt = start_seamed(&server, asked.as_mut());
     assert_eq!(attempt, StartAttempt::Greeted, "the scope's own server greets, and that is this command's answer");
-    assert!(!base_started.exists(), "no base server was started beside the scope: {}", std::fs::read_to_string(base_started.as_path()).unwrap_or_default());
+    // What the wait that went would have hidden: the base's start happened before the scope's server was ever up.
+    assert!(base_started.exists(), "the base's start is not held back by a scope that reported no number: {}", std::fs::read_to_string(base_started.as_path()).unwrap_or_default());
+}
+
+/// A process group of this control's own, which is what a process number the kernel has given to another command would
+/// name.
+fn a_process_group_of_this_controls_own(name: &str) -> std::process::Child {
+    use std::os::unix::process::CommandExt;
+    let mut command: std::process::Command = std::process::Command::new("/usr/bin/tail");
+    command.args(["--follow=name", "--retry", "/dev/null"]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    // SAFETY: the child calls `setsid` before it execs, so it is the leader of a group of its own, and nothing else runs
+    // between the fork and that call.
+    unsafe {
+        command.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
+    return command.spawn().unwrap_or_else(|error| { panic!("{name} could not be started: {error}") });
+}
+
+/// What:
+///  A scope that made nothing answer ends the service this worktree's own note proves, and never a process named by the
+///  number the scope reported.
+/// Why:
+///  The review of `55f236a0a8` (finding 1) found `kill(-pid, SIGKILL)` of a number read up to eleven seconds earlier: a
+///  number the kernel has given to another process group by then is somebody else's processes, and ending them is harm
+///  outside the repository. The proof that exists is the note the service writes, with its own birth identity, and this
+///  control puts a stranger's group where the reused number would be.
+#[test]
+fn a_scope_that_made_nothing_answer_ends_its_own_service_and_no_other() {
+    let root: PathBuf = folder("scope-ends-its-own");
+    let socket: PathBuf = root.join("3f9a.sock");
+    let journal: PathBuf = root.join("journal");
+    std::fs::create_dir_all(journal.as_path()).expect("the journal folder");
+    let base_started: PathBuf = root.join("base-started.txt");
+    let program: PathBuf = root.join("service-program");
+    std::fs::write(program.as_path(), format!("#!/bin/sh\nprintf 'started\\n' >> '{}'\n", base_started.display())).expect("the stand-in is written");
+    std::fs::set_permissions(program.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o700)).expect("the stand-in runs");
+    // The service this worktree's note names: a process of this control's own, with the note written as the service writes it.
+    let mut service: std::process::Child = a_process_group_of_this_controls_own("the service");
+    let service_pid: i32 = i32::try_from(service.id()).expect("a process number");
+    let service_identity: String = crate::process_identity::process_birth_identity(i64::from(service_pid)).expect("a readable identity").expect("the service is alive");
+    let note: PathBuf = crate::service_server_pid_note_of_an_instance::path(root.as_path(), "3f9a");
+    std::fs::write(note.as_path(), format!("{service_pid} {service_identity}\n")).expect("the service's own note");
+    // The stranger: another process group, whose leader's number is what the seam reports as the scope's leader.
+    let mut stranger: std::process::Child = a_process_group_of_this_controls_own("the stranger");
+    let stranger_pid: i32 = i32::try_from(stranger.id()).expect("a process number");
+    // The greeting: once the service this control wrote the note for is gone, a server binds the address and greets, so the
+    // control cannot wait out the start's own bound, and a scope that never ends its service is named by a deadline here.
+    let greeted_socket: PathBuf = socket.clone();
+    let greeter = std::thread::spawn(move || {
+        // What: The address starts answering only once the service the note names is gone, which is the end attempt's work.
+        // Why:  A greeting that came earlier would make the start end before the attempt, and this control is about what the
+        //       attempt does. The deadline is longer than the start's own bound, so a start that never ends its service is
+        //       named by the greeting that follows it and by the assertion, never by a hang.
+        let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while crate::auto_push_reconcile_basics_and_limits::process_is_alive(u64::try_from(service_pid).unwrap_or(0)) && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let Ok(listener) = std::os::unix::net::UnixListener::bind(greeted_socket.as_path()) else { return };
+        let line: String = format!("{}\n", crate::service_protocol_encode_messages_to_lines::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::MIN_SERVED_PROTOCOL, release: Some(String::from("test")) }));
+        let began: std::time::Instant = std::time::Instant::now();
+        while began.elapsed() < std::time::Duration::from_secs(20) {
+            if let Ok((mut stream, _)) = listener.accept() {
+                use std::io::Write;
+                let _sent = stream.write_all(line.as_bytes());
+            }
+        }
+    });
+    let server: ServerToStart = ServerToStart {
+        socket: socket.clone(),
+        instance: String::from("3f9a"),
+        journal,
+        git: PathBuf::from("/usr/bin/git"),
+        program,
+        manager: Some(ManagerStart { program: PathBuf::from("/bin/true") }),
+        named_runtime_dir: None,
+        bus_address: None,
+    };
+    let mut asked: Box<dyn FnMut(&ManagerStart, &ServerToStart) -> std::io::Result<Option<i32>>> = Box::new(move |_manager, _server| { return Ok(Some(stranger_pid)); });
+    let began: std::time::Instant = std::time::Instant::now();
+    let attempt: StartAttempt = start_seamed(&server, asked.as_mut());
+    let took: std::time::Duration = began.elapsed();
+    // Both children are this control's own, so their state is read by reaping them: a killed child that is not reaped yet is a
+    // zombie, and a zombie still answers a signal.
+    let service_ended: bool = matches!(service.try_wait(), Ok(Some(_status)));
+    let stranger_running: bool = matches!(stranger.try_wait(), Ok(None));
+    let _killed: std::io::Result<()> = stranger.kill();
+    let _reaped: std::io::Result<std::process::ExitStatus> = stranger.wait();
+    if !service_ended {
+        let _also_killed: std::io::Result<()> = service.kill();
+        let _also_reaped: std::io::Result<std::process::ExitStatus> = service.wait();
+    }
+    std::mem::forget(greeter);
+    assert_eq!(attempt, StartAttempt::Greeted, "the greeting the control started answers the wait: {attempt:?}");
+    // What is asked first is the harm the review names: processes this command did not start, ended by a number.
+    assert!(stranger_running, "the process group whose number the scope reported is untouched, because a number is no proof of what it names by then: {took:?}");
+    assert!(service_ended, "and the service this worktree's note proves is the one that was ended, so the address could be bound by what greets: {took:?}");
 }

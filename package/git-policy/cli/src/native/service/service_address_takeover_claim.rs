@@ -24,6 +24,16 @@
 //!  and it leaves the address alone rather than waiting for a turn.
 //!  What it covers is the three system calls of a takeover, a probe, an unlink and a bind, and nothing else;
 //! no command waits on it, and it is held for microseconds at the end of a service's start.
+//!  The file exists only while a takeover does, and it is the claim's own holder that removes it:
+//! the one command that created it, or the one that took a dead holder's over,
+//! unlinks it by its inode as its takeover ends,
+//! so an ordinary service's lifetime leaves no file at all.
+//! A command killed inside the microseconds of a takeover leaves the file behind,
+//! and the next takeover opens it, takes the claim the kernel has already given up, and removes it at its own end;
+//! the sweep for a worktree that is gone removes one still there
+//! (`service_files_of_a_stopped_instance.rs`, `forget_stopped_instance`).
+//!  Removal is safe because it happens after the address is bound:
+//! a taker that arrives once the file is gone finds the address accepting and never claims anything.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,7 +42,7 @@
 //! ```
 
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 /// The ending of the file the claim on one address is held on.
@@ -46,23 +56,51 @@ pub fn path(address: &Path) -> PathBuf {
 }
 
 /// What:
-///  The claim on one address, held for as long as this value lives.
+///  The claim on one address, held for as long as this value lives,
+///  and the file it is held on, which this value removes as it ends.
 /// Why:
 ///   The kernel holds it for this descriptor and no other,
 /// so the claim ends where this value does, and a process that is killed gives it up with everything else it had.
+///  The file is unlinked by the inode this claim opened, never by its path alone:
+/// a command that ended and another that started could otherwise unlink each other's claim file, and two claims on one
+///  address are the defect the file exists for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AddressTakeoverClaim = { release(): void }; // flock(LOCK_EX) on the claim file
+/// type AddressTakeoverClaim = { release(): void }; // flock(LOCK_EX) on the claim file, then unlink while it is still ours
 /// ```
 #[derive(Debug)]
 pub struct AddressTakeoverClaim {
     /// The file the kernel's claim is held on.
     file: std::fs::File,
+    /// The path the claim file was opened at.
+    path: PathBuf,
+    /// The device and inode of the claim file this value opened.
+    identity: (u64, u64),
+}
+
+impl AddressTakeoverClaim {
+    /// The claim on `file`, which is the file at `path`, with the identity that says the path is still that file.
+    fn of(file: std::fs::File, path: PathBuf) -> std::io::Result<Self> {
+        let metadata: std::fs::Metadata = file.metadata()?;
+        return Ok(Self { file, path, identity: (metadata.dev(), metadata.ino()) });
+    }
 }
 
 impl Drop for AddressTakeoverClaim {
     fn drop(&mut self) {
+        // What: The claim file goes while the claim is still held, and only while the path still names the file this claim
+        //       opened.
+        // Why:  A file left behind is a file the wrapper leaves in a runtime directory it served for good (the review of
+        //       `55f236a0a8`, finding 3). The inode comparison is what keeps two claims from being made on one address: a
+        //       path that names another file is another claim's, and this one removes nothing.
+        //       Unlinking after the address is bound is what makes the removal harmless: a taker that arrives later finds
+        //       the address accepting.
+        if let Ok(now) = std::fs::symlink_metadata(self.path.as_path())
+            && (now.dev(), now.ino()) == self.identity
+        {
+            let _removed: std::io::Result<()> = std::fs::remove_file(self.path.as_path());
+        }
         // Lock kept: the kernel's own claim on one worktree's address, held for the three system calls of a takeover.
         // Why:  nothing in the filesystem can say "unlink this file only while it is still the inode I asked about", and two
         //       servers that both unlinked and bound left one of them unreachable (the review of `76a08c9fac`, finding 3).
@@ -108,17 +146,85 @@ pub enum Claim {
 /// claim(address) // flock(claimFile(address), LOCK_EX | LOCK_NB)
 /// ```
 pub(crate) fn claim(address: &Path) -> std::io::Result<Claim> {
-    let file: std::fs::File = std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(false).mode(0o600).open(path(address).as_path())?;
+    let claim_path: PathBuf = path(address);
+    // What: Two rounds, and each one ends in a claim or in another process's claim.
+    // Why:  This command creates the file when no takeover is in flight, and the round after a file that went between the
+    //       two steps is the file another command created and removed in the meantime.
+    for _round in 0..2 {
+        match std::fs::OpenOptions::new().read(true).write(true).create_new(true).mode(0o600).open(claim_path.as_path()) {
+            // What: A file this command created is claimed in the same step, so no second process can slip in between.
+            // Why:  A file that exists is not a claim: the claim is the kernel's lock on it, and a file created without one
+            //       is a file another process may take (`claim_the`).
+            Ok(file) => return claim_the(file, claim_path),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                // What: A file that is there is opened and claimed, or it is another process's claim.
+                // Why:  A file a killed taker left holds no claim: the kernel gave that up when the process ended, so this
+                //       command takes it and removes it at the end of its own takeover.
+                let Ok(file) = std::fs::OpenOptions::new().read(true).write(true).open(claim_path.as_path()) else { continue };
+                return claim_the(file, claim_path);
+            }
+            Err(refused) => return Err(refused),
+        }
+    }
+    return Ok(Claim::AnotherProcessTakesOver);
+}
+
+/// What:
+///  Takes the kernel's exclusive claim on an open claim file,
+///  without waiting.
+/// Why:
+///   A claim another process holds is a normal answer, not a failure: it is taking this address over at this instant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// flock(file, LOCK_EX | LOCK_NB) ? held : anotherProcessTakesOver
+/// ```
+fn claim_the(file: std::fs::File, path: PathBuf) -> std::io::Result<Claim> {
     // SAFETY: `flock` takes a descriptor this process owns and one number, and touches no memory.
     let taken: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     if taken == 0 {
-        return Ok(Claim::Held(AddressTakeoverClaim { file }));
+        return Ok(Claim::Held(AddressTakeoverClaim::of(file, path)?));
     }
-    let error: std::io::Error = std::io::Error::last_os_error();
-    return match error.raw_os_error() {
+    let refused: std::io::Error = std::io::Error::last_os_error();
+    return match refused.raw_os_error() {
         Some(code) if code == libc::EWOULDBLOCK => Ok(Claim::AnotherProcessTakesOver),
-        _ => Err(error),
+        _ => Err(refused),
     };
+}
+
+/// What:
+///  Removes a claim file a killed taker left, while taking that claim,
+///  and leaves one another process is holding.
+/// Why:
+///  A service that is ending has unlinked its own address, so nothing of its worktree claims anything any more, and a file
+/// a killed command left there is a file the wrapper leaves in a runtime directory it served for good
+///  (the review of `55f236a0a8`, finding 3).
+/// Taking the claim before removing the file is what keeps the removal from making two claims of one address:
+/// a taker that arrives while this holds it is told another process has the claim, and a taker that arrives once it is
+///  gone binds the address (or finds its own stale file) without ever claiming.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeLeftoverClaim(address) // flock(LOCK_EX|LOCK_NB): unlink by inode when taken, otherwise leave it
+/// ```
+pub fn remove_a_leftover_claim(address: &Path) -> bool {
+    let claim_path: PathBuf = path(address);
+    // A file that is not there is nothing to remove.
+    let Ok(file) = std::fs::OpenOptions::new().read(true).write(true).open(claim_path.as_path()) else { return false };
+    // SAFETY: `flock` takes a descriptor this process owns and one number, and touches no memory.
+    let taken: libc::c_int = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if taken != 0 {
+        // Another process is taking the address over at this instant, and its file is its own to remove.
+        return false;
+    }
+    // What: The file goes only while the path still names the file this call opened.
+    // Why:  A path that names another file is another claim's, and removing it would let a second claim be made.
+    let Ok(opened) = file.metadata() else { return false };
+    let Ok(now) = std::fs::symlink_metadata(claim_path.as_path()) else { return false };
+    if (now.dev(), now.ino()) != (opened.dev(), opened.ino()) {
+        return false;
+    }
+    return std::fs::remove_file(claim_path.as_path()).is_ok();
 }
 
 /// Controls of the claim stay out of the release executable.

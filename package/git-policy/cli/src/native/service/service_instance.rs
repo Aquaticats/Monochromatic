@@ -220,39 +220,7 @@ pub fn program_link(runtime_dir: &Path) -> PathBuf {
     return runtime_dir.join(PROGRAM_LINK);
 }
 
-/// What:
-///  The name of the link the releases before this one wrote into the notes folder and named in every unit text they wrote,
-///  which this release keeps pointing at its own executable.
-/// Why:
-///   A unit text the manager loaded under one of those releases names that file,
-/// and the manager keeps reading the text it loaded
-///  until the unit is dropped;
-/// the install that replaces a release removes the release's own directory,
-/// so a link nothing keeps pointing
-///  becomes a path no program answers at,
-/// and the start of such an instance fails at the EXEC step until every later start is refused
-///  (`doc/troubleshooting/`,
-/// the install of `0.6.1-alpha.20`).
-/// This release's own units name [`PROGRAM_LINK`] instead,
-/// but an instance whose text is the older one
-///  still has to find a program,
-/// and pointing this path at the running executable costs one read and,
-///  when it moved,
-/// one rename per provisioning,
-/// asks the manager nothing,
-/// and makes such a start run this release,
-///  which answers this release's commands.
-/// It is the same file the releases before `0.6.1-alpha.20` kept here
-/// (`service_provision_program_pointer.rs` in them),
-///  in the notes folder the manager reads no unit from.
-pub const EARLIER_RELEASES_PROGRAM_POINTER: &str = "service-program";
 
-/// The path of the link the releases before this one named in their unit texts.
-pub fn earlier_releases_program_pointer(runtime_dir: &Path) -> PathBuf {
-    return crate::service_provision_host_and_manager::runtime_unit_dir(runtime_dir)
-        .join(crate::service_files_of_a_stopped_instance::NOTES_FOLDER)
-        .join(EARLIER_RELEASES_PROGRAM_POINTER);
-}
 
 /// What:
 ///  The bytes `socket_path` adds to the runtime directory it is given:
