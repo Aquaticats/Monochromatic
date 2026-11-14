@@ -1158,12 +1158,24 @@ a review and its own commands' output.
   (`0.6.1-alpha.18` at that hour)
   did not push its new branch by itself after its first two commits,
   and pushed by hand.
-  Pass 22's branch was pushed at every commit.
-  Not looked into;
-  the queued run on a pending push whose wake was lost
-  (`pending-push-is-made-by-the-service-when-the-wake-for-it-was-lost`)
-  is the nearest,
-  and this sighting is for its author to check.
+  Read from Git and the user manager's journal at 20:31:
+  the pass's branch got commits at 18:24:19 and 19:23:14,
+  and the journal holds no `pushed branch=` line of the commit service for it from 16:30 on;
+  the agent's hand push is there at 19:35:59,
+  seventy-one minutes after the first commit.
+  Pass 23's branch has no such line either.
+  In the same hours the service pushed the branches of pass 22 three times,
+  pass 25 once and pass 26 twice,
+  each within seconds of a commit.
+  The three it pushed have `branch.<name>.remote` and `.merge` in the repository's configuration;
+  the two it did not push have neither.
+  The cause is not established:
+  a branch with no upstream that the service never takes up,
+  or a push record lost across the installs of that evening.
+  These facts are added to the brief of the queued run on a pending push whose wake was lost
+  (`~/temp/agent/pi-runs/pending-push-is-made-by-the-service-when-the-wake-for-it-was-lost-prompt.md`),
+  whose class this belongs to,
+  and that run is moved to the head of the author entries.
 - **The launcher change** (`d03da43a2d`:
   manifests and tool configurations are reviewed).
   Its review
