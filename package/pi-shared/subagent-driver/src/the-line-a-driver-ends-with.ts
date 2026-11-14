@@ -105,8 +105,9 @@ function startsNoteOf(summary: RunSummary,): string {
    How many starts the run made, as text.
    */
   const starts = String(summary.piStartAttempts,);
+  // The note begins a sentence of its own: what Pi did with the starts is not a clause of the end reason beside it.
   if (summary.endReason !== 'pi-exited-before-prompt') {
-    return ` Pi was started ${starts} times, because a start before the last one exited before it took the prompt.`;
+    return `. Pi was started ${starts} times, because a start before the last one exited before it took the prompt`;
   }
   /**
    The last start, which is the one that decided how the run reads.
@@ -119,10 +120,9 @@ function startsNoteOf(summary: RunSummary,): string {
     ...(last?.reason === undefined ? {} : { reason: last.reason, }),
     lines: last?.standardErrorLines ?? [],
   },);
-  // The sentence ends where the line's own full stop is, so a reason that ends a sentence never shows two.
   return (summary.piStartAttempts === 1)
-    ? ` Pi exited before it took the prompt on its only start, ${exitWordsOf(last,)}${said}`
-    : ` Pi exited before it took the prompt on each of its ${starts} starts, the last of them ${exitWordsOf(last,)}${said}`;
+    ? `. Pi exited before it took the prompt on its only start, ${exitWordsOf(last,)}${said}`
+    : `. Pi exited before it took the prompt on each of its ${starts} starts, the last of them ${exitWordsOf(last,)}${said}`;
 }
 
 /**
@@ -186,7 +186,11 @@ export function endingLineOf({
   readonly summary: RunSummary;
   readonly runFolder: string
 },): string {
-  return `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${startsNoteOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}. The summary is in ${
+  /**
+   What the line says before the files it names, ending where the reason it quotes already ended a sentence.
+   */
+  const sentence = `The Pi run ended with "${summary.endReason}"${attemptsOf(summary,)}${startsNoteOf(summary,)}${piRetryNoteOf(summary,)}${compactionNoteOf(summary,)}`;
+  return `${sentence}${sentence.endsWith('.') ? '' : '.'} The summary is in ${
     join(
       runFolder,
       'summary.json',
