@@ -561,14 +561,22 @@ review-rewrite-the-gate: 12 files to read, brief at <reviews>/rewrite-the-gate/b
 ```
 
 What the reviewer reads depends on what the ranges changed under the source folder,
-and on Git's status for every path, not only on added and modified paths.
-It reads `A` (added), `M` (modified, or its mode changed), `T` (its type changed), `C` (copied) and `R` (renamed);
+and on Git's status for every path,
+not only on added and modified paths.
+It reads `A` (added),
+`M` (modified or its mode changed),
+`T` (its type changed),
+`C` (copied) and `R` (renamed);
 a copy or a rename also names the path it came from.
-Copies are reported only when Git is configured to detect them, and otherwise a copy is an addition.
+Copies are reported only when Git is configured to detect them,
+and otherwise a copy is an addition.
 `D` (deleted) is read as the path it removed.
-`B` (broken pairing) appears only when Git is asked to break rewrites, which this writer never asks for;
-a rewritten rename is then a deletion and an addition, both of which it reads.
-`U` (unmerged) cannot appear in a diff between two commits, and `X` (unknown) is a Git bug;
+`B` (broken pairing) appears only when Git is asked to break rewrites,
+which this writer never asks for;
+a rewritten rename is then a deletion and an addition,
+both of which it reads.
+`U` (unmerged) cannot appear in a diff between two commits,
+and `X` (unknown) is a Git bug;
 either is refused with the status and the path named,
 rather than guessed at,
 because a guess would decide the review from part of the change.
@@ -577,13 +585,19 @@ Every path is read as the raw bytes Git gave:
 both the range's names and the commit's own listing are asked with `-z`,
 because Git quotes an unusual name with `core.quotePath` in a line,
 and two lists where only one is quoted never agree.
-Two changes are told apart by their parts, the status and the two names,
-never by text joined from them, since a path can hold the character a join would use.
+Two changes are told apart by their parts,
+the status and the two names,
+never by text joined from them,
+since a path can hold the character a join would use.
 
 A brief shows a name as itself in a code span,
 and as a JSON string when the name holds a character a line cannot carry:
-a line break, a tab, another control, or the backtick that ends the code span.
-The brief says so where it does that, and a reviewer reads the JSON string and opens the file it names.
+a line break,
+a tab,
+another control,
+or the backtick that ends the code span.
+The brief says so where it does that,
+and a reviewer reads the JSON string and opens the file it names.
 
 A range that holds code or a build decision is reviewed as the change itself.
 The files are the `.rs` and `.ts` code the ranges touched,
@@ -603,8 +617,8 @@ marked `(deleted)` or `(renamed to ...)` with the path it came from,
 and the brief asks what depended on it and what does its work now or why nothing does;
 when the commit holds no file at a touched path,
 the brief says the diff is what there is to read.
-So a range that deletes or renames code is a review of code even when every file the commit still holds at a touched path is a
-test,
+So a range that deletes or renames code is a review of code
+even when every file the commit still holds at a touched path is a test,
 because a review of the tests would leave the removal unread.
 
 A range whose change is tests and fixtures alone has no code to judge,
