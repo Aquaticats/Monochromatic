@@ -32,19 +32,6 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 /// One registration of the repository,
-/// as the sweep needs it.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Registration {
-    /// The administrative directory.
-    pub(crate) admin: PathBuf,
-    /// The worktree root the registration names.
-    pub(crate) worktree: PathBuf,
-    /// The branch its `HEAD` names,
-    /// as a full ref name.
-    pub(crate) branch: String,
-}
-
-/// One registration of the repository,
 /// with the branch its `HEAD` names when it names one.
 /// Why:
 ///   A registration is the only list entry a repository owns,
@@ -67,31 +54,6 @@ pub(crate) struct RegisteredWorktree {
     /// as a full ref name,
     /// or nothing for a detached `HEAD`.
     pub(crate) branch: Option<String>,
-}
-
-/// What:
-///  Every linked worktree the repository registers,
-///  with the branch each one has checked out.
-/// Why:
-///   The registrations are the only list of worktrees this repository owns,
-///  and each one's `HEAD` names its branch without a Git start:
-///  a file read decides which candidates exist,
-///  and Git runs only for a branch that landed.
-///  A worktree on a detached `HEAD` names no branch,
-///  so it is no candidate:
-///  nothing can land on a branch it does not have.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const registered = registrationsOf(commonDir); // throws the reason
-/// ```
-pub(crate) fn registrations_of(common_dir: &Path) -> Result<Vec<Registration>, String> {
-    let mut found: Vec<Registration> = Vec::new();
-    for one in registered_worktrees(common_dir)? {
-        let Some(branch) = one.branch else { continue };
-        found.push(Registration { admin: one.admin, worktree: one.worktree, branch });
-    }
-    return Ok(found);
 }
 
 /// What:
@@ -139,7 +101,7 @@ pub(crate) fn registration_naming(common_dir: &Path, worktree: &Path) -> Result<
 /// ```ts
 /// const registered = registeredWorktrees(commonDir); // throws the reason
 /// ```
-fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, String> {
+pub(crate) fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWorktree>, String> {
     let folder: PathBuf = common_dir.join("worktrees");
     let listing = match std::fs::read_dir(folder.as_path()) {
         Ok(listing) => listing,
@@ -214,7 +176,7 @@ impl RegisteredBefore {
     /// ```ts
     /// before.holds(registration) // boolean
     /// ```
-    pub(crate) fn holds(&self, one: &Registration) -> bool {
+    pub(crate) fn holds(&self, one: &RegisteredWorktree) -> bool {
         return self.admins.contains(&one.admin);
     }
 }

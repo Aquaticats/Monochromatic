@@ -126,11 +126,12 @@
 use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_branch_reflog::{MergeMove, branch_made_at, branch_moved_onto};
-use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registrations_of};
+use crate::worktree_landed_registrations::{RegisteredBefore, RegisteredWorktree, registered_worktrees};
 use crate::worktree_removal_clears_the_pool::clear_the_pool_of_a_removed_worktree;
 use crate::worktree_removal_held_commits::{KeptCommits, keep_held_commits};
 use crate::worktree_removal_rescue::snapshot_linked_worktrees;
 use crate::worktree_removal_second_look::{SecondLook, nested_worktree_reason, why_the_worktree_stays, worktrees_inside};
+use crate::worktree_removal_takes::what_the_removal_takes;
 use crate::worktree_remove_hand_over::hand_over_worktree_removal;
 use crate::worktree_remove::{LinuxOperations, RemoveOperations, RemoveOutcome, RemoveRequest, remove_with};
 use crate::worktree_remove_plan::RemovePlan;
@@ -190,6 +191,10 @@ pub struct RemovedWorktree {
     /// The branch it had checked out,
     /// which is kept.
     pub branch: String,
+    /// What the removal deleted besides the files Git tracks,
+    /// each in the words the line about it prints:
+    /// the ignored directories and the Git repositories inside them.
+    pub went: Vec<String>,
 }
 
 /// A worktree this sweep left,
@@ -244,6 +249,11 @@ pub struct HandedOverWorktree {
     /// The record the service reads,
     /// whose id is the name this wrapper keeps what became of the removal under.
     pub record: WorkItem,
+    /// What the removal the service performs will delete besides the files Git tracks,
+    /// in the words the line about it prints.
+    /// The service's own removal deletes them later,
+    /// so the merge is where a person can still read what is about to go.
+    pub went: Vec<String>,
 }
 
 /// A worktree whose branch landed and which nothing proves the wrapper made.
@@ -518,7 +528,10 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
     // path does (`snapshot_before_worktree_removal`): the sweep runs no such command, and without this its removals
     // destroyed those records with no word to anyone (a cross-vendor audit of `574063773d`, finding F3).
     sweep.rescue_problems = snapshot_linked_worktrees(place.common_dir);
-    let registered: Vec<Registration> = match registrations_of(place.common_dir) {
+    // Every registration is read here, detached `HEAD`s included: a worktree on no branch is a worktree like any other,
+    // and the one inside a candidate is what a removal of that candidate would take with it (`worktrees_inside`). Only a
+    // registration whose branch landed is a candidate, which the loop below reads from the same list.
+    let registered: Vec<RegisteredWorktree> = match registered_worktrees(place.common_dir) {
         Ok(found) => found,
         Err(reason) => {
             sweep.failed = Some(reason);
@@ -542,7 +555,8 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
         return answer;
     };
     for one in &registered {
-        if !candidates.contains(one.branch.as_str()) || place.current_root == Some(one.worktree.as_path()) {
+        let Some(branch) = one.branch.as_ref() else { continue };
+        if !candidates.contains(branch.as_str()) || place.current_root == Some(one.worktree.as_path()) {
             continue;
         }
         // A registration that was not there when the merge started belongs to work that began after it, so this merge is
@@ -551,12 +565,12 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
             continue;
         }
         match examine_and_remove(place, &told, one, registered.as_slice(), &LinuxOperations) {
-            Examined::Removed => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
-            Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), report }),
-            Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why: report }),
-            Examined::Handed(record) => sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), record }),
-            Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: one.branch.clone(), why }),
-            Examined::Unproven => sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: one.branch.clone() }),
+            Examined::Removed(went) => sweep.removed.push(RemovedWorktree { worktree: one.worktree.clone(), branch: branch.clone(), went }),
+            Examined::Unfinished(report) => sweep.unfinished.push(UnfinishedWorktree { worktree: one.worktree.clone(), branch: branch.clone(), report }),
+            Examined::Refused(report) => sweep.refused.push(KeptWorktree { worktree: one.worktree.clone(), branch: branch.clone(), why: report }),
+            Examined::Handed(record, went) => sweep.handed_over.push(HandedOverWorktree { worktree: one.worktree.clone(), branch: branch.clone(), record, went }),
+            Examined::Kept(why) => sweep.kept.push(KeptWorktree { worktree: one.worktree.clone(), branch: branch.clone(), why }),
+            Examined::Unproven => sweep.unproven.push(UnprovenWorktree { worktree: one.worktree.clone(), branch: branch.clone() }),
         }
     }
     return sweep;
@@ -575,8 +589,9 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 /// type Attempt = { kind: 'removed' } | { kind: 'unfinished'; report: string } | { kind: 'refused'; report: string } | { kind: 'handed'; record } | { kind: 'kept'; why: string };
 /// ```
 enum Attempt {
-    /// The worktree and its registration are gone.
-    Removed,
+    /// The worktree and its registration are gone,
+    /// and these are the words for what the removal deleted besides the files Git tracks.
+    Removed(Vec<String>),
     /// The files are gone and the registration stayed,
     /// with what finishes it.
     Unfinished(String),
@@ -587,8 +602,9 @@ enum Attempt {
     /// for this reason.
     Kept(String),
     /// The removal is recorded for the commit service,
-    /// which performs it on its own with Git's own judgment of what it would keep.
-    Handed(WorkItem),
+    /// which performs it on its own with Git's own judgment of what it would keep,
+    /// and these are the words for what that removal will delete besides the files Git tracks.
+    Handed(WorkItem, Vec<String>),
 }
 
 /// What:
@@ -615,9 +631,12 @@ fn remove_here_or_hand_over(
     place: &LandedPlace<'_>,
     told: &dyn Fn(&GitContext, &Path) -> Result<(), String>,
     operations: &dyn RemoveOperations,
-    one: &Registration,
+    one: &RegisteredWorktree,
 ) -> Attempt {
     let plan: RemovePlan = RemovePlan { target: one.worktree.clone(), operand: OsString::from(one.worktree.as_os_str()), force: false };
+    // Read before anything is deleted: the directories and the repositories the removal takes are gone once it ran, and
+    // the line about it is the only record a person has of them (the owner's decision, 2026-11-12T13:04:14).
+    let went: Vec<String> = what_the_removal_takes(place.context, one.worktree.as_path(), one.admin.as_path());
     // Asked again inside the removal, in the window it destroys in: its proof of cleanliness starts Git and walks the
     // tree, which is long enough for a command to add a worktree inside this one and for the service to record a refused
     // push (a cross-vendor review of the landed sweep, round 208).
@@ -626,7 +645,7 @@ fn remove_here_or_hand_over(
     match remove_with(operations, &request) {
         RemoveOutcome::Removed => {
             crate::diagnostic_log::debug(TAG, format!("destroyed the subvolume of {}", one.worktree.display()).as_str());
-            return Attempt::Removed;
+            return Attempt::Removed(went);
         }
         RemoveOutcome::Incomplete(report) => return Attempt::Unfinished(report),
         RemoveOutcome::Refused(report) => return Attempt::Refused(report),
@@ -636,7 +655,7 @@ fn remove_here_or_hand_over(
         Ok(record) => record,
         Err(reason) => return Attempt::Kept(reason),
     };
-    return Attempt::Handed(record);
+    return Attempt::Handed(record, went);
 }
 
 /// The sweep's own last look and what a removal deletes beside the files Git keeps,
@@ -647,8 +666,9 @@ use self::last_look::{NothingNewWouldGoWithIt, nothing_new_would_go_with_it};
 
 /// What one candidate came to.
 enum Examined {
-    /// The worktree and its registration are gone.
-    Removed,
+    /// The worktree and its registration are gone,
+    /// with the words for what went besides the files Git tracks.
+    Removed(Vec<String>),
     /// The removal refused,
     /// so nothing there changed and the report says what clears the way.
     Refused(String),
@@ -656,8 +676,9 @@ enum Examined {
     /// with what finishes it.
     Unfinished(String),
     /// The removal is recorded for the commit service,
-    /// which performs it on its own.
-    Handed(WorkItem),
+    /// which performs it on its own,
+    /// with the words for what it will delete besides the files Git tracks.
+    Handed(WorkItem, Vec<String>),
     /// It stays,
     /// for this reason.
     Kept(String),
@@ -697,14 +718,14 @@ enum Examined {
 fn examine_and_remove(
     place: &LandedPlace<'_>,
     told: &dyn Fn(&GitContext, &Path) -> Result<(), String>,
-    one: &Registration,
-    registered: &[Registration],
+    one: &RegisteredWorktree,
+    registered: &[RegisteredWorktree],
     operations: &dyn RemoveOperations,
 ) -> Examined {
     if !added_by_the_wrapper(one.admin.as_path(), one.worktree.as_path()) {
         return Examined::Unproven;
     }
-    let inside: Vec<&Registration> = worktrees_inside(one.worktree.as_path(), registered);
+    let inside: Vec<&RegisteredWorktree> = worktrees_inside(one.worktree.as_path(), registered);
     if !inside.is_empty() {
         return Examined::Kept(nested_worktree_reason(inside.as_slice()));
     }
@@ -724,16 +745,16 @@ fn examine_and_remove(
         return Examined::Kept(why);
     }
     let removal: Attempt = remove_here_or_hand_over(place, told, operations, one);
-    if matches!(removal, Attempt::Removed) {
+    if matches!(removal, Attempt::Removed(_)) {
         // A pool names the worktree it serves in every member's config and sits in the common Git directory, which no
         // removal deletes, so the removal that just proved the worktree is gone takes it (`worktree_removal_clears_the_pool.rs`).
         clear_the_pool_of_a_removed_worktree(place.common_dir, one.admin.as_path());
     }
     return match removal {
-        Attempt::Removed => Examined::Removed,
+        Attempt::Removed(went) => Examined::Removed(went),
         Attempt::Unfinished(report) => Examined::Unfinished(report),
         Attempt::Refused(report) => Examined::Refused(report),
-        Attempt::Handed(record) => Examined::Handed(record),
+        Attempt::Handed(record, went) => Examined::Handed(record, went),
         Attempt::Kept(why) => Examined::Kept(why),
     };
 }

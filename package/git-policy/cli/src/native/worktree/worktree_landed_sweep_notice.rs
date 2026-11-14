@@ -103,11 +103,17 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
     }
     for removed in &sweep.removed {
         lines.push(format!(
-            "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}; the branch stays, and the ignored files there went with it because the worktree this merge ran in holds every one of them, which is what frees the space its snapshot held. A directory Git ignores went with it unread, so anything you kept inside one went with the worktree too; reading every file below such a directory would cost the whole tree on every merge.",
+            "{PREFIX}removed the worktree {} by itself, because its branch {} is now on {}; the branch stays, and the ignored files there went with it because the worktree this merge ran in holds every one of them, which is what frees the space its snapshot held.",
             removed.worktree.display(),
             removed.branch,
             sweep.landed_branch
         ));
+        // What went besides the files Git tracks is named after the removal, because it is gone by the time a person reads
+        // this and nothing else records it (the owner's decision of 2026-11-12T13:04:14: it goes, and each thing that goes is
+        // logged).
+        if !removed.went.is_empty() {
+            lines.push(format!("{PREFIX}it deleted, besides the files Git tracks: {}.", removed.went.join("; ")));
+        }
     }
     for unfinished in &sweep.unfinished {
         lines.push(format!(
@@ -129,6 +135,10 @@ pub fn landed_sweep_lines(sweep: &LandedSweep) -> Vec<String> {
             record_place(handed),
             removal_command(handed.worktree.as_path())
         ));
+        // The service deletes them later, so the merge is the last moment a person can read that they are about to go.
+        if !handed.went.is_empty() {
+            lines.push(format!("{PREFIX}the removal it performs will delete, besides the files Git tracks: {}.", handed.went.join("; ")));
+        }
     }
     // A removal that refused already says what stands in the way and what clears it, so no line here adds the command that
     // would refuse the same way again.

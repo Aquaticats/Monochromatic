@@ -19,7 +19,7 @@ use crate::service_work::Verdict;
 use crate::test_support::{REAL_GIT, age, fixture, git, git_context, git_text, remove, repository, shown_notices};
 use crate::worktree_added_by_the_wrapper::record;
 use crate::worktree_clean::check_clean;
-use crate::worktree_landed_registrations::{RegisteredBefore, Registration, registered_before, registrations_of};
+use crate::worktree_landed_registrations::{RegisteredBefore, RegisteredWorktree, registered_before, registered_worktrees};
 use crate::worktree_removal_rescue::{SNAPSHOT_DIRECTORY, settle_removals, snapshot_linked_worktrees};
 use crate::worktree_removal_snapshot_promotion::files_of;
 use crate::worktree_remove::{Held as HeldDirectories, LinuxOperations, RemoveOperations, RemoveRequest};
@@ -1324,8 +1324,8 @@ fn a_nested_worktree_added_after_the_registrations_were_read_keeps_the_worktree_
     let registered_before: RegisteredBefore = registrations_now(&landed);
     // The list the sweep read before it began to examine candidates,
     // which names the worktree this merge landed and not the one a command adds below.
-    let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
-    let outer: Registration = registered
+    let registered: Vec<RegisteredWorktree> = registered_worktrees(landed.common.as_path()).expect("the registrations the sweep read");
+    let outer: RegisteredWorktree = registered
         .iter()
         .find(|one| return one.worktree == landed.worktree)
         .expect("the registration of the worktree this program made")
@@ -1433,8 +1433,8 @@ fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the
     let landed: Landed = a_repository_with_a_worktree_and_ignore_rules("landed-nested-during-the-proof", ".claude/\n");
     record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
     let registered_before: RegisteredBefore = registrations_now(&landed);
-    let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
-    let outer: Registration = registered
+    let registered: Vec<RegisteredWorktree> = registered_worktrees(landed.common.as_path()).expect("the registrations the sweep read");
+    let outer: RegisteredWorktree = registered
         .iter()
         .find(|one| return one.worktree == landed.worktree)
         .expect("the registration of the worktree this program made")
@@ -1458,10 +1458,10 @@ fn a_nested_worktree_added_while_the_removal_proves_the_worktree_clean_keeps_the
     let place: LandedPlace<'_> = place_of(&landed, &context, &registered_before, table.as_path(), landed.common.as_path());
     let examined: Examined = examine_and_remove(&place, &no_service_answers, &outer, registered.as_slice(), &stand);
     let came_to: String = match &examined {
-        Examined::Removed => String::from("removed"),
+        Examined::Removed(_) => String::from("removed"),
         Examined::Refused(why) => format!("refused: {why}"),
         Examined::Unfinished(why) => format!("unfinished: {why}"),
-        Examined::Handed(record) => format!("handed: {}", record.oid),
+        Examined::Handed(record, _went) => format!("handed: {}", record.oid),
         Examined::Kept(why) => format!("kept: {why}"),
         Examined::Unproven => String::from("unproven"),
     };
@@ -1500,8 +1500,8 @@ fn a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person() {
     let landed: Landed = a_repository_with_a_worktree("landed-push-notice-after-snapshot");
     record(landed.common.as_path(), landed.worktree.as_path()).expect("the record of a worktree this program made");
     let registered_before: RegisteredBefore = registrations_now(&landed);
-    let registered: Vec<Registration> = registrations_of(landed.common.as_path()).expect("the registrations the sweep read");
-    let outer: Registration = registered
+    let registered: Vec<RegisteredWorktree> = registered_worktrees(landed.common.as_path()).expect("the registrations the sweep read");
+    let outer: RegisteredWorktree = registered
         .iter()
         .find(|one| return one.worktree == landed.worktree)
         .expect("the registration of the worktree this program made")
@@ -1525,7 +1525,7 @@ fn a_push_failure_recorded_after_the_removal_snapshot_reaches_the_person() {
     // The removal is Git's own read of every tracked file of the worktree, so the sweep records it and returns, and the
     //  service's call is where the worktree goes. The snapshot of the records it holds is taken before that record is
     //  written, which is what carries the failure recorded here.
-    let Examined::Handed(record) = examined else { panic!("the account is clean, so its removal waits for the service: not a handed record") };
+    let Examined::Handed(record, _went) = examined else { panic!("the account is clean, so its removal waits for the service: not a handed record") };
     assert_eq!(crate::worktree_remove_hand_over::delete_subvolume_of(&record), Verdict::Done, "Git removes the worktree the record names");
     assert!(!admin.exists(), "the removal took the record's original with the Git directory");
     // What the next command does with the removal this one made.

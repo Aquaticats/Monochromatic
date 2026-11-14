@@ -55,6 +55,8 @@ use crate::fs_mount_options::read_mount_facts;
 use crate::subvolume_remove_walk::{empty_directory, find_boundary_below_except, verify_below};
 use crate::transaction_git::GitContext;
 use crate::worktree_clean::check_clean;
+use crate::worktree_removal_hidden_edits::hidden_edits_beneath;
+use crate::worktree_removal_keeps_git_work::git_work_a_removal_would_strand;
 use crate::worktree_removal_interrupted_destroy::{forget_destroy, record_destroy, record_destroyed};
 use crate::worktree_remove_plan::RemovePlan;
 use crate::worktree_removal_clears_the_ahead_pool::{clear_the_pools_ahead_of_a_worktree, data_folders};
@@ -73,6 +75,9 @@ const TAG: &str = "worktreeRemove";
 
 /// The mount option that lets a regular user destroy a subvolume with the ioctl.
 const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
+
+/// The prefix every report of this program carries.
+const PREFIX: &str = "monochromatic-git-policy-cli: ";
 
 /// What:
 ///  The line the command prints on standard error whenever a removed worktree was a btrfs subvolume.
@@ -417,6 +422,30 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         Err(reason) => {
             debug(TAG, format!("{reason}; Git decides").as_str());
             return RemoveOutcome::LeftToGit;
+        }
+    }
+    // The Git work a removal may not destroy is asked before anything else in this removal, and before a form this
+    // removal hands to Git: a commit only the worktree's own state names, and an edit a mark hides from Git, are states
+    // Git's own `worktree remove` deletes without a word, so a command that goes on to Git would destroy them
+    // (`worktree_removal_keeps_git_work.rs`, `worktree_removal_hidden_edits.rs`).
+    // A forced removal is Git's own `--force`, which deletes both, and the person asked for exactly that.
+    if !request.plan.force {
+        let mut reasons: Vec<String> = match git_work_a_removal_would_strand(request.context, request.common_dir, target, registration.admin.as_path()) {
+            Ok(stranded) => stranded,
+            Err(reason) => vec![format!("nothing proves no commit of this worktree is named by nothing, so nothing is removed: {reason}")],
+        };
+        match hidden_edits_beneath(request.context, target, registration.admin.as_path(), request.common_dir) {
+            Ok(mut edits) => reasons.append(&mut edits),
+            Err(reason) => reasons.push(format!("nothing proves no edit there is hidden from Git, so nothing is removed: {reason}")),
+        }
+        if !reasons.is_empty() {
+            let report: String = format!(
+                "{PREFIX}{} keeps Git work that a removal would destroy, or that nothing here proves it would not, so nothing was removed: {}. `git worktree remove --force` runs as Git runs it and deletes all of it.",
+                target.display(),
+                reasons.join(". ")
+            );
+            warn(TAG, report.as_str());
+            return RemoveOutcome::Refused(report);
         }
     }
     if !operations.is_subvolume_root(target) {

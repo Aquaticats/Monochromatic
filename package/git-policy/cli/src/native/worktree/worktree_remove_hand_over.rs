@@ -1022,7 +1022,7 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
 /// keepTheWorktree(item, target, registration, why): Verdict
 /// ```
 fn keep_the_worktree(item: &WorkItem, target: &Path, registration: &Path, why: &str, kept_commits: &[String]) -> Verdict {
-    let branch: String = branch_of_registration(registration).unwrap_or_else(|| return String::from("a head with no branch"));
+    let branch: String = branch_of_registration(registration).unwrap_or_else(|| return String::from(crate::worktree_kept_notices::NO_BRANCH));
     // A commit a reference lock held reached a reference of this repository before anything was read here, and a person
     //  who reads why their worktree stayed should read that too.
     let said: String = match kept_commits.is_empty() {

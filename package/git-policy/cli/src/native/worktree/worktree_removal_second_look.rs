@@ -33,7 +33,9 @@
 use crate::merge_isolation_run_types::IN_PROGRESS_MARKERS;
 use crate::transaction_git::GitContext;
 use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
-use crate::worktree_landed_registrations::{Registration, registrations_of};
+use crate::worktree_landed_registrations::{RegisteredWorktree, registered_worktrees};
+use crate::worktree_removal_hidden_edits::hidden_edits_beneath;
+use crate::worktree_removal_keeps_git_work::git_work_a_removal_would_strand;
 use crate::worktree_process_inside::process_working_inside;
 use crate::worktree_removal_rescue::snapshot_one;
 use std::path::Path;
@@ -116,11 +118,11 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     // A worktree a command added inside this one is in the registrations only once that command has finished, so the
     // list any earlier reading answered with proves nothing about it: a removal of the outer one takes the nested
     // worktree's changed files and its own record with it (a cross-vendor review of the landed sweep, round 208).
-    let registered: Vec<Registration> = match registrations_of(look.common_dir) {
+    let registered: Vec<RegisteredWorktree> = match registered_worktrees(look.common_dir) {
         Ok(found) => found,
         Err(reason) => return Some(format!("nothing proves no other worktree lies inside this one, so nothing is removed: {reason}")),
     };
-    let inside: Vec<&Registration> = worktrees_inside(worktree, registered.as_slice());
+    let inside: Vec<&RegisteredWorktree> = worktrees_inside(worktree, registered.as_slice());
     if !inside.is_empty() {
         return Some(nested_worktree_reason(inside.as_slice()));
     }
@@ -134,6 +136,19 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     }
     if let Some(mark) = bisect_mark_in(admin) {
         return Some(format!("a bisect is unfinished there, and its {mark} is still in the worktree"));
+    }
+    // A commit only this worktree's own state names dies with it, and an edit a mark hides from Git goes with the worktree
+    // Git removes: both are Git work, which no removal destroys. The commits of a worktree registered inside this one are
+    // asked too, because this removal takes that worktree's own Git directory as well.
+    match git_work_a_removal_would_strand(look.context, look.common_dir, worktree, admin) {
+        Ok(stranded) if stranded.is_empty() => {}
+        Ok(stranded) => return Some(stranded.join("; ")),
+        Err(reason) => return Some(format!("nothing proves no commit of this worktree is named by nothing, so nothing is removed: {reason}")),
+    }
+    match hidden_edits_beneath(look.context, worktree, admin, look.common_dir) {
+        Ok(edits) if edits.is_empty() => {}
+        Ok(edits) => return Some(edits.join("; ")),
+        Err(reason) => return Some(format!("nothing proves no edit there is hidden from Git, so nothing is removed: {reason}")),
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
     // inside at all: a process older than the directory cannot have changed into it.
@@ -191,8 +206,8 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
 /// ```ts
 /// worktreesInside(worktree, registered) // the registrations whose worktree starts with worktree
 /// ```
-pub(crate) fn worktrees_inside<'a>(worktree: &Path, registered: &'a [Registration]) -> Vec<&'a Registration> {
-    let mut inside: Vec<&Registration> = Vec::new();
+pub(crate) fn worktrees_inside<'a>(worktree: &Path, registered: &'a [RegisteredWorktree]) -> Vec<&'a RegisteredWorktree> {
+    let mut inside: Vec<&RegisteredWorktree> = Vec::new();
     for other in registered {
         if other.worktree != worktree && other.worktree.starts_with(worktree) {
             inside.push(other);
@@ -214,11 +229,16 @@ pub(crate) fn worktrees_inside<'a>(worktree: &Path, registered: &'a [Registratio
 /// ```ts
 /// namesOf(inside) // '`a` and 2 more'
 /// ```
-fn names_of(inside: &[&Registration]) -> String {
+fn names_of(inside: &[&RegisteredWorktree]) -> String {
     const SHOWN: usize = 2;
     let mut parts: Vec<String> = Vec::new();
     for other in inside.iter().take(SHOWN) {
-        parts.push(format!("`{}`", other.worktree.display()));
+        // A detached `HEAD` is a worktree state like any other, and a person who reads which worktree stands in the way
+        // has to know that nothing there says which branch its commits belong to.
+        parts.push(match other.branch.as_ref() {
+            Some(branch) => format!("`{}`, on {}", other.worktree.display(), branch),
+            None => format!("`{}`, whose HEAD is on no branch", other.worktree.display()),
+        });
     }
     let rest: usize = inside.len().saturating_sub(parts.len());
     if rest > 0 {
@@ -240,7 +260,7 @@ fn names_of(inside: &[&Registration]) -> String {
 /// ```ts
 /// nestedWorktreeReason(inside) // the sentence a kept parent prints
 /// ```
-pub(crate) fn nested_worktree_reason(inside: &[&Registration]) -> String {
+pub(crate) fn nested_worktree_reason(inside: &[&RegisteredWorktree]) -> String {
     return format!(
         "another worktree this repository registers is inside it ({}), and a removal of this one would take that worktree's files and its own record with it",
         names_of(inside)

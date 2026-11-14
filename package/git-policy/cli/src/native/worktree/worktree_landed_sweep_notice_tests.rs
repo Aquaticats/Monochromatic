@@ -22,7 +22,7 @@ use std::path::PathBuf;
 fn a_sweep_that_removed() -> LandedSweep {
     return LandedSweep {
         landed_branch: String::from("main"),
-        removed: vec![RemovedWorktree { worktree: PathBuf::from("/a worktree/with a space"), branch: String::from("refs/heads/feature") }],
+        removed: vec![RemovedWorktree { worktree: PathBuf::from("/a worktree/with a space"), branch: String::from("refs/heads/feature"), went: Vec::new() }],
         ..LandedSweep::default()
     };
 }
@@ -40,7 +40,7 @@ fn a_removed_worktree_is_named_with_its_branch_and_what_it_kept() {
 }
 
 /// What:
-///  The line about a removal says a directory Git ignores went with it unread.
+///  The line about a removal says the ignored files went with it.
 /// Why:
 ///   `worktree_landed_ignored_files.rs` never reads an ignored directory,
 ///  so whatever a person kept inside one is not in the worktree the merge ran in,
@@ -48,15 +48,39 @@ fn a_removed_worktree_is_named_with_its_branch_and_what_it_kept() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(landedSweepLines(aSweepThatRemoved())[0]).toContain('A directory Git ignores went with it unread');
+/// expect(landedSweepLines(aSweepThatRemoved())[0]).toContain('ignored files there went with it');
 /// ```
 #[test]
-fn a_removed_worktree_says_an_ignored_directory_went_unread() {
+fn a_removed_worktree_says_the_ignored_files_went_with_it() {
     let lines: Vec<String> = landed_sweep_lines(&a_sweep_that_removed());
     let line: &str = lines[0].as_str();
     assert!(line.contains("ignored files there went with it"), "{line}");
-    assert!(line.contains("A directory Git ignores went with it unread"), "{line}");
-    assert!(line.contains("anything you kept inside one"), "{line}");
+}
+
+/// What:
+///  Every ignored directory and every Git repository the removal deleted is named,
+///  after the line that says the worktree went.
+/// Why:
+///  The owner's decision lets both go,
+///  and each thing that goes is logged
+///  (`doc/handover/cli-git-rust-implementation.md`, 2026-11-12T13:04:14-05:00):
+///  a person who kept a repository inside an ignored directory has nothing else to look for it with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(landedSweepLines(aSweepThatRemovedWhatWent())[1]).toContain('the Git repository at `ignored/clone`');
+/// ```
+#[test]
+fn what_a_removal_deleted_besides_the_tracked_files_is_named() {
+    let mut sweep: LandedSweep = a_sweep_that_removed();
+    sweep.removed[0].went = vec![
+        String::from("the ignored directories `ignored`"),
+        String::from("the Git repository at `ignored/clone`, whose branches are `main` at 1234567890ab"),
+    ];
+    let lines: Vec<String> = landed_sweep_lines(&sweep);
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert!(lines[1].contains("it deleted, besides the files Git tracks: the ignored directories `ignored`; the Git repository at `ignored/clone`"), "{}", lines[1]);
+    assert!(lines[1].contains("`main` at 1234567890ab"), "{}", lines[1]);
 }
 
 /// What:
@@ -87,6 +111,7 @@ fn a_handed_over_removal_is_named_with_the_record_its_outcome_stands_in() {
                 created: String::from("2026-01-01T00:00:00+00:00"),
                 tries: 0,
             },
+            went: Vec::new(),
         }],
         ..LandedSweep::default()
     };
@@ -187,7 +212,7 @@ fn a_commit_a_removal_would_have_deleted_is_said_before_the_removal() {
     let sweep: LandedSweep = LandedSweep {
         landed_branch: String::from("main"),
         kept_commits: vec![String::from("the commit abcdef is held behind a lock and is kept at `refs/cli-git/kept/7`")],
-        removed: vec![RemovedWorktree { worktree: PathBuf::from("/a worktree/held"), branch: String::from("refs/heads/feature") }],
+        removed: vec![RemovedWorktree { worktree: PathBuf::from("/a worktree/held"), branch: String::from("refs/heads/feature"), went: Vec::new() }],
         ..LandedSweep::default()
     };
     let lines: Vec<String> = landed_sweep_lines(&sweep);
