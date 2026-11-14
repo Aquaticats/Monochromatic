@@ -788,6 +788,18 @@ Questions kept for the owner's return:
   by the owner's answer of 2026-11-07 ("Service removes it").
   Which of the two is changed to match the other?
   The answer on record points at the module text.
+- Where no address can reach a commit service
+  (a runtime directory too long for a socket path,
+  on a system without abstract socket names),
+  a commit stops with its reason.
+  May the wrapper make that commit through real Git instead?
+  `SPEC.md` says the service is the only writer,
+  and "Commits should never fail." pulls the other way.
+- OpenSnitch saves a reject rule for each program an agent builds that tries the network
+  (two for one run's `mpm-shadow` on 2026-11-13,
+  named in `/var/log/opensnitchd.log`).
+  Are those rules wanted as they are,
+  and is there a rule the owner would add so that a built tool's own network path can be tested here?
 
 ##### The deletion ended at 18:49:59
 
@@ -1156,6 +1168,113 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Two authors finished: a commit under a long runtime directory, and `mpm-shadow install` taking a tool; this machine's firewall refuses built programs (2026-11-13T22:35:29-05:00)
+
+Not final and not approved:
+read by the coordinating session from each run's last message,
+nothing here rerun by it except where a command is named.
+
+A commit is made when the runtime directory's path is too long for a socket
+(run `commit-is-made-when-the-runtime-directory-path-is-too-long-for-a-socket-1`,
+ended 22:29:24,
+tip `1032d1ec91`):
+
+- A runtime directory whose socket path fits keeps the socket file,
+  and the unit text is byte for byte what it was.
+  One whose path does not fit is listened at under a Linux abstract name
+  (`@monochromatic-git-policy-cli/<uid>/<digest of the directory's real path>/<instance>`),
+  and both ends read the kernel's `SO_PEERCRED`:
+  the service refuses another account's process before it says a word,
+  and a client refuses a connection such a process took.
+- Measured:
+  a path of 107 bytes binds and 108 is refused;
+  the unit form was accepted by a real systemd 262 in a container;
+  with the new form switched off,
+  the long-directory control fails as `main` does.
+  Cost:
+  paired ratio 1.07 of a commit of about 30 ms,
+  range 0.65 to 1.38.
+- It corrected two numbers in the package's documents
+  (the boundary is 39 bytes,
+  where they said 40).
+- **Its brief was wrong in one thing**,
+  which it says and did not follow:
+  no route exists by which the wrapper lands a commit without its service,
+  and `SPEC.md` says twice that the service is the only writer.
+  Where no address can reach a service,
+  a commit still stops,
+  named and explained.
+  Whether a commit may fall back to real Git there is a design question,
+  kept for the owner.
+- It removed another session's symbolic link `~/temp/agent/sa14` while cleaning up and put it back.
+  Checked at 22:34:
+  the link stands and names `~/temp/agent/sonnet-audits/alpha-14-commit-landing-service-push-and-changeover`.
+- Its review is queued at the head
+  (`review-of-commit-is-made-when-the-runtime-directory-path-is-too-long-for-a-socket`).
+- Ended `driver-failed` with issue 6295's message;
+  its driver was started at 16:57:10.
+
+Issue 6300,
+`mpm-shadow install` takes a tool and adds it to the plan
+(run `issue-6300-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan-1`,
+ended 22:32:13,
+tip `f4296268c3`,
+seven commits,
+the last carrying `Closes #6300`):
+
+- A request with a prefix adds an entry for three routes
+  (`cargo:`,
+  `npm:`,
+  `go:`);
+  every other origin is refused with the plan file and the README section named,
+  because its entry needs more than a request says.
+  Binaries come from the owning source.
+  The plan is written by a text splice that keeps comments,
+  order and indentation byte for byte,
+  under the scope's lock,
+  the plan first and the lock second;
+  a kill leaves the state a plain `install` finishes.
+- 776 tests pass;
+  seventeen kept runs show each control failing before its fix;
+  `install --global cargo:fastmod` ran end to end in a disposable home.
+- **Not run end to end**:
+  the lookup of a request at crates.io,
+  npm or go.dev by the built program itself,
+  for the reason in the next item.
+- It needs a release of mpm-shadow and `toolchain:update mpm-shadow` before the command works on this machine.
+- Its review is queued at the head
+  (`review-of-mpm-shadow-install-takes-a-tool-and-adds-it-to-the-plan`,
+  source `package/mpm-shadow/cli/src`).
+- Read and not run by it:
+  an update of some tools hands the subset to the step that retires every recorded link the given tools do not declare.
+  `git` in a checkout is such a link.
+  A fresh run is queued
+  (`mpm-shadow-update-of-some-tools-retires-no-link-of-a-tool-outside-them`),
+  which tests the claim first.
+
+**This machine's application firewall refuses a program built in a worktree.**
+
+- The issue 6300 author saw every `connect` of its built `mpm-shadow` end with `ECONNABORTED`,
+  while `curl`,
+  `python3`,
+  `node`,
+  `cargo` and `cargo-binstall` reached the same hosts from the same environment.
+- Read by the coordinating session:
+  `opensnitch.service` is running,
+  and `/var/log/opensnitchd.log` holds
+  "Saved new rule: reject if process.path is '…/pi-issue-6300-…/package/mpm-shadow/cli/target/debug/mpm-shadow'" at 01:55:16 of its own clock,
+  and the same for `target/release` at 02:17:17.
+- So it is the firewall,
+  it is not a defect of mpm-shadow,
+  and the rules it saved stay.
+  Now in `rules-every-pi-brief-carries.md`:
+  a built program takes what it needs from disk or from a server the test starts,
+  and the firewall is not a run's to change.
+- For the owner:
+  the firewall now holds reject rules for paths inside agent worktrees,
+  one for each built program that tried the network,
+  and they outlive the worktree.
 
 ##### Two reviews with defects, two authors finished, and a correction: a merge that met a held lock never failed (2026-11-13T22:32:01-05:00)
 
