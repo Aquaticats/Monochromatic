@@ -2,10 +2,11 @@
  When a start that ended before its Pi took the prompt is started again, how long the driver waits first, and when it stops.
 
  Pi writes why it will not start to its standard error and nowhere else, and it exits there before the prompt is read, so such a
- run did no work at all. Of the 1,936 finished runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-14, 18 ended that way: 14 on
- an extension that could not be loaded, each start failing in 2,096 to 20,491 ms, and four on Pi's own retry of a model-store lock
- another process held, each start spending 127,176 to 247,556 ms. Those are conditions that pass as often as they stand, so the
- driver rides them out with a bounded number of starts, and when they do not pass it ends the run saying what Pi printed.
+ run did no work at all. Of the 1,936 finished runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-14, 18 ended that way: 13 on
+ an extension that could not load a module, each start failing in 2,096 to 20,491 ms, one on a logger with no space left on the
+ device (6,097 ms), and four on Pi's own retry of a model-store lock another process held, each start spending 127,176 to
+ 247,556 ms. Those are conditions that pass as often as they stand, so the driver rides them out with a bounded number of starts,
+ and when they do not pass it ends the run saying what Pi printed.
 
  A Pi that took its prompt is never started again, whatever it does afterwards: the prompt is where work may begin, and a second
  Pi would begin it a second time.

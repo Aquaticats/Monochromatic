@@ -61,10 +61,10 @@ export const START_UP_ANSWER_MILLISECONDS = 120_000;
  How many times the driver starts Pi in one run before it ends the run on a prompt Pi never took.
 
  Of the 1,936 finished runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-14, 18 ended with Pi exiting before the prompt took the
- run: 14 of them on an extension that could not be loaded, each start ending in 2,096 to 20,491 ms, and four on Pi's own retry of a
- model-store lock another process held, each start spending 127,176 to 247,556 ms. Most of those attempts were a condition that was
- passing while it was watched, so two more starts ride it out; a fourth would add the cost of a whole Pi without covering anything
- the three did not.
+ run: 13 on an extension that could not load a module, each start ending in 2,096 to 20,491 ms, one on a logger with no space left
+ on the device (6,097 ms), and four on Pi's own retry of a model-store lock another process held, each start spending 127,176 to
+ 247,556 ms. Most of those attempts were a condition that was passing while it was watched, so two more starts ride it out; a
+ fourth would add the cost of a whole Pi without covering anything the three did not.
  */
 export const START_ATTEMPTS: number = 3;
 

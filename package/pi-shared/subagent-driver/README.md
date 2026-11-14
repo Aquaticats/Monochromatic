@@ -1211,8 +1211,9 @@ Pi writes why it will not start to its standard error and nowhere else,
 and it exits there before the prompt is read,
 so such a run did no work at all.
 Of the 1,936 finished runs in `${HOME}/temp/agent/pi-runs` read on 2026-11-14, 18 ended that way:
-14 on an extension that could not load a module,
+13 on an extension that could not load a module,
 each start failing in 2,096 to 20,491 ms,
+one on a logger with no space left on the device (6,097 ms),
 and four on Pi's own retry of a model-store lock another process held,
 each start spending 127,176 to 247,556 ms.
 
