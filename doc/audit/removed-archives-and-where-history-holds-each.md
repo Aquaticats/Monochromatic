@@ -438,7 +438,9 @@ which this record resolves.
 ### `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence/`
 
 Every member the five documents cite by folder or by name,
-byte for byte except six markdown members the repository linter re-wrapped.
+byte for byte except the six that the repository own guards changed:
+five markdown members re-wrapped and given fence labels,
+and one text file whose final newline was made canonical.
 
 Cut from `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip` at commit `a6783a44ae7bdd43f9cd6995fcb6416eea1250d1`.
 The archive is 631659 bytes,
@@ -446,7 +448,7 @@ SHA-256 `0f2a70bd4504b1c8f58cb5234feb5354e5fa490fa7933019106195517d892352`.
 
 Kept members,
 at their archive-relative paths under that folder.
-A member the linter re-wrapped carries the digest it had in the archive first
+A member the repository changed carries the digest it had in the archive first
 and the digest it has in the tree second.
 
 - `agent-scaling-report.md`:
@@ -649,11 +651,13 @@ and the digest it has in the tree second.
 - `results/report-tables.md`:
   31570 bytes,
   SHA-256 `5da58e4a90dfee289578a1c32c9ecc5b8d5b6287f8d663143619bb43779ba8e6`;
-  in the tree 33486 bytes,
-  SHA-256 `282823b0bbd7c3449f1835e8f20acb345647c5c18a719a02692bf8910adcd25a`.
+  in the tree 33485 bytes,
+  SHA-256 `47547d6e9b1f8b4db50ec3d54c9a76626523ec1747e3f83731fe039644f68150`.
 - `results/report-tables.txt`:
   31570 bytes,
-  SHA-256 `5da58e4a90dfee289578a1c32c9ecc5b8d5b6287f8d663143619bb43779ba8e6`.
+  SHA-256 `5da58e4a90dfee289578a1c32c9ecc5b8d5b6287f8d663143619bb43779ba8e6`;
+  in the tree 31569 bytes,
+  SHA-256 `d05e32a7ebf65434eea68b8bbd1f4ab36002c2fde026c093922de2bf0d438686`.
 - `results/run-meta.json`:
   1051 bytes,
   SHA-256 `0df5914aca8e78aaf283882dde6d649e40b59e7820cffb464b2b47ede42e435f`.

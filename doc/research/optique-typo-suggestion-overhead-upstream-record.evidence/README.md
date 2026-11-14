@@ -19,12 +19,13 @@ here that was not a member of the archive.
   as they stood in the archive at that commit,
   at their archive-relative paths.
 - Every kept file is byte for byte the member it is named after,
-  except six markdown members,
-  which the repository's own `monochromatic-lint --fix-content` re-wrapped at semantic line
-  breaks and gave a language label to their bare fences.
-  No word changed,
-  and `doc/audit/removed-archives-and-where-history-holds-each.md` records both digests of
-  each.
+  except six that this repository's own guards changed.
+  Five markdown members were re-wrapped at semantic line breaks and their bare fences given a
+  language label by `monochromatic-lint --fix-content`;
+  no word changed.
+  `results/report-tables.txt` lost its extra final newline to the repository's
+  `final-newline` policy.
+  `doc/audit/removed-archives-and-where-history-holds-each.md` records both digests of each.
   A patch stays applicable and a JSONL stays parseable,
   so nothing else was touched.
 - Which document cites which file,
