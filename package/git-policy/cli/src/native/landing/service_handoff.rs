@@ -464,21 +464,62 @@ fn pid_text(holder: &str) -> String {
 ///  The one sentence the worktree says about a push that is queued and has not been made.
 /// Why:
 ///   What is known is that the record is queued and that no service has taken it,
-/// and that the service makes it
-///  without another commit;
-/// the sentence claims exactly that and nothing about why.
+/// and what a running service does with it:
+/// it
+///  looks at the repositories its journal names by itself every `LOOK_AGAIN_AFTER`,
+/// so the record needs no commit and no wake
+///  to be run;
+/// the sentence names that bound,
+/// so a person can tell a push that is about to go from one nothing is looking at.
+/// A
+///  record that has waited longer than the bound is said with how long it has waited,
+/// because that is the case in which no service
+///  looked at the repository at all,
+/// and the person needs the number that says so.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// queuedPushLine(branchRef, commit)
+/// queuedPushLine(branchRef, commit, waited)
 /// ```
-pub fn queued_push_line(reference: &str, commit: &str) -> String {
-    if reference.is_empty() {
-        return format!("the commit {commit} is queued for its push: the push has not been made yet, and the commit service makes it the next time it looks at this repository, which needs no further commit");
+pub fn queued_push_line(reference: &str, commit: &str, waited: std::time::Duration) -> String {
+    let bound: String = crate::kept_reference_words::span_words(crate::service_claim_watch::LOOK_AGAIN_AFTER);
+    let from: String = match reference.is_empty() {
+        true => String::new(),
+        false => format!(" from {reference}"),
+    };
+    if waited > crate::service_claim_watch::LOOK_AGAIN_AFTER {
+        return format!(
+            "the commit {commit} is queued for its push{from}: the push has not been made yet, and this record has waited {}, longer than the {bound} in \
+             which a running commit service looks at this repository's records by itself, so no service has looked at this repository since the \
+             record was written; the push needs no further commit",
+            waited_words(waited)
+        );
     }
     return format!(
-        "the commit {commit} is queued for its push from {reference}: the push has not been made yet, and the commit service makes it the next time it looks at this repository, which needs no further commit"
+        "the commit {commit} is queued for its push{from}: the push has not been made yet, and a running commit service looks at this repository's \
+         records by itself every {bound}, so the push needs no further commit"
     );
+}
+
+/// What:
+///  A wait in the words a person reads.
+/// Why:
+///   `age_words` is written for days and hours of a kept reference and prints `0 minutes` for a wait of seconds,
+/// which says
+///  nothing here;
+/// a wait this line names is one from fifteen seconds to hours,
+/// so seconds are said as seconds and anything longer
+///  reads as `age_words` prints it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const waitedWords = (waited) => waited < 2 * 60_000 ? `${Math.floor(waited / 1000)} seconds` : ageWords(waited);
+/// ```
+fn waited_words(waited: std::time::Duration) -> String {
+    if waited.as_secs() < 120 {
+        return format!("{} {}", waited.as_secs(), crate::kept_reference_words::counted(u128::from(waited.as_secs()), "second"));
+    }
+    return crate::kept_reference_words::age_words(waited.as_millis());
 }
 
 /// What:
@@ -550,7 +591,8 @@ pub fn held_push_notices(git_dir: &Path, record: &dyn RemoteRecord, wake: &dyn W
                 Verdict::Passed => {
                     if crate::work_item::promote(work_dir.as_path(), name.as_str()) {
                         released = true;
-                        lines.push(queued_push_line(branch.as_str(), commit));
+                        // The record became runnable in this command, so it has not waited at all.
+                        lines.push(queued_push_line(branch.as_str(), commit, std::time::Duration::ZERO));
                         continue;
                     }
                 }
@@ -679,7 +721,7 @@ pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime) -> Vec<St
         }
         waiting.push((name, queued));
     }
-    let Some((oldest, _)) = waiting.first() else { return Vec::new() };
+    let Some((oldest, queued)) = waiting.first() else { return Vec::new() };
     // The record names its own commit and branch; one that cannot be read still names its commit through its file name, and its
     //  branch is unknown.
     let path: PathBuf = state_directory(work_dir.as_path(), crate::work_item::PENDING).join(oldest.as_str());
@@ -691,7 +733,8 @@ pub fn queued_push_notices(git_dir: &Path, now: std::time::SystemTime) -> Vec<St
             None => return Vec::new(),
         },
     };
-    let mut lines: Vec<String> = vec![queued_push_line(reference.as_str(), commit.as_str())];
+    let waited: std::time::Duration = now.duration_since(*queued).unwrap_or(std::time::Duration::ZERO);
+    let mut lines: Vec<String> = vec![queued_push_line(reference.as_str(), commit.as_str(), waited)];
     let more: usize = waiting.len() - 1;
     if more > 0 {
         let (subject, possessive): (&str, &str) = if more == 1 { ("commit is", "its") } else { ("commits are", "their") };

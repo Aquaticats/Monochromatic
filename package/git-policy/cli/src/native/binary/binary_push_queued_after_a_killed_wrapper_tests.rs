@@ -22,6 +22,7 @@
 
 use super::commit::remove_settled;
 use super::support::{Fixture, Observed, fixture, git, repository, run_wrapped, start_fixture_service, FixtureService};
+use git_policy_cli::service_claim_watch::LOOK_AGAIN_AFTER;
 use git_policy_cli::service_fault::AFTER_PROMOTE;
 use git_policy_cli::service_handoff::PUSH_QUEUED_AFTER;
 use git_policy_cli::service_work::work_directory;
@@ -143,6 +144,10 @@ fn run_without_settling(setup: &Setup, arguments: &[&str]) -> Observed {
 /// The line comes from the record itself,
 /// so it is said while the
 ///  record waits and no longer.
+/// The service is ended before the record is aged,
+/// because a running service now finds the record by itself within
+///  `LOOK_AGAIN_AFTER` and pushes it,
+/// and this control is about the words of a record that still waits.
 #[test]
 fn the_command_after_the_kill_says_the_push_is_queued() {
     let setup: Setup = setup("push-queued-after-promote");
@@ -152,6 +157,9 @@ fn the_command_after_the_kill_says_the_push_is_queued() {
     // A record that has just been queued is a push in flight, not a push that waits: the line is said once the bound is past.
     let early: Observed = run_without_settling(&setup, &["status", "--short"]);
     assert!(!stderr_of(&early).contains(commit.as_str()), "a record younger than the bound is not named: {}", stderr_of(&early));
+    // The service that would take the record ends here, so the record keeps waiting while it is aged, as one a service that
+    //  went away left. A record older than the naming bound is then the state the line speaks of.
+    setup.service.stop_all();
     let pending: PathBuf = state_directory(work_directory(git_dir(&setup).as_path()).as_path(), PENDING).join(pending_push_records(&setup)[0].as_str());
     // The wait is made by the clock rather than by sleeping the bound: the record is aged, and everything else is real.
     let aged: std::time::SystemTime = std::time::SystemTime::now() - PUSH_QUEUED_AFTER - Duration::from_secs(1);
@@ -164,6 +172,39 @@ fn the_command_after_the_kill_says_the_push_is_queued() {
     assert!(text.contains("has not been made yet"), "and that it has not been made: {text}");
     assert!(text.contains("needs no further commit"), "and that the service needs no further commit: {text}");
     assert!(!remote_has(&setup, commit.as_str()), "still nothing pushed it");
+    remove_settled(&setup.fixture);
+}
+
+/// What:
+///  The line a waiting push is named with says what a running service does with it and how long it has waited,
+/// once the wait is longer than the look's bound.
+/// Why:
+///   The words are the only place a person learns whether anything is looking at the record;
+/// a line that named a bound the
+///  service does not keep,
+/// or hid a wait that outlasted it,
+/// would read as work in hand that nothing does.
+/// The bound is read
+///  from the constant the service's look uses,
+/// and the wait from the record's own age,
+/// so neither can drift from what they name.
+#[test]
+fn the_queued_line_names_the_bound_and_how_long_the_record_has_waited() {
+    let setup: Setup = setup("push-queued-line-words");
+    let commit: String = commit_and_die_after_promote(&setup, "one\n");
+    setup.service.stop_all();
+    let pending: PathBuf = state_directory(work_directory(git_dir(&setup).as_path()).as_path(), PENDING).join(pending_push_records(&setup)[0].as_str());
+    // Waiting longer than the bound the service looks in, and longer than the bound a record must pass to be named at all.
+    let waited: Duration = PUSH_QUEUED_AFTER + Duration::from_secs(2 * 60);
+    let aged: std::time::SystemTime = std::time::SystemTime::now() - waited;
+    std::fs::File::options().write(true).open(pending.as_path()).expect("the record opens").set_modified(aged).expect("the record is aged");
+    let said: Observed = run_without_settling(&setup, &["status", "--short"]);
+    let text: String = stderr_of(&said);
+    assert!(text.contains(commit.as_str()), "the line names the commit: {text}");
+    assert!(text.contains(git_policy_cli::kept_reference_words::span_words(LOOK_AGAIN_AFTER).as_str()), "the line names the bound the service looks in: {text}");
+    assert!(text.contains("has waited"), "the line says how long the record has waited: {text}");
+    assert!(text.contains(git_policy_cli::kept_reference_words::age_words(waited.as_millis()).as_str()), "and gives the wait as it is: {text}");
+    assert!(!remote_has(&setup, commit.as_str()), "nothing pushed it while no service ran");
     remove_settled(&setup.fixture);
 }
 

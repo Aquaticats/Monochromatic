@@ -64,7 +64,8 @@ use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::push_failure_notice::fnv_hex;
 use crate::service_instance::instance_of;
-use crate::work_item::WORK_DIRECTORY;
+use crate::service_work::work_directory;
+use crate::work_item::{PENDING, WORK_DIRECTORY, state_directory};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -76,6 +77,37 @@ pub const WATCH_DIRECTORY: &str = "claim-watch";
 
 /// The extension of a watch file.
 const WATCH_EXTENSION: &str = "watch";
+
+/// How long a serving service waits between two looks at these notes.
+/// Why:
+///   A record that exists and is due is found whether or not anything woke the service:
+/// a wrapper killed between writing a record and
+///  the wake that would run it,
+/// a wake lost on a socket that was full or a service that was starting,
+/// and a wake that a
+///  command never sent all leave a record nothing told the running service about.
+/// The look is what finds it,
+/// and
+///  this is the longest it can wait.
+/// Five seconds rather than a minute because the record is a person's backup of a commit they
+///  just made,
+/// and rather than a second because an idle service should not be made to work.
+/// Measured on this host on
+///  2026-11-13 (`measure-a-look.ts` in
+/// `${HOME}/temp/agent/pending-push-wake-scratch/measurements`):
+/// a look `ClaimWatch::look_again` makes is
+///  one listing of the notes,
+/// one small read for each note (one per repository this instance serves),
+/// a `stat` of the work
+///  directory and one listing of its `pending` directory,
+/// 13 to 22 microseconds for a repository with one note
+///  and no record waiting (five rounds of 200 looks each).
+/// At this interval that is 0.0004 % of one processor per running service,
+/// and
+///  the wait for a record whose wake was lost is five seconds at worst.
+/// The bound the words of a queued push name
+///  is this one (`queued_push_line` in `service_handoff.rs`).
+pub const LOOK_AGAIN_AFTER: Duration = Duration::from_secs(5);
 
 /// The first words of a watch file,
 /// which also say its format.
@@ -390,6 +422,58 @@ impl ClaimWatch {
         self.failures = self.failures.saturating_add(1);
     }
 
+    /// What:
+    ///  Look at the notes again and name every repository a record waits in,
+    /// whether or not anything woke the service for
+    ///  it.
+    /// Why:
+    ///   The notes are the only place a repository is named durably,
+    /// so a service that runs while a record is written and never
+    ///  announced finds it here:
+    /// the landing writes its repository down before it answers
+    /// (`note_for_the_next_service`),
+    /// and
+    ///  the work loop writes down every repository it is woken for (`remember`).
+    /// The record itself is what is looked for,
+    /// which is
+    ///  why `pending` alone is listed and no finished record is ever read:
+    /// what is done,
+    /// failed or held is not work this
+    ///  look can start,
+    /// and a repository whose records were all settled costs one listing of an empty directory.
+    /// A record the queue cannot claim is
+    ///  left where it is and is looked at again at the next look,
+    /// so a record that waits for another's answer does not wait
+    ///  without a bound for a wake.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const waiting = lookAgain(watch) // scan(); known.filter((dir) => readdir(join(workDir(dir), 'pending')).length > 0)
+    /// ```
+    pub fn look_again(&mut self) -> Vec<PathBuf> {
+        return self.look_again_reading(&read_file);
+    }
+
+    /// `look_again` with the reading of the notes given,
+    /// so that a control can make one fail.
+    pub fn look_again_reading(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
+        // The notes are read again whatever the last reading said, because a landing writes one for a repository before it
+        //  answers a commit, and a service that started before that landing would not know the repository otherwise.
+        let _found: Vec<PathBuf> = self.scan(read);
+        if self.needs_retry() {
+            self.failures = self.failures.saturating_add(1);
+        } else {
+            self.failures = 0;
+        }
+        let mut waiting: Vec<PathBuf> = Vec::new();
+        for git_dir in self.known.clone() {
+            if a_record_waits(git_dir.as_path()) {
+                waiting.push(git_dir);
+            }
+        }
+        return waiting;
+    }
+
     /// Tries again what failed:
     /// the files that could not be written,
     /// and the reading of the store.
@@ -498,6 +582,26 @@ impl ClaimWatch {
         }
         return found;
     }
+}
+
+/// Whether a record of `git_dir` waits to be claimed.
+/// Why:
+///  `look_again` asks this of every repository the notes name, and the answer is the whole of what a look finds:
+/// a listing
+///  of one directory and nothing read,
+/// so a repository whose records are all settled costs one call.
+/// A directory that cannot be
+///  listed holds no record this look can start.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aRecordWaits = (gitDir) => { try { return readdir(join(workDir(gitDir), 'pending')).length > 0 } catch { return false } };
+/// ```
+fn a_record_waits(git_dir: &Path) -> bool {
+    let Ok(mut listing) = std::fs::read_dir(state_directory(work_directory(git_dir).as_path(), PENDING)) else {
+        return false;
+    };
+    return listing.next().is_some();
 }
 
 /// Whether `git_dir` belongs to an instance other than `instance`.
