@@ -31,7 +31,7 @@ await describe({
             record: { success: true, },
           },
           piWorks: true,
-        },),).toEqual({ ending: 'taken', },);
+        },),).toBe('taken',);
       },
     },),
     it({
@@ -46,7 +46,7 @@ await describe({
             },
           },
           piWorks: false,
-        },),).toEqual({ ending: 'at-work', },);
+        },),).toBe('at-work',);
         expect(messageToPiCameTo({
           answer: {
             ending: 'answered',
@@ -56,7 +56,7 @@ await describe({
             },
           },
           piWorks: false,
-        },),).toEqual({ ending: 'at-work', },);
+        },),).toBe('at-work',);
       },
     },),
     it({
@@ -71,7 +71,7 @@ await describe({
             },
           },
           piWorks: false,
-        },),).toEqual({ ending: 'refused', },);
+        },),).toBe('refused',);
         // A refusal with no words at all, while Pi is seen working, is still no answer about the message.
         expect(messageToPiCameTo({
           answer: {
@@ -79,11 +79,11 @@ await describe({
             record: { success: false, },
           },
           piWorks: true,
-        },),).toEqual({ ending: 'at-work', },);
+        },),).toBe('at-work',);
       },
     },),
     it({
-      name: 'keeps a wait that saw no answer as unanswered, with the bound that ended it',
+      name: 'keeps a wait that saw no answer as unanswered',
       fn: async () => {
         expect(messageToPiCameTo({
           answer: {
@@ -91,10 +91,7 @@ await describe({
             problem: 'no answer in 30000 ms',
           },
           piWorks: false,
-        },),).toEqual({
-          ending: 'unanswered',
-          problem: 'no answer in 30000 ms',
-        },);
+        },),).toBe('unanswered',);
       },
     },),
   ],

@@ -685,7 +685,7 @@ function connectionWhoseFirstMessageMeetsATurn({
   /**
    Whether a message has gone yet: the first one meets the turn, every later one is taken.
    */
-  let sentAny = false;
+  const sentSoFar = { gone: false, };
   return {
     hasExited: () => false,
     exitDetails: () => ({}),
@@ -695,8 +695,8 @@ function connectionWhoseFirstMessageMeetsATurn({
     send: async function send({ command, }: CommandRequest,) {
       const { message, } = command;
       sent.push((typeof message) === 'string' ? message : '',);
-      if (!sentAny) {
-        sentAny = true;
+      if (!sentSoFar.gone) {
+        sentSoFar.gone = true;
         // Pi begins a turn as the message arrives, so the message meets a Pi at work and is refused. The turn ends on a timer, so
         // the refusal is read while Pi works and the run rests on a later look.
         record.observe({

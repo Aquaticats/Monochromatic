@@ -24,7 +24,7 @@ import {
   deliverHeldMessage,
   deliverReadyMessage,
   type HeldMessage,
-  keepMessagesNotTaken,
+  holdMessagesTheRunOwes,
   readyMessages,
 } from './messages-from-the-inbox.ts';
 import type { WatchRequest, } from './watch-request.ts';
@@ -85,23 +85,13 @@ async function progressAgainstLimits(
 export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> {
   /**
    The inbox messages claimed and not yet taken: Pi refused one because it had begun a turn, so the same message goes again once
-   Pi rests, within the run's deadline.
+   Pi rests, within the run's deadline. Disposing it keeps and names every message still owed when the run ends, or throws.
    */
-  const held: HeldMessage[] = [];
-  try {
-    return await watchWhileItGoesOn({
-      watch,
-      held,
-    },);
-  }
-  finally {
-    // A message the run ended before Pi took it is kept under its own name and named in the summary, so whoever sent it learns it
-    // was not read.
-    await keepMessagesNotTaken({
-      watch,
-      held,
-    },);
-  }
+  await using owed = holdMessagesTheRunOwes(watch,);
+  return await watchWhileItGoesOn({
+    watch,
+    held: owed.claimed,
+  },);
 }
 
 /**
@@ -166,10 +156,16 @@ async function watchWhileItGoesOn({
     // A message the run still owes is delivered before the inbox, and out of turn only when Pi rests: a message it refused while
     // Pi worked is no answer about the message, so it waits for the rest it needs rather than being dropped or reordered.
     if (retry.owed === undefined) {
+      /**
+       The message the run still owes Pi, when it owes one.
+       */
       const [heldMessage,] = held;
       if (heldMessage !== undefined) {
         if (!watch.record
           .isRunning()) {
+          /**
+           What became of the message this look sent again.
+           */
           const delivered = await deliverHeldMessage({
             watch,
             held: heldMessage,

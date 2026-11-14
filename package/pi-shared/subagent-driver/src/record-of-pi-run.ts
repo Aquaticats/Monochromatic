@@ -78,6 +78,22 @@ function emptyAnswerOf({
 }
 
 /**
+ The names of the messages Pi never took, as the summary carries them.
+
+ @param names - the messages Pi never took, in the order they were first noted
+
+ @returns the summary's field, or nothing when Pi took every message
+
+ @example
+ ```ts
+ const field = messagesNotTakenOf(['m',],);
+ ```
+ */
+function messagesNotTakenOf(names: readonly string[],): { readonly inboxNotTaken?: readonly string[] } {
+  return (names.length === 0) ? {} : { inboxNotTaken: names, };
+}
+
+/**
  The turn whose text the summary carries, when that is not the last assistant message.
 
  @param run - what the run's events said
@@ -364,11 +380,15 @@ export function startRecordOfPiRun({
       },);
     },
     noteMessageNotTaken: function noteMessageNotTaken(name,) {
+      /**
+       The messages Pi never took, as they stood before this one was noted.
+       */
+      const names = state.notTaken;
       // A message tried again and refused again is one message, so the summary names it once.
-      if (state.notTaken.includes(name,)) {
+      if (names.includes(name,)) {
         return;
       }
-      state.notTaken.push(name,);
+      names.push(name,);
       note({
         kind: 'inbox-not-taken',
         file: name,
@@ -416,7 +436,7 @@ export function startRecordOfPiRun({
         ...feedProblemOf(feed,),
         ...(state.driverError === undefined ? {} : { driverError: state.driverError, }),
         ...(state.workProblem === undefined ? {} : { workProblem: state.workProblem, }),
-        ...((state.notTaken.length === 0) ? {} : { inboxNotTaken: state.notTaken, }),
+        ...messagesNotTakenOf(state.notTaken,),
         ...compactionProblemOf(observed,),
       };
     },

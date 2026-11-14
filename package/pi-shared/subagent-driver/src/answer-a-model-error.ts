@@ -123,7 +123,7 @@ async function answerWithAnotherAttempt(
     answer,
     piWorks,
   },);
-  if (cameTo.ending === 'at-work') {
+  if (cameTo === 'at-work') {
     noteRetryAnswer({
       answer,
       record: watch.record,
@@ -167,7 +167,7 @@ async function answerWithAnotherAttempt(
   /**
    Whether Pi refused the prompt itself, or the driver's own silence bound ended the wait.
    */
-  if ((answer.ending === 'silence') || (cameTo.ending === 'refused')) {
+  if ((answer.ending === 'silence') || (cameTo === 'refused')) {
     // Pi refused nothing when the driver's own bound ended the wait, which the run's deadline may be what brought on.
     if (millisecondsLeftUntil(watch.deadline,) === 0) {
       return 'wall-clock';

@@ -163,7 +163,7 @@ export async function askAnAgentWhoseAnswerWasEmpty({
     answer,
     piWorks,
   },);
-  if (cameTo.ending === 'at-work') {
+  if (cameTo === 'at-work') {
     watch.record
       .note({
         kind: 'problem',
@@ -209,7 +209,7 @@ export async function askAnAgentWhoseAnswerWasEmpty({
   if (answer.ending === 'pi-exited') {
     return 'pi-exited';
   }
-  if (cameTo.ending === 'refused') {
+  if (cameTo === 'refused') {
     return 'refused';
   }
   return 'asked';

@@ -188,7 +188,7 @@ export async function askAboutItsWork({
         length: FEED_PREVIEW_CHARACTERS.inboxMessage,
       },),
     },);
-  if (cameTo.ending === 'at-work') {
+  if (cameTo === 'at-work') {
     // Pi began a turn as the wake arrived, so it refused a prompt handed to it at work. That is no answer about the wake: the work
     // it names is kept and the wake goes again once Pi rests, within the run's deadline.
     return 'held';
@@ -198,14 +198,14 @@ export async function askAboutItsWork({
    */
   const failure = watch.record
     .unrecoveredModelError();
-  if ((cameTo.ending === 'refused') && failure.failed) {
+  if ((cameTo === 'refused') && failure.failed) {
     // The run ends on that error, and the loop owes it an attempt: the wake waits for Pi to rest again rather than ending the run
     // on a refusal given while a turn was opening.
     return 'held';
   }
   delete waited.work;
   // A message Pi refused woke nobody, so nothing is owed a reply and the run cannot go on: the agent was never told its work ended.
-  if (cameTo.ending === 'refused') {
+  if (cameTo === 'refused') {
     return 'refused';
   }
   // A message Pi took into a turn is answered by that turn, and the run stays up until its reply settles. A message Pi handled

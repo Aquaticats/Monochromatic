@@ -49,15 +49,22 @@ export type DeliveryOfAMessage =
   /**
    Pi took it, and its file is gone.
    */
-  | { readonly ending: 'taken' }
+  | {
+    readonly ending: 'taken';
+  }
   /**
    Pi refused it because it had begun a turn, so the driver holds it and sends it again once Pi rests.
    */
-    | { readonly ending: 'at-work'; readonly held: HeldMessage }
+    | {
+      readonly ending: 'at-work';
+      readonly held: HeldMessage;
+    }
   /**
    It was kept aside under a dot name, and named in the summary as a message Pi never took.
    */
-    | { readonly ending: 'not-taken' };
+    | {
+      readonly ending: 'not-taken';
+    };
 
 /**
  The code the operating system gave a failure, when it gave one.
@@ -286,14 +293,14 @@ async function deliverClaimed({
       kind: 'inbox',
       file: held.name,
       sentAs,
-      success: cameTo.ending === 'taken',
+      success: cameTo === 'taken',
       error: outcomeTextOf(answer,),
       preview: preview({
         value: text,
         length: FEED_PREVIEW_CHARACTERS.inboxMessage,
       },),
     },);
-  if (cameTo.ending === 'taken') {
+  if (cameTo === 'taken') {
     try {
       await unlink(held.claim,);
     }
@@ -306,7 +313,7 @@ async function deliverClaimed({
     }
     return { ending: 'taken', };
   }
-  if (cameTo.ending === 'at-work') {
+  if (cameTo === 'at-work') {
     // Pi began a turn as the message arrived, so it refused a prompt handed to it at work. That is no answer about the message:
     // the claim is kept and the message goes again once Pi rests, within the run's deadline.
     return {
@@ -322,27 +329,28 @@ async function deliverClaimed({
 }
 
 /**
- Claims one message ready in the inbox and delivers it.
+ The absence of a claim: the inbox entry could not be taken at all.
+ */
+const NO_CLAIM: unique symbol = Symbol('inbox entry could not be claimed');
+
+/**
+ Claims one inbox entry, or answers the sentinel when it cannot be taken at all.
 
  @param watch - watch request
 
  @param name - message's name
 
- @returns what the delivery came to, or that the entry could not be taken at all
+ @returns where the message now is, or {@link NO_CLAIM}
  */
-export async function deliverReadyMessage({
+async function claimOrNothing({
   watch,
   name,
 }: {
   readonly watch: WatchRequest;
   readonly name: string
-},): Promise<DeliveryOfAMessage | 'could-not-take'> {
-  /**
-   Where the entry moved to when it was claimed.
-   */
-  let claim: string;
+},): Promise<string | typeof NO_CLAIM> {
   try {
-    claim = await claimMessage({
+    return await claimMessage({
       watch,
       name,
     },);
@@ -353,6 +361,39 @@ export async function deliverReadyMessage({
         kind: 'problem',
         problem: `could not take ${name}: ${String(error,)}`,
       },);
+    return NO_CLAIM;
+  }
+}
+
+/**
+ Claims one message ready in the inbox and delivers it.
+
+ @param watch - watch request
+
+ @param name - message's name
+
+ @returns what the delivery came to, or that the entry could not be taken at all
+
+ @example
+ ```ts
+ const delivered = await deliverReadyMessage({ watch, name: 'm', },);
+ ```
+ */
+export async function deliverReadyMessage({
+  watch,
+  name,
+}: {
+  readonly watch: WatchRequest;
+  readonly name: string
+},): Promise<DeliveryOfAMessage | 'could-not-take'> {
+  /**
+   Where the entry moved to when it was claimed, or the sentinel that says it could not be taken at all.
+   */
+  const claim = await claimOrNothing({
+    watch,
+    name,
+  },);
+  if ((typeof claim) === 'symbol') {
     return 'could-not-take';
   }
   try {
@@ -389,6 +430,11 @@ export async function deliverReadyMessage({
  @param held - the message and where its claim is
 
  @returns what the delivery came to
+
+ @example
+ ```ts
+ const delivered = await deliverHeldMessage({ watch, held, },);
+ ```
  */
 export async function deliverHeldMessage({
   watch,
@@ -415,6 +461,48 @@ export async function deliverHeldMessage({
     },);
     return { ending: 'not-taken', };
   }
+}
+
+/**
+ The messages a run still owes Pi: the inbox ones it claimed and Pi has not taken. Disposing this, at the end of the watch or on a
+ throw, keeps every one under the name it was published under and names it in the summary, so a message the run ends before it
+ hands over is never read as delivered.
+ */
+export type MessagesTheRunOwes = {
+  /**
+   The messages claimed and not yet taken, oldest first.
+   */
+  readonly claimed: HeldMessage[];
+
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+/**
+ Starts the messages a run still owes Pi, as a disposable it keeps and names on the way out.
+
+ @param watch - watch request
+
+ @returns the messages the run still owes, and what keeps them at its end
+
+ @example
+ ```ts
+ await using owed = holdMessagesTheRunOwes(watch,);
+ ```
+ */
+export function holdMessagesTheRunOwes(watch: WatchRequest,): MessagesTheRunOwes {
+  /**
+   The messages claimed and not yet taken.
+   */
+  const claimed: HeldMessage[] = [];
+  return {
+    claimed,
+    async [Symbol.asyncDispose]() {
+      await keepMessagesNotTaken({
+        watch,
+        held: claimed,
+      },);
+    },
+  };
 }
 
 /**

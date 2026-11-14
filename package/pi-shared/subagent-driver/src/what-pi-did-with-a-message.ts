@@ -157,10 +157,10 @@ export function refusalNamesPiAtWork(said: string,): boolean {
  prompt of an attempt after a model error.
  */
 export type MessageToPi =
-  | { readonly ending: 'taken' }
-  | { readonly ending: 'at-work' }
-  | { readonly ending: 'refused' }
-  | { readonly ending: 'unanswered'; readonly problem: string };
+  | 'taken'
+    | 'at-work'
+    | 'refused'
+    | 'unanswered';
 
 /**
  Reads what a message the driver sent Pi came to.
@@ -184,13 +184,10 @@ export function messageToPiCameTo({
   readonly piWorks: boolean
 },): MessageToPi {
   if (answer.ending !== 'answered') {
-    return {
-      ending: 'unanswered',
-      problem: answer.problem,
-    };
+    return 'unanswered';
   }
   if (takenByPi(answer,)) {
-    return { ending: 'taken', };
+    return 'taken';
   }
   /**
    What Pi said for refusing, which names a Pi at work in the words Pi 1.5.2 uses for it.
@@ -198,7 +195,7 @@ export function messageToPiCameTo({
   const said = textOf(answer.record
     .error,);
   if (piWorks || refusalNamesPiAtWork(said,)) {
-    return { ending: 'at-work', };
+    return 'at-work';
   }
-  return { ending: 'refused', };
+  return 'refused';
 }
