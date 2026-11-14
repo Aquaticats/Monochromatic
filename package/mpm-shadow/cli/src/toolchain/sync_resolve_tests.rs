@@ -82,8 +82,8 @@ fn a_local_sync_resolves_a_new_entry_alone_and_keeps_every_other_row_identical()
     let report = run_sync_with(&scope, &env, &runner, &http, &linux(), LockPolicy::Resolve).expect("synced");
     assert_eq!(report.resolved, vec![("npm:vite".to_string(), "7.1.0".to_string())]);
     let requests = http.requests();
-    assert!(requests.contains(&VITE_URL.to_string()), "{requests:?}");
-    assert!(!requests.contains(&NPM_URL.to_string()) && !requests.contains(&CRATES_URL.to_string()), "no other tool is looked up: {requests:?}");
+    assert!(requests.iter().any(|url| return url == VITE_URL), "{requests:?}");
+    assert!(!requests.iter().any(|url| return url == NPM_URL) && !requests.iter().any(|url| return url == CRATES_URL), "no other tool is looked up: {requests:?}");
     let after = read_lock(&scope);
     assert_eq!(after.tool("npm:vite").expect("vite").version, "7.1.0");
     for id in ["cargo:fd-find", "npm:wrangler", "pipx:slopo", "rust"] {
@@ -143,7 +143,7 @@ fn a_changed_asset_option_re_resolves_only_that_tool() {
     for id in ["cargo:fd-find", "pipx:slopo", "rust"] {
         assert_eq!(after.tool(id), before.tool(id), "{id} is not the changed tool and must not move");
     }
-    assert!(!http.requests().contains(&CRATES_URL.to_string()));
+    assert!(!http.requests().iter().any(|url| return url == CRATES_URL));
     run_lock(&scope, LockMode::Check).expect("plan and lock agree");
 
     // The same edit under a frozen policy is refused, naming the tool.
