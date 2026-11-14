@@ -1256,6 +1256,98 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The first gate after a release fails 28 of 8,994 tests, 25 of them not on `main`'s red list; the discarding commands' fifth review reproduces three; the lock shim's answer goes to its reviewer (2026-11-14T15:43:16-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+what one review and one author report of themselves,
+and what it queued.
+
+- **The gate on `5eca8b84cf`** (`0.6.1-alpha.32`),
+  started 15:16:04,
+  log written until 15:34:29:
+  `8994 tests run: 8966 passed (3 slow), 28 failed, 27 skipped`,
+  `gate-exit-status=1`.
+  The gate's own error names the test run alone
+  ("the test run failed: podman run failed (status 100…)");
+  the log holds no line of Clippy's,
+  so what Clippy answered is not read from it.
+  The log:
+  `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-5eca8b84cf-20261114T151604-0500.log`;
+  the first panic of each failing test:
+  `~/temp/agent/gate/keep/panics-of-the-failing-tests-of-the-gate-on-5eca8b84cf-2026-11-14T151604.txt`
+  (by `print-the-panic-of-each-failing-test-of-a-gate-log.ts` beside the logs).
+  - Against the five gate logs before it that ran a suite
+    (the newest of them started 2026-11-11T22:25:52-05:00,
+    by `compare-the-failing-tests-of-the-newest-gate-log-with-earlier-gate-logs.ts`):
+    none of the 28 failed in any of the five.
+    Those gates are three days old and the gate's image is rebuilt from the base image's `latest`,
+    so the difference spans the code and the image both.
+  - Three of the 28 are on the list of tests red on `main`
+    (`a_lane_that_panics_stops_its_lane_and_the_round_says_so`,
+    `a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtime_was_late`,
+    `a_server_that_takes_the_connection_and_answers_nothing_is_ended_at_the_connected_window`).
+  - The other 25,
+    grouped by what they print,
+    which is a reading and not yet a cause:
+    six end after about 60 s with "the service never settled the after-commit work"
+    (five `fault_remote::` with a `maintenance-` item pending,
+    one `package_repair::` with a `relink-` item claimed);
+    three compare `git version 2.56.1` with `git version 2.56.0`
+    (this machine's `/usr/bin/git` answers 2.56.0),
+    one lists six configuration keys where "the readers answered and Git exits Some(128)",
+    and five more (`resolution::` and `service_mode::`) are put with them by a guess;
+    six are the controls pass 42 brought,
+    failing on the room a path leaves in the container,
+    a file not found,
+    or the words for an account with no service manager;
+    two find `cli-git-lock-holders` in a Git directory where they list what may be there
+    (the folder came with commit `74b1a8c0a0` of 2026-11-13);
+    one fails removing its fixture (`DirectoryNotEmpty`);
+    one is the lock proof's control of another boot.
+  - `native:test:container` takes no test filter
+    (`bin/test-native-container.ts` accepts only `--memory`, `--cpus` and `--pids-limit`),
+    so a named test cannot be run in the gate's container through the task.
+  - A run of the 28 by name on this machine,
+    once,
+    in the gate's worktree and a capped unit,
+    was started at 15:42 to tell "in the container only" from "red everywhere"
+    (`~/temp/agent/gate/run-the-tests-that-failed-in-the-gate-on-5eca8b84cf-once-on-the-host-by-name.ts`);
+    the fresh runs for the groups are written and are queued after it answers,
+    behind the resumes that hold reproduced losses.
+  - By the owner's answer this verdict holds no release;
+    that reading is this session's.
+- **The discarding commands** (`697dca1425`),
+  fifth review,
+  three reproduced through the built wrapper:
+  `checkout-index --prefix` run from a subdirectory with `--no-enforce-require-root` writes over an untracked file the guard looked for in the wrong place
+  (a file is lost);
+  `git clean -Xd` with no force,
+  which Git refuses,
+  has its ignored nested repository moved aside by the guard's dry run first
+  (saved,
+  not lost);
+  and `git mv -f a.txt/ renamed.txt` is refused though Git accepts the spelling.
+  The author is resumed first,
+  asked how the guard can learn the paths from Git itself and for the list of places where it must model them
+  (`~/temp/agent/pi-runs/discarding-commands-answers-its-fifth-review-of-2026-11-14-prompt.md`).
+- **The lock shim of Pi** (tip `578bc34738`, ended 15:35:12):
+  the author reports the printed command made one shell word,
+  the suite run again and again with no timeout raised,
+  and the disposable configuration with which a start of Pi takes the store's lock.
+  Its reviewer is resumed second to check it
+  (`~/temp/agent/pi-runs/go-on-with-the-review-of-the-lock-shim-and-check-the-answer-at-578bc34738-prompt.md`).
+  The launcher of that reviewer's earlier run,
+  which ended at 13:44,
+  was still active at 15:43 and was stopped before it could refuse the new start,
+  the same defect that lost this entry once today.
+- The queue held 56 entries at 15:43:08.
+  Going at 15:41,
+  among others:
+  the landed removal's author,
+  the landing's author and both mpm-shadow authors,
+  each on a reproduced finding.
+
 ##### The watch note's ceiling and the queue filling are answered and go to review; the whole first six minutes of `0.6.1-alpha.32` are clean (2026-11-14T15:26:17-05:00)
 
 Not final and not approved:
