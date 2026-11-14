@@ -10,6 +10,25 @@
 //! Run:
 //! `mise run //package/git-policy/cli:native:test:host -- --run-ignored only --no-capture the_note_a_landing_writes`.
 //!
+//! Measured on 2026-11-14 on this host,
+//! 2,000 notes per arm in each of five runs,
+//! three of them on the build volume and two on the file system this user's journals are on:
+//! - the note written on the landing's thread:
+//!   162 to 180 us at the middle,
+//!   271 to 297 us at the 99th percentile,
+//!   and 246 ms at the slowest of the 10,000,
+//!   one of this host's stalls;
+//! - the same note written on a thread of its own:
+//!   232 to 247 us at the middle,
+//!   365 to 442 us at the 99th percentile,
+//!   and 135 ms at the slowest,
+//!   which is what a commit pays for the ceiling;
+//! - the ratio of the two middles,
+//!   interleaved round by round:
+//!   1.37 to 1.43.
+//! The middle is what a reader compares:
+//! the largest samples of both arms move with the host's load and say nothing about the change.
+//!
 //! The second arm is what a commit pays for the bound,
 //! and the first is what it paid before,
 //! so the ratio of their middles is the cost of the change on a commit's path.
@@ -23,9 +42,6 @@
 //! as it does in a service.
 //! The root is the package's build directory unless `CLI_GIT_WATCH_NOTE_COST_ROOT` names another,
 //! which is how the run measured the pair on the file system the journals of this user are on as well.
-//!
-//! Measured on 2026-11-14 on this host;
-//! the numbers are printed by the controls below.
 
 #![cfg(unix)]
 

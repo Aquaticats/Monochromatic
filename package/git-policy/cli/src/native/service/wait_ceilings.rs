@@ -704,14 +704,16 @@ pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 /// 2,000 per arm with the two ways of writing it interleaved in every round
 /// (`landing/service_claim_watch_cost_measurement_tests.rs`,
 /// 2026-11-14,
-/// three runs:
-/// two on the build volume and one on the file system this user's journals are on):
-/// 169 to 180 us at the middle,
-/// 277 to 290 us at the 99th percentile,
-/// and 56 ms at the slowest of the 6,000,
-/// which is a host stall of the kind other sessions' load causes here.
-/// One second is about 5,800 times that middle and 18 times the slowest write seen,
-/// and it is a fifth of the five seconds `SPEC.md` lets a commit take over native Git,
+/// five runs:
+/// three on the build volume and two on the file system this user's journals are on):
+/// 162 to 180 us at the middle,
+/// 271 to 297 us at the 99th percentile,
+/// and 246 ms at the slowest of the 10,000,
+/// which is one of the stalls other sessions' load causes here.
+/// One second is about 5,700 times that middle,
+/// 3,400 times that 99th percentile,
+/// and four times the slowest write these runs saw.
+/// It is also a fifth of the five seconds `SPEC.md` lets a commit take over native Git,
 /// so a store that answers at all is waited for,
 /// and a store that has stopped costs a commit a fifth of that slack and never the commit.
 pub const LANDING_WATCH_NOTE_CEILING: Duration = Duration::from_secs(1);
