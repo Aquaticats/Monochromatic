@@ -154,7 +154,11 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                     }
                 }
             }
-            if !carry_the_capture_awaiting(place, root, intent, landed.as_slice(), out).await? {
+            // A record whose carry already finished needs nothing from the capture's objects, which may be collected by then: a
+            //  kill between the drop of a ref and the removal of the record leaves exactly that, and the read that failed there
+            //  refused every command (`merge_isolation_journal.rs`, `carry_finished`).
+            let already_carried: bool = crate::merge_isolation_journal::carry_finished(record);
+            if !already_carried && !carry_the_capture_awaiting(place, root, intent, landed.as_slice(), out).await? {
                 return Ok(MergeRecoveryAction::IndexHeld);
             }
             drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, true, out).await?;
