@@ -356,8 +356,10 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
 /// Why:
 ///  The review of this change showed the landing's client-gone check losing to the connection writer's heartbeat,
 ///  so a service that wakes can land a request whose command is gone:
-/// the branch read shows "not made" only at the moment it was read, and the words may say no more than that.
-///  A commit whose request never arrived whole is the other case, and its words say the reason that is true.
+/// the branch read shows "not made" only at the moment it was read,
+/// and the words may say no more than that.
+///  A commit whose request never arrived whole is the other case,
+/// and its words say the reason that is true.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -381,6 +383,40 @@ fn a_request_that_reached_the_service_is_not_described_as_one_that_never_can_lan
         assert!(words.contains("framing newline"), "{never_arrived:?} says a request is read only when its newline arrived: {words}");
         assert!(!words.contains("dropped before it lands"), "{never_arrived:?} claims no drop: {words}");
     }
+}
+
+/// What:
+///  The words for a manager that answered nothing give the step that ends it,
+///  and name the status command only for the reader whose answer it helps.
+/// Why:
+///  Run in a fixture with no service up,
+/// `git monochromatic-git-policy-cli service status` answers
+///  "The commit service of this worktree does not answer here ... if a commit fails,
+/// its message says what to do",
+///  which sends a reader of this message straight back to it;
+///  in a fixture with a service up it answers whether that service answers and names its unit.
+///  So the command is named under the one condition where the second answer is the true one,
+///  and the step every reader gets is the one that always works:
+/// run the commit again.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// // expect(render({ kind: 'manager-did-not-answer', waited: 20s })).toContain('was already running before this commit')
+/// ```
+#[test]
+fn a_manager_that_did_not_answer_names_the_status_command_only_for_a_reader_it_helps() {
+    let waited: Duration = Duration::from_secs(20);
+    let words: String = render(&ClientFailure::ManagerDidNotAnswer { waited });
+    assert!(words.contains("did not answer within the 20 seconds"), "the words name the time the exchange was given: {words}");
+    assert!(words.contains("says nothing about whether the manager is there"), "they do not claim the manager is absent: {words}");
+    assert!(words.contains("nothing of it was written") && words.contains("nothing that could land later by itself"), "they say what became of the commit: {words}");
+    assert!(words.contains("Run the commit again"), "the step that always works is named: {words}");
+    // One mention, in the sentence that says which reader it is for.
+    assert_eq!(words.matches(STATUS_COMMAND).count(), 1, "the status command is named once: {words}");
+    let named_at: usize = words.find(STATUS_COMMAND).expect("named");
+    let before: &str = &words[..named_at];
+    assert!(before.contains("was already running before this commit"), "the command is named for the reader whose service was already running: {words}");
+    assert!(!words.contains(LINGER_COMMAND), "an account with user services is not told to turn them on: {words}");
 }
 
 /// Queue notices count the commits ahead.
