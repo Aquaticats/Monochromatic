@@ -19,7 +19,7 @@ pub use crate::merge_isolation_recovery_reads::{
 pub use crate::merge_isolation_recovery_notice::recovery_notice;
 use crate::merge_isolation_recovery_notice::saved_merge_waits_for_the_index_lock;
 pub use crate::merge_isolation_recovery_steps::{
-    Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk,
+    IndexHeldAt, Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk,
 };
 /// The synchronous faces this file keeps,
 /// so the controls of the folder reach the names they had.
@@ -159,7 +159,11 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
             //  refused every command (`merge_isolation_journal.rs`, `carry_finished`).
             let already_carried: bool = crate::merge_isolation_journal::carry_finished(record);
             if !already_carried && !carry_the_capture_awaiting(place, root, intent, landed.as_slice(), out).await? {
-                return Ok(MergeRecoveryAction::IndexHeld);
+                return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
+                    the_merges_entries_in_the_checkout: true,
+                    landed: true,
+                    branch_moved: false,
+                }));
             }
             drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, true, out).await?;
             return Ok(MergeRecoveryAction::AlreadyLanded);
@@ -237,7 +241,11 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
         };
         if intent.side_ref.is_none() && !any_in_index && !any_in_worktree {
             if !restore_the_capture_awaiting(place, root, intent, out).await? {
-                return Ok(MergeRecoveryAction::IndexHeld);
+                return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
+                    the_merges_entries_in_the_checkout: false,
+                    landed: false,
+                    branch_moved: current.as_deref() != Some(intent.old_oid.as_str()),
+                }));
             }
             // The person's bytes are back, and the ref that kept them goes before the record that names it, so a deletion another
             //  command's lock blocked is retried by the next command instead of leaving a name nothing removes.
@@ -268,7 +276,11 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                     return Ok(action);
                 }
                 if !carry_onto_awaiting(place, root, intent, head, intent.target_ref.as_deref().unwrap_or("HEAD"), out).await? {
-                    return Ok(MergeRecoveryAction::IndexHeld);
+                    return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
+                        the_merges_entries_in_the_checkout: true,
+                        landed: true,
+                        branch_moved: false,
+                    }));
                 }
                 drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, began, out).await?;
                 return Ok(MergeRecoveryAction::AlreadyLanded);
@@ -294,7 +306,11 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                 // A merge that a command already reported as saved must not vanish: the record goes, so nothing stops a later
                 //  command, and the side ref keeps its commit and is named.
                 if !restore_the_capture_awaiting(place, root, intent, out).await? {
-                    return Ok(MergeRecoveryAction::IndexHeld);
+                    return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
+                        the_merges_entries_in_the_checkout: false,
+                        landed: false,
+                        branch_moved: true,
+                    }));
                 }
                 // The side ref stays: it is the only name that still keeps the merge's commit reachable, and the line says so.
                 drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Keep, began, out).await?;
@@ -305,7 +321,11 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                 // The person's bytes come back before the ref that keeps them goes, and the record that names both goes last, so a
                 //  deletion another command's lock blocked is retried by the next command.
                 if !restore_the_capture_awaiting(place, root, intent, out).await? {
-                    return Ok(MergeRecoveryAction::IndexHeld);
+                    return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
+                        the_merges_entries_in_the_checkout: false,
+                        landed: false,
+                        branch_moved: true,
+                    }));
                 }
                 drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, true, out).await?;
             }
@@ -318,7 +338,11 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     //  finding 3).
     if intent.side_ref.is_none() && !any_in_index && !any_in_worktree {
         if !restore_the_capture_awaiting(place, root, intent, out).await? {
-            return Ok(MergeRecoveryAction::IndexHeld);
+            return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
+                the_merges_entries_in_the_checkout: false,
+                landed: false,
+                branch_moved: false,
+            }));
         }
         drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, began, out).await?;
         return Ok(MergeRecoveryAction::Discarded);
@@ -364,7 +388,11 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
             let line: String = saved_merge_waits_for_the_index_lock(target, intent.side_ref.as_deref().unwrap_or("its side ref"), place.git_dir.join("index.lock").as_path());
             let _noted = out.write_all(line.as_bytes());
         }
-        return Ok(MergeRecoveryAction::IndexHeld);
+        return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
+            the_merges_entries_in_the_checkout: any_in_index || any_in_worktree,
+            landed: false,
+            branch_moved: false,
+        }));
     }
     // The checkout holds the merge, so the person's own work in its paths is merged with it before the record goes. The
     //  checkout was written by this command, so no earlier reading describes it: the reading of what it left is taken now, and a
@@ -375,7 +403,11 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
     }
     let written: Vec<crate::merge_isolation_carry_landed::LandedFile> = crate::merge_isolation_carry_landed::landed_of(root, written_paths.as_slice());
     if !carry_the_capture_awaiting(place, root, intent, written.as_slice(), out).await? {
-        return Ok(MergeRecoveryAction::IndexHeld);
+        return Ok(MergeRecoveryAction::IndexHeld(IndexHeldAt {
+            the_merges_entries_in_the_checkout: true,
+            landed: true,
+            branch_moved: false,
+        }));
     }
     drop_the_records_refs_then_the_record_or_say(place, root, record, intent, SideRef::Drop, true, out).await?;
     return Ok(MergeRecoveryAction::Completed);

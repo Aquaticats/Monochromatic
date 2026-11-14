@@ -309,29 +309,47 @@ pub fn look_at_the_index_before_a_merge<W: Write + ?Sized>(real_index: &Path, ou
             IndexWait::OwnerGone(Duration::ZERO)
         }
         // A holder proven alive and an owner nothing proves are both another program's command until they let go, and the
-        //  merge does not wait for either: it is saved on its side ref and the next command finishes it.
+        //  merge does not wait for either: it is saved on its side ref and the next command settles it.
         Proof::Alive(evidence, ..) | Proof::Nothing(Some(evidence)) => IndexWait::HeldByAnotherCommand(blocker_words(&evidence)),
         Proof::Nothing(None) => IndexWait::HeldByAnotherCommand(String::from("a program whose owner could not be read")),
     };
 }
 
+/// The sentence a recovery's wait for a held index ends on.
+/// Why:
+///   The wait cannot know which ending the next command reaches:
+/// that depends on the branch and the checkout,
+/// which the settle reads after the wait,
+///  and the command that waited says it itself:
+///  a merge with nothing of itself in the checkout is saved and finished,
+///  and one whose branch moved is put back and run again.
+///  A wait that promised a finish was false whenever the branch had moved
+/// (the review of `ce51914d2a`,
+/// its second finding).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const unfinished = 'the interrupted merge stays unfinished';
+/// ```
+const RECOVERY_UNFINISHED: &str = "the interrupted merge stays unfinished";
+
 /// What:
 ///  The sentence that says what becomes of the command when a recovery's wait for a held index reaches its bound.
 /// Why:
 ///  A recovery of an interrupted merge writes nothing when the index stays held,
-///  and a later command finishes the merge instead,
+///  and a later command settles the record instead,
 /// unlike the merge that waits for the lock before its own apply.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const consequence = 'the interrupted merge stays unfinished and a later command finishes it once that program is done';
+/// const consequence = 'the interrupted merge stays unfinished';
 /// ```
-pub const RECOVERY_CONSEQUENCE: &str = "the interrupted merge stays unfinished, and the next command in this worktree finishes it once that program is done";
+pub const RECOVERY_CONSEQUENCE: &str = RECOVERY_UNFINISHED;
 
 /// The sentence the recovery's notices before that ceiling end on:
 /// the same outcome,
 /// said without the stop the ceiling line alone announces.
-const RECOVERY_NOTICE_ENDING: &str = "the interrupted merge stays unfinished, and the next command in this worktree finishes it";
+const RECOVERY_NOTICE_ENDING: &str = RECOVERY_UNFINISHED;
 
 /// What:
 ///  Wait while any program holds `index.lock` of `real_index`,

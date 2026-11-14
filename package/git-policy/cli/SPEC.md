@@ -5393,7 +5393,20 @@ It ends in one of two states:
   which ref keeps their bytes,
   and which command puts them back.
 
-No line of such a command says the checkout is as it was when it is not.
+A command that cannot keep the merge on a side reference does not fail either:
+it exits 0,
+says that the merge is not saved,
+where the person's own bytes are kept,
+and that the next git command puts them back and leaves the merge to them.
+A merge whose branch moved while it was prepared ends the same way,
+with the line saying that the branch moved and that the merge does not land.
+The line each of these prints states the state the settle read:
+the branch it found,
+what of the merge is in the index and the worktree,
+and where the person's own bytes are.
+No line of such a command says the checkout is as it was,
+or that the branch has not moved,
+when it is not.
 
 The owner on 2026-11-10:
 "Dozens of agents at once is normal operation."

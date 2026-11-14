@@ -24,15 +24,19 @@
 //! ```
 
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
-use crate::merge_isolation_apply_findings::{WhyTheMergeIsSaved, failure_text};
+use crate::merge_isolation_apply_findings::{
+    BytesAfterAFailedMerge, WhyTheMergeIsSaved, a_merge_in_the_branch_whose_carry_waits, a_merge_partly_installed_behind_the_lock,
+    a_merge_the_branch_moved_under, failure_text,
+};
 use crate::merge_isolation_apply_save::save_for_a_later_finish;
 use crate::merge_isolation_report::not_applied_finding;
 use crate::merge_isolation_carry_apply::CarryFailure;
 use crate::merge_isolation_git_reads::Session;
 use crate::merge_isolation_journal::MergeIntent;
 use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge};
+use crate::merge_isolation_recovery_steps::IndexHeldAt;
 use crate::merge_isolation_run_types::{Bail, IsolatedMerge, Plan, refused};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  Put the person's own work back and make the merge again on the bytes their files hold now.
@@ -53,7 +57,7 @@ pub(crate) fn a_clear_that_met_newer_bytes(place: &RecoveryPlace, record: &Path,
         // Nothing of the merge was applied, so the record and the capture are gone and the round is made again.
         Ok(MergeRecoveryAction::Discarded | MergeRecoveryAction::BranchMoved | MergeRecoveryAction::SavedBranchMoved) => Bail::Again(detail),
         // The lock stays held or the record waits, so the next command finishes this very merge and nothing of the person's went.
-        Ok(MergeRecoveryAction::IndexHeld | MergeRecoveryAction::DeferredRefused | MergeRecoveryAction::OwnerActive) => refused(
+        Ok(MergeRecoveryAction::IndexHeld(_) | MergeRecoveryAction::DeferredRefused | MergeRecoveryAction::OwnerActive) => refused(
             2,
             format!(
                 "monochromatic-git-policy-cli: git merge {reference}: {detail}; the merge was recorded and nothing of yours was \
@@ -85,16 +89,22 @@ pub(crate) fn a_clear_that_met_newer_bytes(place: &RecoveryPlace, record: &Path,
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type StepEnding = { kind: 'stop'; bail: Bail } | { kind: 'saved-for-a-later-finish'; why: WhyTheMergeIsSaved };
+/// type StepEnding = { kind: 'stop'; bail: Bail } | { kind: 'saved-for-a-later-finish'; why: WhyTheMergeIsSaved; at: IndexHeldAt };
 /// ```
 pub(crate) enum StepEnding {
     /// The command stops with this result,
     /// which is a refusal,
     /// a forward to native Git or a finished merge of its own.
     Stop(Bail),
-    /// Nothing of the merge is in the checkout and the record stayed,
-    /// so the merge is kept on a side ref and the command exits 0.
-    SavedForALaterFinish(WhyTheMergeIsSaved),
+    /// Nothing more of the merge could be written now and the record stayed,
+    /// in the state the settle read.
+    SavedForALaterFinish {
+        /// The lock that stopped the settle,
+        /// as the line that names it words it.
+        why: WhyTheMergeIsSaved,
+        /// What the checkout and the branch held when it stopped.
+        at: IndexHeldAt,
+    },
 }
 
 /// What:
@@ -124,6 +134,7 @@ pub(crate) fn the_end_of_a_failed_step(
     reference: &str,
     detail: &str,
     lock_taken: bool,
+    the_paths_were_cleared: bool,
     code: i32,
     git_stderr: &[u8],
 ) -> Result<IsolatedMerge, Bail> {
@@ -131,8 +142,63 @@ pub(crate) fn the_end_of_a_failed_step(
     let ending: StepEnding = settle_a_failed_step(&place, record, intent, reference, detail, lock_taken, code, git_stderr);
     return match ending {
         StepEnding::Stop(bail) => Err(bail),
-        StepEnding::SavedForALaterFinish(why) => save_for_a_later_finish(session, plan, intent, record, reference, why),
+        StepEnding::SavedForALaterFinish { why, at } => the_end_in_the_state_read(session, plan, intent, record, reference, why, at, the_paths_were_cleared),
     };
+}
+
+/// What:
+///  The ending a merge takes in the state the settle read when a lock kept it from finishing:
+///  saved when the branch has not moved and nothing of the merge is in the checkout,
+///  and otherwise a line that states what stands and what the next command does with it.
+/// Why:
+///   `IndexHeld` says the index could not be written,
+/// not which of several states the settle stopped in:
+/// a branch that moved under the merge cannot take it as it was saved,
+/// a merge already in the branch has only its carry left,
+/// and a partly installed merge is already in the checkout.
+///  One line for all of them was false in two of the three,
+/// so each state ends in its own words,
+/// read from the settle instead of assumed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ending = (at) => at.branchMoved ? moved : at.landed ? landed : at.entries ? partly : save(...);
+/// ```
+fn the_end_in_the_state_read(
+    session: &Session,
+    plan: &Plan<'_>,
+    intent: &MergeIntent,
+    record: &Path,
+    reference: &str,
+    why: WhyTheMergeIsSaved,
+    at: IndexHeldAt,
+    the_paths_were_cleared: bool,
+) -> Result<IsolatedMerge, Bail> {
+    let lock: PathBuf = plan.git_dir.join("index.lock");
+    let mut kept: Option<&str> = None;
+    if let Some(capture) = plan.carried.as_ref() {
+        kept = capture.reference.as_deref();
+    }
+    let bytes: BytesAfterAFailedMerge<'_> = BytesAfterAFailedMerge { the_paths_were_cleared, kept_on: kept };
+    // A landed merge is also a branch built on, so it is answered first: only its carry is left.
+    if at.landed {
+        return Ok(IsolatedMerge::Finished {
+            code: 0,
+            stdout: String::new(),
+            stderr: a_merge_in_the_branch_whose_carry_waits(reference, lock.as_path(), &bytes),
+        });
+    }
+    if at.branch_moved {
+        return Ok(IsolatedMerge::Finished { code: 0, stdout: String::new(), stderr: a_merge_the_branch_moved_under(reference, lock.as_path(), &bytes) });
+    }
+    if at.the_merges_entries_in_the_checkout {
+        return Ok(IsolatedMerge::Finished {
+            code: 0,
+            stdout: String::new(),
+            stderr: a_merge_partly_installed_behind_the_lock(reference, lock.as_path(), &bytes),
+        });
+    }
+    return save_for_a_later_finish(session, plan, intent, record, reference, why, the_paths_were_cleared);
 }
 
 /// What:
@@ -171,10 +237,9 @@ pub(crate) fn settle_a_failed_step(
         // The record stayed, and the settle's putting back was stopped by the same lock that stopped Git's update, so the
         //  merge is saved on a side ref rather than refused. Which of the two instants it was decides what the line may say
         //  about the checkout: a lock taken after the clear left the branch's content where the person's bytes were.
-        Ok(MergeRecoveryAction::IndexHeld) => StepEnding::SavedForALaterFinish(match lock_taken {
-            true => WhyTheMergeIsSaved::AnotherProgramTookItAfterTheClear,
-            false => WhyTheMergeIsSaved::TheLockStoppedTheRestore,
-        }),
+        Ok(MergeRecoveryAction::IndexHeld(at)) => {
+            StepEnding::SavedForALaterFinish { why: WhyTheMergeIsSaved::TheLockStoppedTheSettle, at }
+        }
         Ok(_) => StepEnding::Stop(refused(code, format!("{}{}", String::from_utf8_lossy(git_stderr), not_applied_finding(reference, detail)))),
         Err(error) => StepEnding::Stop(refused(2, render_engine_failure_with_hint(0, EngineFailureCode::ContentUnavailable, error.error.0.as_str(), None))),
     };

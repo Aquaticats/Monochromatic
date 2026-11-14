@@ -10,7 +10,7 @@ use crate::merge_isolation_recovery_index_lock::may_install;
 
 /// The judgement of one path,
 /// for the controls that build a changed path of their own.
-use crate::merge_isolation_recovery_steps::{install_entries, put_back_stranded_takes_awaiting, standing};
+use crate::merge_isolation_recovery_steps::{IndexHeldAt, install_entries, put_back_stranded_takes_awaiting, standing};
 use crate::test_support::{REAL_GIT, executable, fixture, git, git_context, git_text, remove, repository};
 use std::path::{Path, PathBuf};
 use crate::transaction_owner::{TransactionOwner, current_transaction_owner};
@@ -984,7 +984,10 @@ fn a_saved_merge_behind_a_live_lock_is_left_for_the_next_command_at_once() {
     let began: std::time::Instant = std::time::Instant::now();
     let outcomes = recover_interrupted_merges(&place(&world), world.git_dir.as_path(), &mut said).expect("the command goes on");
     let took: std::time::Duration = began.elapsed();
-    assert_eq!(the_action_for(&outcomes, record.as_path()), Some(MergeRecoveryAction::IndexHeld));
+    assert_eq!(
+        the_action_for(&outcomes, record.as_path()),
+        Some(MergeRecoveryAction::IndexHeld(IndexHeldAt { the_merges_entries_in_the_checkout: false, landed: false, branch_moved: false }))
+    );
     assert!(took < std::time::Duration::from_secs(2), "the command does not wait for a lock that stands over a merge nothing of which is installed: {took:?}");
     assert!(record.exists(), "the record stays for the command that finishes the merge");
     assert_eq!(snapshot(&world), before, "nothing was written");

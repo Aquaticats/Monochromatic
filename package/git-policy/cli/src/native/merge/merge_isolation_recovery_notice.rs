@@ -92,7 +92,7 @@ pub fn recovery_notice(outcome: &MergeRecoveryOutcome) -> Option<String> {
         MergeRecoveryAction::OwnerActive
         | MergeRecoveryAction::Discarded
         | MergeRecoveryAction::AlreadyLanded
-        | MergeRecoveryAction::IndexHeld
+        | MergeRecoveryAction::IndexHeld(_)
         | MergeRecoveryAction::DeferredRefused => None,
     };
 }

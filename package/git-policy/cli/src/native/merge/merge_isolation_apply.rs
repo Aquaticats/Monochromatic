@@ -231,14 +231,15 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
     if let Some(reason) = why {
         // The owner's answer for a live foreign `index.lock` (`SPEC.md`, "Merges and commits never fail"): the merge saves its
         //  result on a side ref, exits 0, and the next command finishes the checkout when the lock is free.
-        return save_for_a_later_finish(session, plan, &intent, record.as_path(), reference.as_str(), reason);
+        // Nothing of the clear has run at this instant, so the files hold the person's own bytes where they were.
+        return save_for_a_later_finish(session, plan, &intent, record.as_path(), reference.as_str(), reason, false);
     }
     let place: RecoveryPlace = RecoveryPlace::settling(&session.context, git_dir, root);
     let changes: Vec<Change> = if plan.carried.is_some() {
         match changes_between(&session.context, root, old_oid, new_oid) {
             Ok(found) => found,
             Err(reason) => {
-                return the_end_of_a_failed_step(session, plan, &intent, record.as_path(), reference.as_str(), reason.as_str(), false, 2, b"");
+                return the_end_of_a_failed_step(session, plan, &intent, record.as_path(), reference.as_str(), reason.as_str(), false, false, 2, b"");
             }
         }
     } else {
@@ -265,10 +266,11 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
                 record.as_path(),
                 reference.as_str(),
                 WhyTheMergeIsSaved::AnotherProgramTookIt,
+                false,
             );
         }
         let detail: String = failure_text(&failure);
-        return the_end_of_a_failed_step(session, plan, &intent, record.as_path(), reference.as_str(), detail.as_str(), false, 2, b"");
+        return the_end_of_a_failed_step(session, plan, &intent, record.as_path(), reference.as_str(), detail.as_str(), false, false, 2, b"");
     }
     if plan.carried.is_some() {
         reach_phase(Phase::MergeCleared)?;
@@ -294,6 +296,8 @@ pub fn apply(input: &IsolatedMergeInput<'_>, session: &Session, plan: &Plan<'_>)
             reference.as_str(),
             detail.as_str(),
             lock_taken,
+            // This step runs after the clear, so with a capture the paths the merge changes were put back to the branch.
+            plan.carried.is_some(),
             moved.code.unwrap_or(2),
             moved.stderr.as_slice(),
         );
