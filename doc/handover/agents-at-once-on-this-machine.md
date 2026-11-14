@@ -543,3 +543,51 @@ Neither the sizing walk nor the deletion ran in this hour.
 - The cap in "The cap now" stays thirty-two:
   it is a bound never to pass,
   and nothing measured says it is too high or too low.
+
+#### A later hour at the same count, 2026-11-14T00:15:00-05:00 to 00:58:17-05:00
+
+Not final and not approved;
+measured by the coordinating session.
+No probe of the drives ran in this hour:
+the last reading before it is of 2026-11-13T19:49:23-05:00.
+
+- **Agents**: 22 agent units going at 00:59,
+  the count of the judged hour.
+- **First answers**
+  (`time-to-first-answer-of-each-pi-run-started-since.ts`,
+  runs started since 23:15):
+  seventeen runs,
+  all answered,
+  the slowest in 98,843 ms,
+  six of them in over a minute,
+  none over the 120 s that fails a level.
+  In the judged hour the slowest was under 75 s.
+- **The user service manager**
+  (`~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`):
+  29 slow answers asked between 00:16 and 00:56,
+  from 7,600 ms to 73,292 ms;
+  the nine hours and twenty minutes before hold 41.
+  In its samples the load average runs from 35 to 96 on eight threads
+  (13.8 at the judged hour's last reading),
+  the kernel's full I/O stall over ten seconds from 3 to 40 percent,
+  and the journal daemon is in uninterruptible sleep in most.
+  These figures fail no level.
+- **What it did to work**:
+  five of 49 commits through the wrapper took over five seconds
+  (`doc/handover/cli-git-rust-implementation.md`,
+  the section of 2026-11-14T00:58:17-05:00),
+  one of them 19.8 s between the manager logging a unit started and the program's first line.
+  By the owner's answer under "What counts as the ceiling" a slow commit is no symptom.
+- **By the criterion the level still holds**:
+  no first answer over 120 s,
+  no run ended on a disk error.
+  The second half of the criterion had no reading,
+  so the probe runs again since 01:00
+  (unit `disk-ceiling-probe-level-32-while-reviews-and-four-passes-build-20261114T0100`,
+  eight hours;
+  it ends with status 3 when a drive's write-and-sync takes over five seconds twice in a row).
+- What differs from the judged hour at the same count is not measured.
+  Not ruled out:
+  reviews that build the wrapper's crate cold,
+  four integration passes building at once,
+  and a `cargo-shadow-lean.service` that ran 56 minutes until 00:31.

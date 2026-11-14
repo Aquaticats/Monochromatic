@@ -1202,6 +1202,80 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Five commits over five seconds since alpha.23, in three shapes; the user service manager answers in 8 to 73 s this hour (2026-11-14T00:58:17-05:00)
+
+Not final and not approved;
+measured by the coordinating session from the wrapper's timing record,
+the journal and the recorder of the service manager.
+Causes are named only where a line shows them.
+
+- The repository's timing record
+  (`.git/monochromatic-git-policy-cli-commit-timing.jsonl`,
+  shared by every worktree)
+  holds 49 commits under `0.6.1-alpha.23` since its install.
+  Their median is 758 ms.
+  Five took over five seconds;
+  their lines are kept in
+  `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/timing-lines-of-the-five-commits-over-five-seconds-under-alpha-23-2026-11-14T0056.jsonl`.
+- **Waiting for the service's answer at position 1**,
+  twice,
+  both in the main checkout:
+  44,189 ms at 00:20:52 and 13,077 ms at 00:54:55,
+  of which 43,277 ms and 11,553 ms were that wait
+  and 214 ms and 143 ms the landing's own lock.
+  The shape the branch in passes 29 and 34 answers.
+- **One `git rev-parse` child in the preparation**,
+  twice,
+  in two worktrees:
+  14,262 ms and 9,897 ms,
+  both ending within 50 ms of 00:31:12.9.
+  In the same second the service manager logged the end of four unrelated units within 70 ms
+  (`cargo-shadow-lean.service` and three scopes),
+  and its recorder shows an answer of 23 s asked at 00:30:48.
+  So two commands and the manager all came back together;
+  what held them is not established.
+- **Waiting for the service to start**,
+  once:
+  19,830 ms of a commit of 22,486 ms at 00:38:03.
+  The manager logged the unit started at 00:37:41.777,
+  and the program's own first line is at 00:38:01.556.
+  The same service then logged a background sync of six records that took 11,680 ms.
+- **The machine in that hour**
+  (recorder log
+  `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/keep/slow-answers-of-the-user-service-manager.jsonl`):
+  29 slow answers of the user service manager asked between 00:16 and 00:56,
+  from 7,600 ms to 73,292 ms,
+  where the nine hours and twenty minutes before hold 41.
+  In its samples the load average runs from 35 to 96 on eight threads,
+  the kernel's full I/O stall over ten seconds from 3 to 40 percent,
+  and the journal daemon is in uninterruptible sleep in most of them.
+  22 agent units were going at 00:59,
+  the count the judged hour of level thirty-two had.
+- **Against the level's own criterion**
+  (`doc/handover/agents-at-once-on-this-machine.md`):
+  the seventeen Pi runs started since 23:15 all got their first answer,
+  the slowest in 98,843 ms against the bound of 120 s
+  (in the judged hour the slowest was under 75 s),
+  six of them in over a minute.
+  No write-and-sync probe had run since 19:49:23;
+  it is running again since 01:00
+  (unit `disk-ceiling-probe-level-32-while-reviews-and-four-passes-build-20261114T0100`,
+  eight hours,
+  ending early with status 3 when a drive takes over five seconds twice in a row).
+  Nothing is stopped and the level stands until a criterion fails.
+- What differs from the judged hour is not measured.
+  Not ruled out:
+  reviews that build the crate cold
+  (asked for since 23:44,
+  and several did before),
+  four integration passes building at once,
+  and a `cargo-shadow-lean.service` that ran 56 minutes until 00:31.
+- No new run for the second and third shapes yet:
+  with the manager answering in tens of seconds,
+  a commit that waits for a unit to start waits on the manager,
+  and the branch that starts the service without a manager is with its author.
+  Read again when the probe has an hour of readings.
+
 ##### The landing's control passed its review: pass 34; a service's exit may wait behind slow work, read and not run (2026-11-14T00:54:04-05:00)
 
 Not final and not approved:
