@@ -760,6 +760,11 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - The drawn shadow tree (tip `f9557d3e6e`, added 2026-11-14T12:18-05:00):
+    a resident service keeps one drawn tree for each worktree standing with no end,
+    where the sweep removed a drawn tree for its age before.
+    Is that the meaning wanted,
+    with its cost in disk for every worktree a service has served?
   - One string after `PNPR_SECRET=` in a Claude Code transcript of 2026-09-15 that no tracked file holds:
     is it a deployed server's secret?
     (`~/temp/agent/secret-environment-values-shown-to-model-providers-by-pi-runs-2026-11-14/keep/credentials-to-rotate-names-only.txt`.)
@@ -1224,6 +1229,28 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The drawn shadow tree's author answered; its answer goes to review (2026-11-14T12:18:16-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked.
+
+- **A drawn shadow tree handed to a commit** (tip `f9557d3e6e`, ended 12:14:00):
+  the author reports the three findings of its review answered
+  (343 unit tests and five binary tests passing,
+  Clippy clean),
+  and that the answer path makes no filesystem call,
+  shown by a control with a named pipe;
+  the landing path pays one renewal thread for each draw,
+  216 to 227 µs where it paid 2.6 µs.
+  It names a change of meaning for the owner to confirm:
+  a resident service now keeps one drawn tree for each worktree standing with no end,
+  as the pool keeps two members.
+  That question is added to the kept list.
+  It did not run the gate container.
+  Review queued second (range `main...f9557d3e6e`, six code files).
+- The queue held 63 entries at 12:18:16.
 
 ##### The landing's answer gives up a large trash after three rounds, back to its author; the package state's answer goes to review (2026-11-14T12:08:28-05:00)
 
