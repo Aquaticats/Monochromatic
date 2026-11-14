@@ -217,8 +217,12 @@ fn the_commit_whose_note_the_store_has_not_answered_is_answered_within_the_ceili
 }
 
 /// A commit submitted while another commit's note write is held is not queued behind it:
-/// both are answered inside the ceiling that write is granted,
+/// both are answered,
+/// the second without waiting for a ceiling of its own,
 /// and both stay on the branch in their order.
+/// The store is handed no second write while the first has not ended,
+/// so the note the first gave up on is written by the work loop's look instead,
+/// which a watch of the store reads once that answer's wake has been taken.
 #[test]
 fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it() {
     let world: World = world("service-watch-note-queued");
@@ -232,15 +236,16 @@ fn the_commit_behind_a_note_the_store_has_not_answered_is_not_queued_behind_it()
     let (first_answer, first_notices) = answered(first, "the client of the first commit");
     let (second_answer, second_notices) = answered(second, "the client of the second commit");
     let second_waited: Duration = second_began.elapsed();
-    assert!(matches!(first_answer, Ok(Submitted::Landed { .. })), "{first_answer:?} {first_notices}");
+    let first_landed: String = landed_commit(first_answer, first_notices.as_str());
     assert!(matches!(second_answer, Ok(Submitted::Landed { .. })), "{second_answer:?} {second_notices}");
     assert!(
         second_waited < NOTE_CEILING + BESIDE_THE_CEILING,
         "the commit behind the held note was answered after {second_waited:?}, and that note's write is granted {NOTE_CEILING:?}"
     );
     assert_eq!(subjects_since(&world, base.as_str()), "message of first\nmessage of second", "both commits are on the branch, in their order");
-    // What the note is for: the second commit's landing wrote the note the first gave up on, and the first's own write
-    //  has still not returned.
+    // What the note is for: the work loop's look writes the note the first landing gave up on, and the held write has
+    //  still not returned.
+    after_the_gate(&world, &serving, first_landed.as_str(), base.as_str());
     let store: PathBuf = store_of(&world);
     wait_until_the_next_service_would_look(store.as_path(), world.repo.join(".git").as_path());
     held.let_go();

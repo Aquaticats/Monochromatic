@@ -61,6 +61,9 @@ pub mod service_retry;
 /// The Git directories the service looks at by itself when it starts.
 pub mod service_claim_watch;
 
+/// The wait a landing gives the note that names its repository to the next service.
+pub mod service_claim_watch_note_within_a_ceiling;
+
 /// What the user is told when the commit service cannot land a commit.
 pub mod service_messages;
 

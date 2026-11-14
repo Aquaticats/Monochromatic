@@ -11,12 +11,12 @@
 //! `mise run //package/git-policy/cli:native:test:host -- --run-ignored only --no-capture the_note_a_landing_writes`.
 //!
 //! Measured on 2026-11-14 on this host,
-//! 2,000 notes per arm in each of five runs,
-//! three of them on the build volume and two on the file system this user's journals are on:
+//! 2,000 notes per arm in each of six runs,
+//! four of them on the build volume and two on the file system this user's journals are on:
 //! - the note written on the landing's thread:
 //!   162 to 180 us at the middle,
 //!   271 to 297 us at the 99th percentile,
-//!   and 246 ms at the slowest of the 10,000,
+//!   and 246 ms at the slowest of the 12,000,
 //!   one of this host's stalls;
 //! - the same note written on a thread of its own:
 //!   232 to 247 us at the middle,
@@ -46,6 +46,7 @@
 #![cfg(unix)]
 
 use super::*;
+use crate::service_claim_watch_note_within_a_ceiling::{NoteForTheNextService, note_for_the_next_service_within};
 use std::time::Instant;
 
 /// How many notes each arm writes,
@@ -131,7 +132,7 @@ fn rounds(writes: usize) -> (Vec<u128>, Vec<u128>) {
     // One write handed to a thread of its own, timed around the same call and its wait.
     let bounded_arm = |git_dir: &Path| -> u128 {
         let began: Instant = Instant::now();
-        let _answered: bool = note_for_the_next_service_within(GENEROUS, bounded_store.as_path(), Some(instance_of(git_dir).as_str()), git_dir);
+        let _the_note: NoteForTheNextService = note_for_the_next_service_within(GENEROUS, bounded_store.as_path(), Some(instance_of(git_dir).as_str()), git_dir);
         return began.elapsed().as_micros();
     };
     let mut control: Vec<u128> = Vec::with_capacity(writes);

@@ -694,28 +694,31 @@ pub const LANDING_STATE_CEILING: Duration = START_CEILING;
 /// By then the commit has landed and its push is held,
 /// so a store that does not answer costs the note and never the commit:
 /// the work loop writes the same note when the wake of the answer sends it to look at the repository,
-/// the next landing writes it again,
+/// a landing writes it again once no earlier write is outstanding,
 /// and a service that starts looks at every note already there
 /// (`service_server_work_loop_awaiting.rs`,
 /// `remember_awaiting`).
+/// One write at a time is outstanding for the whole process,
+/// so a store that stopped for good costs one thread and never one per commit.
 /// The owner's rule is "nothing should ever wait forever or indefinitely".
 ///  Measured:
 /// a write of this note on this machine,
 /// 2,000 per arm with the two ways of writing it interleaved in every round
 /// (`landing/service_claim_watch_cost_measurement_tests.rs`,
 /// 2026-11-14,
-/// five runs:
-/// three on the build volume and two on the file system this user's journals are on):
+/// six runs:
+/// four on the build volume and two on the file system this user's journals are on):
 /// 162 to 180 us at the middle,
 /// 271 to 297 us at the 99th percentile,
-/// and 246 ms at the slowest of the 10,000,
+/// and 246 ms at the slowest of the 12,000,
 /// which is one of the stalls other sessions' load causes here.
 /// One second is about 5,700 times that middle,
 /// 3,400 times that 99th percentile,
 /// and four times the slowest write these runs saw.
 /// It is also a fifth of the five seconds `SPEC.md` lets a commit take over native Git,
-/// so a store that answers at all is waited for,
-/// and a store that has stopped costs a commit a fifth of that slack and never the commit.
+/// so a write that answers as these did is always waited for,
+/// and a write that outlasts a second is given up and said,
+/// which costs a commit a fifth of that slack and never the commit.
 pub const LANDING_WATCH_NOTE_CEILING: Duration = Duration::from_secs(1);
 
 /// The longest the route decision reads the file system for:

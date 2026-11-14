@@ -21,6 +21,7 @@ use crate::service_journal::{BatchClaim, Recovery, claim_batch};
 use crate::service_land_follow::storage_failure;
 use crate::service_index_lock::{Announce, Announcer};
 use crate::service_captures::CaptureMemory;
+use crate::service_claim_watch_note_within_a_ceiling::{NoteForTheNextService, note_for_the_next_service_within};
 use crate::service_land::{LandContext, Outcome, land_batch_timed, recover, recover_instance};
 use crate::journald_native::Priority;
 use crate::service::service_server_land_group_answer_log::{BatchTimes, landing_figures_of, log_answer, path_of_change};
@@ -298,11 +299,13 @@ pub(crate) fn land_group(
             crate::service_fault::reach("before-ack");
             // What:
             //  The journal directory the notes for the next service are kept in,
-            //  and whether the store has answered this batch.
+            //  and whether the note of this batch has already given no answer.
             // Why:
-            //  A store that has not answered one write is not asked again within the same batch,
-            //  so a batch of many commits pays one ceiling and never one for each of them
-            //  (`service_claim_watch.rs`, `note_for_the_next_service_within`).
+            //  A store that has not answered one write of this batch is not asked again within it,
+            //  so a batch of many commits holds one unanswered note and pays one ceiling,
+            //  and never one for each of its commits.
+            //  The store is not asked again by a later batch either while that write is outstanding
+            //  (`service_claim_watch.rs`, `A_NOTE_WRITE_IS_OUTSTANDING`).
             let note_store: std::path::PathBuf = context.journal.join(crate::service_claim_watch::WATCH_DIRECTORY);
             let mut the_store_answers: bool = true;
             for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
@@ -330,14 +333,24 @@ pub(crate) fn land_group(
                         //  (`service_claim_watch.rs`, `note_for_the_next_service`). The wait for that write is bounded
                         //  (`wait_ceilings.rs`, `LANDING_WATCH_NOTE_CEILING`), because the commit has landed and its push is held
                         //  by now, and the work loop writes the same note when this answer's wake sends it to look.
-                        if the_store_answers
-                            && !crate::service_claim_watch::note_for_the_next_service_within(note_ceiling, note_store.as_path(), instance, request.git_dir.as_path())
-                        {
-                            the_store_answers = false;
-                            crate::service_warn!(
-                                "the note that names {} for the next service gave no answer within {note_ceiling:?} and is left behind; this commit is answered and stays landed, and the after-commit work writes that note when the wake of this answer sends it to look at the repository",
-                                crate::service_timing::in_the_repository_at(request.repository.as_path())
-                            );
+                        if the_store_answers {
+                            match note_for_the_next_service_within(note_ceiling, note_store.as_path(), instance, request.git_dir.as_path()) {
+                                NoteForTheNextService::Answered => {}
+                                NoteForTheNextService::AnEarlierWriteHasNotEnded => {
+                                    the_store_answers = false;
+                                    crate::service_warn!(
+                                        "the note that names {} for the next service is not written, because a note an earlier commit handed over has not ended after {note_ceiling:?}; this commit is answered and stays landed, and the after-commit work writes that note when the wake of that answer sends it to look at the repository",
+                                        crate::service_timing::in_the_repository_at(request.repository.as_path())
+                                    );
+                                }
+                                NoteForTheNextService::NoAnswer => {
+                                    the_store_answers = false;
+                                    crate::service_warn!(
+                                        "the note that names {} for the next service gave no answer within {note_ceiling:?} and is left behind; this commit is answered and stays landed, and the after-commit work writes that note when the wake of this answer sends it to look at the repository",
+                                        crate::service_timing::in_the_repository_at(request.repository.as_path())
+                                    );
+                                }
+                            }
                         }
                         landed.insert(request.id.clone(), commit.clone());
                         stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false, landing: Some(landing_figures_of(&times)) });
