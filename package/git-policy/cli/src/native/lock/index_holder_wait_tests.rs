@@ -108,7 +108,8 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     assert!(matches!(outcome, IndexWait::Released(waited) if waited >= holding), "{outcome:?}");
     let text: String = sink.text();
     assert!(text.contains("cannot be proven alive") && text.contains("has the lock open"), "what is known is said: {text}");
-    assert!(text.contains(format!("removing the file {}", lock.display()).as_str()), "the way out is named: {text}");
+    assert!(text.contains("this command removes the lock and the PID file beside it"), "the way out names both files: {text}");
+    assert!(text.contains(format!("rm -- {}", lock.display()).as_str()), "the way out names the command: {text}");
     assert!(text.contains(format!("for at most {} seconds", MERGE_LOCK_CEILING.as_secs()).as_str()), "the line says how long the wait lasts before it ends: {text}");
     assert!(!text.contains("stops waiting"), "a notice while the wait goes on never says the command stopped; only the ceiling's line does: {text}");
     remove(root.as_path());

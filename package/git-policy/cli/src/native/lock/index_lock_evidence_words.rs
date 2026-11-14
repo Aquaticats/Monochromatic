@@ -173,11 +173,12 @@ pub fn unproven_wait_line(lock_path: &Path, evidence: Option<&Evidence>, end: Wa
     };
     return format!(
         "monochromatic-git-policy-cli: waiting for {lock}, whose owner cannot be proven alive{known}; this waits until the lock goes, for at most {} seconds; \
-         after that, {}. If no program is using this repository, the lock was left by a program that was killed, and removing the file {lock} \
-         lets the command run.\n",
+         after that, {}. If no program is using this repository, the lock was left by a program that was killed, and this command removes the lock and \
+         the PID file beside it, so that the next Git writes its own number in its own file: {clearing}\n",
         end.within.as_secs(),
         end.ending,
-        lock = lock_path.display()
+        lock = lock_path.display(),
+        clearing = crate::abandoned_lock_words::removal_command(lock_path)
     );
 }
 
@@ -221,8 +222,9 @@ pub fn ceiling_line(lock_path: &Path, blocker: &str, waited_seconds: u64, conseq
 pub fn unproven_removal_advice(lock_path: &Path) -> String {
     return format!(
         "monochromatic-git-policy-cli: nothing proves a program is still using {lock}. If no program is using this repository, the lock was left by a program that was killed or \
-         has ended, and removing the file {lock} lets the command run.\n",
-        lock = lock_path.display()
+         has ended, and this command removes the lock and the PID file beside it, so that the next Git writes its own number in its own file: {clearing}\n",
+        lock = lock_path.display(),
+        clearing = crate::abandoned_lock_words::removal_command(lock_path)
     );
 }
 

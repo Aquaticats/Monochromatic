@@ -345,38 +345,72 @@ fn a_merge_killed_while_its_checkout_stalled(fixture: &Fixture, repo: &Path) -> 
 }
 
 /// What:
-///  The lock a killed merge left is kept
-///  when its PID file and the lock were born in one tick,
-///  which is what this volume gives the two files one Git writes at once,
-///  and the next command says why instead of removing it.
+///  A lock of a killed merge is cleared by the record the command wrote while its Git ran,
+///  even when the lock and its PID file carry one birth stamp:
+///  the order of the two births is what a file system of this volume's clock cannot show,
+///  and the record does not need it.
 /// Why:
-///  The gate removes a lock only when its PID file is born strictly after it
-///  (`Judge::pid_file_state`,
-/// `PidFile::Unproven`).
-///  A killed Git writes both files within microseconds,
-///  so on this volume they carry one birth stamp (measured:
-/// three samples of a checkout held by a stalled
-///  filter,
-/// one with identical stamps and two within 150 microseconds),
-///  and nothing shows whether the file was written for this lock or by an earlier holder.
-///  A review of `d189162e3e` found a live Git's editor-phase lock removed in exactly that state,
-///  and the fix reads an unproven order as "keep".
-///  The clearing itself is the control beside this one
-///  (`every_lock_file_a_killed_command_can_leave_is_cleared_on_the_same_proof`),
-/// whose fixture proves the order.
+///  This is the state the change exists for,
+///  measured on this volume:
+///  a merge killed by a group `SIGKILL` leaves `index.lock`,
+///  its PID file names the Git the wrapper's own record names,
+///  the two files were written microseconds apart so they share one stamp,
+///  and before the record existed the next commit failed behind the lock.
+///  The tick is forced rather than waited for,
+///  so the control states the hard state and not the machine's luck.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const lock = aMergeKilledWhileItsCheckoutStalled(); expect(runWrapped(['status']).said).toContain('cannot be told apart');
-/// expect(lock).toExist();
+/// const lock = aMergeKilledWhileItsCheckoutStalled(); expect(runWrapped(['status'], { BIRTH_TIME: '1000' })).toContain('cleared');
+/// expect(lock).not.toExist(); expect(commit(['-m', 'next']).code).toBe(0);
 /// ```
 #[test]
-fn an_index_lock_a_killed_merge_left_is_kept_when_its_birth_order_is_unproven() {
-    let fixture: Fixture = fixture("killed-merge-lock");
+fn an_index_lock_a_killed_merge_left_is_cleared_by_its_record_though_its_birth_order_is_unproven() {
+    let fixture: Fixture = fixture("killed-merge-lock-recorded");
     let repo: PathBuf = super::support::repository(&fixture, std::ffi::OsStr::new("repo"));
     let lock: PathBuf = a_merge_killed_while_its_checkout_stalled(&fixture, repo.as_path());
     let pid_file: PathBuf = pid_file_of(lock.as_path());
     assert!(pid_file.exists(), "the kill leaves the PID file the lock's holder was named in");
+    let (after, elapsed) = after_running_with(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock", &[("CLI_GIT_TEST_ONLY_BIRTH_TIME", "1000")]);
+    assert!(!after.lock_stands, "the record the command wrote pins the very file, so the birth order decides nothing: {}", after.said);
+    assert!(after.said.contains("cleared"), "one line must say what was cleared: {}", after.said);
+    assert!(after.said.contains("pinned the very file"), "the line says which proof acted: {}", after.said);
+    assert!(!pid_file.exists(), "the PID file of a cleared lock goes with it");
+    assert!(elapsed < GOES_ON_WITHIN, "the next command goes on at once: {elapsed:?}");
+    std::fs::write(repo.join("staged.txt"), "the person's change\n").expect("the person's change");
+    git(&fixture, repo.as_path(), &["add", "staged.txt"]);
+    commit_lands(&fixture, repo.as_path(), "after a killed merge");
+    super::commit::remove_settled(&fixture);
+}
+
+/// What:
+///  The lock a killed merge left is kept
+///  when no record of the command that started that Git is left beside it
+///  and its PID file and the lock were born in one tick,
+///  and the next command says why instead of removing it.
+/// Why:
+///  The birth-order gate still decides where no record exists,
+///  and this volume gives the two files one stamp:
+///  a review of `d189162e3e` found a live Git's editor-phase lock removed in exactly that state,
+///  so an unproven order is read as "keep".
+///  The record is removed here to make that state,
+///  because a killed merge the wrapper started now leaves one
+///  (the control beside this one).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lock = aMergeKilledWhileItsCheckoutStalled(); rmSync(recordsFolder, { recursive: true });
+/// expect(runWrapped(['status'], { BIRTH_TIME: '1000' }).said).toContain('cannot be told apart'); expect(lock).toExist();
+/// ```
+#[test]
+fn an_index_lock_of_a_killed_merge_with_no_record_is_kept_when_its_birth_order_is_unproven() {
+    let fixture: Fixture = fixture("killed-merge-lock-no-record");
+    let repo: PathBuf = super::support::repository(&fixture, std::ffi::OsStr::new("repo"));
+    let lock: PathBuf = a_merge_killed_while_its_checkout_stalled(&fixture, repo.as_path());
+    let pid_file: PathBuf = pid_file_of(lock.as_path());
+    assert!(pid_file.exists(), "the kill leaves the PID file the lock's holder was named in");
+    let records: PathBuf = folder_of(repo.join(".git").as_path());
+    std::fs::remove_dir_all(records.as_path()).expect("the records of the command that started that Git go");
     // A file system of one-second ticks, which this control states rather than waits for: the two files one Git writes at
     //  once then carry one birth stamp, and the order is not proven.
     let (after, elapsed) = after_running_with(&fixture, repo.as_path(), &["status", "--porcelain=v1"], "index.lock", &[("CLI_GIT_TEST_ONLY_BIRTH_TIME", "1000")]);
@@ -384,9 +418,7 @@ fn an_index_lock_a_killed_merge_left_is_kept_when_its_birth_order_is_unproven() 
     assert!(after.said.contains("cannot be told apart") || after.said.contains("no birth time"), "the line says why nothing was removed: {}", after.said);
     assert!(!after.said.contains("cleared"), "nothing may claim this lock was cleared: {}", after.said);
     assert!(elapsed < GOES_ON_WITHIN, "the command that meets it still goes on at once: {elapsed:?}");
-    let _ = pid_file;
     super::commit::remove_settled(&fixture);
-    return;
 }
 
 /// What:
@@ -452,7 +484,7 @@ fn a_lock_whose_file_system_records_no_birth_time_is_kept_and_named() {
     assert_eq!(after.code, Some(0), "the command goes on: {}", after.said);
     assert!(after.lock_stands, "nothing proves the order, so the lock stays: {}", after.said);
     assert!(after.said.contains("no birth time"), "the line says the file system records none: {}", after.said);
-    assert!(after.said.contains("removing the file"), "the line says what a person can do: {}", after.said);
+    assert!(after.said.contains("this command removes the lock"), "the line says what clears it: {}", after.said);
     assert!(elapsed < GOES_ON_WITHIN, "the command took {elapsed:?}");
     super::commit::remove_settled(&fixture);
 }
@@ -827,7 +859,7 @@ fn a_lock_with_no_record_of_the_wrapper_is_kept() {
     assert!(!after.said.contains("cleared"), "nothing may claim an unproven lock was cleared: {}", after.said);
     assert!(after.said.contains("index.lock"), "the message must name the lock (exit {:?}): {}", after.code, after.said);
     assert!(after.said.contains("no record"), "the message must say no record of the wrapper's commands explains that number: {}", after.said);
-    assert!(after.said.contains("removing the file"), "the message must say what a person can do: {}", after.said);
+    assert!(after.said.contains("this command removes the lock"), "the message must say what clears it: {}", after.said);
     super::commit::remove_settled(&fixture);
 }
 

@@ -111,7 +111,7 @@ fn a_lock_that_exists_is_never_removed_or_replaced_by_the_fallback() {
     assert_eq!(failure.code, FailureCode::IndexInUse);
     let said: String = announced.borrow().join("\n");
     assert!(
-        said.contains(lock.to_string_lossy().as_ref()) && said.contains("removing the file") && said.contains("was not made"),
+        said.contains(lock.to_string_lossy().as_ref()) && said.contains("this command removes the lock") && said.contains("was not made"),
         "the person is told which file this is and how to clear it: {said}"
     );
     assert_eq!(std::fs::read(&lock).expect("the lock stays"), b"", "the lock without a marker is left as it was");

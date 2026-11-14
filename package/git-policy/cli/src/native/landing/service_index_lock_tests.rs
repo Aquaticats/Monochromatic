@@ -293,7 +293,7 @@ fn an_owner_nothing_proves_alive_is_waited_for_like_a_proven_one() {
     // A wait that said nothing never looked at the held lock: the lock went away before its first look, which no order of this
     //  control's own steps can make it do.
     assert!(!said.is_empty(), "the wait said nothing at all, so the lock it was to wait for went away first");
-    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("cannot be proven alive") && text.contains("removing the file") && text.contains("has the lock open")); }), "{said:?}");
+    assert!(said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("cannot be proven alive") && text.contains("this command removes the lock") && text.contains("has the lock open")); }), "{said:?}");
     assert!(!said.iter().any(|note| { return matches!(note, Announce::Waiting(text) if text.contains("not made")); }), "{said:?}");
     drop(lock);
     remove(root.as_path());
