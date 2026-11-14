@@ -176,7 +176,9 @@ So, as the project's own rules until the owner changes them:
 - This session runs at most four agents at once, Pi runs and Sonnet subagents counted together, whatever the provider pools would take.
   The pool limits in `package/pi-shared/subagent-driver/src/pool-limits.ts` stay what a provider answers at once;
   they are no longer a number to fill to, and "you have 62 slots" in the section "Scope of the work: the Git wrapper, and the driver, mpm and Cargo it is worked on with" is void while the cap stands.
-- The cap is raised step by step until this disk's ceiling is found, and found again after the new drive is in (expected 2026-11-15).
+- The cap is raised step by step until this disk's ceiling is found, and found again after the new drive is in
+  (expected 2026-11-17;
+  the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-11-15).
 - The scratch folder is to be cleaned by rule, not by the owner.
 - `podman system reset` replaces the image prune of the wind-down section; that step is closed.
 - No long move or copy between the two drives in either direction.
@@ -1238,6 +1240,210 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Pass 43 is in `main` and `0.6.1-alpha.31` is dispatched; the new drive is expected two days later (2026-11-14T14:41:29-05:00)
+
+Not final and not approved:
+what one pass reports of itself,
+and what the coordinating session measured,
+merged and queued.
+
+- **The owner wrote at about 14:39** that the enterprise SSD's arrival slipped to 2026-11-17,
+  asked how everything stands,
+  and asked for the task list to be brought up to date,
+  which was done at 14:41.
+  The two handover lines that name the date are changed
+  (this file,
+  under "Owner decisions in force",
+  and `doc/handover/agents-at-once-on-this-machine.md`).
+- **Pass 43** (tip `50c5d8ac0c`:
+  a watch note of another repository)
+  reported fit at 14:38:52:
+  build,
+  both test compiles and Clippy clean,
+  the sixteen claim-watch controls and the tests of the changed modules passing at full CPUs and at four,
+  both guard modules passing.
+  It says the meeting with pass 38,
+  which changes the same watch-note files,
+  is still to be made by whoever merges the later of the two.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `11dbedf329` at 14:40:19,
+  and `0.6.1-alpha.31` was dispatched at 14:40:28
+  (run 43633361840).
+  Passes 38,
+  41,
+  42 and 44,
+  all going,
+  were told.
+  The wait for the release,
+  the install and the sample commit run as one background command;
+  the journal checks follow.
+  The next wrapper release is `0.6.1-alpha.32`.
+- **The fuzz sidecar's type check** on `main` at `11dbedf329`:
+  exit 0 at 14:41:12
+  (`~/temp/agent/fuzz-sidecar-type-check-on-main-after-its-merge-2026-11-14T1022/keep/type-check-on-main-at-11dbedf329-2026-11-14T1441.txt`).
+- At 14:39:47:
+  22 Pi runs going;
+  58 entries in the queue
+  (six reviews,
+  24 resumes,
+  28 fresh runs);
+  `/var/home` 71% used with 501 G free,
+  `/var/mnt/encrypted` 41% used with 2.1 T free.
+  Two runs that ended at 14:32 and 14:38 measured `~/temp/agent` at 314 and 330 GiB by `du`,
+  the largest folders `change-reviews` 94 GiB,
+  `pkgrepair-repair-off-the-path` 65 GiB,
+  the scratch of the no-service-manager author 54 GiB
+  and `sonnet-audits` 45 GiB.
+
+##### The landing author answered its fourth review; its review is queued first (2026-11-14T14:37:32-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked,
+and what it queued and measured.
+
+- **A landing never waits behind housekeeping** (tip `4768e9e809`, ended 14:32:52):
+  the author reports the large trash that was abandoned after three tries answered:
+  a disposal that made progress is deferred and uses no try,
+  and one that made none is retried three times and then recorded as failed with a journal line.
+  It walked the other jobs that requeue the same way
+  (prewarm,
+  relink,
+  subvolume delete,
+  snapshot ahead,
+  push,
+  review and upkeep)
+  and lists each with its lines and its bound.
+  Clippy clean and 120 tests of the changed modules passing at the tip,
+  which holds `main` with `0.6.1-alpha.30`.
+  It deleted a binary control of many rounds that could not hold every round and kept the in-crate one,
+  with the deleted control's runs in its `keep/runs/`.
+  It notes nothing reads the `failed` state for a person besides the new journal line.
+  Review queued first (range `main...4768e9e809`, 27 code files);
+  passes 29 and 34 still wait on its verdict.
+- Drive probe,
+  10:00 to 14:27:
+  of 266 readings four took a second or more
+  (build drive 3,306 ms at 13:02,
+  2,247 ms at 13:45,
+  2,300 ms at 14:21;
+  home drive 1,057 ms at 14:11),
+  never two in a row,
+  with 20 agent units going.
+- The check of queued entries at 14:37:32:
+  67 names queued by this session since 08:54,
+  none missing,
+  none twice;
+  59 entries in the queue.
+
+##### mpm-shadow's stale launchers are answered with the scope lock gone, at a cost not yet attributed; the brief writer for tests is answered; both go to review (2026-11-14T14:27:24-05:00)
+
+Not final and not approved:
+what two authors report of themselves,
+which this session has not checked,
+and what it queued.
+
+- **mpm-shadow's stale launchers** (tip `7fa024e9d5`, ended 14:22:51):
+  the author reports the scope's lock removed,
+  so an install never waits,
+  skips or fails for it,
+  and each of the five findings answered,
+  with five controls that fail at the code before and the review's scripts no longer reaching the defect's state;
+  808 tests passing and Clippy clean after merging `main`.
+  Open,
+  and a condition before this branch is merged:
+  an install with nothing to do measures at a ratio of 1.18 to `649a45b459`
+  (medians 61.87 and 73.17 ms over seven interleaved rounds,
+  ranges 53.17 to 65.88 and 72.17 to 81.29,
+  which do not overlap).
+  The author puts most of it down to `main`'s `install <tool>` arriving in the same merge
+  (178 more `openat` calls against 174 declared bins)
+  and did not build an arm of `main` alone,
+  so the cause is not measured.
+  Whoever touches the branch next,
+  its author after a review with findings or a fresh run after a clean one,
+  is asked for that arm.
+  Review queued second (range `main...7fa024e9d5`, eight code files).
+- **The brief writer for a change to tests alone** (tip `cc72076d8e`, ended 14:26:27):
+  the author reports the review answered in one commit;
+  a range that only deletes code now starts a review where it was refused,
+  and real runs of the writer on three ranges gave a tests brief,
+  a plain brief and a refusal for the `.cjs` range as before.
+  It reworded a sentence of the tests brief,
+  so the review script's phrase check now reads false for a tests-only change:
+  the reviewer will meet that.
+  Review queued third (range `main...cc72076d8e`, seven code files).
+- The queue held 61 entries at 14:27:24.
+
+##### The read-only main checkout works and refuses a start for a path with a space, back to its author; the landed removal's second answer goes to review (2026-11-14T14:20:54-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session queued.
+
+- **A Pi run cannot write into the main checkout** (`ca137eb2bf`):
+  by the review's probes the mechanism holds
+  (the listed paths writable,
+  every other write,
+  delete and rename under the checkout refused;
+  the checkout's symbolic-link alias does not get past it;
+  a commit cannot be blocked by it).
+  Two things,
+  both refusals of a start:
+  paths are put unquoted into the two properties,
+  so a checkout path with a space or a relative folder is rejected by systemd and the unit does not start,
+  where it started before (reproduced);
+  and the worktree is a mandatory writable path,
+  so a finish of the same name that removes it before the namespace is set up fails the start with status 226
+  (mechanism reproduced,
+  the race by reading).
+  The author is resumed second
+  (`~/temp/agent/pi-runs/pi-run-cannot-write-into-the-main-checkout-answers-its-review-of-2026-11-14-prompt.md`).
+- **The landed removal's guard** (tip `9e6c8619a9`, ended 14:18:30):
+  the author reports both findings of the second review answered:
+  the operand is resolved as Git resolves it and refused where that cannot be said,
+  and no read can be held by a pipe,
+  a device or a link;
+  835 tests of `worktree::` passing.
+  It names one read it left alone because it is `main`'s and reached only on the btrfs destroy path:
+  `check_clean` still opens an index with an open that blocks.
+  Review queued third (range `main...9e6c8619a9`, nineteen code files).
+- The queue held 62 entries at 14:20:54.
+
+##### The killed-Git lock's answer holds every pin for the life of a Git run, back to its author (2026-11-14T14:10:07-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+and what the coordinating session queued and measured.
+
+- **The lock a killed Git left** (`1ee73d2728`),
+  third review:
+  the change's aim is met
+  (31 of 31 controls,
+  the two for the earlier findings among them;
+  no path found that clears a live writer's lock).
+  One reproduced that the change brought:
+  each take's record now has a name of its own,
+  nothing forgets a record until the Git run ends,
+  so one rebase of many commits pins every intermediate copy of the index:
+  10 pins grew to 46 during a rebase,
+  and with an index of 3,000 files the bytes held grew from 240 KB to 2.64 MB,
+  all freed at the end.
+  Its "before" is read from the diff and not run.
+  One more by reading,
+  older than the change:
+  a sweep beside a write can remove a `.lock-path.writing` temporary file.
+  The author is resumed second,
+  asked for a bound that does not grow with the run's length
+  (`~/temp/agent/pi-runs/lock-a-killed-git-left-answers-its-third-review-of-2026-11-14-prompt.md`).
+- The check of queued entries at 14:10:07:
+  63 names queued by this session since 08:54,
+  none missing,
+  none twice;
+  60 entries in the queue,
+  21 Pi runs going and 22 launchers
+  (a launcher that waits for a place has no run yet).
 
 ##### The change that keeps a Pi run out of the main checkout is written and goes to review (2026-11-14T13:59:05-05:00)
 
