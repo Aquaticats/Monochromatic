@@ -15,7 +15,7 @@
 //! ```
 
 /// Import the sibling modules the decision combines.
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure};
+use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, REJECTED_EXIT_CODE, failure};
 use crate::index_writer_forward::CoordinatedForward;
 use crate::index_writer_commands::is_index_writer;
 use crate::forwarded_command::{ResolvedCommand, Route, creates_worktrees, resolve_forwarded_command};
@@ -82,6 +82,14 @@ pub(crate) fn forward_action(
         Route::Alias => command.arguments.clone(),
         Route::Direct | Route::ShellAlias | Route::Unresolved => arguments,
     };
+    // The Git work a typed removal would destroy is asked here, before this function chooses a route: the copy route,
+    // the plain forward (`--no-worktree-copy`, a form the removal plan does not serve, a command outside a worktree) and
+    // any route added later all pass this point, and only a forced removal or the guard's own opt-out stands the
+    // question down (`worktree_removal_typed_git_work.rs`). Without this, a flag that skips another step skipped the
+    // guard with it (a review of `bab700404d`, finding 1).
+    if let Some(stderr) = crate::worktree_removal_typed_git_work::refusal_for_a_typed_removal(&command, removal_escaped, checks) {
+        return Action::Exit { code: REJECTED_EXIT_CODE, stdout: String::new(), stderr };
+    }
     let writes_index: bool = is_index_writer(&command);
     if !writes_index && copy_bypassed {
         return Action::Forward {

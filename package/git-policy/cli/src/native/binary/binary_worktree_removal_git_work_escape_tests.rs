@@ -20,10 +20,11 @@
 //! const ran = runWrapped(fixture, repo, printedWords(refused)); // exit 0, the worktree is gone
 //! ```
 
-use super::support::{Fixture, Observed, fixture, git, remove, repository, run_direct, run_wrapped, stderr_of};
+use super::support::{Fixture, Observed, fixture, git, hermetic, observe, remove, repository, run_direct, run_wrapped, stderr_of, wrapper_first_path};
 use git_policy_cli::worktree_added_by_the_wrapper::record;
 use std::ffi::OsStr;
 use std::path::PathBuf;
+use std::process::Command;
 
 /// The file a tracked edit changes.
 const TRACKED: &str = "base.txt";
@@ -47,19 +48,31 @@ impl Scene {
         return run_wrapped(&self.fixture, self.repo.as_path(), words);
     }
 
-    /// Remove the worktree with the words a refusal printed,
-    /// taken out of its own text.
-    fn run_what_was_printed(&self, refusal: &str) -> Observed {
-        let task: String = self.task.display().to_string();
+    /// The command a refusal printed,
+    /// taken out of its own text between the backticks.
+    fn printed_command(&self, refusal: &str) -> String {
         let marker: &str = "`";
-        let quoted: usize = refusal.find("`git worktree --no-enforce-worktree remove ").expect("the refusal prints the command that runs the removal") + marker.len();
-        let rest: &str = &refusal[quoted..];
+        let start: usize = refusal.find("`git worktree --no-enforce-worktree remove ").expect("the refusal prints the command that runs the removal") + marker.len();
+        let rest: &str = &refusal[start..];
         let end: usize = rest.find('`').expect("the printed command ends with a backtick");
-        let printed: Vec<&str> = rest[..end].split_whitespace().collect();
-        assert_eq!(printed.first().copied(), Some("git"), "the printed command starts with git: {}", &rest[..end]);
-        assert_eq!(printed.last().copied(), Some(task.as_str()), "the printed command names this worktree: {}", &rest[..end]);
-        // The harness already starts the wrapper as `git`, so the printed command's own `git` word is the harness's.
-        return self.remove_with(&printed[1..]);
+        return rest[..end].to_owned();
+    }
+
+    /// Run a printed command the way a person does:
+    /// through a shell,
+    /// with the fixture's own environment and the wrapper first on its `PATH`.
+    /// Why:
+    ///  Splitting the text on spaces is not what a shell does with quotes,
+    /// and the quoting is exactly what these controls are about.
+    ///  `bash` is the shell the quoting's own controls use,
+    /// and the one whose ANSI-C form a name with a line break needs.
+    fn run_through_a_shell(&self, printed: &str) -> Observed {
+        let mut shell: Command = Command::new("bash");
+        shell.arg("-c").arg(printed);
+        hermetic(&mut shell, &self.fixture, wrapper_first_path(&self.fixture).as_os_str());
+        // `git worktree remove <path>` names a worktree of the repository the command stands in, so the paste happens there.
+        shell.current_dir(self.repo.as_path());
+        return observe(&mut shell, b"");
     }
 
     /// Mill the worktree's `HEAD` off its branch and commit there.
@@ -90,13 +103,25 @@ impl Scene {
 ///  where the escape's promise is exactly Git's ending,
 ///  and the record is what lets a sweep examine the worktree at all.
 fn a_repository_with_a_recorded_worktree(name: &str) -> Scene {
+    return a_repository_with_a_recorded_worktree_in(name, "task");
+}
+
+/// What:
+///  The same repository,
+///  with the worktree at a directory of the caller's naming.
+/// Why:
+///  A control of the quoting needs a path holding a space,
+///  a quote,
+///  a dollar sign and a line break,
+///  and only the directory's own name can hold those bytes.
+fn a_repository_with_a_recorded_worktree_in(name: &str, directory: &str) -> Scene {
     let fixture: Fixture = fixture(name);
     let repo: PathBuf = repository(&fixture, OsStr::new("repo"));
     std::fs::write(repo.join(TRACKED), "base\n").expect("a tracked file");
     git(&fixture, &repo, &["add", TRACKED]);
     git(&fixture, &repo, &["commit", "--quiet", "--message=a tracked file"]);
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the common Git directory");
-    let added: PathBuf = fixture.root.join("task");
+    let added: PathBuf = fixture.root.join(directory);
     let task_text: &str = added.to_str().expect("a UTF-8 fixture path");
     run_direct(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", BRANCH, task_text]);
     let task: PathBuf = std::fs::canonicalize(added.as_path()).expect("the worktree's real path");
@@ -127,7 +152,8 @@ fn a_hidden_edit_is_refused_and_the_printed_opt_out_runs_the_removal() {
     let printed: String = format!("`git worktree --no-enforce-worktree remove {task}`");
     assert!(said.contains(printed.as_str()), "the refusal prints the opt-out in a spelling that runs: {said}");
     assert!(scene.task.join(TRACKED).exists(), "nothing was removed");
-    let ran: Observed = scene.run_what_was_printed(said.as_str());
+    let printed: String = scene.printed_command(said.as_str());
+    let ran: Observed = scene.run_through_a_shell(printed.as_str());
     assert_eq!(ran.code, Some(0), "the printed command runs as real Git runs it: {}", stderr_of(&ran));
     assert!(!scene.task.exists(), "and the worktree is gone");
     remove(&scene.fixture);
@@ -150,7 +176,8 @@ fn a_stranded_commit_is_refused_and_the_printed_opt_out_runs_the_removal() {
     assert!(said.contains(&commit[..12]), "the refusal names the commit: {said}");
     assert!(said.contains("`git worktree --no-enforce-worktree remove "), "the refusal prints the opt-out: {said}");
     assert!(scene.task.exists(), "nothing was removed");
-    let ran: Observed = scene.run_what_was_printed(said.as_str());
+    let printed: String = scene.printed_command(said.as_str());
+    let ran: Observed = scene.run_through_a_shell(printed.as_str());
     assert_eq!(ran.code, Some(0), "the printed command runs as real Git runs it: {}", stderr_of(&ran));
     assert!(!scene.task.exists(), "and the worktree is gone");
     remove(&scene.fixture);
@@ -218,5 +245,78 @@ fn the_sweep_keeps_a_worktree_that_holds_a_commit_nothing_else_names() {
     assert_eq!(merged.code, Some(0), "the merge itself goes through: {said}");
     assert!(scene.task.exists(), "the sweep left the worktree: {said}");
     assert!(said.contains(&commit[..12]), "and named the commit it would have destroyed: {said}");
+    remove(&scene.fixture);
+}
+
+/// What:
+///  A removal that skips the copy is refused for a hidden edit,
+///  and the opt-out runs it,
+///  with the same skip in place.
+/// Why:
+///  The guard lives where the removal is made,
+///  and `--no-worktree-copy` sends the command to real Git before that place:
+///  the question is asked before the route is chosen,
+///  so a flag that skips another step cannot skip this one.
+#[test]
+fn a_removal_that_skips_the_copy_is_refused_and_its_opt_out_runs_it() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-skip-copy-hidden-edit");
+    let task: String = scene.task.display().to_string();
+    scene.hide_an_edit();
+    let refused: Observed = scene.remove_with(&["--no-worktree-copy", "worktree", "remove", task.as_str()]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "a removal that skips the copy is still refused: {said}");
+    assert!(said.contains("base.txt"), "and names the edit: {said}");
+    assert!(scene.task.join(TRACKED).exists(), "nothing was removed");
+    let ran: Observed = scene.remove_with(&["--no-worktree-copy", "worktree", "--no-enforce-worktree", "remove", task.as_str()]);
+    assert_eq!(ran.code, Some(0), "the opt-out runs it as real Git runs it: {}", stderr_of(&ran));
+    assert!(!scene.task.exists(), "and the worktree is gone");
+    remove(&scene.fixture);
+}
+
+/// What:
+///  The same for a commit only the worktree's `HEAD` names.
+/// Why:
+///  A commit is the data a removal cannot bring back,
+///  and the route that skips the copy destroyed it before this control existed.
+#[test]
+fn a_removal_that_skips_the_copy_is_refused_for_a_stranded_commit_too() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-skip-copy-stranded-commit");
+    let task: String = scene.task.display().to_string();
+    let commit: String = scene.detach_and_commit();
+    let refused: Observed = scene.remove_with(&["--no-worktree-copy", "worktree", "remove", task.as_str()]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "a removal that skips the copy is still refused: {said}");
+    assert!(said.contains(&commit[..12]), "and names the commit: {said}");
+    assert!(scene.task.exists(), "nothing was removed");
+    let ran: Observed = scene.remove_with(&["--no-worktree-copy", "worktree", "--no-enforce-worktree", "remove", task.as_str()]);
+    assert_eq!(ran.code, Some(0), "the opt-out runs it as real Git runs it: {}", stderr_of(&ran));
+    assert!(!scene.task.exists(), "and the worktree is gone");
+    remove(&scene.fixture);
+}
+
+/// What:
+///  The command a refusal prints runs as printed for a worktree path holding a space,
+///  a single quote,
+///  a double quote,
+///  a dollar sign and a line break.
+/// Why:
+///  The report hands the person a command to copy and run,
+///  and a raw path turns it into several words or into an expansion
+///  (a review of `bab700404d`, finding 2).
+///  The text is run through a shell here,
+///  because splitting it on spaces is not what a shell does with quotes.
+#[test]
+fn the_printed_opt_out_runs_for_a_hostile_path() {
+    let scene: Scene = a_repository_with_a_recorded_worktree_in("removal-hostile-path", "my task's $HOME \"q\"\nafter");
+    let task: String = scene.task.display().to_string();
+    scene.hide_an_edit();
+    let refused: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "the guard refuses the removal: {said}");
+    let printed: String = scene.printed_command(said.as_str());
+    assert!(!printed.contains("\n"), "the printed command holds no line break of its own: {printed}");
+    let ran: Observed = scene.run_through_a_shell(printed.as_str());
+    assert_eq!(ran.code, Some(0), "the printed command runs as printed: {} [{printed}]", stderr_of(&ran));
+    assert!(!scene.task.exists(), "and the worktree is gone");
     remove(&scene.fixture);
 }

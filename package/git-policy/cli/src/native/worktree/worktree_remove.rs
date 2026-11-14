@@ -76,8 +76,6 @@ pub(crate) const TAG: &str = "worktreeRemove";
 /// The mount option that lets a regular user destroy a subvolume with the ioctl.
 const REMOVAL_OPTION: &str = "user_subvol_rm_allowed";
 
-/// The prefix every report of this program carries.
-const PREFIX: &str = "monochromatic-git-policy-cli: ";
 
 /// What:
 ///  The line the command prints on standard error whenever a removed worktree was a btrfs subvolume.
@@ -431,12 +429,7 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
             Err(reason) => reasons.push(format!("nothing proves no edit there is hidden from Git, so nothing is removed: {reason}")),
         }
         if !reasons.is_empty() {
-            let report: String = format!(
-                "{PREFIX}{} keeps Git work that a removal would destroy, or that nothing here proves it would not, so nothing was removed: {}. If this worktree must go anyway, `git worktree --no-enforce-worktree remove {}` runs as real Git runs it and deletes all of it.",
-                target.display(),
-                reasons.join(". "),
-                target.display()
-            );
+            let report: String = crate::worktree_removal_typed_git_work::git_work_refusal(target, reasons.as_slice());
             warn(TAG, report.as_str());
             return RemoveOutcome::Refused(report);
         }

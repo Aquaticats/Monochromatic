@@ -54,6 +54,11 @@ pub mod worktree_removal_keeps_git_work;
 /// which keep the worktree.
 pub mod worktree_removal_hidden_edits;
 
+/// The Git work a typed removal would destroy,
+/// asked before any route the wrapper sends that command by,
+/// and the words both guards print.
+pub mod worktree_removal_typed_git_work;
+
 /// What a removal deletes besides the files Git tracks,
 /// in the words of its line.
 pub mod worktree_removal_takes;

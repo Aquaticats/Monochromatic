@@ -135,10 +135,13 @@ pub(crate) fn hidden_edits_beneath(context: &GitContext, worktree: &Path, admin:
 /// ```
 fn sentence(path: &[u8]) -> String {
     let shown: String = String::from_utf8_lossy(path).into_owned();
+    // The path is quoted where it enters the command the person copies: a name with a space, a quote, a dollar sign
+    // or a line break otherwise turns that command into another one.
+    let quoted: String = crate::shell_quote::shell_quote(path);
     return format!(
         "the tracked file {shown} is marked assume-unchanged or skip-worktree, and its bytes are not the ones its index entry \
          names, so no command of Git sees that edit. Commit it, move it somewhere else, or remove the mark \
-         (`git update-index --no-assume-unchanged -- {shown}`, or `--no-skip-worktree`), and remove the worktree again"
+         (`git update-index --no-assume-unchanged -- {quoted}`, or `--no-skip-worktree`), and remove the worktree again"
     );
 }
 

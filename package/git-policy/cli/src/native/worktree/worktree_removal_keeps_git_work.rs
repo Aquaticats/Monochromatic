@@ -283,12 +283,14 @@ fn named_by_a_surviving_reference(context: &GitContext, root: &Path, commit: &st
 /// ```
 fn sentence(root: &Path, stranded: &Stranded) -> String {
     let short: &str = &stranded.commit[..SHOWN_DIGITS.min(stranded.commit.len())];
+    // The path is quoted where it enters the command the person copies: a path with a space, a quote, a dollar sign
+    // or a line break otherwise turns that command into another one.
+    let quoted: String = crate::shell_quote::shell_quote(root.as_os_str().as_encoded_bytes());
     return format!(
         "{} names the commit {short}, and nothing else of this repository does, so a removal would leave nothing that names it and \
-         `git gc --prune=now` would take it. Give it a name that outlives the worktree first, with `git -C {} branch <a name you \
+         `git gc --prune=now` would take it. Give it a name that outlives the worktree first, with `git -C {quoted} branch <a name you \
          choose> {short}`, then remove the worktree again",
-        stranded.holder,
-        root.display()
+        stranded.holder
     );
 }
 
