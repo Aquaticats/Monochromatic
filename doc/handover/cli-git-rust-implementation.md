@@ -760,6 +760,9 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - A Pi run that cannot write into the main checkout (tip `ca137eb2bf`, added 2026-11-14T13:59-05:00):
+    is a review's unit also held to a read-only worktree,
+    which needs every package's build folder listed as writable so that a review can still build and test?
   - The queue of runs filled from the driver package (tip `9a778654e9`, added 2026-11-14T13:15-05:00):
     does `reviewOfBranch` belong in the queue too;
     is half an hour the right bound for the notice that the filling has stalled;
@@ -1235,6 +1238,196 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The change that keeps a Pi run out of the main checkout is written and goes to review (2026-11-14T13:59:05-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked.
+
+- **A Pi run cannot write into the main checkout** (tip `ca137eb2bf`, ended 13:54:18):
+  the run's unit gets the main checkout read-only (`ReadOnlyPaths=`),
+  with its own worktree,
+  the common Git directory,
+  the checkout's `.cache`,
+  its scratch and its run folder writable (`ReadWritePaths=`).
+  By its controls on a disposable repository:
+  before the change a write and a delete under the checkout's `package/` succeed;
+  after it both are refused with `Read-only file system`,
+  while writes into the worktree,
+  the run folder,
+  scratch and `.cache` succeed and a commit lands.
+  The user manager of this machine (systemd 262) honours both properties for an unprivileged unit;
+  a writable path that does not exist fails the unit unless it carries the `-` prefix.
+  It found how the fuzz sidecar's author came to write there:
+  that agent copied its own three files from the main checkout into its worktree after seeing them in the main checkout's status.
+  Left open by it:
+  a review's unit can be held to a read-only worktree,
+  but a type check then fails on the first package's build folder,
+  so reviews would need each package's build folder listed;
+  and the batch's own unit is not confined,
+  since it makes the worktrees.
+  The first of these is added to the kept questions.
+  Review queued second (range `main...ca137eb2bf`, five code files).
+- The queue held 60 entries at 13:59:05.
+
+##### The merge that ends saved and the commit that says what stopped it both pass; pass 44 carries them (2026-11-14T13:54:43-05:00)
+
+Not final and not approved:
+what two reviews report of themselves,
+and what the coordinating session queued and measured.
+
+- **The merge that ends saved** (`1e04fc59d0`),
+  second review:
+  "no concrete defect",
+  over the whole branch and not the tip alone.
+  Four binary tests through the built program and 143 unit tests run
+  (26 commands);
+  the three tests that hold a lock take about a minute each,
+  which is the bound of the wait and not a wait without one.
+  One thing it names as design and not a defect:
+  the settle's restore waits up to a minute on a foreign lock before it saves.
+- **A commit that does not land says what stopped it** (`f7fe3be7ee`),
+  third review:
+  "no concrete defect found".
+  Nine binary controls and 32 library controls run
+  (30 commands),
+  the race of signal and sender among them.
+  It did not run the whole suite or the gate container.
+  The branch keeps a caller's inherited ignore of signals,
+  which is the reading this session adopted and the kept question asks the owner about.
+- **Integration pass 44** is queued first with both
+  (`~/temp/agent/pi-runs/integration-pass-44-with-the-merge-that-ends-saved-and-the-commit-that-says-what-stopped-it-prompt.md`).
+  Passes 38 and 41 to 43 are going beside it.
+- The check of queued entries at 13:54:43:
+  62 names queued by this session since 08:54,
+  none missing,
+  none twice in the queue;
+  61 entries in the queue.
+
+##### The lock shim's three defects are closed and one small one remains; the watch note's ceiling latches after a refused thread; both go back (2026-11-14T13:49:43-05:00)
+
+Not final and not approved:
+what two reviews report of themselves,
+each having run reproductions,
+and what the coordinating session queued.
+
+- **The lock shim of Pi** (`37287ade63`),
+  checked by the reviewer of its first tip (53 commands run):
+  the three original defects are closed,
+  each reproduction now ending with a refusal and the holder alive;
+  a takeover happens on proof alone;
+  two takers racing give one winner;
+  nothing depends on the wall clock.
+  One reproduced:
+  the command it prints to clear a lock is not quoted,
+  so for a path with a space the printed `rmdir` fails and the printed `rm -f` ends with status 0 and removes nothing.
+  Its own limits:
+  the package's suite passed on a third run after two that met child-process timeouts,
+  and it could not rebuild the author's end-to-end starts of Pi.
+  The author is resumed third,
+  for the quoting and to measure the suite that passed only on a third run
+  (`~/temp/agent/pi-runs/lock-shim-of-pi-answers-its-second-review-of-2026-11-14-prompt.md`).
+- **A watch note written within a ceiling** (`4307d45a89`):
+  one reproduced with the changed function and `work_within` copied into a harness and a thread refused by a scope's process limit:
+  the flag that says a write is outstanding is taken before the worker starts and cleared by a guard built inside the worker,
+  so one refused start leaves it set for the life of the process and no landing writes a note again;
+  after a kill of the service a held backup push can then wait for a commit that never comes.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/watch-note-write-ceiling-answers-its-review-of-2026-11-14-prompt.md`).
+- The summary of the lock shim reviewer's run holds a third `workProblem` of the same kind
+  (`ESRCH` reading `/proc/<pid>/comm`);
+  the fresh run for that scan is in the queue.
+- No leftover launcher held either name when the two resumes were queued.
+  The queue held 60 entries at 13:49:43.
+
+##### The first minutes of `0.6.1-alpha.30` are clean; the killed-Git lock's author answered a second time (2026-11-14T13:44:22-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+and what one author reports of itself.
+
+- **`0.6.1-alpha.30`**,
+  the user journal from 13:38:00 until 13:44:00:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  four services saying `0.6.1-alpha.30` at their start.
+  One more line says `0.6.1-alpha.23`:
+  its program is the debug build in the worktree of issue 6293's author,
+  run inside a `systemd-run` scope of that agent,
+  so it is a fixture's service and not one of this machine's.
+  It shows that a fixture's service writes into the real user journal,
+  and that the count of releases at start includes agents' fixtures.
+- **The lock a killed Git left** (tip `1ee73d2728`, ended 13:39:21):
+  the author reports the pair of pin and record replaced by one record published in one step,
+  the race of the second review answered,
+  `git add` and `git status` within the spread of the commit before
+  (`git status` at a ratio of 0.984),
+  and names what it left:
+  one small file for each lock path ever taken,
+  and three stash entries in its worktree that hold other work.
+  Review queued second (range `main...1ee73d2728`, ten code files).
+- The queue held 59 entries at 13:44:22.
+
+##### `0.6.1-alpha.30` is installed (2026-11-14T13:38:16-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **`0.6.1-alpha.30`** (pass 40):
+  published at 13:38:05,
+  installed here from 13:38:05 to 13:38:16,
+  sample commit 1,130 ms,
+  `--version` answering `0.6.1-alpha.30`.
+  The four checks of the user journal for its first minutes are still to run.
+  The next wrapper release is `0.6.1-alpha.31`.
+- Three wrapper releases went out today after the owner's return:
+  `0.6.1-alpha.28` (pass 37) at 10:34:55,
+  `0.6.1-alpha.29` (pass 39) at 12:30:46,
+  `0.6.1-alpha.30` (pass 40) at 13:38:05;
+  and mpm-shadow `0.2.7-alpha.11` at 12:35:14.
+
+##### The queue-filling change loses an update when two writers meet, back to its author; no entry this session queued today is missing (2026-11-14T13:36:40-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+what the coordinating session measured,
+and what it queued.
+
+- **The queue of runs filled from the package** (`9a778654e9`):
+  one reproduced with two processes on disposable queue files:
+  a put,
+  a take and a move each read the queue,
+  change it and write it with nothing holding the three steps together,
+  so of two puts at once one is lost
+  (60 of 200 rounds,
+  none in the sequential control),
+  and a take after a start against a put brings the started entry back or drops the new one
+  (30 and 24 of 200 rounds);
+  every failure ends with status 0.
+  The author is resumed second,
+  asked to weigh a queue held with no lock
+  (one file for each entry,
+  made with `O_EXCL`)
+  against a lock over the read,
+  change and write,
+  as the project's rule on concurrency reads
+  (`~/temp/agent/pi-runs/queue-of-runs-filled-from-the-package-answers-its-review-of-2026-11-14-prompt.md`).
+- **The same shape is in use now**:
+  the scratch scripts this session queues with read,
+  change and write the same file beside the filling unit's take every round.
+  Measured at 13:36 with a script kept beside them
+  (`check-every-entry-this-session-queued-today-is-in-the-queue-or-was-started.ts`):
+  of the 60 names this session queued since 08:54,
+  each is in the queue,
+  was started or asked for by the filling unit,
+  or has a run folder of today;
+  none is missing and none stands twice in the queue.
+  The one entry lost today was lost by a launcher that failed,
+  not by this race.
+  The check runs again at each round until the package's filling is in.
+- The queue held 59 entries at 13:36:40.
 
 ##### Pass 40 is in `main` and `0.6.1-alpha.30` is dispatched; the watch note's write ceiling goes to review (2026-11-14T13:31:08-05:00)
 
