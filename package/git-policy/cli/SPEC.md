@@ -3189,7 +3189,10 @@ A worktree whose branch a merge landed is removed by those same routes,
  at most `SHOWN_ENTRIES` = 20 of them),
  `ignoredShown` and `ignoredTotal`,
  `nested` (each registered worktree that stood inside it,
- with `worktree`, `worktreeHex`, `files`, `filesShown` and `filesTotal` for the untracked and ignored files it held),
+ with `worktree`, `worktreeHex`, `files`, `filesShown` and `filesTotal` for the untracked and ignored files it held,
+ and `changed`, `changedShown` and `changedTotal` for the tracked files it had changed,
+ staged changes among them,
+ with `changedUnreadable` when that listing could not be read),
  and `unreadable` when a listing could not be read,
  which is not a failure of the removal;
  the second is appended once the files are gone and carries `"outcome":"deleted"`,
@@ -17952,8 +17955,9 @@ where the work being discarded is not theirs.
 Two commands run exactly as Git runs them and leave one audit line each
 (outcome `logged`),
 by the owner's decision.
-`git worktree remove` is refused in one case only:
-while a live process works in the worktree.
+`git worktree remove` is refused in two cases only:
+while a live process works in the worktree,
+and while a worktree this repository registers inside the one named holds Git work no other copy has.
 The refusal names the process by its number and the kernel's name for the program it runs
 (`/proc/<pid>/comm`),
 never its command line or its environment,
@@ -17976,6 +17980,20 @@ skipping this account's own commit-service markers inside the worktree's Git dir
 and carrying `PROCESS_SCAN_CEILING`;
 a scan that reached it answers that it did not finish,
 and the removal is refused rather than guessed.
+The second refusal is the first sentence of the owner's decision of 2026-11-12T13:04:14:
+"Git work is never destroyed by a removal: a commit that no reference holds,
+and an edit to a tracked file, however it is hidden".
+A nested worktree usually sits under a name the outer worktree ignores,
+so real Git deletes it without asking the nested worktree's own rules;
+the question is `nested_worktrees_holding_git_work`
+(`src/native/worktree/worktree_nested_git_work.rs`),
+asked of every registration the repository holds inside the target,
+detached ones included (the landed sweep's own reader leaves those out):
+one `git status --porcelain=v1 --untracked-files=no -z` there for a changed or staged tracked file,
+and, only for a `HEAD` that names no branch,
+one `git for-each-ref --contains HEAD` to ask whether any reference names that commit.
+An answer that cannot be read refuses, and with the escape the removal runs and the record names
+the nested worktree's tracked changes beside its untracked and ignored files.
 
 - `git worktree remove` in any worktree.
   The owner's words:

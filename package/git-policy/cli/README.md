@@ -1302,6 +1302,10 @@ so a worktree holding many separate ignored files still writes one readable line
 with the files it held in the same shape (`files`,
 `filesShown`,
 `filesTotal`),
+the tracked files it had changed (`changed`,
+`changedShown`,
+`changedTotal`,
+from one `git status --porcelain --untracked-files=no` there),
 and a listing that could not be read says so in `unreadable` instead of naming nothing.
 A forced removal is written the same way,
 with `--force` in `command`.
@@ -2678,15 +2682,28 @@ because the line is written before Git runs and cannot say whether Git ran the d
 by the owner's decision,
 also when `--no-enforce-worktree` is given.
 `git branch -d` and its forms are never rejected.
-`git worktree remove` is never rejected for what the worktree holds,
+`git worktree remove` is never rejected for what the worktree itself holds,
 because agents are as likely to run `rm -rf`,
-and it is rejected in one case only:
-a live process works in the worktree.
-That refusal names the process by its number and the kernel's name for the program it runs,
+and it is rejected in two cases only.
+A live process works in the worktree:
+that refusal names the process by its number and the kernel's name for the program it runs,
 never its command line or its environment,
 says what the removal would do to that program,
-and names the one flag that runs the removal anyway:
+and names the one flag that runs the removal anyway,
 `git worktree --no-enforce-worktree remove <path>`.
+A worktree registered inside the one you named holds work no other copy has:
+an edit to a tracked file or a staged change,
+or a commit that no reference names,
+which only that worktree's own `HEAD` holds.
+Real Git deletes a nested worktree without asking its own ignore rules,
+so an uncommitted edit there goes with the outer worktree,
+and the owner's decision of 2026-11-12T13:04:14 is "Git work is never destroyed by a removal".
+That refusal names the nested worktree and the files,
+says to commit or move them or to remove that worktree first,
+and ends with the same flag.
+With the flag the removal runs exactly as real Git does,
+and what it takes is in the record below,
+the changed tracked files of the nested worktree among them.
 The flag goes directly after the subcommand word `worktree`,
 because a token after `remove` is read as that subcommand's own argument.
 A forced removal is never refused:
