@@ -239,7 +239,8 @@ fn the_fixture_service_log_writes_nowhere_but_the_fixture() {
 ///  the files that start the service build most of this crate's controls,
 ///  so a rule about them that found nothing would read as a pass.
 /// Why:
-///   `QIV` and `TRV`: a scan whose scope went empty,
+///   `QIV` and `TRV`:
+/// a scan whose scope went empty,
 /// or whose walk stopped reaching the files,
 /// passes for the wrong reason.
 ///
