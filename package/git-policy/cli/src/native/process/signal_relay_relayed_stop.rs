@@ -22,19 +22,58 @@
 #[cfg(unix)]
 use std::ffi::c_int;
 
-/// The stop signal last relayed to a child,
-/// or zero while none was.
-#[cfg(unix)]
-static RELAYED_STOP: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
-
-/// The process the kernel named as that signal's sender,
-/// or zero while none was named.
+/// The stop signal last relayed to a child and the process the kernel named as its sender,
+/// in one word:
+/// the signal in the low half,
+/// and one more than the sender in the high half,
+/// so zero means no sender.
 /// Why:
-///  The handler runs asynchronously and may write only these words;
-///  the wait reads them once,
-///  and a signal the kernel attributes to no process keeps zero so the record says so.
+///  The handler runs asynchronously and may write only one such word,
+///  and the wait reads it once:
+///  a process killed at any instruction is ordinary here,
+///  and two separate words would let a kill fall between them and pair one stop's signal with another's sender.
+///  One word cannot be half written.
 #[cfg(unix)]
-static RELAYED_SENDER: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+static RELAYED_STOP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The two halves of `RELAYED_STOP` as one word.
+/// Why:
+///  The pairing is what makes the record honest, so the packing is named and stated once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const packed = (signal: number, sender?: number): bigint => BigInt(signal) | (sender === undefined ? 0n : BigInt(sender + 1) << 32n);
+/// ```
+#[cfg(unix)]
+fn packed(signal: c_int, sender: Option<i32>) -> u64 {
+    let low: u64 = u64::from(u32::try_from(signal).unwrap_or(0));
+    let high: u64 = match sender {
+        Some(pid) => u64::from(u32::try_from(pid).unwrap_or(0)) + 1,
+        None => 0,
+    };
+    return low | (high << 32);
+}
+
+/// What:
+///  The signal and sender a packed word holds,
+///  and nothing when it holds no stop.
+/// Why:
+///  The wait reads the pair the handler wrote as one value,
+///  so it can never read half of one stop beside half of another.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [signal, sender] = unpacked(word); // [SIGTERM, 4242] or []
+/// ```
+#[cfg(unix)]
+fn unpacked(word: u64) -> Option<(c_int, Option<i32>)> {
+    let signal: c_int = c_int::try_from(word & u64::from(u32::MAX)).unwrap_or(0);
+    if signal == 0 {
+        return None;
+    }
+    let high: u64 = word >> 32;
+    return Some((signal, if high == 0 { None } else { i32::try_from(high - 1).ok() }));
+}
 
 /// What:
 ///  Records that `signal` was relayed to a child,
@@ -51,8 +90,7 @@ static RELAYED_SENDER: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI
 /// ```
 #[cfg(unix)]
 pub(crate) fn note(signal: c_int, sender: Option<i32>) {
-    RELAYED_SENDER.store(sender.unwrap_or(0), std::sync::atomic::Ordering::SeqCst);
-    RELAYED_STOP.store(signal, std::sync::atomic::Ordering::SeqCst);
+    RELAYED_STOP.store(packed(signal, sender), std::sync::atomic::Ordering::SeqCst);
 }
 
 /// The recorder of a system that relays no signal.
@@ -73,16 +111,42 @@ pub(crate) fn note(_signal: std::os::raw::c_int, _sender: Option<i32>) {}
 /// ```
 #[cfg(unix)]
 pub(crate) fn take() -> Option<(c_int, Option<i32>)> {
-    let signal: c_int = RELAYED_STOP.swap(0, std::sync::atomic::Ordering::SeqCst);
-    if signal == 0 {
-        return None;
-    }
-    let sender: c_int = RELAYED_SENDER.swap(0, std::sync::atomic::Ordering::SeqCst);
-    return Some((signal, if sender > 0 { Some(sender) } else { None }));
+    return unpacked(RELAYED_STOP.swap(0, std::sync::atomic::Ordering::SeqCst));
 }
 
 /// The taken stop of a system that relays no signal.
 #[cfg(not(unix))]
 pub(crate) fn take() -> Option<(std::os::raw::c_int, Option<i32>)> {
     return None;
+}
+
+/// The packing and unpacking are controlled here,
+/// because the pairing they keep is what the record's sender depends on.
+#[cfg(all(unix, test))]
+mod tests {
+    use super::*;
+
+    /// What:
+    ///  A packed stop gives back the signal and the sender it was written with,
+    ///  and a word that holds no sender is read as none.
+    /// Why:
+    ///  The two live in one word so that a process killed between two stores cannot pair one stop's signal with
+    ///  another stop's sender;
+    ///  the packing is therefore the thing that has to be right,
+    ///  and each shape a stop can have is read back here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// expect(unpacked(packed(SIGTERM, 4242))).toEqual([SIGTERM, 4242]);
+    /// expect(unpacked(packed(SIGINT, undefined))).toEqual([SIGINT, undefined]);
+    /// expect(unpacked(0)).toBeUndefined();
+    /// ```
+    #[test]
+    fn a_relayed_stop_is_read_back_with_the_sender_it_was_written_with() {
+        assert_eq!(unpacked(packed(libc::SIGTERM, Some(4_242))), Some((libc::SIGTERM, Some(4_242))), "a process's stop keeps both halves");
+        assert_eq!(unpacked(packed(libc::SIGINT, None)), Some((libc::SIGINT, None)), "a terminal's stop names no process");
+        assert_eq!(unpacked(0), None, "a word no stop was written to holds none");
+        // A sender alone is no stop: the signal half is what says there is one.
+        assert_eq!(unpacked(packed(0, Some(4_242))), None, "a word with a sender and no signal holds no stop");
+    }
 }
