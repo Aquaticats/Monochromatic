@@ -1250,7 +1250,10 @@ and what the coordinating session queued.
   in `hand_over_with` (`worktree_remove_hand_over.rs`, near lines 342 to 356) a renamed subvolume can be left with no owner
   when the service settles the record inside a narrow window and the self-delete then fails;
   no data is lost.
-  Not yet with any agent.
+  A fresh run is queued since 11:17:18 to establish it by the code's own seams and,
+  where it can happen,
+  to make every renamed subvolume have an owner that deletes it
+  (`~/temp/agent/pi-runs/renamed-subvolume-of-a-removal-handed-over-is-never-left-with-no-owner-prompt.md`).
 - **The lock a killed Git left** (`2ac27d2a29`):
   the changed hunk is right and 29 lock tests pass.
   One reproduced end to end with the built wrapper,
