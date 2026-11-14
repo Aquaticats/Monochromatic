@@ -1121,6 +1121,44 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.21` is installed; the main checkout's commit service was left failed at the start limit (2026-11-13T20:37:32-05:00)
+
+Not final and not approved:
+read by the coordinating session from the output of `native:release:wait` and `native:install`
+and from the user manager's journal
+(counted by `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/count-what-the-wrapper-units-did-between-two-times.ts`).
+
+- The release run ended with success and `monochromatic-git-policy-cli-v0.6.1-alpha.21` is published.
+  `native:install -- 0.6.1-alpha.21` began at 20:36:04 and committed the lock;
+  the sample commit took 1,050 ms and landed.
+  No manager-wide reload line in the journal from 20:36:00 on,
+  and no start that failed at the EXEC step.
+- **What the journal shows of the main checkout's own instance**
+  (`f30a114aaabc977cf77309db0f77f1ee`)
+  in the seconds after the sample commit:
+  its service started as `0.6.1-alpha.21` at 20:36:12;
+  about four seconds later the manager ended it and killed two processes left in its unit with `SIGKILL`
+  (one named `node-MainThread`);
+  then it was started four more times inside half a second,
+  each start saying `started release="0.6.1-alpha.21"`,
+  until the manager answered "Start request repeated too quickly".
+  The service ended `start-limit-hit` and its socket `service-start-limit-hit` at 20:36:17.
+  **At 20:37:32 both were still in the state `failed`.**
+  The lines are kept in
+  `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/user-manager-journal-of-the-main-checkout-instance-at-the-install-of-0-6-1-alpha-21.txt`.
+- What that means for a commit in the main checkout is read from the commit that records this section,
+  whose time and outcome are in the next item of this list once it has been made.
+- A correction to the section on the install of `0.6.1-alpha.20`:
+  it expected every worktree at work during that install to go through a failed second at its next commit.
+  Counted over the journal from 19:52:00 to 20:36:00,
+  one instance did,
+  the one already named,
+  with five failed starts;
+  no other wrapper service failed a start or reached the start limit in those forty-four minutes,
+  while sixteen services started as `0.6.1-alpha.20`.
+  The expectation was wrong;
+  why only that one instance still named the older program is for the author to say.
+
 ##### The add-never-skips author answered its third review (2026-11-13T20:34:11-05:00)
 
 Not final and not approved:
