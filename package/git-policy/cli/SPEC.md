@@ -4892,19 +4892,35 @@ of which the two that rewrite link layouts in place are the service's work whene
   Such a record is removed together with the launcher beside it,
   and the count that says whether the install did its work covers only the records the lock declares.
   The removal proves the bytes it deletes:
-  each record is renamed to a name only that pass writes,
-  read again against the lock as it is now,
-  and put back when another command declared its name meanwhile or the bytes name this worktree's own lock,
-  and the launcher goes only when it is the object the pass read beside the record
-  (device,
+  a record is taken aside only when it is the object the pass judged (device,
   inode,
-  size and moment),
+  size and moment,
+  looked at before the take and again after it),
+  so a record another command wrote at that name is never the one taken;
+  the record in the pass's hand is then renamed to a name only that pass writes,
+  read again against the lock as it is now,
+  and put back when another command declared its name meanwhile or the bytes name this worktree's own lock;
+  and the launcher goes only when it is the object the pass read beside the record,
   because `mpm-shadow` places a launcher with a rename and an install that wrote its own is another object.
   A person's `toolchain:update` and install landing between the classification and the removal therefore keeps
   the record and launcher it wrote,
   and a repair that deleted them would discard what that command had just made.
   A pass killed between taking a record aside and removing or putting it back leaves it under a name nothing reads,
-  and the next pass removes what a gone process left there.
+  and the next pass reads it:
+  it is put back by a name taken only when it is free,
+  or,
+  when a record stands at that name by then,
+  it is kept where it lies and one line in the worktree's own Git directory names the file and the command that puts
+  it back.
+  Nothing set aside is ever discarded unread,
+  because what a killed pass left may be the record an install had just written,
+  and a launcher with no record beside it runs no tool.
+  A record's `lockFile` is compared with the worktree's own lock by the object the two names resolve to and not by
+  their spelling:
+  a link to the worktree,
+  a path that walks into a directory and back out of it,
+  and a bind mount of the same folder all name one file,
+  and only the object's identity tells that from a copy of another checkout's lock.
   On 2026-11-13 that copy made every new worktree report
   "toolchain:
   1 launcher records still name another lock file" on every try,

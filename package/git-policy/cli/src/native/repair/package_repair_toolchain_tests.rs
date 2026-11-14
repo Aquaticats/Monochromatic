@@ -573,3 +573,46 @@ fn a_record_that_names_this_worktrees_lock_by_another_spelling_is_never_removed(
     }
     remove(&root);
 }
+
+/// What:
+///  A record a killed pass left aside whose own name holds another record is kept and named for the person,
+///  with the command that puts it back,
+///  and is never discarded.
+/// Why:
+///   The pass after a kill cannot tell a copy of an earlier layout from the record an install had just written:
+///   both are records, and both were left aside by the killed pass.
+///   Putting it back would replace the record that stands at the name by then,
+///   so it is kept where it is, and one line in the worktree's own Git directory says which file it is,
+///   where it lies, and how to put it back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write(asideOfADeadPid('zzz.launch'), freshRecord); write('zzz.launch', anotherRecord);
+/// repairToolchain(destination); assert(exists(aside)); assert(takeNotices(gitDir)[0].includes('mv --'));
+/// ```
+#[test]
+fn a_record_a_killed_pass_left_where_its_name_is_taken_is_kept_and_named_for_the_person() {
+    let (root, destination, _bin, environment) = scene("toolchain-kept-aside");
+    std::fs::create_dir_all(destination.join(".git")).expect("a Git directory to leave the words in");
+    lock(&destination, &["own"]);
+    record(&destination, "own", destination.join(LOCK_FILE).as_path());
+    let launchers: PathBuf = destination.join(LAUNCHERS);
+    // What a killed pass left: the record an install had written, under the name that pass gave it.
+    let dead: u32 = dead_process_number();
+    let aside: PathBuf = launchers.join(format!("zzz.launch.removing-{dead}-0"));
+    let own_lock: PathBuf = destination.join(LOCK_FILE);
+    let kept: String = format!("{{\"toolId\":\"cargo:zzz\",\"lockFile\":\"{}\",\"real\":\"/tools/zzz\",\"scope\":\"repo\"}}\n", own_lock.display());
+    std::fs::write(aside.as_path(), kept.as_bytes()).expect("the killed pass's record");
+    // Another record stands at the name by the time the next pass reads it.
+    record(&destination, "zzz", root.join("source/toolchain.lock.json").as_path());
+    let _finding: Option<Finding> = repair_toolchain(destination.as_path(), &environment);
+    assert!(aside.is_file(), "the record a killed pass left aside was discarded");
+    assert_eq!(std::fs::read_to_string(aside.as_path()).expect("the kept record"), kept, "the kept record is not the one that was left");
+    let told: Vec<String> = crate::package_repair_relink_notice::take_notices(destination.join(".git").as_path());
+    assert_eq!(told.len(), 1, "the person is not told about the record that was kept: {told:?}");
+    let words: &String = &told[0];
+    assert!(words.contains(aside.to_str().expect("utf8")), "the line does not name the file that was kept: {words}");
+    assert!(words.contains("mv -- "), "the line does not name the command that puts it back: {words}");
+    assert!(words.contains(destination.join(LAUNCHERS).join("zzz.launch").to_str().expect("utf8")), "the line does not name where it belongs: {words}");
+    remove(&root);
+}
