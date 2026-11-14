@@ -1520,3 +1520,39 @@ fn a_named_pipe_at_the_lock_never_holds_the_filling() {
     assert!(!covered_entry.to.exists(), "nothing was published");
     remove(covered.as_path());
 }
+
+/// What:
+///  A staging pattern a person left a tab after,
+///  or a space before,
+///  is not taken for one already named:
+///  the pattern is appended,
+///  and Git then ignores the staging name by it.
+/// Why:
+///   Git keeps a pattern's leading spaces and its trailing tabs,
+/// so `*.monochromatic-prewarm/\t` is not the staging pattern and ignores nothing:
+/// taking it for the pattern would leave the staging copy visible in `git status`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const form of ["*.monochromatic-prewarm/\t", " *.monochromatic-prewarm/"]) { put(exclude, form + "\n"); excludeTheStagingNames(gitDir); expect(lines).toContain("*.monochromatic-prewarm/") }
+/// ```
+#[test]
+fn a_staging_pattern_git_does_not_ignore_by_is_named_again() {
+    for form in ["*.monochromatic-prewarm/\t", " *.monochromatic-prewarm/"] {
+        let root: PathBuf = fixture("prewarm-exclude-trimmed-form");
+        let git_dir: PathBuf = root.join("git-directory");
+        std::fs::create_dir_all(git_dir.join("info")).expect("the Git directory's info folder");
+        let exclude: PathBuf = git_dir.join("info/exclude");
+        std::fs::write(exclude.as_path(), format!("{form}\n").as_bytes()).expect("the person's line");
+        super::exclude_the_staging_names(git_dir.as_path()).expect("the patterns are named");
+        // The file as it stands, byte for byte: the tabs and spaces in it are what this control is about.
+        let raw: String = String::from_utf8_lossy(std::fs::read(exclude.as_path()).expect("the exclude file").as_slice()).into_owned();
+        let lines: Vec<&str> = raw.split('\n').collect();
+        assert!(lines.contains(&form), "{form:?}: the person's line stays as they wrote it: {raw:?}");
+        for pattern in super::EXCLUDED_STAGING_PATTERNS {
+            let count: usize = lines.iter().filter(|line| return **line == pattern).count();
+            assert_eq!(count, 1, "{form:?}: {pattern} is a line of its own exactly once: {raw:?}");
+        }
+        remove(root.as_path());
+    }
+}

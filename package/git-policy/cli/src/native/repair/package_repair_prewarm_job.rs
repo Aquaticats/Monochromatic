@@ -894,14 +894,10 @@ fn exclusion_refusal_words(refusal: &crate::private_storage::ReadRefusal) -> Str
 fn lines_of_excluding(bytes: &[u8]) -> Vec<&[u8]> {
     return bytes
         .split(|byte| return *byte == b'\n')
-        // A line Git would read as the pattern ends at the line end; trailing spaces and a carriage return are not part of it.
-        .map(|line| {
-            let mut end: usize = line.len();
-            while end > 0 && (line[end - 1] == b' ' || line[end - 1] == b'\r' || line[end - 1] == b'\t') {
-                end -= 1;
-            }
-            return &line[..end];
-        })
+        // Each line as Git reads it as a pattern: the ending and the trailing spaces gone, leading spaces and tabs kept,
+        //  so a form Git does not ignore by is never taken for one of this job's own
+        //  (`exclude_line_as_git_reads_it.rs`, measured with Git 2.56.0).
+        .map(crate::exclude_line_as_git_reads_it::the_pattern_git_reads)
         .collect();
 }
 

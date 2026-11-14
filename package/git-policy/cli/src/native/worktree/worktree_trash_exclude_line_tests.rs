@@ -231,3 +231,35 @@ fn a_named_pipe_at_the_exclude_file_never_holds_the_trash_line() {
     assert!(reason.contains("exclude") && reason.contains("not a regular file"), "the refusal names the file and what stands there: {reason}");
     remove(covered.as_path());
 }
+
+/// What:
+///  A form of the line that Git does not ignore by is not taken for the wrapper's own:
+///  the line is added,
+///  and Git then ignores the trash.
+/// Why:
+///   Git strips a pattern's trailing spaces and keeps its leading ones and its tabs,
+/// so ` /.claude/cli-git-trash/` and a line with a trailing tab are lines the trash is not ignored by.
+/// Treating either as already there would append nothing and leave the trash stageable,
+/// which is the one thing the line exists to prevent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const form of [" /.claude/cli-git-trash/", "/.claude/cli-git-trash/\t"]) { put(exclude, form + "\n"); expect(ensureTrashIsExcluded(gitDir)).toBe(true); expect(gitCheckIgnore(repo)).toBe(false) }
+/// ```
+#[test]
+fn a_line_git_does_not_ignore_by_is_never_taken_for_the_wrappers_own() {
+    for form in [" /.claude/cli-git-trash/", "/.claude/cli-git-trash/\t"] {
+        let root: PathBuf = fixture("trash-exclude-trimmed-form");
+        let repo: PathBuf = repository(root.as_path(), "repo");
+        put(repo.as_path(), ".git/info/exclude", format!("{form}\n").as_bytes());
+        put(repo.as_path(), ".claude/cli-git-trash/credentials.txt", b"another command's token\n");
+        assert!(!trash_location_is_ignored(&crate::test_support::git_context(), repo.as_path()), "{form:?}: Git does not ignore the trash by that line");
+        let added: bool = ensure_trash_is_excluded(repo.join(".git").as_path()).expect("the line is written");
+        assert!(added, "{form:?}: the wrapper does not take a form Git does not ignore by for its own");
+        assert!(trash_location_is_ignored(&crate::test_support::git_context(), repo.as_path()), "{form:?}: with the line added Git ignores the trash");
+        let bytes: String = read(repo.as_path(), ".git/info/exclude");
+        assert!(bytes.contains(format!("{form}\n").as_str()), "{form:?}: the person's line stays as they wrote it: {bytes:?}");
+        assert!(bytes.lines().any(|line| return line == "/.claude/cli-git-trash/"), "{form:?}: and the wrapper's own line is a line of its own: {bytes:?}");
+        remove(root.as_path());
+    }
+}

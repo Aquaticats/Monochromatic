@@ -201,19 +201,24 @@ fn is_a_line_end(byte: &u8) -> bool {
 
 /// What:
 ///  Whether one line,
-/// with the spaces a person may leave around it,
+/// as Git reads it,
 /// is the wrapper's own.
 /// Why:
 ///   The comparison is made of bytes,
 /// so a line that holds a pattern that is not text is compared as it is and
-///  never as replacement characters.
+///  never as replacement characters,
+/// and it is made of the bytes Git reads as the pattern and not of a trimmed line:
+/// Git strips a line's trailing spaces and keeps its leading ones and its tabs,
+/// so ` /.claude/cli-git-trash/` and `/.claude/cli-git-trash/\t` are lines Git does not ignore by,
+/// and taking either for this line would append nothing and leave the trash stageable
+/// (`exclude_line_as_git_reads_it.rs`, measured with Git 2.56.0).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const isTheWrappersLine = (line) => line.trim() === TRASH_EXCLUDE_LINE;
+/// const isTheWrappersLine = (line) => thePatternGitReads(line).equals(TRASH_EXCLUDE_LINE);
 /// ```
 fn is_the_wrappers_line(line: &[u8]) -> bool {
-    return line.trim_ascii() == TRASH_EXCLUDE_LINE.as_bytes();
+    return crate::exclude_line_as_git_reads_it::the_pattern_git_reads(line) == TRASH_EXCLUDE_LINE.as_bytes();
 }
 
 /// Exclude-line controls stay out of the release executable.

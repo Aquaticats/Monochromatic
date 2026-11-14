@@ -31,6 +31,10 @@ pub mod scratch_location;
 /// read from its `commondir` file.
 pub mod common_directory_of_a_git_directory;
 
+/// One line of a repository's exclude file as Git reads it as a pattern,
+/// so a line the wrapper takes for its own is one Git ignores by.
+pub mod exclude_line_as_git_reads_it;
+
 /// Compact JSON records read and written with the incumbent's `JSON` semantics.
 pub mod json_record;
 
