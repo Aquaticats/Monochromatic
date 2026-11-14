@@ -372681,6 +372681,18 @@
             "Development run 23dk3nr90f dispatches only\npackage.module.toml-edit.test.mutation. Request time is\n2026-10-17T07:50:29.848Z; the development manifest digest is\n4b18266890cb521dfc87256ecd13f8869f39ee35b747186ca16cd53998fe84a0. The\nclean pushed branch is trial/depot-toml-continuation-20261017, harness\n0f1ef041a0de2ff6d2db6dd55210b1160c592648, workflow\n.depot/workflows/depot-complete-toml-full-mutation.yml. Its 4931\nauthenticated provider bytes match SHA-256\nce2c907be8b7e2bc449a866964869ea87e3ee0a5140c4453faf07ed0c110e954.",
             "The original source command and defaults remain unchanged: two\ncontainers, 16 mutants per shard, 1800-second sessions, 5000-millisecond\ntest floor, baseline timeout factor three, and one single-container\nretry. The full selector is enumerated again before execution. The\nretained prior inventory has 3062 distinct mutant IDs. The wrapper\nbudget is 18000000 milliseconds and the provider job budget is 360\nminutes. These are execution bounds, not a duration forecast. The\nbounded compilation-only pilot does not establish full-suite mutant\nthroughput. Source shard progress, all actual outcomes, metadata\ndurations, and scoped cleanup remain required for terminal\nreconciliation. The allowed budget and rejected over-limit fixture are\nexercised; removing the exact upper-budget guard makes the rejected\nfixture execute.",
             "Single terminal wait session 96306 is active. Issue #1130 is closed with\nre-fetched observed-recovery comment 6231392374. Issues #1113 and #1118\nremain open. This independent development run is separate from the held\nfinal coherent cohort.\n"
+          ],
+          "inTreeNow": [
+            {
+              "measuredOn": "2026-11-13",
+              "bytes": null,
+              "sha256": null,
+              "removedFromTree": true,
+              "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+              "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+              "keptAs": null,
+              "note": null
+            }
           ]
         },
         {
@@ -372759,6 +372771,18 @@
               "Development run 23dk3nr90f dispatches only\npackage.module.toml-edit.test.mutation. Request time is\n2026-10-17T07:50:29.848Z; the development manifest digest is\n4b18266890cb521dfc87256ecd13f8869f39ee35b747186ca16cd53998fe84a0. The\nclean pushed branch is trial/depot-toml-continuation-20261017, harness\n0f1ef041a0de2ff6d2db6dd55210b1160c592648, workflow\n.depot/workflows/depot-complete-toml-full-mutation.yml. Its 4931\nauthenticated provider bytes match SHA-256\nce2c907be8b7e2bc449a866964869ea87e3ee0a5140c4453faf07ed0c110e954.",
               "The original source command and defaults remain unchanged: two\ncontainers, 16 mutants per shard, 1800-second sessions, 5000-millisecond\ntest floor, baseline timeout factor three, and one single-container\nretry. The full selector is enumerated again before execution. The\nretained prior inventory has 3062 distinct mutant IDs. The wrapper\nbudget is 18000000 milliseconds and the provider job budget is 360\nminutes. These are execution bounds, not a duration forecast. The\nbounded compilation-only pilot does not establish full-suite mutant\nthroughput. Source shard progress, all actual outcomes, metadata\ndurations, and scoped cleanup remain required for terminal\nreconciliation. The allowed budget and rejected over-limit fixture are\nexercised; removing the exact upper-budget guard makes the rejected\nfixture execute.",
               "Single terminal wait session 96306 is active. Issue #1130 is closed with\nre-fetched observed-recovery comment 6231392374. Issues #1113 and #1118\nremain open. This independent development run is separate from the held\nfinal coherent cohort."
+            ],
+            "inTreeNow": [
+              {
+                "measuredOn": "2026-11-13",
+                "bytes": null,
+                "sha256": null,
+                "removedFromTree": true,
+                "historyCommand": "git show 893b26838e79ac5af4a204db6cfad823de4f0c9b:doc/audit/depot-toml-mutation-native-2026-10-17.evidence.json.gz",
+                "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+                "keptAs": null,
+                "note": null
+              }
             ]
           },
           {

@@ -31,7 +31,7 @@
       {
         "measuredOn": "2026-11-13",
         "bytes": 143088,
-        "sha256": "0e46c62e7337261dc829a9097e22cd769a39cf7bb18735a13eff49483d7024f5",
+        "sha256": "78269d1614aa9bcda7b9d4fe4e603c98f1823f7813108559f6df96d7032777b8",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",

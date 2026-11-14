@@ -146,6 +146,18 @@
     "sources": [
       "doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
       "doc/planning/depot-included-allowance-reconciliation.md"
+    ],
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 6daf14ae5a00cc41d19bc777531cce12267ef15f:doc/audit/depot-live-public-pricing-2026-10-18.evidence.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
     ]
   },
   "publication": {

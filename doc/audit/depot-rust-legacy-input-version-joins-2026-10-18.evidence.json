@@ -9,7 +9,7 @@
       {
         "measuredOn": "2026-11-13",
         "bytes": 104773,
-        "sha256": "737138d49e86e672cb17b8311118a30a6733af43b51004505638365d0ce743d6",
+        "sha256": "988852ea9ffcf1575a35b24e4b47aae18d0dff85427a849a17c71c1e662bd176",
         "removedFromTree": false,
         "historyCommand": null,
         "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
@@ -298,8 +298,8 @@
       "inTreeNow": [
         {
           "measuredOn": "2026-11-13",
-          "bytes": 8964,
-          "sha256": "933fa5192300d380bd01ba456709de4406ce2af7733579a937f4ff6e59d29b1d",
+          "bytes": 9745,
+          "sha256": "c6f6898b75dcbdfaefaffa397587601fe123073b7dfb36ffa5df08a5e8bda7c0",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
@@ -1559,7 +1559,7 @@
         {
           "measuredOn": "2026-11-13",
           "bytes": 143088,
-          "sha256": "0e46c62e7337261dc829a9097e22cd769a39cf7bb18735a13eff49483d7024f5",
+          "sha256": "78269d1614aa9bcda7b9d4fe4e603c98f1823f7813108559f6df96d7032777b8",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
@@ -1599,7 +1599,7 @@
         {
           "measuredOn": "2026-11-13",
           "bytes": 3363,
-          "sha256": "5cead90cdfd3fbf55de3b0cf5ee8806c4f68ec2091eef4e8b92b3e05ff2ffada",
+          "sha256": "cc5b35641e6215a856a02b76e82f2d9ed776fe30e693313d8c7ea7221bd21095",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
@@ -1639,7 +1639,7 @@
         {
           "measuredOn": "2026-11-13",
           "bytes": 3450,
-          "sha256": "6aef4d7c492d3b7f1a59fe8af07d79ac087539fe5f3b1225cf0780f057e1bde1",
+          "sha256": "45285e944063d678b56b0f6391225d2b9177784fb38af12fc975d85b0939b5e7",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
@@ -1659,7 +1659,7 @@
         {
           "measuredOn": "2026-11-13",
           "bytes": 837207,
-          "sha256": "6de1ddfc8f3306b2119dd9e286b5ecff5e130ee6fa50c2010f92fa50b998a2e7",
+          "sha256": "6838bd81c4a50389e55260c184e4dde0efcaa5a8a87224f210db4f9ce2664e34",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
@@ -2342,8 +2342,8 @@
       "inTreeNow": [
         {
           "measuredOn": "2026-11-13",
-          "bytes": 17643721,
-          "sha256": "9903b255c833b24851428bb5b91cc2e93b6f0e968a26f0e94663b1ec521f6ca2",
+          "bytes": 17644743,
+          "sha256": "2b13e5c3a331adde64343b89f7c7a21ffa36426e0b7b4fd5c40d7eec22d28c81",
           "removedFromTree": false,
           "historyCommand": null,
           "record": "doc/audit/removed-archives-and-where-history-holds-each.md",

@@ -49,14 +49,22 @@ locks/
 .node_repl_history
 
 # Archives, packed: no archive is tracked (owner, 2026-11-13: "Git ignore all common archive
-# formats (gz, zip, tar) and remove anything already committed from the repo"). A tar is
-# named in every compressed spelling and each compressor alone, so `.tar.gz`, `.tgz` and
-# `.tar.zst` cannot slip past. What a document cites of a removed archive is plain text
-# beside it: doc/audit/removed-archives-and-where-history-holds-each.md.
+# formats (gz, zip, tar) and remove anything already committed from the repo").
+# The three formats the owner named are named in capitals too, because a gitignore pattern is
+# case-sensitive and a file from a Windows tool is still an archive: gzip `.gz`, `.tgz` and
+# `.tar.gz`; zip `.zip`; tar `.tar` with each of the compressed spellings below.
+# Each compressor is ignored alone as well, and `.zstd` and `.lzo` are other common names of
+# formats already ignored here. No spelling of a format the owner did not name is claimed.
+# What a document cites of a removed archive is plain text beside it:
+# doc/audit/removed-archives-and-where-history-holds-each.md.
 *.tar
+*.TAR
 *.gz
+*.GZ
 *.tgz
+*.TGZ
 *.tar.gz
+*.TAR.GZ
 *.bz2
 *.tbz
 *.tbz2
@@ -65,8 +73,10 @@ locks/
 *.txz
 *.tar.xz
 *.zst
+*.zstd
 *.tzst
 *.tar.zst
+*.tar.zstd
 *.lz4
 *.tlz4
 *.tar.lz4
@@ -75,9 +85,12 @@ locks/
 *.tar.lzma
 *.lz
 *.tar.lz
+*.lzo
+*.tar.lzo
 *.Z
 *.tar.Z
 *.zip
+*.ZIP
 *.7z
 *.tar.7z
 *.rar

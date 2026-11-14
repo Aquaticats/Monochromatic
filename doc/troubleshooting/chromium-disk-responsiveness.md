@@ -27,42 +27,6 @@ The supporting evidence is split by the affected execution path:
   and candidate inventory (`chromium-disk-responsiveness/candidates.jsonl.gz`).
   `candidates.jsonl.gz` left the tree on 2026-11-13.
   `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
-  `candidates.jsonl.gz` left the tree on 2026-11-13.
-  `doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The complete-tree searches are finished;
 the inventory is not an exhaustive proof of every reachable operation in every Chromium dependency.
