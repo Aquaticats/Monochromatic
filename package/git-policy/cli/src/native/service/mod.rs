@@ -247,6 +247,11 @@ pub mod systemd_dbus_wire_format;
 /// socket and unit instances.
 pub mod service_instance;
 
+/// The address one worktree's service listens at:
+/// a socket file under the runtime directory when that path fits one socket address,
+/// and an abstract name when it does not.
+pub mod service_address_of_a_worktree;
+
 /// The files an instance of the commit service keeps between runs:
 /// the note beside its socket,
 /// the note and socket file that say it has units,
