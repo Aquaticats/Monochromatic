@@ -37,6 +37,7 @@
 //! const added = ensureTrashIsExcluded(commonDir); // append '/.claude/cli-git-trash/' when it is not there
 //! ```
 
+use crate::private_storage::{ReadRefusal, read_regular_file};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -58,6 +59,33 @@ use std::path::{Path, PathBuf};
 /// const TRASH_EXCLUDE_LINE = '/.claude/cli-git-trash/';
 /// ```
 pub const TRASH_EXCLUDE_LINE: &str = "/.claude/cli-git-trash/";
+
+/// The most bytes of the repository's exclude file this line is read out of.
+/// Why:
+///   The file is the person's own and may hold any number of their rules,
+/// and one far larger than an exclude list ever is could not be one:
+/// a read whose size somebody else decides is not a read this step takes.
+const EXCLUDE_READ_LIMIT: u64 = 1 << 20;
+
+/// What:
+///  Why the repository's exclude file could not be read for the trash line,
+/// in the words a person reads.
+/// Why:
+///   A file that is not a regular file is a different thing to fix from one that is absent,
+/// and the caller tells the person by putting this in the line it logs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const refusalWords = (refusal) => refusal.kind === 'not-regular' ? 'is not a regular file' : ...;
+/// ```
+fn refusal_words(refusal: &ReadRefusal) -> String {
+    return match refusal {
+        ReadRefusal::Missing => String::from("is not there"),
+        ReadRefusal::NotRegular => String::from("is not a regular file (a link, a directory or a named pipe)"),
+        ReadRefusal::TooLarge => format!("holds more than {EXCLUDE_READ_LIMIT} bytes"),
+        ReadRefusal::Io(error) => format!("cannot be read ({error})"),
+    };
+}
 
 /// What:
 ///  Add the wrapper's exclude line to the repository's `info/exclude` when it is not there;
@@ -96,10 +124,19 @@ pub const TRASH_EXCLUDE_LINE: &str = "/.claude/cli-git-trash/";
 /// ```
 pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
     let path: PathBuf = common_dir.join("info").join("exclude");
-    let existing: Vec<u8> = match std::fs::read(path.as_path()) {
+    // Read the way the repair reads the same file: a regular file only, opened without following a link and without waiting
+    //  for a writer. A named pipe at that path would hold a plain read for ever, and this step runs on the add's own path,
+    //  where no ceiling could expire; a refusal removes the trash in the foreground instead, which is the safe shape.
+    let existing: Vec<u8> = match read_regular_file(path.as_path(), EXCLUDE_READ_LIMIT) {
         Ok(bytes) => bytes,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-        Err(error) => return Err(format!("{} cannot be read ({error}), so nothing says whether a trash in this repository would be staged", path.display())),
+        Err(ReadRefusal::Missing) => Vec::new(),
+        Err(refusal) => {
+            return Err(format!(
+                "{} {}, so nothing says whether a trash in this repository would be staged",
+                path.display(),
+                refusal_words(&refusal)
+            ));
+        }
     };
     if already_excluded(existing.as_slice()) {
         return Ok(false);
@@ -118,7 +155,15 @@ pub fn ensure_trash_is_excluded(common_dir: &Path) -> Result<bool, String> {
     // The file is opened for appending and for nothing else: a write that fails or is killed leaves every byte that was there
     //  where it was, and the worst a half-written addition can leave is a truncated pattern of the wrapper's own that ignores
     //  nothing.
-    let mut opened: std::fs::File = match std::fs::OpenOptions::new().append(true).create(true).open(path.as_path()) {
+    let mut opened: std::fs::File = match {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            // A link is not this step's to write through, and a named pipe must refuse rather than wait for a reader.
+            .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK)
+            .open(path.as_path())
+    } {
         Ok(file) => file,
         Err(error) => return Err(format!("{} cannot be written ({error}), so nothing says whether a trash in this repository would be staged", path.display())),
     };

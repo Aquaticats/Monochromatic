@@ -199,3 +199,35 @@ fn a_target_commit_that_stops_ignoring_the_trash_place_cannot_stage_it() {
     }
     remove(root.as_path());
 }
+
+/// What:
+///  A named pipe at the repository's exclude file refuses the trash line at once,
+///  and names the file and what stands there.
+/// Why:
+///   This step runs on the add's own path, where nothing bounds a synchronous read:
+/// a plain read of a pipe with no writer never returns, and the add would wait for ever for a line it could not write.
+/// A refusal is the shape the add already has for an exclude file it cannot write:
+/// the trash is removed in the foreground instead.
+///
+/// In TS you'd write (pseudocode):
+/// 
+#[test]
+fn a_named_pipe_at_the_exclude_file_never_holds_the_trash_line() {
+    let root: PathBuf = fixture("trash-exclude-pipe");
+    let common: PathBuf = root.join("repo/.git");
+    std::fs::create_dir_all(common.join("info")).expect("the Git directory's info folder");
+    let exclude: PathBuf = common.join("info/exclude");
+    {
+        use std::os::unix::ffi::OsStrExt as _;
+        let named: std::ffi::CString = std::ffi::CString::new(exclude.as_os_str().as_bytes()).expect("a fixture path holds no NUL byte");
+        // SAFETY: the string is NUL-terminated and outlives the call, and the name is a fresh path in the fixture.
+        let made: libc::c_int = unsafe { libc::mkfifo(named.as_ptr(), 0o600) };
+        assert_eq!(made, 0, "a named pipe at {}: {}", exclude.display(), std::io::Error::last_os_error());
+    }
+    let covered: PathBuf = root.clone();
+    let waiting: Option<Result<bool, String>> = crate::test_support::finished_within_at(std::time::Duration::from_secs(10), move || return ensure_trash_is_excluded(common.as_path()));
+    let written: Result<bool, String> = waiting.expect("the trash line must not wait on a named pipe at the exclude file");
+    let Err(reason) = written else { panic!("a named pipe at the exclude file is refused: {written:?}") };
+    assert!(reason.contains("exclude") && reason.contains("not a regular file"), "the refusal names the file and what stands there: {reason}");
+    remove(covered.as_path());
+}
