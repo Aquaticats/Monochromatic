@@ -131,6 +131,20 @@ async function settledWithin(watched: Watched, milliseconds: number,): Promise<b
 }
 
 /**
+ Whether the wait has settled, read once the microtask that keeps its answer has run: that answer is kept in a microtask, so a
+ look made in the same tick as the settle it asks about still reads false.
+
+ @param watched - what the test watches
+
+ @returns whether the answer settled
+ */
+async function settledOnceItsAnswerIsKept(watched: Watched,): Promise<boolean> {
+  // The wait keeps its answer in a microtask, which a test that moved a held clock has to let run before it looks.
+  await Promise.resolve();
+  return watched.settled();
+}
+
+/**
  Pi's compaction as a test reports it.
 
  @returns the state a wait reads, and the two ways a test moves it
@@ -268,20 +282,20 @@ await describe({
         },);
         // Almost all of the bound is spent before Pi begins compacting, and the clock moves only by what the test asks for.
         clock.tick(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
-        expect(watched.settled(),).toBe(false,);
+        expect(await settledOnceItsAnswerIsKept(watched,),).toBe(false,);
         compaction.begin();
         watched.waiting
           .pauseSilence();
         // Pi is at work, so none of the time a compaction takes is silence, however long Pi spends there.
         clock.tick(COMPACTION_MILLISECONDS,);
-        expect(watched.settled(),).toBe(false,);
+        expect(await settledOnceItsAnswerIsKept(watched,),).toBe(false,);
         compaction.end();
         watched.waiting
           .resumeSilence(NO_RUN_FAILURE,);
         // A wait that kept the silence it served before would have settled here, on the little the bound had left near 10 ms.
-        expect(watched.settled(),).toBe(false,);
+        expect(await settledOnceItsAnswerIsKept(watched,),).toBe(false,);
         clock.tick(SILENCE_BOUND_MILLISECONDS - LOOK_MILLISECONDS,);
-        expect(watched.settled(),).toBe(false,);
+        expect(await settledOnceItsAnswerIsKept(watched,),).toBe(false,);
         // The whole bound again: the last of it, and not a millisecond before.
         clock.tick(LOOK_MILLISECONDS,);
         await watched.done;
