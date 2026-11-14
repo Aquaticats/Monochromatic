@@ -64,10 +64,14 @@ pub enum BinsFrom {
 /// What:
 /// One route a request's prefix can add:
 /// the prefix,
-/// the route it selects and where that route's binaries come from.
+/// the route it selects,
+/// where that route's binaries come from,
+/// and the plan entry its installer needs.
 /// Why:
 /// This table is the whole answer to "which routes can an argument add";
-/// a prefix outside it is refused with the reason a request cannot describe it.
+/// a prefix outside it is refused with the reason a request cannot describe it,
+/// and a plan without the route's own installer in it is refused too,
+/// because the entry would be added and never install.
 pub struct AddableRoute {
     /// The request prefix that selects this route (`cargo:`).
     pub prefix: &'static str,
@@ -75,15 +79,28 @@ pub struct AddableRoute {
     pub route: Route,
     /// Where the entry's `bins` come from.
     pub bins_from: BinsFrom,
+    /// The plan entry whose installer this route runs,
+    /// or `None` when the route starts the program the machine already has.
+    pub installs_with: Option<&'static str>,
 }
 
 /// The routes a request's prefix can add,
 /// in the order the refusal message lists them.
 pub const ADDABLE_ROUTES: [AddableRoute; 3] = [
-    AddableRoute { prefix: "cargo:", route: Route::CargoBinstall, bins_from: BinsFrom::CrateRegistry },
-    AddableRoute { prefix: "npm:", route: Route::MpmPnpm, bins_from: BinsFrom::NpmRegistry },
-    AddableRoute { prefix: "go:", route: Route::GoInstall, bins_from: BinsFrom::GoModulePath },
+    // `cargo binstall` needs no plan entry: the crates it installs come from the `cargo` on the machine.
+    AddableRoute { prefix: "cargo:", route: Route::CargoBinstall, bins_from: BinsFrom::CrateRegistry, installs_with: None },
+    AddableRoute { prefix: "npm:", route: Route::MpmPnpm, bins_from: BinsFrom::NpmRegistry, installs_with: Some("pnpm") },
+    AddableRoute { prefix: "go:", route: Route::GoInstall, bins_from: BinsFrom::GoModulePath, installs_with: Some("go") },
 ];
+
+/// The sentence for a plan that lacks the tool a route installs with.
+fn missing_installer(argument: &str, installer: &str, label: &str) -> ToolchainError {
+    return ToolchainError::config(format!(
+        "{argument:?} was not added: its route installs with `{installer}`, and {label} holds no `{installer}` entry, so \
+         the entry would be added and never install. Add the `{installer}` entry to {label} first (this repository's \
+         plan holds one, in the shapes \"The plan\" shows), or run this command where the plan holds it"
+    ));
+}
 
 /// The README section that shows every entry's shape,
 /// named in every refusal so the person knows where to look.
@@ -617,6 +634,12 @@ where
                 }
                 if report.added.iter().any(|added| return added.id == request.source) {
                     continue;
+                }
+                if let Some(route) = addable_route(&request.source)
+                    && let Some(installer) = route.installs_with
+                    && !plan.tools.iter().any(|tool| return tool.id == installer)
+                {
+                    return Err(missing_installer(argument, installer, &label));
                 }
                 report.added.push(entry_from_request(context, request)?);
             }

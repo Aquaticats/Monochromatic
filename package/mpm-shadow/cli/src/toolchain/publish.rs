@@ -33,7 +33,7 @@ use super::hash::sha256_hex;
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 /// Imports the shared named helpers.
-use super::util::write_atomically as write_bytes_atomically;
+use super::util::{write_atomically as write_bytes_atomically, write_atomically_with_mode};
 
 /// What:
 /// The content hash of one file,
@@ -218,12 +218,15 @@ pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(
 
 /// What:
 /// Writes `text` to `target` the way `write_atomically` does,
-/// and gives the new file the mode the old one had.
+/// and gives the file the mode the old one had.
 /// Why:
 /// The plan is a file people own;
 /// a rename replaces its inode,
 /// so a plan kept readable by its owner alone would come back readable by everyone.
-/// A target that does not exist yet keeps the mode a new file gets.
+/// The mode travels on the temporary file,
+/// so the plan is never visible under a wider mode at any point.
+/// A target that does not exist yet keeps the mode a new file gets,
+/// and a target whose mode cannot be read is a failure rather than a silent widening.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -234,15 +237,15 @@ fn write_atomically_keeping_mode(target: &Path, text: &str) -> Result<(), Toolch
     use std::os::unix::fs::PermissionsExt;
     let mode: Option<u32> = match fs::metadata(target) {
         Ok(metadata) => Some(metadata.permissions().mode()),
-        Err(_) => None,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(ToolchainError::failure(format!(
+                "cannot read the mode of {}: {error}",
+                target.display()
+            )));
+        }
     };
-    write_atomically(target, text)?;
-    if let Some(bits) = mode
-        && let Err(error) = fs::set_permissions(target, fs::Permissions::from_mode(bits))
-    {
-        return Err(ToolchainError::failure(format!("cannot keep the mode of {}: {error}", target.display())));
-    }
-    return Ok(());
+    return write_atomically_with_mode(target, text.as_bytes(), mode);
 }
 
 /// What:

@@ -78,9 +78,28 @@ struct Fixture {
     host: Host,
 }
 
+/// `PLAN` with the two installers the npm and the Go routes run,
+/// as this repository's plan and the machine's plan both hold them.
+fn plan_with_installers() -> String {
+    return PLAN.replace(
+        "    // Nothing follows",
+        "    \"go\": {\"request\": \"go@1.22.0\", \"route\": \"archive\", \"bins\": [\"go\", \"gofmt\"]},\n    \"pnpm\": {\"request\": \"github:pnpm/pnpm@10.0.0\", \"route\": \"bin-sourced\", \"bins\": [\"pnpm\"]},\n    // Nothing follows",
+    );
+}
+
 impl Fixture {
     /// A repository scope with `PLAN` and the lock it implies.
     fn repo() -> Fixture {
+        return Fixture::repo_with(PLAN);
+    }
+
+    /// A repository scope whose plan also holds the npm and Go installers.
+    fn repo_with_installers() -> Fixture {
+        return Fixture::repo_with(&plan_with_installers());
+    }
+
+    /// A repository scope with `plan` and the lock it implies.
+    fn repo_with(plan: &str) -> Fixture {
         let directory = crate::test_scratch::scratch();
         let home = directory.path().join("home");
         let work = directory.path().join("work");
@@ -88,7 +107,7 @@ impl Fixture {
         fs::create_dir_all(&work).expect("make the worktree");
         let env = EnvMap::from_pairs(&[("HOME", home.to_str().expect("utf-8"))]);
         let scope = repo_scope(&work, &env).expect("a scope");
-        return Fixture::on(directory, scope, env);
+        return Fixture::on(directory, scope, env, plan);
     }
 
     /// The machine-global scope with `PLAN` and the lock it implies.
@@ -99,13 +118,13 @@ impl Fixture {
         let env = EnvMap::from_pairs(&[("HOME", home.to_str().expect("utf-8"))]);
         let scope = global_scope(&env).expect("a scope");
         fs::create_dir_all(&scope.root).expect("make the config directory");
-        return Fixture::on(directory, scope, env);
+        return Fixture::on(directory, scope, env, PLAN);
     }
 
-    /// Writes `PLAN` and its lock into `scope` and builds the fakes.
-    fn on(directory: tempfile::TempDir, scope: Scope, env: EnvMap) -> Fixture {
-        let plan = parse_plan(PLAN, "the fixture plan").expect("the fixture plan parses");
-        fs::write(&scope.plan_file, PLAN).expect("write the plan");
+    /// Writes `plan` and its lock into `scope` and builds the fakes.
+    fn on(directory: tempfile::TempDir, scope: Scope, env: EnvMap, plan_text: &str) -> Fixture {
+        let plan = parse_plan(plan_text, "the fixture plan").expect("the fixture plan parses");
+        fs::write(&scope.plan_file, plan_text).expect("write the plan");
         fs::write(&scope.lock_file, render_lock(&lock_for(&plan))).expect("write the lock");
         return Fixture {
             directory,
@@ -249,7 +268,7 @@ fn a_bare_name_that_is_neither_an_id_nor_a_request_is_refused_and_nothing_is_wri
 
 #[test]
 fn two_tools_in_one_command_are_both_added_in_the_order_given() {
-    let fixture = Fixture::repo();
+    let fixture = Fixture::repo_with_installers();
     fixture.serve_crates_io();
     fixture.http.serve(
         "https://registry.npmjs.org/is-odd/latest",
@@ -260,7 +279,7 @@ fn two_tools_in_one_command_are_both_added_in_the_order_given() {
     assert_eq!(report.added_ids(), vec!["cargo:fastmod".to_string(), "npm:is-odd".to_string()]);
     let plan = parse_plan(&fixture.plan_text(), "the plan").expect("the new text parses");
     let ids: Vec<&str> = plan.tools.iter().map(|tool| return tool.id.as_str()).collect();
-    assert_eq!(ids, vec!["tokei", "cargo:fastmod", "npm:is-odd"]);
+    assert_eq!(ids, vec!["tokei", "go", "pnpm", "cargo:fastmod", "npm:is-odd"]);
     let npm = plan.tools.iter().find(|tool| return tool.id == "npm:is-odd").expect("the npm entry");
     assert_eq!(npm.route, super::model::Route::MpmPnpm);
     assert_eq!(npm.bins, vec!["is-odd".to_string()], "npm's own bin field names the command");
@@ -311,7 +330,7 @@ fn a_pinned_version_reads_the_binaries_of_that_version() {
 
 #[test]
 fn an_npm_package_whose_bin_is_one_text_gets_the_packages_own_name() {
-    let fixture = Fixture::repo();
+    let fixture = Fixture::repo_with_installers();
     fixture.http.serve("https://registry.npmjs.org/tic80/latest", br#"{"name": "tic80", "version": "1.0.0", "bin": "bin/tic80.js"}"#);
     let report = add_named_tools(&fixture.context(), &arguments(&["npm:tic80"]), None, nothing_stops_the_run).expect("added");
     assert_eq!(report.added[0].bins, vec!["tic80".to_string()]);
@@ -319,7 +338,7 @@ fn an_npm_package_whose_bin_is_one_text_gets_the_packages_own_name() {
 
 #[test]
 fn a_scoped_npm_package_is_named_and_looked_up_whole() {
-    let fixture = Fixture::repo();
+    let fixture = Fixture::repo_with_installers();
     fixture.http.serve(
         "https://registry.npmjs.org/@actions%2Flanguageserver/latest",
         br#"{"name": "@actions/languageserver", "version": "0.3.61", "bin": {"actions-languageserver": "index.js"}}"#,
@@ -332,7 +351,7 @@ fn a_scoped_npm_package_is_named_and_looked_up_whole() {
 
 #[test]
 fn a_go_module_gets_the_last_segment_of_its_path_as_the_program() {
-    let fixture = Fixture::repo();
+    let fixture = Fixture::repo_with_installers();
     let report = add_named_tools(
         &fixture.context(),
         &arguments(&["go:github.com/charmbracelet/crush"]),
@@ -347,10 +366,38 @@ fn a_go_module_gets_the_last_segment_of_its_path_as_the_program() {
 
 #[test]
 fn a_go_module_that_ends_in_a_major_version_suffix_is_refused() {
-    let fixture = Fixture::repo();
+    let fixture = Fixture::repo_with_installers();
     let error = add_named_tools(&fixture.context(), &arguments(&["go:example.com/x/y/v2"]), None, nothing_stops_the_run).expect_err("refused");
     assert!(error.message.contains("v2"), "{error}");
     assert!(error.message.contains("go:example.com/x/y/v2/cmd/"), "the addable form is named: {error}");
+}
+
+#[test]
+fn an_npm_request_is_refused_before_any_lookup_when_the_plan_holds_no_pnpm() {
+    let fixture = Fixture::repo();
+    let before = fixture.plan_text();
+    let error = add_named_tools(&fixture.context(), &arguments(&["npm:is-odd"]), None, nothing_stops_the_run).expect_err("refused");
+    assert_eq!(error.kind, ErrorKind::Config);
+    assert!(error.message.contains("`pnpm`"), "{error}");
+    assert!(error.message.contains(&fixture.scope.plan_file.display().to_string()), "{error}");
+    assert_eq!(fixture.plan_text(), before, "nothing was written");
+    assert!(fixture.http.requests().is_empty(), "the registry is not asked for a tool that could never install");
+}
+
+#[test]
+fn a_go_request_is_refused_when_the_plan_holds_no_go() {
+    let fixture = Fixture::repo();
+    let before = fixture.plan_text();
+    let error = add_named_tools(
+        &fixture.context(),
+        &arguments(&["go:github.com/charmbracelet/crush@1.2.3"]),
+        None,
+        nothing_stops_the_run,
+    )
+    .expect_err("refused");
+    assert_eq!(error.kind, ErrorKind::Config);
+    assert!(error.message.contains("`go`"), "{error}");
+    assert_eq!(fixture.plan_text(), before);
 }
 
 #[test]
@@ -389,6 +436,51 @@ fn a_request_carrying_a_quote_a_space_a_newline_a_dot_dot_a_leading_dash_or_a_se
     assert_eq!(fixture.plan_text(), before);
     assert!(fixture.http.requests().is_empty());
     assert!(fixture.runner.calls().is_empty());
+}
+
+#[test]
+fn a_frozen_run_refuses_a_plan_whose_other_entries_differ_too() {
+    // A resolution edit on a tool the command line did not name, made after the lock was written.
+    let fixture = Fixture::repo();
+    let edited = PLAN.replace("cargo:tokei@latest", "cargo:tokei@1.2.3");
+    fs::write(&fixture.scope.plan_file, &edited).expect("edit the plan");
+    fixture.serve_crates_io();
+    let report = add_named_tools(&fixture.context(), &arguments(&["cargo:fastmod"]), None, nothing_stops_the_run).expect("added");
+    let lock_before = fixture.lock_text();
+    let error = run_sync_with_named(
+        &fixture.scope,
+        &fixture.env,
+        &fixture.runner,
+        &fixture.http,
+        &fixture.host,
+        LockPolicy::Frozen(FrozenReason::Flag),
+        &report.added_ids(),
+    )
+    .expect_err("tokei needs a lookup the command line did not ask for");
+    assert_eq!(error.kind, ErrorKind::Drift);
+    assert_eq!(fixture.lock_text(), lock_before, "a frozen run writes no lock here");
+}
+
+#[test]
+fn a_frozen_run_refuses_a_plan_whose_bins_edit_it_could_have_written_without_a_lookup() {
+    let fixture = Fixture::repo();
+    let edited = PLAN.replace("\"bins\": [\"tokei\"]", "\"bins\": [\"tokei\", \"tokei2\"]");
+    fs::write(&fixture.scope.plan_file, &edited).expect("edit the plan");
+    fixture.serve_crates_io();
+    let report = add_named_tools(&fixture.context(), &arguments(&["cargo:fastmod"]), None, nothing_stops_the_run).expect("added");
+    let lock_before = fixture.lock_text();
+    let error = run_sync_with_named(
+        &fixture.scope,
+        &fixture.env,
+        &fixture.runner,
+        &fixture.http,
+        &fixture.host,
+        LockPolicy::Frozen(FrozenReason::Flag),
+        &report.added_ids(),
+    )
+    .expect_err("a frozen run writes nothing but the entries it was told to add");
+    assert_eq!(error.kind, ErrorKind::Drift);
+    assert_eq!(fixture.lock_text(), lock_before);
 }
 
 #[test]

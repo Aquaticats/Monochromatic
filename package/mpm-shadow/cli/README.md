@@ -821,18 +821,27 @@ it brings everything the plan holds to its lock.
 The prefixes a request can add,
 and what names each route's binaries:
 
-- `cargo:<crate>` adds the `cargo-binstall` route.
+- `cargo:<crate>` adds the `cargo-binstall` route,
+  which runs the `cargo` the machine has and needs no plan entry.
   Its `bins` are crates.io's own `bin_names` for the version the request asks for
   (`GET https://crates.io/api/v1/crates/<crate>`,
   and `.../<crate>/<version>` for a pinned one).
-- `npm:<package>` adds the `mpm-pnpm` route.
+- `npm:<package>` adds the `mpm-pnpm` route,
+  whose installer is the plan's `pnpm` entry.
   Its `bins` are the `bin` field's names from the registry's manifest
   (`GET https://registry.npmjs.org/<package>/<version-or-tag>`),
   or the package's own name when `bin` is one text.
-- `go:<module>` adds the `go-install` route.
+- `go:<module>` adds the `go-install` route,
+  whose installer is the plan's `go` entry.
   Its `bins` are the module path's last segment,
   which is the name `go install` writes;
   a path that ends in a major-version suffix (`/v2`) names no program and is refused.
+
+A plan that lacks the installer a route runs holds no way to install what the
+command adds,
+so that request is refused before any lookup,
+naming the entry to add first.
+Both plans this repository ships hold `pnpm` and `go`.
 
 Every other route needs an entry a request cannot describe,
 so the command refuses it and names the plan file and this section:
@@ -872,6 +881,8 @@ The entry the command writes carries the three fields a request and its route se
   trailing commas,
   the indentation of the entry above it,
   and the file's own order.
+  A comment beside the last entry stays with that entry:
+  the comma goes in front of it and the new entry after it.
 - **It lands without the comment that says why the tool is there.**
   Only a person knows that,
   so the command prints
@@ -890,8 +901,11 @@ The entry the command writes carries the three fields a request and its route se
 - With `--frozen-lockfile`,
   or in a CI environment,
   the entries the command line added are still resolved and locked,
-  as `pnpm add --frozen-lockfile <package>` writes `package.json` and the lockfile;
-  any other entry the plan is ahead in keeps the frozen refusal.
+  as `pnpm add --frozen-lockfile <package>` writes `package.json` and the lockfile.
+  Nothing else moves:
+  if any other entry needs a lookup,
+  or the plan differs from the lock anywhere a run could write without one,
+  the frozen refusal stands and no lock is written.
 - `install --lockfile-only --frozen-lockfile` is the CI drift check,
   so it adds nothing;
   `install --lockfile-only --offline` resolves nothing,

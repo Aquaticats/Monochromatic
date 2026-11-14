@@ -102,6 +102,32 @@ fn two_entries_in_one_call_land_in_the_order_they_were_given() {
 }
 
 #[test]
+fn a_line_comment_beside_the_last_entry_stays_with_that_entry() {
+    let plan = "{\n  \"schemaVersion\": 1,\n  \"tools\": {\n    \"tokei\": {\"request\": \"cargo:tokei@latest\", \"route\": \"cargo-binstall\", \"bins\": [\"tokei\"]},\n  }\n}\n";
+    let updated = plan_with_entries(plan, "plan", &[fastmod()]).expect("the entry is added");
+    // The comma goes before the comment, and the new entry after the line the comment ends.
+    let expected = "{\n  \"schemaVersion\": 1,\n  \"tools\": {\n    \"tokei\": {\"request\": \"cargo:tokei@latest\", \"route\": \"cargo-binstall\", \"bins\": [\"tokei\"]},\n    \"cargo:fastmod\": {\n      \"request\": \"cargo:fastmod@latest\",\n      \"route\": \"cargo-binstall\",\n      \"bins\": [\n        \"fastmod\"\n      ]\n    },\n  }\n}\n";
+    assert_eq!(updated, expected);
+    assert_eq!(parse_plan(&updated, "plan").expect("parses").tools.len(), 2);
+
+    let without_comma = plan.replacen("]},", "]} // why tokei is here", 1);
+    let commented = plan_with_entries(&without_comma, "plan", &[fastmod()]).expect("the entry is added");
+    assert!(
+        commented.contains("\"bins\": [\"tokei\"]}, // why tokei is here\n    \"cargo:fastmod\""),
+        "the comment stays above the entry it explains: {commented}"
+    );
+    assert_eq!(parse_plan(&commented, "plan").expect("parses").tools.len(), 2);
+
+    let block = plan.replacen("]},", "]} /* why tokei is here */", 1);
+    let block_commented = plan_with_entries(&block, "plan", &[fastmod()]).expect("the entry is added");
+    assert!(
+        block_commented.contains("/* why tokei is here */\n    \"cargo:fastmod\""),
+        "the block comment stays above the entry it explains: {block_commented}"
+    );
+    assert_eq!(parse_plan(&block_commented, "plan").expect("parses").tools.len(), 2);
+}
+
+#[test]
 fn an_empty_tools_object_gets_the_entry_inside_it_and_keeps_its_indentation() {
     let empty = "{\n  \"schemaVersion\": 1,\n  \"tools\": {}\n}\n";
     let updated = plan_with_entries(empty, "plan", &[fastmod()]).expect("the entry is added");

@@ -514,13 +514,15 @@ pub fn prepare_lock(
             if verdict.digest_problem.is_none() && verdict.needs_update() {
                 match policy {
                     LockPolicy::Frozen(reason) => {
-                        let only_named: Vec<String> =
-                            verdict.ids_needing_update().into_iter().filter(|id| return named.contains(id)).collect();
-                        if only_named.is_empty() {
+                        // A frozen run resolves what its own command line added and nothing else: every other id that
+                        // needs a lookup, and every difference the lock could take from the plan without one, refuses.
+                        let needed: Vec<String> = verdict.ids_needing_update();
+                        let only_named: Vec<String> = needed.iter().filter(|id| return named.contains(id)).cloned().collect();
+                        let nothing_else_differs: bool = only_named.len() == needed.len() && verdict.offline_fixable_lines().is_empty();
+                        if only_named.is_empty() || !nothing_else_differs {
                             return Err(frozen_refusal(&verdict, reason));
                         }
                         resolved = resolve_before_installing(&loaded, Some(&only_named), scope, env, runner, http, host)?;
-                        rewritten = verdict.offline_fixable_lines();
                     }
                     LockPolicy::Resolve => {
                         let ids: Vec<String> = verdict.ids_needing_update();

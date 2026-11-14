@@ -115,6 +115,26 @@ pub fn number_or_zero(part: &str) -> u64 {
 /// export function writeAtomically(target: string, bytes: Uint8Array): void
 /// ```
 pub fn write_atomically(target: &Path, bytes: &[u8]) -> Result<(), ToolchainError> {
+    return write_atomically_with_mode(target, bytes, None);
+}
+
+/// What:
+/// `write_atomically`, giving the new file the mode `mode` before it takes the target's name.
+/// Why:
+/// The plan is a file people own,
+/// and the one kept readable by its owner alone (`0600`) must never be readable by everyone,
+/// not even for the moment between the rename and a later `chmod`;
+/// a temporary that carries the mode already makes the rename the only visible step.
+/// `None` leaves the mode a new file gets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function writeAtomicallyWithMode(target: string, bytes: Uint8Array, mode?: number): void
+/// ```
+#[cfg(unix)]
+pub fn write_atomically_with_mode(target: &Path, bytes: &[u8], mode: Option<u32>) -> Result<(), ToolchainError> {
+    /// Imports `PermissionsExt` from `std::os::unix::fs`.
+    use std::os::unix::fs::PermissionsExt;
     let mut temporary_name: OsString = OsString::from(".");
     temporary_name.push(file_name_os(target));
     temporary_name.push(format!(".{}.tmp", std::process::id()));
@@ -124,10 +144,26 @@ pub fn write_atomically(target: &Path, bytes: &[u8]) -> Result<(), ToolchainErro
         let _ = fs::remove_file(&temporary);
         return Err(ToolchainError::failure(format!("cannot write {}: {error}", temporary.display())));
     }
+    if let Some(bits) = mode
+        && let Err(error) = fs::set_permissions(&temporary, fs::Permissions::from_mode(bits))
+    {
+        let _ = fs::remove_file(&temporary);
+        return Err(ToolchainError::failure(format!("cannot give {} its mode: {error}", temporary.display())));
+    }
     if let Err(error) = fs::rename(&temporary, target) {
         // Best effort: the temporary file is useless now, and a failed removal changes nothing for the caller.
         let _ = fs::remove_file(&temporary);
         return Err(ToolchainError::failure(format!("cannot replace {}: {error}", target.display())));
     }
     return Ok(());
+}
+
+/// What:
+/// `write_atomically_with_mode` where the platform has no mode to give.
+/// Why:
+/// Windows and macOS are out of scope for now,
+/// and a file written there is an ordinary new file.
+#[cfg(not(unix))]
+pub fn write_atomically_with_mode(target: &Path, bytes: &[u8], _mode: Option<u32>) -> Result<(), ToolchainError> {
+    return write_atomically(target, bytes);
 }

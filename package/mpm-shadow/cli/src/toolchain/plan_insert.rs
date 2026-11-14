@@ -49,20 +49,57 @@ const ONE_LEVEL: &str = "  ";
 /// type ToolsRecord = { insertAt: number; memberIndent: string; closingIndent: string; empty: boolean };
 /// ```
 struct ToolsRecord {
-    /// The byte offset the new text goes in at:
-    /// the end of the last member's value,
-    /// or just after the `{` of an empty object.
-    insert_at: usize,
+    /// Where the new text goes,
+    /// read from the text that follows the last entry,
+    /// or from an object that holds none.
+    place: Place,
     /// The indentation one entry of this object gets,
     /// taken from the entry that is there already.
     member_indent: String,
     /// The indentation of the line that holds the `{` of the object,
     /// written in front of the closing `}` of an empty object.
     closing_indent: String,
-    /// Whether the object holds no entry yet.
-    empty: bool,
-    /// Whether an empty object's braces already sit on separate lines.
-    empty_is_broken: bool,
+}
+
+/// What:
+/// Where the new entry goes and what has to be written around it.
+/// Why:
+/// A comment beside the last entry belongs to that entry:
+/// the comma that separates the new entry from it goes in front of the comment,
+/// and the new entry goes after it,
+/// so the explanation never ends up above the wrong tool.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Place =
+///   | { kind: 'atLastValue'; valueEnd: number }
+///   | { kind: 'afterComment'; valueEnd: number; commaPresent: boolean; afterComment: number }
+///   | { kind: 'empty'; brace: number; bracesBroken: boolean };
+/// ```
+enum Place {
+    /// Nothing but whitespace (and the entry's own comma) follows the last value.
+    AtLastValue {
+        /// The byte just after the last member's value.
+        value_end: usize,
+    },
+    /// A comment follows the last value on the same line.
+    AfterComment {
+        /// The byte just after the last member's value,
+        /// where the comma goes when none is written yet.
+        value_end: usize,
+        /// Whether the entry already carries the comma after its value.
+        comma_present: bool,
+        /// The byte just after the comment,
+        /// where the new entry goes.
+        after_comment: usize,
+    },
+    /// The object holds no entry.
+    Empty {
+        /// The byte just after the object's `{`.
+        brace: usize,
+        /// Whether the object's braces already sit on separate lines.
+        braces_broken: bool,
+    },
 }
 
 /// A reader of the parser's two span lists,
@@ -204,6 +241,49 @@ fn entry_text(indent: &str, declaration: &Declaration) -> String {
 }
 
 /// What:
+/// Where the new entry goes, read from the text between the last member's value and the object's closing brace.
+/// Why:
+/// The comma, the whitespace and any comment beside that entry are the person's,
+/// and the only question is where the new text goes around them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function placeAfter(source: string, valueEnd: number, objectEnd: number): Place
+/// ```
+fn place_after(source: &str, value_end: usize, object_end: usize) -> Place {
+    let limit: usize = object_end.saturating_sub(1);
+    let mut index: usize = value_end;
+    let skip_blanks = |from: usize| -> usize {
+        let mut cursor: usize = from;
+        while cursor < limit && (source.as_bytes()[cursor] == b' ' || source.as_bytes()[cursor] == b'\t') {
+            cursor += 1;
+        }
+        return cursor;
+    };
+    index = skip_blanks(index);
+    let comma_present: bool = index < limit && source.as_bytes()[index] == b',';
+    if comma_present {
+        index += 1;
+        index = skip_blanks(index);
+    }
+    if source[index.min(source.len())..].starts_with("//") {
+        let after_comment: usize = match source[index..].find('\n') {
+            Some(newline) => index + newline,
+            None => source.len(),
+        };
+        return Place::AfterComment { value_end, comma_present, after_comment };
+    }
+    if source[index.min(source.len())..].starts_with("/*") {
+        let after_comment: usize = match source[index..].find("*/") {
+            Some(close) => index + close + 2,
+            None => source.len(),
+        };
+        return Place::AfterComment { value_end, comma_present, after_comment };
+    }
+    return Place::AtLastValue { value_end };
+}
+
+/// What:
 /// Reads the `tools` object of a plan:
 /// its span,
 /// the end of its last entry's value,
@@ -261,11 +341,9 @@ fn tools_of(
     };
     if entries.is_empty() {
         return Ok(ToolsRecord {
-            insert_at: brace + 1,
+            place: Place::Empty { brace: brace + 1, braces_broken: source[brace + 1..end - 1].contains('\n') },
             member_indent: format!("{closing_indent}{ONE_LEVEL}"),
             closing_indent,
-            empty: true,
-            empty_is_broken: source[brace + 1..end - 1].contains('\n'),
         });
     }
     let mut last: Option<(usize, usize)> = None;
@@ -279,7 +357,7 @@ fn tools_of(
         return Err(misaligned(label));
     };
     let member_indent: String = line_indent(source, last_key).unwrap_or_else(|| return indent_below(source, brace));
-    return Ok(ToolsRecord { insert_at: last_value_end, member_indent, closing_indent, empty: false, empty_is_broken: false });
+    return Ok(ToolsRecord { place: place_after(source, last_value_end, end), member_indent, closing_indent });
 }
 
 /// What:
@@ -306,19 +384,31 @@ pub fn plan_with_entries(source: &str, label: &str, declarations: &[Declaration]
         entries.push(entry_text(&record.member_indent, declaration));
     }
     let joined: String = entries.join(",\n");
-    let insertion: String = if record.empty && record.empty_is_broken {
-        // The newline and the closing brace the person wrote already follow; only the entry is added.
-        format!("\n{joined}")
-    } else if record.empty {
-        format!("\n{joined}\n{}", record.closing_indent)
-    } else {
-        // The comma the last entry already carries (or does not) stays where it was, after the new text.
-        format!(",\n{joined}")
+    let insertions: Vec<(usize, String)> = match record.place {
+        Place::AtLastValue { value_end } => vec![(value_end, format!(",\n{joined}"))],
+        Place::AfterComment { value_end, comma_present, after_comment } => {
+            let mut parts: Vec<(usize, String)> = Vec::new();
+            if !comma_present {
+                parts.push((value_end, ",".to_string()));
+            }
+            parts.push((after_comment, format!("\n{joined}")));
+            parts
+        }
+        Place::Empty { brace, braces_broken: true } => {
+            // The newline and the closing brace the person wrote already follow; only the entry is added.
+            vec![(brace, format!("\n{joined}"))]
+        }
+        Place::Empty { brace, braces_broken: false } => {
+            vec![(brace, format!("\n{joined}\n{}", record.closing_indent))]
+        }
     };
-    let mut text: String = String::with_capacity(source.len() + insertion.len());
-    text.push_str(&source[..record.insert_at]);
-    text.push_str(&insertion);
-    text.push_str(&source[record.insert_at..]);
+    let mut text: String = source.to_string();
+    // From the last edit to the first, so an earlier offset still names the byte it was read at.
+    let mut ordered: Vec<(usize, String)> = insertions;
+    ordered.sort_by_key(|(offset, _)| return std::cmp::Reverse(*offset));
+    for (offset, part) in ordered {
+        text.insert_str(offset, &part);
+    }
     let ids: Vec<&str> = declarations.iter().map(|declaration| return declaration.id.as_str()).collect();
     if let Err(error) = parse_plan(&text, label) {
         return Err(ToolchainError::config(format!(
