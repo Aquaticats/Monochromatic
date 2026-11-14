@@ -169,8 +169,13 @@ fn a_commit_only_a_detached_worktree_inside_holds_is_stranded() {
 }
 
 /// What:
-///  A worktree whose own `HEAD` cannot be read keeps the removal from running,
+///  A `HEAD` that names neither a branch nor a commit keeps the removal from running,
 ///  with the reason.
+/// Why:
+///  A record a killed writer left torn is exactly the state nothing here can read:
+///  answering "not detached" for it would report a commit only that record names as unstranded,
+///  and the removal would delete the only thing that names it
+///  (a review of this change, finding F2).
 /// Why:
 ///  A `HEAD` this program cannot read may name a commit of its own,
 ///  and guessing "no commit" would destroy the one thing that names it.
@@ -180,4 +185,27 @@ fn a_head_that_cannot_be_read_is_the_reason_nothing_is_removed() {
     std::fs::remove_file(fixture.admin.join("HEAD").as_path()).expect("the HEAD record goes");
     let said: Result<Vec<String>, String> = fixture.stranded();
     assert!(said.is_err(), "a worktree whose HEAD cannot be read is no worktree a removal proves clear");
+}
+
+/// What:
+///  A `HEAD` a killed writer left torn keeps the removal from running,
+///  in each shape that is neither a reference nor a full object name.
+/// Why:
+///  Only two shapes are states Git writes:
+///  a line naming a reference, whose commit survives the removal,
+///  and a full object name, which is a commit only the worktree's own directory names.
+///  Every other shape is a record this program cannot read,
+///  and a commit it might hold would be reported unstranded and deleted if the question answered "not detached".
+#[test]
+fn a_head_that_names_neither_a_branch_nor_a_commit_is_the_reason_nothing_is_removed() {
+    for torn in ["0f1af2e0f295", "the record a killed writer left behind", "gggggggggggggggggggggggggggggggggggggggg"] {
+        let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-torn-head");
+        std::fs::write(fixture.admin.join("HEAD").as_path(), format!("{torn}\n")).expect("a torn HEAD record");
+        let said: Result<Vec<String>, String> = fixture.stranded();
+        let reason: String = match said {
+            Err(reason) => reason,
+            Ok(empty) => panic!("a HEAD that names neither a branch nor a commit must keep the removal, but it answered {empty:?} for {torn:?}"),
+        };
+        assert!(reason.contains("names neither a branch nor a commit"), "{torn:?} answered: {reason}");
+    }
 }

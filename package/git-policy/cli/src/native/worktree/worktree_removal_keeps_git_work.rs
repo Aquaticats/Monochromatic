@@ -150,12 +150,17 @@ fn stranded_commits(context: &GitContext, root: &Path, admin: &Path) -> Result<V
 
 /// What:
 ///  The commit a worktree's `HEAD` names when it names a commit,
-///  or nothing when it names a branch.
+///  nothing when it names a branch,
+///  and the reason nothing may be removed when it names neither.
 /// Why:
 ///   A detached `HEAD` is the one record that says which commit the worktree is on,
 ///  and the registration reader already opens that record without waiting for a writer.
-///  A `HEAD` that starts with anything but a reference is not a state this program acts on:
-///  a record it cannot read is the reason the removal keeps the worktree.
+///  Two states are read: a line that names a reference, which outlives the removal,
+///  and a full object name, which is a commit only this directory names.
+///  Anything else is a record a killed writer can leave torn,
+///  and it may name a commit this program cannot see:
+///  answering "not detached" there would report that commit unstranded and delete the only thing that names it,
+///  so an unreadable record is the reason the removal keeps the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -173,7 +178,10 @@ fn detached_head(admin: &Path) -> Result<Option<String>, String> {
     if (digits == SHA1_DIGITS || digits == SHA256_DIGITS) && line.bytes().all(|byte| return byte.is_ascii_hexdigit()) {
         return Ok(Some(line.to_owned()));
     }
-    return Ok(None);
+    return Err(format!(
+        "the record HEAD at {} names neither a branch nor a commit, so nothing proves which commit it holds and a removal could delete the only name of one",
+        admin.display()
+    ));
 }
 
 /// What:
