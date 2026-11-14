@@ -66,6 +66,16 @@ in the files named above.
   two `stat` calls,
   one per store root for the unfinished-removal marker,
   and the pass is not run at all.
+- A pass that removes,
+  measured on the replay of this machine's listing
+  (136 version directories and leftover downloads,
+   59 of them removed,
+  33 851 MiB):
+  166 ms before the second look was added to the removals,
+  and 319 ms with it.
+  A real store's deletion costs more than the replay's sparse files do,
+  so the share the second look adds there is
+  smaller than it looks here.
 - A pass on a store it has never measured:
   9.3 s,
   for one `stat` and a size walk of every version directory.
@@ -76,6 +86,14 @@ in the files named above.
   The rest of a pass is 30 ms for `git worktree list`,
   0.27 to 0.7 s to read and parse 164 lock files,
   and 0.15 s for the process table.
+- The process table,
+  once for the plan and once more after the versions of a pass are moved out of their names:
+  161 ms and 153 ms,
+  measured on the replay of the real listing below.
+  The second look is per pass,
+  not per version:
+  the whole batch is moved aside first,
+  so fifty-nine removals pay it once.
 - The removals:
   at most two seconds,
   at the measured 30 microseconds per file.
@@ -102,7 +120,7 @@ until they are inside it.
 Every version that stays says why it stays.
 
 A version is kept when any of these holds,
-  the most specific first:
+the most specific first:
 
 - **a lock names it**:
   this scope's lock,
@@ -119,6 +137,12 @@ A version is kept when any of these holds,
   or a file it has open (the `/proc/<pid>/fd` links).
   A process the kernel refuses to describe is matched by the name it calls itself,
   and its versions are kept with that name in the line.
+  The process table is asked twice for the versions this pass removes:
+  once while the plan is made,
+  and once more after every version of the batch has been moved out of its name,
+  which is the moment the removals become final.
+  A version something holds then is renamed back and kept,
+  with the hold in its line.
 - **it was written inside the age floor**.
 - **another run wrote it after the scan**:
   the directory write time is read again before the rename,
@@ -139,8 +163,38 @@ A removal is two steps:
 A run killed between the two steps leaves a hidden `.mpm-shadow-removing.*` directory,
 which no scan lists as a version,
 and a `.mpm-shadow-removal-unfinished` file in the store root.
-The next install runs the pass because of that file and finishes the deletion,
+The next install runs the pass because of that file,
+finds every `.mpm-shadow-removing.*` directory by walking the store's own directories,
+and finishes the deletion,
 printing one line saying it did.
+That step reads no lock:
+the version is condemned already,
+so a lock that cannot be read must not hide it.
+A `.mpm-shadow-removing.*` directory something holds is renamed back instead,
+and a later pass removes it once its holder is gone.
+The marker in the store root goes only once the store holds no `.mpm-shadow-removing.*` at all.
+
+## The window that is left
+
+Nothing can start using a version once it is renamed,
+so the second look at the process table sees every process that holds one:
+a program,
+a working directory,
+an open file,
+or a mapping that entered the version before its rename is still there to be seen,
+and one that tries afterwards meets a name that no longer exists.
+Two cases remain,
+and neither can be closed from this side:
+
+- a process the kernel refuses to describe (`dumpable = 0`),
+  which hides its program and its mappings;
+- a process of another user,
+  which this user cannot read at all.
+
+Both are handled the same way as before:
+the name such a process calls itself is compared with the tool's directory name,
+and a version it may be running is kept only when that name matches.
+A version such a process holds without such a match can still be removed while it runs.
 
 ## What it says
 
