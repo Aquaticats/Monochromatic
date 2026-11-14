@@ -98,15 +98,15 @@ fn hold_every_place_of_the_work(name: &str) -> (Vec<tokio::task::JoinHandle<()>>
     let held_places: usize = places_for_the_services_own_work();
     assert!(held_places >= 1, "{name} needs at least one place of the service's own work to hold");
     let (told, told_by_a_job) = std::sync::mpsc::channel::<()>();
-    let (release, held) = std::sync::mpsc::channel::<()>();
-    let held: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(held));
+    let (release, waiting) = std::sync::mpsc::channel::<()>();
+    let the_places_are_held: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(waiting));
     let mut stuck: Vec<tokio::task::JoinHandle<()>> = Vec::new();
     for _ in 0..held_places {
-        let told = told.clone();
-        let held = Arc::clone(&held);
+        let told_one = told.clone();
+        let still_held = Arc::clone(&the_places_are_held);
         let control: String = String::from(name);
         let holder = crate::lazy_runtime::spawn_on_runtime(async move {
-            let answer = run_a_job_awaited_no_longer_than(THE_CALLERS_CEILING, (told, held), hold_a_place_past_its_ceiling).await;
+            let answer = run_a_job_awaited_no_longer_than(THE_CALLERS_CEILING, (told_one, still_held), hold_a_place_past_its_ceiling).await;
             // The caller gave up while the job kept the place it took, which is the state every control here needs.
             assert!(
                 matches!(answer, TheAnswerOfAJobAwaited::NoAnswer),
@@ -193,9 +193,9 @@ fn a_withdrawal_is_decided_while_every_place_of_the_work_is_held() {
     // The connection is a task of its own, so the answer is read while it is being written, and so a connection that
     //  hands the request to a landing thread that never answers is abandoned here rather than waited for.
     let (heard, handed_on): (Option<ServiceMessage>, bool) = crate::lazy_runtime::run_on_runtime(async move {
-        let (service, client) = UnixStream::pair().expect("a connected pair");
+        let (service, client_end) = UnixStream::pair().expect("a connected pair");
         let (_read_half, mut write_half) = service.into_split();
-        let mut client = tokio::io::BufReader::new(client);
+        let mut client = tokio::io::BufReader::new(client_end);
         let asking = crate::lazy_runtime::spawn_on_runtime(async move {
             answer_request(line.as_str(), &mut write_half, &shared, Instant::now()).await;
         })
@@ -243,7 +243,7 @@ fn the_note_of_a_beat_is_read_while_every_place_of_the_work_is_held() {
         let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(String::from(A_REQUEST)));
         // The read is a task of its own, so the control can see it start without waiting for words the board has none of.
         let reading = crate::lazy_runtime::spawn_on_runtime(async move { return notice.note().await }).expect("a worker for the read");
-        let began: bool = tokio::time::timeout(A_BOUND, was_reached).await.is_ok_and(|reached| { return reached.is_ok(); });
+        let began: bool = tokio::time::timeout(A_BOUND, was_reached).await.is_ok_and(|heard| { return heard.is_ok(); });
         reading.abort();
         return began;
     })
