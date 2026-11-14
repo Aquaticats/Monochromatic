@@ -1133,3 +1133,82 @@ fn a_ceiling_that_stood_aside_is_not_undone_by_the_other_enforcer() {
     assert_eq!(git_text(fixture.repo.as_path(), &["rev-parse", "HEAD"]).trim(), base, "the person's branch is where it was");
     remove(root.as_path());
 }
+
+/// How many branches the reference-count control adds to its larger repository.
+///
+/// The number is the fixture's,
+/// and the control's claim is that no Git child a preparation starts is asked about it.
+const MANY_REFS_ABOVE_THE_FIXTURE: usize = 700;
+
+/// What:
+///  How many branches one repository lists,
+///  which is the size the control varies.
+///
+/// Why:
+///   The count is derived from the repository,
+/// so a fixture that grows keeps the control honest instead of pinning a number.
+fn reference_count(repo: &Path) -> usize {
+    return git_text(repo, &["for-each-ref", "--format=%(refname)"]).lines().count();
+}
+
+/// What:
+///  The preparation of one fixture under a recording context:
+///  the Git starts it made,
+///  and how many refs its repository holds.
+///
+/// Why:
+///   Both halves of the claim are read from the fixture itself,
+/// so neither is a wall-clock assertion.
+#[cfg(unix)]
+fn preparation_starts(root: &Path, above_the_fixture: usize) -> (Vec<String>, usize) {
+    let repo: PathBuf = prepared_repository(root);
+    let head: String = git_text(repo.as_path(), &["rev-parse", "HEAD"]);
+    for index in 0..above_the_fixture {
+        let name: String = format!("refs/heads/measured-{index:04}");
+        git(repo.as_path(), &["update-ref", name.as_str(), head.as_str()]);
+    }
+    git(repo.as_path(), &["pack-refs", "--all"]);
+    let (context, log) = crate::recording_git::recording_context(root);
+    let prepared: Fixture = preparation_fixture_with(&context, root, repo.clone());
+    prepare_with(&context, &prepared, &["--message=measured"]).expect("the shadow builds the commit");
+    return (crate::recording_git::recorded_starts(log.as_path()), reference_count(repo.as_path()));
+}
+
+/// A commit of one branch starts the same Git children whatever the repository's ref count,
+/// and none of them is asked about the repository's references.
+///
+/// On 2026-11-12 one `git for-each-ref` over every ref was a child of every commit and took 3.8 to 26.4
+/// seconds on a busy host while real Git answered the same question in 4 to 5 milliseconds;
+/// this control holds the count of starts,
+/// and what they are asked,
+///  to the fixture rather than to the clock.
+#[cfg(unix)]
+#[test]
+fn a_commit_starts_no_git_child_over_the_whole_ref_store() {
+    let small_root: PathBuf = fixture("commit-preparation-refs-small");
+    let large_root: PathBuf = fixture("commit-preparation-refs-large");
+    let (small_starts, small_refs) = preparation_starts(small_root.as_path(), 0);
+    let (large_starts, large_refs) = preparation_starts(large_root.as_path(), MANY_REFS_ABOVE_THE_FIXTURE);
+    // The starts are compared by the step each one is, never by a path of its fixture.
+    let labels = |starts: &[String]| -> Vec<String> {
+        return starts
+            .iter()
+            .map(|start| {
+                let words: Vec<OsString> = start.split(' ').map(OsString::from).collect();
+                return crate::add_timing::git_step_label(words.as_slice());
+            })
+            .collect();
+    };
+    let over_every_ref: Vec<&String> = large_starts
+        .iter()
+        .chain(small_starts.iter())
+        .filter(|start| {
+            return start.starts_with("for-each-ref") || start.contains(" for-each-ref") || start.contains(" rev-list ") || start.starts_with("rev-list ");
+        })
+        .collect();
+    assert!(over_every_ref.is_empty(), "{over_every_ref:?}");
+    assert!(large_refs > small_refs + MANY_REFS_ABOVE_THE_FIXTURE - 1, "{small_refs} then {large_refs}");
+    assert_eq!(labels(&small_starts), labels(&large_starts), "a repository of {large_refs} refs against one of {small_refs}");
+    remove(small_root.as_path());
+    remove(large_root.as_path());
+}

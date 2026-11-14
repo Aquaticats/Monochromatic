@@ -20,7 +20,10 @@ use crate::entry_forward_action_planning::forward_action;
 use crate::entry_push_stacking_and_lfs_upload::stack_if_push;
 use crate::exit_report_written::write_exit;
 use crate::entry_run_forwarded_actions::{finish_forwarded, run_announced, run_coordinated_action, write_stream};
-use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, failure, with_leading_notice};
+use crate::action::{Action, ENGINE_FAILURE_EXIT_CODE, REJECTED_EXIT_CODE, failure, with_leading_notice};
+/// The second measurement of an abort or a skip,
+/// owed immediately before Git starts.
+use crate::abort_recheck::recheck_before_the_command;
 use crate::announced_query::{WRAPPER_VERSION, announced_query, announcement};
 use crate::push_stacking::{STACKED_PUSH_MARKER, run_stacked_push};
 use crate::child_environment::{
@@ -350,6 +353,11 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
     }
     // From here on every real-Git start of this process runs with traditional hooks off.
     crate::hooks_off::activate();
+    // What: The locks a killed command of this repository left are met here, before this command reaches Git.
+    // Why:  A lock whose holder the wrapper's own record proves gone protects nothing, and waiting a minute for that process
+    //       would be a wait the wrapper could have known to skip. Nothing is cleared on a proof that is not complete, so a
+    //       lock of a live Git, of an editor, or of another machine keeps the bounded wait and the report it always had.
+    crate::abandoned_locks::meet_the_locks_of_the_working_directory(environment);
     let action: Action = match process_resolution_inputs(environment) {
         // A monochromatic-git-policy-cli executable that a wrapper started as Git stops before it plans anything or starts anything.
         Ok(inputs) => match refusal_when_started_as_git(environment, inputs.own_executable.as_path()) {
@@ -372,8 +380,15 @@ pub fn run_process(arguments: &[OsString], environment: &[(OsString, OsString)])
             overlay,
             stderr,
         } => {
+            // The second measurement of an abort or a skip, immediately before the command the person typed:
+            //  work that appeared after the policy pass stops the command here, and nothing was changed.
+            let refusal: Option<String> = recheck_before_the_command();
             // Warning events reach the caller before Git's own output.
             write_stream(&mut std::io::stderr(), stderr.as_str());
+            if let Some(text) = refusal.as_deref() {
+                write_stream(&mut std::io::stderr(), text);
+                return REJECTED_EXIT_CODE;
+            }
             let error: std::io::Error = replace_process_with_real_git(
                 real_git.as_path(),
                 forwarded.as_slice(),

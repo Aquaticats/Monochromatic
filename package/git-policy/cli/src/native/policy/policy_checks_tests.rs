@@ -759,20 +759,23 @@ fn overwriting_forms_are_rejected_in_main_always_and_in_linked_when_dirty() {
 }
 
 /// linked-worktree-only:
-///  an abort form is rejected in the main worktree without asking anything about the worktree,
-/// and in a linked worktree it is judged by the operation it undoes,
+///  an abort form is judged by the operation it undoes,
+/// in the main worktree and in a linked one alike,
 /// so the status is never asked and a dirty worktree answers as a clean one does.
 /// Why:
 ///   An operation that stopped with conflicts makes `git status` report its own state,
 /// so the rule above refused every abort form for exactly as long as it was the command a person needed;
-/// the markers of the operation itself decide the abort instead,
-/// and `SPEC.md` records it under "The abort forms while their operation waits".
+/// the work it would discard decides the abort instead,
+/// and the owner decided on 2026-11-13 that the rule is the same in the main worktree
+/// ("Same rule everywhere"),
+/// which ends the older rule that every abort there is refused.
+///  `SPEC.md` records it under "The abort and skip forms while their operation waits".
 /// What it asks:
 ///  where the worktree is,
 /// and which operation waits,
 ///  and nothing else.
 #[test]
-fn an_abort_in_a_linked_worktree_is_judged_by_the_operation_it_undoes() {
+fn an_abort_is_judged_by_the_operation_it_undoes_wherever_it_runs() {
     for (values, command) in [
         (vec!["merge", "--abort"], GuardedCommand::AbortMerge),
         (vec!["rebase", "--abort"], GuardedCommand::AbortRebase),
@@ -781,27 +784,18 @@ fn an_abort_in_a_linked_worktree_is_judged_by_the_operation_it_undoes() {
         (vec!["am", "--abort"], GuardedCommand::AbortAm),
     ] {
         let abort_question: String = format!("abort-discard:{command:?}");
-        for dirty in [false, true] {
-            assert_eq!(
-                pre_forward(
-                    PolicyId::LinkedWorktreeOnly,
-                    values.as_slice(),
-                    dirty_in(main_worktree("/r", ""), dirty)
-                ),
-                (one("linked-worktree-required", &main_worktree_message(command)), location_only()),
-                "{values:?} main dirty={dirty}"
-            );
-        }
-        for dirty in [false, true] {
-            assert_eq!(
-                pre_forward(
-                    PolicyId::LinkedWorktreeOnly,
-                    values.as_slice(),
-                    dirty_in(linked_worktree("/r", "/w"), dirty)
-                ),
-                (clean(), asked(&["location", abort_question.as_str()])),
-                "{values:?} linked dirty={dirty}"
-            );
+        for (where_it_runs, facts) in [
+            ("main", main_worktree("/r", "")),
+            ("linked", linked_worktree("/r", "/w")),
+            ("outside", outside_worktree()),
+        ] {
+            for dirty in [false, true] {
+                assert_eq!(
+                    pre_forward(PolicyId::LinkedWorktreeOnly, values.as_slice(), dirty_in(facts.clone(), dirty)),
+                    (clean(), asked(&["location", abort_question.as_str()])),
+                    "{values:?} {where_it_runs} dirty={dirty}"
+                );
+            }
         }
     }
 }

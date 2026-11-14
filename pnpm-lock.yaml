@@ -319,8 +319,8 @@ catalogs:
       specifier: '>=1.93.0'
       version: 1.93.0
     oxlint-tsgolint:
-      specifier: '>=7.0.2006'
-      version: 7.0.2006
+      specifier: '>=7.0.2007'
+      version: 7.0.2007
     p-limit:
       specifier: '>=7.3.3'
       version: 7.3.3
@@ -403,8 +403,8 @@ catalogs:
       specifier: '>=5.10.0'
       version: 5.10.0
     typebox:
-      specifier: '>=1.4.6'
-      version: 1.4.6
+      specifier: '>=1.4.7'
+      version: 1.4.7
     typescript:
       specifier: 7.1.0-beta
       version: 7.1.0-beta
@@ -592,10 +592,10 @@ importers:
         version: 2.1.0
       oxlint:
         specifier: 'catalog:'
-        version: 1.93.0(oxlint-tsgolint@7.0.2006)
+        version: 1.93.0(oxlint-tsgolint@7.0.2007)
       oxlint-tsgolint:
         specifier: 'catalog:'
-        version: 7.0.2006
+        version: 7.0.2007
       rolldown:
         specifier: 'catalog:'
         version: 1.3.2
@@ -650,7 +650,7 @@ importers:
         version: 26.6.6
       typebox:
         specifier: 'catalog:'
-        version: 1.4.6
+        version: 1.4.7
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -1342,7 +1342,7 @@ importers:
         version: link:../../oxlint-plugin/tsdoc
       oxlint:
         specifier: 'catalog:'
-        version: 1.93.0(oxlint-tsgolint@7.0.2006)
+        version: 1.93.0(oxlint-tsgolint@7.0.2007)
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -2053,7 +2053,7 @@ importers:
         version: 26.6.6
       typebox:
         specifier: 'catalog:'
-        version: 1.4.6
+        version: 1.4.7
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -3777,7 +3777,7 @@ importers:
         version: 26.6.6
       typebox:
         specifier: 'catalog:'
-        version: 1.4.6
+        version: 1.4.7
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -3848,7 +3848,7 @@ importers:
         version: 26.6.6
       typebox:
         specifier: 'catalog:'
-        version: 1.4.6
+        version: 1.4.7
 
   package/pi-plugin/auto-mode:
     dependencies:
@@ -3876,7 +3876,7 @@ importers:
         version: 26.6.6
       typebox:
         specifier: 'catalog:'
-        version: 1.4.6
+        version: 1.4.7
 
   package/pi-plugin/bash-poke:
     dependencies:
@@ -4012,7 +4012,7 @@ importers:
         version: 26.6.6
       typebox:
         specifier: 'catalog:'
-        version: 1.4.6
+        version: 1.4.7
 
   package/pi-plugin/guardrail:
     dependencies:
@@ -4157,7 +4157,7 @@ importers:
         version: 26.6.6
       typebox:
         specifier: 'catalog:'
-        version: 1.4.6
+        version: 1.4.7
 
   package/pi-plugin/qwen-token-plan-individual:
     dependencies:
@@ -4700,7 +4700,7 @@ importers:
         version: 5.10.0
       typebox:
         specifier: 'catalog:'
-        version: 1.4.6
+        version: 1.4.7
       valibot:
         specifier: 'catalog:'
         version: 1.5.0(typescript@7.1.0-beta)
@@ -4742,7 +4742,7 @@ importers:
         version: link:../core
       typebox:
         specifier: 'catalog:'
-        version: 1.4.6
+        version: 1.4.7
       valibot:
         specifier: 'catalog:'
         version: 1.5.0(typescript@7.1.0-beta)
@@ -4798,7 +4798,7 @@ importers:
         version: 26.6.6
       typebox:
         specifier: 'catalog:'
-        version: 1.4.6
+        version: 1.4.7
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -9229,8 +9229,8 @@ packages:
     resolution: {integrity: sha512-8iajeLFbzNwM0m3AsQZSZgYREWglAImyGvvFSWU34FgMW8sHlzdwj9QKvv9dgN7jMP591EFUF/sLOC3Jl9YIjQ==, tarball: https://registry.npmjs.org/@electron-internal/extract-zip/-/extract-zip-1.0.8.tgz}
     engines: {node: '>=22.12.0'}
 
-  '@electron/asar@4.3.1':
-    resolution: {integrity: sha512-6pI64z/tMSBkUTZLQFYhs2YiB7fS9sKA6gy7/2nH1Ju7GGwT32UPsj4Mxsws5NMmtR6C0zYdXVxEU/rGqJRCJA==, tarball: https://registry.npmjs.org/@electron/asar/-/asar-4.3.1.tgz}
+  '@electron/asar@4.3.2':
+    resolution: {integrity: sha512-2nwyO3OgmLgkYQe6TzB8FmyrBKGgmXzSO51ozoG2BpHOLPTPdQpBt/zD0MdPkhQr4UqVgw3u09y4uYxgZKhmtg==, tarball: https://registry.npmjs.org/@electron/asar/-/asar-4.3.2.tgz}
     engines: {node: '>=22.12.0'}
     hasBin: true
 
@@ -9700,33 +9700,33 @@ packages:
   '@oxc-project/types@0.158.0':
     resolution: {integrity: sha512-xZ66qA4WmLbTLlxH3mqMd8f9UKbaOzOT0ATwFf4DH/14pMgpUrtqtjyYzOQmgfl2a0iRAAMbQ9G1th/67jRzGw==, tarball: https://registry.npmjs.org/@oxc-project/types/-/types-0.158.0.tgz}
 
-  '@oxlint-tsgolint/darwin-arm64@7.0.2006':
-    resolution: {integrity: sha512-uc0MEHXZUDW23Zmo5X28eSNeSnP17jKnh9GiehpVZqhfy99ks8spyXT5Llar3tjDN7ppnQN0Qd9FK6WNkdD+fQ==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/darwin-arm64/-/darwin-arm64-7.0.2006.tgz}
+  '@oxlint-tsgolint/darwin-arm64@7.0.2007':
+    resolution: {integrity: sha512-bjNxPFyu1wNK74epHzXrtVLrj7oEuB8jQvJZDSia2d5EZ/0YgnyhI37E9U530IUZlNCqlTWjko1iT3CKAYF9+A==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/darwin-arm64/-/darwin-arm64-7.0.2007.tgz}
     cpu: [arm64]
     os: [darwin]
 
-  '@oxlint-tsgolint/darwin-x64@7.0.2006':
-    resolution: {integrity: sha512-+x1/pa3S3VMC9cif8XKTOCQUuqRT+wu1Ix+FK5svXa2xbXCuE7+4S0SfmuSnK/mk9AI5+xBxZFhILxmCPUZ1hA==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/darwin-x64/-/darwin-x64-7.0.2006.tgz}
+  '@oxlint-tsgolint/darwin-x64@7.0.2007':
+    resolution: {integrity: sha512-dCd7mzk2FeTaU46LLeXy5mQyEFICaPqlew/LpehNzEuL86D0jTYlwZHbibRqdRrvkSNgq1szz/7014FIHgyV1g==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/darwin-x64/-/darwin-x64-7.0.2007.tgz}
     cpu: [x64]
     os: [darwin]
 
-  '@oxlint-tsgolint/linux-arm64@7.0.2006':
-    resolution: {integrity: sha512-90v7HX8m54kHXn5DpjNEN18Fb7xwJMREe/wji3USyAf9pTMv7a3qZ3cPoLViIcIzxPLmkcYZIs1j1H3Z2gbVLA==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/linux-arm64/-/linux-arm64-7.0.2006.tgz}
+  '@oxlint-tsgolint/linux-arm64@7.0.2007':
+    resolution: {integrity: sha512-qb0XUQXuTmQ8H++zsx/tQitG0/fU3BE16KGp1qXExeDgRzEc7WIlCuN1i+rmA40lty9gQs+x3a73BFODVhTZqA==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/linux-arm64/-/linux-arm64-7.0.2007.tgz}
     cpu: [arm64]
     os: [linux]
 
-  '@oxlint-tsgolint/linux-x64@7.0.2006':
-    resolution: {integrity: sha512-/k0wsEqHiA5dWBJYuld3Vecv6bIhKCasxpho/aFkvh870Qox33MuTkKUGWIVm/njAxw7W4pu1a/Xfa3jwuKuPQ==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/linux-x64/-/linux-x64-7.0.2006.tgz}
+  '@oxlint-tsgolint/linux-x64@7.0.2007':
+    resolution: {integrity: sha512-75vx0067HSgxq/HEZzlHwqhcujn3bshg43fVLTx604jZdZZMQfPVCcxTh2RTEShP7ACT1PRty6vboZlWh5RtEA==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/linux-x64/-/linux-x64-7.0.2007.tgz}
     cpu: [x64]
     os: [linux]
 
-  '@oxlint-tsgolint/win32-arm64@7.0.2006':
-    resolution: {integrity: sha512-CQT5sqcLZLNZSWLzUUEjQmp74UX8h1agp3ZJ8pfRktHbx6gfBa8a7CjrnRrZ9VXlwnXVkpw7m5KBO6y+S5MQRA==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/win32-arm64/-/win32-arm64-7.0.2006.tgz}
+  '@oxlint-tsgolint/win32-arm64@7.0.2007':
+    resolution: {integrity: sha512-6zl7I+BvScfOPtnPtSEP5JA+z8NkDPGd47YnQChL5lLF/Dzs7Rasr1G+q0zGlQcP8OEgW43hW4QlUTXxPfD13Q==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/win32-arm64/-/win32-arm64-7.0.2007.tgz}
     cpu: [arm64]
     os: [win32]
 
-  '@oxlint-tsgolint/win32-x64@7.0.2006':
-    resolution: {integrity: sha512-VZsGowXcp3vQNkjoGeVCOTf4aGrRpRk6bBJWhefnJVPr6z+dX+LKqqHfwaqnFvg66Q2iJpXqklRW38YO21ee+Q==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/win32-x64/-/win32-x64-7.0.2006.tgz}
+  '@oxlint-tsgolint/win32-x64@7.0.2007':
+    resolution: {integrity: sha512-VptFHYhBm0SIWCUkx89hmTrKVOQsDg0iB1YE3EBlvRRtCHGUd3pU1kMxPBg1wOd83ZMmIn7zB6maBROtpmrP5g==, tarball: https://registry.npmjs.org/@oxlint-tsgolint/win32-x64/-/win32-x64-7.0.2007.tgz}
     cpu: [x64]
     os: [win32]
 
@@ -10406,8 +10406,8 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==, tarball: https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz}
 
-  baseline-browser-mapping@2.11.36:
-    resolution: {integrity: sha512-AbPFGS4K9S3meMRCLTM0Zas+e9X7b5ygUBOboDT5zevCZt9ByKSbMtKhwyVqW+oL8WemPVsbP7X3rdZcIyOa0w==, tarball: https://registry.npmjs.org/baseline-browser-mapping/-/baseline-browser-mapping-2.11.36.tgz}
+  baseline-browser-mapping@2.11.37:
+    resolution: {integrity: sha512-QYph+vfurmaxhNwi9FprfmtkT5cx2Keg8FzZ0vnjO8ukscIybVyZGMFwdllKGlTI6qyU8ck43OM9UXh+IFJihQ==, tarball: https://registry.npmjs.org/baseline-browser-mapping/-/baseline-browser-mapping-2.11.37.tgz}
     engines: {node: '>=6.0.0'}
     hasBin: true
 
@@ -10571,8 +10571,8 @@ packages:
   earcut@2.2.4:
     resolution: {integrity: sha512-/pjZsA1b4RPHbeWZQn66SWS8nZZWLQQ23oE3Eam7aroEFGEvwKAsJfZ9ytiEMycfzXWpca4FA9QIOehf7PocBQ==, tarball: https://registry.npmjs.org/earcut/-/earcut-2.2.4.tgz}
 
-  electron-to-chromium@1.5.482:
-    resolution: {integrity: sha512-CAj2EpyffocZkpJA1yUDSA/wgoo+JkSFkx5ywA00X5biWrmBGecoFyKlyZw2Tlt0mZFFfHqP9S4PMLwtXXeHXg==, tarball: https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.482.tgz}
+  electron-to-chromium@1.5.485:
+    resolution: {integrity: sha512-m3uadzR0Z+sR19HGWgfxoZcKv9hE/edVM9OZ+FJ4wNRyfuFtkwZJIDoehEty5sisYVwmge8lKV1tenWOyClVgw==, tarball: https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.485.tgz}
 
   electron@45.3.1:
     resolution: {integrity: sha512-1oYau2B4RXF27Df2fzvrFDJoy8AOSVlgS6gklo6wkLZ/QWJemJCJHkY4+uuacvSFUtR8IimiLukLNFoYP0fmjA==, tarball: https://registry.npmjs.org/electron/-/electron-45.3.1.tgz}
@@ -10747,12 +10747,12 @@ packages:
   gl-matrix@3.4.4:
     resolution: {integrity: sha512-latSnyDNt/8zYUB6VIJ6PCh2jBjJX6gnDsoCZ7LyW7GkqrD51EWwa9qCoGixj8YqBtETQK/xY7OmpTF8xz1DdQ==, tarball: https://registry.npmjs.org/gl-matrix/-/gl-matrix-3.4.4.tgz}
 
-  glob@14.0.5:
-    resolution: {integrity: sha512-nbKW5Sl53DEM5PkmZ5Jwfeyss1ohuqcgOBjOarSjz1fp8W4ss4EOOvKADQRbApD6JmVBX+HkpZYfBez4wXbeQQ==, tarball: https://registry.npmjs.org/glob/-/glob-14.0.5.tgz}
+  glob@14.0.6:
+    resolution: {integrity: sha512-OwXjVP2svY5EyLY75Vek96C8qK43gqrt4xsZ+qSILdnaEiJPXkd62mcfUSNx/TQErQRdu5uM5kF67sfONragKw==, tarball: https://registry.npmjs.org/glob/-/glob-14.0.6.tgz}
     engines: {node: 18 || 20 || >=22}
 
-  graceful-fs@4.2.11:
-    resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==, tarball: https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.11.tgz}
+  graceful-fs@4.2.12:
+    resolution: {integrity: sha512-iuyGF2E4oafQfPsRrG2wtY2ILupMhvtdrhzrxB+0VcjsPpSPttpfYdjnGFGsTi5MaJFjI1jOKHPQ6UTbTj9TAw==, tarball: https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.12.tgz}
 
   grammex@3.1.13:
     resolution: {integrity: sha512-LnPnhOBLEJEVKS8WFDVaA397L9Kq55Q9oSITJiVLHVdhAclfUkWzQv74KhvZHKL2Q09Pb1XdsrOsZ4LfTFFTEg==, tarball: https://registry.npmjs.org/grammex/-/grammex-3.1.13.tgz}
@@ -11238,8 +11238,8 @@ packages:
     resolution: {integrity: sha512-kCyjv6xdDY1W/jLWZ/L3QhhTlKUqDZMQ5+Jdlw12b3dXkKNpYBqqlMMj0YDQPShWFTMwgZI1hG14kN3XUDSg/A==, tarball: https://registry.npmjs.org/opentype.js/-/opentype.js-2.0.0.tgz}
     hasBin: true
 
-  oxlint-tsgolint@7.0.2006:
-    resolution: {integrity: sha512-5B3UtH71kycPHUC1kFEIffivEAs49SUmkJuHZOZnTY0NPj4legp0bcsCQucuLVNCoJzDucS68P2C4WIhP+LypQ==, tarball: https://registry.npmjs.org/oxlint-tsgolint/-/oxlint-tsgolint-7.0.2006.tgz}
+  oxlint-tsgolint@7.0.2007:
+    resolution: {integrity: sha512-i8X2qf6VVqFzoNVP34joMKuZpO6T2uXMOgKJaSPFc6p+E3FTnbIGPRbI8K4ZApmtDTMu2CIeGfpzeK1zzGwfnA==, tarball: https://registry.npmjs.org/oxlint-tsgolint/-/oxlint-tsgolint-7.0.2007.tgz}
     hasBin: true
 
   oxlint@1.93.0:
@@ -11652,8 +11652,8 @@ packages:
   typebox@1.3.27:
     resolution: {integrity: sha512-zu+jc1pcy4UiNThxikUr36f0Rybk9PEeCg/NE6adeWr/SKsdNO4EzZHYRDlv2YCVAfj3Odq3dESSo/jNyoBXzA==, tarball: https://registry.npmjs.org/typebox/-/typebox-1.3.27.tgz}
 
-  typebox@1.4.6:
-    resolution: {integrity: sha512-Yh8Mi4hzD7gqcuv9ZIk6HK1KVJKubTlfxaNxkrYK35HCvxoCjCuWVr8cBjQ/ChfA7yliPteJEBWHGFVGWDuF5Q==, tarball: https://registry.npmjs.org/typebox/-/typebox-1.4.6.tgz}
+  typebox@1.4.7:
+    resolution: {integrity: sha512-KonYdBj3gOgG/rH96TlUs/f+eaEDqiKRW7KU4/LE/tEjEnRCcfpYLofBfHfNMBAiBosmY55e4YeCPuE+NXmJtg==, tarball: https://registry.npmjs.org/typebox/-/typebox-1.4.7.tgz}
 
   typescript@7.1.0-beta:
     resolution: {integrity: sha512-cjWjZAJDsmZzsNC5GwHNlW0YPM65jZa5oR0KyQcYX3KSVIfTvtBq//vewISyatKk4OLi5grZjHhIVE9fdrw1UQ==, tarball: https://registry.npmjs.org/typescript/-/typescript-7.1.0-beta.tgz}
@@ -12401,16 +12401,16 @@ snapshots:
 
   '@electron-internal/extract-zip@1.0.8': {}
 
-  '@electron/asar@4.3.1':
+  '@electron/asar@4.3.2':
     dependencies:
-      glob: 14.0.5
+      glob: 14.0.6
       minimatch: 11.0.8
 
   '@electron/get@5.1.0':
     dependencies:
       debug: 4.4.3
       env-paths: 3.0.0
-      graceful-fs: 4.2.11
+      graceful-fs: 4.2.12
       progress: 2.0.3
       semver: 7.8.6
       sumchecker: 3.0.1
@@ -12438,7 +12438,7 @@ snapshots:
   '@electron/packager@20.3.0':
     dependencies:
       '@electron-internal/extract-zip': 1.0.8
-      '@electron/asar': 4.3.1
+      '@electron/asar': 4.3.2
       '@electron/get': 5.1.0
       '@electron/notarize': 3.1.2
       '@electron/osx-sign': 2.7.2
@@ -12448,7 +12448,7 @@ snapshots:
       debug: 4.4.3
       filenamify: 6.0.0
       galactus: 2.0.2
-      graceful-fs: 4.2.11
+      graceful-fs: 4.2.12
       junk: 4.0.1
       plist: 3.1.1
       resedit: 2.0.3
@@ -12459,7 +12459,7 @@ snapshots:
 
   '@electron/universal@3.0.6':
     dependencies:
-      '@electron/asar': 4.3.1
+      '@electron/asar': 4.3.2
       debug: 4.4.3
       plist: 3.1.1
     transitivePeerDependencies:
@@ -12468,7 +12468,7 @@ snapshots:
   '@electron/windows-sign@2.1.0':
     dependencies:
       debug: 4.4.3
-      graceful-fs: 4.2.11
+      graceful-fs: 4.2.12
       postject: 1.0.0-alpha.6
     transitivePeerDependencies:
       - supports-color
@@ -12979,22 +12979,22 @@ snapshots:
 
   '@oxc-project/types@0.158.0': {}
 
-  '@oxlint-tsgolint/darwin-arm64@7.0.2006':
+  '@oxlint-tsgolint/darwin-arm64@7.0.2007':
     optional: true
 
-  '@oxlint-tsgolint/darwin-x64@7.0.2006':
+  '@oxlint-tsgolint/darwin-x64@7.0.2007':
     optional: true
 
-  '@oxlint-tsgolint/linux-arm64@7.0.2006':
+  '@oxlint-tsgolint/linux-arm64@7.0.2007':
     optional: true
 
-  '@oxlint-tsgolint/linux-x64@7.0.2006':
+  '@oxlint-tsgolint/linux-x64@7.0.2007':
     optional: true
 
-  '@oxlint-tsgolint/win32-arm64@7.0.2006':
+  '@oxlint-tsgolint/win32-arm64@7.0.2007':
     optional: true
 
-  '@oxlint-tsgolint/win32-x64@7.0.2006':
+  '@oxlint-tsgolint/win32-x64@7.0.2007':
     optional: true
 
   '@oxlint/binding-android-arm-eabi@1.93.0':
@@ -13431,7 +13431,7 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  baseline-browser-mapping@2.11.36: {}
+  baseline-browser-mapping@2.11.37: {}
 
   brace-expansion@5.0.13:
     dependencies:
@@ -13439,9 +13439,9 @@ snapshots:
 
   browserslist@4.29.5:
     dependencies:
-      baseline-browser-mapping: 2.11.36
+      baseline-browser-mapping: 2.11.37
       caniuse-lite: 1.0.30001826
-      electron-to-chromium: 1.5.482
+      electron-to-chromium: 1.5.485
       node-releases: 2.0.63
       update-browserslist-db: 1.3.4(browserslist@4.29.5)
 
@@ -13552,7 +13552,7 @@ snapshots:
 
   earcut@2.2.4: {}
 
-  electron-to-chromium@1.5.482: {}
+  electron-to-chromium@1.5.485: {}
 
   electron@45.3.1:
     dependencies:
@@ -13751,13 +13751,13 @@ snapshots:
 
   gl-matrix@3.4.4: {}
 
-  glob@14.0.5:
+  glob@14.0.6:
     dependencies:
       minimatch: 11.0.8
       minipass: 7.1.3
       path-scurry: 3.0.0
 
-  graceful-fs@4.2.11: {}
+  graceful-fs@4.2.12: {}
 
   grammex@3.1.13: {}
 
@@ -14513,16 +14513,16 @@ snapshots:
 
   opentype.js@2.0.0: {}
 
-  oxlint-tsgolint@7.0.2006:
+  oxlint-tsgolint@7.0.2007:
     optionalDependencies:
-      '@oxlint-tsgolint/darwin-arm64': 7.0.2006
-      '@oxlint-tsgolint/darwin-x64': 7.0.2006
-      '@oxlint-tsgolint/linux-arm64': 7.0.2006
-      '@oxlint-tsgolint/linux-x64': 7.0.2006
-      '@oxlint-tsgolint/win32-arm64': 7.0.2006
-      '@oxlint-tsgolint/win32-x64': 7.0.2006
+      '@oxlint-tsgolint/darwin-arm64': 7.0.2007
+      '@oxlint-tsgolint/darwin-x64': 7.0.2007
+      '@oxlint-tsgolint/linux-arm64': 7.0.2007
+      '@oxlint-tsgolint/linux-x64': 7.0.2007
+      '@oxlint-tsgolint/win32-arm64': 7.0.2007
+      '@oxlint-tsgolint/win32-x64': 7.0.2007
 
-  oxlint@1.93.0(oxlint-tsgolint@7.0.2006):
+  oxlint@1.93.0(oxlint-tsgolint@7.0.2007):
     optionalDependencies:
       '@oxlint/binding-android-arm-eabi': 1.93.0
       '@oxlint/binding-android-arm64': 1.93.0
@@ -14543,7 +14543,7 @@ snapshots:
       '@oxlint/binding-win32-arm64-msvc': 1.93.0
       '@oxlint/binding-win32-ia32-msvc': 1.93.0
       '@oxlint/binding-win32-x64-msvc': 1.93.0
-      oxlint-tsgolint: 7.0.2006
+      oxlint-tsgolint: 7.0.2007
 
   p-limit@7.3.3:
     dependencies:
@@ -14993,7 +14993,7 @@ snapshots:
 
   typebox@1.3.27: {}
 
-  typebox@1.4.6: {}
+  typebox@1.4.7: {}
 
   typescript@7.1.0-beta:
     optionalDependencies:
