@@ -1198,6 +1198,64 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The main checkout holds no run's files again; the fuzz sidecar is in `main` and type-checks there; the merge that ends saved goes back (2026-11-14T10:23:19-05:00)
+
+Not final and not approved:
+what the coordinating session measured,
+merged and queued,
+and what three runs report of themselves.
+
+- **The stray driver files are gone from the main checkout.**
+  The run that wrote them reported at 10:21:02 that its worktree holds all of it
+  (`keep/my-work-is-in-my-worktree.txt` in its scratch folder lists the four changed and twenty new files there).
+  This session then put the main checkout's four tracked files back with `git checkout --no-enforce-worktree HEAD -- <paths>`;
+  at 10:21:28 `git status --short -- package/pi-shared` listed nothing,
+  and at 10:23:19 the whole checkout listed the six files of other sessions it held when this session began.
+  The copy of 10:10:18 stays in `~/temp/agent/stray-edits-of-two-pi-runs-in-the-main-checkout-2026-11-14/keep/` until that run's branch has its review.
+- **The fuzz sidecar** (`ea4ef7e019`):
+  its review found no defect against its requirements
+  (type check and Clippy passed;
+  46 generator controls;
+  21,681 fuzz runs with no crash and no timeout;
+  40 checks through the built wrapper on disposable repositories).
+  Merged as `51f46895a5` at 10:22:21.
+  `main` held a release commit under the sidecar's folder that the tip lacked,
+  so the type check was run on `main` after the merge:
+  `mise run //package/git-policy/cli.fuzz:lint:types` ended with status 0 at 10:22:45 against the wrapper at `0.6.1-alpha.27`
+  (`~/temp/agent/fuzz-sidecar-type-check-on-main-after-its-merge-2026-11-14T1022/keep/lint-types-on-main-at-51f46895a5.log`).
+  The red type check measured at 01:46 is closed by this.
+  The review's one lesser finding goes to the author,
+  resumed fourth in the queue:
+  the nine older seeds no longer spell their scenario in the frontier's raw view since the mode became two bytes
+  (`~/temp/agent/pi-runs/fuzz-sidecar-seeds-keep-their-spelling-under-the-two-byte-mode-prompt.md`).
+- **The merge that ends saved** (`ce51914d2a`):
+  two reproduced,
+  neither losing bytes.
+  When the merge cannot be kept on a side reference after the clear,
+  the ending is status 2 with the words "Nothing was changed",
+  although the clear has written over the person's edit;
+  and when another session commits while the merge is paused,
+  the save line says the branch has not moved and the next command finishes the checkout,
+  where the next command in fact gives the merge up to its side reference.
+  The author is resumed second
+  (`~/temp/agent/pi-runs/merge-ends-saved-answers-its-review-of-2026-11-14-prompt.md`).
+- **The lock a killed Git left** (tip `2ac27d2a29`, ended 10:17:20):
+  the author reports the review's findings answered,
+  the changed modules' tests passing at four CPUs
+  (28 of 28 new and changed controls,
+  392 of 392 `lock::` tests,
+  17 of 17 binary controls),
+  and a cost within the spread
+  (`git add` at a ratio of 1.020 and `git status` at 1.026 to the commit before,
+  twenty interleaved rounds).
+  It names one thing left alone:
+  a sweep landing between a command's two file writes can lose a clearance,
+  never cause a wrong clear.
+  Review queued third (range `main...2ac27d2a29`).
+- Going at 10:23:19:
+  twenty-one Pi runs.
+  The queue held 57 entries.
+
 ##### The landed removal's guard is switched off by another flag, reproduced; back to its author (2026-11-14T10:13:49-05:00)
 
 Not final and not approved:
