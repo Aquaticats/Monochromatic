@@ -580,7 +580,7 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
     let began: Instant = Instant::now();
     let wave: usize = entries_a_wave_may_remove(&request.host);
     let mut done: usize = 0;
-    let mut left: Vec<String> = Vec::new();
+    let mut left_behind: Vec<String> = Vec::new();
     while done < manifest.entries.len() {
         if began.elapsed() >= ceiling {
             // The entries this wave would have named are left where they are, and the manifest still names them: the trash
@@ -593,11 +593,11 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
         }
         let names: Vec<usize> = (done..manifest.entries.len().min(done + wave)).collect();
         done += names.len();
-        left.extend(remove_these_entries_awaiting(&request, names.as_slice()).await);
-        if !left.is_empty() {
+        left_behind.extend(remove_these_entries_awaiting(&request, names.as_slice()).await);
+        if !left_behind.is_empty() {
             // An entry that stayed is either not the recorded object or one whose removal failed, and the line cannot tell
             //  them apart, so what the trash holds is not shown to be the snapshot's own.
-            return EmptiedTrash::Kept(TrashLeft::kept(left.join("; ")));
+            return EmptiedTrash::Kept(TrashLeft::kept(left_behind.join("; ")));
         }
     }
     return match run_a_slow_job_or_in_turn(held, settle_trash_removal).await {

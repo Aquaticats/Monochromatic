@@ -159,7 +159,7 @@ fn contains_whole(text: &str, word: &str) -> bool {
 #[test]
 fn every_failure_variant_is_rendered() {
     let covered: std::collections::BTreeSet<usize> = samples().iter().map(variant_index).collect();
-    let expected: usize = variant_index(&ClientFailure::NothingAnswered { address: String::new(), waited: Duration::ZERO }) + 1;
+    let expected: usize = variant_index(&ClientFailure::ServiceGoneUnconfirmed { blocker: None }) + 1;
     assert_eq!(covered.len(), expected);
 }
 
@@ -313,6 +313,7 @@ fn only_the_unsure_failure_does_not_claim_nothing_changed() {
                 | ClientFailure::ServiceSilentAfterPreparing { .. }
                 | ClientFailure::WithdrawalUnconfirmed { .. }
                 | ClientFailure::InterruptedNotKnown { .. }
+                | ClientFailure::ServiceGoneUnconfirmed { .. }
                 | ClientFailure::WorkNotHandedOver(_)
         );
         assert_eq!(!claims, may_have_landed, "{failure:?}");

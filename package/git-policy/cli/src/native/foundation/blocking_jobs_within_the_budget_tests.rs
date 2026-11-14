@@ -604,16 +604,16 @@ fn two_asks_of_the_work_a_person_waits_for_run_while_slow_work_holds_every_place
     //  trash of a removed worktree's one entry removal.
     let held: usize = places_a_round_may_take();
     let (inside, has_inside) = std::sync::mpsc::channel::<()>();
-    let (release_slow, waiting) = std::sync::mpsc::channel::<()>();
-    let waiting: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(waiting));
+    let (release_slow, slow_held) = std::sync::mpsc::channel::<()>();
+    let the_slow_places_are_held: Arc<Mutex<std::sync::mpsc::Receiver<()>>> = Arc::new(Mutex::new(slow_held));
     let mut holders: Vec<tokio::task::JoinHandle<()>> = Vec::new();
     for _ in 0..held {
         let told = inside.clone();
-        let waiting = Arc::clone(&waiting);
+        let release = Arc::clone(&the_slow_places_are_held);
         let holder = crate::lazy_runtime::spawn_on_runtime(async move {
             let _held: Result<(), BlockingJobError> = run_a_slow_job_within_the_budget(move || {
                 let _said = told.send(());
-                let _ = waiting.lock().expect("the control's release").recv();
+                let _ = release.lock().expect("the control's release").recv();
             })
             .await;
         });

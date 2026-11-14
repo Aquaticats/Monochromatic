@@ -330,8 +330,8 @@ fn a_wave_removes_the_entries_it_names_and_leaves_the_rest_for_the_next_one() {
     assert!(half > 0 && half < ENTRIES, "the control needs a wave between one entry and all of them: {half}");
     let first: Vec<usize> = (0..half).collect();
     let later: Vec<usize> = (half..ENTRIES).collect();
-    let answered = crate::lazy_runtime::run_on_runtime(remove_these_entries_awaiting(&request, first.as_slice())).expect("the runtime removes the first wave");
-    assert!(answered.is_empty(), "{answered:?}");
+    let first_wave = crate::lazy_runtime::run_on_runtime(remove_these_entries_awaiting(&request, first.as_slice())).expect("the runtime removes the first wave");
+    assert!(first_wave.is_empty(), "{first_wave:?}");
     for index in &first {
         assert!(!root.join("trash").join(entry_name(*index)).exists(), "d{index} of the first wave is gone");
     }
@@ -339,8 +339,8 @@ fn a_wave_removes_the_entries_it_names_and_leaves_the_rest_for_the_next_one() {
         assert!(root.join("trash").join(entry_name(*index)).exists(), "d{index} of the later wave is still there for it");
     }
     // The identity the manifest recorded still holds for what is left, so the next wave removes exactly those entries.
-    let answered = crate::lazy_runtime::run_on_runtime(remove_these_entries_awaiting(&request, later.as_slice())).expect("the runtime removes the next wave");
-    assert!(answered.is_empty(), "{answered:?}");
+    let next_wave = crate::lazy_runtime::run_on_runtime(remove_these_entries_awaiting(&request, later.as_slice())).expect("the runtime removes the next wave");
+    assert!(next_wave.is_empty(), "{next_wave:?}");
     for index in 0..ENTRIES {
         assert!(!root.join("trash").join(entry_name(index)).exists(), "d{index} is gone after the two waves");
     }
