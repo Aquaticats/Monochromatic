@@ -61,6 +61,28 @@ static READING: AtomicI32 = AtomicI32::new(-1);
 const WATCHED: [std::os::raw::c_int; 4] = [libc::SIGINT, libc::SIGTERM, libc::SIGHUP, libc::SIGQUIT];
 
 /// What:
+///  The watched signals whose caller's own `SIG_IGN` the wait leaves in place:
+///  the hang-up a closing terminal or a session that ends sends,
+///  and a quit.
+/// Why:
+///   `nohup` shields the program it starts by setting `SIGHUP` to `SIG_IGN`,
+///  and a caller that does means it to survive a closing terminal:
+///  native Git lands such a commit,
+///  and this wrapper landed it before the wait answered a hang-up at all.
+///  Replacing the caller's ignore withdrew the request and ended the process by the signal the caller shielded it from,
+///  which is a commit that fails where real Git lands one,
+///  and the preparation's own relay already keeps an inherited ignore for the same reason
+///  (`process/signal_relay.rs`,
+/// "A signal the parent ignores stays ignored",
+///  and `SPEC.md`,
+/// "Merges and commits never fail").
+///  The interrupt and the stop are not of these:
+///  a shell that ignores the interrupt for a background job while a person still means a Ctrl-C to end the command
+///  is what the wait answered before this branch,
+/// and that is a question of its own.
+const KEPT_IGNORED: [std::os::raw::c_int; 2] = [libc::SIGHUP, libc::SIGQUIT];
+
+/// What:
 ///  Notes the stop the person asked for,
 ///  or ends this process at once for a second one.
 /// Why:
@@ -253,8 +275,10 @@ pub(crate) struct StopWatch {
 ///  Watches the signals a waiting commit answers,
 ///  for as long as the value lives.
 /// Why:
-///  A `SIG_IGN` in place before (a shell that ignored the interrupt) is replaced so the commit is told,
-///  and put back when the value is dropped.
+///  An interrupt or a stop the process started with ignored is replaced so the commit is told,
+///  and put back when the value is dropped;
+///  a hang-up or a quit the process started with ignored is left ignored,
+///  so a commit `nohup` shielded lands (`KEPT_IGNORED`).
 ///  A signal the process started with blocked stays pending and no handler runs,
 ///  and a harness that blocks the interrupt before it runs the wrapper would then make a Ctrl-C wait for the whole bound:
 ///  the two signals are unblocked for the thread that waits,
@@ -271,6 +295,16 @@ pub(crate) fn watch_for_a_stop() -> StopWatch {
     STOP_SENDER.store(0, Ordering::SeqCst);
     let mut previous: Vec<(std::os::raw::c_int, libc::sigaction)> = Vec::new();
     for signal in WATCHED {
+        // SAFETY: a null new action only reads what is in place, into this local.
+        let mut before: libc::sigaction = unsafe { std::mem::zeroed() };
+        let read: std::os::raw::c_int = unsafe { libc::sigaction(signal, std::ptr::null(), &mut before) };
+        // What: A hang-up or a quit the caller ignores is the caller's own choice, and the wait leaves it alone.
+        // Why:  `nohup` shields a commit that way, and a shielded commit lands: answering the signal here would withdraw a
+        //       request the caller asked to be shielded from. Nothing is unblocked either, so the process's own signal mask
+        //       is left as the caller set it.
+        if read == 0 && before.sa_sigaction == libc::SIG_IGN && KEPT_IGNORED.contains(&signal) {
+            continue;
+        }
         // SAFETY: an empty mask and a handler that writes one word, shuts a descriptor down and raises a number are what
         //  `sigaction` takes; what was in place is kept and put back when the watch ends.
         unsafe {
@@ -281,9 +315,9 @@ pub(crate) fn watch_for_a_stop() -> StopWatch {
             //       arrives.
             action.sa_flags = libc::SA_SIGINFO;
             libc::sigemptyset(&mut action.sa_mask);
-            let mut before: libc::sigaction = std::mem::zeroed();
-            if libc::sigaction(signal, &action, &mut before) == 0 {
-                previous.push((signal, before));
+            let mut replaced: libc::sigaction = std::mem::zeroed();
+            if libc::sigaction(signal, &action, &mut replaced) == 0 {
+                previous.push((signal, replaced));
             }
             let mut unblocked: libc::sigset_t = std::mem::zeroed();
             libc::sigemptyset(&mut unblocked);
