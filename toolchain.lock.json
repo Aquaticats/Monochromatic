@@ -231,7 +231,7 @@
     },
     "harper-cli": {
       "request": "github:Automattic/harper@latest",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "route": "bin-sourced",
       "bins": [
         "harper-cli"
@@ -242,20 +242,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Automattic/harper/releases/download/v3.1.0/harper-cli-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "9ba3daee45d6427e1545b2bd660442e532f71c4d37d574b395f7ce6ef2eb4ec6"
+          "url": "https://github.com/Automattic/harper/releases/download/v3.2.0/harper-cli-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "838d003cac811c777fb9a656bd29d1713441b66a881ffbe81c9a513a2fcb1c53"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Automattic/harper/releases/download/v3.1.0/harper-cli-aarch64-unknown-linux-musl.tar.gz",
-          "sha256": "36543f8db4634822e99dd45accc9a769d4cd9516ee1df038826a992891bfbce6"
+          "url": "https://github.com/Automattic/harper/releases/download/v3.2.0/harper-cli-aarch64-unknown-linux-musl.tar.gz",
+          "sha256": "e8d90eb849da22a57fb0eb7f7354b881de5d35481393ddf5d36079f9c30584a9"
         },
         "linux-x64": {
-          "url": "https://github.com/Automattic/harper/releases/download/v3.1.0/harper-cli-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "66b621866287b2af5de53e9915fa7d8b94f0f29c6446702497dbba5c1436b24a"
+          "url": "https://github.com/Automattic/harper/releases/download/v3.2.0/harper-cli-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "eba1ce3dc16de887a5dc5d92de61aee28a9572dd59aae75f0791c03bc68cdc9e"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Automattic/harper/releases/download/v3.1.0/harper-cli-x86_64-unknown-linux-musl.tar.gz",
-          "sha256": "74b66183422e510c475c455623b60c60d1630c13c6f9ab3c0b73d07b32e9347e"
+          "url": "https://github.com/Automattic/harper/releases/download/v3.2.0/harper-cli-x86_64-unknown-linux-musl.tar.gz",
+          "sha256": "947f363226ed55649964d633af7104a06e7fd32bfdc7919a61c64102a21d4d57"
         }
       }
     },
@@ -464,10 +464,10 @@
     },
     "rust": {
       "request": "rust@nightly",
-      "version": "nightly-2026-11-13",
+      "version": "nightly-2026-11-14",
       "route": "rustup-toolchain",
       "manager": "rustup",
-      "packageId": "nightly-2026-11-13",
+      "packageId": "nightly-2026-11-14",
       "bins": [
         "cargo",
         "cargo-clippy",
@@ -482,7 +482,7 @@
         "rustup"
       ],
       "env": {
-        "RUSTUP_TOOLCHAIN": "nightly-2026-11-13"
+        "RUSTUP_TOOLCHAIN": "nightly-2026-11-14"
       },
       "options": {
         "rustComponents": [
@@ -561,7 +561,7 @@
     },
     "cargo:cargo-nextest": {
       "request": "cargo:cargo-nextest@latest",
-      "version": "0.9.151",
+      "version": "0.9.152",
       "route": "cargo-binstall",
       "bins": [
         "cargo-nextest"
@@ -613,7 +613,7 @@
     },
     "cargo:monochromatic-git-policy-cli": {
       "request": "github:Aquaticats/Monochromatic@latest",
-      "version": "0.6.1-alpha.17",
+      "version": "0.6.1-alpha.23",
       "route": "archive",
       "bins": [
         "monochromatic-git-policy-cli"
@@ -635,20 +635,20 @@
       },
       "artifacts": {
         "linux-arm64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.17/monochromatic-git-policy-cli-0.6.1-alpha.17-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "7677965ce6a1a4f0bec7929c56a0f2885755bc72899aeb3392a296137747a359"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.23/monochromatic-git-policy-cli-0.6.1-alpha.23-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "7f57bb1e58ff911783467909ce91cee9f519dc07397233cd2ab9cab051d485b4"
         },
         "linux-arm64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.17/monochromatic-git-policy-cli-0.6.1-alpha.17-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "7677965ce6a1a4f0bec7929c56a0f2885755bc72899aeb3392a296137747a359"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.23/monochromatic-git-policy-cli-0.6.1-alpha.23-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "7f57bb1e58ff911783467909ce91cee9f519dc07397233cd2ab9cab051d485b4"
         },
         "linux-x64": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.17/monochromatic-git-policy-cli-0.6.1-alpha.17-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "ac57c46092cd9f2be573b99c796a6f3f5dae7f073e448bf01f1dc1a695955db9"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.23/monochromatic-git-policy-cli-0.6.1-alpha.23-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "2dac017f57aeae9bf4591e42c1e7c20fb0d2430215376f4d1d9936d720b754c7"
         },
         "linux-x64-musl": {
-          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.17/monochromatic-git-policy-cli-0.6.1-alpha.17-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "ac57c46092cd9f2be573b99c796a6f3f5dae7f073e448bf01f1dc1a695955db9"
+          "url": "https://github.com/Aquaticats/Monochromatic/releases/download/monochromatic-git-policy-cli-v0.6.1-alpha.23/monochromatic-git-policy-cli-0.6.1-alpha.23-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "2dac017f57aeae9bf4591e42c1e7c20fb0d2430215376f4d1d9936d720b754c7"
         }
       }
     },
@@ -1466,7 +1466,7 @@
     },
     "npm:wrangler": {
       "request": "npm:wrangler@latest",
-      "version": "4.161.0",
+      "version": "4.162.0",
       "route": "mpm-pnpm",
       "bins": [
         "cf-wrangler",
@@ -1654,5 +1654,5 @@
       "artifacts": {}
     }
   },
-  "digest": "sha256:f821b0af6bd5089a2c7714d5d0518806ab94ad87123735ecac982226bfd48ed6"
+  "digest": "sha256:add1dc87ca0c8bd37867ad359eb1fe8a3fc44ed05e7758fc93077c676a41a46e"
 }

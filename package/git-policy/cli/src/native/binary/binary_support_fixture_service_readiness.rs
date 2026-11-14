@@ -15,7 +15,7 @@
 //! const serving = (socket: string) => connect(socket).then(readLine).then((line) => line.length > 0).catch(() => false)
 //! ```
 
-use git_policy_cli::service_client_listen_and_ask_to_retire::{Reached, connect};
+use git_policy_cli::service_client_listen_and_ask_to_retire::{Reached, reach};
 use git_policy_cli::service_server::Bind;
 
 /// How long the fixture's service may show no sign of work before the fixture fails the control,
@@ -114,7 +114,7 @@ impl SignsOfWork {
 /// ```
 pub fn service_is_serving(address: &Bind) -> bool {
     use std::io::BufRead;
-    let Reached::Ours(stream) = connect(address) else { return false };
+    let Reached::Ours(stream) = reach(address) else { return false };
     // A service greets as soon as it has started its threads; a read that gets nothing within this bound is asked again by the
     //  caller's loop, which has its own bound.
     let _timeout = stream.set_read_timeout(Some(GREETING_READ));
@@ -155,7 +155,7 @@ pub const SOCKET_RELEASE_PATIENCE: std::time::Duration = std::time::Duration::fr
 pub fn wait_until_nothing_listens(address: &Bind) {
     let began: std::time::Instant = std::time::Instant::now();
     loop {
-        match connect(address) {
+        match reach(address) {
             Reached::Nothing => return,
             Reached::Ours(_) | Reached::OtherAccount => {}
         }

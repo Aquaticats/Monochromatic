@@ -549,8 +549,8 @@ fn the_answered_line_states_the_quiet_gaps_of_the_steps() {
 fn the_answered_line_names_each_step_with_its_offset_and_duration() {
     let landing: LandTiming = LandTiming::default();
     let steps: Vec<crate::transaction_step_durations::StepFigure> = vec![
-        crate::transaction_step_durations::StepFigure { name: String::from("git rev-parse"), offset_ms: 3, duration_ms: 4 },
-        crate::transaction_step_durations::StepFigure { name: String::from("git update-ref"), offset_ms: 9, duration_ms: 2 },
+        crate::transaction_step_durations::StepFigure { name: String::from("git rev-parse"), arguments: None, offset_ms: 3, duration_ms: 4 },
+        crate::transaction_step_durations::StepFigure { name: String::from("git update-ref"), arguments: None, offset_ms: 9, duration_ms: 2 },
     ];
     let dropped: usize = 5;
     let line: String = answered_line(&Answered {

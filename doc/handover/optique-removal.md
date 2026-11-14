@@ -1154,7 +1154,73 @@ to settle before a reply:
   the suite record has all three,
   and the reply draft now says so.
   Not reviewed by anyone:
-  those last corrections.
+  those last corrections,
+  in commits `f8c6a64194` and `4ee9f13bf1`.
+  The four documents were loaded as GitHub renders them after the last of those commits,
+  and their new links,
+  both draft fences and the changed sentences render as written.
+  Upstream was read again at 2026-11-13T22:01:52Z:
+  `main` is still the merge `d26f1a24`,
+  and the commit thread has no comment after the owner's of 14:27:49Z.
+  A read earlier that evening found no open pull request and no issue newer than 1120.
+- Asked on 2026-11-13 whether the drafts keep their passage on the input-trace patch closing what pull request 1121 leaves,
+  now that the Node and Bun timing shows it does so on Node and not on Bun,
+  the owner chose "Reply cut,
+  issue keeps":
+  the passage is out of the reply draft and stays in the draft issue.
+  Asked what to do next with the reply draft,
+  which ran to 66 lines,
+  the owner chose "Tighten the reply first".
+  It was tightened at 2026-11-13T17:04:45-05:00 to 44 lines;
+  the note before the draft in the typo-suggestion document lists what left it and where each part lives.
+  Every figure in it stood in the longer draft.
+  A fresh session of the reviewing model read the tightened form as of commit `629e7b84d7`
+  (prompt `${HOME}/temp/agent/pi-runs/optique-tightened-reply-draft-claim-check-prompt.md`,
+  run folder `optique-tightened-reply-draft-claim-check-1`,
+  39 turns,
+  report `${HOME}/temp/agent/optique-reply-draft-tightened-2026-11-13/keep/review-report.md`).
+  It found no wrong figure and no new one,
+  and the owner's choices reflected as recorded.
+  Its findings,
+  folded in:
+  the second patch's ratio did not name what it is a ratio to,
+  and a reader could take it as a ratio to `main`,
+  which no round measured at 32,000 arguments;
+  both drafts now say it is against the first patch alone.
+  The buffer copy had lost "that consumes a token".
+  The opening called every number a ratio where the closing paragraph quotes two absolute times.
+  And the note's list of where each removed part lives was imprecise.
+  Weighed and left:
+  the second patch's figures are those of the patch before its last change,
+  which the linked write-up says and the reply does not.
+  Another fresh session of the reviewing model read those corrections as of commit `7771aa14fc`
+  (prompt `${HOME}/temp/agent/pi-runs/optique-reply-draft-corrections-claim-check-prompt.md`,
+  run folder `optique-reply-draft-corrections-claim-check-1`,
+  19 turns,
+  report `${HOME}/temp/agent/optique-reply-draft-corrections-check-2026-11-13/keep/review-report.md`).
+  It recomputed the ratios they touch from the raw rounds,
+  found each correction faithful to the records,
+  and found no figure changed.
+  It pointed out that the note before the reply still gave its length as 44 where the draft now has 45 lines,
+  and that the draft issue's count of places that slice the buffer could be read as fifteen where the write-up says sixteen.
+  Both are corrected,
+  the second after counting the places in upstream's source at the merge:
+  sixteen,
+  two of them in `argument()`.
+  Not reviewed by anyone:
+  those last two changes,
+  which alter no figure.
+  Next:
+  the draft goes to the owner,
+  who edits it,
+  writes the lines the draft marks as the owner's,
+  and posts it;
+  the time the owner gave the maintainer runs to 2026-11-16T14:27:49Z.
+  The owner's earlier choice that the reply carry the second patch with its costs and the buffer finding still holds in substance:
+  the tightened draft names the second patch,
+  its gain and that it makes a large state a `Proxy`,
+  says the buffer attempt did not work,
+  and leaves the detail of both to the write-up it links.
 - Asked the same day which of the recheck's results the reply draft should carry,
   the owner chose the second patch with its costs and the buffer finding,
   and not the note about `concat`.
@@ -1201,44 +1267,56 @@ which since the reboot of 2026-11-13 is on `/var/mnt/encrypted`:
   report,
   scripts,
   logs and measurements.
-- `optique-two-remaining-copies-recheck-2026-11-13/`:
-  the recheck of those diffs.
-  Its `keep/` folder holds the records;
-  beside it are the scripts that made them,
-  the staged source arms under `arms/`,
-  which the fourth review pass reads,
-  and `suite-fixture/`,
-  an installed copy of upstream's clone for running its suite.
-  The scripts and records are also in the evidence archive beside the research document,
-  folder `two-remaining-copies-recheck-2026-11-13`.
-  Once the review of the recast is folded in,
-  everything in that folder but `keep/` is to be deleted.
-- `optique-research-record-recast-to-ratios-2026-11-13/`:
-  the archive records the research record's ratios were computed from,
-  the lint and publish logs of the recast,
-  and the browser check of the published README.
-- `optique-pull-request-1121-timed-on-node-and-bun-2026-11-13/`:
-  the runner,
-  image recipe and records of the Node and Bun timing of pull request 1121;
-  its `keep/` folder holds the records,
-  which are also in the evidence archive.
-  It built the image `localhost/optique-pull-request-1121-on-node-and-bun:2026-11-13`,
-  kept until its review is folded in.
+- `optique-two-remaining-copies-recheck-2026-11-13/keep/`:
+  the records of the recheck of those diffs,
+  and the reports of the fourth,
+  fifth and sixth review passes.
+- `optique-research-record-recast-to-ratios-2026-11-13/keep/`:
+  the checks made while the research record was recast,
+  the rendered check of the pushed record,
+  the scratch sizes measured that day,
+  and the list and the result of the cleanup.
+- `optique-pull-request-1121-timed-on-node-and-bun-2026-11-13/keep/`:
+  the records of the Node and Bun timing of pull request 1121,
+  and the report of its review.
 
-Container images `localhost/optique-cross-runtime:2026-11-13`,
-`localhost/optique-upstream-arms:2026-11-13`,
-`localhost/optique-prototype-work:2026-11-13` and `localhost/optique-prototype-work-current-bun:2026-11-13`
-were built on 2026-11-13,
-after `podman system reset` removed the earlier ones.
-The recheck added `localhost/optique-two-remaining-copies-recheck:2026-11-13`
-and two small ones built on it,
-tagged `-annotated` and `-mixed-threshold`,
-and the prototype agent left `localhost/optique-prototype-arms:2026-11-13`.
-The recheck later added two more on it,
-tagged `-kept-patch` and `-node-and-bun`.
-All of these are kept until the review of the recast is folded in,
-in case a check has to be run again,
-and are to be removed after it.
+On 2026-11-13,
+once the last review was folded in,
+everything but `keep/` in those folders was deleted,
+with the reviewers' own scratch folders,
+their branches,
+which held no commit `main` lacks,
+and every container image this work had built
+(each tagged `localhost/optique-*:2026-11-13`).
+The scripts,
+recipes and records the documents cite are in the evidence archive beside the research document,
+in the folders `two-remaining-copies-recheck-2026-11-13`,
+`pull-request-1121-on-node-and-bun-2026-11-13`,
+`recast-to-ratios-2026-11-13` and `measurements-2026-11-13`.
+That archive is to leave the tree.
+At about 17:27 local time on 2026-11-13 the owner ordered that no archive stays tracked,
+which `doc/handover/cli-git-rust-implementation.md` records under the heading that starts
+"The owner:
+no archive stays tracked";
+the removal is another session's run,
+and by the owner's answers there Git history keeps each whole archive
+and what a document cites is kept beside it as plain text.
+This work adds nothing more to the archive.
+The session that runs the removal was told on 2026-11-13 which files of the archive the Optique documents cite,
+that the agent's third and fourth diffs exist nowhere else in the tree,
+and that the scratch originals were deleted that day on the ground that the archive held them;
+commit `a6783a44ae` is the last that changed the archive.
+Running a check again means building its image again from the recipe there,
+which fetches the current Node,
+Deno and Bun and so will not reproduce the versions named in the documents once those move.
+What the deletion listed first and what it did are in
+`${HOME}/temp/agent/optique-research-record-recast-to-ratios-2026-11-13/keep/`,
+files `look-before-cleanup.txt` and `what-the-cleanup-did.txt`.
+`${HOME}/temp/agent` measured 269,602 MiB before that deletion,
+of which this work's folders held about 3,000 MiB;
+the largest folders that had appeared since the measurement earlier that day,
+which read 218,124 MiB,
+belong to other sessions.
 
 The defects in this repository's own tools that showed during the work are filed,
 on the owner's instruction of 2026-11-13 ("open defects as issues in my own repo"):

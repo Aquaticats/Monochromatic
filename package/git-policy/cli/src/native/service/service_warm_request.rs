@@ -26,7 +26,7 @@
 use crate::service_address_of_a_worktree::{socket_address_of, the_address_is_there};
 use crate::service_route::non_empty_path_variable;
 use crate::service_instance::{instance_of};
-use crate::service_client_listen_and_ask_to_retire::{Reached, connect};
+use crate::service_client_listen_and_ask_to_retire::{Reached, reach};
 use crate::service_protocol_encode_messages_to_lines::encode_client;
 use crate::service_protocol_messages_and_name_checks::ClientMessage;
 use std::io::Write;
@@ -106,7 +106,7 @@ pub fn ask_running_service_to_warm(git_dir: &Path, repository: &Path) -> bool {
     if !the_address_is_there(&address) || !service_process_runs(instance.as_str(), Path::new("/proc")) {
         return false;
     }
-    let Reached::Ours(mut connection) = connect(&address) else { return false };
+    let Reached::Ours(mut connection) = reach(&address) else { return false };
     let mut line: String = encode_client(&ClientMessage::Warm { git_dir: git_dir.to_path_buf(), repository: repository.to_path_buf() });
     line.push('\n');
     return connection.write_all(line.as_bytes()).is_ok();

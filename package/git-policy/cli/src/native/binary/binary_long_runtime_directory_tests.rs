@@ -186,7 +186,7 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
     // directory the commit has not made yet.
     let bus_directory: PathBuf = super::support::short_runtime_directory(&fixture);
     let services: Arc<Mutex<Vec<Child>>> = Arc::new(Mutex::new(Vec::new()));
-    let start: Box<dyn FnOnce() + Send> = {
+    let start: Box<dyn Fn() + Send> = {
         let runtime: PathBuf = runtime.clone();
         let instance: String = instance.clone();
         let journal: PathBuf = fixture.root.join("journal");
@@ -194,6 +194,11 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
         let started: Arc<Mutex<Vec<Child>>> = Arc::clone(&services);
         Box::new(move || {
             let address: Bind = socket_address_of(runtime.as_path(), instance.as_str());
+            // A manager asked to start a unit that already runs starts nothing: the stand-in asks for a service only where
+            // one is not answering.
+            if git_policy_cli::service_address_of_a_worktree::the_address_is_there(&address) {
+                return;
+            }
             let mut command: Command = super::support::service_command();
             command.args(["--journal"]).arg(journal.to_str().expect("a UTF-8 fixture path"));
             match &address {
@@ -209,7 +214,7 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
                 .args(["--instance", instance.as_str()])
                 .env_clear()
                 .env("PATH", "/usr/bin:/bin")
-                .env("HOME", home)
+                .env("HOME", home.as_path())
                 .env("GIT_CONFIG_NOSYSTEM", "1")
                 .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
                 .stdin(Stdio::null())

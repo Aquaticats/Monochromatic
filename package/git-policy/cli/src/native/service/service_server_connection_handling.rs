@@ -234,6 +234,18 @@ pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShar
         // A connection that only looked (a readiness probe) sends nothing and is not an error.
         return;
     }
+    // What: A line that ended with the stream and not with its framing newline is not a request, and nothing of it is read
+    //       as a message or queued.
+    // Why:  A client that gives up writing says the service never took the request, and that is true only if the service
+    //       refuses a line the client could not finish; the other way round, a request it declares not made is landed by the
+    //       service and the client removes the scratch tree the landing reads (the review of this change, finding 1: a
+    //       request of 3,262 bytes without its newline was decoded and landed, twice, once after a full close).
+    //       The line still has a bound (`REQUEST_READ_TIMEOUT`) and the same `MAX_LINE_BYTES` cap, so a client that keeps
+    //       talking without a newline is cut off as before.
+    if !line.ends_with('\n') {
+        crate::service_warn!("refused a request line that ended with its connection instead of its framing newline, so nothing of it was read as a message and nothing was queued");
+        return;
+    }
     answer_request(&line, &mut write_half, &shared, accepted).await;
 }
 
