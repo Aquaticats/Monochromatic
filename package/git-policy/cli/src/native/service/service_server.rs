@@ -178,6 +178,11 @@ pub struct ServeSettings {
     /// `WAITING_NOTICE_AFTER`);
     /// a control shortens it.
     pub place_after: Duration,
+    /// How long a landing waits for the note that names its repository to the service that starts next
+    /// (`wait_ceilings.rs`,
+    /// `LANDING_WATCH_NOTE_CEILING`);
+    /// a control shortens it.
+    pub note_ceiling: Duration,
     /// The Git directory of the worktree whose units are this service's,
     /// as its note or its journal named it when the service started,
     /// and nothing when it was not there or could not be told.
@@ -208,6 +213,7 @@ impl ServeSettings {
             instance: None,
             stuck_after: NEVER_ENDED_STEP_SLOW_AFTER,
             place_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
+            note_ceiling: crate::wait_ceilings::LANDING_WATCH_NOTE_CEILING,
             own_git_dir: None,
             own_worktree_check: OWN_WORKTREE_CHECK,
             journal_restore_ceiling: START_CEILING,
@@ -553,7 +559,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 continue;
             }
             let mut handed_back: std::collections::HashSet<String> = std::collections::HashSet::new();
-            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, &mut handed_back, &drawn);
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, settings.note_ceiling, &mut handed_back, &drawn);
             board.end_group(ids.as_slice());
             // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
             //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).

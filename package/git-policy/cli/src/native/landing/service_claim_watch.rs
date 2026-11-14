@@ -64,6 +64,7 @@ use crate::kept_names_in_the_git_directories::path_for_reading;
 use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
 use crate::push_failure_notice::fnv_hex;
 use crate::service_instance::instance_of;
+use crate::work_awaited_within_a_ceiling::work_within;
 use crate::work_item::WORK_DIRECTORY;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
@@ -80,6 +81,13 @@ const WATCH_EXTENSION: &str = "watch";
 /// The first words of a watch file,
 /// which also say its format.
 const FORMAT_PREFIX: &str = "claim-watch-1 ";
+
+/// The point at which the landing writes its note for the service that starts next,
+/// for a control that holds that write (`service_fault_hooks_test_support.rs`).
+/// The work loop writes the same note through `write_down` and never reaches this point,
+/// so a hold here is the landing's own write and nothing else.
+#[cfg(test)]
+pub(crate) const IN_THE_NEXT_SERVICE_NOTE: &str = "in-the-next-service-note";
 
 /// How a read of a watch file is done;
 /// a control replaces it to make a read fail.
@@ -538,12 +546,62 @@ fn of_another_instance(instance: Option<&str>, git_dir: &Path) -> bool {
 /// const noteForTheNextService = (store, instance, gitDir) => { if (!ofAnotherInstance(instance, gitDir)) writeDown(store, gitDir); };
 /// ```
 pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: &Path) {
+    // A control holds this write on whichever thread runs it, which `note_for_the_next_service_within` made a thread of its own.
+    #[cfg(test)]
+    crate::service_fault::hooks::run_on_any_thread(IN_THE_NEXT_SERVICE_NOTE);
     if of_another_instance(instance, git_dir) {
         return;
     }
     if let Err(reason) = write_down(store, git_dir) {
         crate::service_warn!("{} could not be kept for a restart, so a service that starts may not look at it: {reason}", git_dir.display());
     }
+}
+
+/// What:
+///  `note_for_the_next_service` written on a thread of its own and waited for no longer than `ceiling`,
+///  giving whether the store answered within it.
+/// Why:
+///   The note is written on the thread that lands commits,
+/// between a commit landing and the answer its client waits for,
+/// and the write is a directory creation,
+/// an exclusive file and a rename inside the instance's journal:
+/// any of them waits in the kernel with no end on a filesystem that stopped answering,
+/// and a write that never ends there would hold that commit's answer and every commit queued behind it.
+/// The commit has landed by then,
+/// with its push held and its batch recorded,
+/// so this wait is for the note alone,
+/// and a store that has not answered within `ceiling`
+/// (`wait_ceilings.rs`,
+/// `LANDING_WATCH_NOTE_CEILING`)
+/// costs the note and never the commit:
+/// the thread is left behind and ends when the kernel lets the call go,
+/// and nothing here reads whether it wrote.
+///   What the note is for happens without it:
+/// the work loop writes the same note,
+/// for the same directory and under `AFTER_COMMIT_STATE_CEILING`,
+/// when the wake of this commit's answer sends it to look at the repository
+/// (`service_server_work_loop_awaiting.rs`,
+/// `remember_awaiting`),
+/// the next landing in that repository writes it again,
+/// and a service that starts looks at every note already in the journal.
+/// Only a store that answers nothing at all,
+/// while this process is killed before the work loop looks,
+/// leaves the repository to be found by its next commit instead.
+///   The publish is the same exclusive one the work loop uses,
+/// so a note written twice is one note,
+/// and a store that answers late writes nothing another writer has not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answered = noteForTheNextServiceWithin(ceiling, store, instance, gitDir);
+/// ```
+pub fn note_for_the_next_service_within(ceiling: Duration, store: &Path, instance: Option<&str>, git_dir: &Path) -> bool {
+    let asked: (PathBuf, Option<String>, PathBuf) = (store.to_path_buf(), instance.map(str::to_string), git_dir.to_path_buf());
+    let answered: Option<()> = work_within(ceiling, move || {
+        let (store, instance, git_dir): (PathBuf, Option<String>, PathBuf) = asked;
+        note_for_the_next_service(store.as_path(), instance.as_deref(), git_dir.as_path());
+    });
+    return answered.is_some();
 }
 
 /// Writes the file of `git_dir` under the first name that is free or already holds this directory.
@@ -580,3 +638,9 @@ fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
 #[cfg(test)]
 #[path = "service_claim_watch_tests.rs"]
 mod tests;
+
+/// The measurement of what one write of a note costs, and so of what the bound costs a commit,
+/// stays out of the release executable.
+#[cfg(test)]
+#[path = "service_claim_watch_cost_measurement_tests.rs"]
+mod cost_measurement_tests;

@@ -149,7 +149,10 @@ fn waited_since_accepted(queued: &Queued) -> Duration {
 /// and answers each client.
 /// `place_after` is the wait a batch's first request must have borne before it is told it is next
 /// (`wait_ceilings.rs`,
-/// `WAITING_NOTICE_AFTER`).
+/// `WAITING_NOTICE_AFTER`),
+/// and `note_ceiling` the wait its note to the next service is granted
+/// (`wait_ceilings.rs`,
+/// `LANDING_WATCH_NOTE_CEILING`).
 /// Records the identities of the requests whose scratch tree the landing did not read for good,
 /// because the answer sent their client back to read the private index of the attempt it captured
 /// (`service_prepare_ready_shapes.rs`,
@@ -163,6 +166,7 @@ pub(crate) fn land_group(
     landed: &mut HashMap<String, String>,
     captures: &mut CaptureMemory,
     place_after: Duration,
+    note_ceiling: Duration,
     handed_back: &mut std::collections::HashSet<String>,
     drawn: &std::sync::Arc<crate::service_shadow_draw::DrawnShadows>,
 ) {
@@ -292,6 +296,15 @@ pub(crate) fn land_group(
                 }
             }
             crate::service_fault::reach("before-ack");
+            // What:
+            //  The journal directory the notes for the next service are kept in,
+            //  and whether the store has answered this batch.
+            // Why:
+            //  A store that has not answered one write is not asked again within the same batch,
+            //  so a batch of many commits pays one ceiling and never one for each of them
+            //  (`service_claim_watch.rs`, `note_for_the_next_service_within`).
+            let note_store: std::path::PathBuf = context.journal.join(crate::service_claim_watch::WATCH_DIRECTORY);
+            let mut the_store_answers: bool = true;
             for ((request, _, _), outcome) in fresh.iter().zip(&outcomes) {
                 if let Outcome::Landed { commit } = outcome {
                     for (repeat, stream, arrival) in &repeats {
@@ -314,12 +327,18 @@ pub(crate) fn land_group(
                         hold_the_push(request, commit.as_str());
                         // The repository is written down for the next service in the same instant, so a wrapper killed between
                         //  promoting that push and waking the service is still found when a service starts
-                        //  (`service_claim_watch.rs`, `note_for_the_next_service`).
-                        crate::service_claim_watch::note_for_the_next_service(
-                            context.journal.join(crate::service_claim_watch::WATCH_DIRECTORY).as_path(),
-                            instance,
-                            request.git_dir.as_path(),
-                        );
+                        //  (`service_claim_watch.rs`, `note_for_the_next_service`). The wait for that write is bounded
+                        //  (`wait_ceilings.rs`, `LANDING_WATCH_NOTE_CEILING`), because the commit has landed and its push is held
+                        //  by now, and the work loop writes the same note when this answer's wake sends it to look.
+                        if the_store_answers
+                            && !crate::service_claim_watch::note_for_the_next_service_within(note_ceiling, note_store.as_path(), instance, request.git_dir.as_path())
+                        {
+                            the_store_answers = false;
+                            crate::service_warn!(
+                                "the note that names {} for the next service gave no answer within {note_ceiling:?} and is left behind; this commit is answered and stays landed, and the after-commit work writes that note when the wake of this answer sends it to look at the repository",
+                                crate::service_timing::in_the_repository_at(request.repository.as_path())
+                            );
+                        }
                         landed.insert(request.id.clone(), commit.clone());
                         stream.send(&ServiceMessage::Landed { id: request.id.clone(), commit, already: false, landing: Some(landing_figures_of(&times)) });
                         "landed"
