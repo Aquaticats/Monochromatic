@@ -6012,6 +6012,21 @@ where a name holding a pipe would hold it for ever.
 A record of a plan is read the way every record of this wrapper is read
 (`private_storage::read_regular_file`),
 so a pipe at a plan's name is answered at once and left alone rather than waited on and discarded.
+A watch note is read the same way
+(`private_storage::read_regular_file`,
+`src/native/landing/service_claim_watch.rs`),
+so a note whose name holds a pipe,
+a link or a directory is answered at once,
+said once and left where it is,
+and so is a file longer than a note can hold:
+none of those is a note this service wrote,
+so none is waited on,
+read through or removed,
+and none is read again after a pause,
+because a second read of it answers the same.
+The write a landing makes before the client is answered reads a taken name the same way,
+so a name holding one of those is passed over for the next name
+rather than holding the thread that lands and answers.
 The listing of that journal answers twice:
 the entries it names,
 and an error that ended it before it named them all,

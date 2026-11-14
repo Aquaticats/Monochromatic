@@ -41,6 +41,21 @@
 //!  after a growing pause (`needs_retry`,
 //! `retry`),
 //! so a refused read or a full disk delays the look and never ends it.
+//! Reading:
+//! a note is read the way every record of this wrapper is read (`private_storage::read_regular_file`),
+//! so a name that holds
+//!  no regular file is answered at once,
+//! said once and left where it is,
+//! and so is a file longer than a note can hold:
+//! a
+//!  pipe is never waited on,
+//! a link is never read through,
+//! and neither is removed,
+//! because no note this store wrote
+//!  is any of those.
+//! A write that finds its own name taken reads what holds it the same way,
+//! and uses the next name
+//!  when no note of this store is there.
 //! Durability:
 //! a file is written whole under a staging name and published by one rename (`write_private_file_unsynced`),
 //! so a kill
@@ -61,7 +76,7 @@
 //! ```
 
 use crate::kept_names_in_the_git_directories::path_for_reading;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::{ReadRefusal, create_private_directory_all, read_regular_file, write_private_file_unsynced};
 use crate::push_failure_notice::fnv_hex;
 use crate::service_instance::instance_of;
 use crate::work_item::WORK_DIRECTORY;
@@ -81,9 +96,23 @@ const WATCH_EXTENSION: &str = "watch";
 /// which also say its format.
 const FORMAT_PREFIX: &str = "claim-watch-1 ";
 
+/// The most bytes a path of this system may have,
+/// which bounds every note this store writes.
+const LONGEST_PATH_BYTES: u64 = 4096;
+
+/// The most bytes one note may hold.
+/// Why:
+///   A note is the format words,
+/// the bytes of one Git directory's path in hexadecimal,
+/// and a last newline;
+/// a path of this system's longest is `LONGEST_PATH_BYTES` bytes and its hex is twice that,
+/// so a longer file is not one this store wrote,
+/// and reading it whole would cost the service memory for nothing.
+const NOTE_FILE_LIMIT: u64 = FORMAT_PREFIX.len() as u64 + 2 * LONGEST_PATH_BYTES + 1;
+
 /// How a read of a watch file is done;
 /// a control replaces it to make a read fail.
-pub type ReadFile<'a> = &'a dyn Fn(&Path) -> std::io::Result<Vec<u8>>;
+pub type ReadFile<'a> = &'a dyn Fn(&Path) -> Result<Vec<u8>, ReadRefusal>;
 
 /// What:
 ///  The Git directories to look at when the service starts,
@@ -159,17 +188,21 @@ fn byte_of_digit_pair(pair: &[u32]) -> Option<u8> {
 }
 
 /// What:
-///  Reads a whole file.
+///  Reads one note the way every record of this wrapper is read.
 /// Why:
 ///  `restored` and `retry` hand it to the versions that take the reading as a parameter,
-/// so a control can make a read fail.
+/// so a control can make a read fail,
+/// and `private_storage::read_regular_file` answers a name that holds no regular file at once,
+/// so a pipe at a note's name is never waited on,
+/// a link at it is never read through,
+/// and a file longer than a note can be is never read into memory.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const readFile = (path: string) => fs.readFileSync(path);
+/// const readFile = (path: string) => readRegularFile(path, NOTE_FILE_LIMIT);
 /// ```
-fn read_file(path: &Path) -> std::io::Result<Vec<u8>> {
-    return std::fs::read(path);
+fn read_file(path: &Path) -> Result<Vec<u8>, ReadRefusal> {
+    return read_regular_file(path, NOTE_FILE_LIMIT);
 }
 
 /// What a file holds,
@@ -428,6 +461,12 @@ impl ClaimWatch {
     /// that are certainly of no use,
     /// and notes a failure to read as `unread`.
     /// Gives the directories that were not known before.
+    /// A name that holds no regular file,
+    /// and a file longer than a note can hold,
+    /// is said once and left where it is:
+    /// no note this store wrote is either,
+    /// and it is not read again after a pause,
+    /// because a second read of it answers the same.
     fn scan(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
         let Some(directory) = self.store.clone() else { return Vec::new() };
         self.unread = false;
@@ -464,8 +503,20 @@ impl ClaimWatch {
                     }
                 },
                 // Removed between the listing and the read.
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(error) => {
+                Err(ReadRefusal::Missing) => continue,
+                // Nothing this store writes: a pipe, a link or a directory.
+                // It is said once and left where it is,
+                // and it is not read again after a pause, because a second read of it answers the same.
+                Err(ReadRefusal::NotRegular) => {
+                    crate::service_warn!("the note {} is not a regular file, so it holds no repository to look at and stays", path.display());
+                    continue;
+                }
+                // Nothing this store writes either: a note is the format words and one path's bytes in hexadecimal.
+                Err(ReadRefusal::TooLarge) => {
+                    crate::service_warn!("the note {} holds more than the {NOTE_FILE_LIMIT} bytes a note can, so it holds no repository and stays", path.display());
+                    continue;
+                }
+                Err(ReadRefusal::Io(error)) => {
                     crate::service_warn!("the note {} could not be read, so it is read again after a pause: {error}", path.display());
                     self.unread = true;
                     continue;
@@ -551,6 +602,16 @@ pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: 
 /// replaced;
 /// one that holds another directory's path is left,
 /// and the next name is tried.
+/// What holds a taken name is read the way every record of this wrapper is read,
+/// so a name holding a pipe,
+/// a link,
+/// a directory or more bytes than a note can hold is answered at once,
+/// left where it is,
+/// and passed over for the next name:
+/// no note this store wrote is any of those,
+/// and a plain read of such a name waits in the kernel,
+/// reads a link through,
+/// or costs memory for nothing.
 fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
     if let Err(error) = create_private_directory_all(directory) {
         return Err(format!("creating the note directory failed: {error}"));
@@ -561,17 +622,29 @@ fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
         let path: PathBuf = directory.join(watch_name(git_dir, attempt));
         match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
             Ok(()) => return Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => match std::fs::read(path.as_path()) {
-                Ok(held) if held == text.as_bytes() => return Ok(()),
-                Ok(held) if decode(held.as_slice()).is_ok() => attempt = attempt.saturating_add(1),
-                Ok(_) => {
-                    if let Err(removal) = std::fs::remove_file(path.as_path()) {
-                        return Err(format!("removing the damaged note {} failed: {removal}", path.display()));
-                    }
-                }
-                Err(read_error) => return Err(format!("reading the note {} failed: {read_error}", path.display())),
-            },
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) => return Err(format!("writing the note failed: {error}")),
+        }
+        // What holds the taken name decides what this write does with it.
+        let next_name: bool = match read_regular_file(path.as_path(), NOTE_FILE_LIMIT) {
+            Ok(held) if held == text.as_bytes() => return Ok(()),
+            // Another directory's note, which keeps its name.
+            Ok(held) if decode(held.as_slice()).is_ok() => true,
+            // A note of this store that was torn is replaced by the note of this name.
+            Ok(_) => {
+                if let Err(removal) = std::fs::remove_file(path.as_path()) {
+                    return Err(format!("removing the damaged note {} failed: {removal}", path.display()));
+                }
+                false
+            }
+            // A pipe, a link or a directory, and a file longer than a note can hold: left where they are.
+            Err(ReadRefusal::NotRegular | ReadRefusal::TooLarge) => true,
+            // The name went between the create that found it taken and this read, so the same name is tried again.
+            Err(ReadRefusal::Missing) => false,
+            Err(ReadRefusal::Io(error)) => return Err(format!("reading the note {} failed: {error}", path.display())),
+        };
+        if next_name {
+            attempt = attempt.saturating_add(1);
         }
     }
 }
