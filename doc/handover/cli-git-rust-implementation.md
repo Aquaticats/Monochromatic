@@ -1236,6 +1236,47 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The queue-filling change loses an update when two writers meet, back to its author; no entry this session queued today is missing (2026-11-14T13:36:40-05:00)
+
+Not final and not approved:
+what one review reports of itself,
+what the coordinating session measured,
+and what it queued.
+
+- **The queue of runs filled from the package** (`9a778654e9`):
+  one reproduced with two processes on disposable queue files:
+  a put,
+  a take and a move each read the queue,
+  change it and write it with nothing holding the three steps together,
+  so of two puts at once one is lost
+  (60 of 200 rounds,
+  none in the sequential control),
+  and a take after a start against a put brings the started entry back or drops the new one
+  (30 and 24 of 200 rounds);
+  every failure ends with status 0.
+  The author is resumed second,
+  asked to weigh a queue held with no lock
+  (one file for each entry,
+  made with `O_EXCL`)
+  against a lock over the read,
+  change and write,
+  as the project's rule on concurrency reads
+  (`~/temp/agent/pi-runs/queue-of-runs-filled-from-the-package-answers-its-review-of-2026-11-14-prompt.md`).
+- **The same shape is in use now**:
+  the scratch scripts this session queues with read,
+  change and write the same file beside the filling unit's take every round.
+  Measured at 13:36 with a script kept beside them
+  (`check-every-entry-this-session-queued-today-is-in-the-queue-or-was-started.ts`):
+  of the 60 names this session queued since 08:54,
+  each is in the queue,
+  was started or asked for by the filling unit,
+  or has a run folder of today;
+  none is missing and none stands twice in the queue.
+  The one entry lost today was lost by a launcher that failed,
+  not by this race.
+  The check runs again at each round until the package's filling is in.
+- The queue held 59 entries at 13:36:40.
+
 ##### Pass 40 is in `main` and `0.6.1-alpha.30` is dispatched; the watch note's write ceiling goes to review (2026-11-14T13:31:08-05:00)
 
 Not final and not approved:
