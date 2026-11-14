@@ -1250,6 +1250,59 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 42 is in `main` and `0.6.1-alpha.32` is dispatched; the drawn tree's answer goes to review (2026-11-14T15:06:58-05:00)
+
+Not final and not approved:
+what one pass and one author report of themselves,
+and what the coordinating session measured,
+merged and queued.
+
+- **Pass 42** (tip `3908985299`:
+  a commit made when the runtime directory's path is too long for a socket)
+  reported fit at 15:02:18 for its scope:
+  the one branch in at the commit named,
+  build,
+  both test compiles and Clippy clean,
+  the controls of every changed module and its four binary controls passing at the tip and at four CPUs,
+  both guard modules passing with its new files,
+  pass 39's warm-request controls and pass 43's sixteen watch-note controls passing on the merged tree,
+  a wrapped commit of one changed file adding 30 to 34 ms over real Git.
+  It names what it did not run:
+  the package's container gate (`native:test:container`),
+  which the package's README calls the authority among its test tasks;
+  the same README says an alpha is released without the workflow's check of the crate,
+  and today's briefs asked each pass for the tests of the changed modules at the gate's four CPUs,
+  never for the gate itself.
+  Three library controls stay red that are `main`'s.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `a943128a5c` at 15:06:18,
+  and `0.6.1-alpha.32` was dispatched at 15:06:27
+  (run 43635697141).
+  Passes 38,
+  41 and 44,
+  all going,
+  were told.
+  The wait,
+  the install and the sample commit run as one background command.
+  The fuzz sidecar's type check on `main` at `a943128a5c`:
+  exit 0 at 15:06:57.
+  The next wrapper release is `0.6.1-alpha.33`.
+- **The drawn shadow tree** (tip `993ce53493`, ended 15:01:23):
+  the author reports the sweep's clock-step finding answered by a claim the commit holds on its tree,
+  344 tests and five binary controls passing on the merged tree,
+  the answer path at 4.3 to 5.2 µs against 336 to 341 ns
+  (one `close` of a directory descriptor added),
+  a landing's draw unchanged within the spread.
+  Left and named:
+  a tree nobody holds is still taken by its age,
+  the microseconds between the answer and the commit's claim among them,
+  and any tree on a volume without `flock`;
+  one test of another module failed once inside the whole module's run and passed three times alone.
+  Review queued second (range `main...993ce53493`, ten code files).
+  The kept question on this branch stands
+  (does a drawn tree stand with no end while its claim is held).
+- The queue held 59 entries at 15:06:58.
+
 ##### `0.6.1-alpha.31` is installed and its first minutes are clean; tests' services write into the real user journal, a fresh run is queued; three wrapper answers go to review (2026-11-14T15:02:14-05:00)
 
 Not final and not approved:
