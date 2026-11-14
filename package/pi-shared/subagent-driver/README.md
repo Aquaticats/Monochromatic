@@ -561,9 +561,20 @@ review-rewrite-the-gate: 12 files to read, brief at <reviews>/rewrite-the-gate/b
 ```
 
 The files are the `.rs` and `.ts` code the ranges touched,
+and the manifests and tool configurations that decide how that code is built,
+checked or run,
+such as `Cargo.toml`,
+`mise.toml`,
+`package.json`,
+`tsconfig.json` and its variants,
+`nextest.toml`,
+and `Containerfile`,
 without their tests and test stand-ins,
+without a lockfile or another file a tool writes and nobody reads whole,
 and without a file the reviewed commit does not hold.
-A change that leaves no such file under the source folder writes nothing,
+A change that leaves none of those under the source folder,
+which is a change of notes and tests alone,
+writes nothing,
 prints `nothing to review under <source> in <ranges>`,
 and exits `1`:
 a reviewer given no file reports nothing,
