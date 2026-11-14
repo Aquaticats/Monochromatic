@@ -125,9 +125,14 @@ A version is kept when any of these holds,
 the most specific first:
 
 - **a lock names it**:
+  from a repository scope,
   this scope's lock,
   the lock of every worktree `git worktree list` reports,
-  and the machine scope's lock.
+  and the machine scope's lock;
+  from the machine scope,
+  only the machine scope's lock,
+  because that scope knows no repository to list worktrees from,
+  so a global-store version that only a worktree's lock names can be removed by a global pass.
   A lock that cannot be read keeps every version,
   with the reason in the line.
 - **this run installed it**.
@@ -139,6 +144,9 @@ the most specific first:
   or a file it has open (the `/proc/<pid>/fd` links).
   A process the kernel refuses to describe is matched by the name it calls itself,
   and its versions are kept with that name in the line.
+  The process table reports resolved paths while the store is spelled as `HOME` spells it,
+  and this machine's `/home` is a link,
+  so both sides of the comparison are resolved to one spelling before they are compared.
   The process table is asked twice for the versions this pass removes:
   once while the plan is made,
   and once more after every version of the batch has been moved out of its name,
@@ -174,6 +182,11 @@ the version is condemned already,
 so a lock that cannot be read must not hide it.
 A `.mpm-shadow-removing.*` directory something holds is renamed back instead,
 and a later pass removes it once its holder is gone.
+The two renames are not one step,
+so a kill between them leaves a marker for the downloads with the version still under its name;
+that state reads as a removal that never got past its first rename,
+and the archives are put back under the name the version keeps them at,
+never deleted.
 The marker in the store root goes only once the store holds no `.mpm-shadow-removing.*` at all.
 
 ## The window that is left
@@ -239,6 +252,9 @@ Each is set in the environment and has the shipped default when unset.
   `2h`,
   `90m`
   and `3600` all read as seconds.
+  A value above one hundred years is read as one hundred years:
+  both mean "keep everything",
+  and the unbounded value used to overflow the line that names the floor.
 - `MPM_SHADOW_STORE_WORK_LIMIT`:
   how long one pass may spend removing,
   two seconds.
@@ -247,6 +263,9 @@ Each is set in the environment and has the shipped default when unset.
   more than any single version the stores hold,
   so an install never waits on a long deletion and later installs finish the rest.
   `5s` and `500ms` both read.
+  A value above one year is read as one year:
+  both mean "no limit",
+  and the unbounded value used to overflow the deadline and end the install with a panic.
 
 ## What it does not touch
 
