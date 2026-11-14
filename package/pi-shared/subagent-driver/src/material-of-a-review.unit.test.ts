@@ -94,6 +94,58 @@ function answered(stdout: string,): CommandOutput {
   };
 }
 
+/**
+ The manifest of the package whose change is reviewed, which decides how that package is built and run.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const manifest = aManifestPath();
+ ```
+ */
+function aManifestPath(): string {
+  return `${aSourceFolder()}/Cargo.toml`;
+}
+
+/**
+ The note beside the code, which no build reads.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const note = aNotePath();
+ ```
+ */
+function aNotePath(): string {
+  return `${aSourceFolder()}/notes.md`;
+}
+
+/**
+ A stand-in git whose change touches exactly the paths given, which the reviewed commit still holds.
+
+ @param paths - the paths the change touched, each from the top of the checkout
+
+ @returns a git that answers the three questions one reading asks
+
+ @example
+ ```ts
+ const git = gitTouching({ paths: [`${aSourceFolder()}/Cargo.toml`], },);
+ ```
+ */
+function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
+  request: { readonly words: readonly string[] },
+) => Promise<CommandOutput> {
+  return async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
+    /**
+     The paths as git prints them, one to a line.
+     */
+    const listed = `${paths.join('\n',)}\n`;
+    return answered((words[0] === 'ls-tree') ? listed : ((words[1] === '--name-only') ? listed : 'a diff of them'),);
+  };
+}
+
 await describe({
   name: '',
   children: [
@@ -145,9 +197,50 @@ await describe({
                 'package/a/src/gate.unit.test.ts',
                 'package/a/src/stand-in-git.ts',
                 'package/a/test_support/fixture.rs',
+                'package/a/test_support/Cargo.toml',
                 'package/a/src/notes.md',
               ],
             },),).toEqual(['package/a/src/gate.rs',],);
+          },
+        },),
+        it({
+          name: 'keeps the manifest a change touched, and leaves out the lockfile a tool writes and the note beside it, because nobody reads a lockfile whole',
+          fn: async () => {
+            expect(codeFilesAmong({
+              paths: [
+                aManifestPath(),
+                `${aSourceFolder()}/Cargo.lock`,
+                aNotePath(),
+              ],
+            },),).toEqual([aManifestPath(),],);
+          },
+        },),
+        it({
+          name: 'keeps every variant of a manifest named for the tool it configures, whether the tool\'s word begins the name or ends it, because each variant decides the same build',
+          fn: async () => {
+            /**
+             The variants, each a file this repository names the way it names that tool's other files.
+             */
+            const variants = [
+              `${aSourceFolder()}/tsconfig.build.json`,
+              `${aSourceFolder()}/nextest.windows-gnu.toml`,
+              `${aSourceFolder()}/Containerfile.release`,
+              `${aSourceFolder()}/native-test-base.Containerfile`,
+              `${aSourceFolder()}/.cargo/config.toml`,
+            ];
+            expect(codeFilesAmong({ paths: variants, },),).toEqual(variants,);
+          },
+        },),
+        it({
+          name: 'leaves out a note that merely begins with a tool word, and a configuration inside a folder that only ends with the tool word, because neither is the build decision it looks like',
+          fn: async () => {
+            expect(codeFilesAmong({
+              paths: [
+                `${aSourceFolder()}/tsconfig-notes.md`,
+                `${aSourceFolder()}/ContainerfileREADME.md`,
+                `${aSourceFolder()}/foo.cargo/config.toml`,
+              ],
+            },),).toEqual([],);
           },
         },),
       ],
@@ -266,6 +359,42 @@ await describe({
             }
             expect((await materialOfAReview({
               git,
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },)).files,).toEqual([],);
+          },
+        },),
+        it({
+          name: 'keeps a manifest a change touched beside a note, because a reviewer can say what a changed profile, feature, dependency or task does, so the change is reviewed instead of answered as nothing to review',
+          fn: async () => {
+            expect((await materialOfAReview({
+              git: gitTouching({ paths: [aManifestPath(), aNotePath(),], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },)).files,).toEqual([aManifestPath(),],);
+          },
+        },),
+        it({
+          name: 'keeps a manifest a change touched beside the lockfile a tool writes, and no lockfile with it, because nobody reads a lockfile whole',
+          fn: async () => {
+            expect((await materialOfAReview({
+              git: gitTouching({ paths: [aManifestPath(), `${aSourceFolder()}/Cargo.lock`,], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },)).files,).toEqual([aManifestPath(),],);
+          },
+        },),
+        it({
+          name: 'answers no file for a change that touches only notes and tests under the source folder, which is what makes a review of it not start',
+          fn: async () => {
+            expect((await materialOfAReview({
+              git: gitTouching({ paths: [aNotePath(), `${aSourceFolder()}/gate.unit.test.ts`,], },),
               checkoutFolder: '/repo',
               ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
               source: aSourceFolder(),

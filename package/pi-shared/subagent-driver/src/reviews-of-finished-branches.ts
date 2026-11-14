@@ -2,8 +2,8 @@
  Starts one review per finished branch: each review's brief is written first, then its run is started through the retrying start
  on the qwen plan's review pool, and a review that ended without its review file has its last message saved as that file.
 
- A branch the integration already merged, a branch whose change leaves no code under the reviewed source folder, and a change
- already reviewed are each said in one line and the rest go on: the scratch starter stopped at the first of them, and two
+ A branch the integration already merged, a branch whose change leaves nothing to read under the reviewed source folder, and a
+ change already reviewed are each said in one line and the rest go on: the scratch starter stopped at the first of them, and two
  reviews of round 231 were lost that way with no line anyone read.
 
  @module
