@@ -41,7 +41,7 @@
 
 use crate::diagnostic_log::debug;
 use crate::kept_names_in_the_git_directories::path_for_reading;
-use crate::private_storage::{create_private_directory_all, write_private_file_unsynced};
+use crate::private_storage::{create_private_directory_all, replace_private_file_unsynced};
 use crate::push_failure_notice::fnv_hex;
 use std::path::{Path, PathBuf};
 
@@ -109,7 +109,15 @@ pub fn remember_kept(common_dir: &Path, worktree: &Path, branch: &str, identity:
 ///  or the reason it could not be written.
 /// Why:
 ///  The folder and the file are both private,
-///  and the file is written afresh so a second sweep of the same landing writes one record.
+///  and a sweep that keeps the same worktree twice writes one record:
+///  the new bytes replace the old by one rename,
+///  so a command killed at any instruction leaves the record it found or the record it wrote,
+///  and never neither.
+///  Removing the old record and then writing a new one would leave the window that matters:
+///  a worktree whose branch has landed is no fresh candidate of a later merge,
+///  so a kill in that window would lose the only thing that would look at it again
+///  (`replace_private_file_unsynced`,
+///  `private_storage_replacing_a_record.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -122,11 +130,44 @@ fn written(common_dir: &Path, worktree: &Path, branch: &str, identity: &str, why
     }
     let path: PathBuf = directory.join(record_name(worktree));
     let text: String = format!("{MAGIC}\n{WORKTREE_FIELD}{}\n{BRANCH_FIELD}{branch}\n{IDENTITY_FIELD}{identity}\n\n{why}\n", worktree.display());
-    let _replaced = std::fs::remove_file(path.as_path());
-    return match write_private_file_unsynced(path.as_path(), text.as_bytes()) {
+    reach_test_fault(BEFORE_THE_RECORD_IS_REPLACED);
+    return match replace_private_file_unsynced(path.as_path(), text.as_bytes()) {
         Ok(()) => Ok(()),
         Err(error) => Err(format!("writing the record failed: {error}")),
     };
+}
+
+/// Environment variable arming the test-only kill at the moment a record is replaced.
+/// Why:
+///   The property is that a record is never absent, whatever instruction the process dies at,
+///  and the instant that could show otherwise is the one where the bytes leave this process's hands.
+///  The marker is compiled into the release executable and inert unless the variable names it,
+///  as the removal's own fault point is (`worktree_removal_deletions.rs`).
+pub const FAULT_VARIABLE: &str = "CLI_GIT_TEST_ONLY_KEPT_RECORD_FAULT";
+
+/// The instant before the record's bytes replace the record that is there.
+pub const BEFORE_THE_RECORD_IS_REPLACED: &str = "before-the-record-is-replaced";
+
+/// What:
+///  End this process if `point` is the armed fault point.
+/// Why:
+///   A kill at a named point is the strongest crash a control can ask for without an injected system call failure,
+///  and it proves what is on disk at that instant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// reachTestFault('before-the-record-is-replaced')
+/// ```
+fn reach_test_fault(point: &str) {
+    if !matches!(std::env::var(FAULT_VARIABLE), Ok(armed) if armed == point) {
+        return;
+    }
+    #[cfg(unix)]
+    // SAFETY: `kill` takes no pointers; the process ends itself and nothing reads memory after it.
+    unsafe {
+        libc::kill(libc::getpid(), libc::SIGKILL);
+    }
+    std::process::exit(137);
 }
 
 /// What:

@@ -583,6 +583,13 @@ pub fn sweep_landed_worktrees(place: &LandedPlace<'_>, before: &str, now: &str, 
 ///  and neither is one whose branch was reset.
 ///  A record that no longer answers for the worktree it names is dropped,
 ///  because the worktree it was written for is gone.
+///  One worktree is examined once, whichever ways it qualifies by:
+///  a branch this merge landed can also be the branch of a worktree an earlier sweep kept,
+///  and a worktree removed and handed over twice would be reported twice,
+///  woken twice,
+///  and examined twice for nothing.
+///  Its record is left alone in that case,
+///  because the examination that runs says what became of the worktree.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -596,14 +603,19 @@ fn worktrees_this_merge_may_remove<'a>(
     registered: &'a [Registration],
 ) -> Vec<&'a Registration> {
     let mut removable: Vec<&'a Registration> = Vec::with_capacity(candidates.len() + earlier_kept.len());
+    let mut already: HashSet<&Path> = HashSet::with_capacity(candidates.len() + earlier_kept.len());
     for one in registered {
-        if candidates.contains(one.branch.as_str()) {
+        if candidates.contains(one.branch.as_str()) && already.insert(one.worktree.as_path()) {
             removable.push(one);
         }
     }
     for remembered in earlier_kept {
         match kept_worktree_still_here(place, remembered, landed, registered) {
-            Some(one) => removable.push(one),
+            Some(one) => {
+                if already.insert(one.worktree.as_path()) {
+                    removable.push(one);
+                }
+            }
             None => forget_kept(place.common_dir, remembered.worktree.as_path()),
         }
     }

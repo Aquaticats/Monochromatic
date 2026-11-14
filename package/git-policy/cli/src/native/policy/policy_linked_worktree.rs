@@ -367,8 +367,10 @@ pub(crate) fn check_linked_worktree(
     let (command, moves_head_only): (GuardedCommand, bool) = match &forwarded.decision {
         LinkedWorktreeDecision::Pass => return clean(),
         // The two audited forms leave one line saying what they took. A removal is refused first while a process works
-        //  in the worktree or a nested worktree holds files Git would keep (`worktree_removal_refusal.rs`): those are
-        //  the two things real Git deletes without looking, and the owner's decision of 2026-11-12 keeps them.
+        //  in the worktree, or while a worktree registered inside it holds Git work no other copy has: a changed tracked
+        //  file, a staged change, or a commit no reference names (`worktree_removal_refusal.rs`,
+        //  `worktree_nested_git_work.rs`). Both are what real Git deletes without looking, and the owner's decision of
+        //  2026-11-12T13:04:14 keeps them: "Git work is never destroyed by a removal".
         LinkedWorktreeDecision::Audited(audited) => {
             // Outside a repository there is no audit file to write, and nothing to name.
             if let Ok(location) = facts.location() {

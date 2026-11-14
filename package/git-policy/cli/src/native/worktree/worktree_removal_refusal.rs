@@ -29,10 +29,23 @@
 //!  What else a removal deletes is the owner's decision of 2026-11-12T13:04:14
 //!  (`doc/handover/cli-git-rust-implementation.md`,
 //!  "How far the protection of a worktree being removed reaches"): the files Git ignores,
-//!  a nested repository and a nested worktree's own files all go with the worktree,
+//!  a nested repository and a nested worktree's untracked and ignored files all go with the worktree,
 //!  and each one is written to the removal's log before it goes
-//!  (`worktree_removal_deletions.rs`),
-//!  never refused.
+//!  (`worktree_removal_deletions.rs`).
+//!  The same decision's first sentence is the exception:
+//!  "Git work is never destroyed by a removal:
+//!  a commit that no reference holds,
+//!  and an edit to a tracked file,
+//!  however it is hidden".
+//!  A worktree registered inside this one usually sits under a name the outer worktree ignores,
+//!  so real Git deletes it without asking its own rules,
+//!  and an edit there has no other copy:
+//!  a worktree inside the target that holds a changed tracked file,
+//!  a staged change,
+//!  or a commit no reference names is therefore refused too,
+//!  with the same escape
+//!  (`worktree_nested_git_work.rs`).
+//!  The automatic routes go further and leave any worktree that holds a registered worktree.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -42,6 +55,7 @@
 use crate::discard_audit_facts::AuditFact;
 use crate::transaction_git::GitContext;
 use crate::worktree_landed_registrations::{Registration, registrations_of};
+use crate::worktree_nested_git_work::{NestedHoldingGitWork, nested_worktrees_holding_git_work};
 use crate::worktree_process_inside::{ProcessWorking, process_working_inside};
 use crate::worktree_removal_second_look::age_of;
 use std::path::{Path, PathBuf};
@@ -91,9 +105,12 @@ pub struct RemovalInQuestion<'a> {
 /// Why:
 ///   A forced removal asks nothing:
 ///  the person said the worktree goes whatever it holds.
-///  The one condition is the process scan,
+///  Two conditions are asked otherwise,
+///  and both come before anything is removed:
+///  a process working in the worktree,
 ///  which is one walk of a table this program already reads elsewhere,
-///  and which a worktree a person works in answers at once.
+///  and a worktree registered inside it that holds Git work no other copy has,
+///  which is two Git reads per nested worktree and none for the ordinary removal.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -113,11 +130,45 @@ pub fn why_a_removal_is_refused(removal: &RemovalInQuestion<'_>) -> Option<Strin
         .iter()
         .find(|one| return one.worktree == removal.target)
         .map_or_else(|| return removal.target.join(".git"), |one| return one.admin.clone());
-    return match process_working_inside(removal.target, admin.as_path(), removal.proc_root, age_of(removal.target)) {
+    if let Some(why) = match process_working_inside(removal.target, admin.as_path(), removal.proc_root, age_of(removal.target)) {
         ProcessWorking::Nobody => None,
         ProcessWorking::Someone(working) => Some(working_process_keeps_it(removal.target, working.why().as_str())),
         ProcessWorking::Unfinished(why) => Some(cannot_tell(why.as_str())),
+    } {
+        return Some(why);
+    }
+    return match nested_worktrees_holding_git_work(removal.context, removal.common_dir, removal.target) {
+        Ok(holding) if holding.is_empty() => None,
+        Ok(holding) => Some(a_nested_worktree_holds_git_work(removal.target, holding.as_slice())),
+        Err(reason) => Some(cannot_tell(format!("nothing shows whether a worktree inside it holds work of yours ({reason})").as_str())),
     };
+}
+
+/// What:
+///  The refusal of a removal that would take the Git work of a worktree registered inside it.
+/// Why:
+///  The nested worktree is usually under a name the outer worktree ignores,
+///  so Git deletes it without a word,
+///  and an edit or a commit there has no other copy.
+///  The words name each worktree and what it holds,
+///  say the two ways forward that lose nothing,
+///  and end with the same escape every refusal of a removal ends with.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aNestedWorktreeHoldsGitWork('/x', [{ worktree: '/x/nested', why: 'changed tracked files (`a.txt`)' }])
+/// ```
+fn a_nested_worktree_holds_git_work(target: &Path, holding: &[NestedHoldingGitWork]) -> String {
+    let mut said: Vec<String> = Vec::with_capacity(holding.len());
+    for one in holding {
+        said.push(format!("`{}` holds {}", one.worktree.display(), one.why()));
+    }
+    return format!(
+        "monochromatic-git-policy-cli: refusing to remove the worktree {}: another worktree this repository registers is inside it, and it holds work that exists nowhere else: {}. Removing this one would delete those files and that worktree's own record with them. Nothing was removed. Commit or move that work, or remove that worktree first with `git worktree remove {}`, and if it must all go anyway, {ESCAPE_SENTENCE}",
+        target.display(),
+        said.join("; "),
+        holding[0].worktree.display()
+    );
 }
 
 /// What:

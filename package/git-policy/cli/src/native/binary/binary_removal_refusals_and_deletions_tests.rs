@@ -26,6 +26,7 @@ use std::os::unix::process::ExitStatusExt as _;
 use std::process::{Command, Output};
 /// The test-only kill point of a removal,
 /// which is inert unless a control arms it.
+use git_policy_cli::worktree_landed_kept_retry::{BEFORE_THE_RECORD_IS_REPLACED, FAULT_VARIABLE as KEPT_RECORD_FAULT_VARIABLE};
 use git_policy_cli::worktree_removal_deletions::{AFTER_DELETION, FAULT_VARIABLE};
 
 /// The record a removal writes of the files it deleted,
@@ -378,6 +379,159 @@ fn a_later_sweep_does_not_remove_a_worktree_added_again_on_the_landed_branch_at_
     assert_eq!(std::fs::read(topic.join("build/person.txt")).expect("the file is still there"), b"what the person is working on\n");
     assert_eq!(kept_records(common.as_path()), 0, "and the record of the worktree that went is dropped");
     remove(&fixture);
+}
+
+/// What:
+///  A removal a person asks for is refused while a worktree registered inside it holds an edit to a tracked file,
+///  the words name that worktree and its file and the one flag that runs the removal anyway,
+///  and with that flag the file goes and the record names it.
+/// Why:
+///  Git deletes a nested worktree under a name its own ignore rules hide,
+///  so an uncommitted edit there has no other copy,
+///  and the owner's decision of 2026-11-12T13:04:14 says
+///  "Git work is never destroyed by a removal: ... an edit to a tracked file"
+///  (a review of this change, finding 1).
+#[test]
+fn a_removal_is_refused_while_a_nested_worktree_holds_an_edit_and_the_escape_records_it() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-nested-edit", "nested/\n");
+    let nested: PathBuf = topic.join("nested");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "nested", nested.to_str().expect("a UTF-8 fixture path")]);
+    std::fs::write(nested.join("README.md"), b"# what the person is in the middle of\n").expect("an uncommitted edit");
+    std::fs::write(nested.join("untracked.txt"), b"untracked personal work\n").expect("an untracked file");
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+    assert_ne!(refused.code, Some(0), "an uncommitted edit of a nested worktree keeps the outer one: {}", stderr_of(&refused));
+    let said: String = stderr_of(&refused);
+    assert!(said.contains(nested.display().to_string().as_str()), "the refusal names the nested worktree: {said}");
+    assert!(said.contains("README.md"), "and the file that is only here: {said}");
+    assert!(said.contains("--no-enforce-worktree"), "and the escape: {said}");
+    assert_eq!(std::fs::read(nested.join("README.md")).expect("the edit is still there"), b"# what the person is in the middle of\n");
+    // The escape is the person's decision, and what it takes is recorded: the edit among it.
+    let escaped: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "--no-enforce-worktree", "remove", "../topic"]);
+    assert_eq!(escaped.code, Some(0), "the escape runs the removal: {}", stderr_of(&escaped));
+    assert!(!topic.exists(), "the worktree is gone");
+    let record: String = deletion_record(repo.as_path()).expect("the record of what the removal deleted");
+    assert!(record.contains(nested.display().to_string().as_str()), "the record names the nested worktree: {record}");
+    assert!(record.contains("\"files\":[\"untracked.txt\"]"), "and its untracked file: {record}");
+    assert!(record.contains("\"changed\":[\"README.md\"]"), "and the tracked file it changed: {record}");
+    remove(&fixture);
+}
+
+/// What:
+///  A worktree nested in a removal that holds nothing of the person's is not a reason to keep the outer one.
+/// Why:
+///  The refusal is about work that exists nowhere else,
+///  and a nested worktree with a clean checkout holds none:
+///  its own files go with the removal and are recorded, which is the decision of 2026-11-12T13:04:14.
+#[test]
+fn a_removal_of_a_worktree_holding_a_clean_nested_worktree_is_not_refused_for_it() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-nested-clean", "nested/\n");
+    let nested: PathBuf = topic.join("nested");
+    git(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "nested", nested.to_str().expect("a UTF-8 fixture path")]);
+    std::fs::write(nested.join("untracked.txt"), b"untracked personal work\n").expect("an untracked file");
+    let removed: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+    assert_eq!(removed.code, Some(0), "a clean nested worktree does not keep the outer one: {}", stderr_of(&removed));
+    assert!(!topic.exists(), "the worktree is gone");
+    let record: String = deletion_record(repo.as_path()).expect("the record of what the removal deleted");
+    assert!(record.contains("\"files\":[\"untracked.txt\"]"), "the nested worktree's file is named: {record}");
+    remove(&fixture);
+}
+
+/// What:
+///  One sweep examines and hands over one worktree once,
+///  though it is both a branch this merge landed and a worktree an earlier sweep kept.
+/// Why:
+///  The hand-over is by identifier,
+///  so a second examination removes nothing more:
+///  it reports the same worktree twice,
+///  wakes the service twice,
+///  and pays two process scans and two hand-over writes for one worktree,
+///  and a report that says a thing twice cannot be acted on (a review of this change, finding 2).
+#[test]
+fn a_sweep_says_a_kept_worktree_it_lands_once() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-kept-then-landed", "build/\n");
+    git(&fixture, topic.as_path(), &["commit", "--quiet", "--allow-empty", "--message=feature work"]);
+    let feature_commit: String = String::from_utf8_lossy(&git(&fixture, repo.as_path(), &["rev-parse", "feature"]).stdout).trim().to_owned();
+    let before: String = String::from_utf8_lossy(&git(&fixture, repo.as_path(), &["rev-parse", "HEAD"]).stdout).trim().to_owned();
+    let mut child: std::process::Child = a_process_working_in(&fixture, topic.as_path());
+    let landed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-ff", "--message=land feature", "feature"]);
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the common Git directory");
+    assert_eq!(kept_records(common.as_path()), 1, "the busy worktree is kept and remembered");
+    let _ended = child.kill();
+    let _waited = child.wait();
+    // A second branch at the commit the first merge started from holds none of the landed work, so the next merge brings
+    //  `feature` in afresh while the kept record still answers for the same worktree.
+    let integration: PathBuf = std::fs::canonicalize(fixture.root.as_path()).expect("the fixture root").join("integration");
+    git(&fixture, repo.as_path(), &["branch", "integration", before.as_str()]);
+    let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "../integration", "integration"]);
+    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
+    let again: Observed = run_wrapped(&fixture, integration.as_path(), &["merge", "--no-ff", "--message=land feature again", "feature"]);
+    assert_eq!(again.code, Some(0), "{}", stderr_of(&again));
+    let said: String = stderr_of(&again);
+    let handovers: usize = said.lines().filter(|line| return line.contains("handed the removal of the worktree") && line.contains(topic.display().to_string().as_str())).count();
+    assert_eq!(handovers, 1, "one worktree is handed over once: {said}");
+    // The wake itself is not counted here: this fixture has a service that answers, so the line a fixture without one
+    //  prints ("recorded and not woken") never appears, and the hand-over line is the report either way.
+    assert!(!feature_commit.is_empty(), "the fixture named the commit its branch holds");
+    remove(&fixture);
+}
+
+/// What:
+///  A worktree kept a second time keeps its record,
+///  though the command is killed in the instant the record is replaced.
+/// Why:
+///  A worktree whose branch has landed is no fresh candidate of a later merge,
+///  so its record is the only thing that would ever look at it again:
+///  a record lost in that instant leaves the worktree there for ever,
+///  holding a snapshot's worth of space nobody sees
+///  (a review of this change, finding 3).
+///  The kill is the wrapper's own test-only point, inert unless this control arms it.
+#[test]
+fn a_kill_at_the_instant_a_kept_record_is_replaced_leaves_the_record() {
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-kept-record-killed", "build/\n");
+    git(&fixture, topic.as_path(), &["commit", "--quiet", "--allow-empty", "--message=feature work"]);
+    let mut child: std::process::Child = a_process_working_in(&fixture, topic.as_path());
+    let landed: Observed = run_wrapped(&fixture, repo.as_path(), &["merge", "--no-ff", "--message=land feature", "feature"]);
+    assert_eq!(landed.code, Some(0), "{}", stderr_of(&landed));
+    let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("the common Git directory");
+    assert_eq!(kept_records(common.as_path()), 1, "the busy worktree is kept and remembered");
+    // A second sweep keeps the same worktree again, and this time the record is being replaced when the process dies.
+    let later_branch: PathBuf = std::fs::canonicalize(fixture.root.as_path()).expect("the fixture root").join("later");
+    let added: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "add", "--quiet", "-b", "later", "../later"]);
+    assert_eq!(added.code, Some(0), "{}", stderr_of(&added));
+    git(&fixture, later_branch.as_path(), &["commit", "--quiet", "--allow-empty", "--message=later work"]);
+    let mut armed: Command = unbounded_wrapper(&fixture, repo.as_path(), &["merge", "--no-ff", "--message=a later merge", "later"]);
+    armed.env(KEPT_RECORD_FAULT_VARIABLE, BEFORE_THE_RECORD_IS_REPLACED);
+    let killed: Output = run_watched(&fixture, &mut armed);
+    assert_eq!(killed.status.signal(), Some(9), "the control kills the sweep at the replacement: {}", String::from_utf8_lossy(killed.stderr.as_slice()));
+    assert_eq!(kept_records(common.as_path()), 1, "the record is still there after the kill");
+    let text: String = std::fs::read_to_string(kept_record_path(common.as_path())).expect("the record's text");
+    assert!(text.contains(topic.display().to_string().as_str()), "and it still names the worktree: {text}");
+    // The record still answers: the next sweep, with nothing armed, removes the worktree once the process is gone.
+    let _ended = child.kill();
+    let _waited = child.wait();
+    let (_third, later): (PathBuf, Observed) = a_merge_of_an_unrelated_branch(&fixture, &repo, "third");
+    assert_eq!(later.code, Some(0), "{}", stderr_of(&later));
+    settle_service_work(repo.as_path());
+    assert!(!topic.exists(), "the worktree the record named is removed by a later sweep: {}", stderr_of(&later));
+    assert_eq!(kept_records(common.as_path()), 0, "and its record is gone with it");
+    remove(&fixture);
+}
+
+/// The one kept-worktree record of a repository,
+/// which a control about one worktree can name directly.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keptRecordPath(commonDir) // the only file under kept-landed-worktrees/
+/// ```
+fn kept_record_path(common: &Path) -> PathBuf {
+    return std::fs::read_dir(common.join("monochromatic-git-policy-cli/kept-landed-worktrees"))
+        .expect("the kept-worktree folder")
+        .flatten()
+        .map(|entry| return entry.path())
+        .next()
+        .expect("one kept-worktree record");
 }
 
 /// What:

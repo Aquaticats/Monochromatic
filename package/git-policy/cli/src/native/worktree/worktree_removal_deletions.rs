@@ -121,6 +121,22 @@ const IGNORED_WORDS: [&str; 7] = ["ls-files", "--others", "--ignored", "--exclud
 /// ```
 const UNTRACKED_WORDS: [&str; 5] = ["ls-files", "--others", "--directory", "--no-empty-directory", "-z"];
 
+/// The query that names the tracked files of a worktree that differ from its `HEAD`,
+/// staged changes among them.
+/// Why:
+///  A nested worktree goes with the worktree around it,
+///  and a change to a tracked file there is the one kind of its work that has no other copy:
+///  the untracked and the ignored entries are listed by `UNTRACKED_WORDS`,
+///  and the edit is what the record would otherwise leave out.
+///  `--untracked-files=no` keeps the answer to the files Git tracks,
+///  whose modification is the removal's to take and the record's to name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const TRACKED_WORDS = ['status', '--porcelain=v1', '--untracked-files=no', '-z'];
+/// ```
+const TRACKED_WORDS: [&str; 4] = ["status", "--porcelain=v1", "--untracked-files=no", "-z"];
+
 /// How many entries one record names for one worktree before it counts the rest.
 /// Why:
 ///  A person reads one line,
@@ -192,6 +208,25 @@ impl DeletedEntries {
     }
 
     /// What:
+    ///  The tracked files of one worktree that differ from its `HEAD`,
+    ///  which a change staged in the index counts as.
+    /// Why:
+    ///   The tracked changes are the work a removal takes that has no other copy,
+    ///  and the record names them where it names the untracked ones.
+    ///  The answer is Git's own status, so a file the person edited and a file they staged are both there,
+    ///  and a file they only touched in its mode is there too.
+    ///  A listing that cannot be read is not a failure of the removal:
+    ///  the caller records that the names were not read.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// DeletedEntries.changedTrackedOf(git, worktree, admin)
+    /// ```
+    pub fn changed_tracked_of(git: &GitContext, worktree: &Path, admin: Option<&Path>) -> DeletedEntries {
+        return listing_of(git, worktree, admin, TRACKED_WORDS.as_slice(), "the tracked files that changed", from_status_listing);
+    }
+
+    /// What:
     ///  The entries of one `-z` listing,
     ///  the first `SHOWN_ENTRIES` of them kept.
     /// Why:
@@ -246,6 +281,9 @@ pub struct NestedWorktree {
     pub worktree: PathBuf,
     /// Its untracked and ignored files.
     pub entries: DeletedEntries,
+    /// The tracked files it changed,
+    /// staged changes among them.
+    pub changed: DeletedEntries,
 }
 
 /// What:
@@ -289,7 +327,8 @@ impl RemovalDeletions {
             Ok(registered) => {
                 for nested in worktrees_inside(worktree, registered.as_slice()) {
                     let entries: DeletedEntries = DeletedEntries::untracked_and_ignored_of(git, nested.worktree.as_path(), Some(nested.admin.as_path()));
-                    found.nested.push(NestedWorktree { worktree: nested.worktree.clone(), entries });
+                    let changed: DeletedEntries = DeletedEntries::changed_tracked_of(git, nested.worktree.as_path(), Some(nested.admin.as_path()));
+                    found.nested.push(NestedWorktree { worktree: nested.worktree.clone(), entries, changed });
                 }
             }
             Err(reason) => {
@@ -329,6 +368,30 @@ impl RemovalDeletions {
 /// list(git, worktree, admin, IGNORED_WORDS, 'the files it ignores')
 /// ```
 fn list(git: &GitContext, worktree: &Path, admin: Option<&Path>, words: &[&str], what: &str) -> DeletedEntries {
+    return listing_of(git, worktree, admin, words, what, DeletedEntries::from_listing);
+}
+
+/// What:
+///  One listing of a worktree,
+///  read by the parser its words need,
+///  or the reason it could not be read.
+/// Why:
+///   The two plain listings name paths and nothing else,
+///  while Git's status names a state before each path and a rename as two records,
+///  so the parsing is the caller's and everything else is shared.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// listingOf(git, worktree, admin, TRACKED_WORDS, 'the tracked files that changed', fromStatusListing)
+/// ```
+fn listing_of(
+    git: &GitContext,
+    worktree: &Path,
+    admin: Option<&Path>,
+    words: &[&str],
+    what: &str,
+    parse: fn(&[u8]) -> DeletedEntries,
+) -> DeletedEntries {
     let request: GitRequest = GitRequest {
         cwd: worktree.to_path_buf(),
         arguments: words.iter().map(OsString::from).collect(),
@@ -352,7 +415,40 @@ fn list(git: &GitContext, worktree: &Path, admin: Option<&Path>, words: &[&str],
             ..DeletedEntries::default()
         };
     }
-    return DeletedEntries::from_listing(output.stdout.as_slice());
+    return parse(output.stdout.as_slice());
+}
+
+/// What:
+///  The paths of one `git status --porcelain=v1 -z` answer,
+///  the first `SHOWN_ENTRIES` of them kept.
+/// Why:
+///   Each record is the two status letters, a space,
+///  and the path, which needs no quoting because the NUL ends it.
+///  A rename is two records: the new name with `R` before it,
+///  and then the old name alone,
+///  and both are the person's work,
+///  so both are named.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// fromStatusListing(' M a.txt\0R  n.txt\0o.txt\0') // { shown: ['a.txt', 'n.txt', 'o.txt'], total: 3 }
+/// ```
+fn from_status_listing(listing: &[u8]) -> DeletedEntries {
+    let mut found: DeletedEntries = DeletedEntries::default();
+    for record in listing.split(|byte: &u8| return *byte == 0).filter(|record: &&[u8]| return !record.is_empty()) {
+        let named: &[u8] = match record.get(2) {
+            Some(space) if *space == b' ' => &record[3..],
+            _ => record,
+        };
+        if named.is_empty() {
+            continue;
+        }
+        found.total += 1;
+        if found.shown.len() < SHOWN_ENTRIES {
+            found.shown.push(String::from_utf8_lossy(named).into_owned());
+        }
+    }
+    return found;
 }
 
 /// What one removal wrote down before it deleted anything,
@@ -590,8 +686,18 @@ fn nested_objects(nested: &[NestedWorktree]) -> String {
             one.entries.shown.len(),
             one.entries.total
         );
+        let _ = write!(
+            object,
+            ",\"changed\":{},\"changedShown\":{},\"changedTotal\":{}",
+            string_array(&one.changed.shown),
+            one.changed.shown.len(),
+            one.changed.total
+        );
         if let Some(reason) = &one.entries.unreadable {
             let _ = write!(object, ",\"unreadable\":{}", quote(reason.as_str()));
+        }
+        if let Some(reason) = &one.changed.unreadable {
+            let _ = write!(object, ",\"changedUnreadable\":{}", quote(reason.as_str()));
         }
         object.push('}');
         objects.push(object);

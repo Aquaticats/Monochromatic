@@ -16,8 +16,8 @@
 //! ```
 
 use super::{
-    DELETIONS_LOG, DeletedEntries, NestedWorktree, RemovalBegun, RemovalDeletions, SHOWN_ENTRIES, deletions_line, deleted_line, record_removal_begins,
-    record_removal_deleted, removal_words,
+    DELETIONS_LOG, DeletedEntries, NestedWorktree, RemovalBegun, RemovalDeletions, SHOWN_ENTRIES, deletions_line, deleted_line, from_status_listing,
+    record_removal_begins, record_removal_deleted, removal_words,
 };
 use crate::test_support::{age, fixture, git, git_context, repository};
 use std::ffi::OsString;
@@ -113,6 +113,7 @@ fn a_nested_worktree_is_named_with_its_own_files() {
         nested: vec![NestedWorktree {
             worktree: PathBuf::from("/fixtures/outer/nested"),
             entries: DeletedEntries::from_listing(listing_of(&["personal.txt", "build/"]).as_slice()),
+            changed: from_status_listing(b" M tracked.txt\0A  staged.txt\0"),
         }],
     };
     let begun: RemovalBegun = RemovalBegun { id: String::from("0123abcd-1-2") };
@@ -120,6 +121,8 @@ fn a_nested_worktree_is_named_with_its_own_files() {
     assert!(line.contains("\"nested\":[{\"worktree\":\"/fixtures/outer/nested\""), "the nested worktree is named: {line}");
     assert!(line.contains("\"files\":[\"personal.txt\",\"build/\"]"), "its files are named: {line}");
     assert!(line.contains("\"filesShown\":2,\"filesTotal\":2"), "their count is written: {line}");
+    assert!(line.contains("\"changed\":[\"tracked.txt\",\"staged.txt\"]"), "the tracked files it changed are named too: {line}");
+    assert!(line.contains("\"changedShown\":2,\"changedTotal\":2"), "and counted: {line}");
     assert!(line.contains("\"command\":[\"worktree\",\"remove\",\"--force\",\"/fixtures/outer\"]"), "a forced removal says so: {line}");
 }
 
@@ -202,6 +205,20 @@ fn the_record_is_appended_to_the_shared_log_and_reads_back() {
 /// Why:
 ///  The pair is what says a removal finished:
 ///  a begun line whose id has no confirming line is the one a person has to look at the worktree for.
+/// What:
+///  A `git status --porcelain -z` answer becomes the paths it names,
+///  the rename's two sides included.
+/// Why:
+///  Each record carries two status letters and a space before its path,
+///  and a rename is two records,
+///  so a reader that took the record whole would name ` M a.txt` and lose the old side.
+#[test]
+fn a_status_listing_names_the_paths_it_carries_and_both_sides_of_a_rename() {
+    let found: DeletedEntries = from_status_listing(b" M a.txt\0A  staged.txt\0R  new.txt\0old.txt\0?? untracked.txt\0");
+    assert_eq!(found.shown, vec![String::from("a.txt"), String::from("staged.txt"), String::from("new.txt"), String::from("old.txt"), String::from("untracked.txt")], "{found:?}");
+    assert_eq!(found.total, 5, "every record is counted: {found:?}");
+}
+
 #[test]
 fn a_confirming_line_carries_the_id_of_the_line_it_confirms() {
     let worktree: PathBuf = PathBuf::from("/fixtures/outer");

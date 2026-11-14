@@ -51,6 +51,9 @@ pub mod worktree_removal_deletions;
 /// in words a person reads and acts on.
 pub mod worktree_removal_refusal;
 
+/// The work of a worktree registered inside one being removed that no other copy holds.
+pub mod worktree_nested_git_work;
+
 /// The landed worktrees a sweep kept, which the next sweep examines again with nobody asking.
 pub mod worktree_landed_kept_retry;
 
