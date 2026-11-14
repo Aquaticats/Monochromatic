@@ -65,6 +65,8 @@ pub fn failure_code(failure: &ClientFailure) -> &'static str {
         ClientFailure::ServiceSilentAfterPreparing { .. } => "service-silent-after-preparing",
         ClientFailure::StillWithService { .. } => "still-with-service",
         ClientFailure::WithdrawalUnconfirmed { .. } => "withdrawal-unconfirmed",
+        ClientFailure::ServiceGoneNotLanded { .. } => "service-gone-not-landed",
+        ClientFailure::ServiceGoneUnconfirmed { .. } => "service-gone-unconfirmed",
         ClientFailure::Interrupted { .. } => "interrupted",
         ClientFailure::InterruptedNotKnown { .. } => "interrupted-not-known",
         ClientFailure::StepTooSlow => "step-too-slow",

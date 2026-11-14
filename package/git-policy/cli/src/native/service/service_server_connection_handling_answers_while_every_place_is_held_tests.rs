@@ -379,7 +379,7 @@ fn a_withdrawal_is_decided_while_a_note_read_is_stuck() {
     let heard: Option<ServiceMessage> = crate::lazy_runtime::run_on_runtime(async move {
         let (service, client_end) = UnixStream::pair().expect("a connected pair");
         let serving = crate::lazy_runtime::spawn_on_runtime(handle_connection(service, shared)).expect("a worker for the connection");
-        let (mut read_half, mut write_half) = client_end.into_split();
+        let (read_half, mut write_half) = client_end.into_split();
         tokio::io::AsyncWriteExt::write_all(&mut write_half, format!("{line}\n").as_bytes()).await.expect("the withdrawal line is sent");
         let mut reader = tokio::io::BufReader::new(read_half);
         let heard: Option<ServiceMessage> = the_answer_within(&mut reader, A_BOUND).await;
