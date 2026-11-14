@@ -261,9 +261,10 @@ pub(super) const ALLOWED: &[Allowed] = &[
         rule: "thread-start",
         why: "the removal of a whole worktree starts Git, which asks for the runtime this command's waits run on, and a thread \
               of the blocking pool still carries that runtime, so a job there answers that the runtime was asked for from inside \
-              itself and removes nothing; the round awaits the answer on a oneshot under `OBJECT_STEP_CEILING`, so no worker of \
-              the runtime is held. The entry goes when the removal's Git step is awaited, which makes the removal a job of the \
-              blocking pool",
+              itself and removes nothing (every removal did, until bd06020567); the round awaits the answer on a oneshot under \
+              `OBJECT_STEP_CEILING`, so no worker of the runtime is held, and that commit measured a removal at 128 ms from the \
+              record to the worktree gone. The entry goes when the removal's Git step is awaited, which makes the removal a job of \
+              the blocking pool",
     },
     Allowed {
         file: "markdown/markdown_linter_guard.rs",
@@ -341,8 +342,9 @@ pub(super) const ALLOWED: &[Allowed] = &[
         rule: "blocking-sleep",
         why: "the pause between asks of a socket whose listening queue is full, in the connection a commit makes for a drawn \
               shadow before it builds anything. No `async fn` encloses it, so it pauses a thread a command owns and no worker of \
-              the runtime, and the whole exchange ends at the caller's own deadline (`DRAWN_ANSWER_DEADLINE`, 250 ms). The entry \
-              goes when that ask is made by a task, where the awaited connect ends the pause",
+              the runtime, and the control `a_socket_whose_listener_is_behind_answers_the_deadline` shows the whole ask ends at the \
+              caller's own deadline (`DRAWN_ANSWER_DEADLINE`, 250 ms) and not at a wait of its own. The entry goes when that ask \
+              is made by a task, where the awaited connect ends the pause",
     },
     Allowed {
         file: "invocation/forwarding.rs",
@@ -427,7 +429,9 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "the hold a control sets between a child that has reported itself and the job that started it, which is the interval \
               the audit of 0.6.1-alpha.12 forced. Release code never takes it (`HOLD_AFTER_THE_START` holds no value outside a \
               build for tests), and it runs inside the closure handed to `run_blocking_job`, so it pauses a thread of the blocking \
-              pool and no worker of the runtime. The entry goes with the control that sets that hold",
+              pool and no worker of the runtime: the control \
+              `a_child_handed_over_after_the_bound_is_stopped_collected_and_never_promised_unrun` answers at its 50 ms bound while \
+              the job holds 250 ms. The entry goes with the control that sets that hold",
     },
     Allowed {
         file: "service/service_is_gone_after_a_stop.rs",
