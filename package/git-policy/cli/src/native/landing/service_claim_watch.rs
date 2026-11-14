@@ -32,6 +32,11 @@
 //!  directory,
 //! not a link.
 //! A repository that moved is another instance and is found by its own wake.
+//! A note is written only for this instance's repository:
+//! every path that writes one,
+//! and the keeping of a note that may be missing,
+//! refuses a directory of another instance,
+//!  so this journal never begins to watch one.
 //! Errors:
 //! only a file that is certainly of no use is removed (it holds no path,
 //! names another instance,
@@ -305,6 +310,30 @@ impl ClaimWatch {
         return of_another_instance(self.instance.as_deref(), git_dir);
     }
 
+    /// What:
+    ///  Whether `git_dir` is refused here for belonging to another instance,
+    /// said in the log when it is.
+    /// Why:
+    ///   A journal holds one instance's repositories,
+    /// so a note written for another one is thrown away by the next start (`scan`),
+    /// and the watch that took it would name a repository this service does not serve.
+    /// Every path that would write a note,
+    /// and the keeping of one that may be missing,
+    /// asks this one question,
+    /// so no two of them can answer it differently.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// if (watch.refusesAsForeign(gitDir)) return; // said once, and nothing is written or owed
+    /// ```
+    fn refuses_as_foreign(&self, git_dir: &Path) -> bool {
+        if !self.is_foreign(git_dir) {
+            return false;
+        }
+        crate::service_warn!("{} belongs to another instance and is not kept for a restart", git_dir.display());
+        return true;
+    }
+
     /// Writes `git_dir` down unless this process has done so.
     /// A write that fails is said and kept for `retry`;
     /// the caller goes on
@@ -316,8 +345,7 @@ impl ClaimWatch {
                 return;
             }
         }
-        if self.is_foreign(git_dir) {
-            crate::service_warn!("{} belongs to another instance and is not kept for a restart", git_dir.display());
+        if self.refuses_as_foreign(git_dir) {
             return;
         }
         let Some(directory) = self.store.clone() else {
@@ -346,6 +374,9 @@ impl ClaimWatch {
     /// which writes the same note twice at worst.
     /// A watch kept in memory only records it at once,
     /// as `remember` does.
+    /// A directory of another instance is refused here as `remember` refuses it:
+    /// its note would be thrown away by the next start,
+    /// and until then this watch would name a repository the service does not serve.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -353,6 +384,9 @@ impl ClaimWatch {
     /// ```
     pub fn a_note_that_may_be_missing(&mut self, git_dir: &Path) {
         if self.store.is_none() || self.holds(git_dir) {
+            return;
+        }
+        if self.refuses_as_foreign(git_dir) {
             return;
         }
         self.unwritten.push(git_dir.to_path_buf());
@@ -401,9 +435,16 @@ impl ClaimWatch {
     }
 
     /// `retry` with the reading of the files given.
+    /// A directory owed a note is asked whether it still names this instance,
+    /// because a path that resolved to this repository when it was kept may resolve to another
+    ///  one when the pause is over,
+    /// and the note written for it would then be one the next start throws away.
     pub fn retry_reading(&mut self, read: ReadFile<'_>) -> Vec<PathBuf> {
         let Some(directory) = self.store.clone() else { return Vec::new() };
         for git_dir in std::mem::take(&mut self.unwritten) {
+            if self.refuses_as_foreign(&git_dir) {
+                continue;
+            }
             match write_down(directory.as_path(), git_dir.as_path()) {
                 Ok(()) => self.known.push(git_dir),
                 Err(reason) => {

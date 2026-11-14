@@ -294,3 +294,64 @@ fn a_note_written_by_the_landing_is_looked_at_by_the_next_service() {
     assert_eq!(files_of(store.as_path()).len(), 1, "another instance's repository is not written down");
     let _removed = std::fs::remove_dir_all(&root);
 }
+
+/// What:
+///  A directory of another instance is never kept as one whose note may be missing,
+/// so no path of the watch writes its note or begins to watch it.
+/// Why:
+///   The work loop keeps a directory as one whose note may be missing when its write gave no answer,
+/// and a note naming another instance's repository is thrown away by the next start:
+/// writing it leaves a note this store's own reader removes,
+/// and until a restart the watch names a repository this service does not serve.
+#[test]
+fn a_note_that_may_be_missing_refuses_a_directory_of_another_instance() {
+    let root: PathBuf = scratch("may-be-missing-foreign");
+    let mine: PathBuf = git_dir_with_work(root.as_path(), "mine.git");
+    let other: PathBuf = git_dir_with_work(root.as_path(), "other.git");
+    let store: PathBuf = root.join("journal").join(WATCH_DIRECTORY);
+    let instance: String = instance_of(mine.as_path());
+    let mut watch: ClaimWatch = ClaimWatch::restored(store.as_path(), Some(instance.as_str()));
+    watch.a_note_that_may_be_missing(other.as_path());
+    assert!(!watch.needs_retry(), "nothing is owed for another instance's repository");
+    assert!(watch.retry().is_empty());
+    assert!(watch.directories().is_empty(), "another instance's repository is not watched");
+    assert!(files_of(store.as_path()).is_empty(), "and no note of it is written");
+    // This instance's own repository goes the way the note that may be missing always went.
+    watch.a_note_that_may_be_missing(mine.as_path());
+    assert!(watch.retry().is_empty());
+    assert_eq!(watch.directories(), vec![mine], "the owed note of this instance's repository is written by the retry");
+    assert_eq!(files_of(store.as_path()).len(), 1, "one note, for the one repository this instance serves");
+    let _removed = std::fs::remove_dir_all(&root);
+}
+
+/// What:
+///  A note owed for a path that leads to another repository by the time it is written is not written either.
+/// Why:
+///   The pause before a retry is long enough for a path to be replaced by a link,
+/// so the write asks whose repository it is at the moment it writes,
+/// not only when the note was kept:
+/// otherwise the store holds a note of a repository this instance does not own,
+/// which its own next start removes.
+#[test]
+fn a_note_owed_for_a_path_that_now_leads_elsewhere_is_not_written() {
+    let root: PathBuf = scratch("owed-then-elsewhere");
+    let mine: PathBuf = git_dir_with_work(root.as_path(), "mine.git");
+    let other: PathBuf = git_dir_with_work(root.as_path(), "other.git");
+    let instance: String = instance_of(mine.as_path());
+    // A file where the store's directory should be makes the first write fail, as a store that stopped answering does.
+    let blocker: PathBuf = root.join("blocker");
+    std::fs::write(&blocker, "not a directory\n").expect("the blocker");
+    let store: PathBuf = blocker.join("store");
+    let mut watch: ClaimWatch = ClaimWatch::restored(store.as_path(), Some(instance.as_str()));
+    watch.remember(mine.as_path());
+    assert!(watch.directories().is_empty(), "not written, so not yet known to the next service");
+    assert!(watch.needs_retry(), "the note is owed");
+    // The path now leads to another repository, and the store answers again.
+    std::fs::remove_dir_all(&mine).expect("the repository is removed");
+    std::os::unix::fs::symlink(&other, &mine).expect("the path now leads to another repository");
+    std::fs::remove_file(&blocker).expect("the store answers again");
+    assert!(watch.retry().is_empty());
+    assert!(watch.directories().is_empty(), "the repository the path leads to now is not this instance's, so it is not watched");
+    assert!(files_of(store.as_path()).is_empty(), "and no note of it is written");
+    let _removed = std::fs::remove_dir_all(&root);
+}
