@@ -16,8 +16,14 @@ with absolute times kept only as scale;
 that rewrite is not reviewed either.
 Upstream merged pull request 1121 on 2026-11-13,
 after the first measurement here was taken of its branch.
-The merge itself was then measured on Node and Bun the same day;
-that second measurement and what is written from it have had no review.
+The merge itself was then measured on Node and Bun the same day.
+A model from another vendor reviewed that second measurement as of commit `2907e3a444`,
+recomputed every ratio,
+range and count from the raw rounds and found them correct;
+its one finding on this document,
+a comparison with the same-code control worded more strongly than the control allows,
+is corrected,
+and that correction has had no review.
 
 Status,
 2026-11-12:
@@ -362,7 +368,7 @@ On Bun it was 1.92 (1.84 to 2.28),
 slower in all seven:
 at a thousand paths that patch changes nothing measurable there,
 the patched merge over the merge being 1.07 (0.95 to 1.22),
-no further from 1 than the merge's package over itself.
+a median inside the range of the merge's package over itself (0.95 to 1.09).
 
 The records of the second measurement are in
 `doc/research/optique-typo-suggestion-overhead-upstream-record.evidence.zip`,
