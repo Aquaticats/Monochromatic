@@ -13,7 +13,7 @@ const NO_CARGO: &str = "/nonexistent/monochromatic-prewarm-control/cargo";
 
 /// What a control fills with when it expects the clean to stop it.
 fn fill_of_nowhere() -> Fill {
-    return Fill { cargo: PathBuf::from(NO_CARGO), limits: ToolLimits { window: std::time::Duration::from_millis(200), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: PathBuf::from("/nonexistent/worktree") };
+    return Fill { cargo: PathBuf::from(NO_CARGO), limits: ToolLimits { window: std::time::Duration::from_millis(200), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: PathBuf::from("/nonexistent/worktree"), filling: String::from("a-controls-filling") };
 }
 
 /// One workspace whose source build directory holds one dependency build,
@@ -169,7 +169,7 @@ fn a_staged_state_the_add_moved_aside_is_cleaned_and_published() {
     let working: PrewarmEntry = PrewarmEntry { staged_in: Some(staged_in.clone()), from: None, ..entry.clone() };
     let cargo: PathBuf = root.join("cargo");
     crate::test_support::executable(cargo.as_path(), b"#!/bin/sh\nexit 0\n");
-    let fill: Fill = Fill { cargo, limits: ToolLimits { window: std::time::Duration::from_millis(500), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone() };
+    let fill: Fill = Fill { cargo, limits: ToolLimits { window: std::time::Duration::from_millis(500), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone(), filling: String::from("a-controls-filling") };
     let filled: Filled = super::fill_one_in_a_control(&fill, &working).expect("the staged state is cleaned and published");
     assert_eq!(filled, Filled::Published);
     assert!(entry.to.join("debug/copied").is_file(), "the cleaned copy is published under the worktree's build directory name");
@@ -731,7 +731,7 @@ fn a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it(
             std::fs::write(lock.as_path(), b"# a lock that no longer matches its manifest\n").expect("the checked-out lock");
         }
         let program: PathBuf = cargo_that_takes_the_persons_lock_as_it_runs(root.as_path());
-        let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")), worktree: root.clone() };
+        let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")), worktree: root.clone(), filling: String::from("a-controls-filling") };
         let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is filled");
         assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name ({state})");
         let after: Option<Vec<u8>> = std::fs::read(lock.as_path()).ok();
@@ -765,7 +765,7 @@ fn a_lock_that_is_current_costs_no_resolution_and_is_never_written() {
     let program: PathBuf = root.join("cargo-that-cleans-once");
     let body: String = format!("#!/bin/sh\necho \"$*\" >> '{record}'\nexit 0\n", record = record.display());
     crate::test_support::executable(program.as_path(), body.as_bytes());
-    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")), worktree: root.clone() };
+    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: Some(root.join("git-dir")), worktree: root.clone(), filling: String::from("a-controls-filling") };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is filled");
     assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
     assert_eq!(std::fs::read(lock.as_path()).ok().as_deref(), Some(THE_RESOLUTIONS_LOCK.as_bytes()), "a current lock is left exactly as it was");
@@ -813,7 +813,7 @@ fn a_directory_at_the_staging_name_that_this_job_did_not_make_is_never_removed()
             // A file at the marker name that does not hold this job's text claims nothing.
             std::fs::write(marker.as_path(), b"a person's own note").expect("a file this filling did not make");
         }
-        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone() };
+        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone(), filling: String::from("a-controls-filling") };
         let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the worktree is filled");
         assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name ({stranger})");
         assert_eq!(std::fs::read(staged.join("keep-me/a-file")).expect("the file this filling did not make is still there"), b"someone's work");
@@ -842,7 +842,7 @@ fn a_published_filling_leaves_no_target_directory_of_its_own() {
         program.as_path(),
         b"#!/bin/sh\nmkdir --parents \"$CARGO_TARGET_DIR/debug\"\necho cleaned > \"$CARGO_TARGET_DIR/debug/state\"\nexit 0\n",
     );
-    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone() };
+    let fill: Fill = Fill { cargo: program, limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone(), filling: String::from("a-controls-filling") };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is cleaned and published");
     assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
     let staged: PathBuf = staging_of(entry.to.as_path());
@@ -876,7 +876,7 @@ fn a_build_directory_below_directories_that_do_not_exist_yet_is_filled() {
     std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     std::fs::create_dir_all(root.join("cargo-build")).expect("the root the person's configuration names");
     assert!(!entry.to.parent().expect("the destination has a directory").exists(), "the destination's own directory is not there before the filling");
-    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone() };
+    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: root.clone(), filling: String::from("a-controls-filling") };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the worktree is filled");
     assert_eq!(filled, Filled::Published, "the copy is published under the worktree's build directory name");
     assert_eq!(std::fs::read(entry.to.join("debug/deps/libserde.rlib")).expect("the published copy"), b"a dependency build");
@@ -976,7 +976,7 @@ fn a_named_pipe_at_the_marker_name_never_holds_the_filling() {
     named_pipe_at(marker.as_path());
     let covered: PathBuf = root.clone();
     let waiting: Option<Result<Filled, String>> = crate::test_support::finished_within_at(FILLING_DEADLINE, move || {
-        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None, worktree: root.clone() };
+        let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None, worktree: root.clone(), filling: String::from("a-controls-filling") };
         return super::fill_one_in_a_control(&fill, &entry);
     });
     let filled: Result<Filled, String> = waiting.expect("the filling must not wait on a named pipe at the marker name");
@@ -1014,7 +1014,7 @@ fn a_file_that_wins_the_race_to_the_marker_name_is_never_removed() {
         }));
     });
     let covered: PathBuf = root.clone();
-    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None, worktree: root.clone() };
+    let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None, worktree: root.clone(), filling: String::from("a-controls-filling") };
     let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
     crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
     assert_eq!(filled, Ok(Filled::Published), "the worktree is filled under names of this run's own");
@@ -1091,6 +1091,7 @@ fn a_write_the_resolution_meets_is_handed_back_and_the_repair_gives_way() {
         limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(10) },
         kept_in: Some(root.join("git-dir")),
         worktree: root.clone(),
+        filling: String::from("a-controls-filling"),
     };
     let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
     let Err(reason) = filled else { panic!("the repair gives way rather than replace the write: {filled:?}") };
@@ -1134,6 +1135,7 @@ fn a_lock_a_person_creates_while_the_repair_resolves_one_is_never_written_over()
         limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(10) },
         kept_in: Some(root.join("git-dir")),
         worktree: root.clone(),
+        filling: String::from("a-controls-filling"),
     };
     let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
     assert!(filled.is_err(), "the repair gives way rather than write over the file a person made: {filled:?}");
@@ -1180,6 +1182,7 @@ fn the_resolution_is_made_in_a_mirror_and_never_in_the_worktrees_lock() {
         limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: std::time::Duration::from_secs(10) },
         kept_in: Some(git_dir.clone()),
         worktree: root.clone(),
+        filling: String::from("a-controls-filling"),
     };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is cleaned and published");
     assert_eq!(filled, Filled::Published);
@@ -1228,6 +1231,7 @@ fn a_filling_that_is_alive_keeps_its_names_from_the_next_one() {
         limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
         kept_in: Some(root.join("git-dir")),
         worktree: root.clone(),
+        filling: String::from("a-controls-filling"),
     };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the second filling fills under names of its own");
     assert_eq!(filled, Filled::Published, "the worktree's build directory is filled");
@@ -1267,6 +1271,7 @@ fn a_filling_a_kill_left_has_its_names_taken_and_its_leftovers_removed() {
         limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
         kept_in: Some(root.join("git-dir")),
         worktree: root.clone(),
+        filling: String::from("a-controls-filling"),
     };
     let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("a lease nobody holds is the next filling's");
     assert_eq!(filled, Filled::Published, "the worktree's build directory is filled");
@@ -1506,6 +1511,7 @@ fn a_named_pipe_at_the_lock_never_holds_the_filling() {
             limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
             kept_in: Some(filling_root.join("git-dir")),
             worktree: filling_root.clone(),
+            filling: String::from("a-controls-filling"),
         };
         return super::fill_one_in_a_control(&fill, &entry);
     });
@@ -1552,6 +1558,205 @@ fn a_staging_pattern_git_does_not_ignore_by_is_named_again() {
         for pattern in super::EXCLUDED_STAGING_PATTERNS {
             let count: usize = lines.iter().filter(|line| return **line == pattern).count();
             assert_eq!(count, 1, "{form:?}: {pattern} is a line of its own exactly once: {raw:?}");
+        }
+        remove(root.as_path());
+    }
+}
+
+/// What:
+///  A stand-in Cargo that takes a while to resolve a workspace,
+///  refuses the first `--locked` clean it is asked for,
+///  and writes the resolution into the workspace it was given.
+/// Why:
+///   The window finding 4 names needs one filling's resolution to be slow enough that a second filling reaches its own
+/// resolution while the first's Cargo is still working inside the mirror,
+/// and a real Cargo would make the control take minutes.
+/// The refusal is what sends the filling to the resolution at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const slowCargo = (root, sleepSeconds) => { const program = join(root, 'cargo-that-resolves-slowly'); write(program, `#!/bin/sh ... sleep ${sleepSeconds} ... printf '%s' "$RESOLUTION" > Cargo.lock`); return program; };
+/// ```
+fn cargo_that_resolves_slowly(root: &Path, sleep_seconds: &str) -> PathBuf {
+    const RESOLUTION: &str = "# the resolution both fillings would make\n";
+    std::fs::create_dir_all(root).expect("the stand-in's directory");
+    let program: PathBuf = root.join("cargo-that-resolves-slowly");
+    let refused: PathBuf = root.join("refused-once");
+    let body: String = format!(
+        "#!/bin/sh\nif [ \"$1\" = clean ]; then\n  if [ ! -e '{refused}' ]; then\n    : > '{refused}'\n    echo 'error: cannot update the lock file because --locked was passed to prevent this' >&2\n    exit 101\n  fi\n  exit 0\nfi\nif [ \"$1\" = metadata ]; then\n  sleep {sleep_seconds}\n  printf '%s' '{resolution}' > Cargo.lock\n  exit $?\nfi\nexit 0\n",
+        refused = refused.display(),
+        sleep_seconds = sleep_seconds,
+        resolution = RESOLUTION,
+    );
+    crate::test_support::executable(program.as_path(), body.as_bytes());
+    return program;
+}
+
+/// What:
+///  Two fillings of one workspace at once each resolve in a mirror of their own,
+///  so neither removes the folder under the other's Cargo,
+///  and both complete.
+/// Why:
+///   A worktree removed and added again at the same path while its first record is queued gives two fillings of one
+/// workspace;
+/// the lease keeps them out of each other's staging names,
+/// but a mirror named after the workspace alone was removed by the second filling under the first one's running Cargo,
+/// so a healthy workspace's filling failed and told the person to update a lock that was fine.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const a = fillOne(slowFill, entry); await sleep(200); const b = fillOne(fastFill, entry); expect(await a).toBeOk(); expect(await b).toBeOk()
+/// ```
+#[test]
+fn two_fillings_of_one_workspace_resolve_in_mirrors_of_their_own() {
+    let root: PathBuf = fixture("prewarm-two-fillings-of-one-workspace");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    // A lock the first `--locked` clean refuses, so each filling has to resolve the workspace.
+    let lock: PathBuf = entry.root.join(LOCK_FILE);
+    std::fs::write(lock.as_path(), b"# a stale committed lock\n").expect("the stale lock");
+    let slow: PathBuf = cargo_that_resolves_slowly(root.as_path(), "0.6");
+    let fast: PathBuf = cargo_that_resolves_slowly(root.join("fast").as_path(), "0");
+    let git_dir: PathBuf = root.join("git-dir");
+    let first_root: PathBuf = root.clone();
+    let second_root: PathBuf = root.clone();
+    let first_entry: PrewarmEntry = entry.clone();
+    let second_entry: PrewarmEntry = entry.clone();
+    let second_git_dir: PathBuf = git_dir.clone();
+    let (first_filled, second_filled): (Result<Filled, String>, Result<Filled, String>) = crate::lazy_runtime::run_on_runtime(async move {
+        let slow_fill: Fill = Fill {
+            cargo: slow,
+            limits: ToolLimits { window: std::time::Duration::from_secs(60), ceiling: FILLING_DEADLINE },
+            kept_in: Some(git_dir),
+            worktree: first_root,
+            filling: String::from("the-first-filling"),
+        };
+        let fast_fill: Fill = Fill {
+            cargo: fast,
+            limits: ToolLimits { window: std::time::Duration::from_secs(60), ceiling: FILLING_DEADLINE },
+            kept_in: Some(second_git_dir),
+            worktree: second_root,
+            filling: String::from("the-second-filling"),
+        };
+        let first = tokio::spawn(async move { return super::fill_one(&slow_fill, &first_entry).await });
+        let second = tokio::spawn(async move {
+            // Long enough for the first filling to be inside its resolution, and inside its mirror.
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            return super::fill_one(&fast_fill, &second_entry).await;
+        });
+        return (first.await.expect("the first filling joins"), second.await.expect("the second filling joins"));
+    })
+    .expect("the runtime");
+    assert!(first_filled.is_ok(), "the first filling of a healthy workspace completes: {first_filled:?}");
+    assert!(second_filled.is_ok(), "and so does the second: {second_filled:?}");
+    assert!(lock.is_file(), "the workspace's lock stands after both fillings: {}", lock.display());
+    remove(root.as_path());
+}
+
+/// What:
+///  A filling that placed a resolution and then put the lock back leaves no copy of the bytes the placement displaced,
+///  and the lock holds them again.
+/// Why:
+///   The placement keeps what its exchange displaced until the restore has put it back,
+/// so a kill in between leaves a person's bytes on disk;
+/// once the restore has done that, the copy is this filling's own leftover and goes,
+/// or every resolution would leave a copy of the lock beside it for ever.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const filled = fillOne(fill, entry); expect(filled).toBePublished(); expect(read(lock)).toBe(stale); expect(copiesWith(gitDir, stale).length).toBe(0)
+/// ```
+#[test]
+fn a_filling_that_placed_a_resolution_leaves_no_copy_of_the_lock_it_displaced() {
+    const RESOLUTION: &str = "# what the resolution wrote\n";
+    let root: PathBuf = fixture("prewarm-placed-resolution-leaves-no-copy");
+    let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+    let lock: PathBuf = entry.root.join(LOCK_FILE);
+    let stale: &[u8] = b"# a stale committed lock\n";
+    std::fs::write(lock.as_path(), stale).expect("the stale lock");
+    let git_dir: PathBuf = root.join("git-dir");
+    let refused: PathBuf = root.join("refused-once");
+    let program: PathBuf = root.join("cargo-that-resolves");
+    let body: String = format!(
+        "#!/bin/sh\nif [ \"$1\" = clean ]; then\n  if [ ! -e '{refused}' ]; then\n    : > '{refused}'\n    echo 'error: cannot update the lock file because --locked was passed to prevent this' >&2\n    exit 101\n  fi\n  exit 0\nfi\nif [ \"$1\" = metadata ]; then\n  printf '%s' '{resolution}' > Cargo.lock\n  exit 0\nfi\nexit 0\n",
+        refused = refused.display(),
+        resolution = RESOLUTION,
+    );
+    crate::test_support::executable(program.as_path(), body.as_bytes());
+    let fill: Fill = Fill {
+        cargo: program,
+        limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
+        kept_in: Some(git_dir.clone()),
+        worktree: root.clone(),
+        filling: String::from("the-filling-that-placed-a-resolution"),
+    };
+    let filled: Filled = super::fill_one_in_a_control(&fill, &entry).expect("the copy is cleaned and published");
+    assert_eq!(filled, Filled::Published);
+    assert_eq!(std::fs::read(lock.as_path()).ok().as_deref(), Some(stale), "the lock holds what it held before the resolution");
+    // The restore keeps the resolution it displaced, which is its own record; what must not stay is the placement's copy of the
+    //  bytes that stood at the lock, because the lock holds them again.
+    let copies: PathBuf = git_dir.join(crate::package_repair_cargo_lock::DISPLACED_DIRECTORY);
+    let mut left: Vec<PathBuf> = Vec::new();
+    let mut pending: Vec<PathBuf> = vec![copies];
+    while let Some(directory) = pending.pop() {
+        let Ok(listing) = std::fs::read_dir(directory.as_path()) else { continue };
+        for entry in listing.flatten() {
+            let path: PathBuf = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if std::fs::read(path.as_path()).ok().as_deref() == Some(stale) {
+                left.push(path);
+            }
+        }
+    }
+    assert!(left.is_empty(), "no copy of the bytes the placement displaced is left after the restore: {left:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A lock the filling cannot read stops that workspace before the clean,
+///  and the file is left exactly as it is found:
+///  both a lock past the read limit and a named pipe at the name.
+/// Why:
+///   "The lock could not be read" and "the checkout has no lock" are two answers:
+/// taking the first for the second let a clean that rewrote the lock smaller have the restore take the tracked
+/// file away as a file the clean had created,
+/// and the worktree was then left with no `Cargo.lock` at all.
+/// A file past the limit is a shape a committed lock can have;
+/// a named pipe at the name is one nothing may wait on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const shape of ['over-the-limit', 'a-named-pipe']) { expect(fillOne(fill, entry)).toBeFailed(); expect(theLockIsUnchanged()).toBe(true) }
+/// ```
+#[test]
+fn a_lock_the_filling_cannot_read_stops_its_clean_and_stays_as_it_is_found() {
+    for shape in ["over-the-limit", "a-named-pipe"] {
+        let root: PathBuf = fixture("prewarm-lock-that-cannot-be-read");
+        let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
+        let lock: PathBuf = entry.root.join(LOCK_FILE);
+        let over_the_limit: Vec<u8> = vec![b'#'; (crate::package_repair_cargo_lock::LOCK_READ_LIMIT as usize) + 1];
+        if shape == "over-the-limit" {
+            std::fs::write(lock.as_path(), over_the_limit.as_slice()).expect("a lock past the read limit");
+        } else {
+            named_pipe_at(lock.as_path());
+        }
+        // A Cargo that is not there: the clean must never be reached, so a run of it would show as a failure of another shape.
+        let fill: Fill = Fill {
+            cargo: PathBuf::from(NO_CARGO),
+            limits: ToolLimits { window: std::time::Duration::from_millis(200), ceiling: FILLING_DEADLINE },
+            kept_in: Some(root.join("git-dir")),
+            worktree: root.clone(),
+            filling: String::from("a-controls-filling"),
+        };
+        let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
+        let Err(reason) = filled else { panic!("{shape}: the workspace gives way rather than clean a lock it cannot read: {filled:?}") };
+        assert!(reason.contains(LOCK_FILE) && reason.contains("so nothing of this workspace was cleaned"), "{shape}: the answer names the lock and says nothing was cleaned: {reason}");
+        if shape == "over-the-limit" {
+            assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), over_the_limit, "the lock past the limit is exactly as it was found");
+        } else {
+            use std::os::unix::fs::FileTypeExt as _;
+            let standing: std::fs::Metadata = std::fs::symlink_metadata(lock.as_path()).expect("the pipe is still there");
+            assert!(standing.file_type().is_fifo(), "the person's pipe is exactly as it was found");
         }
         remove(root.as_path());
     }

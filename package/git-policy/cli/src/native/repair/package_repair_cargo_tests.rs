@@ -457,3 +457,82 @@ fn the_manifest_directories_are_read_as_a_job_of_the_pool() {
         "the tracked manifests were read without asking for a place of the process's bound on blocking jobs, so the reading ran on the task that polls the repairs"
     );
 }
+
+/// What:
+///  The add's own clean gives the workspace up when it cannot read its lock,
+///  and the tracked file is still there afterwards:
+///  both a lock past the read limit and a named pipe at the name.
+/// Why:
+///   The add mapped a read it could not make to "the checkout has no lock", and with that answer the restore took a
+/// lock the clean had rewritten smaller for a file the clean had created and deleted it:
+/// the worktree was left with its tracked `Cargo.lock` gone and a line saying it was back as checked out.
+/// A lock that cannot be read is the person's, so nothing is written and nothing is removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(cleanOneWorkspace()).toBeFailed(); expect(theLockIsUnchanged()).toBe(true)
+/// ```
+#[test]
+fn a_clean_gives_the_workspace_up_when_it_cannot_read_the_lock() {
+    for shape in ["over-the-limit", "a-named-pipe"] {
+        let root: PathBuf = crate::test_support::fixture("cargo-repair-lock-that-cannot-be-read");
+        let worktree: PathBuf = root.join("worktree");
+        let package: PathBuf = worktree.join("package/tiny");
+        let source: PathBuf = root.join("source");
+        std::fs::create_dir_all(package.join("src")).expect("the workspace");
+        std::fs::write(package.join("Cargo.toml"), b"[package]\nname = \"tiny\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n").expect("the manifest");
+        std::fs::write(package.join("src/main.rs"), b"fn main() {}\n").expect("the source");
+        // The build state the copy carried is inside the worktree, so the plan moves it aside; a stranger at the staging name makes
+        //  that refuse, which is what sends the add to its own clean, where the lock is read.
+        std::fs::create_dir_all(package.join("target/debug")).expect("the copied build state");
+        std::fs::write(package.join("target/debug/copied"), b"the copy's state\n").expect("a file of the copy");
+        std::fs::create_dir_all(package.join("target.monochromatic-prewarm")).expect("somebody else's directory at the staging name");
+        std::fs::create_dir_all(source.join("package/tiny")).expect("the source's counterpart workspace");
+        std::fs::write(source.join("package/tiny/Cargo.toml"), b"[package]\nname = \"tiny\"\n").expect("the source's manifest");
+        let lock: PathBuf = package.join(LOCK_FILE);
+        let over_the_limit: Vec<u8> = vec![b'#'; (crate::package_repair_cargo_lock::LOCK_READ_LIMIT as usize) + 1];
+        if shape == "over-the-limit" {
+            std::fs::write(lock.as_path(), over_the_limit.as_slice()).expect("a lock past the read limit");
+        } else {
+            named_pipe_at(lock.as_path());
+        }
+        // A Cargo that records every run: the clean must never be reached at all.
+        let (cargo, calls): (PathBuf, PathBuf) = recording_cargo(
+            root.as_path(),
+            metadata_of(package.as_path(), root.join("build/aa/cccccccccccccc").as_path(), package.join("target").as_path()).as_str(),
+        );
+        let tool: CargoTool = CargoTool { program: cargo, limits: ToolLimits { window: std::time::Duration::from_secs(60), ceiling: std::time::Duration::from_secs(60) } };
+        let workspace: Workspace = Workspace { root: package.clone(), build_directory: package.join("target"), target_directory: package.join("target"), members: vec![String::from("tiny")] };
+        let done: Done = crate::lazy_runtime::run_on_runtime(repair_workspace_awaiting(&tool, &workspace, worktree.as_path(), source.as_path(), None)).expect("this process's runtime starts");
+        let Done::Failed(finding) = done else { panic!("{shape}: the add gives the clean up rather than touch a lock it cannot read") };
+        let crate::package_repair_report::Outcome::Failed { reason, .. } = &finding.outcome else { panic!("{shape}: the answer is a failure: {finding:?}") };
+        assert!(reason.contains(LOCK_FILE) && reason.contains("so nothing of this workspace was cleaned"), "{shape}: the line names the lock and says nothing was cleaned: {reason}");
+        let recorded: String = std::fs::read_to_string(calls.as_path()).unwrap_or_default();
+        let cleaned: Vec<&str> = recorded.lines().filter(|line: &&str| return line.starts_with("clean ")).collect();
+        assert!(cleaned.is_empty(), "{shape}: no clean ran: {cleaned:?} of {recorded}");
+        if shape == "over-the-limit" {
+            assert_eq!(std::fs::read(lock.as_path()).expect("the lock is still there"), over_the_limit, "{shape}: the tracked lock is exactly as it was found");
+        } else {
+            use std::os::unix::fs::FileTypeExt as _;
+            let standing: std::fs::Metadata = std::fs::symlink_metadata(lock.as_path()).expect("the pipe is still there");
+            assert!(standing.file_type().is_fifo(), "{shape}: the person's pipe is exactly as it was found");
+        }
+        crate::test_support::remove(root.as_path());
+    }
+}
+
+/// The lock file beside a workspace's root manifest.
+const LOCK_FILE: &str = "Cargo.lock";
+
+/// What:
+///  Make a named pipe at `path`.
+/// Why:
+///   A named pipe is the one foreign object whose plain open waits for a writer that may never come,
+/// which is what the lock's read must never do at a name anyone can write.
+fn named_pipe_at(path: &Path) {
+    use std::os::unix::ffi::OsStrExt as _;
+    let named: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a fixture path holds no NUL byte");
+    // SAFETY: the string is NUL-terminated and outlives the call, and the name is a fresh path in the fixture.
+    let made: libc::c_int = unsafe { libc::mkfifo(named.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "make a named pipe at {}: {}", path.display(), std::io::Error::last_os_error());
+}

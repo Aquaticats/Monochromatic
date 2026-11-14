@@ -82,8 +82,23 @@ const STAGING_SUFFIX: &str = "restoring";
 /// Why:
 ///   The lock is the person's own file,
 /// and a read whose size somebody else decides is not a read this module takes:
-/// a lock far larger than Cargo's own is not a lock any step here has to judge,
-/// and refusing it costs one workspace's repair rather than a wait.
+/// a file past this size is not a lock any step here has to judge,
+/// and refusing it costs one workspace's repair rather than a wait,
+/// or a memory spike from a file somebody else sized.
+///   Where the number comes from:
+/// measured on this host on 2026-11-13,
+/// the thirty-five committed locks of this repository are 78,968 bytes for this package,
+/// 173,511 for `package/ide/app`,
+/// 201,284 for `package/music-player/desktop-app`,
+/// and no other above 200,000,
+/// so `1 MiB` is more than five times the largest lock this repository commits
+/// and leaves room for a workspace whose dependency graph a person grows by hand.
+/// A lock past it is refused (`ReadRefusal::TooLarge`),
+/// never truncated,
+/// and the refusal is two answers for the caller:
+/// the add gives that workspace's clean up before anything is written,
+/// and the filling gives the workspace up,
+/// so nothing places a resolution over a file it could not read and nothing removes one.
 pub const LOCK_READ_LIMIT: u64 = 1 << 20;
 
 /// The most bytes of one lock's hexadecimal path that go into one directory name.
@@ -388,8 +403,20 @@ fn copies_directory(kept_in: &Path, lock: &Path) -> PathBuf {
 #[derive(Debug)]
 pub enum Placed {
     /// The resolution's bytes stand at the lock path,
-    /// and whatever stood there first was the bytes the filling read before it began.
-    Placed,
+    /// and the bytes the exchange displaced are kept at this path until the caller's restore has put them back.
+    ///
+    /// They are kept even when they look like the checkout's own:
+    /// `before` is whatever stood at the lock when the filling began,
+    /// and the filling runs after the add returned,
+    /// so a person may have written their own lock by then,
+    /// and this step cannot tell their bytes from the checkout's.
+    /// The copy is therefore kept until the lock holds those bytes again,
+    /// so a caller that never gets that far leaves them on disk.
+    Placed {
+        /// Where the displaced bytes are kept,
+        /// or nothing when the lock had no file for the resolution to displace.
+        displaced: Option<PathBuf>,
+    },
     /// Nothing was written there,
     /// because the steps that would prove what they displaced cannot run,
     /// or because the bytes there are a person's.
@@ -435,7 +462,7 @@ pub fn place_the_resolution(root: &Path, resolution: &[u8], before: Option<&[u8]
         // Nothing stood at the lock path when the filling began, so the resolution is created there and never written over a file
         //  a person made meanwhile.
         return match crate::rename_that_never_replaces::rename_noreplace(staged.as_path(), path.as_path()) {
-            Ok(()) => Placed::Placed,
+            Ok(()) => Placed::Placed { displaced: None },
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
                 let _kept = std::fs::remove_file(staged.as_path());
                 Placed::GaveWay(format!(
@@ -454,7 +481,7 @@ pub fn place_the_resolution(root: &Path, resolution: &[u8], before: Option<&[u8]
             // The file went away since the filling read it: the resolution is created where nothing stands, and a person's new
             //  file is never written over.
             return match crate::rename_that_never_replaces::rename_noreplace(staged.as_path(), path.as_path()) {
-                Ok(()) => Placed::Placed,
+                Ok(()) => Placed::Placed { displaced: None },
                 Err(refusal) => {
                     let _kept = std::fs::remove_file(staged.as_path());
                     Placed::GaveWay(format!(
@@ -493,9 +520,10 @@ pub fn place_the_resolution(root: &Path, resolution: &[u8], before: Option<&[u8]
         }
     };
     if handed_back.as_deref() == Some(standing) {
-        // What came out is the bytes the filling read at its start: they are the checkout's own and the branch holds them.
-        let _dropped = std::fs::remove_file(staged.as_path());
-        return Placed::Placed;
+        // What came out is the bytes the filling read at its start, and this step cannot tell whether they are the checkout's or a
+        //  write of the person's made since the add returned: the branch holds the checkout's and nobody holds theirs. The copy
+        //  stays until the caller's restore has put those bytes back at the lock, and a kill before that leaves them on disk.
+        return Placed::Placed { displaced: Some(staged) };
     }
     #[cfg(test)]
     BETWEEN_THE_READING_AND_THE_ROLLBACK.with(|hook| {

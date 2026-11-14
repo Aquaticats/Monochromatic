@@ -93,6 +93,15 @@ pub(crate) struct Fill {
     /// The worktree every workspace of one record sits in,
     /// which is the root a resolution's mirror of a workspace is laid out below.
     pub(crate) worktree: PathBuf,
+    /// This filling's own name,
+    /// so the mirror one resolution is made in belongs to one filling.
+    ///
+    /// Two fillings of one workspace run at once when a worktree is removed and added again at the same
+    /// path while its first record is still queued,
+    /// and the lease keeps them out of each other's staging names;
+    /// a mirror named after the workspace alone lets one delete the other's while its Cargo runs,
+    /// which fails a healthy workspace's repair and tells the person to update a lock that is fine.
+    pub(crate) filling: String,
 }
 
 /// What:
@@ -480,7 +489,9 @@ async fn resolve_the_workspace_elsewhere(fill: &Fill, entry: &PrewarmEntry) -> R
             entry.root.display()
         ));
     };
-    let root: PathBuf = the_resolutions_mirror_root(kept_in, entry.root.as_path());
+    // The mirror is this filling's own: two fillings of one workspace never share it, so neither can remove the folder under
+    //  the other's Cargo (`a_name_of_this_filling`).
+    let root: PathBuf = the_resolutions_mirror_root(kept_in, entry.root.as_path()).join(fill.filling.as_str());
     // A mirror a killed resolution left is this job's own, and it is rebuilt rather than trusted.
     let _cleared = std::fs::remove_dir_all(root.as_path());
     let mirrored: PathBuf = match mirror_the_workspace(fill.worktree.as_path(), entry.root.as_path(), root.as_path()) {
@@ -528,6 +539,23 @@ const NAME_BYTES: usize = 200;
 /// ```ts
 /// const root = chunk(hexOfPath(workspace), 200).reduce((path, piece) => join(path, piece), join(keptIn, RESOLUTIONS_DIRECTORY));
 /// ```
+/// What:
+///  This filling's own name,
+///  as its process and the moment it asked.
+/// Why:
+///   One mirror for one filling is what keeps two fillings of one workspace from deleting each other's folder while a Cargo
+/// runs in it,
+/// and a name no other filling has is proof enough that the folder is this one's to remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aNameOfThisFilling = () => `${process.pid}-${nanos().toString(16)}`;
+/// ```
+fn a_name_of_this_filling() -> String {
+    let since_the_epoch: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap_or_default();
+    return format!("{}-{:x}", std::process::id(), since_the_epoch.as_nanos());
+}
+
 fn the_resolutions_mirror_root(kept_in: &Path, workspace: &Path) -> PathBuf {
     let hex: String = crate::path_bytes_in_records::hex_of_path(workspace);
     let mut directory: PathBuf = kept_in.join(RESOLUTIONS_DIRECTORY);
@@ -1176,11 +1204,34 @@ async fn fill_the_staging(fill: &Fill, entry: &PrewarmEntry, names: &TheNames) -
             }
         };
         match place_the_resolution(entry.root.as_path(), &resolution, lock_before.as_deref(), fill.kept_in.as_deref()) {
-            Placed::Placed => {
+            Placed::Placed { displaced } => {
                 run = clean_the_copy(fill, entry, names).await;
                 match restore_only_the_cleans_own(entry.root.as_path(), lock_before.as_deref(), fill.kept_in.as_deref(), resolution.as_slice()) {
                     None => {}
                     Some(said) => debug(TAG, format!("{}: {said}", entry.root.display()).as_str()),
+                }
+                // The bytes the placement displaced are this filling's own copy of what stood at the lock. They go only when the lock holds
+                //  them again, which is what the restore does; anything else, a restore that could not write or a kill before it, leaves them
+                //  where they are, and the line names them rather than deleting a person's only copy.
+                if let Some(kept) = displaced.as_ref() {
+                    let back: bool = matches!(read_lock(entry.root.as_path()), Ok(Some(bytes)) if Some(bytes.as_slice()) == lock_before.as_deref());
+                    if back {
+                        if let Err(error) = std::fs::remove_file(kept.as_path())
+                            && error.kind() != std::io::ErrorKind::NotFound
+                        {
+                            debug(TAG, format!("{} could not be removed after the restore ({error})", kept.display()).as_str());
+                        }
+                    } else {
+                        debug(
+                            TAG,
+                            format!(
+                                "{}: the bytes the resolution displaced are kept at {}, beside the lock the repair resolved",
+                                entry.root.display(),
+                                kept.display()
+                            )
+                            .as_str(),
+                        );
+                    }
                 }
             }
             Placed::GaveWay(reason) => {
@@ -1261,7 +1312,13 @@ async fn prewarm_awaiting_with(item: &WorkItem, environment: &RepairEnvironment)
     let Some(cargo) = cargo_for(item.repository.as_path(), environment) else {
         return Verdict::Failed(format!("no `{PROGRAM}` could be found to clean the copies with"));
     };
-    let fill: Fill = Fill { cargo, limits: environment.limits(), kept_in: Some(item.git_dir.clone()), worktree: item.repository.clone() };
+    let fill: Fill = Fill {
+        cargo,
+        limits: environment.limits(),
+        kept_in: Some(item.git_dir.clone()),
+        worktree: item.repository.clone(),
+        filling: a_name_of_this_filling(),
+    };
     let mut published: usize = 0;
     let mut kept: usize = 0;
     let mut failures: Vec<String> = Vec::new();

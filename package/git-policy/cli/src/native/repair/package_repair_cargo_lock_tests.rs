@@ -456,3 +456,79 @@ fn a_named_pipe_at_the_lock_never_holds_the_read_of_it() {
     assert!(reason.contains(LOCK_FILE) && reason.contains("not a regular file"), "the refusal names the file and what stands there: {reason}");
     remove(covered.as_path());
 }
+
+/// What:
+///  The bytes the placement's exchange displaced are kept, under a name the answer gives,
+///  whether they are the checkout's or a write a person made after the add returned,
+///  and a kill at that instruction leaves them on disk.
+/// Why:
+///   `before` is whatever stood at the lock when the filling began, and the filling runs after the add returned,
+/// so those bytes may be a person's own lock;
+/// deleting them on the guess that they are the checkout's lost the only on-disk copy when the service was killed
+/// before its restore, or when the restore could not write.
+/// The copy stays until the lock holds those bytes again, which is the restore's work and not this step's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const placed = placeTheResolution(root, resolution, personsBytes, gitDir); expect(placed.kind).toBe('placed'); expect(readFileSync(placed.displaced)).toEqual(personsBytes)
+/// ```
+#[test]
+fn the_bytes_the_placement_displaced_are_kept_under_the_name_the_answer_gives() {
+    // Both states `before` can be in: the checkout's bytes, and a write of the person's made after the add returned.
+    for (label, standing) in [("the checkout's", CHECKED_OUT), ("a person's", THE_PERSONS_FIRST_WRITE)] {
+        let root: PathBuf = fixture("cargo-lock-placement-keeps-what-it-displaced");
+        let lock: PathBuf = root.join(LOCK_FILE);
+        let git_dir: PathBuf = git_directory(root.as_path());
+        std::fs::write(lock.as_path(), standing).expect("what the filling read at its start");
+        let placed: Placed = place_the_resolution(root.as_path(), THE_RESOLUTION, Some(standing), Some(git_dir.as_path()));
+        let Placed::Placed { displaced } = placed else { panic!("{label}: the resolution is placed: {placed:?}") };
+        let kept: PathBuf = displaced.expect("something stood at the lock, so something was displaced");
+        assert_eq!(std::fs::read(kept.as_path()).expect("the kept copy"), standing, "{label}: the displaced bytes are kept whole");
+        assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), THE_RESOLUTION, "{label}: the resolution stands at the lock");
+        // A kill here is this drop: nothing runs after it, and the bytes are still on disk.
+        drop(kept);
+        assert_eq!(copies_with(git_dir.as_path(), standing).len(), 1, "{label}: after a kill at this instruction the bytes are on disk once");
+        remove(root.as_path());
+    }
+}
+
+/// What:
+///  A restore that cannot write leaves those bytes on disk too,
+///  and says the lock is as the clean left it.
+/// Why:
+///   The second clean itself can fill the disk,
+/// so the no-kill leg needs no timing either:
+/// the restore keeps nothing of its own and the placement's copy is the only one left,
+/// which is why the placement must not have deleted it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const placed = placeTheResolution(...); makeTheCopiesDirectoryUnwritable(); const said = restoreOnlyTheCleansOwn(...); expect(said).toContain('could not be kept'); expect(copiesWith(gitDir, personsBytes).length).toBe(1)
+/// ```
+#[test]
+fn a_restore_that_cannot_write_leaves_the_placement_kept_bytes_on_disk() {
+    let root: PathBuf = fixture("cargo-lock-placement-then-a-restore-that-cannot-write");
+    let lock: PathBuf = root.join(LOCK_FILE);
+    let git_dir: PathBuf = git_directory(root.as_path());
+    let persons: &[u8] = THE_PERSONS_FIRST_WRITE;
+    std::fs::write(lock.as_path(), persons).expect("the person's write, which the filling read");
+    let placed: Placed = place_the_resolution(root.as_path(), THE_RESOLUTION, Some(persons), Some(git_dir.as_path()));
+    let Placed::Placed { displaced } = placed else { panic!("the resolution is placed: {placed:?}") };
+    let kept: PathBuf = displaced.expect("the person's write was displaced");
+    // The copies directory cannot be written, which is the shape of a full disk.
+    let copies: PathBuf = kept.parent().expect("the copies directory").to_path_buf();
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(copies.as_path(), std::fs::Permissions::from_mode(0o500)).expect("the copies directory is made unwritable");
+    }
+    let said: Option<String> = restore_only_the_cleans_own(root.as_path(), Some(persons), Some(git_dir.as_path()), THE_RESOLUTION);
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(copies.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the copies directory is writable again");
+    }
+    let words: String = said.expect("the person is told what became of the bytes");
+    assert!(words.contains("could not be kept"), "the restore says it could not keep what stood there: {words}");
+    assert_eq!(std::fs::read(kept.as_path()).expect("the placement's copy"), persons, "the person's bytes are still on disk, at the name the placement gave");
+    assert_eq!(std::fs::read(lock.as_path()).expect("the lock"), THE_RESOLUTION, "and the lock is as the clean left it");
+    remove(root.as_path());
+}

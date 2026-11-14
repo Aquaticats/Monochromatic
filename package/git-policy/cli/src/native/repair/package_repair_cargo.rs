@@ -392,13 +392,16 @@ async fn repair_workspace_awaiting(tool: &CargoTool, workspace: &Workspace, dest
         }
     }
     let command: ToolCommand = ToolCommand { arguments: clean_arguments(workspace.members.as_slice()), directory: workspace.root.clone(), set: Vec::new() };
+    // "The lock could not be read" and "the checkout has no lock" are two answers, and only the second may let the restore treat
+    //  what the clean left as the clean's own: with the first, a clean that rewrote the lock smaller would have the restore take the
+    //  tracked file away as a file the clean had created, and the worktree would be left with its Cargo.lock deleted.
+    //  So a lock that cannot be read stops this workspace's clean here, before anything is written, and the line names the file and
+    //  what stands there; the copy the worktree already holds is what a build then reuses, exactly as when a clean fails.
     let lock_before: Option<Vec<u8>> = match read_lock(workspace.root.as_path()) {
         Ok(bytes) => bytes,
-        // A lock that is not a regular file is a person's, so its bytes are unknown here and the restore below leaves it exactly
-        //  as it is found; the add reports the clean as it always does and never fails for it.
         Err(reason) => {
-            debug(TAG, format!("{reason}; the clean runs, and the lock is left exactly as it is found").as_str());
-            None
+            debug(TAG, format!("{reason}; nothing of this workspace was cleaned").as_str());
+            return workspace_failed(manual.as_str(), format!("{reason}, so nothing of this workspace was cleaned and the lock is left exactly as it is found"));
         }
     };
     let run: ToolRun = timed_clean_awaiting(tool, &command).await;
