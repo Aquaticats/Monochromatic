@@ -23,7 +23,7 @@ use super::service_commit::runtime_for;
 use super::service_landing_lock::foreign_commit_until_released;
 use super::service_landing_selection::base_repository;
 use super::strace::{strace_available, strace_program};
-use super::support::{Fixture, Observed, bounded_for, fixture, git, kill_with_everything_it_started, observe, own_group, repository, spawn_owned, wrapper_first_path};
+use super::support::{Fixture, Observed, assert_nothing_in_group, bounded_for, fixture, git, group_of, kill_with_everything_it_started, observe, repository, spawn_owned, wrapper_first_path};
 use super::wait_notice::{Watched, watch_notices};
 use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::landing::service_index_prestage::MARKERS_MADE_AHEAD;
@@ -1728,21 +1728,34 @@ fn a_listener_that_never_accepts(path: &Path, backlog: libc::c_int) -> OwnedFd {
 
 /// What:
 ///  A process whose start arguments are a commit service's of `instance`,
-///  and which runs nothing of one.
+///  which runs nothing of one,
+///  and which is one process with no child of its own.
 /// Why:
 ///   The client asks the process table whether a service of the worktree runs before it connects,
 ///  so a socket of a service that stopped is never touched;
 ///  a control of the connect therefore needs a process that looks like that service and is not it.
-///  The shell holds the words and runs a sleep,
-///  and the group guard of `spawn_owned` ends it however the control ends.
+///  `read` is a shell builtin that waits for the end of its standard input,
+///  and this control holds the pipe that input is:
+///  the shell waits there as one process,
+///  so there is no child for a kill to miss.
+///  A shell that forked a `sleep` instead left that `sleep` behind when the shell was killed,
+///  reparented to the manager and keeping the test's scope alive for its whole ten minutes
+///  (integration pass 31,
+///  2026-11-14,
+///  its report's first finding).
+///  `spawn_owned` puts it in a group of its own, gives it `PR_SET_PDEATHSIG` and has it killed when the test's thread ends,
+///  and the control that still holds it ends it by name before it asserts that nothing of it is left
+///  (`support::assert_nothing_in_group`).
 ///  The fixture starts a service of every worktree under it when a wrapped command runs (`bounded_for`,
 ///  `service_runtime`),
 ///  so this process says the same thing on the control's own runtime directory,
 ///  where the service it is not has left no socket.
 fn a_process_that_looks_like_the_service(instance: &str) -> Held {
     let mut command: Command = Command::new("/bin/sh");
-    command.args(["-c", "sleep 600; :", "service", "run", "--instance", instance]);
-    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    // The words after the script are the shell's own arguments, so its command line carries the service's start arguments.
+    command.args(["-c", "read ignored", "service", "run", "--instance", instance]);
+    // The read waits for this pipe to close, which happens when this control drops it or ends; a child may not inherit it.
+    command.stdin(Stdio::piped()).stdout(Stdio::null()).stderr(Stdio::null());
     return Held(spawn_owned(&mut command).expect("the stand-in process starts"));
 }
 
@@ -1913,7 +1926,7 @@ fn a_commit_whose_look_at_the_processes_does_not_answer_gives_the_request_up_and
     // A listener with room, so a request that were sent would be sent in full: only the look's ceiling can give it up.
     let _listener: OwnedFd = a_listener_that_never_accepts(socket.as_path(), 8);
     // A process whose start arguments are the service's, so the look would find one if it answered.
-    let _stand_in: Held = a_process_that_looks_like_the_service(instance_argument(repo.as_path()).as_str());
+    let mut stand_in: Held = a_process_that_looks_like_the_service(instance_argument(repo.as_path()).as_str());
     let held: HeldLook = HeldLook::named(&fixture, "the-look-is-held");
     let armed: [(&str, String); 1] = [(git_policy_cli::service_warm_request_control_window::PARK_VARIABLE, held.armed())];
     let refusal: Refusal = refusing_commit_with(&fixture, repo.as_path(), runtime.as_path(), cache.as_path(), &armed);
@@ -1925,6 +1938,10 @@ fn a_commit_whose_look_at_the_processes_does_not_answer_gives_the_request_up_and
     // Nothing accepted at the listener, so an artifact here is the command's own publication,
     //  which happens only when the request was given up (`cache_access`).
     assert!(compiled_rules_in(cache.as_path()) > 0, "the command published the rules itself, because its look did not answer");
+    // The stand-in is ended here so this control can prove nothing it started outlives it, which is what a leak looks like.
+    let group: libc::pid_t = group_of(&stand_in.0);
+    kill_with_everything_it_started(&mut stand_in.0);
+    assert_nothing_in_group(group);
     held.let_it_go_on();
     remove_settled(&fixture);
 }
@@ -1959,7 +1976,7 @@ fn a_service_killed_between_the_look_and_the_connection_is_started_by_the_connec
     // The peer that behaves as socket activation does: it starts a service when a connection arrives, and that service reads
     //  the request. No manager is started on this machine; this listener is the control's own stand-in for one.
     let listener: UnixListener = UnixListener::bind(socket.as_path()).expect("the control's listening socket");
-    let (started_told, started_heard) = std::sync::mpsc::channel::<Child>();
+    let (started_told, started_heard) = std::sync::mpsc::channel::<Held>();
     let (alive_told, alive_heard) = std::sync::mpsc::channel::<bool>();
     let (line_told, line_heard) = std::sync::mpsc::channel::<String>();
     let serving_instance: String = instance.clone();
@@ -1967,11 +1984,9 @@ fn a_service_killed_between_the_look_and_the_connection_is_started_by_the_connec
         let Ok((accepted, _address)) = listener.accept() else { return };
         // SAFETY: `kill` with signal 0 asks whether the process is there and sends nothing.
         let _sent_alive = alive_told.send(unsafe { libc::kill(stand_in_pid, 0) } == 0);
-        let mut successor: Command = Command::new("/bin/sh");
-        successor.args(["-c", "sleep 600; :", "service", "run", "--instance", serving_instance.as_str()]);
-        successor.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-        let Ok(child) = successor.spawn() else { return };
-        let _sent_started = started_told.send(child);
+        // The manager starts a service on the connection; this is its stand-in, one process with no child,
+        //  owned by the thread that starts it so it cannot outlive this control.
+        let _sent_started = started_told.send(a_process_that_looks_like_the_service(serving_instance.as_str()));
         let mut line: String = String::new();
         let _read = std::io::BufReader::new(accepted).read_line(&mut line);
         let _sent_line = line_told.send(line);
@@ -1988,14 +2003,49 @@ fn a_service_killed_between_the_look_and_the_connection_is_started_by_the_connec
         return committing.join().expect("the commit's thread ends");
     });
     assert_eq!(refusal.observed.code, Some(1), "the policy refuses the change: {}", String::from_utf8_lossy(refusal.observed.stderr.as_slice()));
-    let started: Child = started_heard.recv_timeout(PATIENCE).expect("the connection was accepted and started a service");
+    let mut started: Held = started_heard.recv_timeout(PATIENCE).expect("the connection was accepted and started a service");
     let alive_when_accepted: bool = alive_heard.recv_timeout(PATIENCE).expect("the control knows whether the found service was there");
     assert!(!alive_when_accepted, "the connection was accepted after the service the look found was killed");
     let line: String = line_heard.recv_timeout(PATIENCE).expect("the started service read the request line");
     assert_eq!(line, format!("{}\n", git_policy_cli::service_protocol_encode_messages_to_lines::encode_client(&git_policy_cli::service_protocol_messages_and_name_checks::ClientMessage::Warm { git_dir: repo.join(".git"), repository: repo.clone() })), "the line is the client's warm request");
-    // The started service is this control's own stand-in: it sleeps a long time like a service does,
-    //  so it is ended by the module's guard and by the thread's group whatever ends the test.
-    own_group(&started);
-    let _started: Held = Held(started);
+    // The started service is this control's own stand-in. It is ended here, and the control then proves that nothing it
+    //  started is left: a service-shaped process that outlived its control kept this test's scope alive on 2026-11-14.
+    let group: libc::pid_t = group_of(&started.0);
+    kill_with_everything_it_started(&mut started.0);
+    assert_nothing_in_group(group);
+    remove_settled(&fixture);
+}
+
+/// What:
+///  A stand-in ends by itself when the process that held its input is gone,
+///  and the control proves that nothing of it is left.
+/// Why:
+///   Integration pass 31 found the stand-ins of this branch outliving their tests on 2026-11-14,
+///  reparented to the manager and keeping the test's scope alive for ten minutes.
+///  The stand-in waits on a pipe this control holds,
+///  so the kernel ends it when the holder goes:
+///  that is the ending a test binary killed outright gives it,
+///  which no guard inside this process would run for.
+///  The control drops the pipe itself rather than killing anything,
+///  so what ends the stand-in is the same release the kernel makes when a holder disappears.
+#[test]
+fn a_stand_in_ends_by_itself_when_the_process_that_held_its_input_is_gone() {
+    let fixture: Fixture = fixture("warm-stand-in-ends-with-its-holder");
+    let mut stand_in: Held = a_process_that_looks_like_the_service("an-instance-no-service-of-this-fixture-has");
+    assert!(stand_in.0.try_wait().expect("the stand-in's state").is_none(), "the stand-in waits while this control holds its input");
+    // Its group is asked while it is there, so the check at the end can name the group it was in.
+    let group: libc::pid_t = group_of(&stand_in.0);
+    // What a killed test binary leaves: its descriptors close. The pipe's write end is this control's, so dropping it is that ending.
+    let held_input: std::process::ChildStdin = stand_in.0.stdin.take().expect("the stand-in's input pipe");
+    drop(held_input);
+    let began: Instant = Instant::now();
+    loop {
+        if stand_in.0.try_wait().expect("the stand-in's state").is_some() {
+            break;
+        }
+        assert!(began.elapsed() < PATIENCE, "the stand-in ends when the holder of its input went, and it did not in {:?}", began.elapsed());
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_nothing_in_group(group);
     remove_settled(&fixture);
 }
