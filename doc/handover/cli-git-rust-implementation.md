@@ -1239,6 +1239,59 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Two authors' work goes to review: issue 6300's answer and the lock of a killed Git where births are equal (2026-11-14T02:16:26-05:00)
+
+Not final and not approved:
+the coordinating session's reading of two last messages,
+kept under `~/temp/agent/last-messages-of-the-runs-that-ended-2026-11-14T0210-to-0215/keep/`.
+
+- **Issue 6300, the answer**
+  (`feat/mpm-shadow-cli-install-takes-a-tool-and-adds-it-to-the-plan`,
+  tip `01c60626b8`,
+  ended 02:10:28):
+  the author reproduced the review's finding
+  (the plan's temporary file created wider than the plan's mode)
+  and measured what the review had not:
+  the folders above it let the owner's group read it,
+  not every account.
+  The temporary is now created with the kept mode and has it put on the descriptor before the first byte,
+  and a temporary whose process is gone is removed by the next write.
+  Four controls fail without the fix.
+  It also removed a non-Unix arm that called itself until the stack ended.
+  Its gates:
+  `lint` and `lint:types` 0,
+  780 of 780 tests.
+  Whether its Clippy run was under `nightly-2026-11-14` is for the review to say;
+  `main`'s is red under it.
+  Review of the answer queued
+  (range `main...01c60626b8`).
+- **A lock a killed Git left, where the lock and its record carry one birth stamp**
+  (`fix/git-policy-cli-lock-a-killed-git-left-is-cleared-on-a-volume-where-births-are-equal-by-a-record-the-wrapper-wrote`,
+  tip `f8f5cba090`,
+  from `e7474d6803`,
+  ended 02:14:12):
+  the route held only in a changed form,
+  each change a measurement:
+  a birth stamp proves nothing here
+  (pairs of files made back to back share one to the nanosecond),
+  the change time is unusable,
+  and an inode number alone is reused,
+  so the record holds a hard link to the lock's PID file.
+  A wrapper merge killed while stalled in `index.lock` is now cleared by that record,
+  where before nothing was removed and the commit failed.
+  The advice line now ends in one `rm --` of both files.
+  Cost:
+  ratios 1.003 and 0.985 on `git status` and `git reset`,
+  inside the spread.
+  One hole it names and leaves:
+  a Git of a sibling PID namespace with the same number in the same instant.
+  Review queued
+  (range `main...f8f5cba090`).
+- Started since the outage:
+  integration pass 35 at 02:03:54 and the lock shim's run at 02:15:18.
+  The probe at level seventeen had not ended by 02:16:13.
+  The queue held 67 entries at 02:16:26.
+
 ##### No Pi run could start for twenty minutes: a lock this repository's shim never takes over; `0.6.1-alpha.24` is installed; the cap is seventeen (2026-11-14T02:05:16-05:00)
 
 Not final and not approved:
