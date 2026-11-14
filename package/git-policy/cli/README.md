@@ -1017,6 +1017,15 @@ Read-only commands,
      Without such a record the report says what the command itself did,
      names `--force`,
      and says that moving a volume out cannot finish a tree whose tracked entries are gone.
+     A worktree whose stat fields prove nothing yet,
+     because its files and its index were written in the same whole second just after the add,
+     is proven by its files instead:
+     the wrapper reads the entries its stat data cannot vouch for and the removal goes around the volume,
+     so adding a worktree,
+     putting a snapshot in it and removing it at once is the documented way and not a refusal.
+     A tree that proof also cannot settle is refused in words that say Git reports no change in the worktree at all,
+     give the reason,
+     and name `--force`.
   A later `git worktree add` at that path meets a directory that is not empty:
      Git's own line says only that it exists,
      and the wrapper adds one line naming each volume a removal left and what frees the path.
