@@ -442,11 +442,23 @@ Neither shape is ever written by the amended shim,
 
 `release()` reads the record before removing the lock,
  so it never removes a lock that no longer names it.
-When the record names another process, or no record is there at all,
+Each holding carries a nonce of its own,
+ so a release callback kept from an earlier holding of the same file by the same process removes nothing of the later
+ holding either;
+ a record of pid, start tick and boot alone would have made the two holdings indistinguishable.
+When the record is another holding's, or no record is there at all,
  the caller's `onCompromised` is given an error with `code === 'ECOMPROMISED'` and the lock is left alone.
 While the lock is held, the same check runs every `stale / 2` milliseconds when the caller passed a callback,
  which is what makes `auth-storage.js`'s `throwIfCompromised()` guard meaningful:
  the caller learns its lock is gone before it writes, not after.
+
+Removing a lock this shim wrote is conditional on it still being the entry judged dead,
+ because POSIX has no unlink-if-content:
+ the entry is renamed aside under a private name,
+ the entry actually moved is compared with the one inspected by inode and by record,
+ and an entry that is not the judged one is hard-linked back.
+So a lock another caller took in the microsecond between judgement and removal is put back rather than deleted.
+A directory an earlier shim left has no record to compare and is removed on its age judgement alone.
 
 ### What the change costs and what it does not wait for
 
@@ -457,10 +469,10 @@ One lock and release with no contention now does a small write,
  and reads of `/proc/<pid>/stat` and `/proc/sys/kernel/random/boot_id` (each cached for the process lifetime)
  instead of one `mkdir` and one `rmdir`.
 Measured on this machine with both shims alternating inside each of thirty rounds of five hundred lock-and-release
- pairs,
- the middle cost of one pair is 41 to 50 microseconds before and 124 to 133 microseconds after,
- a ratio of 2.6 to 3.1 (2.1 to 4.4 over the rounds),
- against a spread of 25 to 29 percent in the unchanged arm run twice in one round.
+ pairs, in three rounds of that measurement,
+ the middle cost of one pair is 41 to 57 microseconds before and 124 to 147 microseconds after,
+ a ratio of 2.6 to 3.1 per round (1.4 to 4.7 over the individual rounds),
+ against run-to-run spreads of 25 to 136 percent in the unchanged arm.
 The section such a lock guards is a read and a write of a JSON file,
  so the added microseconds do not change what the caller waits for.
 The shim adds no wait the caller did not ask for:
@@ -477,5 +489,11 @@ The shim adds no wait the caller did not ask for:
 - No process identity outside `/proc`:
    on a platform without it the record carries the pid alone and a reused pid reads as alive,
    which refuses takeover rather than stealing a live holder's lock.
+- No hard-link-free filesystem:
+   taking a lock hard-links a written record onto its path, so a filesystem without hard links fails loudly instead of
+   locking.
+- No record to compare on a directory an earlier shim left:
+   its removal is decided by age, so a caller that replaced that directory inside one removal can be affected in the way
+   the file path no longer can.
 - Nothing signals a holder that its lock is gone except `onCompromised`:
    `lockSync` callers that pass no callback learn of a taken lock at their next write, as they did before.

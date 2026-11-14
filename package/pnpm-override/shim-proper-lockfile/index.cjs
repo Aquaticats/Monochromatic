@@ -4,10 +4,12 @@ const {
   linkSync,
   lstatSync,
   readFileSync,
+  renameSync,
   rmdirSync,
   unlinkSync,
   writeFileSync,
 } = require('node:fs',);
+const { randomUUID, } = require('node:crypto',);
 const { setTimeout: sleep, } = require('node:timers/promises',);
 const { basename, dirname, resolve, } = require('node:path',);
 
@@ -199,7 +201,11 @@ function ownStartTicks() {
 /**
  * The record this process writes into a lock file it takes.
  *
- * @returns {{ format: string, pid: number, startTicks: number | null, boot: string | null }}
+ * The nonce is what makes one holding distinct from another holding by the same
+ * process: a release callback left over from an earlier holding sees a different
+ * nonce in the lock it did not write, so it removes nothing.
+ *
+ * @returns {{ format: string, pid: number, startTicks: number | null, boot: string | null, nonce: string }}
  */
 function selfRecord() {
   return {
@@ -207,6 +213,7 @@ function selfRecord() {
     pid: process.pid,
     startTicks: ownStartTicks(),
     boot: bootIdentity() ?? null,
+    nonce: randomUUID(),
   };
 }
 
@@ -214,7 +221,7 @@ function selfRecord() {
  * Parse the record of a lock file.
  *
  * @param {string} text
- * @returns {{ pid: number, startTicks: number | null, boot: string | null } | undefined} The record, or `undefined` when this shim did not write the text
+ * @returns {{ pid: number, startTicks: number | null, boot: string | null, nonce: string | null } | undefined} The record, or `undefined` when this shim did not write the text
  */
 function parseRecord(text,) {
   let parsed;
@@ -236,14 +243,15 @@ function parseRecord(text,) {
     pid: parsed.pid,
     startTicks: typeof parsed.startTicks === 'number' ? parsed.startTicks : null,
     boot: typeof parsed.boot === 'string' ? parsed.boot : null,
+    nonce: typeof parsed.nonce === 'string' ? parsed.nonce : null,
   };
 }
 
 /**
- * Whether two records name the same process.
+ * Whether two records describe the same holding.
  *
- * @param {{ pid: number, startTicks: number | null, boot: string | null } | undefined} left
- * @param {{ pid: number, startTicks: number | null, boot: string | null } | undefined} right
+ * @param {{ pid: number, startTicks: number | null, boot: string | null, nonce: string | null } | undefined} left
+ * @param {{ pid: number, startTicks: number | null, boot: string | null, nonce: string | null } | undefined} right
  * @returns {boolean}
  */
 function sameRecord(left, right,) {
@@ -251,7 +259,8 @@ function sameRecord(left, right,) {
     return false;
   return left.pid === right.pid
     && left.startTicks === right.startTicks
-    && left.boot === right.boot;
+    && left.boot === right.boot
+    && left.nonce === right.nonce;
 }
 
 /**
@@ -341,11 +350,12 @@ function inspectLock(lockPath,) {
   const stats = lstatSync(lockPath, { throwIfNoEntry: false, },);
   if (stats === undefined)
     return { shape: 'absent', };
+  const identity = { ino: stats.ino, dev: stats.dev, };
   const ageMs = Date.now() - stats.mtimeMs;
   if (stats.isDirectory())
-    return { shape: 'directory', ageMs, };
+    return { shape: 'directory', ageMs, ...identity, };
   if (!stats.isFile())
-    return { shape: 'other', ageMs, };
+    return { shape: 'other', ageMs, ...identity, };
   let text;
   try {
     text = readFileSync(lockPath, { encoding: 'utf8', },);
@@ -353,12 +363,12 @@ function inspectLock(lockPath,) {
   catch (error) {
     if (error.code === 'ENOENT')
       return { shape: 'absent', };
-    return { shape: 'unreadable', ageMs, code: error.code, };
+    return { shape: 'unreadable', ageMs, code: error.code, ...identity, };
   }
   const record = parseRecord(text,);
   if (record === undefined)
-    return { shape: 'unreadable', ageMs, };
-  return { shape: holderIsGone(record,) ? 'gone' : 'held', ageMs, record, };
+    return { shape: 'unreadable', ageMs, ...identity, };
+  return { shape: holderIsGone(record,) ? 'gone' : 'held', ageMs, record, ...identity, };
 }
 
 /**
@@ -399,6 +409,55 @@ function lockRecordAt(lockPath,) {
     return { present: error.code !== 'ENOENT', };
   }
   return { present: true, record: parseRecord(text,), };
+}
+
+/**
+ * Remove one path only if it is still the entry that was judged dead: move it
+ * aside under a name of this caller's own, then check the entry that was actually
+ * moved.
+ *
+ * Moving first is what makes the check worth making: the entry examined is the
+ * entry acted on, so a lock that another caller replaced in the meantime is
+ * moved back instead of deleted.
+ * A moved entry that is not the judged one is put back with a hard link, which is
+ * the one restore POSIX offers for anything that is not a directory; callers pass
+ * only entries that are not directories.
+ *
+ * @param {{ path: string, expected: { ino?: number, dev?: number, record?: object } }} params
+ * @returns {boolean} `true` when the judged entry was removed, `false` when the path no longer held it
+ */
+function removeJudgedEntry({ path, expected, },) {
+  temporaryCounter += 1;
+  const aside = `${path}.${process.pid}-${temporaryCounter}.removed`;
+  try {
+    renameSync(path, aside,);
+  }
+  catch (error) {
+    // The path changed under this caller, so there is nothing it may remove.
+    if (error.code === 'ENOENT')
+      return false;
+    throw error;
+  }
+  const moved = lstatSync(aside, { throwIfNoEntry: false, },);
+  // Record inside the entry that was moved, when there is one to read.
+  const movedRecord = moved === undefined || !moved.isFile()
+    ? undefined
+    : parseRecord(readFileSync(aside, { encoding: 'utf8', },),);
+  const sameEntry = moved !== undefined && (moved.ino === expected.ino) && (moved.dev === expected.dev);
+  const matched = sameEntry && (expected.record === undefined || sameRecord(movedRecord, expected.record,));
+  if (!matched) {
+    try {
+      linkSync(aside, path,);
+    }
+    catch (error) {
+      // Another caller arrived while this one held the entry aside. It owns the
+      // lock now, and the caller whose entry could not be restored learns of it
+      // from its own release or ownership check.
+      void error;
+    }
+  }
+  removeTemporaryRecord(aside,);
+  return matched;
 }
 
 /**
@@ -493,18 +552,17 @@ function claimTakeover({ takeoverPath, record, },) {
   const abandoned = existing.shape === 'gone'
     || (existing.shape !== 'held' && existing.shape !== 'absent'
       && (existing.ageMs ?? 0) > DEFAULT_UNOWNED_LOCK_GRACE_MS);
-  if (abandoned) {
-    // A taker that died while arbitrating leaves the record behind; clearing it
-    // here lets the caller's own next attempt arbitrate.
-    try {
-      removeLockPath(takeoverPath, existing,);
-    }
-    catch (error) {
-      if (error.code !== 'ELOCKED')
-        throw error;
-    }
-  }
-  return false;
+  if (!abandoned)
+    return false;
+  // A taker that died while arbitrating leaves the record behind, and clearing it
+  // is what lets the caller's own next attempt arbitrate. The clear is
+  // conditional on the entry judged abandoned, so it can never take away the
+  // record a live taker wrote in the meantime.
+  if (existing.shape === 'directory')
+    removeLockPath(takeoverPath, existing,);
+  else if (!removeJudgedEntry({ path: takeoverPath, expected: existing, },))
+    return false;
+  return createExclusiveFile({ path: takeoverPath, record, },);
 }
 
 /**
@@ -542,7 +600,14 @@ function takeOver({ lockPath, inspection, record, },) {
     const current = inspectLock(lockPath,);
     if (!sameLockState(inspection, current,))
       throw lockedError(lockPath,);
-    removeLockPath(lockPath, current,);
+    // A record file is removed only while it is still the entry judged dead, so a
+    // lock another caller took in the meantime is put back rather than deleted.
+    // A directory an earlier shim left has no record to compare, and its age was
+    // the whole judgement.
+    if (current.shape === 'directory')
+      removeLockPath(lockPath, current,);
+    else if (!removeJudgedEntry({ path: lockPath, expected: current, },))
+      throw lockedError(lockPath,);
     if (!createExclusiveFile({ path: lockPath, record, },))
       throw lockedError(lockPath,);
   }

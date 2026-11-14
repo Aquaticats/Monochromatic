@@ -53,8 +53,10 @@ It is removed when the lock is settled, and a takeover record whose own process 
 ## A lock taken away from its holder
 
 `release()` reads the record in the lock before removing it.
-When the record no longer names the releasing process, the lock belongs to someone else and is left alone;
+When the record is another holding's, the lock belongs to someone else and is left alone;
  the caller's `onCompromised` callback is given an error with `code === 'ECOMPROMISED'`.
+Each holding carries a nonce of its own, so a release callback kept from an earlier holding of the same file by the same
+ process removes nothing either.
 While the lock is held, the same check runs every `stale / 2` milliseconds when the caller passed a callback,
  so a holder learns that its lock is no longer its own before it writes.
 

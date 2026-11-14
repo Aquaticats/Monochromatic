@@ -556,17 +556,13 @@ await describe({
 
             await killChild(liveTaker.child,);
 
-            // Clearing the abandoned record costs this caller one attempt; its own
-            // retry is what makes progress, and that is the only retry there is.
-            const afterTheTakerIsGone = caughtFrom(() => {
-              lockfile.lockSync(fixture.target,);
-            },);
-            expect(afterTheTakerIsGone,).toHaveProperty('code', HELD_CODE,);
-
+            // The record the dead taker left is cleared by this attempt itself, and the
+            // dead lock is taken over in the same call: clearing an abandoned record is
+            // part of one arbitration, not a retry.
             const release = lockfile.lockSync(fixture.target,);
+            expect(existsSync(takeoverPath,),).toBe(false,);
             release();
             expect(existsSync(fixture.lockPath,),).toBe(false,);
-            expect(existsSync(takeoverPath,),).toBe(false,);
           },
           timeout: ASYNC_CASE_TIMEOUT_MS,
         },),
@@ -660,6 +656,36 @@ await describe({
             expect(stillHeld,).toHaveProperty('code', HELD_CODE,);
           },
           timeout: ASYNC_CASE_TIMEOUT_MS,
+        },),
+        it({
+          name: 'removes nothing a later lock of the same process holds, so a kept release callback cannot undo a new holding',
+          fn: async () => {
+            await using fixture = await makeTarget();
+            const compromises: Error[] = [];
+            const firstRelease = lockfile.lockSync(fixture.target, {
+              onCompromised: (error: Error,) => {
+                compromises.push(error,);
+              },
+            },);
+
+            // The lock the first holding wrote is taken away, and the same process
+            // takes the lock again, which is a different holding of the same file.
+            rmSync(fixture.lockPath, { recursive: true, force: true, },);
+            const secondRelease = lockfile.lockSync(fixture.target,);
+
+            firstRelease();
+
+            expect(compromises.length,).toBe(1,);
+            expect(compromises[0],).toHaveProperty('code', COMPROMISED_CODE,);
+            expect(existsSync(fixture.lockPath,),).toBe(true,);
+            const stillHeld = caughtFrom(() => {
+              lockfile.lockSync(fixture.target,);
+            },);
+            expect(stillHeld,).toHaveProperty('code', HELD_CODE,);
+
+            secondRelease();
+            expect(existsSync(fixture.lockPath,),).toBe(false,);
+          },
         },),
         it({
           name: 'calls onCompromised while the lock is still held, so the caller can stop writing',
