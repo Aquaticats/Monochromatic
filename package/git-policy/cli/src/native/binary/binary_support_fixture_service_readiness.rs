@@ -15,7 +15,8 @@
 //! const serving = (socket: string) => connect(socket).then(readLine).then((line) => line.length > 0).catch(() => false)
 //! ```
 
-use std::path::Path;
+use git_policy_cli::service_client_listen_and_ask_to_retire::{Reached, reach};
+use git_policy_cli::service_server::Bind;
 
 /// How long the fixture's service may show no sign of work before the fixture fails the control,
 /// so a service that never listens still ends the control instead of holding it.
@@ -94,7 +95,7 @@ impl SignsOfWork {
 }
 
 /// What:
-///  Whether the service that listens at `socket` is serving:
+///  Whether the service that listens at `address` is serving:
 /// it answers a connection with its greeting.
 /// Why:
 ///   The kernel accepts a connection as soon as the service listens,
@@ -104,14 +105,16 @@ impl SignsOfWork {
 /// A control that changes the
 ///  service right after the fixture started it (a lowered process limit) met a service that had not started its work thread and
 ///  ended it at once with status 4.
+///  The address is a socket file or an abstract name,
+///  and the client's own connect is what reaches either (`service_client_listen_and_ask_to_retire.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const serving = (socket: string) => connect(socket).then(readLine).then((line) => line.length > 0).catch(() => false)
+/// const serving = (address) => connect(address).then(readLine).then((line) => line.length > 0).catch(() => false)
 /// ```
-pub fn service_is_serving(socket: &Path) -> bool {
+pub fn service_is_serving(address: &Bind) -> bool {
     use std::io::BufRead;
-    let Ok(stream) = std::os::unix::net::UnixStream::connect(socket) else { return false };
+    let Reached::Ours(stream) = reach(address) else { return false };
     // A service greets as soon as it has started its threads; a read that gets nothing within this bound is asked again by the
     //  caller's loop, which has its own bound.
     let _timeout = stream.set_read_timeout(Some(GREETING_READ));
@@ -132,29 +135,35 @@ const GREETING_READ: std::time::Duration = std::time::Duration::from_secs(1);
 pub const SOCKET_RELEASE_PATIENCE: std::time::Duration = std::time::Duration::from_secs(60);
 
 /// What:
-///  Waits until nothing answers at `socket`:
-/// the file is absent,
-/// or it is a stale socket whose listener is gone.
+///  Waits until nothing answers at `address`:
+/// nothing listens there any more.
 /// Why:
 ///   Ending a service that runs under a tracer reaps the tracer,
 /// and the traced service dies a moment later,
-/// so its socket can
+/// so its address can
 ///  still answer after the fixture counts the service as ended.
-/// A new service cannot take such a socket,
+/// A new service cannot take such an address,
 /// and a readiness poll
 ///  that connects to it reports a service that is not the new one.
+/// An abstract name is gone with the process that held it,
+/// so a service that ended there is answered at once (measured: the name is not in the table of unix sockets once its
+///  listener is dropped).
 ///
 /// # Panics
 /// When something still answers after `SOCKET_RELEASE_PATIENCE`,
 /// which is a service the fixture did not end.
-pub fn wait_until_nothing_listens(socket: &Path) {
+pub fn wait_until_nothing_listens(address: &Bind) {
     let began: std::time::Instant = std::time::Instant::now();
     loop {
-        match std::os::unix::net::UnixStream::connect(socket) {
-            Err(error) if matches!(error.kind(), std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::NotFound) => return,
-            Ok(_) | Err(_) => {}
+        match reach(address) {
+            Reached::Nothing => return,
+            Reached::Ours(_) | Reached::OtherAccount => {}
         }
-        assert!(began.elapsed() < SOCKET_RELEASE_PATIENCE, "something still answers at {} although the fixture ended its service", socket.display());
+        assert!(
+            began.elapsed() < SOCKET_RELEASE_PATIENCE,
+            "something still answers at {} although the fixture ended its service",
+            git_policy_cli::service_server::address_text(address)
+        );
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
 }

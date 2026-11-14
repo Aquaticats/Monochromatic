@@ -176,7 +176,9 @@ So, as the project's own rules until the owner changes them:
 - This session runs at most four agents at once, Pi runs and Sonnet subagents counted together, whatever the provider pools would take.
   The pool limits in `package/pi-shared/subagent-driver/src/pool-limits.ts` stay what a provider answers at once;
   they are no longer a number to fill to, and "you have 62 slots" in the section "Scope of the work: the Git wrapper, and the driver, mpm and Cargo it is worked on with" is void while the cap stands.
-- The cap is raised step by step until this disk's ceiling is found, and found again after the new drive is in (expected 2026-11-15).
+- The cap is raised step by step until this disk's ceiling is found, and found again after the new drive is in
+  (expected 2026-11-17;
+  the owner said on 2026-11-14 at about 14:39 that the arrival slipped from 2026-11-15).
 - The scratch folder is to be cleaned by rule, not by the owner.
 - `podman system reset` replaces the image prune of the wind-down section; that step is closed.
 - No long move or copy between the two drives in either direction.
@@ -760,6 +762,21 @@ Questions kept for the owner's return:
   - The lock shim of Pi under the adopted reading (tip `37287ade63`):
     a lock of the old kind whose holder is gone is refused with the command that clears it and never taken over.
     Is that accepted for the time until every Pi was started under the new shim?
+  - The queue of runs filled from the package, its second answer (tip `01a855c051`, added 2026-11-14T15:26-05:00):
+    a lock over the queue's read,
+    change and write,
+    or a folder of one file for each entry with no lock;
+    ten seconds to wait for the lock and ten minutes before it is called stale;
+    and does the command that breaks a dead holder's lock say so?
+  - The commit service that needs no service manager (tip `b896c60d97`, added 2026-11-14T15:02-05:00):
+    a service that is alive but stopped (a debugger, a starved acceptor) reads as recovering,
+    and the command ends after up to two minutes;
+    is a shorter bound wanted with the same words?
+  - mpm-shadow's cleanup of old versions (tip `542b881860`, added 2026-11-14T14:48-05:00):
+    a `current` link can dangle until the next sync repairs it;
+    no store-wide lock is adopted to close that window,
+    by the project's rule on concurrency,
+    open to veto.
   - A Pi run that cannot write into the main checkout (tip `ca137eb2bf`, added 2026-11-14T13:59-05:00):
     is a review's unit also held to a read-only worktree,
     which needs every package's build folder listed as writable so that a review can still build and test?
@@ -1238,6 +1255,698 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### A killed driver drops an inbox message it had claimed, back to the empty-answer author; the stale launchers' cost is attributed to `main` and goes to a fresh run; two reviews met the rate limit and were put back (2026-11-14T15:54:34-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session read and queued.
+
+- **A driver run whose last answer is empty** (`3be9af7f1a`),
+  third review,
+  run against a scripted Pi connection:
+  the empty-answer flow and the inbox's held,
+  refused and kept flows are right.
+  One reproduced:
+  a kill between the claim of an inbox message
+  (a rename to `.claimed-<uuid>`)
+  and its delivery leaves the message as an opaque hidden file that no start recovers and no summary names.
+  The claim is older than the change;
+  the change widens the window.
+  An inbox holds what this session and a person send a run,
+  so it is a loss of what a person wrote.
+  The author is resumed
+  (`~/temp/agent/pi-runs/driver-empty-last-answer-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **mpm-shadow's stale launchers** (tip `eb37545001`, ended 15:49:20):
+  the author reports a retirement that reads the lock on disk again at the instant it acts and takes the item by a step that fails when it changed,
+  a put-back by hard link that never writes over a newer file,
+  the four false sentences corrected,
+  810 tests passing and Clippy clean.
+  The three-arm cost over seven interleaved rounds:
+  `main` 73.06 ms (65.63 to 75.42),
+  `649a45b459` 64.24 ms (61.22 to 79.91),
+  the tip 75.72 ms (74.10 to 89.19);
+  the tip against `main` at 1.04 with 28 more system calls,
+  one read of the lock for each install.
+  So the branch's own cost is small and the condition this file set at 14:27 is met by measurement.
+  Review queued (range `main...eb37545001`, nine code files).
+- **What that measurement shows of `main`**:
+  an install with nothing to do makes 4,913 system calls on `main` against 4,404 at the base,
+  1,023 `openat` against 854,
+  close to one more open for each of the 174 declared bins,
+  at a ratio of 1.14 in time whose ranges overlap.
+  It came with the change that lets `install` take a tool
+  (`0.2.7-alpha.11`).
+  A fresh run is queued for it
+  (`~/temp/agent/pi-runs/mpm-shadow-install-with-nothing-to-do-costs-what-it-did-before-install-took-a-tool-prompt.md`).
+- **Two reviews ended on the provider's rate limit** at 15:46:53 and 15:47:53
+  (the queue filling's and the watch-note ceiling's);
+  the filling unit put both back at the head of the queue at 15:50:05,
+  to go on from their sessions,
+  and started the second at 15:50:33.
+- The resumed session is not named by the credential scan.
+  The queue held 67 entries at 15:54:34.
+
+##### Eleven of the gate's failing tests fail on this machine too, so they are red in the released code; seven fresh runs are queued for the 25; pass 45 carries the package state; the drawn tree goes back (2026-11-14T15:49:46-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+what two reviews and two authors report of themselves,
+and what it queued.
+
+- **The 28 tests that failed in the gate, run once by name on this machine** at `5eca8b84cf`,
+  in the gate's worktree and a capped unit,
+  with `DBUS_SESSION_BUS_ADDRESS` set to nothing
+  (15:42:08 until 15:46:30;
+  whole outputs in `~/temp/agent/gate/keep/host-run-of-the-library-tests-…` and `…-binary-tests-…`):
+  - the three on `main`'s red list fail here too,
+    which shows the run can show a failure;
+  - eleven more fail here too:
+    the five `fault_remote::` and the one `package_repair::`
+    ("the service never settled the after-commit work",
+    after about 60 s,
+    a `maintenance-` item pending or a `relink-` item claimed),
+    the two that find `cli-git-lock-holders` in a Git directory,
+    the two `service_mode::`,
+    and `service_provision::a_runtime_directory_no_address_can_hold_is_refused_at_once`;
+  - fourteen pass here:
+    the seven that meet Git 2.56.1 in the container
+    (three version lines,
+    three `resolution::`,
+    the six configuration keys),
+    the five of pass 42's long runtime directory,
+    the owed-push fixture and the lock proof's other boot.
+  So the guess that put the two `service_mode::` with the Git version was wrong,
+  and they form a group of their own with the `service_provision::` one.
+  The eleven are red in the code of `0.6.1-alpha.32` as installed;
+  that the after-commit work of a commit whose push fails is left with an item pending is the gravest reading,
+  and it is a reading until its run finds the cause.
+- **Seven fresh runs for the 25**,
+  one cause group each,
+  each brief naming the branches in flight that change the same files and asking for the group's tests at those tips first
+  (`which-branches-in-flight-change-the-files-of-the-tests-that-failed-in-the-gate.ts` beside the gate logs found:
+  the no-service-manager and issue 6293 branches change the service start and provision files,
+  the killed-Git lock branch the lock proof,
+  the package-state branch the package repair's binary tests,
+  the watch-note branch the owed-push tests,
+  the discarding branch `repo_read/git_metadata.rs`;
+  no queued or going brief names any of the 25):
+  after-commit work that never settles (second in the queue);
+  the lock-holders folder;
+  the controls of a refused service start;
+  the Git of the gate's container;
+  the long runtime directory controls in the container;
+  the owed-push fixture;
+  the record of another boot.
+  Briefs under `~/temp/agent/pi-runs/`,
+  each named for its task.
+- **The package state of a new worktree** (`51217078af`),
+  fourth review:
+  no defect in the change;
+  all 64 tests of the changed modules pass;
+  the whole library suite at that tip gave 7,816 passed and four failed in modules the change does not touch;
+  the `native_binary` target was not run.
+  **Integration pass 45** is queued first with it,
+  asked to run the failing `package_repair::` control at `main` and at its merged tip and report both
+  (`~/temp/agent/pi-runs/integration-pass-45-with-the-package-state-of-a-new-worktree-relinked-or-said-why-not-prompt.md`).
+- **The drawn shadow tree** (`993ce53493`),
+  third review,
+  one reproduced at the library's level in the window the author's own report named:
+  between the service's answer that hands a tree out and the commit's claim,
+  a sweep is answered that nobody holds the tree and removes it after the client has claimed it;
+  Git in the vanished shadow exits 128 and the commit fails with no second try.
+  The author is resumed,
+  asked that a tree has one owner at every instant and that a commit whose shadow is gone in the middle does not fail for it
+  (`~/temp/agent/pi-runs/drawn-shadow-tree-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **The lock a killed Git left** (tip `5327cbbfa4`, ended 15:41:15):
+  the author reports the third review answered with a bound on what one Git run holds.
+  Review queued (range `main...5327cbbfa4`, ten code files).
+  It also reports,
+  for the second time by its own word,
+  that the package's build task said "Finished" in 0.34 s while the program at `target/debug/` was one of 2026-11-11 without a string its sources hold,
+  so a run through it measured old code.
+  Nobody has reproduced that;
+  a fresh run is queued to find where a worktree's built program comes from and which tool owns the defect
+  (`~/temp/agent/pi-runs/build-that-says-finished-leaves-the-binary-of-the-sources-in-front-of-it-prompt.md`),
+  since every control that runs through a built program is evidence only when the program is the sources' own.
+- **The failure-variant test** (tip `3d36e278fd`, ended 15:41:56):
+  the author reports both forms of the review refused before the test can run.
+  Its reviewer is resumed to check it,
+  the change being tests alone.
+- **Each pass now runs the whole suite once on this machine.**
+  The passes of today were asked for the tests of the modules each changed,
+  which is how the 25 went unseen.
+  A note sent at 15:50:47 to passes 38,
+  41,
+  44 and 45,
+  all going
+  (its file name and first line say 15:52,
+  written before the clock was read),
+  asks each for one run of the whole library suite and one of the whole `native_binary` suite at the tip it reports,
+  and for the failing names that are not among the 28
+  (`~/temp/agent/notes-to-send/note-for-the-passes-that-the-gate-failed-28-tests-and-what-to-run-once-2026-11-14T1552.md`).
+  This session adopted that as a check that buys evidence at the price of one run for each pass,
+  open to the owner's veto;
+  later pass briefs carry it.
+- Neither session resumed in this round is named by the credential scan.
+  The queue held 65 entries at 15:49:46.
+
+##### The first gate after a release fails 28 of 8,994 tests, 25 of them not on `main`'s red list; the discarding commands' fifth review reproduces three; the lock shim's answer goes to its reviewer (2026-11-14T15:43:16-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+what one review and one author report of themselves,
+and what it queued.
+
+- **The gate on `5eca8b84cf`** (`0.6.1-alpha.32`),
+  started 15:16:04,
+  log written until 15:34:29:
+  `8994 tests run: 8966 passed (3 slow), 28 failed, 27 skipped`,
+  `gate-exit-status=1`.
+  The gate's own error names the test run alone
+  ("the test run failed: podman run failed (status 100…)");
+  the log holds no line of Clippy's,
+  so what Clippy answered is not read from it.
+  The log:
+  `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-5eca8b84cf-20261114T151604-0500.log`;
+  the first panic of each failing test:
+  `~/temp/agent/gate/keep/panics-of-the-failing-tests-of-the-gate-on-5eca8b84cf-2026-11-14T151604.txt`
+  (by `print-the-panic-of-each-failing-test-of-a-gate-log.ts` beside the logs).
+  - Against the five gate logs before it that ran a suite
+    (the newest of them started 2026-11-11T22:25:52-05:00,
+    by `compare-the-failing-tests-of-the-newest-gate-log-with-earlier-gate-logs.ts`):
+    none of the 28 failed in any of the five.
+    Those gates are three days old and the gate's image is rebuilt from the base image's `latest`,
+    so the difference spans the code and the image both.
+  - Three of the 28 are on the list of tests red on `main`
+    (`a_lane_that_panics_stops_its_lane_and_the_round_says_so`,
+    `a_step_left_running_on_the_runtime_is_collected_where_the_build_of_the_runtime_was_late`,
+    `a_server_that_takes_the_connection_and_answers_nothing_is_ended_at_the_connected_window`).
+  - The other 25,
+    grouped by what they print,
+    which is a reading and not yet a cause:
+    six end after about 60 s with "the service never settled the after-commit work"
+    (five `fault_remote::` with a `maintenance-` item pending,
+    one `package_repair::` with a `relink-` item claimed);
+    three compare `git version 2.56.1` with `git version 2.56.0`
+    (this machine's `/usr/bin/git` answers 2.56.0),
+    one lists six configuration keys where "the readers answered and Git exits Some(128)",
+    and five more (`resolution::` and `service_mode::`) are put with them by a guess;
+    six are the controls pass 42 brought,
+    failing on the room a path leaves in the container,
+    a file not found,
+    or the words for an account with no service manager;
+    two find `cli-git-lock-holders` in a Git directory where they list what may be there
+    (the folder came with commit `74b1a8c0a0` of 2026-11-13);
+    one fails removing its fixture (`DirectoryNotEmpty`);
+    one is the lock proof's control of another boot.
+  - `native:test:container` takes no test filter
+    (`bin/test-native-container.ts` accepts only `--memory`, `--cpus` and `--pids-limit`),
+    so a named test cannot be run in the gate's container through the task.
+  - A run of the 28 by name on this machine,
+    once,
+    in the gate's worktree and a capped unit,
+    was started at 15:42 to tell "in the container only" from "red everywhere"
+    (`~/temp/agent/gate/run-the-tests-that-failed-in-the-gate-on-5eca8b84cf-once-on-the-host-by-name.ts`);
+    the fresh runs for the groups are written and are queued after it answers,
+    behind the resumes that hold reproduced losses.
+  - By the owner's answer this verdict holds no release;
+    that reading is this session's.
+- **The discarding commands** (`697dca1425`),
+  fifth review,
+  three reproduced through the built wrapper:
+  `checkout-index --prefix` run from a subdirectory with `--no-enforce-require-root` writes over an untracked file the guard looked for in the wrong place
+  (a file is lost);
+  `git clean -Xd` with no force,
+  which Git refuses,
+  has its ignored nested repository moved aside by the guard's dry run first
+  (saved,
+  not lost);
+  and `git mv -f a.txt/ renamed.txt` is refused though Git accepts the spelling.
+  The author is resumed first,
+  asked how the guard can learn the paths from Git itself and for the list of places where it must model them
+  (`~/temp/agent/pi-runs/discarding-commands-answers-its-fifth-review-of-2026-11-14-prompt.md`).
+- **The lock shim of Pi** (tip `578bc34738`, ended 15:35:12):
+  the author reports the printed command made one shell word,
+  the suite run again and again with no timeout raised,
+  and the disposable configuration with which a start of Pi takes the store's lock.
+  Its reviewer is resumed second to check it
+  (`~/temp/agent/pi-runs/go-on-with-the-review-of-the-lock-shim-and-check-the-answer-at-578bc34738-prompt.md`).
+  The launcher of that reviewer's earlier run,
+  which ended at 13:44,
+  was still active at 15:43 and was stopped before it could refuse the new start,
+  the same defect that lost this entry once today.
+- The queue held 56 entries at 15:43:08.
+  Going at 15:41,
+  among others:
+  the landed removal's author,
+  the landing's author and both mpm-shadow authors,
+  each on a reproduced finding.
+
+##### The watch note's ceiling and the queue filling are answered and go to review; the whole first six minutes of `0.6.1-alpha.32` are clean (2026-11-14T15:26:17-05:00)
+
+Not final and not approved:
+what two authors report of themselves,
+which this session has not checked,
+and what it ran and queued.
+
+- **A watch note written within a ceiling** (tip `72dd53f89e`, ended 15:21:24):
+  the author reports the place of the one write given back when a thread is refused,
+  with a control that fails at the code before
+  (`AnEarlierWriteHasNotEnded` where `Answered` is due)
+  and the review's harness under a real process limit no longer latching;
+  Clippy clean and 59 tests of the changed modules passing after merging `main`.
+  Left and named:
+  a batch holding two worktrees of one repository skips the second note while one write is outstanding.
+  Review queued second (range `main...72dd53f89e`, eight code files).
+- **The queue of runs filled from the package** (tip `01a855c051`, ended 15:23:27):
+  the author chose a lock over the read,
+  change and write
+  (`<queue>.lock`,
+  held only while a change is made,
+  naming its process and time,
+  broken by the next command when that process is gone),
+  with reads left lock-free;
+  223 tests passing on the merged tree,
+  the two-writer control and one for a queue file of the old shape among them.
+  It names the one path that can still lose an update:
+  a lock older than ten minutes whose holder is alive but stopped and later resumes.
+  Its questions go to the kept list:
+  a lock or a folder of entry files;
+  the bounds of ten seconds to wait and ten minutes to call a lock stale;
+  whether the command that breaks a lock says so.
+  The project's rule on concurrency puts lock-free first,
+  so the review is where the choice of a lock is weighed.
+  Review queued third (range `main...01a855c051`, 23 code files).
+- **`0.6.1-alpha.32`**,
+  the user journal for the whole of 15:15:30 until 15:21:30:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  six starts saying `0.6.1-alpha.32`,
+  each the installed program in its own unit.
+  Its full gate,
+  started 15:16:04,
+  has given no verdict yet.
+- The queue held 56 entries at 15:26:17.
+
+##### mpm-shadow's cleanup deletes a freshly installed copy in two of three rounds of a race, back to its author; the empty-answer author's second answer goes to review (2026-11-14T15:20:32-05:00)
+
+Not final and not approved:
+what one review and one author report of themselves,
+and what the coordinating session ran and queued.
+
+- **mpm-shadow removes by itself the old versions it installed** (`542b881860`),
+  fourth review:
+  recovery after a kill,
+  the repointing of `current`,
+  the detection of holds and the bounds are sound,
+  and 52 store tests pass.
+  Two reproduced in which a copy is lost.
+  The trim guards by a look at the modification time and renames several system calls later,
+  and after the move looks again only at `current` and at holds:
+  driving the real `apply_trim` beside a thread doing an install's atomic replace,
+  the freshly installed copy was deleted in 197 and then 209 of 300 rounds
+  (tools with no `current` link are exposed).
+  And where a name is taken the trim looks only at whether something exists,
+  so a held good copy can be deleted in favour of an install that is still going and then fails
+  (the cargo-binstall route).
+  The author is resumed second,
+  asked by what the trim knows at the instant of a deletion that the entry is the one it judged
+  (`~/temp/agent/pi-runs/mpm-shadow-removal-of-old-versions-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+  This and the stale launchers are the same shape in two branches of one package:
+  a pass that decides by a look and acts later while an install runs beside it.
+- **A driver run whose last answer is empty** (tip `3be9af7f1a`, ended 15:13:22):
+  the author reports the second review answered by one rule,
+  five controls,
+  and the package's build,
+  type check,
+  lint and tests passing at a tip that holds `main`;
+  it lists where four other branches of the package meet its files.
+  Review queued third (range `main...3be9af7f1a`, fifteen code files).
+- **`0.6.1-alpha.32`**,
+  the user journal from 15:15:30 until it was read at 15:19:42,
+  short of the six minutes:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  six starts saying `0.6.1-alpha.32`,
+  every one the installed program,
+  and no fixture's line.
+- Neither session resumed in this round or the last is named by the credential scan.
+  The check of queued entries at 15:20:32:
+  74 names queued by this session since 08:54,
+  none missing,
+  none twice;
+  57 entries in the queue.
+
+##### `0.6.1-alpha.32` is installed and its full gate is running by the owner's answer; the landing's fifth review finds three more waits; issue 6293's answer goes to review (2026-11-14T15:16:32-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+what one review and one author report of themselves,
+and what it queued.
+
+- **The owner answered "Gate after release."**
+  to the question on the full container gate
+  (recorded under "Owner decisions in force",
+  "The wrapper's full gate runs after each release").
+- **`0.6.1-alpha.32`** (pass 42):
+  published by 15:15:43,
+  installed here from 15:15:43 to 15:15:53,
+  sample commit 1,588 ms,
+  `--version` answering `0.6.1-alpha.32`.
+  Its gate was started at 15:16:04 on `5eca8b84cf`,
+  the commit `main` pointed at with the release's bump and the lock
+  (unit `gpc-gate-wrapper-next-alpha-on-5eca8b84cf-20261114T151604-0500`,
+  log of the same name under `~/temp/agent/gate/`);
+  a bounded wait for its verdict runs in the background.
+  The journal checks of the release's first minutes are still to run.
+- **A landing never waits behind housekeeping** (`4768e9e809`),
+  fifth review:
+  the withdrawal,
+  the deferred requeue of a trash disposal and the refusal pairing are sound.
+  One reproduced with the real function on a runtime of one worker:
+  the trash is listed with a synchronous `read_dir` on the runtime worker with no ceiling,
+  the one storage step outside the module's own rule;
+  a probe's longest gap grew from at most 0.4 ms to 12.5 ms at 15,000 entries and 51 ms at 60,000.
+  Two by reading:
+  `drain()` waits with no bound on the service's exit paths,
+  which a stalled trash can now hang;
+  and a commit's routing look still fails the commit as unavailable when stalled storage holds every general place.
+  The reviewer made no stalled filesystem.
+  The author is resumed first,
+  asked for the list of every storage call on those paths and a guard that fails on the next one
+  (`~/temp/agent/pi-runs/landing-never-waits-answers-its-fifth-review-of-2026-11-14-prompt.md`).
+  Passes 29 and 34 go on waiting for this branch.
+- **Issue 6293** (tip `963ff67934`, ended 15:09:48):
+  the author reports its fourth review answered,
+  386 of 386 tests of the changed modules and nine binary start-path controls passing,
+  and three places where its branch meets the no-service-manager branch,
+  with one control of that branch failing on this one for a message this branch cannot produce.
+  Review queued second (range `main...963ff67934`, 74 code files).
+  Its run's summary holds the same `ESRCH` work problem as three earlier runs of today.
+- The queue held 56 entries at 15:16:32.
+
+##### Pass 42 is in `main` and `0.6.1-alpha.32` is dispatched; the drawn tree's answer goes to review (2026-11-14T15:06:58-05:00)
+
+Not final and not approved:
+what one pass and one author report of themselves,
+and what the coordinating session measured,
+merged and queued.
+
+- **Pass 42** (tip `3908985299`:
+  a commit made when the runtime directory's path is too long for a socket)
+  reported fit at 15:02:18 for its scope:
+  the one branch in at the commit named,
+  build,
+  both test compiles and Clippy clean,
+  the controls of every changed module and its four binary controls passing at the tip and at four CPUs,
+  both guard modules passing with its new files,
+  pass 39's warm-request controls and pass 43's sixteen watch-note controls passing on the merged tree,
+  a wrapped commit of one changed file adding 30 to 34 ms over real Git.
+  It names what it did not run:
+  the package's container gate (`native:test:container`),
+  which the package's README calls the authority among its test tasks;
+  the same README says an alpha is released without the workflow's check of the crate,
+  and today's briefs asked each pass for the tests of the changed modules at the gate's four CPUs,
+  never for the gate itself.
+  Three library controls stay red that are `main`'s.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `a943128a5c` at 15:06:18,
+  and `0.6.1-alpha.32` was dispatched at 15:06:27
+  (run 43635697141).
+  Passes 38,
+  41 and 44,
+  all going,
+  were told.
+  The wait,
+  the install and the sample commit run as one background command.
+  The fuzz sidecar's type check on `main` at `a943128a5c`:
+  exit 0 at 15:06:57.
+  The next wrapper release is `0.6.1-alpha.33`.
+- **The drawn shadow tree** (tip `993ce53493`, ended 15:01:23):
+  the author reports the sweep's clock-step finding answered by a claim the commit holds on its tree,
+  344 tests and five binary controls passing on the merged tree,
+  the answer path at 4.3 to 5.2 µs against 336 to 341 ns
+  (one `close` of a directory descriptor added),
+  a landing's draw unchanged within the spread.
+  Left and named:
+  a tree nobody holds is still taken by its age,
+  the microseconds between the answer and the commit's claim among them,
+  and any tree on a volume without `flock`;
+  one test of another module failed once inside the whole module's run and passed three times alone.
+  Review queued second (range `main...993ce53493`, ten code files).
+  The kept question on this branch stands
+  (does a drawn tree stand with no end while its claim is held).
+- The queue held 59 entries at 15:06:58.
+
+##### `0.6.1-alpha.31` is installed and its first minutes are clean; tests' services write into the real user journal, a fresh run is queued; three wrapper answers go to review (2026-11-14T15:02:14-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read,
+what three authors report of themselves,
+which it has not checked,
+and what it queued.
+
+- **`0.6.1-alpha.31`** (pass 43):
+  published at 14:48:15,
+  installed here from 14:48:36 to 14:48:46,
+  sample commit 1,562 ms,
+  `--version` answering `0.6.1-alpha.31`.
+  The user journal from 14:48:30 until 14:54:30:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit;
+  the installed program said `0.6.1-alpha.31` at five starts in its own units.
+  The next wrapper release is `0.6.1-alpha.32`.
+- **Tests' services write into the real user journal.**
+  The same six minutes hold twelve more lines of a service saying its release at start
+  (`0.6.1-alpha.30` nine times,
+  `0.0.1-before`,
+  `0.6.1-alpha.99` and `0.6.1-alpha.31` once each),
+  every one from a debug build in the worktree of one of two authors
+  (issue 6293's and the no-service-manager's),
+  run in that agent's transient scope;
+  the line of `0.6.1-alpha.23` at 13:42:28 was the first seen.
+  They are fixtures,
+  not this machine's services,
+  and they show that a test's service reaches a record every session shares,
+  against the project's rule that verification which changes state uses disposable fixtures.
+  A script that tells the two apart is kept beside the counting one
+  (`~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/group-the-services-that-said-their-release-at-start-by-program-and-unit.ts`,
+  run once on that window),
+  and a fresh run is queued fourth
+  (`~/temp/agent/pi-runs/service-a-test-starts-writes-no-line-into-the-user-journal-of-the-machine-prompt.md`).
+- **The commit service that needs no service manager** (tip `b896c60d97`, ended 14:56:16):
+  the author reports the third review answered,
+  with no measurable cost
+  (a later commit at a ratio of 1.025,
+  range 0.983 to 1.089,
+  inside that arm's spread)
+  and 72 tests of the changed modules passing at four CPUs.
+  It changed a guard of `main` to expect the command the message names,
+  and made the test support hold one point for each hold where it held one in all.
+  Its question is added to the kept list:
+  a service that is alive but stopped now reads as recovering,
+  and the command ends after up to two minutes.
+  Review queued first (range `main...b896c60d97`, 71 code files).
+- **The discarding commands** (tip `697dca1425`, ended 14:56:58):
+  the author reports the six findings of the fourth review answered at their cause,
+  five of the review's scripts no longer reproducing and the sixth saving the bare repository whole;
+  66 tests of the changed modules and 78 binary controls passing.
+  Left alone and named:
+  an unforced `git rm --sparse` is still unguarded,
+  and `checkout-index -f --stdin` is read as the whole index (a refusal too many,
+  no loss).
+  Review queued second (range `main...697dca1425`, 33 code files).
+- **The package state of a new worktree** (tip `51217078af`, ended 14:59:39):
+  the author reports the third review answered,
+  the review's three harness modes passing,
+  and names two mistakes of its own:
+  a commit message bash ate part of
+  (not amended;
+  a corrective commit comment posted),
+  and a `git restore --worktree` of its own that threw away an uncommitted fix,
+  so one commit carried documents and tests alone until the next carried the code.
+  Review queued third (range `main...51217078af`, nine code files).
+- The queue held 60 entries at 15:02:14.
+
+##### mpm-shadow's cleanup of old versions is answered a third time and goes to review (2026-11-14T14:48:42-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked,
+and what it queued.
+
+- **mpm-shadow removes by itself the old versions it installed** (tip `542b881860`, ended 14:43:53):
+  the author reports the third review answered with five controls,
+  a pass that keeps a version by undoing a removal,
+  `main` merged with none of its three modules touched,
+  834 tests of the whole suite passing and the type check clean;
+  cost against the commit before at a median ratio of 1.02
+  (0.89 to 1.05 with nothing to remove,
+  0.95 to 1.02 with 63 removals),
+  inside each arm's own spread.
+  It says the review's harness for one scenario asks whether a held file exists at one name,
+  where a restore puts it back at the other,
+  and leaves one window open:
+  a `current` link can dangle until the next sync repairs it,
+  unless a lock over the whole store closes it.
+  The project's rule on concurrency reads lock-free first with a lock over the smallest unit,
+  so no store-wide lock is adopted here,
+  open to the owner's veto;
+  what a dangling `current` link costs a tool that starts meanwhile is for the review to show.
+  Review queued second (range `main...542b881860`, six code files).
+- **`0.6.1-alpha.31`**:
+  the release workflow ended with success at 14:41:37 and the release was published at 14:48:15 with its archives;
+  the install follows in the command that waits for it.
+- The queue held 60 entries at 14:48:42.
+
+##### Three reviews each reproduce something: an ambiguous operand reaches real Git unguarded, a file put back over a newer one, a path outside ASCII dropped from a brief; all three go back (2026-11-14T14:45:27-05:00)
+
+Not final and not approved:
+what three reviews report of themselves,
+and what the coordinating session checked and queued.
+
+- **The landed removal's guard** (`9e6c8619a9`),
+  third review,
+  built and run through the wrapper:
+  when the operand is a suffix two registered worktrees share,
+  the guard answers that it does not know and stands down,
+  and real Git removes the worktree with a hidden edit or a commit only a detached head names
+  (status 0;
+  with an operand one worktree matches,
+  the guard refuses).
+  One more by reading:
+  the questions about a stranded commit and a hidden edit are not asked again where the btrfs destroy is decided.
+  The author is resumed first,
+  asked to list every place the guard can stand down and to refuse there
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-third-review-of-2026-11-14-prompt.md`).
+- **mpm-shadow's stale launchers** (`7fa024e9d5`),
+  fourth review:
+  with the scope's lock gone the retirement passes run under no lock,
+  so an install that loaded an older lock can delete what an install beside it has just placed for the same tool
+  (by reading;
+  the reviewer's scope could not reach the archive host to run it);
+  and the put-back of an entry moved aside is an unconditional rename that writes over a file placed there meanwhile
+  (reproduced with a stand-in and a control).
+  The author is resumed second,
+  asked by what an install knows at the instant of a deletion that a newer lock does not declare the thing,
+  and for the three-arm cost against `main` alone
+  (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- **The brief writer for a change to tests alone** (`cc72076d8e`),
+  second review,
+  against real Git:
+  a changed file whose name holds a byte outside ASCII is dropped from the brief,
+  since one list of paths is read with `-z` and the other is not,
+  which the author's last commit brought;
+  and two renames whose joined text is equal collide in the key that removes duplicates.
+  The author is resumed third
+  (`~/temp/agent/pi-runs/review-brief-writer-for-tests-answers-its-second-review-of-2026-11-14-prompt.md`).
+- **No resume of today names a session the credential scan lists.**
+  The scan's files name each affected session by its worktree folder;
+  a search of them for the eight authors resumed since 13:24 found none,
+  and the same search shows the folder names it can find
+  (among them integration pass 37 and the first run of mpm-shadow's install-removes-no-version,
+  which is why that branch got a fresh run).
+- The queue held 59 entries at 14:45:27.
+
+##### Pass 43 is in `main` and `0.6.1-alpha.31` is dispatched; the new drive is expected two days later (2026-11-14T14:41:29-05:00)
+
+Not final and not approved:
+what one pass reports of itself,
+and what the coordinating session measured,
+merged and queued.
+
+- **The owner wrote at about 14:39** that the enterprise SSD's arrival slipped to 2026-11-17,
+  asked how everything stands,
+  and asked for the task list to be brought up to date,
+  which was done at 14:41.
+  The two handover lines that name the date are changed
+  (this file,
+  under "Owner decisions in force",
+  and `doc/handover/agents-at-once-on-this-machine.md`).
+- **Pass 43** (tip `50c5d8ac0c`:
+  a watch note of another repository)
+  reported fit at 14:38:52:
+  build,
+  both test compiles and Clippy clean,
+  the sixteen claim-watch controls and the tests of the changed modules passing at full CPUs and at four,
+  both guard modules passing.
+  It says the meeting with pass 38,
+  which changes the same watch-note files,
+  is still to be made by whoever merges the later of the two.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `11dbedf329` at 14:40:19,
+  and `0.6.1-alpha.31` was dispatched at 14:40:28
+  (run 43633361840).
+  Passes 38,
+  41,
+  42 and 44,
+  all going,
+  were told.
+  The wait for the release,
+  the install and the sample commit run as one background command;
+  the journal checks follow.
+  The next wrapper release is `0.6.1-alpha.32`.
+- **The fuzz sidecar's type check** on `main` at `11dbedf329`:
+  exit 0 at 14:41:12
+  (`~/temp/agent/fuzz-sidecar-type-check-on-main-after-its-merge-2026-11-14T1022/keep/type-check-on-main-at-11dbedf329-2026-11-14T1441.txt`).
+- At 14:39:47:
+  22 Pi runs going;
+  58 entries in the queue
+  (six reviews,
+  24 resumes,
+  28 fresh runs);
+  `/var/home` 71% used with 501 G free,
+  `/var/mnt/encrypted` 41% used with 2.1 T free.
+  Two runs that ended at 14:32 and 14:38 measured `~/temp/agent` at 314 and 330 GiB by `du`,
+  the largest folders `change-reviews` 94 GiB,
+  `pkgrepair-repair-off-the-path` 65 GiB,
+  the scratch of the no-service-manager author 54 GiB
+  and `sonnet-audits` 45 GiB.
+
+##### The landing author answered its fourth review; its review is queued first (2026-11-14T14:37:32-05:00)
+
+Not final and not approved:
+what one author reports of itself,
+which this session has not checked,
+and what it queued and measured.
+
+- **A landing never waits behind housekeeping** (tip `4768e9e809`, ended 14:32:52):
+  the author reports the large trash that was abandoned after three tries answered:
+  a disposal that made progress is deferred and uses no try,
+  and one that made none is retried three times and then recorded as failed with a journal line.
+  It walked the other jobs that requeue the same way
+  (prewarm,
+  relink,
+  subvolume delete,
+  snapshot ahead,
+  push,
+  review and upkeep)
+  and lists each with its lines and its bound.
+  Clippy clean and 120 tests of the changed modules passing at the tip,
+  which holds `main` with `0.6.1-alpha.30`.
+  It deleted a binary control of many rounds that could not hold every round and kept the in-crate one,
+  with the deleted control's runs in its `keep/runs/`.
+  It notes nothing reads the `failed` state for a person besides the new journal line.
+  Review queued first (range `main...4768e9e809`, 27 code files);
+  passes 29 and 34 still wait on its verdict.
+- Drive probe,
+  10:00 to 14:27:
+  of 266 readings four took a second or more
+  (build drive 3,306 ms at 13:02,
+  2,247 ms at 13:45,
+  2,300 ms at 14:21;
+  home drive 1,057 ms at 14:11),
+  never two in a row,
+  with 20 agent units going.
+- The check of queued entries at 14:37:32:
+  67 names queued by this session since 08:54,
+  none missing,
+  none twice;
+  59 entries in the queue.
 
 ##### mpm-shadow's stale launchers are answered with the scope lock gone, at a cost not yet attributed; the brief writer for tests is answered; both go to review (2026-11-14T14:27:24-05:00)
 
@@ -27657,6 +28366,35 @@ The reading stands in `package/crate-release/cli/README.md` ("What an alpha rele
 and `package/git-policy/cli/README.md` ("Development"),
 with those quotes and dates,
 so he can veto it.
+
+### The wrapper's full gate runs after each release (2026-11-14, answered by 15:15:27-05:00)
+
+Asked through the question tool whether the package's full container gate
+(`native:test:container`:
+the whole suite and Clippy in bounded containers)
+runs for each alpha release,
+with three options
+(after each merge without blocking,
+as now with no gate,
+before every release)
+and what was so by then:
+`0.6.1-alpha.28` to `0.6.1-alpha.32` went out on each integration pass's own checks,
+and three library tests are red on `main`,
+so the gate does not pass today.
+
+- The owner's answer,
+  typed and not one of the three:
+  "Gate after release."
+- What this session does by it:
+  a release is dispatched,
+  awaited and installed as before,
+  on the pass's report;
+  then `mise run //package/git-policy/cli:native:gate:main-tip` starts the gate on the commit `main` points at,
+  which holds the release's bump,
+  and `native:gate:verdict` reads its verdict.
+  The verdict is recorded with the release in this file.
+  A failure the red list of `main` does not explain goes to an author as a finding;
+  it does not hold the next release.
 
 ### Answers on the credentials Pi runs showed their model providers (2026-11-14, answered by 10:38:24-05:00)
 
