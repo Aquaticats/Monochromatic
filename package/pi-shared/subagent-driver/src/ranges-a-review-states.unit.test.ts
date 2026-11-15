@@ -73,6 +73,28 @@ const BRANCH_FOLDER = 'fix';
 const CASES_NAMED_IN_A_FAILURE = 10;
 
 /**
+ Names a byte by its code point, so a failure speaks of U+00A0 rather than of a character a reader cannot see.
+
+ @param byte - the byte to name
+
+ @returns its code point, as `U+00A0`
+
+ @example
+ ```ts
+ const name = byteNameOf({ byte: '\u00a0', },);
+ ```
+ */
+function byteNameOf({ byte, }: { readonly byte: string },): string {
+  /**
+   The byte's code point, which is one number for every byte this file tries.
+   */
+  const point = byte.codePointAt(0,) ?? 0;
+  return `U+${point.toString(16,)
+    .toUpperCase()
+    .padStart(4, '0',)}`;
+}
+
+/**
  Writes the cases that failed as one sentence, naming the first few.
 
  @param failures - every case that did not come back as it was written
@@ -355,7 +377,7 @@ await describe({
                  */
                 const failure = failureOfOneRange({ range: `main...${branch}`, },);
                 if (failure !== '') {
-                  failures.push(`${JSON.stringify(byte,)} at ${place}: ${failure}`);
+                  failures.push(`${byteNameOf({ byte, },)} at ${place}: ${failure}`);
                 }
               }
             }
@@ -394,7 +416,7 @@ await describe({
                */
               const failure = failureOfTwoRanges({ ranges, },);
               if (failure !== '') {
-                failures.push(`${JSON.stringify(byte,)}: ${failure}`);
+                failures.push(`${byteNameOf({ byte, },)}: ${failure}`);
               }
             }
             expect(failuresNamed({ failures, },),).toBe('',);
@@ -437,7 +459,7 @@ await describe({
                  */
                 const failure = failureOfOneRange({ range: `main...${branch}`, },);
                 if (failure !== '') {
-                  failures.push(`${JSON.stringify(byte,)} at ${place}: ${failure}`);
+                  failures.push(`${byteNameOf({ byte, },)} at ${place}: ${failure}`);
                 }
               }
             }
@@ -461,7 +483,7 @@ await describe({
                 reading: readingOf({ ranges: ['main...fix/ab',], },),
                 readingFile: '/reviews/a-round-1/what-the-review-read.json',
               },).covers) {
-                failures.push(JSON.stringify(byte,),);
+                failures.push(byteNameOf({ byte, },),);
               }
             }
             expect(failures,).toEqual([],);
