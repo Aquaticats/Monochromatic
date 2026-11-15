@@ -148,8 +148,8 @@ fn dropping_a_child_that_leads_no_group_ends_the_helper_it_started() {
     let helper: u32 = written.trim().parse().expect("the number the shell wrote is a process id");
     // The drop the lane's ceiling makes: the value that owns the child goes, and the child runs on.
     drop(adopt(child));
-    let began: std::time::Instant = std::time::Instant::now();
-    while runs_the_helper(helper) && began.elapsed() < THE_GROUP_ENDS_WITHIN {
+    let ended_by: std::time::Instant = std::time::Instant::now();
+    while runs_the_helper(helper) && ended_by.elapsed() < THE_GROUP_ENDS_WITHIN {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     let survived: bool = runs_the_helper(helper);

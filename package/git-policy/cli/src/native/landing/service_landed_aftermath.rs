@@ -183,19 +183,19 @@ fn it_may_have_landed(failure: &ClientFailure) -> bool {
     return match failure {
         // An answer that was lost after the request was written: the service went silent, it answered nothing that decided
         // the request, or it stopped answering and did not confirm the withdrawal either.
-        ClientFailure::ServiceSilent { .. } | ClientFailure::MayNotHaveLanded { .. } | ClientFailure::ServiceGoneUnconfirmed { .. } => true,
+        ClientFailure::ServiceSilent | ClientFailure::MayNotHaveLanded | ClientFailure::ServiceGoneUnconfirmed { .. } => true,
         // Every other kind says what became of the request, and none of them leaves a commit that may be on the branch.
         ClientFailure::DidNotStart { .. }
         | ClientFailure::NothingAnswered { .. }
-        | ClientFailure::NoActivation { .. }
+        | ClientFailure::NoActivation(..)
         | ClientFailure::ManagerDidNotAnswer { .. }
-        | ClientFailure::OtherAccount { .. }
-        | ClientFailure::NoCommonVersion { .. }
-        | ClientFailure::OtherRelease { .. }
-        | ClientFailure::RepositoryFull { .. }
-        | ClientFailure::RepositoryReadOnly { .. }
-        | ClientFailure::PermissionDenied { .. }
-        | ClientFailure::RepositoryFrozen { .. }
+        | ClientFailure::OtherAccount
+        | ClientFailure::NoCommonVersion
+        | ClientFailure::OtherRelease
+        | ClientFailure::RepositoryFull(..)
+        | ClientFailure::RepositoryReadOnly(..)
+        | ClientFailure::PermissionDenied(..)
+        | ClientFailure::RepositoryFrozen(..)
         | ClientFailure::BranchKeepsChanging { .. }
         | ClientFailure::BranchMoved { .. }
         | ClientFailure::ConclusionStateChanged { .. }
@@ -207,18 +207,18 @@ fn it_may_have_landed(failure: &ClientFailure) -> bool {
         | ClientFailure::WithdrawalUnconfirmed { .. }
         | ClientFailure::Interrupted { .. }
         | ClientFailure::InterruptedNotKnown { .. }
-        | ClientFailure::StepTooSlow { .. }
-        | ClientFailure::Refused { .. }
-        | ClientFailure::IndexInUse { .. }
+        | ClientFailure::StepTooSlow
+        | ClientFailure::Refused
+        | ClientFailure::IndexInUse(..)
         | ClientFailure::ReferenceLocked { .. }
-        | ClientFailure::Unavailable { .. }
-        | ClientFailure::ProgramMissing { .. }
-        | ClientFailure::CouldNotStart { .. }
+        | ClientFailure::Unavailable
+        | ClientFailure::ProgramMissing(..)
+        | ClientFailure::CouldNotStart(..)
         | ClientFailure::SocketPathTooLong { .. }
         | ClientFailure::ServiceElsewhere { .. }
-        | ClientFailure::UnitInTheWay { .. }
-        | ClientFailure::WorkNotHandedOver { .. }
-        | ClientFailure::ContentPruned { .. }
+        | ClientFailure::UnitInTheWay(..)
+        | ClientFailure::WorkNotHandedOver(..)
+        | ClientFailure::ContentPruned
         | ClientFailure::ServiceGoneNotLanded { .. } => false,
     };
 }
