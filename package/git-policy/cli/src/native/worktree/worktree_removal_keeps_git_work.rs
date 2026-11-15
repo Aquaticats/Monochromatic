@@ -113,8 +113,8 @@ const PER_WORKTREE_PREFIXES: [&str; 3] = ["refs/worktree/", "refs/bisect/", "ref
 ///  and twelve digits are that prefix with room to be unambiguous in a repository of any size this program meets.
 const SHOWN_DIGITS: usize = 12;
 
-/// How many stranded commits one answer names before it counts the rest.
-const SHOWN_COMMITS: usize = 3;
+/// How many stranded objects one answer names before it counts the rest.
+const SHOWN_CONTAINERS: usize = 3;
 
 /// How many digits a SHA-1 object name has,
 /// which is one length a `HEAD` record can hold.
@@ -237,7 +237,7 @@ enum Reached {
 struct Stranded {
     /// The object,
     /// as its full name.
-    commit: String,
+    object: String,
     /// What it is,
     /// which decides the sentence and whether survival is asked at all.
     reached: Reached,
@@ -274,15 +274,16 @@ pub(crate) fn git_work_a_removal_would_strand(context: &GitContext, common_dir: 
     let mut counted: usize = 0;
     for one in places {
         let (root, own) = (one.root.as_path(), one.admin.as_path());
-        for stranded in stranded_commits(context, common_dir, root, own)? {
-            counted += 1;
-            if said.len() < SHOWN_COMMITS {
-                said.push(sentence(root, &stranded));
+        let stranded: Vec<Stranded> = stranded_objects(context, common_dir, root, own)?;
+        counted += stranded.len();
+        for held in stranded {
+            if said.len() < SHOWN_CONTAINERS {
+                said.push(sentence(root, &held));
             }
         }
     }
     if counted > said.len() {
-        said.push(format!("and {} more commits that only a worktree being removed names", counted - said.len()));
+        said.push(format!("and {} more objects that only a worktree being removed names", counted - said.len()));
     }
     return Ok(said);
 }
@@ -303,51 +304,53 @@ pub(crate) fn git_work_a_removal_would_strand(context: &GitContext, common_dir: 
 /// ```ts
 /// const stranded = strandedCommits(context, common, root, admin);
 /// ```
-fn stranded_commits(context: &GitContext, common_dir: &Path, root: &Path, admin: &Path) -> Result<Vec<Stranded>, String> {
+fn stranded_objects(context: &GitContext, common_dir: &Path, root: &Path, admin: &Path) -> Result<Vec<Stranded>, String> {
     let mut holders: Vec<Stranded> = Vec::new();
-    // The detached `HEAD` first, so the sentence about the commit it names is the one a person reads for it.
+    // The detached `HEAD` first, so the sentence about the object it names is the one a person reads for it.
     if let Some(commit) = detached_head(admin)? {
-        holders.push(Stranded { commit, reached: Reached::Commit, holder: String::from("its detached HEAD") });
+        holders.push(Stranded { object: commit, reached: Reached::Commit, holder: String::from("its detached HEAD") });
     }
-    // A reference is asked what it reaches: this query peels an annotated tag, so a tag of a commit gives the commit and a
-    // tag of a tag gives what that reaches. A reference of a tree or a blob gives that object, which is kept as it stands.
+    // Each reference's own object, of whatever kind it holds: the tag object itself is the name a person sees,
+    // and the walk from it reaches what it tags.
     let references: Vec<(String, String)> = per_worktree_references(context, root, admin)?;
     let objects: Vec<String> = references.iter().map(|(_, object)| return object.clone()).collect();
     for (object, reached) in objects_among(context, common_dir, root, objects.as_slice())? {
-        let holder: String = match references.iter().find(|(_, named)| return *named == object) {
+        let holder: String = match references.iter().find(|(_, named)| return *named == as_git_prints_an_object_name(object.as_str())) {
             Some((name, _)) => format!("the reference `{name}`"),
             None => String::from("a reference of this worktree"),
         };
-        holders.push(Stranded { commit: object, reached, holder });
+        holders.push(Stranded { object, reached, holder });
     }
-    for (commit, holder) in names_that_die_with_the_worktree(admin)? {
-        holders.push(Stranded { commit, reached: Reached::Commit, holder });
+    // Every object a log or a record of the worktree names, of whatever kind it is: a reflog line can name a tag object,
+    // and the walk from it reaches the commit.
+    let dying: Vec<(String, String)> = names_that_die_with_the_worktree(admin)?;
+    let kinds: Vec<(String, Reached)> = objects_among(context, common_dir, root, dying.iter().map(|(object, _)| return object.clone()).collect::<Vec<String>>().as_slice())?;
+    for (object, reached) in kinds {
+        let holder: String = match dying.iter().find(|(named, _)| return *named == as_git_prints_an_object_name(object.as_str())) {
+            Some((_, holder)) => holder.clone(),
+            None => String::from("a record of this worktree"),
+        };
+        holders.push(Stranded { object, reached, holder });
     }
     // One holder per object, the first name it has here.
     let mut named: Vec<Stranded> = Vec::new();
     for held in holders {
-        if named.iter().any(|one| return the_same_object_name(one.commit.as_str(), held.commit.as_str())) {
+        if named.iter().any(|one| return the_same_object_name(one.object.as_str(), held.object.as_str())) {
             continue;
         }
         named.push(held);
     }
-    // An object that is no commit is kept as it stands: nothing here can prove a tree or a blob survives, and one that
-    // dies with the worktree is as lost as a commit would be.
-    let candidates: Vec<String> = named.iter().filter(|held| return held.reached == Reached::Commit).map(|held| return held.commit.clone()).collect();
-    let stranded: Vec<String> = match candidates.is_empty() {
+    let dying_names: Vec<String> = named.iter().map(|held| return held.object.clone()).collect();
+    let stranded: Vec<String> = match dying_names.is_empty() {
         true => Vec::new(),
-        false => commits_nothing_survives(context, common_dir, root, candidates.as_slice())?,
+        false => objects_only_the_dying_names_reach(context, common_dir, root, dying_names.as_slice())?,
     };
-    let mut answer: Vec<Stranded> = Vec::new();
-    for held in named {
-        let doomed: bool = match held.reached {
-            Reached::Commit => stranded.iter().any(|one| return the_same_object_name(one.as_str(), held.commit.as_str())),
-            Reached::Other(_) => true,
-        };
-        if doomed {
-            answer.push(held);
-        }
-    }
+    let answer: Vec<Stranded> = named
+        .into_iter()
+        .filter(|held| return stranded.iter().any(|one| return the_same_object_name(one.as_str(), held.object.as_str())))
+        .collect();
+    // One sentence per stranded name is enough: every other object the answer holds is reached from one of these
+    // (a commit implies the trees and blobs below it, a tag implies what it tags), so naming the name names it too.
     return Ok(answer);
 }
 
@@ -416,8 +419,9 @@ fn per_worktree_references(context: &GitContext, root: &Path, admin: &Path) -> R
     }
     let arguments: Vec<OsString> = [
         OsString::from("for-each-ref"),
-        // `*objectname` is what the reference reaches, peeled through every tag; it is empty for a reference that is no tag.
-        OsString::from("--format=%(refname)%09%(objectname)%09%(*objectname)"),
+        // The reference's own object, of whatever kind it is: what the question below asks about is the object the name
+        // itself holds, and a tag's target is reached by the walk from that tag.
+        OsString::from("--format=%(refname)%09%(objectname)"),
         // Git's own list of the namespaces it keeps per worktree.
         OsString::from("refs/worktree"),
         OsString::from("refs/bisect"),
@@ -440,17 +444,11 @@ fn per_worktree_references(context: &GitContext, root: &Path, admin: &Path) -> R
     }
     let mut found: Vec<(String, String)> = Vec::new();
     for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
-        let fields: Vec<&str> = line.split('\t').collect();
-        let [name, object, reached, ..] = fields.as_slice() else { continue };
-        // The peeled name where Git peeled the reference, and its own object where it did not.
-        let kind: &str = match reached.is_empty() {
-            true => object,
-            false => reached,
-        };
-        if kind.is_empty() {
+        let Some((name, object)) = line.split_once('\t') else { continue };
+        if object.is_empty() {
             continue;
         }
-        found.push(((*name).to_owned(), kind.to_owned()));
+        found.push((name.to_owned(), object.to_owned()));
     }
     return Ok(found);
 }
@@ -477,54 +475,59 @@ fn with_the_repository(context: &GitContext, common_dir: &Path) -> GitContext {
 }
 
 /// What:
-///  The commits, of those given, that no name surviving the removal reaches.
+///  The objects, of those the dying names reach, that no name surviving the removal reaches,
+///  of every kind: a commit, a tag object, a tree, a blob.
 /// Why:
 ///  Git's own collection keeps an object reachable from any reference or log it reads,
 ///  and from every ancestor of what those name,
 ///  so the question is reachability and not the bytes of a record:
 ///  a commit an amend took off a branch is still named by that branch's reflog,
 ///  and one a person reset away in a detached worktree is named by nothing.
+///  `--objects` is what makes this a question of objects and not only of commits:
+///  a tip of any kind is a valid revision to Git's walk (`rev-list --objects <tree>` prints the tree and what it holds,
+///  `<annotated tag>` prints the tag object and then what it tags),
+///  so a tag object and the commit it tags are both in the answer,
+///  where a walk without `--objects` prints commits alone and dropped the tag
+///  (a review of `177112aac1`, findings 5 and 6; measured in `keep/probe-object-listing.log`).
 ///  One `rev-list` answers all of them at once,
-///  asked from the candidates to the names that survive and never the other way round:
-///  the walk it then does is bounded by the candidates,
-///  while the surviving names are tips the answer excludes,
-///  and walking the survivors first costs 6.9 s here where this costs 30 to 98 ms
-///  (`keep/measurement-cost-of-the-reflog-question.log` of the run that answered the earlier review).
+///  asked from the dying names to the names that survive and never the other way round:
+///  the walk it then does is bounded by the dying names,
+///  while the surviving names are tips the answer excludes.
 ///  The surviving logs are read only when the surviving references leave something unanswered:
 ///  an ordinary removal of a finished worktree is answered by the references alone,
-///  so the reading of the common `logs` tree is skipped for it
-///  (measured in `keep/measurement-cost-of-the-reflog-question.log` of the run that answered this review).
+///  so the reading of the common `logs` tree is skipped for it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function commitsNothingSurvives(context, commonDir, root, candidates): string[]; // throws the reason
+/// function objectsOnlyTheDyingNamesReach(context, commonDir, root, dying): string[]; // throws the reason
 /// ```
-fn commits_nothing_survives(context: &GitContext, common_dir: &Path, root: &Path, candidates: &[String]) -> Result<Vec<String>, String> {
+fn objects_only_the_dying_names_reach(context: &GitContext, common_dir: &Path, root: &Path, dying: &[String]) -> Result<Vec<String>, String> {
     // The requests below carry their input on standard input, which this program feeds from a private file under the
     // repository's own scratch directory, so the context has to name the repository it was started for.
     let owned: GitContext = with_the_repository(context, common_dir);
-    let first: Vec<String> = commits_no_named_revision_reaches(&owned, root, candidates, surviving_reference_names(&owned, root)?)?;
+    let first: Vec<String> = objects_no_named_revision_reaches(&owned, root, dying, surviving_reference_names(&owned, root)?)?;
     if first.is_empty() {
         return Ok(Vec::new());
     }
-    return commits_no_named_revision_reaches(&owned, root, first.as_slice(), surviving_log_names(common_dir)?);
+    return objects_no_named_revision_reaches(&owned, root, dying, surviving_log_names(common_dir)?);
 }
 
 /// What:
-///  Those of `candidates` that no tip in `surviving` reaches,
+///  The objects the tips in `dying` reach that no tip in `surviving` reaches,
 ///  and so no ancestor of one either.
 /// Why:
-///  One `rev-list` with the candidates as tips and the surviving names as exclusions answers the reachability question
-///  for all of them at once, and its output is bounded by the candidates rather than by the repository's history.
+///  One `rev-list --objects` with the dying names as tips and the surviving names as exclusions answers the reachability
+///  question for all of them at once, and its output is bounded by the dying names rather than by the repository's
+///  history.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function commitsNoNamedRevisionReaches(context, root, candidates, surviving): string[]; // throws the reason
+/// function objectsNoNamedRevisionReaches(context, root, dying, surviving): string[]; // throws the reason
 /// ```
-fn commits_no_named_revision_reaches(context: &GitContext, root: &Path, candidates: &[String], surviving: Vec<String>) -> Result<Vec<String>, String> {
+fn objects_no_named_revision_reaches(context: &GitContext, root: &Path, dying: &[String], surviving: Vec<String>) -> Result<Vec<String>, String> {
     let mut input: String = String::new();
-    for commit in candidates {
-        input.push_str(commit);
+    for object in dying {
+        input.push_str(object);
         input.push('\n');
     }
     for name in surviving {
@@ -532,7 +535,7 @@ fn commits_no_named_revision_reaches(context: &GitContext, root: &Path, candidat
         input.push_str(name.as_str());
         input.push('\n');
     }
-    let arguments: Vec<OsString> = [OsString::from("rev-list"), OsString::from("--stdin")].to_vec();
+    let arguments: Vec<OsString> = [OsString::from("rev-list"), OsString::from("--objects"), OsString::from("--no-object-names"), OsString::from("--stdin")].to_vec();
     let request: GitRequest = GitRequest {
         cwd: root.to_path_buf(),
         arguments,
@@ -540,22 +543,23 @@ fn commits_no_named_revision_reaches(context: &GitContext, root: &Path, candidat
         input: Some(input.into_bytes()),
         ..GitRequest::default()
     };
-    let output: GitOutput = run_git(context, &request).map_err(|error| return format!("nothing proves which commits no surviving name reaches ({error})"))?;
+    let output: GitOutput = run_git(context, &request).map_err(|error| return format!("nothing proves which objects no surviving name reaches ({error})"))?;
     if output.code != Some(0) {
         return Err(format!(
-            "nothing proves which commits no surviving name reaches ({})",
+            "nothing proves which objects no surviving name reaches ({})",
             String::from_utf8_lossy(output.stderr.as_slice()).trim()
         ));
     }
-    let mut stranded: Vec<String> = Vec::new();
+    // Git prints its own answer, and these are the names a name read from a file is compared with: the comparison is
+    // Git's, whatever case each was written in.
+    let mut objects: Vec<String> = Vec::new();
     for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
-        // Git prints its own answer, and this is the one place a printed name meets a name read from a file: the
-        // comparison is Git's, whatever case each was written in.
-        if candidates.iter().any(|one| return the_same_object_name(one.as_str(), line)) && !stranded.iter().any(|one| return the_same_object_name(one.as_str(), line)) {
-            stranded.push(as_git_prints_an_object_name(line));
+        let object: String = as_git_prints_an_object_name(line);
+        if !objects.contains(&object) {
+            objects.push(object);
         }
     }
-    return Ok(stranded);
+    return Ok(objects);
 }
 
 /// What:
@@ -628,7 +632,9 @@ fn objects_among(context: &GitContext, common_dir: &Path, root: &Path, candidate
 /// function survivingReferenceNames(context, root): string[]; // throws the reason
 /// ```
 fn surviving_reference_names(context: &GitContext, root: &Path) -> Result<Vec<String>, String> {
-    let arguments: Vec<OsString> = [OsString::from("for-each-ref"), OsString::from("--format=%(refname)%09%(objecttype)")].to_vec();
+    // Every reference, whatever kind of object it holds: a name of any kind that survives keeps what it holds,
+    // and the walk below excludes it by the name Git itself peels.
+    let arguments: Vec<OsString> = [OsString::from("for-each-ref"), OsString::from("--format=%(refname)")].to_vec();
     let request: GitRequest = GitRequest {
         cwd: root.to_path_buf(),
         arguments,
@@ -644,13 +650,11 @@ fn surviving_reference_names(context: &GitContext, root: &Path) -> Result<Vec<St
     }
     let mut names: Vec<String> = Vec::new();
     for line in String::from_utf8_lossy(output.stdout.as_slice()).lines() {
-        let Some((name, kind)) = line.split_once('\t') else { continue };
-        if PER_WORKTREE_PREFIXES.iter().any(|prefix| return name.starts_with(prefix)) {
+        let name: &str = line.trim();
+        if name.is_empty() || PER_WORKTREE_PREFIXES.iter().any(|prefix| return name.starts_with(prefix)) {
             continue;
         }
-        if kind == "commit" || kind == "tag" {
-            names.push(name.to_owned());
-        }
+        names.push(name.to_owned());
     }
     return Ok(names);
 }
@@ -935,7 +939,7 @@ fn files_beneath(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
 /// sentence(root, stranded) // 'its detached HEAD names the commit 0f1af2e0f295, ...'
 /// ```
 fn sentence(root: &Path, stranded: &Stranded) -> String {
-    let short: &str = &stranded.commit[..SHOWN_DIGITS.min(stranded.commit.len())];
+    let short: &str = &stranded.object[..SHOWN_DIGITS.min(stranded.object.len())];
     // The path is quoted where it enters the command the person copies: a path with a space, a quote, a dollar sign
     // or a line break otherwise turns that command into another one.
     let quoted: String = crate::shell_quote::shell_quote(root.as_os_str().as_encoded_bytes());

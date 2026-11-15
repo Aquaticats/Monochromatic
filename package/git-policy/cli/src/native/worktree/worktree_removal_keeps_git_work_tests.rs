@@ -321,19 +321,17 @@ fn a_log_line_this_program_cannot_read_is_the_reason_nothing_is_removed() {
 }
 
 /// What:
-///  A reference of the worktree that names an annotated tag names the commit the tag reaches,
-///  a tag of a tag reaches the same commit,
-///  and a tag of a tree is kept as it stands.
+///  A reference of the worktree that names an annotated tag names the tag object,
+///  a tag of a tag names the outer tag object,
+///  and a tag of a tree names the tag object that wraps the tree.
 /// Why:
-///  The query that lists this worktree's references asked for the object a reference names,
-///  which for an annotated tag is the tag object:
-///  the commit its tag was made for was dropped as no commit,
-///  the removal went ahead, and `git gc --prune=now` took the commit
-///  (a review of `5a2bd4bb6c`, finding 1).
-///  A tag of a tree names no commit at all,
-///  and nothing here proves such an object outlives the removal, so it is kept as well.
+///  The question the guard asks is of objects, of every kind:
+///  a reference's own object is the name a person sees, and the walk from it reaches what it tags.
+///  A guard that kept only the peeled object lost the tag object itself, and the collection took it with its message
+///  (a review of `177112aac1`, finding 5);
+///  the commit a tag names is reached from the tag and needs no sentence of its own.
 #[test]
-fn a_reference_that_names_a_tag_names_what_the_tag_reaches() {
+fn a_reference_that_names_a_tag_names_the_tag_object() {
     let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-tag");
     let head: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
     let commit: String = git_text(
@@ -341,18 +339,10 @@ fn a_reference_that_names_a_tag_names_what_the_tag_reaches() {
         &["commit-tree", format!("{head}^{{tree}}").as_str(), "-p", head.as_str(), "-m", "a commit only a tag names"],
     );
     let tree: String = git_text(fixture.worktree.as_path(), &["rev-parse", &format!("{head}^{{tree}}")]);
-    for (reference, kind, reached) in [("plain-tag", "commit", commit.clone()), ("nested-tag", "commit", commit.clone()), ("tag-of-tree", "tree", tree.clone())] {
+    for (reference, of) in [("plain-tag", commit.clone()), ("nested-tag", commit.clone()), ("tag-of-tree", tree.clone())] {
         // The tag a person made, and for the nested case the tag of that tag.
-        let inner: String = match reference {
-            "tag-of-tree" => {
-                git(fixture.worktree.as_path(), &["tag", "--annotate", "--message=of a tree", "construction-inner", tree.as_str()]);
-                git_text(fixture.worktree.as_path(), &["rev-parse", "refs/tags/construction-inner"])
-            }
-            _ => {
-                git(fixture.worktree.as_path(), &["tag", "--annotate", "--message=inner", "construction-inner", commit.as_str()]);
-                git_text(fixture.worktree.as_path(), &["rev-parse", "refs/tags/construction-inner"])
-            }
-        };
+        git(fixture.worktree.as_path(), &["tag", "--annotate", "--message=inner", "construction-inner", of.as_str()]);
+        let inner: String = git_text(fixture.worktree.as_path(), &["rev-parse", "refs/tags/construction-inner"]);
         let pointed: String = match reference {
             "nested-tag" => {
                 git(fixture.worktree.as_path(), &["tag", "--annotate", "--message=outer", "construction-outer", inner.as_str()]);
@@ -368,8 +358,8 @@ fn a_reference_that_names_a_tag_names_what_the_tag_reaches() {
         let said: Vec<String> = fixture.stranded().expect("the references can be read");
         assert_eq!(said.len(), 1, "{reference} names one object: {said:?}");
         assert!(said[0].contains(&format!("the reference `refs/worktree/{reference}`")), "{reference}: {}", said[0]);
-        assert!(said[0].contains(&reached[..12]), "{reference} reaches {reached}: {}", said[0]);
-        assert!(said[0].contains(&format!("names the {kind}")), "{reference} is kept as a {kind}: {}", said[0]);
+        assert!(said[0].contains(&pointed[..12]), "{reference} names the tag {pointed}: {}", said[0]);
+        assert!(said[0].contains("names the tag"), "{reference} is kept as a tag object: {}", said[0]);
         git(fixture.worktree.as_path(), &["update-ref", "-d", &format!("refs/worktree/{reference}")]);
     }
 }
@@ -483,4 +473,186 @@ fn a_commit_only_fetch_head_names_is_stranded() {
     assert!(said[0].contains("the record `FETCH_HEAD`"), "the sentence names the record: {}", said[0]);
     assert!(said[0].contains(&commit[..12]), "and the commit: {}", said[0]);
     assert!(said[0].contains("what a fetch brought here"), "and says a fetch brought it: {}", said[0]);
+}
+
+/// What:
+///  Every kind of name that dies with a worktree,
+///  holding every kind of object it can hold.
+/// Why:
+///  The question the guard asks is of objects (a review of `177112aac1`, findings 5 and 6):
+///  a name holds a commit, an annotated tag, a tree or a blob,
+///  and a guard that reasoned about commits alone lost the tag object, its message with it, and the commit a reflog's
+///  tag named.
+///  So this walks each kind of dying name through each kind of object:
+///  a detached `HEAD`, `refs/worktree/`, `refs/bisect/`, the reflog of a per-worktree reference, the `HEAD` reflog and a
+///  record of a stopped operation,
+///  and every one must keep the worktree naming the object it holds.
+///  The last arm of each object names the same object on a reference that survives, and the question is then silent:
+///  a walk that answered "everything is stranded" would pass the rows and fail that.
+#[test]
+fn every_dying_name_holding_every_kind_of_object_keeps_the_worktree() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-object-kinds");
+    for (kind, object) in [
+        ("commit", a_dangling_commit(&fixture)),
+        ("tag", a_dangling_tag(&fixture)),
+        ("tree", a_dangling_tree(&fixture)),
+        ("blob", a_dangling_blob(&fixture)),
+    ] {
+        for place in ["detached-HEAD", "refs/worktree/only", "refs/bisect/only", "reflog-of-a-reference", "logs/HEAD", "ORIG_HEAD"] {
+            // Git writes a commit into a detached `HEAD` and into a record, and refuses any other object there;
+            // a reference and a reflog name whatever object a person put in them.
+            if place == "detached-HEAD" && kind != "commit" {
+                continue;
+            }
+            place_dying_name(&fixture, place, object.as_str());
+            let said: Vec<String> = fixture.stranded().expect("the names can be read");
+            assert_eq!(said.len(), 1, "{place} holding a {kind} is one stranded object: {said:?}");
+            assert!(said[0].contains(&object[..12]), "{place} holding a {kind} names it: {}", said[0]);
+            assert!(said[0].contains(&format!("names the {kind}")), "{place} says what kind it is: {}", said[0]);
+            clear_dying_name(&fixture, place);
+            let cleared: Vec<String> = fixture.stranded().expect("the names can be read");
+            assert!(cleared.is_empty(), "{place} cleared says nothing is stranded: {cleared:?}");
+            // The same object named by a reference that survives is nothing a removal would strand.
+            git(fixture.worktree.as_path(), &["update-ref", "--no-deref", "refs/keep/the-object", object.as_str()]);
+            place_dying_name(&fixture, place, object.as_str());
+            let surviving: Vec<String> = fixture.stranded().expect("the names can be read");
+            assert!(surviving.is_empty(), "{place} holding a {kind} a surviving reference names: {surviving:?}");
+            clear_dying_name(&fixture, place);
+            git(fixture.worktree.as_path(), &["update-ref", "--no-deref", "-d", "refs/keep/the-object"]);
+        }
+    }
+}
+
+/// A commit nothing else names: a child of the worktree's `HEAD` that no reference holds.
+fn a_dangling_commit(fixture: &Fixture) -> String {
+    let head: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
+    return git_text(
+        fixture.worktree.as_path(),
+        &["commit-tree", format!("{head}^{{tree}}").as_str(), "-p", head.as_str(), "-m", "an object only a dying name holds"],
+    );
+}
+
+/// An annotated tag nothing else names: made over a dangling commit, its own name deleted.
+fn a_dangling_tag(fixture: &Fixture) -> String {
+    let commit: String = a_dangling_commit(fixture);
+    git(fixture.worktree.as_path(), &["tag", "--annotate", "--message=tag data a person wrote", "only-tag", commit.as_str()]);
+    let tag: String = git_text(fixture.worktree.as_path(), &["rev-parse", "refs/tags/only-tag"]);
+    git(fixture.worktree.as_path(), &["update-ref", "-d", "refs/tags/only-tag"]);
+    return tag;
+}
+
+/// A tree nothing else names: one holding a blob nothing else names.
+fn a_dangling_tree(fixture: &Fixture) -> String {
+    let blob: String = a_dangling_blob(fixture);
+    return git_with_input(fixture.worktree.as_path(), &["mktree"], format!("100644 blob {blob}\tonly.txt\n").as_bytes());
+}
+
+/// What:
+///  One Git start that takes its input on standard input,
+///  which the fixture's own helpers do not carry.
+/// Why:
+///  `git mktree` is the one way to make a tree holding a known blob,
+///  and the fixture helpers pass no input.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = gitWithInput(worktree, ['mktree'], '100644 blob <sha>\tonly.txt\n');
+/// ```
+fn git_with_input(directory: &std::path::Path, arguments: &[&str], input: &[u8]) -> String {
+    use std::io::Write as _;
+    use std::process::{Command, Stdio};
+    let mut command: Command = Command::new(crate::test_support::REAL_GIT);
+    command.current_dir(directory).args(arguments).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    for (name, value) in crate::test_support::isolated_overlay() {
+        command.env(name, value);
+    }
+    let mut child: std::process::Child = command.spawn().expect("Git starts");
+    child.stdin.take().expect("a pipe").write_all(input).expect("the input");
+    let output: std::process::Output = child.wait_with_output().expect("Git ends");
+    assert!(output.status.success(), "git {arguments:?} failed: {}", String::from_utf8_lossy(output.stderr.as_slice()));
+    return String::from_utf8_lossy(output.stdout.as_slice()).trim().to_owned();
+}
+
+/// A blob nothing else names.
+fn a_dangling_blob(fixture: &Fixture) -> String {
+    std::fs::write(fixture.worktree.join("..only-content.txt"), b"bytes nothing else names\n").expect("content");
+    return git_text(fixture.worktree.as_path(), &["hash-object", "-w", "--", "..only-content.txt"]);
+}
+
+/// What:
+///  Put `object` where one kind of name that dies with the worktree holds it.
+/// Why:
+///  Git writes each of these itself:
+///  a detached `HEAD` and the records name commits,
+///  and a reference or a reflog names whatever a person put there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// placeDyingName(fixture, place, object)
+/// ```
+fn place_dying_name(fixture: &Fixture, place: &str, object: &str) {
+    match place {
+        // Git's own `update-ref` writes whatever object the person names, here where a detached `HEAD` stands.
+        "detached-HEAD" => {
+            git(fixture.worktree.as_path(), &["update-ref", "--no-deref", "HEAD", object]);
+        }
+        "refs/worktree/only" => {
+            git(fixture.worktree.as_path(), &["update-ref", "--no-deref", "refs/worktree/only", object]);
+        }
+        "refs/bisect/only" => {
+            git(fixture.worktree.as_path(), &["update-ref", "--no-deref", "refs/bisect/only", object]);
+        }
+        // The reflog holds the object while the reference itself names the worktree's `HEAD`, which survives.
+        "reflog-of-a-reference" => {
+            git(fixture.worktree.as_path(), &["update-ref", "--no-deref", "--create-reflog", "refs/worktree/only", object]);
+            let head: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
+            git(fixture.worktree.as_path(), &["update-ref", "--no-deref", "refs/worktree/only", head.as_str()]);
+        }
+        // The `HEAD` reflog is a file of lines: the two names Git writes on a line, then who and when.
+        "logs/HEAD" => {
+            let line: String = format!("{object} {object} a person <person@example.invalid> 1700000000 +0000\tthe object a reflog holds\n");
+            let log: PathBuf = fixture.admin.join("logs/HEAD");
+            let mut text: String = std::fs::read_to_string(log.as_path()).unwrap_or_default();
+            text.push_str(line.as_str());
+            std::fs::write(log.as_path(), text.as_bytes()).expect("the reflog line");
+        }
+        "ORIG_HEAD" => {
+            std::fs::write(fixture.admin.join("ORIG_HEAD"), format!("{object}\n")).expect("the record");
+        }
+        other => panic!("no kind of name called {other}"),
+    }
+}
+
+/// What:
+///  Take that name away again, leaving the worktree as it was.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// clearDyingName(fixture, place)
+/// ```
+fn clear_dying_name(fixture: &Fixture, place: &str) {
+    match place {
+        "detached-HEAD" => {
+            // Back on its branch, whose tip is a name that survives: the movement wrote reflog entries of its own, so the
+            // log is left as one line naming that tip.
+            git(fixture.worktree.as_path(), &["checkout", "--quiet", "feature"]);
+            let head: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
+            let line: String = format!("{head} {head} a person <person@example.invalid> 1700000000 +0000\ton a branch\n");
+            std::fs::write(fixture.admin.join("logs/HEAD"), line.as_bytes()).expect("one reflog line");
+        }
+        "refs/worktree/only" | "refs/bisect/only" | "reflog-of-a-reference" => {
+            git(fixture.worktree.as_path(), &["update-ref", "-d", "refs/worktree/only"]);
+            git(fixture.worktree.as_path(), &["update-ref", "-d", "refs/bisect/only"]);
+        }
+        "logs/HEAD" => {
+            let log: PathBuf = fixture.admin.join("logs/HEAD");
+            let text: String = std::fs::read_to_string(log.as_path()).unwrap_or_default();
+            let kept: String = text.lines().filter(|line| return !line.contains("the object a reflog holds")).map(|line| return format!("{line}\n")).collect();
+            std::fs::write(log.as_path(), kept.as_bytes()).expect("the reflog without the line");
+        }
+        "ORIG_HEAD" => {
+            let _ = std::fs::remove_file(fixture.admin.join("ORIG_HEAD"));
+        }
+        other => panic!("no kind of name called {other}"),
+    }
 }

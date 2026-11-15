@@ -899,7 +899,7 @@ fn a_commit_only_an_annotated_tag_names_is_refused_and_survives_a_collection() {
     std::fs::remove_file(admin.join("logs/HEAD").as_path()).expect("the reflog goes");
     std::fs::remove_file(admin.join("ORIG_HEAD").as_path()).expect("the reset's record goes");
 
-    for (reference, of, reached, kind) in [
+    for (reference, of, reaches, kind) in [
         ("plain-tag", commit.as_str(), commit.as_str(), "commit"),
         ("nested-tag", commit.as_str(), commit.as_str(), "commit"),
         ("tag-of-tree", tree.as_str(), tree.as_str(), "tree"),
@@ -924,15 +924,18 @@ fn a_commit_only_an_annotated_tag_names_is_refused_and_survives_a_collection() {
         let said: String = stderr_of(&refused);
         assert_eq!(refused.code, Some(1), "{reference}: the removal is refused: {said}");
         assert!(said.contains(&format!("refs/worktree/{reference}")), "{reference}: the refusal names it: {said}");
-        assert!(said.contains(&reached[..12]), "{reference}: and the {kind} it reaches: {said}");
-        assert!(said.contains(&format!("names the {kind}")), "{reference}: as a {kind}: {said}");
+        // The name the reference holds is the tag object; what the tag reaches is reached from it.
+        assert!(said.contains(&pointed[..12]), "{reference}: and the tag it names: {said}");
+        assert!(said.contains("names the tag"), "{reference}: as a tag object: {said}");
         assert!(scene.task.exists(), "{reference}: and the worktree stays");
         // The collection runs in the worktree that holds the name: a reference of one worktree is invisible to a
         // collection started in another, which is Git's own reading of a per-worktree reference
         // (`keep/measurement-what-a-collection-keeps.log` of this run).
         run_direct(&scene.fixture, scene.task.as_path(), &["gc", "--prune=now"]);
-        let readable: Observed = run_direct(&scene.fixture, scene.task.as_path(), &["cat-file", "-e", reached]);
-        assert_eq!(readable.code, Some(0), "{reference}: the {kind} is still readable after a collection: {}", stderr_of(&readable));
+        let tag_readable: Observed = run_direct(&scene.fixture, scene.task.as_path(), &["cat-file", "-e", pointed.as_str()]);
+        let reached_readable: Observed = run_direct(&scene.fixture, scene.task.as_path(), &["cat-file", "-e", reaches]);
+        assert_eq!(tag_readable.code, Some(0), "{reference}: the tag is still readable after a collection: {}", stderr_of(&tag_readable));
+        assert_eq!(reached_readable.code, Some(0), "{reference}: and the {kind} it reaches too: {}", stderr_of(&reached_readable));
         run_direct(&scene.fixture, scene.task.as_path(), &["update-ref", "-d", &format!("refs/worktree/{reference}")]);
     }
     remove(&scene.fixture);
@@ -1467,4 +1470,63 @@ fn a_repository_inside_an_ignored_folder_is_deleted_with_the_log_line_that_says_
     // words is `worktree_removal_takes_tests::a_git_repository_inside_an_ignored_directory_is_named_with_its_branch_tips`,
     // which reads the line without any walk this round added.
     remove(&scene.fixture);
+}
+
+/// What:
+///  A per-worktree reference that names an annotated tag keeps the worktree,
+///  and the tag object is still readable after a collection;
+///  a per-worktree reflog that names a tag keeps the worktree and the commit the tag names.
+/// Why:
+///  The question the guard asks is of objects: a name a removal deletes holds a commit, a tag, a tree or a blob,
+///  and a guard that kept only a tag's commit lost the tag object with its message, and a reflog's tag lost both
+///  (a review of `177112aac1`, findings 5 and 6).
+#[test]
+fn a_reference_or_a_reflog_that_names_a_tag_keeps_the_tag_and_what_it_names() {
+    // The reference's own object is the tag; the commit it tags survives on the worktree's branch.
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-per-worktree-tag");
+    let task: String = scene.task.display().to_string();
+    run_direct(&scene.fixture, scene.task.as_path(), &["tag", "--annotate", "--message=tag data a person wrote", "kept", "HEAD"]);
+    let named: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", "refs/tags/kept"]);
+    let tag: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
+    run_direct(&scene.fixture, scene.task.as_path(), &["update-ref", "--no-deref", "refs/worktree/person-keep", tag.as_str()]);
+    run_direct(&scene.fixture, scene.task.as_path(), &["update-ref", "-d", "refs/tags/kept"]);
+    let refused: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "the tag object keeps the worktree: {said}");
+    assert!(said.contains("names the tag"), "and the refusal says it is a tag: {said}");
+    assert!(said.contains(&tag[..12]), "and names it: {said}");
+    // A per-worktree reference of one worktree is invisible to a collection started in another, so the collection runs
+    // in the worktree that holds the name (`keep/measurement-what-a-collection-keeps.log` of an earlier round).
+    run_direct(&scene.fixture, scene.task.as_path(), &["gc", "--prune=now"]);
+    let readable: Observed = run_direct(&scene.fixture, scene.task.as_path(), &["cat-file", "-e", tag.as_str()]);
+    assert_eq!(readable.code, Some(0), "and the tag is still readable after a collection: {}", stderr_of(&readable));
+    remove(&scene.fixture);
+
+    // The tag is held by a per-worktree reflog alone, and the commit it names by nothing else either.
+    let reflogged: Scene = a_repository_with_a_recorded_worktree("removal-per-worktree-tag-reflog");
+    let reflogged_task: String = reflogged.task.display().to_string();
+    let its_head_output: std::process::Output = git(&reflogged.fixture, reflogged.task.as_path(), &["rev-parse", "HEAD"]);
+    let its_head: String = String::from_utf8_lossy(its_head_output.stdout.as_slice()).trim().to_owned();
+    let made: std::process::Output = git(
+        &reflogged.fixture,
+        reflogged.task.as_path(),
+        &["commit-tree", format!("{its_head}^{{tree}}").as_str(), "-p", its_head.as_str(), "-m", "a commit only a tag names"],
+    );
+    let stranded_commit: String = String::from_utf8_lossy(made.stdout.as_slice()).trim().to_owned();
+    run_direct(&reflogged.fixture, reflogged.task.as_path(), &["tag", "--annotate", "--message=tag data a person wrote", "kept", stranded_commit.as_str()]);
+    let stranded_tag_output: std::process::Output = git(&reflogged.fixture, reflogged.task.as_path(), &["rev-parse", "refs/tags/kept"]);
+    let stranded_tag: String = String::from_utf8_lossy(stranded_tag_output.stdout.as_slice()).trim().to_owned();
+    run_direct(&reflogged.fixture, reflogged.task.as_path(), &["update-ref", "--no-deref", "--create-reflog", "refs/worktree/person-keep", stranded_tag.as_str()]);
+    run_direct(&reflogged.fixture, reflogged.task.as_path(), &["update-ref", "--no-deref", "refs/worktree/person-keep", its_head.as_str()]);
+    run_direct(&reflogged.fixture, reflogged.task.as_path(), &["update-ref", "-d", "refs/tags/kept"]);
+    let refused_reflog: Observed = reflogged.remove_with(&["worktree", "remove", reflogged_task.as_str()]);
+    let said_reflog: String = stderr_of(&refused_reflog);
+    assert_eq!(refused_reflog.code, Some(1), "the reflog's tag keeps the worktree: {said_reflog}");
+    assert!(said_reflog.contains(&stranded_tag[..12]), "and the refusal names the tag: {said_reflog}");
+    run_direct(&reflogged.fixture, reflogged.task.as_path(), &["gc", "--prune=now"]);
+    let tag_readable: Observed = run_direct(&reflogged.fixture, reflogged.task.as_path(), &["cat-file", "-e", stranded_tag.as_str()]);
+    let commit_readable: Observed = run_direct(&reflogged.fixture, reflogged.task.as_path(), &["cat-file", "-e", stranded_commit.as_str()]);
+    assert_eq!(tag_readable.code, Some(0), "the tag survives a collection: {}", stderr_of(&tag_readable));
+    assert_eq!(commit_readable.code, Some(0), "and so does the commit it names: {}", stderr_of(&commit_readable));
+    remove(&reflogged.fixture);
 }
