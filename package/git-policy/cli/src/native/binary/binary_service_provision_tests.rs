@@ -891,35 +891,58 @@ fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the
 }
 
 /// What:
-///  A runtime directory that leaves no room for one socket address is refused at once,
-/// with the path,
-/// the room this system has and the remedy.
+///  A runtime directory no socket path can carry costs no wait:
+/// on this system the address is an abstract name,
+///  so the refusal that comes is the one whose cause is here,
+/// named at once and with the repository unchanged.
 /// Why:
 ///   A person whose `XDG_RUNTIME_DIR` is longer than 40 bytes (an agent workspace,
 /// a container's own runtime directory)
-/// waited two minutes before the command said only that the service did not start,
-/// and the remedy it named (turning on user services)
-/// had nothing to do with the cause.
+/// waited two minutes before the command said only that the service did not start.
+///  The wait was the defect,
+/// and it is what this control holds down.
+///  The runtime directory stopped being a cause of its own on 2026-11-13,
+/// when `83b4707231` made the address
+/// `@monochromatic-git-policy-cli/<account>/<digest of the place>/<instance>`
+/// where a path does not carry it.
+///  So with a bus address nothing answers on,
+/// the setting that has to change is the one that starts the service,
+/// and the words for a path too long are the words for a system with no abstract namespace.
+///  Every part below is read from the arrangement rather than written as a number:
+/// the runtime directory's length past what a path carries,
+/// the address form this system has,
+/// and the remedy the words for a missing user service manager name.
 #[test]
-fn a_runtime_directory_no_address_can_hold_is_refused_at_once() {
+fn a_runtime_directory_no_path_can_carry_is_refused_at_once_naming_the_setting() {
     let (fixture, repo, _short) = prepared("provision-too-long");
     let scratch: PathBuf = super::service_commit::runtime_for("provision-too-long").join("x");
     std::fs::create_dir_all(&scratch).expect("the long runtime directory");
     let runtime: PathBuf = scratch.join("x".repeat(80));
     std::fs::create_dir_all(&runtime).expect("the runtime directory");
-    // The route needs a session bus, and this one is never reached: the address is refused before that.
-    std::fs::write(runtime.join("bus"), b"").expect("a bus that is never asked");
+    // A bus address nothing answers on, which is the arrangement this refusal is about here.
+    std::fs::write(runtime.join("bus"), b"").expect("a bus that nothing answers on");
     let began: Instant = Instant::now();
     let output: Output = commit(&fixture, &repo, runtime.as_path(), true);
     let took: Duration = began.elapsed();
     let stderr: String = String::from_utf8_lossy(&output.stderr).to_string();
     assert_eq!(output.status.code(), Some(1), "{stderr}");
     assert!(took < PATIENCE / 6, "the refusal takes {took:?}, not the start ceiling: {stderr}");
-    assert!(stderr.contains("XDG_RUNTIME_DIR"), "the setting that has to change is named: {stderr}");
-    assert!(stderr.contains("107"), "the room this system has is named: {stderr}");
-    assert!(!stderr.contains(LINGER_COMMAND), "the remedy for an account without user services is not the cause: {stderr}");
+    // The address form this system has is what makes the runtime directory carry the service's address,
+    // so the words for a path too long are not the words for this arrangement.
+    let address: git_policy_cli::service_server::Bind = git_policy_cli::service_address_of_a_worktree::socket_address_of(runtime.as_path(), git_policy_cli::service_instance::instance_of(repo.join(".git").as_path()).as_str());
+    assert!(matches!(address, git_policy_cli::service_server::Bind::Abstract(_)), "a runtime directory this long is named without a path here: {}", git_policy_cli::service_server::address_text(&address));
+    assert!(stderr.contains(LINGER_COMMAND), "the setting that starts the service is the one that has to change, and its remedy is named: {stderr}");
+    assert!(!stderr.contains("107"), "the room a socket path has is not what refused this: {stderr}");
+    assert!(stderr.contains(git_policy_cli::service_messages::NOTHING_CHANGED), "what did not change is said: {stderr}");
     assert_eq!(subject(&fixture, &repo), "base", "nothing was committed");
     assert!(!runtime.join("systemd").exists(), "no unit was written for a service that could never answer");
+    // The address has no file, so a refusal leaves no socket behind either.
+    let sockets: Vec<PathBuf> = match std::fs::read_dir(runtime.join("monochromatic-git-policy-cli")) {
+        Ok(listed) => listed.flatten().map(|entry| { return entry.path(); }).filter(|path| { return path.extension().is_some_and(|extension| { return extension == "sock"; }); }).collect(),
+        // No folder of sockets at all is no socket either.
+        Err(_no_folder) => Vec::new(),
+    };
+    assert!(sockets.is_empty(), "a refused start left no socket: {sockets:?}");
     finish(&fixture, runtime.as_path());
 }
 
