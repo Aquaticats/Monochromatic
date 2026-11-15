@@ -5,7 +5,9 @@
 //! Why:
 //!  The bound is the helper's own promise, so two things must hold:
 //! a pipe some other process still holds cannot hold the answer past the bound,
-//! and no status a query comes back with is read as the bound's doing.
+//! and the ending the answer reports is the last status the wait returned,
+//! which means a query killed by the helper's signal at the bound
+//! and one killed by that same signal from elsewhere at that instant read alike.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

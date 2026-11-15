@@ -73,7 +73,8 @@ pub(crate) const FIXTURE_GIT_BOUND: std::time::Duration = std::time::Duration::f
 /// Why 250 ms:
 ///  everything a gone query wrote sits in the pipe's buffer already,
 /// so the window covers the scheduler and no more,
-/// and a query whose descendant holds one end open never holds the control.
+/// and a query whose descendant holds one end open never holds the control,
+/// though the reader of that pipe is left to end when the descendant lets go.
 pub(crate) const PIPE_GRACE: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// How often the wait looks whether the query ended.
@@ -133,13 +134,16 @@ pub(crate) fn disarm_the_ending_seam() -> bool {
     return ENDING_SEAM.lock().expect("the ending seam").take().is_some();
 }
 
-/// Who ended one bounded query.
+/// What ended one bounded query, as the last status the wait returned showed it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum QueryEnding {
     /// The query ended by itself, and its status and output are its own,
     /// whatever status that was: a code of 124 or 137 or a signal's death included.
     Itself,
-    /// This helper ended it at the bound, by killing the process group the query led.
+    /// The bound ran out, and the last status the wait returned was the signal this helper sends at the bound
+    /// to the process group the query led.
+    ///  A query killed by that same signal from elsewhere in that instant reads the same,
+    /// because a wait says which signal ended a child and nothing about who sent it.
     AtTheBound,
 }
 
@@ -148,7 +152,7 @@ pub(crate) enum QueryEnding {
 pub(crate) struct QueryAnswer {
     /// The query's own ending and what its pipes gave before it went.
     pub output: Output,
-    /// Who ended the query, decided by this helper's own act and never by the query's status.
+    /// What ended the query, as the last status the wait returned showed it.
     pub ending: QueryEnding,
     /// Whether a pipe was still held when the grace passed,
     /// so a descendant of the query kept that end open and the output may be short of what the query wrote.
@@ -164,7 +168,8 @@ pub(crate) struct QueryAnswer {
 /// Why:
 ///  Reading the pipes on this thread would wait for the end of file,
 /// which a descendant that inherited the pipe can postpone past every bound;
-/// a reader of its own lets the answer keep what has arrived and leave the rest to whoever holds it.
+/// a reader of its own lets the answer keep what has arrived and leave the rest to whoever holds it,
+/// and that reader ends when the holder lets go or with the test's process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -189,7 +194,8 @@ fn draining<R: Read + Send + 'static>(mut reader: R) -> (std::sync::Arc<std::syn
 }
 
 /// What:
-///  Run one real-Git query under `bound` and answer what it printed and who ended it.
+///  Run one real-Git query under `bound` and answer what it printed, how the query ended,
+///  and what a descendant of it still holds.
 /// Why:
 ///  A control that ran Git directly would hold the suite for ever against a Git that never answers,
 /// and report nothing at all;
@@ -198,16 +204,20 @@ fn draining<R: Read + Send + 'static>(mut reader: R) -> (std::sync::Arc<std::syn
 /// So the bound is this helper's own promise and this helper keeps it:
 /// it starts the query in a process group of its own,
 /// watches the clock itself,
-/// and at the bound ends that group and reaps the query;
-/// `QueryEnding::AtTheBound` is true exactly when the status the wait returns shows that signal,
-/// never when a signal could merely be sent,
-/// and a query that ended by itself comes back with its own status and output.
-/// Nothing waits without a bound, and no answer the query gave becomes a panic:
+/// and at the bound ends that group and reaps the query.
+///  `QueryEnding::AtTheBound` means the bound ran out and the last status the wait returned was that signal;
+/// a query killed by the same signal from elsewhere in that instant reads the same,
+/// because a wait says which signal ended a child and never who sent it.
+/// A query that ended by itself comes back with its own status and output.
+///  The answer is what this helper bounds, and no answer the query gave becomes a panic:
 /// the write of the input runs on a thread of its own,
 /// so a query that keeps its standard input open and reads none of it fills the pipe and is ended at the bound
 /// like any other,
 /// a write the ending broke is part of that ending rather than a failure,
 /// and an input a descendant of the query still holds is said in `input_held`, as a held pipe is in `held_open`.
+///  A descendant that keeps a pipe or the input is where that bound stops:
+/// the thread reading or writing that pipe is left to end when the descendant lets go or when the test's process ends,
+/// so what is bounded is the answer and not every thread that served it.
 /// The caller answers each ending with its own sentence,
 /// because only it knows which query it made and what the query is for.
 ///
@@ -269,7 +279,7 @@ pub(crate) fn real_git_within(
             the_ending_seam(group);
             // SAFETY: `kill` reads the two numbers it is given and touches no memory of ours.
             let _killed = unsafe { libc::kill(-group, libc::SIGKILL) };
-            // The killed query is reaped within its own window, so nothing waits without a bound here either.
+            // The killed query is reaped within its own window, so this reap waits with a bound too.
             let reaping: std::time::Instant = std::time::Instant::now() + REAPING;
             let status: std::process::ExitStatus = loop {
                 if let Some(status) = child.try_wait().expect("the killed query's state") {
@@ -280,9 +290,11 @@ pub(crate) fn real_git_within(
                 }
                 std::thread::sleep(LOOK_EVERY);
             };
-            // The status the wait returns says who ended the query: the signal this helper sent at its bound,
-            // or the query's own ending, which it reached first and which is not this helper's.
-            // Whether a signal could be sent says nothing about that, so it is not read here.
+            // The status the wait returns says how the query ended: the signal this helper sends at its bound,
+            // or an ending the query reached first.
+            // Which process sent a signal is not in a status, so a query killed by that same signal from elsewhere
+            // in this instant reads as the bound's. Whether a signal could be sent says nothing about that,
+            // so the kill's answer is not read here.
             break (status, if status.signal() == Some(libc::SIGKILL) { QueryEnding::AtTheBound } else { QueryEnding::Itself });
         }
         std::thread::sleep(LOOK_EVERY);
