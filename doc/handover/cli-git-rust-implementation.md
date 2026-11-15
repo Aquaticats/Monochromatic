@@ -1670,6 +1670,77 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landing that never waits and the lock a killed Git left both answer their third reviews; both reviews are queued (2026-11-15T10:33:06-05:00)
+
+Not final and not approved:
+what two authors report and what the coordinating session queued.
+
+- **The landing never waits**,
+  its author's fourth run,
+  ended 10:29:20 at `7a6504e5b6`:
+  the review's program printed `REPRODUCED` at the old tip
+  (dropping a slow job's waiter gave back its place of slow work while the job kept its general place).
+  The place of slow work now travels with the job that runs,
+  in the same object as the general place,
+  and goes back when the job's work ends;
+  a caller that gives up gives up its wait and nothing else.
+  A look that finds no place after the ceiling leaves the trash for a later look,
+  with words naming which operation holds the places and for how long,
+  and asks again after five seconds;
+  pushes and upkeep go on.
+  Left with its reason:
+  the answering place is still taken on the frame.
+  Two controls,
+  committed first and failing at the old tip;
+  a landing's cost inside each arm's own spread
+  (medians 92.05 against 89.6 ms);
+  Clippy clean,
+  both guard modules by name,
+  the twelve changed modules with no failed run.
+  The file name of its report carries tomorrow's date;
+  the commits' times are today's.
+  Its review is queued third
+  (`main...7a6504e5b6`,
+  47 code files that are not tests).
+  **Passes 29 and 34 wait on that review.**
+- **The lock a killed Git left, for a reference lock**,
+  its author's fourth run,
+  ended 10:28:11 at `0fe1e01e9f`:
+  the review's three controls failed at the old tip as the review reports,
+  run from a copy with the runner's own 120-second bound raised to 900
+  (the build did not fit under the temperature limit).
+  A record is now removed only when every number in it is gone and no walking lock and no standing pin names one,
+  asked inside the sweep at the removal;
+  a PID file is removed by a clearance before the lock's name is freed,
+  never after;
+  a folder a watch meets late is watched and then read,
+  and what stands there is reported and never bound,
+  which is the stated limit.
+  A table in `SPEC.md` lists every place in the range where one step reads and a later step acts.
+  Costs inside one arm's spread;
+  `lock::` 420 of 420,
+  the binary controls 18 of 18.
+  Its review is queued fourth
+  (`main...0fe1e01e9f`,
+  14 code files that are not tests).
+- **The fuzz sidecar's type check** on `main` with pass 53 in ended 10:29:02 with exit 0,
+  and its output shows it checked the wrapper at `0.6.1-alpha.42` and the sidecar.
+- **The temperature**,
+  read at 10:32:36,
+  with the container gate running:
+  56.9 degrees,
+  budget 32.0 threads,
+  15.0 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:32:39:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 10:27;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
 ##### `0.6.1-alpha.42` is installed and its sample commit took 1,123 ms; the gate on it is started; the stale launchers answer their eighth review (2026-11-15T10:28:31-05:00)
 
 Not final and not approved:
