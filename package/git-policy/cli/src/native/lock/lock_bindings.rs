@@ -609,6 +609,64 @@ fn lock_path_says(folder: &Path, digest: &str, lock: &Path) -> bool {
 }
 
 /// What:
+///  The process numbers that the pins standing in this repository's records name.
+/// Why:
+///  A pin is the proof about one lock,
+///  and a process record is the other half of that proof:
+///  the number and the birth identity the record names are what says the Git that took the lock is
+///  gone.
+///  So a process record may go only when no pin that stands names a number in it,
+///  and that is asked when the record is removed,
+///  not when the lock directories were walked
+///  (a review of `6c2272132b`,
+/// finding 1).
+///  A pin whose lock no longer stands is litter and names nothing:
+///  this is the list after `sweep` removed those,
+///  or the list of the pins that still hold a file standing at the path their text names.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holderNumbersThatStand(commonDir) // [pid, …] of the pins whose lock still stands
+/// ```
+pub fn holder_numbers_that_stand(common_dir: &Path) -> Vec<i64> {
+    let folder: PathBuf = folder_of(common_dir);
+    let mut numbers: Vec<i64> = Vec::new();
+    let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
+        return numbers;
+    };
+    for entry in entries.flatten() {
+        let name: std::borrow::Cow<'_, str> = entry.file_name().to_string_lossy().into_owned().into();
+        let Some((digest, rest)) = name.split_once('.') else {
+            continue;
+        };
+        if !rest.ends_with(HOLD_SUFFIX) {
+            continue;
+        }
+        let Some(named) = pin_fields(digest, name.as_ref()) else {
+            continue;
+        };
+        let Ok(bytes) = read_plain_file(lock_path_file(folder.as_path(), digest).as_path(), LOCK_PATH_LIMIT) else {
+            continue;
+        };
+        use std::os::unix::ffi::OsStringExt as _;
+        let lock: PathBuf = PathBuf::from(std::ffi::OsString::from_vec(bytes));
+        let (Ok(Some(pinned)), Ok(Some(standing))) = (
+            crate::index_lock_evidence::read_lock_metadata(entry.path().as_path()),
+            crate::index_lock_evidence::read_lock_metadata(lock.as_path()),
+        ) else {
+            continue;
+        };
+        if pinned.device != standing.device || pinned.inode != standing.inode {
+            continue;
+        }
+        numbers.push(named.pid);
+    }
+    numbers.sort_unstable();
+    numbers.dedup();
+    return numbers;
+}
+
+/// What:
 ///  Remove the record `written` describes.
 /// Why:
 ///  A lock that was cleared needs no record,
