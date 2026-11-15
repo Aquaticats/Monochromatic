@@ -260,9 +260,9 @@ fn could_be_working_inside(entry: &Path, proc_root: &Path, pid: u32, uptime: Opt
 ///  and a descriptor that went between the listing and its link is no descriptor any more.
 ///  A table or a link that could not be read for another reason says nothing,
 ///  and none is never the answer to a read that did not happen:
-///  a program can stop every other reader seeing its descriptors while it runs
-///  (a `PR_SET_DUMPABLE` 0 call between the two reads),
-///  and the wrapper removed a worktree under such a program when a refused read answered none.
+///  a program can keep its working folder readable and stop every other reader of its descriptors
+///  (measured on this host: a password manager that runs from login),
+///  and a refused read answering none takes the worktree out from under a file such a program holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
