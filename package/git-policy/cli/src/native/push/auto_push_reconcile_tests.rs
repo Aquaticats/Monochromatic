@@ -3561,173 +3561,7 @@ fn the_published_merge_path_moves_the_branch_and_says_where_it_is() {
     remove(&s.root);
 }
 
-/// What:
-///  The move of a reference alone records the repair it is about to make in the worktree that took the branch,
-///  so a kill inside that repair leaves a record a later command reads.
-/// Why:
-///  The worktree moves write such a record and settle it; the ref-only repair wrote none, so a kill partway through
-/// its `read-tree` left a checkout whose next commit records a reversal of the published merge, with nothing for any
-///  later command to find (a review of commit `c15fc5a7b1`, its finding 3).
-#[test]
-fn a_ref_only_move_records_the_repair_a_kill_would_leave_half_done() {
-    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
-    use crate::merge_isolation_journal::{MERGE_INTENT_DIRECTORY, parse_merge_intent};
-    let s = nowhere("ar-ref-move-records-its-repair");
-    let taker: PathBuf = s.scenario.root.join("taker");
-    let adding: PathBuf = s.scenario.local.clone();
-    let taken: PathBuf = taker.clone();
-    // What: the record is read at the instant the repair is about to write.
-    // Why: a control that looked after the move would see it removed, which proves nothing about the kill window.
-    let seen: std::rc::Rc<std::cell::RefCell<Option<String>>> = std::rc::Rc::new(std::cell::RefCell::new(None));
-    let _early = in_the_window_in_a_control(Window::BeforeTheWrite, move || {
-        git(&adding, &["worktree", "add", "--quiet", taken.to_str().expect("utf-8"), "topic"]);
-    });
-    let recorded_in: PathBuf = taker.clone();
-    let watched: std::rc::Rc<std::cell::RefCell<Option<String>>> = std::rc::Rc::clone(&seen);
-    let _recorded = in_the_window_in_a_control(Window::AfterTheRecord, move || {
-        let git_dir: PathBuf = PathBuf::from(
-            String::from_utf8_lossy(&git(&recorded_in, &["rev-parse", "--absolute-git-dir"]).stdout).trim(),
-        );
-        let directory: PathBuf = git_dir.join(MERGE_INTENT_DIRECTORY);
-        let mut found: Vec<String> = Vec::new();
-        // A repair that writes no record leaves no directory: the control reports that as the empty record it is.
-        let Ok(entries) = std::fs::read_dir(directory.as_path()) else {
-            *watched.borrow_mut() = Some(found.join("\n"));
-            return;
-        };
-        for entry in entries {
-            let path: PathBuf = entry.expect("an entry").path();
-            let bytes: Vec<u8> = std::fs::read(path.as_path()).expect("the record");
-            let intent = parse_merge_intent(bytes.as_slice()).expect("a record this release wrote");
-            found.push(format!(
-                "{} -> {} for {}",
-                intent.old_oid,
-                intent.new_oid,
-                intent.target_ref.clone().unwrap_or_default()
-            ));
-        }
-        *watched.borrow_mut() = Some(found.join("\n"));
-    });
-    let pushed_merge: std::sync::Arc<std::sync::Mutex<Option<String>>> = std::sync::Arc::new(std::sync::Mutex::new(None));
-    let remembering: std::sync::Arc<std::sync::Mutex<Option<String>>> = std::sync::Arc::clone(&pushed_merge);
-    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
-        let pushed = git(&s.scenario.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
-        assert!(pushed.status.success(), "the merge push runs");
-        *remembering.lock().expect("the cell") = Some(merge_oid.to_owned());
-        return Ok(PushAttempt { exit_code: 0, output: String::new() });
-    };
-    let attempt: PushAttempt = finished(integrate_for(
-        &s.scenario,
-        s.local_tip.as_str(),
-        Some("refs/heads/topic"),
-        "refs/heads/topic",
-        true,
-        &mut push_merge,
-    ));
-    drop(_recorded);
-    drop(_early);
-    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
-    let record: String = seen.borrow().clone().unwrap_or_default();
-    let merge: String = pushed_merge.lock().expect("the cell").clone().unwrap_or_default();
-    assert_eq!(
-        record,
-        format!("{} -> {} for refs/heads/topic", s.local_tip, merge),
-        "the record names the move the repair finishes"
-    );
-    let git_dir: PathBuf = PathBuf::from(
-        String::from_utf8_lossy(&git(&taker, &["rev-parse", "--absolute-git-dir"]).stdout).trim(),
-    );
-    assert!(
-        !git_dir.join(MERGE_INTENT_DIRECTORY).is_dir()
-            || std::fs::read_dir(git_dir.join(MERGE_INTENT_DIRECTORY)).expect("the directory").next().is_none(),
-        "and the repair that finished removes it"
-    );
-    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "the checkout was brought to the merge");
-    remove(&s.scenario.root);
-}
 
-/// What:
-///  A record a killed ref-only repair left is finished by the next command in that worktree:
-///  the checkout is brought to the merge and the record goes.
-/// Why:
-///  The record is what makes a kill recoverable, and a record nothing reads is no record
-///  (a review of commit `c15fc5a7b1`, its finding 3).
-#[test]
-fn a_record_a_killed_ref_only_repair_left_is_finished_by_the_next_command() {
-    use crate::merge_isolation_journal::{MERGE_INTENT_DIRECTORY, MergeIntent, write_merge_intent};
-    let s = nowhere("ar-killed-ref-repair-record");
-    let taker: PathBuf = s.scenario.root.join("taker");
-    git(&s.scenario.local, &["worktree", "add", "--quiet", taker.to_str().expect("utf-8"), "topic"]);
-    let git_dir: PathBuf = PathBuf::from(
-        String::from_utf8_lossy(&git(&taker, &["rev-parse", "--absolute-git-dir"]).stdout).trim(),
-    );
-    // The state a kill inside the repair leaves: the reference at the merge, the index and files at the pushed tip,
-    //  and the record an owner that is gone wrote.
-    git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
-    let mut owner: crate::transaction_owner::TransactionOwner =
-        crate::transaction_owner::current_transaction_owner("7f0c4d20-0000-4000-8000-000000000003", "2026-11-14T00:00:00.000Z")
-            .expect("an owner record");
-    owner.owner_identity = String::from("linux:1");
-    let _record: PathBuf = write_merge_intent(
-        git_dir.as_path(),
-        &MergeIntent {
-            owner,
-            repository_root: taker.clone(),
-            target_ref: Some(String::from("refs/heads/topic")),
-            old_oid: s.local_tip.clone(),
-            new_oid: s.merge.clone(),
-            side_ref: None,
-            carried: None,
-        },
-    )
-    .expect("the record a kill leaves");
-    assert_eq!(
-        text_of(&taker, &["status", "--porcelain=v1"]),
-        "A  local.txt\nD  remote.txt",
-        "the control states the stale checkout: the index holds the pushed tip while HEAD names the merge"
-    );
-    // The next command in that worktree runs the recovery every command runs.
-    let place: crate::merge_isolation_recovery::RecoveryPlace = crate::merge_isolation_recovery::RecoveryPlace {
-        git: crate::transaction_git::GitContext {
-            real_git: PathBuf::from("/usr/bin/git"),
-            overlay: fixture_environment(),
-            global_prefix: Vec::new(),
-            common_dir: Some(git_dir.clone()),
-        },
-        cwd: taker.clone(),
-        common_dir: git_dir.clone(),
-        git_dir: git_dir.clone(),
-    };
-    let mut stderr: Vec<u8> = Vec::new();
-    let outcomes = await_it(crate::merge_isolation_recovery_records::recover_interrupted_merges_awaiting(
-        &place,
-        git_dir.as_path(),
-        &mut stderr,
-    ))
-    .expect("the recovery runs");
-    assert_eq!(outcomes.len(), 1, "the record was read: {}", String::from_utf8_lossy(&stderr));
-    assert_eq!(
-        text_of(&taker, &["status", "--porcelain=v1"]),
-        "",
-        "and the checkout was brought to the merge: {}",
-        String::from_utf8_lossy(&stderr)
-    );
-    assert_eq!(
-        std::fs::read_to_string(taker.join("remote.txt")).expect("the merge's file"),
-        "remote side\n",
-        "the file the merge added is there"
-    );
-    assert!(
-        !git_dir.join(MERGE_INTENT_DIRECTORY).is_dir()
-            || std::fs::read_dir(git_dir.join(MERGE_INTENT_DIRECTORY)).expect("the directory").next().is_none(),
-        "and the record is gone"
-    );
-    // What: a commit there now records the merge's content, not the older files.
-    // Why: that reversal was the harm the record exists to prevent.
-    git(&taker, &["commit", "--quiet", "--allow-empty", "-m", "a commit after the recovery"]);
-    assert_eq!(text_of(&taker, &["show", "HEAD:remote.txt"]), "remote side");
-    remove(&s.scenario.root);
-}
 
 /// What:
 ///  A checkout that took the branch inside the window and then switched away is reported as the branch being at the
@@ -3835,42 +3669,42 @@ fn the_report_names_the_branch_the_worktree_shows_after_the_repair() {
     remove(&s.scenario.root);
 }
 
+
 /// What:
-///  A record a killed ref-only repair left waits for a held index lock instead of stopping the command:
-///  the command goes on, the record stays, and the next command once the lock is gone finishes the repair.
+///  A worktree file the person made, added and then taken out of the index again,
+///  survives the settle of a landed merge record, and no copy of it is left in an aside.
 /// Why:
-///  A merge never waits behind a held index lock, and a command is not stopped for a checkout that nothing of the
-///  merge reached; the rule of integration pass 37 meets the record of this change here.
+///  The index then holds only the merge's predecessor, so a settle that trusts the index installs the merge
+///  over the person's bytes; the worktree's own content is what a write must be proved against
+///  (a review of commit `36cae084ae`, its finding 1).
 #[test]
-fn a_record_a_killed_repair_left_waits_for_a_held_index_lock_and_goes_on() {
-    use crate::merge_isolation_journal::{MERGE_INTENT_DIRECTORY, MergeIntent, write_merge_intent};
-    let s = nowhere("ar-killed-ref-repair-held-index");
+fn a_persons_file_at_a_path_the_merge_adds_survives_the_landed_recovery() {
+    use crate::merge_isolation_journal::{MergeIntent, write_merge_intent};
+    use crate::merge_isolation_recovery::{MergeRecoveryAction, RecoveryPlace, settle_failed_merge_awaiting};
+    let s = nowhere("ar-landed-recovery-keeps-the-persons-file");
     let taker: PathBuf = s.scenario.root.join("taker");
     git(&s.scenario.local, &["worktree", "add", "--quiet", taker.to_str().expect("utf-8"), "topic"]);
-    let git_dir: PathBuf = PathBuf::from(
-        String::from_utf8_lossy(&git(&taker, &["rev-parse", "--absolute-git-dir"]).stdout).trim(),
-    );
     git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
+    // The person's own file at a path the merge adds, added and then taken out of the index again.
+    std::fs::write(taker.join("remote.txt"), "the person's new file\n").expect("the person's file");
+    git(&taker, &["add", "--", "remote.txt"]);
+    git(&taker, &["reset", "--quiet", s.local_tip.as_str(), "--", "remote.txt"]);
+    let git_dir: PathBuf = PathBuf::from(text_of(&taker, &["rev-parse", "--absolute-git-dir"]));
     let mut owner: crate::transaction_owner::TransactionOwner =
-        crate::transaction_owner::current_transaction_owner("7f0c4d20-0000-4000-8000-000000000004", "2026-11-14T00:00:00.000Z")
+        crate::transaction_owner::current_transaction_owner("7f0c4d20-0000-4000-8000-000000000006", "2026-11-14T00:00:00.000Z")
             .expect("an owner record");
     owner.owner_identity = String::from("linux:1");
-    let record: PathBuf = write_merge_intent(
-        git_dir.as_path(),
-        &MergeIntent {
-            owner,
-            repository_root: taker.clone(),
-            target_ref: Some(String::from("refs/heads/topic")),
-            old_oid: s.local_tip.clone(),
-            new_oid: s.merge.clone(),
-            side_ref: None,
-            carried: None,
-        },
-    )
-    .expect("the record a kill leaves");
-    // Another program holds the index: the repair writes nothing and the command must not wait or stop.
-    std::fs::write(git_dir.join("index.lock"), b"").expect("the held lock");
-    let place: crate::merge_isolation_recovery::RecoveryPlace = crate::merge_isolation_recovery::RecoveryPlace {
+    let intent: MergeIntent = MergeIntent {
+        owner,
+        repository_root: taker.clone(),
+        target_ref: Some(String::from("refs/heads/topic")),
+        old_oid: s.local_tip.clone(),
+        new_oid: s.merge.clone(),
+        side_ref: None,
+        carried: None,
+    };
+    let record: PathBuf = write_merge_intent(git_dir.as_path(), &intent).expect("the record");
+    let place: RecoveryPlace = RecoveryPlace {
         git: crate::transaction_git::GitContext {
             real_git: PathBuf::from("/usr/bin/git"),
             overlay: fixture_environment(),
@@ -3882,39 +3716,275 @@ fn a_record_a_killed_repair_left_waits_for_a_held_index_lock_and_goes_on() {
         git_dir: git_dir.clone(),
     };
     let mut stderr: Vec<u8> = Vec::new();
-    let outcomes = await_it(crate::merge_isolation_recovery_records::recover_interrupted_merges_awaiting(
-        &place,
-        git_dir.as_path(),
-        &mut stderr,
-    ))
-    .expect("the command goes on");
-    assert_eq!(outcomes.len(), 1, "the record was read");
+    let action = await_it(settle_failed_merge_awaiting(&place, record.as_path(), &intent, &mut stderr)).expect("the settle runs");
+    // What: the person's bytes are read first, because losing them is the harm this control exists for.
     assert_eq!(
-        outcomes[0].action,
-        crate::merge_isolation_recovery::MergeRecoveryAction::IndexHeld,
-        "and nothing was written while the lock stood"
+        std::fs::read_to_string(taker.join("remote.txt")).expect("the person's file"),
+        "the person's new file\n",
+        "the person's file is untouched: {}",
+        String::from_utf8_lossy(&stderr)
     );
-    assert!(record.exists(), "the record stays for the next command");
-    assert_eq!(
-        text_of(&taker, &["status", "--porcelain=v1"]),
-        "A  local.txt\nD  remote.txt",
-        "the checkout is as the kill left it"
-    );
-    // The lock goes, and the next command finishes the repair.
-    std::fs::remove_file(git_dir.join("index.lock")).expect("the lock goes");
-    let again = await_it(crate::merge_isolation_recovery_records::recover_interrupted_merges_awaiting(
-        &place,
-        git_dir.as_path(),
-        &mut stderr,
-    ))
-    .expect("the next command runs the recovery");
-    assert_eq!(again.len(), 1, "the record is still read");
-    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and the repair is finished");
-    assert!(!record.exists(), "with the record gone");
+    assert_eq!(action, MergeRecoveryAction::AlreadyLanded);
     assert!(
-        !git_dir.join(MERGE_INTENT_DIRECTORY).is_dir()
-            || std::fs::read_dir(git_dir.join(MERGE_INTENT_DIRECTORY)).expect("the directory").next().is_none(),
-        "no record is left"
+        !std::fs::read_dir(taker.as_path()).expect("the checkout").any(|entry| {
+            return entry.expect("an entry").file_name().to_string_lossy().contains("7f0c4d20-0000-4000-8000-000000000006");
+        }),
+        "and no copy of it is left in an aside"
     );
+    assert!(!record.exists(), "the record went with the settle");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A worktree listing Git cannot answer never moves a branch a worktree has checked out:
+///  the advance refuses and says why, and the checkout keeps nothing of the merge.
+/// Why:
+///  "The question failed" is not "nobody holds it": moving then leaves that worktree's files behind the branch,
+///  and its next commit reverses the published merge
+///  (a review of commit `36cae084ae`, its finding 2).
+#[test]
+fn a_failed_worktree_listing_does_not_move_a_checked_out_branch() {
+    let s = nowhere("ar-failed-listing-does-not-move");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", taker.to_str().expect("utf-8"), "topic"]);
+    let shim: PathBuf = s.scenario.root.join("fail-worktree-list.sh");
+    std::fs::write(&shim, "#!/bin/sh\ncase \" $* \" in\n  *\" worktree list \"*) exit 1 ;;\nesac\nexec /usr/bin/git \"$@\"\n").expect("shim");
+    std::fs::set_permissions(&shim, std::fs::Permissions::from_mode(0o700)).expect("shim mode");
+    let mut failing: crate::auto_push_single_flight::PushGit = push_git(&s.scenario.local);
+    failing.real_git = shim;
+    let mut push_merge = |destination: &Destination, merge_oid: &str| -> Result<PushAttempt, SingleFlightError> {
+        let pushed = git(&s.scenario.local, &["push", "--quiet", "origin", &format!("{merge_oid}:{}", destination.merge_ref)]);
+        assert!(pushed.status.success(), "the merge push runs");
+        return Ok(PushAttempt { exit_code: 0, output: String::new() });
+    };
+    let plan = crate::auto_push_reconcile::Reconcile {
+        destination: Destination { remote: String::from("origin"), merge_ref: String::from("refs/heads/topic") },
+        local: s.local_tip.clone(),
+        pushed: crate::auto_push_reconcile::PushedSide::Branch("refs/heads/topic"),
+        label: "push",
+        explicit: true,
+    };
+    let rejected = PushAttempt { exit_code: 1, output: String::from(" ! [rejected] topic -> topic (fetch first)") };
+    let integrated = crate::auto_push_reconcile::integrate_and_push(&failing, &plan, rejected, &mut push_merge).expect("the loop runs");
+    let crate::auto_push_reconcile::Integrated::Finished(attempt) = integrated else {
+        panic!("a move that could not ask who holds the branch reports why");
+    };
+    assert_eq!(attempt.exit_code, 0, "{}", attempt.output);
+    let line: String = attempt.output.trim_end().lines().last().unwrap_or_default().to_owned();
+    assert!(line.contains("topic is not at it"), "the branch is said not to be at the merge: {line}");
+    assert!(line.contains("worktree list"), "the line names the question that failed: {line}");
+    assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]), s.local_tip, "the branch did not move");
+    assert_eq!(text_of(&taker, &["symbolic-ref", "--short", "HEAD"]), "topic", "the worktree still has the branch");
+    assert_eq!(text_of(&taker, &["rev-parse", "HEAD"]), s.local_tip, "at the tip the push sent");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and the checkout is as it was");
+    let old_tree: String = text_of(&s.scenario.local, &["rev-parse", format!("{}^{{tree}}", s.local_tip).as_str()]);
+    git(&taker, &["commit", "--quiet", "--allow-empty", "-m", "commit after the failed listing"]);
+    assert_eq!(text_of(&taker, &["rev-parse", "HEAD^{tree}"]), old_tree, "and a commit there records nothing of the merge");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A stop after the reference of a ref-only move has moved leaves a record naming the move,
+///  and the next command in the worktree that holds the branch finishes the checkout.
+/// Why:
+///  The checkout that took the branch inside the window holds the pushed tip's index and files while `HEAD` names
+///  the merge, so its next commit reverses the published merge; the record is written before the reference moves,
+///  in the common Git directory, so a stop at any instruction leaves it
+///  (a review of commit `36cae084ae`, its finding 3).
+#[test]
+fn a_stop_after_the_reference_moves_leaves_a_record_the_next_command_finishes() {
+    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, parse_branch_move};
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    let s = nowhere("ar-stop-after-the-reference-moves");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let stale: PathBuf = taker.clone();
+    let old_tip: String = s.local_tip.clone();
+    let _played = in_the_window_in_a_control(Window::AfterTheWrite, move || {
+        let made = git(&adding, &["worktree", "add", "--quiet", "--detach", stale.to_str().expect("utf-8"), old_tip.as_str()]);
+        assert!(made.status.success(), "the racing worktree is made");
+        let _named = git(&stale, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+        panic!("stand in for a stop before the look after the write");
+    });
+    let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = await_it(crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting(
+            &push_git(&s.scenario.local),
+            "refs/heads/topic",
+            s.local_tip.as_str(),
+            s.merge.as_str(),
+        ));
+    }));
+    assert!(stopped.is_err(), "the control stops where the process would");
+    let common_dir: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let records: Vec<PathBuf> = list_branch_moves(common_dir.as_path()).expect("the records");
+    assert_eq!(records.len(), 1, "the stop left the record of the move: {records:?}");
+    let mut movement = parse_branch_move(std::fs::read(records[0].as_path()).expect("the record").as_slice()).expect("a record this release wrote");
+    // The control stands in for the process being gone, as the stop would leave it.
+    movement.owner.owner_identity = String::from("linux:1");
+    std::fs::write(records[0].as_path(), crate::auto_push_branch_move_record::encode_branch_move(&movement)).expect("the record of a gone owner");
+    assert_eq!(
+        (movement.target_ref.as_str(), movement.old_oid.as_str(), movement.new_oid.as_str()),
+        ("refs/heads/topic", s.local_tip.as_str(), s.merge.as_str()),
+        "and it names the move"
+    );
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "A  local.txt\nD  remote.txt", "the checkout is the state a stop leaves");
+    // The next command in that worktree is the same sweep every wrapped command runs.
+    let there: crate::auto_push_single_flight::PushGit = push_git(&taker);
+    let mut stderr: Vec<u8> = Vec::new();
+    finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the sweep runs");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "the checkout is finished: {}", String::from_utf8_lossy(&stderr));
+    assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "and the record is gone");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A record whose branch never moved is removed by the next command and changes nothing.
+/// Why:
+///  The record is written before the reference moves, so a stop between the two leaves one whose move never
+///  happened; it names nothing that has to be finished.
+#[test]
+fn a_record_whose_branch_never_moved_is_removed_by_the_next_command() {
+    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, record_branch_move};
+    let s = nowhere("ar-record-of-a-move-that-never-happened");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", taker.to_str().expect("utf-8"), "topic"]);
+    let common_dir: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let (record, movement) = record_branch_move(common_dir.as_path(), "refs/heads/topic", s.local_tip.as_str(), s.merge.as_str()).expect("the record");
+    // The owner this record names is this process, so the sweep must be told it is gone before it acts.
+    let mut recorded = movement.clone();
+    recorded.owner.owner_identity = String::from("linux:1");
+    std::fs::write(record.as_path(), crate::auto_push_branch_move_record::encode_branch_move(&recorded)).expect("the record of a gone owner");
+    let there: crate::auto_push_single_flight::PushGit = push_git(&taker);
+    let mut stderr: Vec<u8> = Vec::new();
+    finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the sweep runs");
+    assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is removed");
+    assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]), s.local_tip, "and the branch is where it was");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and the checkout is untouched");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A switch and a reset in the window before the branch moves leave the merge's bytes in the worktree,
+///  and the move says so rather than reporting the checkout as having gone elsewhere.
+/// Why:
+///  The index can be made to agree with anything by a reset, so a repair that trusts it reports "nothing of the
+/// merge remains" while `git commit -am` would record the merge's content on the other branch
+///  (a review of commit `36cae084ae`, its finding 4).
+#[test]
+fn a_reset_before_the_repair_is_reported_and_not_taken_for_a_finished_checkout() {
+    use crate::auto_push_reconcile_branch_advance::{Checkout, Moved};
+    use crate::auto_push_reconcile_branch_checkout::{Window, in_the_window_in_a_control};
+    let s = scenario("ar-reset-before-the-checkout-repair");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    git(&s.local, &["branch", "topic", tip.as_str()]);
+    let switching: PathBuf = s.local.clone();
+    let _played = in_the_window_in_a_control(Window::BeforeTheBranchMoves, move || {
+        git(&switching, &["switch", "--quiet", "topic"]);
+        git(&switching, &["reset", "--quiet"]);
+    });
+    let moved: Result<Moved, String> = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(
+        &push_git(&s.local),
+        "refs/heads/main",
+        &tip,
+        &target,
+        &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE,
+    ))
+    .expect("git");
+    drop(_played);
+    let Ok(Moved { checkout: Checkout::Holding { paths, .. }, .. }) = moved else {
+        panic!("the report says the worktree still holds the merge: {moved:?}")
+    };
+    assert_eq!(paths, vec![b"a.txt".to_vec()], "and names the path");
+    assert_eq!(std::fs::read_to_string(s.local.join("a.txt")).expect("a.txt"), "remote\n", "the bytes are the merge's");
+    assert_eq!(text_of(&s.local, &["status", "--porcelain=v1"]), "M a.txt", "and they are the branch's own difference");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target, "the pushed branch still moved");
+    assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/topic"]), tip, "and no other branch moved");
+    remove(&s.root);
+}
+
+/// What:
+///  A stop inside the repair of a ref-only move leaves the record,
+///  and the next command in that worktree finishes the paths the repair had not written.
+/// Why:
+///  The repair writes the merge's content path by path,
+/// so a stop inside it leaves some paths written and the rest holding the pushed tip;
+///  the record is what the next command reads (a review of commit `36cae084ae`, its finding 3).
+#[test]
+fn a_stop_inside_the_repair_leaves_a_record_the_next_command_finishes() {
+    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves};
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    use crate::auto_push_reconcile_branch_checkout::{Window as CheckoutWindow, in_the_window_in_a_control as in_the_checkout_window};
+    let s = nowhere("ar-stop-inside-the-repair");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let stale: PathBuf = taker.clone();
+    let old_tip: String = s.local_tip.clone();
+    let _early = in_the_window_in_a_control(Window::AfterTheWrite, move || {
+        let made = git(&adding, &["worktree", "add", "--quiet", "--detach", stale.to_str().expect("utf-8"), old_tip.as_str()]);
+        assert!(made.status.success(), "the racing worktree is made");
+        let _named = git(&stale, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+    });
+    let _inside = in_the_checkout_window(CheckoutWindow::WhileTheCheckoutIsRepaired, || {
+        panic!("stand in for a stop inside the repair");
+    });
+    let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = await_it(crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting(
+            &push_git(&s.scenario.local),
+            "refs/heads/topic",
+            s.local_tip.as_str(),
+            s.merge.as_str(),
+        ));
+    }));
+    drop(_inside);
+    drop(_early);
+    assert!(stopped.is_err(), "the control stops inside the repair");
+    let common_dir: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let records: Vec<PathBuf> = list_branch_moves(common_dir.as_path()).expect("the records");
+    assert_eq!(records.len(), 1, "the stop inside the repair left the record: {records:?}");
+    let mut movement = crate::auto_push_branch_move_record::parse_branch_move(std::fs::read(records[0].as_path()).expect("the record").as_slice())
+        .expect("a record this release wrote");
+    movement.owner.owner_identity = String::from("linux:1");
+    std::fs::write(records[0].as_path(), crate::auto_push_branch_move_record::encode_branch_move(&movement)).expect("the record of a gone owner");
+    let there: crate::auto_push_single_flight::PushGit = push_git(&taker);
+    let mut stderr: Vec<u8> = Vec::new();
+    finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the sweep runs");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "the checkout is finished: {}", String::from_utf8_lossy(&stderr));
+    assert_eq!(text_of(&taker, &["rev-parse", "HEAD"]), s.merge, "at the merge its branch names");
+    assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "and the record is gone");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A held index lock keeps the record and lets the command go on,
+///  and the next command once the lock is free finishes the repair.
+/// Why:
+///  A merge never waits behind another program's index lock,
+/// and nothing of the merge was written, so the command is not stopped for a checkout the move did not reach;
+///  the record stays for the next command (integration pass 37, and a review of commit `36cae084ae`, its finding 3).
+#[test]
+fn a_held_index_lock_keeps_the_record_and_lets_the_command_go_on() {
+    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, record_branch_move};
+    let s = nowhere("ar-held-lock-keeps-the-record");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", taker.to_str().expect("utf-8"), "topic"]);
+    let git_dir: PathBuf = PathBuf::from(text_of(&taker, &["rev-parse", "--absolute-git-dir"]));
+    git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
+    let common_dir: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let (record, movement) = record_branch_move(common_dir.as_path(), "refs/heads/topic", s.local_tip.as_str(), s.merge.as_str()).expect("the record");
+    let mut recorded = movement.clone();
+    recorded.owner.owner_identity = String::from("linux:1");
+    std::fs::write(record.as_path(), crate::auto_push_branch_move_record::encode_branch_move(&recorded)).expect("the record of a gone owner");
+    std::fs::write(git_dir.join("index.lock"), b"").expect("the held lock");
+    let there: crate::auto_push_single_flight::PushGit = push_git(&taker);
+    let mut stderr: Vec<u8> = Vec::new();
+    finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the command goes on");
+    assert!(record.exists(), "the record stays while the lock stands");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "A  local.txt\nD  remote.txt", "and nothing of the merge was written");
+    std::fs::remove_file(git_dir.join("index.lock")).expect("the lock goes");
+    finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the next command runs the sweep");
+    assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is finished");
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and the checkout is brought to the merge");
     remove(&s.scenario.root);
 }

@@ -52,7 +52,15 @@ const TAG: &str = "monochromatic-git-policy-cli";
 pub(crate) async fn live_holder_awaiting(git: &PushGit, branch_ref: &str) -> Result<Option<PathBuf>, SingleFlightError> {
     let listed = run_query_awaiting(git, &argv(&["worktree", "list", "--porcelain", "-z"])).await?;
     if listed.code != Some(0) {
-        return Ok(None);
+        // What: a listing that failed is not the answer "no worktree holds it".
+        // Why: a branch a worktree holds may be moved only when the wrapper knows its holders, so a question that
+        //      could not be answered ends the advance instead of moving the branch without its checkout
+        //      (a review of commit `36cae084ae`, its finding 2).
+        return Err(SingleFlightError::Git {
+            arguments: String::from("worktree list --porcelain -z"),
+            code: listed.code,
+            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
+        });
     }
     let Some(place) = worktree_holding(&listed.stdout, branch_ref) else {
         return Ok(None);

@@ -28,6 +28,10 @@ use crate::diagnostic_log::debug;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 use crate::merge_isolation_kept_copies::any_kept_copy;
 use crate::merge_isolation_recovery::{RecoveryPlace, merge_intents_to_recover, recover_interrupted_merges};
+/// The record of a branch's move that no worktree had checked out, and the command that finishes a stop.
+use crate::auto_push_branch_move_record::{branch_moves_exist, finish_branch_moves};
+/// The Git context a push's own starts read.
+use crate::auto_push_single_flight::PushGit;
 use crate::random_id::is_canonical_uuid;
 use crate::repository_link_gate::{LinkGate, link_gate};
 use crate::child_environment::environment_home;
@@ -211,8 +215,25 @@ fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path)> {
 fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &mut dyn Write) -> Result<(), RecoveryError> {
     // A copy a merge kept beside a path is decided here too: it is the one thing a worktree with no merge record still has to
     //  look at, and a copy no later merge touches would otherwise be a file no command ever ends.
-    if !merge_intents_to_recover(git_dir)? && !any_kept_copy(git_dir) {
+    // A repository that moved no branch without its checkout pays one failed directory read for this too.
+    let moves_to_finish: bool = branch_moves_exist(common_dir);
+    if !merge_intents_to_recover(git_dir)? && !any_kept_copy(git_dir) && !moves_to_finish {
         return Ok(());
+    }
+    // What: finish the branch moves a stopped process left, in the worktree this command runs in.
+    // Why: a stop after a branch's reference moved and before its checkout was repaired leaves a checkout whose next
+    //      commit records a reversal of the published merge, and the record is what the next command finishes
+    //      (a review of commit `36cae084ae`, its finding 3).
+    if moves_to_finish {
+        let git: PushGit = PushGit {
+            real_git: context.real_git.clone(),
+            cwd: PathBuf::from("."),
+            environment: context.overlay.clone(),
+            lfs: false,
+        };
+        if let Err(error) = finish_branch_moves(&git, common_dir, out) {
+            return Err(RecoveryError(error));
+        }
     }
     let place: RecoveryPlace = RecoveryPlace {
         git: context.clone(),

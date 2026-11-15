@@ -32,16 +32,15 @@ use crate::auto_push_single_flight::{
 };
 use crate::auto_push_dirty_paths::status_paths;
 /// The answers a move gives, the words of a refusal, and the steps both moves share.
-use crate::auto_push_reconcile_branch_advance::{
-    Advanced, BRANCH_MOVED, Brought, absolute_git_dir_awaiting, advice_to_move, record_merge_intent, refusal_of,
-};
-/// The repair that writes only what the index proves is the move's own content.
+use crate::auto_push_reconcile_branch_advance::{Advanced, BRANCH_MOVED, Brought, advice_to_move, refusal_of};
+/// The repair that writes only what its own write proves is the move's own content.
 use crate::auto_push_reconcile_branch_checkout::{bring_the_checkout_to_its_branch_awaiting, shown_branch_awaiting};
+/// The record of the move, written before the reference moves, and the command that finishes a stop.
+use crate::auto_push_branch_move_record::{common_git_dir_awaiting, record_branch_move, remove_branch_move};
 use crate::auto_push_reconcile_branch_worktree::{git_at, live_holder_awaiting};
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
 use crate::diagnostic_log::debug;
 use crate::inner_git_words::record_streams;
-use crate::merge_isolation_journal::{MergeIntent, remove_merge_intent};
 use std::path::{Path, PathBuf};
 
 /// What:
@@ -67,11 +66,20 @@ pub(crate) enum NowhereMove {
 /// which writes no file,
 /// or say why it was not moved,
 /// and look at the listing on either side of the write.
+///  The move's record is written before the reference moves and removed once the checkout is finished,
+/// so a stop at any instruction leaves a record the next command reads
+/// (`auto_push_branch_move_record.rs`).
 /// Why:
 ///   The reference has a compare-and-swap and the checkout does not,
 /// so the two looks are what keeps a worktree that takes the branch from being left with the older files.
 ///  The tip is read before the write for the same reason the elsewhere path reads it:
 /// a branch that moved since the push is not the branch the merge was made for.
+///  A listing Git cannot answer is never read as "nobody holds it":
+/// the branch is not moved then, because a worktree that has it checked out would otherwise be left behind
+/// (a review of commit `36cae084ae`, its finding 2).
+///  Without the record nothing is moved:
+/// a stop after the write would leave a checkout nothing finishes
+/// (its finding 3).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -85,7 +93,19 @@ pub(crate) async fn move_the_ref_only_awaiting(
 ) -> Result<NowhereMove, SingleFlightError> {
     let where_to: &str = "in a worktree that has it checked out";
     // A worktree that took the branch since the first look has files of its own to write, and only its own move may write them.
-    if let Some(taken) = live_holder_awaiting(git, branch_ref).await? {
+    let taken: Option<PathBuf> = match live_holder_awaiting(git, branch_ref).await {
+        Ok(found) => found,
+        Err(error) => {
+            // What: the holders of the branch could not be read, so the branch is not moved.
+            // Why: a worktree that has it checked out would be left with the older files, which the report cannot know.
+            debug(TAG, &format!("the worktrees of {branch_ref} could not be read ({error}), so the branch was not moved"));
+            return Ok(NowhereMove::Answered(Advanced::Not {
+                reason: format!("the worktrees that may have {branch_ref} checked out could not be read: {error}"),
+                advice: advice_to_move(merge_oid, where_to),
+            }));
+        }
+    };
+    if let Some(taken) = taken {
         debug(
             TAG,
             &format!("a worktree at {} took {branch_ref} before its reference moved, so the branch is moved there", taken.display()),
@@ -99,6 +119,17 @@ pub(crate) async fn move_the_ref_only_awaiting(
             advice: advice_to_move(merge_oid, where_to),
         }));
     }
+    let common_dir: PathBuf = common_git_dir_awaiting(git).await?;
+    let Some((record, _movement)) = record_branch_move(common_dir.as_path(), branch_ref, local, merge_oid) else {
+        // What: the record could not be written, so the reference is not moved.
+        // Why: a stop after the write would leave a checkout with the older files and nothing that finishes it
+        //      (a review of commit `36cae084ae`, its finding 3).
+        debug(TAG, &format!("the record of the move of {branch_ref} could not be written in {}", common_dir.display()));
+        return Ok(NowhereMove::Answered(Advanced::Not {
+            reason: format!("the record of this move could not be written in {}", common_dir.display()),
+            advice: advice_to_move(merge_oid, where_to),
+        }));
+    };
     #[cfg(test)]
     play_in_the_window(Window::BeforeTheWrite);
     let message: String = format!("merge: fast-forward {branch_ref} to the published reconcile merge");
@@ -108,6 +139,8 @@ pub(crate) async fn move_the_ref_only_awaiting(
     )
     .await?;
     if moved.code != Some(0) {
+        // Nothing moved, so nothing is left to finish.
+        let _removed = remove_branch_move(record.as_path());
         return Ok(NowhereMove::Answered(Advanced::Not {
             reason: refusal_of(&moved.stderr),
             advice: advice_to_move(merge_oid, where_to),
@@ -116,12 +149,34 @@ pub(crate) async fn move_the_ref_only_awaiting(
     record_streams(&["update-ref", branch_ref, merge_oid, local], &moved.stdout, &moved.stderr);
     #[cfg(test)]
     play_in_the_window(Window::AfterTheWrite);
-    return match live_holder_awaiting(git, branch_ref).await? {
-        None => Ok(NowhereMove::Answered(Advanced::Nowhere)),
-        Some(appeared) => Ok(NowhereMove::Answered(
-            finish_the_checkout_that_raced_the_move(git, appeared.as_path(), branch_ref, local, merge_oid).await?,
-        )),
+    let appeared: Option<PathBuf> = match live_holder_awaiting(git, branch_ref).await {
+        Ok(found) => found,
+        Err(error) => {
+            // What: the look after the write failed, so the record stays and the next command asks again.
+            // Why: a checkout that took the branch may hold the older files, and nothing here can tell which it is.
+            debug(TAG, &format!("the worktrees of {branch_ref} could not be read after its reference moved ({error}); the record stays"));
+            return Ok(NowhereMove::Answered(Advanced::HoldersUnreadable {
+                reason: format!("the worktrees that may have {branch_ref} checked out could not be read after the branch moved: {error}"),
+            }));
+        }
     };
+    let Some(appeared) = appeared else {
+        let _removed = remove_branch_move(record.as_path());
+        return Ok(NowhereMove::Answered(Advanced::Nowhere));
+    };
+    let repaired: Repaired =
+        finish_the_checkout_that_raced_the_move(git, appeared.as_path(), branch_ref, local, merge_oid).await?;
+    if repaired.write_refused {
+        // What: the record stays when Git refused a write, because a later command may finish it.
+        // Why: the checkout still holds the older files on paths the merge changes, and the person was not asked anything:
+        //      the move writes them by the proof, so a lock is all that stood in the way.
+        debug(TAG, &format!("the checkout at {} was not written, so the record stays for a later command", appeared.display()));
+    } else {
+        // The repair has run and told what it left, so the record has nothing more to finish: a record kept would only
+        //  tell it again at every command. A stop inside the repair left it, and the next command finishes the rest.
+        let _removed = remove_branch_move(record.as_path());
+    }
+    return Ok(NowhereMove::Answered(repaired.advanced));
 }
 
 /// What:
@@ -148,13 +203,27 @@ pub(crate) async fn move_the_ref_only_awaiting(
 /// ```ts
 /// async function finishTheCheckoutThatRacedTheMove(git, place, branchRef, local, mergeOid): Promise<Advanced>;
 /// ```
+/// What:
+///  The answer about the raced checkout,
+/// and whether a write of the branch's own content was refused.
+/// Why:
+///  A refusal that came from the write itself is one a later command may finish,
+/// so the move's record stays for it;
+///  a path the worktree's own bytes kept from being written is told in the answer and needs no later command.
+struct Repaired {
+    /// The report's answer.
+    advanced: Advanced,
+    /// Whether Git refused a write of the branch's own content.
+    write_refused: bool,
+}
+
 async fn finish_the_checkout_that_raced_the_move(
     git: &PushGit,
     place: &Path,
     branch_ref: &str,
     local: &str,
     merge_oid: &str,
-) -> Result<Advanced, SingleFlightError> {
+) -> Result<Repaired, SingleFlightError> {
     let named: String = format!("the worktree at {}", place.display());
     let there: PushGit = git_at(git, place);
     #[cfg(test)]
@@ -165,72 +234,71 @@ async fn finish_the_checkout_that_raced_the_move(
         // Why: the reference has already moved, so this is not a branch that stayed behind, and the answer must not say
         //      so nor advise `git merge --ff-only`, which is a no-op there
         //      (a review of commit `c15fc5a7b1`, its finding 4).
-        return Ok(Advanced::WorktreeHolding {
-            worktree: place.to_path_buf(),
-            shows,
-            paths: Vec::new(),
-            reason: format!("{named} checked another branch out while {branch_ref} moved, so it holds nothing of the merge"),
+        return Ok(Repaired {
+            advanced: Advanced::WorktreeHolding {
+                worktree: place.to_path_buf(),
+                shows,
+                paths: Vec::new(),
+                reason: format!("{named} checked another branch out while {branch_ref} moved, so it holds nothing of the merge"),
+            },
+            write_refused: false,
         });
     }
     let head = run_query_awaiting(&there, &argv(&["rev-parse", "--verify", "HEAD^{commit}"])).await?;
     if head.code != Some(0) || String::from_utf8_lossy(&head.stdout).trim() != merge_oid {
-        return Ok(Advanced::WorktreeHolding {
-            worktree: place.to_path_buf(),
-            shows: Some(branch_ref.to_owned()),
-            paths: Vec::new(),
-            reason: format!("{named} moved off the merge while {branch_ref} was moved, so it holds nothing of it"),
+        return Ok(Repaired {
+            advanced: Advanced::WorktreeHolding {
+                worktree: place.to_path_buf(),
+                shows: Some(branch_ref.to_owned()),
+                paths: Vec::new(),
+                reason: format!("{named} moved off the merge while {branch_ref} was moved, so it holds nothing of it"),
+            },
+            write_refused: false,
         });
     }
-    // What: the record of this repair, written before it starts and kept unless the repair finished.
-    // Why: the worktree moves write one for the same reason, and a kill inside this repair (a `read-tree` that wrote some
-    //      of its paths, a process ended between two of them) would otherwise leave a checkout whose next commit records a
-    //      reversal of the published merge, with nothing for a later command to find
-    //      (a review of commit `c15fc5a7b1`, its finding 3).
-    let git_dir: Option<PathBuf> = absolute_git_dir_awaiting(&there).await?;
-    let recorded: Option<(PathBuf, MergeIntent)> = match git_dir.as_deref() {
-        Some(dir) => record_merge_intent(dir, &there, branch_ref, local, merge_oid),
-        None => None,
-    };
-    #[cfg(test)]
-    play_in_the_window(Window::AfterTheRecord);
+    // What: the record of the move in the common Git directory stays until the repair finished.
+    // Why: the repair writes the merge's content path by path, so a kill inside it leaves some paths written and the
+    //      rest holding the pushed tip; the next command in that worktree reads the record and finishes them
+    //      (`a_stop_inside_the_repair_leaves_a_record_the_next_command_finishes`).
     let brought: Brought = match bring_the_checkout_to_its_branch_awaiting(&there, branch_ref, local, merge_oid).await {
         Ok(brought) => brought,
-        Err(error) => Brought::Left { paths: Vec::new(), reason: format!("{named} could not be read: {error}") },
+        Err(error) => Brought::Left { paths: Vec::new(), reason: format!("{named} could not be read: {error}"), write_refused: false },
     };
-    if let Some((record, _)) = recorded.as_ref()
-        && brought == Brought::Right
-    {
-        // The repair finished, so there is nothing left for a later command to settle.
-        if let Err(error) = remove_merge_intent(record.as_path()) {
-            debug(TAG, &format!("the merge record could not be removed: {error}"));
-        }
-    }
     // What: the branch the checkout shows is read again, after the repair, and never reused from before it.
     // Why: a switch landing inside the repair leaves the report naming a branch the worktree no longer shows
     //      (a review of commit `c15fc5a7b1`, its finding 5).
     let shows_now: Option<String> = shown_branch_awaiting(&there).await?;
-    if let Brought::Left { paths, reason } = brought {
-        return Ok(Advanced::WorktreeHolding {
-            worktree: place.to_path_buf(),
-            shows: shows_now,
-            paths,
-            reason: format!("{named} took {branch_ref} while its reference moved, and its files there are older than the merge: {reason}"),
+    if let Brought::Left { paths, reason, write_refused } = brought {
+        return Ok(Repaired {
+            advanced: Advanced::WorktreeHolding {
+                worktree: place.to_path_buf(),
+                shows: shows_now,
+                paths,
+                reason: format!("{named} took {branch_ref} while its reference moved, and its files there are older than the merge: {reason}"),
+            },
+            write_refused,
         });
     }
     let status_arguments = argv(&["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=no"]);
     let status = run_query_awaiting(&there, &status_arguments).await?;
     if status.code != Some(0) {
-        return Ok(Advanced::WorktreeHolding {
-            worktree: place.to_path_buf(),
-            shows: shows_now,
-            paths: Vec::new(),
-            reason: format!("the status of {named} could not be read after its files were brought to the merge"),
+        return Ok(Repaired {
+            advanced: Advanced::WorktreeHolding {
+                worktree: place.to_path_buf(),
+                shows: shows_now,
+                paths: Vec::new(),
+                reason: format!("the status of {named} could not be read after its files were brought to the merge"),
+            },
+            write_refused: false,
         });
     }
     let kept: bool = !status_paths(&status.stdout).is_empty();
-    return Ok(Advanced::Elsewhere {
-        worktree: place.to_path_buf(),
-        kept,
+    return Ok(Repaired {
+        advanced: Advanced::Elsewhere {
+            worktree: place.to_path_buf(),
+            kept,
+        },
+        write_refused: false,
     });
 }
 
@@ -250,15 +318,13 @@ pub(crate) enum Window {
     AfterTheWrite,
     /// The listing has named the worktree that took the branch, before the repair reads it.
     BeforeTheRepairReads,
-    /// The record of the repair is written, before the repair writes anything.
-    AfterTheRecord,
 }
 
 // The step a control plays inside a window, as a `git worktree add` of the branch finishing there; nothing outside a control.
 #[cfg(test)]
 thread_local! {
     /// The steps of the controls running on this thread, one per window.
-    static IN_THE_WINDOW: std::cell::RefCell<[Option<Box<dyn Fn()>>; 4]> = const { std::cell::RefCell::new([None, None, None, None]) };
+    static IN_THE_WINDOW: std::cell::RefCell<[Option<Box<dyn Fn()>>; 3]> = const { std::cell::RefCell::new([None, None, None]) };
 }
 
 /// Plays `step` in `window` until the guard drops.
@@ -268,7 +334,6 @@ pub(crate) fn in_the_window_in_a_control(window: Window, step: impl Fn() + 'stat
         Window::BeforeTheWrite => 0,
         Window::AfterTheWrite => 1,
         Window::BeforeTheRepairReads => 2,
-        Window::AfterTheRecord => 3,
     };
     IN_THE_WINDOW.with(|steps| {
         steps.borrow_mut()[slot] = Some(Box::new(step));
@@ -290,7 +355,6 @@ impl Drop for WindowGuard {
             Window::BeforeTheWrite => 0,
             Window::AfterTheWrite => 1,
             Window::BeforeTheRepairReads => 2,
-            Window::AfterTheRecord => 3,
         };
         IN_THE_WINDOW.with(|steps| {
             steps.borrow_mut()[slot] = None;
@@ -306,7 +370,6 @@ fn play_in_the_window(window: Window) {
         Window::BeforeTheWrite => 0,
         Window::AfterTheWrite => 1,
         Window::BeforeTheRepairReads => 2,
-        Window::AfterTheRecord => 3,
     };
     // The step borrows nothing of the caller, so it runs here rather than through a reference that would hold the borrow.
     let played: Option<Box<dyn Fn()>> = IN_THE_WINDOW.with(|steps| {

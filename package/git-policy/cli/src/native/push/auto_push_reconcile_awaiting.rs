@@ -128,6 +128,9 @@ fn followed_sentence(advanced: &Advanced, branch: &str, merge_oid: &str) -> Stri
             debug(TAG, &format!("{branch} was not fast-forwarded: {reason}"));
             format!("and {branch} is not at it: {reason}; {advice}")
         }
+        Advanced::HoldersUnreadable { reason } => format!(
+            "and {branch} is now at it; {reason}, so a checkout that took it is finished by the next command there"
+        ),
         Advanced::WorktreeWentTo { worktree, shows } => {
             let there: String = shows_here(shows);
             format!(

@@ -249,7 +249,7 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
             if !still_on_the_branch(git, branch_ref, local).await? {
                 match bring_the_checkout_to_its_branch_awaiting(git, branch_ref, local, merge_oid).await? {
                     Brought::Right => {}
-                    Brought::Left { paths, reason } => {
+                    Brought::Left { paths, reason, .. } => {
                         return Ok(Err(format!(
                             "another command checked out another branch while this fast-forward wrote its files, and the merge's changes to {} are still in that checkout and were left as they are: {reason}",
                             listed(&paths)
@@ -530,6 +530,7 @@ pub(crate) async fn advance_local_branch_moving(
 /// ```ts
 /// type Advanced = { kind: 'here'; kept: boolean } | { kind: 'elsewhere'; worktree: string; kept: boolean } | { kind: 'nowhere' } | { kind: 'not'; reason: string; advice: string };
 /// ```
+#[derive(Debug)]
 pub(crate) enum Advanced {
     /// The branch and this worktree, which had it checked out, moved to the merge;
     /// `kept` says uncommitted work was left exactly as it was.
@@ -561,6 +562,12 @@ pub(crate) enum Advanced {
         worktree: PathBuf,
         /// The branch, or the detached commit, that worktree shows instead.
         shows: Option<String>,
+    },
+    /// The branch is at the merge, and whether a checkout took it could not be read:
+    /// the move's record is kept, and the next command in that worktree finishes it.
+    HoldersUnreadable {
+        /// Why the question could not be answered.
+        reason: String,
     },
     /// The same, and something of the merge is still in that worktree.
     WorktreeHolding {

@@ -20,14 +20,12 @@ pub use crate::merge_isolation_recovery_notice::recovery_notice;
 use crate::merge_isolation_recovery_notice::saved_merge_waits_for_the_index_lock;
 pub use crate::merge_isolation_recovery_steps::{
     Installed, Judged, MergeRecoveryAction, MergeRefusal, RecoveryPlace, Standing, TakenOnDisk,
-    install_entries_awaiting,
 };
 /// The synchronous faces this file keeps,
 /// so the controls of the folder reach the names they had.
 #[cfg(test)]
 use crate::merge_isolation_recovery_steps::{finish_asides, merge_changes};
-/// The log line of a merge that could not be installed after its reference moved.
-use crate::diagnostic_log::debug;
+
 use crate::merge_isolation_recovery_cleanup::{
     a_landed_merge_in_another_branchs_worktree, edits_on_the_merges_own_paths, no_commit_names_the_merges_parent,
     staged_work_on_the_merges_paths,
@@ -145,47 +143,6 @@ pub async fn settle_failed_merge_awaiting<W: std::io::Write + ?Sized>(
                 // The branch already names this merge, so a read that fails cannot prove the checkout untouched.
                 Err(error) => return Err(MergeRefusal { error, began: true }),
             };
-            // What: install the merge when the index still holds its predecessor on every path the merge changes.
-            // Why: a record written after the reference moved (the push that moves a reference alone) names a repair that may
-            //      not have run, and a kill inside that repair would otherwise leave a checkout whose next commit records a
-            //      reversal of the published merge. The worktree moves write their checkout before the reference moves, so
-            //      their landed records always find the merge installed and never reach this; a person's own staged work
-            //      makes a path foreign and is left alone, as everywhere else (a review of commit `c15fc5a7b1`, finding 3).
-            let predecessor_only: bool =
-                match index_standings_awaiting(place, root, intent.old_oid.as_str(), changes.as_slice()).await {
-                    Ok(standings) => !standings.is_empty() && standings.iter().all(|standing| return *standing == Standing::Old),
-                    // An index that cannot be read may hold the merge, so a command must not read the checkout past this.
-                    Err(error) => return Err(MergeRefusal { error, began: true }),
-                };
-            if predecessor_only {
-                let judgements: Vec<Judged> = match judge_changes_awaiting(place, root, changes.as_slice()).await {
-                    Ok(found) => found,
-                    Err(error) => return Err(MergeRefusal { error, began: true }),
-                };
-                match install_entries_awaiting(
-                    place,
-                    root,
-                    changes.as_slice(),
-                    judgements.as_slice(),
-                    false,
-                    intent.owner.transaction_id.as_str(),
-                    out,
-                )
-                .await
-                {
-                    Ok(Installed::Written) => {}
-                    // What: nothing of the merge was written, so the record stays and the next command finishes it.
-                    // Why: a merge never waits behind a held index lock, and a command is not stopped for a checkout that
-                    //      nothing of the merge reached; a refusal that did write part of it still stops the command
-                    //      (integration pass 37, and a review of commit `c15fc5a7b1`, its finding 3).
-                    Ok(Installed::IndexHeld) => return Ok(MergeRecoveryAction::IndexHeld),
-                    Err(refusal) if refusal.began => return Err(refusal),
-                    Err(refusal) => {
-                        debug("installAfterTheReferenceMoved", &format!("the merge was not installed: {}", refusal.error.0));
-                        return Ok(MergeRecoveryAction::IndexHeld);
-                    }
-                }
-            }
             let put_back: Vec<PathBuf> =
                 put_back_stranded_takes_awaiting(&place.git, root, place.git_dir.as_path(), changes.as_slice(), intent.carried.as_ref(), intent.owner.transaction_id.as_str(), out).await;
             // A file this command put back is the entry the merge judged at that path: the rename left its identity as it was and
