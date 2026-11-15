@@ -9,11 +9,12 @@
  */
 
 import { join, } from 'node:path';
-import {
-  readdir,
-  readFile,
-} from 'node:fs/promises';
+import { readdir, } from 'node:fs/promises';
 import { errorCodeOf, } from './error-code-of.ts';
+import {
+  NotAnOrdinaryFileError,
+  readOrdinaryFile,
+} from './read-ordinary-file.ts';
 import {
   fieldsOf,
   isRecord,
@@ -158,11 +159,11 @@ export function turnCapSizing({
 }
 
 /**
- Reads a summary's text, or nothing when the folder holds no summary.
+ Reads a summary's text, or nothing when the folder holds no summary this launcher can read.
 
  @param summaryFile - the file the driver writes whole and last
 
- @returns the text, or empty text for a run that has not finished
+ @returns the text, or empty text for a run that has not finished, and for a summary that is not an ordinary file to read
 
  @example
  ```ts
@@ -171,13 +172,11 @@ export function turnCapSizing({
  */
 async function summaryTextOrNothingIn(summaryFile: string,): Promise<string> {
   try {
-    return await readFile(
-      summaryFile,
-      'utf8',
-    );
+    return await readOrdinaryFile(summaryFile,);
   }
   catch (error) {
-    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
+    // A run with no summary, and a summary that is not an ordinary file, are both no sample this cap can be sized from.
+    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (error instanceof NotAnOrdinaryFileError)) {
       return '';
     }
     throw error;

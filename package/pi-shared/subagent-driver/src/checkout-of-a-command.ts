@@ -17,7 +17,6 @@
 
 import {
   access,
-  readFile,
   stat,
 } from 'node:fs/promises';
 import {
@@ -26,6 +25,10 @@ import {
   resolve,
 } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
+import {
+  NotAnOrdinaryFileError,
+  readOrdinaryFile,
+} from './read-ordinary-file.ts';
 
 /**
  The name that marks the folder a checkout starts at, which is a folder in the main checkout and a file in a worktree made from it.
@@ -154,10 +157,7 @@ async function gitDirectoryOf({
   /**
    The line the marker file holds.
    */
-  const named = (await readFile(
-    marker,
-    'utf8',
-  )).split('\n',)
+  const named = (await ordinaryFileAt({ path: marker, },)).split('\n',)
     .map(function withoutTrailingSpace(line,) {
       return line.trim();
     },)
@@ -174,6 +174,37 @@ async function gitDirectoryOf({
     named.slice(GITDIR_PREFIX.length,)
       .trim(),
   );
+}
+
+/**
+ Reads a file Git wrote, which a named pipe or a device cannot make this process wait on.
+
+ @param path - the file Git wrote
+
+ @returns the file's text
+
+ @throws CheckoutNotFoundError when the path is not an ordinary file, naming it and what it holds
+
+ @throws the error the read gives, such as a missing file
+
+ @example
+ ```ts
+ const text = await ordinaryFileAt({ path: '/repo/.git/worktrees/pi-a/commondir', });
+ ```
+ */
+async function ordinaryFileAt({ path }: { readonly path: string },): Promise<string> {
+  try {
+    return await readOrdinaryFile(path,);
+  }
+  catch (error) {
+    if (!(error instanceof NotAnOrdinaryFileError)) {
+      throw error;
+    }
+    throw new CheckoutNotFoundError(
+      `${path} is not an ordinary file, so what Git wrote there cannot be read without waiting for a writer that may never come. Replace it with the file Git writes, or name another checkout with --checkout-folder. ${String(error,)}`,
+      { cause: error, },
+    );
+  }
 }
 
 /**
@@ -202,10 +233,7 @@ async function commonDirectoryOf({ gitDirectory, }: { readonly gitDirectory: str
   if (await isThere(named,)) {
     return resolve(
       gitDirectory,
-      (await readFile(
-        named,
-        'utf8',
-      )).trim(),
+      (await ordinaryFileAt({ path: named, },)).trim(),
     );
   }
   return resolve(

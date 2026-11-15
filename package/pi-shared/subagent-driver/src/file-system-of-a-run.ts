@@ -15,6 +15,11 @@
  systemd applies inside the read-only ones. A path there that is not there stops the unit from starting, so the folders that may
  be absent are named apart and carry systemd's `-` prefix, which tells it to ignore a path it cannot find.
 
+ The checkout's `.cache` is one of those tools' folders and cannot be one of those: a tool that installs its launcher or guard
+ makes `.cache` itself, and under a read-only checkout that creation is refused, so a `-` prefix there lets the unit start and
+ then refuses the very write it was meant to allow. The launcher makes the folder before it asks for the unit instead, and names it
+ as a folder the unit must write.
+
  The run's worktree is not one of those: a run with no worktree has no working folder, and the driver would end at once with
  `spawn pi ENOENT` rather than work. So the launcher reads the worktree once more immediately before it asks for the unit, and
  refuses the start with words naming the worktree when it has gone meanwhile.
@@ -22,7 +27,10 @@
  @module
  */
 
-import { access, } from 'node:fs/promises';
+import {
+  access,
+  mkdir,
+} from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
   CHECKOUT_MARKER,
@@ -30,6 +38,7 @@ import {
   gitFoldersOf,
 } from './checkout-of-a-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
+import { NotAnOrdinaryFileError, } from './read-ordinary-file.ts';
 import { pathInAUnitProperty, } from './path-in-a-unit-property.ts';
 
 /**
@@ -108,6 +117,11 @@ async function gitFoldersToWrite({ checkoutFolder }: { readonly checkoutFolder: 
     if (!(error instanceof CheckoutNotFoundError)) {
       throw error;
     }
+    // A marker that is a named pipe or a device is no checkout this start can name Git folders for: the read that would say which
+    // folders they are waits for a writer that may never come, which no unit exists yet to bound.
+    if (error.cause instanceof NotAnOrdinaryFileError) {
+      throw error;
+    }
     return {
       folders: [],
       whenTheyAreThere: [
@@ -117,6 +131,102 @@ async function gitFoldersToWrite({ checkoutFolder }: { readonly checkoutFolder: 
         ),
       ],
     };
+  }
+}
+
+/**
+ The folders a run's tools make inside the checkout, outside the run's own worktree and run folder, and which therefore have to
+ exist before the unit is asked for.
+
+ The checkout's `.cache` is where this repository's tools install their launchers, their exposure directories and their guard
+ (`toolchain-bin`, `toolchain-launchers`, `<tool> -bin` folders and `toolchain.guard` all live inside it), and a tool makes the
+ folder itself when a checkout has none. Measured on this machine: `pnpm install --offline --frozen-lockfile` in a worktree, the
+ toolchain's own `list`, a package's type check and a guarded `git status` wrote nothing under the checkout, so this folder is
+ the one a run's tools may still make there.
+
+ @param checkoutFolder - the checkout the run's launcher works in
+
+ @returns the folders, in the order a reader needs them
+
+ @example
+ ```ts
+ const folders = foldersAToolMakesIn({ checkoutFolder: '/repo', });
+ ```
+ */
+export function foldersAToolMakesIn({ checkoutFolder, }: { readonly checkoutFolder: string },): readonly string[] {
+  return [join(
+    checkoutFolder,
+    CACHE_FOLDER_NAME,
+  ),];
+}
+
+/**
+ A folder a run's tools make that this launcher could not make before asking for the unit, so a tool that installs itself there
+ would be refused by the run's own read-only checkout.
+ */
+export class FolderAToolMakesCannotBeMadeError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'FolderAToolMakesCannotBeMadeError';
+}
+
+/**
+ Makes the folders a run's tools make inside the checkout, so the unit can be told they must be writable.
+
+ @param checkoutFolder - the checkout the run's launcher works in
+
+ @returns the folders, which are there when this answers
+
+ @throws FolderAToolMakesCannotBeMadeError when one cannot be made, naming it and what that would cost a run
+
+ @example
+ ```ts
+ const folders = await makeTheFoldersAToolMakesIn({ checkoutFolder: '/repo', });
+ ```
+ */
+export async function makeTheFoldersAToolMakesIn({
+  checkoutFolder,
+}: {
+  /**
+   The checkout the run's launcher works in.
+   */
+  readonly checkoutFolder: string;
+},): Promise<readonly string[]> {
+  /**
+   The folders a tool makes inside this checkout.
+   */
+  const folders = foldersAToolMakesIn({ checkoutFolder, },);
+  await Promise.all(folders.map(async function makeOne(folder,) {
+    await makeTheFolder({ folder, },);
+  },),);
+  return folders;
+}
+
+/**
+ Makes one folder a run's tools write, naming it when it cannot be made.
+
+ @param folder - the folder to make, and everything above it
+
+ @throws FolderAToolMakesCannotBeMadeError when it cannot be made, naming it and what that would cost a run
+
+ @example
+ ```ts
+ await makeTheFolder({ folder: '/repo/.cache', });
+ ```
+ */
+async function makeTheFolder({ folder, }: { readonly folder: string },): Promise<void> {
+  try {
+    await mkdir(
+      folder,
+      { recursive: true, },
+    );
+  }
+  catch (error) {
+    throw new FolderAToolMakesCannotBeMadeError(
+      `the folder ${folder} could not be made, and a run's tools install their launchers and guards there: with the checkout read-only, a tool that made it would be refused, so this start made it first. ${String(error,)}`,
+      { cause: error, },
+    );
   }
 }
 
@@ -167,31 +277,23 @@ export async function fileSystemOfARun({
   readonly worksInTheCheckoutItself: boolean;
 },): Promise<FileSystemOfARun> {
   /**
-   The folder this repository's tools cache their launchers and guards in, which a checkout with none ignores.
-   */
-  const cacheFolder = join(
-    checkoutFolder,
-    CACHE_FOLDER_NAME,
-  );
-  /**
    The Git folders of the checkout, which are there unless the checkout keeps no marker Git can read.
    */
   const git = await gitFoldersToWrite({ checkoutFolder, },);
   /**
-   The folders this run must write, in the order a reader needs them: where it works, where its Git data is, and where the driver
-   writes it.
+   The folders this run must write, in the order a reader needs them: where it works, where its Git data is, where this
+   repository's tools install themselves, and where the driver writes it.
    */
   const wanted: readonly string[] = [
     ...(worksInTheCheckoutItself ? [] : [worktree,]),
     ...git.folders,
+    ...foldersAToolMakesIn({ checkoutFolder, },),
     runFolder,
   ];
   /**
-   The folders this run must write when they are there: the checkout's cache, which a checkout that never installed a tool does not
-   have, and a marker for a checkout Git cannot read.
+   The folders this run must write when they are there: a marker for a checkout Git cannot read.
    */
   const wantedWhenTheyAreThere: readonly string[] = [
-    cacheFolder,
     ...git.whenTheyAreThere,
   ];
   return {
@@ -401,5 +503,5 @@ export function worktreeGoneWordsOf({
    */
   readonly runFolder: string;
 },): string {
-  return `the worktree ${worktree} is gone, and this start read it a moment ago, so no unit was started and no run happened. Most likely a launcher of another start of the name ${runName} finished just now, and a launcher removes a finished worktree once its unit has ended. Nothing of that work is lost: its commits are in the Git directory the worktree named. Start the run again; the run folder ${runFolder} holds this start's refusal and no run.`;
+  return `the worktree ${worktree} is gone, and this start read it a moment ago, so no unit was started and no run happened. Most likely a launcher of another start of the name ${runName} finished just now, and a launcher removes a finished worktree once its unit has ended. Its branch and every commit on it are in the Git directory the worktree named; what the worktree held that was never committed, including the files Git ignores, is not there any more. Start the run again; the run folder ${runFolder} holds this start's refusal and no run.`;
 }

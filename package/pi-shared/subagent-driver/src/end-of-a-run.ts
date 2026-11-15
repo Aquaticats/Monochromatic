@@ -7,9 +7,12 @@
  @module
  */
 
-import { readFile, } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
+import {
+  NotAnOrdinaryFileError,
+  readOrdinaryFile,
+} from './read-ordinary-file.ts';
 import {
   fieldsOf,
   isRecord,
@@ -37,18 +40,22 @@ export async function endReasonIn({
   folder,
 }: {
   readonly folder: string;
-},): Promise<{ readonly endReason?: string }> {
+},): Promise<{
+  readonly endReason?: string;
+
+  /**
+   Whether the run's folder holds a summary that is not an ordinary file to read, which no writer of another process may open.
+   */
+  readonly summaryIsNotAnOrdinaryFile?: boolean;
+}> {
   try {
     /**
      The summary, which the driver writes whole and last.
      */
-    const shown = await readFile(
-      join(
-        folder,
-        'summary.json',
-      ),
-      'utf8',
-    );
+    const shown = await readOrdinaryFile(join(
+      folder,
+      'summary.json',
+    ),);
     /**
      What the run's summary holds, of any shape.
      */
@@ -65,10 +72,15 @@ export async function endReasonIn({
   catch (error) {
     // A run that wrote no summary ended before the driver could write one, so there is no end reason to weigh, and the file's own
     // absence is what says so.
-    if (errorCodeOf(error,) !== MISSING_PATH_CODE) {
-      throw error;
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
+      return {};
     }
-    return {};
+    // A summary that is a named pipe or a device cannot be read without waiting for a writer that may never come, which is no
+    // reason to hold the launcher: the ending is unreadable, and the caller says so.
+    if (error instanceof NotAnOrdinaryFileError) {
+      return { summaryIsNotAnOrdinaryFile: true, };
+    }
+    throw error;
   }
 }
 

@@ -122,6 +122,7 @@ export {
   CheckoutNotFoundError,
   checkoutFolderOf,
 } from './checkout-of-a-command.ts';
+export * from './index-of-a-runs-file-system.ts';
 export {
   PI_LOAD_FAILURE_TEXT,
   PI_START_CHECK_MEMORY_SECONDS,
@@ -133,6 +134,7 @@ export {
   absoluteFolderProblemIn,
   answersIn,
   baseProblemIn,
+  markerProblemIn,
   piProblemIn,
   piStartCheckFileIn,
   nameProblemIn,
@@ -159,24 +161,6 @@ export {
   kindOfRun,
   turnCapSizing,
 } from './turn-cap-of-finished-runs.ts';
-export {
-  type FileSystemOfARun,
-  WorktreeGoneError,
-  fileSystemOfARun,
-  fileSystemPropertiesOf,
-  refuseUnlessTheWorktreeIsThere,
-  worktreeGoneWordsOf,
-} from './file-system-of-a-run.ts';
-export {
-  type TheRunAUnitLeft,
-  theRunAUnitLeftIn,
-  theRunThatOutlivedItsWorktreeLineOf,
-  theWorktreeThatWentLineIn,
-} from './the-run-a-unit-left.ts';
-export {
-  PathThatIsNotAbsoluteError,
-  pathInAUnitProperty,
-} from './path-in-a-unit-property.ts';
 export {
   UNIT_GRACE_SECONDS,
   UNIT_IO_WEIGHT,

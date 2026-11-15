@@ -4,8 +4,10 @@
 
  A start that fails one of these made nothing, so nothing has to be undone, and no provider slot is spent on a run that could not
  have worked. The checkout and the runs folder are checked too: a unit's path properties take absolute paths, and a relative one
- refuses the unit before any run starts. Before this, a launcher took a slot, made a worktree and linked its dependencies, and only then did the driver find
- that its prompt file was not there.
+ refuses the unit before any run starts. A start that passes every check then makes the folder a run's tools install themselves
+ into, since systemd leaves a writable path that is not there out of the unit's namespace, and a tool that made that folder under
+ the run's read-only checkout would be refused. Before this, a launcher took a slot, made a worktree and linked its dependencies,
+ and only then did the driver find that its prompt file was not there.
 
  @module
  */
@@ -21,7 +23,12 @@ import {
 } from 'node:path';
 import type { GitRunner, } from './worktree-of-a-run.ts';
 import type { RunCommand, } from './run-command.ts';
+import { CHECKOUT_MARKER, } from './checkout-of-a-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
+import {
+  FolderAToolMakesCannotBeMadeError,
+  makeTheFoldersAToolMakesIn,
+} from './file-system-of-a-run.ts';
 import {
   type PiStartAnswer,
   piProblemIn,
@@ -201,6 +208,59 @@ export async function nameProblemIn({
 }
 
 /**
+ Says what stops a checkout's Git marker from being read, if anything does.
+
+ Why: the marker is read to name the Git directory a run's commits write, and a marker that is a named pipe or a device would make
+ that read wait for a writer that may never come, before any unit exists whose own time limit could end the wait. A folder is what
+ a repository holds and an ordinary file is what a linked worktree holds; anything else is refused here, in words.
+
+ @param checkoutFolder - the checkout whose marker is read
+
+ @returns the problem in words, or nothing when the marker is a folder, an ordinary file, or not there at all
+
+ @throws Error when the marker's own state cannot be read
+
+ @example
+ ```ts
+ const problem = await markerProblemIn({ checkoutFolder: '/repo', });
+ ```
+ */
+export async function markerProblemIn({
+  checkoutFolder,
+}: {
+  /**
+   The checkout whose marker is read.
+   */
+  readonly checkoutFolder: string;
+},): Promise<{ readonly problem?: string }> {
+  /**
+   The marker itself, which is a folder in a repository and a file in a linked worktree.
+   */
+  const marker = join(
+    checkoutFolder,
+    CHECKOUT_MARKER,
+  );
+  try {
+    /**
+     What the marker is.
+     */
+    const entry = await stat(marker,);
+    if (entry.isDirectory() || entry.isFile()) {
+      return {};
+    }
+  }
+  catch (error) {
+    // A checkout with no marker is a start this launcher already refuses elsewhere, or one whose Git folders are named with the
+    // missing-path prefix; nothing here is written or read for it.
+    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
+      return {};
+    }
+    throw error;
+  }
+  return { problem: `the marker ${marker} is neither a folder nor an ordinary file, so the Git directory a run's commits write cannot be read without waiting for a writer that may never come. Put back the ${CHECKOUT_MARKER} Git writes, or name another checkout with --checkout-folder.`, };
+}
+
+/**
  Says what stops a folder from being named in a unit's path properties, if anything does.
 
  Why: systemd reads `ReadOnlyPaths=` and `ReadWritePaths=` as lists of paths under the host's root, so a relative folder refuses
@@ -340,7 +400,7 @@ export async function startRefusalsIn({
   /**
    What the three checks about the run itself found, in the order a reader needs them.
    */
-  const [promptAnswer, baseAnswer, nameAnswer] = await Promise.all([
+  const [promptAnswer, baseAnswer, nameAnswer, markerAnswer] = await Promise.all([
     promptProblemIn({ path: promptFile, },),
     baseProblemIn({
       git,
@@ -351,6 +411,7 @@ export async function startRefusalsIn({
       run,
       runName,
     },),
+    markerProblemIn({ checkoutFolder, },),
   ],);
   /**
    What the question about Pi answered, which is asked even when another check refuses, so a reader fixes them all at once.
@@ -370,6 +431,7 @@ export async function startRefusalsIn({
     promptAnswer,
     baseAnswer,
     nameAnswer,
+    markerAnswer,
     absoluteFolderProblemIn({
       folder: checkoutFolder,
       what: 'checkout folder',
@@ -382,9 +444,20 @@ export async function startRefusalsIn({
   ],);
   // A refused start makes nothing, not even a memory: the answer about Pi is kept only once every check has passed.
   /**
-   The reasons this start is refused.
+   The reasons this start is refused, and the folder a run's tools install themselves into when every other check passed.
    */
-  const { refusals, } = checks;
+  const refusals = [...checks.refusals,];
+  if (refusals.length === 0) {
+    try {
+      await makeTheFoldersAToolMakesIn({ checkoutFolder, },);
+    }
+    catch (error) {
+      if (!(error instanceof FolderAToolMakesCannotBeMadeError)) {
+        throw error;
+      }
+      refusals.push(error.message,);
+    }
+  }
   if (refusals.length === 0) {
     /**
      What the question about Pi found worth keeping, when it found anything.
@@ -403,5 +476,8 @@ export async function startRefusalsIn({
       },);
     }
   }
-  return checks;
+  return {
+    refusals,
+    warnings: checks.warnings,
+  };
 }

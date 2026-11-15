@@ -275,7 +275,8 @@ await mkdir(
 
 /**
  What the run's unit may and may not write, read once the worktree Git made is there: the checkout stays read-only around the
- run's worktree, the Git directories its commits write, the checkout's cache and the run's own folder.
+ run's worktree, the Git directories its commits write, the folder this repository's tools install themselves into (which the
+ start's checks made before this), and the run's own folder.
  */
 const fileSystem = await fileSystemOfARun({
   checkoutFolder: options.checkoutFolder,

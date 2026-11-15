@@ -10,12 +10,16 @@
  */
 
 import {
+  access,
   mkdir,
   mkdtemp,
   rm,
   writeFile,
 } from 'node:fs/promises';
+import { execFile, } from 'node:child_process';
 import { join, } from 'node:path';
+import { setTimeout as wait, } from 'node:timers/promises';
+import { promisify, } from 'node:util';
 import {
   describe,
   expect,
@@ -23,11 +27,67 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
+  FolderAToolMakesCannotBeMadeError,
   WorktreeGoneError,
   fileSystemOfARun,
   fileSystemPropertiesOf,
+  foldersAToolMakesIn,
+  makeTheFoldersAToolMakesIn,
   refuseUnlessTheWorktreeIsThere,
 } from '../dist/final/node/index.mjs';
+
+/**
+ `execFile` with a promise result, typed through Node's own adapter contract.
+ */
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+
+/**
+ Runs a program without a shell and waits for it to end.
+ */
+const execFileAsync: typeof execFile.__promisify__ = promisifyExecFile(execFile,);
+
+/**
+ What a call answered, or what it threw, so a call that may refuse is read without a promise method.
+
+ @param call - the call
+
+ @returns its answer, or the error it threw
+
+ @example
+ ```ts
+ const answer = await settledBy({ call: async () => fileSystemOfARun({ ... }), });
+ ```
+ */
+async function settledBy<Answer>({ call, }: { readonly call: () => Promise<Answer> },): Promise<{
+  readonly value?: Answer;
+  readonly error?: unknown;
+}> {
+  try {
+    return { value: await call(), };
+  }
+  catch (error) {
+    return { error, };
+  }
+}
+
+/**
+ Waits longer than a read of a marker should ever take, and answers what it waited for.
+
+ @param request - how long to wait
+
+ @param request.milliseconds - the bound
+
+ @returns why the caller stopped waiting
+
+ @example
+ ```ts
+ const answer = await waitForTheTest({ milliseconds: 2_000, });
+ ```
+ */
+async function waitForTheTest({ milliseconds, }: { readonly milliseconds: number },): Promise<{ readonly stillWaiting: true }> {
+  await wait(milliseconds,);
+  return { stillWaiting: true, };
+}
 
 /**
  A folder a test may write in, removed when the test ends.
@@ -247,12 +307,10 @@ await describe({
             expect(fileSystem.foldersAUnitMustWrite,).toEqual([
               worktree,
               made.commonDirectory,
+              ...foldersAToolMakesIn({ checkoutFolder: made.checkoutFolder, },),
               runFolder,
             ],);
-            expect(fileSystem.foldersAUnitMustWriteWhenTheyAreThere,).toEqual([join(
-              made.checkoutFolder,
-              '.cache',
-            ),],);
+            expect(fileSystem.foldersAUnitMustWriteWhenTheyAreThere,).toEqual([],);
           },
         },),
         it({
@@ -279,13 +337,10 @@ await describe({
             expect(fileSystem.foldersAUnitCannotWrite,).toEqual([made.checkoutFolder,],);
             expect(fileSystem.foldersAUnitMustWrite,).toEqual([
               made.commonDirectory,
+              ...foldersAToolMakesIn({ checkoutFolder: made.checkoutFolder, },),
               runFolder,
             ],);
             expect(fileSystem.foldersAUnitMustWrite,).not.toContain(made.checkoutFolder,);
-            expect(fileSystem.foldersAUnitMustWriteWhenTheyAreThere,).toEqual([join(
-              made.checkoutFolder,
-              '.cache',
-            ),],);
           },
         },),
         it({
@@ -357,12 +412,10 @@ await describe({
             expect(fileSystem.foldersAUnitMustWrite,).toEqual([
               gitDirectory,
               commonDirectory,
+              ...foldersAToolMakesIn({ checkoutFolder, },),
               runFolder,
             ],);
-            expect(fileSystem.foldersAUnitMustWriteWhenTheyAreThere,).toEqual([join(
-              checkoutFolder,
-              '.cache',
-            ),],);
+            expect(fileSystem.foldersAUnitMustWriteWhenTheyAreThere,).toEqual([],);
           },
         },),
         it({
@@ -409,18 +462,13 @@ await describe({
             expect(fileSystem.foldersAUnitCannotWrite,).toEqual([checkoutFolder,],);
             expect(fileSystem.foldersAUnitMustWrite,).toEqual([
               worktree,
+              ...foldersAToolMakesIn({ checkoutFolder, },),
               runFolder,
             ],);
-            expect(fileSystem.foldersAUnitMustWriteWhenTheyAreThere,).toEqual([
-              join(
-                checkoutFolder,
-                '.cache',
-              ),
-              join(
-                checkoutFolder,
-                '.git',
-              ),
-            ],);
+            expect(fileSystem.foldersAUnitMustWriteWhenTheyAreThere,).toEqual([join(
+              checkoutFolder,
+              '.git',
+            ),],);
           },
         },),
       ],
@@ -465,7 +513,8 @@ await describe({
              */
             const runFolder = await makeRunFolder({ folder: folder.path, },);
             /**
-             The folder this repository's tools cache in, which systemd is told to skip when it is not there.
+             The folder this repository's tools install themselves into, which the launcher made before this and which the unit
+             must write.
              */
             const cacheFolder = join(
               made.checkoutFolder,
@@ -484,8 +533,8 @@ await describe({
               `--property=ReadOnlyPaths="${made.checkoutFolder}"`,
               `--property=ReadWritePaths="${worktree}"`,
               `--property=ReadWritePaths="${made.commonDirectory}"`,
+              `--property=ReadWritePaths="${cacheFolder}"`,
               `--property=ReadWritePaths="${runFolder}"`,
-              `--property=ReadWritePaths=-"${cacheFolder}"`,
             ],);
           },
         },),
@@ -497,6 +546,61 @@ await describe({
               foldersAUnitMustWrite: [],
               foldersAUnitMustWriteWhenTheyAreThere: [],
             },),).toEqual([],);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: makeTheFoldersAToolMakesIn.name,
+      children: [
+        it({
+          name: 'makes the checkout cache a run tools install themselves into, which systemd cannot make writable by itself when it is absent',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The checkout the run was started from, which has no cache yet.
+             */
+            const made = await makeCheckout({ folder: folder.path, name: 'checkout', },);
+            /**
+             The folders a tool makes inside it.
+             */
+            const folders = foldersAToolMakesIn({ checkoutFolder: made.checkoutFolder, },);
+            expect(folders,).toEqual([join(
+              made.checkoutFolder,
+              '.cache',
+            ),],);
+            await expect(access(folders[0] ?? '',),).rejects.toThrow('ENOENT',);
+            expect(await makeTheFoldersAToolMakesIn({ checkoutFolder: made.checkoutFolder, },),).toEqual(folders,);
+            await expect(access(folders[0] ?? '',),).resolves.toBeUndefined();
+            // Asked again, which a start after a refused one does, it answers the same and makes nothing twice.
+            expect(await makeTheFoldersAToolMakesIn({ checkoutFolder: made.checkoutFolder, },),).toEqual(folders,);
+          },
+        },),
+        it({
+          name: 'refuses when the folder cannot be made, naming it and what a run would lose',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A checkout whose own folder is a file, so nothing can be made inside it.
+             */
+            const checkout = join(
+              folder.path,
+              'checkout',
+            );
+            await writeFile(checkout, 'not a folder\n',);
+            try {
+              await makeTheFoldersAToolMakesIn({ checkoutFolder: checkout, },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(FolderAToolMakesCannotBeMadeError,);
+              expect(String(error,),).toContain(join(
+                checkout,
+                '.cache',
+              ),);
+              expect(String(error,),).toContain('read-only',);
+              return;
+            }
+            throw new Error("a checkout whose cache cannot be made answered with folders",);
           },
         },),
       ],
@@ -558,9 +662,64 @@ await describe({
               expect(String(error,),).toContain('another start of the name a',);
               expect(String(error,),).toContain(runFolder,);
               expect(String(error,),).toContain('Start the run again',);
+              // What is kept is the branch and its commits; nothing claims the worktree's uncommitted files survived.
+              expect(String(error,),).toContain('what the worktree held that was never committed, including the files Git ignores, is not there any more',);
+              expect(String(error,),).not.toContain('Nothing of that work is lost',);
               return;
             }
             throw new Error('a start whose worktree is gone was not refused',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'a checkout whose Git marker is a named pipe',
+      children: [
+        it({
+          name: 'is refused at once, naming the marker, instead of waiting for a writer that may never come before any unit exists',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             A checkout whose marker a concurrent command replaced with a named pipe.
+             */
+            const checkout = join(
+              folder.path,
+              'checkout',
+            );
+            await mkdir(checkout,);
+            await execFileAsync('mkfifo', [join(checkout, '.git',),], { encoding: 'utf8', timeout: 5_000, },);
+            /**
+             Where the run works, which this read never reaches.
+             */
+            const worktree = join(
+              checkout,
+              '.claude',
+              'worktrees',
+              'pi-a',
+            );
+            await mkdir(worktree, { recursive: true, },);
+            /**
+             What the read answered, or the fact that it was still waiting when the test stopped waiting.
+             */
+            const answer = await Promise.race([
+              settledBy({
+                call: async function read() {
+                  return await fileSystemOfARun({
+                    checkoutFolder: checkout,
+                    worktree,
+                    runFolder: join(folder.path, 'runs', 'a-1',),
+                    worksInTheCheckoutItself: false,
+                  },);
+                },
+              },),
+              waitForTheTest({ milliseconds: 2_000, },),
+            ],);
+            expect(answer,).toHaveProperty('error',);
+            expect(String((answer as { readonly error?: unknown; }).error,),).toContain(join(
+              checkout,
+              '.git',
+            ),);
+            expect(String((answer as { readonly error?: unknown; }).error,),).toContain('not an ordinary file',);
           },
         },),
       ],

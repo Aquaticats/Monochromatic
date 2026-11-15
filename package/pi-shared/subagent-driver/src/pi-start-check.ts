@@ -11,7 +11,6 @@
 
 import {
   mkdir,
-  readFile,
   rename,
   writeFile,
 } from 'node:fs/promises';
@@ -23,6 +22,10 @@ import type {
 import { errorCodeOf, } from './error-code-of.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 import { isRecord, } from './read-pi-fields.ts';
+import {
+  NotAnOrdinaryFileError,
+  readOrdinaryFile,
+} from './read-ordinary-file.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -422,10 +425,7 @@ async function rememberedPiStartCheck({
     /**
      What the file holds, of any shape.
      */
-    const kept: unknown = JSON.parse(await readFile(
-      file,
-      'utf8',
-    ),);
+    const kept: unknown = JSON.parse(await readOrdinaryFile(file,),);
     if ((!isRecord(kept,)) || ((typeof kept.askedAt) !== 'string')
       || ((typeof kept.outcome) !== 'string')) {
       return {};
@@ -462,8 +462,13 @@ async function rememberedPiStartCheck({
   }
   catch (error) {
     // A record nobody can read is a question nobody has asked yet, and asking it costs one command; nothing here can make a
-    // start fail. Anything else is a failure of this machine's filesystem, which a reader has to know about.
-    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (error instanceof SyntaxError)) {
+    // start fail, and that covers a file that is not an ordinary file to read. Anything else is a failure of this machine's
+    // filesystem, which a reader has to know about.
+    if (
+      (errorCodeOf(error,) === MISSING_PATH_CODE)
+        || (error instanceof SyntaxError)
+        || (error instanceof NotAnOrdinaryFileError)
+    ) {
       return {};
     }
     throw error;

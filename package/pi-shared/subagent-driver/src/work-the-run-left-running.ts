@@ -29,6 +29,10 @@ import {
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
+  NotAnOrdinaryFileError,
+  readOrdinaryFile
+} from './read-ordinary-file.ts';
+import {
   PROCESS_TOOL_NAME,
   PROCESSES_RECORD_KIND,
   type WorkOfARun,
@@ -429,13 +433,11 @@ export async function workOutlivingTheTurnIn({
  */
 async function readFileOrNothing(file: string,): Promise<string> {
   try {
-    return await readFile(
-      file,
-      'utf8',
-    );
+    return await readOrdinaryFile(file,);
   }
   catch (error) {
-    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
+    // A feed that is not an ordinary file names no work this launcher can read, and nothing waits on a writer for it.
+    if ((errorCodeOf(error,) === MISSING_PATH_CODE) || (error instanceof NotAnOrdinaryFileError)) {
       return '';
     }
     throw error;

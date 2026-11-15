@@ -57,6 +57,11 @@ export type TheRunAUnitLeft = {
   readonly endReason?: string;
 
   /**
+   Whether the run's folder holds a summary that is not an ordinary file to read, so how it ended cannot be read.
+   */
+  readonly summaryIsNotAnOrdinaryFile?: boolean;
+
+  /**
    The files the run left in its folder, each named once, in name order.
    */
   readonly kept: readonly string[];
@@ -92,12 +97,16 @@ export async function theRunAUnitLeftIn({ runFolder, }: { readonly runFolder: st
     };
   }
   /**
-   What the run's own summary says about its ending.
+   What the run's own summary says about its ending, and whether it could be read at all.
    */
-  const { endReason, } = await endReasonIn({ folder: runFolder, },);
+  const {
+    endReason,
+    summaryIsNotAnOrdinaryFile,
+  } = await endReasonIn({ folder: runFolder, },);
   return {
     ran: true,
     ...((endReason === undefined) ? {} : { endReason, }),
+    ...((summaryIsNotAnOrdinaryFile === undefined) ? {} : { summaryIsNotAnOrdinaryFile, }),
     kept,
   };
 }
@@ -194,9 +203,11 @@ export function theRunThatOutlivedItsWorktreeLineOf({
   /**
    How the run's own records say it ended, which is its summary when it wrote one.
    */
-  const ending = (left.endReason === undefined)
-    ? `the run ended before it wrote a summary, and its unit ended with status ${String(unitStatus,)}`
-    : `the run ended as ${left.endReason}, and its unit ended with status ${String(unitStatus,)}`;
+  const ending = (left.summaryIsNotAnOrdinaryFile === true)
+    ? `the run's summary is not an ordinary file, so how it ended cannot be read, and its unit ended with status ${String(unitStatus,)}`
+    : ((left.endReason === undefined)
+      ? `the run ended before it wrote a summary, and its unit ended with status ${String(unitStatus,)}`
+      : `the run ended as ${left.endReason}, and its unit ended with status ${String(unitStatus,)}`);
   /**
    The files the run left in its folder, which are what a reader can still look at.
    */
@@ -211,7 +222,7 @@ export function theRunThatOutlivedItsWorktreeLineOf({
   const kept = (files.length === 0)
     ? `Its run folder ${runFolder} is empty`
     : `What it left is in ${runFolder}: ${keptNames}`;
-  return `${ending}, and its worktree ${worktree} is gone: a launcher of another start of the name ${runName} removes a finished worktree, and it removed this one while this launcher waited for the unit. ${kept}. Its branch ${branch} and every commit on it are in the Git directory the worktree named, so a run that ran is not lost: read that summary first, and start the run again only for work it did not do.`;
+  return `${ending}, and its worktree ${worktree} is gone: a launcher of another start of the name ${runName} removes a finished worktree, and it removed this one while this launcher waited for the unit. ${kept}. Its branch ${branch} and every commit on it are in the Git directory the worktree named; what the worktree held that was never committed, including the files Git ignores, is not there any more. Read what the run left before starting it again, and start it again only for work it did not do.`;
 }
 
 /**

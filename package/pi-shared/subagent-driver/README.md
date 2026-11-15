@@ -337,10 +337,13 @@ A write a run makes anywhere else under the checkout is refused by the operating
 which is what a run's agent sees when it tries.
 The folders are read from the checkout and from the record of it a linked worktree carries,
 so a checkout whose Git directory lives elsewhere keeps working;
-the one path that may be absent,
-the checkout's `.cache`,
-carries systemd's `-` prefix,
-because a missing `ReadWritePaths=` path stops the unit from starting.
+a folder systemd would leave out of the unit when it is missing carries its `-` prefix,
+which is only the marker of a checkout Git cannot name.
+The checkout's `.cache` is not one of those:
+systemd ignores a writable path that is not there,
+so a `-` prefix would let the unit start and then refuse the very folder a tool makes by installing itself,
+and the start's own checks make that folder before the unit is asked for,
+which is what lets a checkout whose first run must install a tool work at all.
 A run started with `--branch=none` works in the checkout itself and so gets no writable worktree:
 it can read the checkout and run its tools there,
 and it cannot change a file of it.
@@ -373,6 +376,24 @@ and only a unit that never started is reported as a start where no run happened.
 The unit's own record is not read:
 the launcher asks for its unit with `--collect`,
 and the manager has collected it by the time its waiter ends.
+Both lines say only what is kept:
+the run's branch by name and every commit on it,
+and that what the worktree held uncommitted,
+including the files Git ignores,
+is not there any more,
+because a removal takes those with the folder.
+
+Every file the launcher reads outside the unit is read as an ordinary file and within a bound of its own:
+the checkout's Git marker and the shared directory it names,
+the remembered answer about Pi,
+the summaries a turn cap is sized from,
+before the unit exists,
+and the run's summary and feed after it has ended.
+`readOrdinaryFile` opens without waiting,
+so a named pipe is refused rather than waited on,
+and a read that has not finished inside the bound says so instead of holding the launcher;
+the unit's `RuntimeMaxSec` covers none of those reads,
+since the unit exists for none of them.
 
 The wait for the unit is the launcher's own:
 it starts the waiter,

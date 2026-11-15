@@ -26,7 +26,11 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
-import { fileSystemPropertiesOf, } from '../dist/final/node/index.mjs';
+import {
+  fileSystemOfARun,
+  fileSystemPropertiesOf,
+  makeTheFoldersAToolMakesIn,
+} from '../dist/final/node/index.mjs';
 
 /**
  `execFile` with a promise result, typed through Node's own adapter contract.
@@ -321,6 +325,82 @@ await describe({
               },);
             },
           },);
+        },),
+        it({
+          name: 'starts a unit for a checkout whose cache folder a tool makes, which the launcher makes first so the unit can write in it',
+          fn: async () => {
+            if (NO_MANAGER_REASON !== undefined) {
+              console.log(`[the paths a unit is given on this machine] absent-cache: skipped: ${NO_MANAGER_REASON}`,);
+              return;
+            }
+            await using folder = await makeFolder();
+            /**
+             The checkout the run works from, which has no cache folder yet.
+             */
+            const checkout = join(
+              folder.path,
+              'checkout',
+            );
+            /**
+             Where the run works, which is a worktree of that checkout.
+             */
+            const worktree = join(
+              checkout,
+              '.claude',
+              'worktrees',
+              'pi-a',
+            );
+            /**
+             The run's own folder.
+             */
+            const runFolder = join(
+              folder.path,
+              'runs',
+              'a-1',
+            );
+            await mkdir(join(checkout, '.git',), { recursive: true, },);
+            await mkdir(worktree, { recursive: true, },);
+            await mkdir(runFolder, { recursive: true, },);
+            /**
+             A file of the checkout that the unit must not be able to change.
+             */
+            const protectedFile = join(checkout, 'protected.txt',);
+            await writeFile(protectedFile, 'seed\n',);
+            // What a start does before it asks for its unit: the folder a run's tools install themselves into is made, so a tool
+            // that makes it under the read-only checkout is not refused.
+            await makeTheFoldersAToolMakesIn({ checkoutFolder: checkout, },);
+            /**
+             The folder the unit must be able to make its own files in.
+             */
+            const insideTheCache = join(
+              checkout,
+              '.cache',
+              'toolchain-bin',
+            );
+            /**
+             What the manager answered for this checkout.
+             */
+            const ended = await askTheManager({
+              unit: nextUnitName(),
+              properties: fileSystemPropertiesOf(await fileSystemOfARun({
+                checkoutFolder: checkout,
+                worktree,
+                runFolder,
+                worksInTheCheckoutItself: false,
+              },),),
+              words: [
+                '/bin/sh',
+                '-c',
+                'mkdir --parents "$1" || exit 9; echo installed > "$1/tool" || exit 8; echo changed >> "$2" && exit 7; exit 0',
+                'sh',
+                insideTheCache,
+                protectedFile,
+              ],
+            },);
+            expect(ended.status,).toBe(0,);
+            expect(await readFile(join(insideTheCache, 'tool',), 'utf8',),).toBe('installed\n',);
+            expect(await readFile(protectedFile, 'utf8',),).toBe('seed\n',);
+          },
         },),
         it({
           name: 'starts a unit whose dash-prefixed writable path is not there, which is the checkout cache a run may find absent',

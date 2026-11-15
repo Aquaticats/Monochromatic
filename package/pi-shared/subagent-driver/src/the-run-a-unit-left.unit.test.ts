@@ -12,7 +12,10 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
+import { execFile, } from 'node:child_process';
 import { join, } from 'node:path';
+import { setTimeout as wait, } from 'node:timers/promises';
+import { promisify, } from 'node:util';
 import {
   describe,
   expect,
@@ -24,6 +27,59 @@ import {
   theRunThatOutlivedItsWorktreeLineOf,
   theWorktreeThatWentLineIn,
 } from '../dist/final/node/index.mjs';
+
+/**
+ `execFile` with a promise result, typed through Node's own adapter contract.
+ */
+const promisifyExecFile: (original: typeof execFile) => typeof execFile.__promisify__ = promisify;
+
+/**
+ Runs a program without a shell and waits for it to end.
+ */
+const execFileAsync: typeof execFile.__promisify__ = promisifyExecFile(execFile,);
+
+/**
+ What a call answered, or what it threw, so a call that may refuse is read without a promise method.
+
+ @param call - the call
+
+ @returns its answer, or the error it threw
+
+ @example
+ ```ts
+ const answer = await settledBy({ call: async () => fileSystemOfARun({ ... }), });
+ ```
+ */
+async function settledBy<Answer>({ call, }: { readonly call: () => Promise<Answer> },): Promise<{
+  readonly value?: Answer;
+  readonly error?: unknown;
+}> {
+  try {
+    return { value: await call(), };
+  }
+  catch (error) {
+    return { error, };
+  }
+}
+
+/**
+ Waits longer than a report should ever take, and answers what it waited for.
+
+ @param request - how long to wait
+
+ @param request.milliseconds - the bound
+
+ @returns why the caller stopped waiting
+
+ @example
+ ```ts
+ const answer = await waitForTheTest({ milliseconds: 2_000, });
+ ```
+ */
+async function waitForTheTest({ milliseconds, }: { readonly milliseconds: number },): Promise<{ readonly stillWaiting: true }> {
+  await wait(milliseconds,);
+  return { stillWaiting: true, };
+}
 
 /**
  A folder a test may write in, removed when the test ends.
@@ -168,6 +224,12 @@ await describe({
             expect(line,).toContain('/runs/copy-route-4',);
             expect(line,).toContain('feed.jsonl, summary.json',);
             expect(line,).toContain('fix/copy-route',);
+            // What is kept is the branch and its commits; nothing claims the worktree's uncommitted files survived, because a
+            // removal takes them with it.
+            expect(line,).toContain('every commit on it are in the Git directory the worktree named',);
+            expect(line,).toContain('what the worktree held that was never committed, including the files Git ignores, is not there any more',);
+            expect(line,).not.toContain('is not lost',);
+            expect(line,).not.toContain('Nothing of that work is lost',);
             expect(line,).not.toContain('no run happened',);
             expect(line,).not.toContain('the unit did not start',);
           },
@@ -193,6 +255,49 @@ await describe({
             expect(line,).toContain('status 137',);
             expect(line,).toContain('feed.jsonl',);
             expect(line,).not.toContain('no run happened',);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: 'a run folder whose summary is a named pipe',
+      children: [
+        it({
+          name: 'is reported without waiting for a writer, and the line says that how the run ended cannot be read',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The run's folder, which holds a feed and a summary a concurrent command replaced with a named pipe.
+             */
+            const runFolder = join(folder.path, 'runs', 'a-1',);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(join(runFolder, 'feed.jsonl',), '{"t":0,"kind":"turn_start","n":1}\n',);
+            await execFileAsync('mkfifo', [join(runFolder, 'summary.json',),], { encoding: 'utf8', timeout: 5_000, },);
+            /**
+             What the report answered, or the fact that it was still waiting when the test stopped waiting.
+             */
+            const answer = await Promise.race([
+              settledBy({
+                call: async function report() {
+                  return await theWorktreeThatWentLineIn({
+                    worktree: join(folder.path, 'worktree-that-is-gone',),
+                    runName: 'a',
+                    runFolder,
+                    branch: 'fix/a',
+                    unitStatus: 1,
+                  },);
+                },
+              },),
+              waitForTheTest({ milliseconds: 2_000, },),
+            ],);
+            expect(answer,).toHaveProperty('value',);
+            /**
+             The line the report wrote.
+             */
+            const line = (answer as { readonly value?: { readonly line?: string; }; }).value?.line ?? '';
+            expect(line,).toContain('summary is not an ordinary file',);
+            expect(line,).toContain('cannot be read',);
+            expect(line,).not.toContain('is not lost',);
           },
         },),
       ],
