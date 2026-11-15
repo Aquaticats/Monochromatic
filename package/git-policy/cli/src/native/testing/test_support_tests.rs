@@ -453,3 +453,33 @@ fn a_folder_with_room_for_no_runtime_directory_name_is_refused_naming_every_plac
     let no_place_is_this_short: usize = Path::new("/").as_os_str().len();
     let _parent: PathBuf = runtime_directory_parent("zn", no_place_is_this_short);
 }
+
+/// What:
+///  The folder a runtime directory was to stand in goes away when the test thread that made it ends,
+///  in the longest place this account offers and in the shorter one a tighter room moves it to.
+/// Why:
+///   The helper picks the folder from places this machine shares with other tests and with people,
+/// and the room a name needs decides which of them it picks:
+/// with a home directory of two hundred bytes the shortest is the session's runtime directory.
+/// Before this control, nineteen passing controls left `/r/temp/agent/ze1000007`, `pr1000028` and `sa1000013`
+/// behind, and the same under `$HOME/temp` and under `$XDG_RUNTIME_DIR`,
+/// so a passing control littered a place it shares and a later run could meet what it left.
+/// The folder is the owner of everything the helper puts in it,
+/// which is why the thread that made it is what this control holds to.
+#[test]
+fn the_folder_a_runtime_directory_stands_in_goes_when_its_test_thread_ends() {
+    let (sender, receiver) = std::sync::mpsc::channel::<Vec<PathBuf>>();
+    std::thread::spawn(move || {
+        let mut made: Vec<PathBuf> = Vec::new();
+        let longest: PathBuf = runtime_directory_parent("zg", usize::MAX);
+        made.push(longest.clone());
+        // One byte less of room than the longest place takes moves the folder to the next place this account offers.
+        made.push(runtime_directory_parent("zg", longest.as_os_str().len() - 1));
+        sender.send(made).expect("the folders this thread made");
+    })
+    .join()
+    .expect("the thread ends");
+    for folder in receiver.try_iter().flatten() {
+        assert!(!folder.exists(), "{} was left behind in a place this machine shares", folder.display());
+    }
+}

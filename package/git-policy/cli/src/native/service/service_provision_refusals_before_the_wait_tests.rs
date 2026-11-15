@@ -703,6 +703,25 @@ fn the_bytes_a_socket_path_adds_are_the_ones_it_really_adds() {
 }
 
 /// What:
+///  The two spellings no file system can make, standing under `parent`:
+/// one through a regular file and one through a link that points nowhere.
+/// Why:
+///   The control that uses them is about a commit that stops at once instead of binding where no address can be,
+/// so both spellings must be past what a path form carries,
+/// which is why their names are padded from the limit rather than left to the folder's length.
+/// They are made here, once, so the control that reads them and the control of two runs with one process number
+/// make the same two things.
+fn spellings_no_file_system_can_make(parent: &Path) -> [(&'static str, PathBuf); 2] {
+    let file_name: String = a_name_that_makes_the_path_past_the_limit(parent, "a-file-with-room");
+    let through_a_file: PathBuf = parent.join(file_name.as_str()).join("run");
+    std::fs::write(parent.join(file_name.as_str()), b"not a directory\n").expect("a file where a directory has to be");
+    let link_name: String = a_name_that_makes_the_path_past_the_limit(parent, "dangling-link");
+    let through_a_link: PathBuf = parent.join(link_name.as_str()).join("run");
+    std::os::unix::fs::symlink(parent.join("nowhere"), parent.join(link_name.as_str())).expect("a link that points nowhere");
+    return [("a file in the path", through_a_file), ("a link that points nowhere", through_a_link)];
+}
+
+/// What:
 ///  A runtime directory no spelling can make — a path through a file, a path through a link that points nowhere — stops
 ///  provisioning at once and names the setting, rather than waiting for a start that cannot come.
 /// Why:
@@ -717,18 +736,8 @@ fn the_bytes_a_socket_path_adds_are_the_ones_it_really_adds() {
 #[cfg(target_os = "linux")]
 fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {
     let parent: PathBuf = short_parent();
-    // One byte past the longest runtime directory a path carries, which is the branch a long runtime directory takes,
-    // and the length is the control's to choose: with a home directory of two bytes the folder is 18 bytes, and the
-    // names as they stood took 38, which kept the path form and failed this control.
-    let file_name: String = a_name_that_makes_the_path_past_the_limit(parent.as_path(), "a-file-with-room");
-    let through_a_file: PathBuf = parent.join(file_name.as_str()).join("run");
-    std::fs::write(parent.join(file_name.as_str()), b"not a directory\n").expect("a file where a directory has to be");
-    let link_name: String = a_name_that_makes_the_path_past_the_limit(parent.as_path(), "dangling-link");
-    let through_a_link: PathBuf = parent.join(link_name.as_str()).join("run");
-    std::os::unix::fs::symlink(parent.join("nowhere"), parent.join(link_name.as_str())).expect("a link that points nowhere");
-    crate::test_support::track_for_this_thread(through_a_file.as_path());
-    crate::test_support::track_for_this_thread(through_a_link.as_path());
-    for (tag, runtime) in [("a file in the path", through_a_file), ("a link that points nowhere", through_a_link)] {
+    let spellings: [(&'static str, PathBuf); 2] = spellings_no_file_system_can_make(parent.as_path());
+    for (tag, runtime) in spellings {
         assert!(
             is_waited_at_by_a_name(runtime.as_path(), INSTANCE),
             "{tag}: the runtime directory is past what a path form carries: {} bytes",
@@ -744,5 +753,29 @@ fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {
         assert!(said.contains("XDG_RUNTIME_DIR"), "{tag}: the message names the setting that decides it: {said}");
         assert!(said.contains("make that one writable"), "{tag}: the message names the way out: {said}");
         assert!(!manager.calls.iter().any(|call| { return call.starts_with("start "); }), "{tag}: nothing was started: {:?}", manager.calls);
+    }
+}
+
+/// What:
+///  Two runs with one process number each make the file and the link no spelling can cross,
+///  and the second run is not stopped by what the first left.
+/// Why:
+///   A name built from a process number is not a name of one's own:
+/// about 549 processes start a second on this machine, so a number comes round in about two hours,
+/// and inside a container far sooner.
+/// With the folder named after the process number, one run's file made the next stop at `AlreadyExists`
+/// before it read anything,
+/// which fails a later run for fixture reuse rather than for the behaviour under test.
+/// Two threads of this test carry this process's number, so they stand for two runs with one number.
+#[test]
+#[cfg(target_os = "linux")]
+fn two_runs_with_one_process_number_do_not_meet_in_the_folder_they_make() {
+    for run in 1..=2 {
+        let made: std::thread::Result<()> = std::thread::spawn(|| {
+            let parent: PathBuf = short_parent();
+            let _spellings: [(&'static str, PathBuf); 2] = spellings_no_file_system_can_make(parent.as_path());
+        })
+        .join();
+        assert!(made.is_ok(), "run {run} makes its file and its link where the run before it made its own");
     }
 }
