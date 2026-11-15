@@ -361,6 +361,34 @@ function gitOfTheRepository({
 }
 
 /**
+ Makes one file read-only for as long as a test's scope, and gives it back its mode when the scope ends.
+
+ A write to a read-only file fails the way a process killed at that write leaves the folder, which is what the control over a second
+ writing needs.
+
+ @param file - the file to make read-only
+
+ @returns the file, with a way to give its mode back
+
+ @example
+ ```ts
+ await using readOnly = await readOnlyForTheTest({ file: '/reviews/a/brief.md', },);
+ ```
+ */
+async function readOnlyForTheTest({ file, }: { readonly file: string },): Promise<{
+  readonly file: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  await chmod(file, 0o444,);
+  return {
+    file,
+    async [Symbol.asyncDispose]() {
+      await chmod(file, 0o644,);
+    },
+  };
+}
+
+/**
  Reads the three files one review folder holds as one generation.
 
  @param reviewsFolder - the folder that holds one folder per review
@@ -525,8 +553,12 @@ await describe({
             const repository = await aDisposableRepository({ folder: folder.path, },);
             /**
              Writes the brief one run reads, from a repository whose `main` moves after every answer.
+
+             @param request - the folder the review is written into
+
+             @returns what writing the brief answered
              */
-            const aRun = function aRun({ reviewsFolder, }: { readonly reviewsFolder: string },) {
+            function aRun({ reviewsFolder, }: { readonly reviewsFolder: string },) {
               return writeReviewBrief({
                 ...aBriefRequest({
                   reviewsFolder,
@@ -539,7 +571,7 @@ await describe({
                 commit: repository.firstChangeCommit,
                 ranges: [`main...${repository.firstChangeCommit}`,],
               },);
-            };
+            }
             /**
              What the first run answered.
              */
@@ -596,7 +628,7 @@ await describe({
             },);
             // The second writing cannot replace the brief of the first: the file is read-only, which is the state a process
             // killed at that write leaves, and the second writing reports it rather than replacing it.
-            await chmod(join(reviewsFolder, aReview(), 'brief.md',), 0o444,);
+            await using readOnly = await readOnlyForTheTest({ file: join(reviewsFolder, aReview(), 'brief.md',), },);
             /**
              What the second writing threw, if it threw: this control judges the folder, not the words of the answer.
              */
@@ -615,9 +647,7 @@ await describe({
             catch (error) {
               secondWritingThrew = String(error,);
             }
-            finally {
-              await chmod(join(reviewsFolder, aReview(), 'brief.md',), 0o644,);
-            }
+            expect(readOnly.file,).toBe(join(reviewsFolder, aReview(), 'brief.md',),);
             /**
              What the folder holds after both writings.
              */
