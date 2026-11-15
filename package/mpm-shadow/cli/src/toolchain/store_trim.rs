@@ -46,6 +46,37 @@
 //!   a hint that a pass left work; it never decides alone whether a pass runs, because two passes settling it at once
 //!   can clear it after one has written it.
 //!
+//! ## What protects a version, what the pass reads to know it, and what a read that fails means
+//!
+//! A version stays when anything that can name, run or need it does.
+//! Each of those readings can be impossible or partial, and the meaning is the same in every such case: the version
+//! is protected.
+//!
+//! - a lock:
+//!   the global scope's lock and the lock of every worktree of the repository that runs the pass, whatever scope asked.
+//!   The global lock is found from `HOME` and `XDG_CONFIG_HOME`;
+//!   the worktree locks from `git worktree list` of the repository the pass runs in, which a global pass names too
+//!   (`MONOCHROMATIC_WORKTREE_ROOT`, the same variable the repository root is found from).
+//!   A lock that cannot be read, a row whose version or whose route this release cannot read, a worktree list that
+//!   fails, and a pass that can name no repository at all all mean "a lock that may name any version": every version
+//!   stays, and the line says which read failed.
+//!   A second clone of the repository, at another path, is named by no listing this program can make; this machine
+//!   holds one repository and no clone (`/var/mnt/encrypted/repository` holds one, measured 2026-11-15).
+//! - the tool's `current` link:
+//!   read once before the plan, again at the instant of the removal, and again after the move.
+//!   A link that cannot be read is a link that may name the version, so the version stays.
+//! - a process:
+//!   the process table, once per pass, through `exe`, `cwd`, `fd` and `maps` of every process of this user.
+//!   A process the kernel refuses to describe may run any version, so any such process makes the scan incomplete and
+//!   every version stays, with one line naming the processes.
+//!   Measured on this machine at one moment: twelve processes of this user cannot be described (`ssh-agent`,
+//!   `keepassxc`, `systemd`, `kwin_wayland` and the like), so a pass here keeps everything and removes nothing.
+//! - the age:
+//!   the newest write anywhere inside the version's tree, never the root's own write time alone, because a write into
+//!   a folder that already exists leaves the root's time alone.
+//!   The size record beside the store is a read of a moment, so it may prove a tree young and never old: a version
+//!   whose recorded facts would put it outside the age floor is walked again before it is judged.
+//!
 //! ## The steps that move or delete a tree, and what each proves when it acts
 //!
 //! Every deletion goes through `delete_for_good`, and every move is one rename:
@@ -167,9 +198,9 @@ use super::model::Route;
 /// which reads a lock row's crate name the way the prune of unnamed cargo versions does.
 use super::prune_cargo::crate_of_entry;
 /// Imports `ScopeKind` and `global_scope` from `super::scope`.
-use super::scope::{EnvMap, ScopeKind, global_scope};
+use super::scope::{EnvMap, ScopeKind, global_scope, named_repository_root};
 /// Imports what this module uses from `super::store_path_holders`.
-use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_reason};
+use super::store_path_holders::{StoreHolders, held_reason, holders_of};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
     JudgedTree, RemovalMarker, TreeFacts, VersionDirectory, deleting_of, downloads_of, inode_of,
@@ -493,19 +524,26 @@ pub struct TrimCandidate {
 
 /// What:
 /// Everything one pass may remove, in the order it is judged:
-/// oldest write first.
+/// oldest newest write first.
 /// Why:
 /// The rule removes the versions written longest ago first,
 /// so the order is the rule's own and is built here once.
+/// The age floor is handed in because a version whose recorded facts are older than the floor must be walked here:
+/// a record cannot see a write inside the tree, so it may prove a version young and never old.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function candidatesOf(roots: string[], tools: ReadonlySet<string>): TrimCandidate[]
+/// export function candidatesOf(roots: string[], tools: ReadonlySet<string>, ageFloor: Duration): TrimCandidate[]
 /// ```
-pub fn candidates_of(roots: &[PathBuf], tools: &BTreeSet<String>, deadline: Instant) -> Vec<TrimCandidate> {
+pub fn candidates_of(
+    roots: &[PathBuf],
+    tools: &BTreeSet<String>,
+    deadline: Instant,
+    age_floor: Duration,
+) -> Vec<TrimCandidate> {
     let mut candidates: Vec<TrimCandidate> = Vec::new();
     for root in roots {
-        for version in version_directories(root, tools, deadline) {
+        for version in version_directories(root, tools, deadline, age_floor) {
             candidates.push(candidate_of_version(root, version));
         }
         for leftover in leftover_downloads(root, tools) {
@@ -635,9 +673,14 @@ impl NamedVersions {
                 ));
             };
             let Some(route) = entry.get("route").and_then(Value::as_str).and_then(Route::parse) else {
-                // A route this release does not know keeps its payload somewhere this pass cannot see, and it pins
-                // nothing in a version directory.
-                continue;
+                // What: a route this release cannot read makes the lock unreadable.
+                // Why: such a row names a version this pass cannot place, so it may name any version, and treating it
+                // as pinning nothing deleted a version a lock still named (a route a newer release writes).
+                return Err(format!(
+                    "{} names a tool with a route this release cannot read (tools.{id}), so no version can be told from \
+                     one a lock pins",
+                    origin.display()
+                ));
             };
             // What: a crate `cargo binstall` installs is named by the crate, not by the tool id.
             // Why: its directory is `<root>/cargo/<crate>`, while every other route's directory is named after the id.
@@ -723,13 +766,17 @@ pub fn plan_trim(
         if remaining <= bounds.size_bound_bytes {
             break;
         }
-        let age: Duration = now.duration_since(candidate.written).unwrap_or(Duration::ZERO);
+        // What: the age is the age of the newest write anywhere inside the tree.
+        // Why: a write into a folder that already existed leaves the version root's own write time alone, so a tree
+        // whose root looks old can hold a file written a moment ago; the root's time is a lower bound, never the age.
+        let newest: SystemTime = if candidate.newest > candidate.written { candidate.newest } else { candidate.written };
+        let age: Duration = now.duration_since(newest).unwrap_or(Duration::ZERO);
         if age < bounds.age_floor {
             steps.push(TrimStep::Keep(
                 candidate.clone(),
                 format!(
                     "it was written {} ago, inside the {} floor",
-                    format_age(now, candidate.written),
+                    format_age(now, newest),
                     format_span(bounds.age_floor)
                 ),
             ));
@@ -757,6 +804,11 @@ pub struct TrimRun {
     /// The store roots this pass trims,
     /// and the only ones it asks the process table about.
     pub roots: Vec<PathBuf>,
+    /// What a scan of the process table found, when one was made already.
+    /// A control hands in the holders it built,
+    /// so it does not depend on which processes the machine happens to be running;
+    /// a real pass leaves this `None` and reads the table itself.
+    pub holders: Option<StoreHolders>,
 }
 
 /// The methods of `TrimRun`.
@@ -768,9 +820,13 @@ impl TrimRun {
         return self.started.checked_add(self.bounds.work_limit).unwrap_or(self.started + MAX_WORK_LIMIT);
     }
 
-    /// What the process table says now about the roots this pass trims.
+    /// What the process table says about the roots this pass trims,
+    /// or what the caller already read.
     pub fn look(&self) -> StoreHolders {
-        return holders_of(&self.roots, self.deadline());
+        return match &self.holders {
+            Some(found) => found.clone(),
+            None => holders_of(&self.roots, self.deadline()),
+        };
     }
 }
 
@@ -1455,17 +1511,14 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
                     if current_names(&candidate.root, &candidate.tool, &candidate.version) {
                         Some("the tool's current link names it".to_string())
                     } else {
-                        match owned_hold_reason(
+                        owned_hold_reason(
                             &holders,
                             &candidate.root,
                             &candidate.tool,
                             &candidate.version,
                             Trees::MovedAside,
-                        ) {
-                            Some(held) => Some(format!("it is in use: {held}")),
-                            None => opaque_reason(&holders, &candidate.tool)
-                                .map(|found| return format!("it may be in use: {found}")),
-                        }
+                        )
+                        .map(|held| return format!("it is in use: {held}"))
                     }
                 }
             };
@@ -1665,11 +1718,8 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
                 if current_names(&marker.root, &marker.tool, &marker.version) {
                     Some("the tool's current link names it".to_string())
                 } else {
-                    match owned_hold_reason(&holders, &marker.root, &marker.tool, &marker.version, Trees::MovedAside) {
-                        Some(held) => Some(format!("it is in use: {held}")),
-                        None => opaque_reason(&holders, &marker.tool)
-                            .map(|found| return format!("it may be in use: {found}")),
-                    }
+                    owned_hold_reason(&holders, &marker.root, &marker.tool, &marker.version, Trees::MovedAside)
+                        .map(|held| return format!("it is in use: {held}"))
                 }
             }
         };
@@ -1923,16 +1973,18 @@ pub fn settle_markers(roots: &[PathBuf], unfinished: &BTreeSet<PathBuf>) {
 /// What:
 /// The lock files a pass reads:
 /// this scope's own,
-/// the lock of every worktree of this repository when this is a repository scope,
-/// and the machine-global scope's,
+/// the machine-global scope's,
+/// the lock of every worktree of the repository the pass runs in,
+/// whatever scope asked,
 /// or why one of them cannot be found.
 /// Why:
-/// A version any of these pins is in use by some tree.
-/// A repository scope reads the worktrees' locks and the machine scope's,
-/// so it protects versions in either store;
-/// the machine scope reads only its own lock,
-/// because it knows no repository to list worktrees from and is given no path to one,
-/// so a global-store version that only a worktree's lock names can be removed by a global pass.
+/// A version any of these pins is in use by some tree, and which locks can name a version in a store does not depend
+/// on which scope asked: a global pass that read only its own lock removed a global-store version that a worktree's
+/// lock still named.
+/// A repository scope finds the repository in its own root; a global scope in `MONOCHROMATIC_WORKTREE_ROOT`, the same
+/// variable the repository root is found from.
+/// A global pass that can name no repository cannot see the worktrees' locks at all, so it removes nothing and says so,
+/// rather than reading "no lock names it" into locks it never opened.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -1941,25 +1993,42 @@ pub fn settle_markers(roots: &[PathBuf], unfinished: &BTreeSet<PathBuf>) {
 fn visible_locks(ctx: &Context) -> (Vec<PathBuf>, Option<String>) {
     let mut files: Vec<PathBuf> = vec![ctx.scope.lock_file.clone()];
     let mut unreadable: Option<String> = None;
-    if ctx.scope.kind == ScopeKind::Repo {
-        match worktree_lock_files(ctx.runner, &ctx.scope.root) {
+    let repository: Option<PathBuf> = match ctx.scope.kind {
+        ScopeKind::Repo => Some(ctx.scope.root.clone()),
+        ScopeKind::Global => named_repository_root(ctx.env),
+    };
+    match repository {
+        Some(root) => match worktree_lock_files(ctx.runner, root.as_path()) {
             Ok(listed) => files.extend(listed),
             Err(error) => unreadable = Some(error.message),
+        },
+        None => {
+            unreadable = Some(format!(
+                "this pass is the machine-global scope and cannot name a repository, so the locks of the worktrees \
+                 that install into this store cannot be read (set {} to the repository root, or run the sync inside \
+                 the repository)",
+                super::scope::WORKTREE_ROOT_ENV
+            ));
         }
     }
-    if let Ok(global) = global_scope(ctx.env)
-        && global.lock_file != ctx.scope.lock_file
-    {
-        files.push(global.lock_file);
+    match global_scope(ctx.env) {
+        Ok(global) if global.lock_file != ctx.scope.lock_file => files.push(global.lock_file),
+        Ok(_) => {}
+        // What: a global lock that cannot be found makes the locks unreadable.
+        // Why: it may name any version, and reading "no lock names it" into a lock that was never found removed one.
+        Err(error) => {
+            if unreadable.is_none() {
+                unreadable = Some(format!("the machine-global lock cannot be found: {}", error.message));
+            }
+        }
     }
     return (files, unreadable);
 }
 
 /// The roots one scope may remove versions from:
 /// both of this machine's stores from a repository scope,
-/// which reads every worktree's lock,
 /// and only the machine-global store from the global scope,
-/// which cannot see the worktrees' locks.
+/// which now reads the worktree locks of the repository it names.
 fn roots_to_trim(ctx: &Context) -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = match ctx.scope.kind {
         ScopeKind::Repo => vec![ctx.scope.toolchain_root.clone(), ctx.scope.other_toolchain_root.clone()],
@@ -1997,33 +2066,50 @@ fn protection_of(
     {
         return Some(format!("it is in use: {reason}"));
     }
-    if let Some(reason) = opaque_reason(holders, &candidate.tool) {
-        return Some(format!("it may be in use: {reason}"));
-    }
     return None;
 }
 
 /// What:
-/// The `current` link target of every tool of every root the pass trims.
+/// The `current` link targets of every tool of every root the pass trims,
+/// or why one of them cannot be read.
 /// Why:
 /// A link left naming a removed version dangles,
-/// and the tool's `current` is what every worktree's exposed links resolve through.
+/// and the tool's `current` is what every worktree's exposed links resolve through;
+/// a link that cannot be read may name any version, so the pass keeps every version rather than judge one by a link it
+/// never read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function currentLinks(roots: string[], tools: ReadonlySet<string>): Map<[string, string], string>
+/// type CurrentLinks = { byTool: Map<[string, string], string>; unreadable?: string };
+/// function currentLinks(roots: string[], tools: ReadonlySet<string>): CurrentLinks
 /// ```
-fn current_links(roots: &[PathBuf], tools: &BTreeSet<String>) -> BTreeMap<(PathBuf, String), String> {
-    let mut links: BTreeMap<(PathBuf, String), String> = BTreeMap::new();
+#[derive(Debug, Default)]
+struct CurrentLinks {
+    /// The version each tool's `current` link names, by root and tool directory name.
+    by_tool: BTreeMap<(PathBuf, String), String>,
+    /// Why one link could not be read.
+    unreadable: Option<String>,
+}
+
+fn current_links(roots: &[PathBuf], tools: &BTreeSet<String>) -> CurrentLinks {
+    let mut links: CurrentLinks = CurrentLinks::default();
     for root in roots {
         for tool in tools {
             let link: PathBuf = root.join(tool).join(CURRENT_LINK_NAME);
-            let Ok(target) = fs::read_link(&link) else {
-                continue;
-            };
-            let name: String = target.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
-            if !name.is_empty() {
-                links.insert((root.clone(), tool.clone()), name);
+            match fs::read_link(&link) {
+                Ok(target) => {
+                    let name: String =
+                        target.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
+                    if !name.is_empty() {
+                        links.by_tool.insert((root.clone(), tool.clone()), name);
+                    }
+                }
+                // What: a link that cannot be read may name any version of its tool.
+                // Why: a failed read is not "the link names another version".
+                Err(error) if error.kind() != ErrorKind::NotFound => {
+                    links.unreadable = Some(format!("{} cannot be read: {error}", link.display()));
+                }
+                Err(_) => {}
             }
         }
     }
@@ -2045,6 +2131,20 @@ fn current_links(roots: &[PathBuf], tools: &BTreeSet<String>) -> BTreeMap<(PathB
 /// export function trimAfterInstall(ctx: Context, installed: [string, string][]): void
 /// ```
 pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
+    return trim_after_install_with(ctx, installed, None);
+}
+
+/// What:
+/// `trim_after_install` with a scan of the process table already made.
+/// Why:
+/// A control hands in the scan it built, so it does not depend on which processes the machine happens to be running;
+/// a desktop always holds processes the kernel refuses to describe, and the rule keeps every version while that is so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function trimAfterInstallWith(ctx: Context, installed: [string, string][], holders?: StoreHolders): void
+/// ```
+pub fn trim_after_install_with(ctx: &Context, installed: &[(String, String)], holders: Option<StoreHolders>) {
     let roots: Vec<PathBuf> = roots_to_trim(ctx);
     if roots.is_empty() {
         return;
@@ -2058,7 +2158,7 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
         return;
     }
     let bounds: TrimBounds = TrimBounds::from_env(ctx.env);
-    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: roots.clone() };
+    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: roots.clone(), holders };
     let mut lines: Vec<String> = Vec::new();
     let mut unfinished: BTreeSet<PathBuf> = BTreeSet::new();
     // What: the removals an earlier run started are finished or undone before anything else is judged.
@@ -2080,18 +2180,38 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
             "mpm-shadow: removed no toolchain version: {reason}; every version is kept until the locks can be read"
         ));
     } else if !tools.is_empty() {
-        let holders: StoreHolders = run.look();
-        let installed_set: BTreeSet<(String, String)> = installed.iter().cloned().collect();
-        let links: BTreeMap<(PathBuf, String), String> = current_links(&roots, &tools);
-        let candidates: Vec<TrimCandidate> = candidates_of(&roots, &tools, run.deadline());
-        // What: a scan that could not be completed keeps every version.
-        // Why: a version a process the scan did not reach uses must not be removed.
-        let unread: Option<String> = holders.incomplete.clone();
-        let protection = |candidate: &TrimCandidate| -> Option<String> {
-            if let Some(reason) = &unread {
-                return Some(format!("the process table could not be read: {reason}"));
+        let scan: StoreHolders = run.look();
+        // What: a process table the scan could not complete keeps every version, with one line for the pass.
+        // Why: a process the scan could not describe may run any version, so nothing can be told from nothing it read;
+        // one line naming those processes is what a person needs, and one line per version would bury it.
+        if let Some(reason) = &scan.incomplete {
+            lines.push(format!(
+                "mpm-shadow: removed no toolchain version: the process table could not be read in full: {reason}; \
+                 every version is kept while that is so"
+            ));
+            settle_markers(&roots, &unfinished);
+            for line in lines {
+                eprintln!("{line}");
             }
-            return protection_of(candidate, &named, &holders, &installed_set, &links, &finished.put_back);
+            return;
+        }
+        let installed_set: BTreeSet<(String, String)> = installed.iter().cloned().collect();
+        let links: CurrentLinks = current_links(&roots, &tools);
+        // What: a `current` link this pass could not read may name any version of its tool.
+        // Why: reading "the link does not name it" into a failed read removed a version the link names.
+        if let Some(reason) = &links.unreadable {
+            lines.push(format!(
+                "mpm-shadow: removed no toolchain version: {reason}; every version is kept until the links can be read"
+            ));
+            settle_markers(&roots, &unfinished);
+            for line in lines {
+                eprintln!("{line}");
+            }
+            return;
+        }
+        let candidates: Vec<TrimCandidate> = candidates_of(&roots, &tools, run.deadline(), bounds.age_floor);
+        let protection = |candidate: &TrimCandidate| -> Option<String> {
+            return protection_of(candidate, &named, &scan, &installed_set, &links.by_tool, &finished.put_back);
         };
         let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &protection);
         let outcome: TrimOutcome = apply_trim(&plan, &run);

@@ -440,6 +440,18 @@ fn an_install_removes_the_oldest_version_no_lock_names() {
     let report = sync_tools(&rig.context(), None);
 
     assert!(report.failed.is_empty(), "{:?}", report.failed);
+    // What: this station's process table holds processes the kernel refuses to describe, and the rule then keeps every
+    // version; the end-to-end removal can be seen only where the table can be read in full.
+    // Why: the alternative is a control whose result depends on which desktop runs it, and the rule is that a process
+    // that was never read may run any version.
+    let holders = crate::toolchain::store_path_holders::holders_of(
+        &[rig.scope.toolchain_root.clone()],
+        std::time::Instant::now() + std::time::Duration::from_secs(60),
+    );
+    if holders.incomplete.is_some() {
+        assert!(stale.exists(), "the pass removed a version while it could not read the process table in full");
+        return;
+    }
     assert!(!stale.exists(), "the old version no lock names stayed");
     assert!(version_directory(&rig.scope.toolchain_root, "fd-find", "1.2.3").exists(), "the locked version went");
 }

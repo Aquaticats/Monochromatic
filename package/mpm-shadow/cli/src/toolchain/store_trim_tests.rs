@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
 /// Imports the module under test.
-use crate::toolchain::store_path_holders::{StoreHolders, held_reason};
+use crate::toolchain::store_path_holders::{OpaqueProcess, StoreHolders, held_reason, holders_of};
 use crate::toolchain::store_trim::{
     DEFAULT_SIZE_BOUND_BYTES, TrimBounds, TrimCandidate, TrimPlan, TrimRun, TrimStep, apply_trim, candidates_of,
     DEFAULT_AGE_FLOOR_SECONDS, TrimOutcome, finish_removals, format_age, has_unfinished_removal, parse_duration,
@@ -37,10 +37,23 @@ use crate::toolchain::fixtures::sample_scope_on_disk;
 use crate::toolchain::http::NoNetwork;
 use crate::toolchain::published_archive::is_finished;
 use crate::toolchain::scope::EnvMap;
-use crate::toolchain::store_trim::trim_after_install;
+use crate::toolchain::store_trim::trim_after_install_with;
 use crate::toolchain::store_trim::{MAX_AGE_FLOOR, MAX_WORK_LIMIT, format_span};
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, judged_of_tree, record_of, removal_markers, tombstone_of, write_judged};
 use crate::test_scratch::scratch;
+
+/// What the process table says about this fixture, without the machine's undescribed processes.
+/// Why:
+/// The rule keeps every version while any process of this user cannot be described, and a desktop always has such
+/// processes (a password manager, an ssh-agent, a compositor); a control that is about something else hands in a scan
+/// of its own, and the control about that rule hands in the undescribed processes by name.
+fn holders_of_fixture(roots: &[PathBuf]) -> StoreHolders {
+    let mut found: StoreHolders = holders_of(roots, Instant::now() + Duration::from_secs(60));
+    found.opaque.clear();
+    found.incomplete = None;
+    return found;
+}
+
 
 /// A mebibyte, so a test's bound reads as a fixture size.
 const MIB: u64 = 1024 * 1024;
@@ -300,7 +313,7 @@ impl Fixture {
 
     fn candidates(&self) -> Vec<TrimCandidate> {
         let tools: BTreeSet<String> = ["node".to_string(), "aws".to_string()].into_iter().collect();
-        return candidates_of(std::slice::from_ref(&self.root), &tools, Instant::now() + Duration::from_secs(60));
+        return candidates_of(std::slice::from_ref(&self.root), &tools, Instant::now() + Duration::from_secs(60), Duration::ZERO);
     }
 
     fn run(&self) -> TrimRun {
@@ -312,6 +325,7 @@ impl Fixture {
             },
             started: Instant::now(),
             roots: vec![self.root.clone()],
+            holders: Some(holders_of_fixture(std::slice::from_ref(&self.root))),
         };
     }
 }
@@ -543,14 +557,14 @@ fn finishes_a_removal_cut_short_even_when_the_worktrees_cannot_be_listed() {
         tools: &[],
     };
 
-    crate::toolchain::store_trim::trim_after_install(&context, &[]);
+    crate::toolchain::store_trim::trim_after_install_with(&context, &[], Some(holders_of_fixture(std::slice::from_ref(&store))));
 
     assert!(!version_marker.exists(), "the removal an earlier run started was still a marker");
     // A marker is put back under its own name: only a pass that judged the entry may delete it.
     assert!(store.join("t/1.0.0/program").exists(), "the version was not put back under its own name");
     assert!(!has_unfinished_removal(&store), "the marker outlived the removal it stood for");
     // A later install that installs nothing must find nothing left to do, and the store must stay settled.
-    crate::toolchain::store_trim::trim_after_install(&context, &[]);
+    crate::toolchain::store_trim::trim_after_install_with(&context, &[], Some(holders_of_fixture(std::slice::from_ref(&store))));
     assert!(!has_unfinished_removal(&store));
     assert!(crate::toolchain::store_versions::removal_markers(&store).is_empty());
 }
@@ -584,7 +598,10 @@ fn keeps_a_version_a_process_starts_in_between_the_look_and_the_removal() {
         .spawn()
         .expect("start a process working inside the version");
 
-    let outcome: TrimOutcome = apply_trim(&plan, &run);
+    // What: the scan the pass takes after the moves is taken here, after the child started, because a control hands
+    // in the scan it wants the pass to judge on.
+    let run_after: TrimRun = TrimRun { holders: Some(holders_of_fixture(std::slice::from_ref(&fixture.root))), ..run.clone() };
+    let outcome: TrimOutcome = apply_trim(&plan, &run_after);
     // What: the child is ended before anything is asserted.
     // Why: a failing assertion must not leak a process that outlives the test.
     let cwd: PathBuf = fs::read_link(format!("/proc/{}/cwd", child.id())).expect("read the child's working directory");
@@ -699,12 +716,13 @@ fn keeps_a_version_a_process_uses_when_the_store_path_is_a_symlink() {
         bounds: TrimBounds { size_bound_bytes: 0, age_floor: Duration::ZERO, work_limit: Duration::from_secs(60) },
         started: Instant::now(),
         roots: vec![store.clone()],
+        holders: Some(holders_of_fixture(std::slice::from_ref(&store))),
     };
     let look: StoreHolders = run.look();
     let held: Option<String> = held_reason(&look, &victim);
 
     let tools: std::collections::BTreeSet<String> = ["node".to_string()].into_iter().collect();
-    let plan: TrimPlan = plan_trim(&candidates_of(std::slice::from_ref(&store), &tools, Instant::now() + Duration::from_secs(60)), &run.bounds, SystemTime::now(), &|found| {
+    let plan: TrimPlan = plan_trim(&candidates_of(std::slice::from_ref(&store), &tools, Instant::now() + Duration::from_secs(60), Duration::ZERO), &run.bounds, SystemTime::now(), &|found| {
         return held_reason(&look, &found.directory).map(|reason| return format!("it is in use: {reason}"));
     });
     let outcome: TrimOutcome = apply_trim(&plan, &run);
@@ -793,7 +811,7 @@ fn keeps_the_deadline_when_the_work_limit_is_the_largest_number() {
     let env: EnvMap = EnvMap::from_pairs(&[("MPM_SHADOW_STORE_WORK_LIMIT", "18446744073709551615")]);
     let bounds: TrimBounds = TrimBounds::from_env(&env);
 
-    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: vec![PathBuf::from("/store")] };
+    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: vec![PathBuf::from("/store")], holders: None };
 
     // What: the deadline is asked first.
     // Why: adding this limit to the start is what panicked, so the panic has to be what a broken run meets before any
@@ -865,7 +883,7 @@ fn keeps_a_version_whose_downloads_a_process_holds_open() {
         .with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
     let context = Context { scope: &scope, env: &env_holding, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
 
-    trim_after_install(&context, &[]);
+    trim_after_install_with(&context, &[], Some(holders_of_fixture(std::slice::from_ref(&store))));
     let _ = child.kill();
     let _ = child.wait();
 
@@ -1108,6 +1126,7 @@ fn writes_the_marker_for_a_root_whose_removals_were_all_deferred() {
         bounds: TrimBounds { size_bound_bytes: 0, age_floor: Duration::ZERO, work_limit: Duration::ZERO },
         started: Instant::now(),
         roots: vec![fixture.root.clone()],
+        holders: Some(holders_of_fixture(std::slice::from_ref(&fixture.root))),
     };
     let plan: TrimPlan = plan_trim(&fixture.candidates(), &run.bounds, SystemTime::now(), &|_found| return None);
 
@@ -1152,7 +1171,7 @@ fn puts_back_a_copy_no_record_proved_whole_as_unfinished() {
         .with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
     let context = Context { scope: &scope, env: &env_holding, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
 
-    trim_after_install(&context, &[]);
+    trim_after_install_with(&context, &[], Some(holders_of_fixture(std::slice::from_ref(&store))));
 
     let version: PathBuf = store.join("node/20.0.0");
     assert!(version.join("bin/node").exists(), "the lock-named copy was deleted");
@@ -1177,7 +1196,7 @@ fn keeps_a_leftover_whose_file_was_replaced_after_the_scan() {
     fs::write(&stale, vec![b'z'; 40]).expect("write the leftover");
     written_ago(&stale, 2 * 24 * 3600);
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
-    let plan: TrimPlan = plan_trim(&candidates_of(std::slice::from_ref(&fixture.root), &tools, Instant::now() + Duration::from_secs(60)), &fixture.run().bounds, SystemTime::now(), &|_found| {
+    let plan: TrimPlan = plan_trim(&candidates_of(std::slice::from_ref(&fixture.root), &tools, Instant::now() + Duration::from_secs(60), Duration::ZERO), &fixture.run().bounds, SystemTime::now(), &|_found| {
         return None;
     });
     let planned: bool = plan.steps.iter().any(|step| {
@@ -1323,7 +1342,7 @@ fn recovers_a_tombstone_when_nothing_was_installed_and_the_marker_is_gone() {
     let host = Host::current();
     let context = Context { scope: &scope, env: &env, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
 
-    trim_after_install(&context, &[]);
+    trim_after_install_with(&context, &[], Some(holders_of_fixture(std::slice::from_ref(&store))));
 
     assert!(
         store.join("node/26.11.0/program").exists(),
@@ -1664,12 +1683,12 @@ fn replays_a_real_store_listing() {
     // then the removals.
     // Why: the second look the removals take is what the review's second finding bought, so its cost has to be
     // visible next to the rest of a pass.
-    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone() };
+    let run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone(), holders: Some(holders_of_fixture(&replayed_roots)) };
     let look_clock: Instant = Instant::now();
     let planning_look: StoreHolders = run.look();
     let look_ms: u128 = look_clock.elapsed().as_millis();
     let inventory_clock: Instant = Instant::now();
-    let candidates: Vec<TrimCandidate> = candidates_of(&replayed_roots, &tools, Instant::now() + Duration::from_secs(60));
+    let candidates: Vec<TrimCandidate> = candidates_of(&replayed_roots, &tools, Instant::now() + Duration::from_secs(60), Duration::ZERO);
     let inventory_ms: u128 = inventory_clock.elapsed().as_millis();
     let judge_clock: Instant = Instant::now();
     let plan: TrimPlan = plan_trim(&candidates, &bounds, SystemTime::now(), &|found| {
@@ -1697,7 +1716,7 @@ fn replays_a_real_store_listing() {
         }
     }
     lines.push(format!("planned removal: {} MiB", planned_removal / MIB));
-    let removal_run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone() };
+    let removal_run: TrimRun = TrimRun { bounds, started: Instant::now(), roots: replayed_roots.clone(), holders: Some(holders_of_fixture(&replayed_roots)) };
     let removal_clock: Instant = Instant::now();
     let outcome: TrimOutcome = apply_trim(&plan, &removal_run);
     let remove_ms: u128 = removal_clock.elapsed().as_millis();
@@ -1714,3 +1733,244 @@ fn replays_a_real_store_listing() {
 }
 
 //endregion replaying a real store's listing
+
+//region what protects a version, and what a read that fails means
+
+/// A version of `node` in `root`, with one program file.
+fn node_version(root: &std::path::Path, version: &str) -> PathBuf {
+    let directory: PathBuf = root.join("node").join(version);
+    fs::create_dir_all(&directory).expect("make the version directory");
+    fs::write(directory.join("program"), version).expect("write the program");
+    return directory;
+}
+
+/// What:
+/// A repository's lock keeps a version in the shared global store from a global-scope pass.
+/// Why:
+/// Which locks can name a version in a store does not depend on which scope asked: a global pass that read only its
+/// own lock deleted a global-store version a worktree's lock still named.
+#[test]
+fn keeps_a_global_store_version_a_worktrees_lock_names() {
+    let directory = scratch();
+    let home: PathBuf = directory.path().join("home");
+    let work: PathBuf = directory.path().join("work");
+    fs::create_dir_all(&work).expect("make the worktree");
+    fs::write(work.join("toolchain.plan.jsonc"), "{}").expect("a plan is what names a repository");
+    let env: EnvMap = EnvMap::from_pairs(&[
+        ("HOME", home.to_str().expect("UTF-8 home")),
+        ("XDG_CONFIG_HOME", directory.path().join("config").to_str().expect("UTF-8 config")),
+        ("XDG_DATA_HOME", directory.path().join("data").to_str().expect("UTF-8 data")),
+        ("MONOCHROMATIC_WORKTREE_ROOT", work.to_str().expect("UTF-8 worktree")),
+        ("MPM_SHADOW_STORE_SIZE_BOUND", "0"),
+        ("MPM_SHADOW_STORE_AGE_FLOOR", "0"),
+    ]);
+    let scope = crate::toolchain::scope::global_scope(&env).expect("a global scope");
+    fs::create_dir_all(scope.lock_file.parent().expect("the config directory")).expect("make the config directory");
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"2.0.0","route":"archive"}}}"#)
+        .expect("write the global lock");
+    let worktree_lock: PathBuf = work.join("toolchain.lock.json");
+    fs::write(&worktree_lock, r#"{"tools":{"node":{"version":"1.0.0","route":"archive"}}}"#)
+        .expect("write the worktree lock");
+    let old: PathBuf = node_version(&scope.toolchain_root, "1.0.0");
+    let current: PathBuf = node_version(&scope.toolchain_root, "2.0.0");
+    written_ago(&old, 2 * 24 * 3600);
+    let runner = FakeRunner::new();
+    runner.answer("git -C", &format!("worktree {}\nHEAD abc\n\n", work.display()), 0);
+    let host = Host::current();
+    let context = Context { scope: &scope, env: &env, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+    let holders: StoreHolders = holders_of_fixture(std::slice::from_ref(&scope.toolchain_root));
+
+    trim_after_install_with(&context, &[("unrelated".to_string(), "1.0.0".to_string())], Some(holders));
+
+    assert!(old.join("program").exists(), "a global pass deleted a version a worktree's lock names");
+    assert!(current.exists(), "the version the global lock names went");
+}
+
+/// What:
+/// A global pass that can name no repository removes nothing.
+/// Why:
+/// The locks of the worktrees that install into the shared store can name any version in it, and a pass that cannot
+/// list them cannot tell a pinned version from one nobody wants; reading "no lock names it" into locks it never opened
+/// is what finding one of the sixth review did.
+#[test]
+fn removes_no_global_store_version_when_no_repository_can_be_named() {
+    let directory = scratch();
+    let home: PathBuf = directory.path().join("home");
+    let env: EnvMap = EnvMap::from_pairs(&[
+        ("HOME", home.to_str().expect("UTF-8 home")),
+        ("XDG_CONFIG_HOME", directory.path().join("config").to_str().expect("UTF-8 config")),
+        ("XDG_DATA_HOME", directory.path().join("data").to_str().expect("UTF-8 data")),
+        ("MPM_SHADOW_STORE_SIZE_BOUND", "0"),
+        ("MPM_SHADOW_STORE_AGE_FLOOR", "0"),
+    ]);
+    let scope = crate::toolchain::scope::global_scope(&env).expect("a global scope");
+    fs::create_dir_all(scope.lock_file.parent().expect("the config directory")).expect("make the config directory");
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"2.0.0","route":"archive"}}}"#)
+        .expect("write the global lock");
+    let old: PathBuf = node_version(&scope.toolchain_root, "1.0.0");
+    written_ago(&old, 2 * 24 * 3600);
+    let runner = FakeRunner::new();
+    let host = Host::current();
+    let context = Context { scope: &scope, env: &env, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+    let holders: StoreHolders = holders_of_fixture(std::slice::from_ref(&scope.toolchain_root));
+
+    trim_after_install_with(&context, &[("unrelated".to_string(), "1.0.0".to_string())], Some(holders));
+
+    assert!(old.join("program").exists(), "a global pass removed a version while it could see no worktree lock");
+}
+
+/// What:
+/// A lock row whose route this release cannot read keeps its version.
+/// Why:
+/// Such a row names a version this pass cannot place, so it may pin any version; reading it as "pins nothing" deleted a
+/// version a lock still named.
+#[test]
+fn keeps_a_version_a_lock_with_a_route_this_release_cannot_read_names() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    let store: PathBuf = scope.toolchain_root.clone();
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"2.0.0","route":"archive"}}}"#)
+        .expect("write this scope's lock");
+    let global = crate::toolchain::scope::global_scope(&env).expect("a global scope");
+    fs::create_dir_all(global.lock_file.parent().expect("the config directory")).expect("make the config directory");
+    fs::write(&global.lock_file, r#"{"tools":{"node":{"version":"1.0.0","route":"archive-v2"}}}"#)
+        .expect("write a lock with a route this release cannot read");
+    let old: PathBuf = node_version(&store, "1.0.0");
+    let current: PathBuf = node_version(&store, "2.0.0");
+    written_ago(&old, 2 * 24 * 3600);
+    let runner = FakeRunner::new();
+    runner.answer("git -C", &format!("worktree {}\nHEAD abc\n\n", scope.root.display()), 0);
+    let host = Host::current();
+    let env_holding: EnvMap = env.with("MPM_SHADOW_STORE_SIZE_BOUND", "0").with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
+    let context =
+        Context { scope: &scope, env: &env_holding, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+    let holders: StoreHolders = holders_of_fixture(std::slice::from_ref(&store));
+
+    trim_after_install_with(&context, &[("unrelated".to_string(), "1.0.0".to_string())], Some(holders));
+
+    assert!(old.join("program").exists(), "a version a lock with an unreadable route names was deleted");
+    assert!(current.exists(), "the version the readable lock names went");
+}
+
+/// What:
+/// A global lock that cannot be found keeps every version.
+/// Why:
+/// It may name any version; a pass that cannot find it must not read "no lock names it" into it.
+#[test]
+fn keeps_every_version_when_the_global_lock_cannot_be_found() {
+    let fixture = Fixture::new();
+    let old: PathBuf = fixture.root.join("node/26.11.0");
+    let env: EnvMap = EnvMap::from_pairs(&[("MPM_SHADOW_STORE_SIZE_BOUND", "0"), ("MPM_SHADOW_STORE_AGE_FLOOR", "0")]);
+    let scope = crate::toolchain::scope::repo_scope(&fixture.root, &EnvMap::from_pairs(&[("HOME", "/nonexistent-home")]))
+        .expect("a scope");
+    let runner = FakeRunner::new();
+    runner.answer("git -C", &format!("worktree {}\nHEAD abc\n\n", fixture.root.display()), 0);
+    let host = Host::current();
+    let context = Context { scope: &scope, env: &env, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+    let holders: StoreHolders = holders_of_fixture(std::slice::from_ref(&fixture.root));
+
+    trim_after_install_with(&context, &[("unrelated".to_string(), "1.0.0".to_string())], Some(holders));
+
+    assert!(old.join("program").exists(), "a pass removed a version while the global lock could not be found");
+}
+
+/// What:
+/// A version whose nested file was written a moment ago stays.
+/// Why:
+/// A write into a folder that already existed leaves the version root's own write time alone, and the age of the newest
+/// write inside the tree is the age the floor is about.
+#[test]
+fn keeps_a_version_a_file_was_written_into_a_moment_ago() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    fs::create_dir_all(version.join("nested")).expect("make a nested folder");
+    fs::write(version.join("nested/fresh-user-data"), b"a person's work").expect("write a file a moment ago");
+    written_ago(&version, 2 * 24 * 3600);
+
+    let bounds: TrimBounds = TrimBounds { size_bound_bytes: 0, age_floor: Duration::from_secs(3600), work_limit: Duration::from_secs(60) };
+    let plan: TrimPlan = plan_trim(&fixture.candidates(), &bounds, SystemTime::now(), &|_found| return None);
+
+    let kept: Vec<String> = kept_by(&plan).into_iter().map(|(name, _reason)| return name).collect();
+    assert!(kept.iter().any(|name| return name == "node-26.11.0"), "a file written a moment ago was called old: {kept:?}");
+}
+
+/// What:
+/// A version whose tree the pass could not read in full is not judged.
+/// Why:
+/// A directory the pass cannot open leaves a file count and a newest write that say nothing about what is inside, and a
+/// version judged by a partial tree is removed on a proof it does not have.
+#[test]
+fn keeps_a_version_whose_tree_the_pass_could_not_read_in_full() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let hidden: PathBuf = version.join("invisible");
+    fs::create_dir_all(&hidden).expect("make a folder the pass cannot open");
+    fs::write(hidden.join("a-person's-file"), b"kept").expect("write a file inside it");
+    written_ago(&version, 2 * 24 * 3600);
+    let mut permissions = fs::metadata(&hidden).expect("read the folder's mode").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o000);
+    fs::set_permissions(&hidden, permissions).expect("make the folder unreadable");
+
+    let candidates: Vec<TrimCandidate> = fixture.candidates();
+    let run: TrimRun = fixture.run();
+    let plan: TrimPlan = plan_trim(&candidates, &run.bounds, SystemTime::now(), &|_found| return None);
+    let outcome: TrimOutcome = apply_trim(&plan, &run);
+
+    assert!(version.join("program").exists(), "a version read in part was removed: {:?} {}", outcome.lines, candidates.len());
+    let mut restored = fs::metadata(&hidden).expect("read the folder's mode").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut restored, 0o700);
+    fs::set_permissions(&hidden, restored).expect("let the scratch directory go");
+}
+
+/// What:
+/// A copy a removal holds is put back and never deleted when the process table could not be read in full,
+/// and the line names the process.
+/// Why:
+/// A process the kernel refuses to describe may run it; putting it back under its name is what the pass does with a
+/// copy it may not delete, and the line is what a person needs to end the process or decide.
+#[test]
+fn keeps_a_copy_aside_when_the_process_table_could_not_be_read_in_full() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let marker: PathBuf = tombstone_of(&version);
+    fs::rename(&version, &marker).expect("move the version aside");
+    let mut holders: StoreHolders = holders_of_fixture(std::slice::from_ref(&fixture.root));
+    holders.opaque.push(OpaqueProcess { pid: 4242, comm: "fd".to_string() });
+    holders.incomplete = crate::toolchain::store_path_holders::undescribed_reason(&holders.opaque);
+
+    let finished = finish_removals(&TrimRun { bounds: fixture.run().bounds, started: Instant::now(), roots: vec![fixture.root.clone()], holders: Some(holders) });
+
+    assert!(version.join("program").exists(), "a copy a process may run was not put back: {:?}", finished.lines);
+    assert!(finished.lines.iter().any(|line| return line.contains("pid 4242 (fd)")), "the line does not name the process: {:?}", finished.lines);
+}
+
+/// What:
+/// A pass whose process table could not be read in full removes nothing.
+/// Why:
+/// A process the kernel refuses to describe may run any version, so no version can be told from one in use; the pass
+/// says so once instead of guessing.
+#[test]
+fn removes_nothing_when_a_process_cannot_be_described() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    let store: PathBuf = scope.toolchain_root.clone();
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"2.0.0","route":"archive"}}}"#)
+        .expect("write the lock");
+    let old: PathBuf = node_version(&store, "1.0.0");
+    let current: PathBuf = node_version(&store, "2.0.0");
+    written_ago(&old, 2 * 24 * 3600);
+    let runner = FakeRunner::new();
+    runner.answer("git -C", &format!("worktree {}\nHEAD abc\n\n", scope.root.display()), 0);
+    let host = Host::current();
+    let env_holding: EnvMap = env.with("MPM_SHADOW_STORE_SIZE_BOUND", "0").with("MPM_SHADOW_STORE_AGE_FLOOR", "0");
+    let context =
+        Context { scope: &scope, env: &env_holding, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+    let mut holders: StoreHolders = holders_of_fixture(std::slice::from_ref(&store));
+    holders.opaque.push(OpaqueProcess { pid: 4242, comm: "fd".to_string() });
+    holders.incomplete = crate::toolchain::store_path_holders::undescribed_reason(&holders.opaque);
+
+    trim_after_install_with(&context, &[("unrelated".to_string(), "1.0.0".to_string())], Some(holders));
+
+    assert!(old.join("program").exists(), "a version was removed while a process that may run it could not be described");
+    assert!(current.exists());
+}
+
+//endregion what protects a version, and what a read that fails means

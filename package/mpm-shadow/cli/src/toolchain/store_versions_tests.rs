@@ -33,7 +33,7 @@ use crate::test_scratch::scratch;
 /// The names of the versions the scan lists for `tools`.
 fn versions_of(root: &Path, tools: &[&str]) -> Vec<String> {
     let set: BTreeSet<String> = tools.iter().map(|tool| return (*tool).to_string()).collect();
-    return version_directories(root, &set, Instant::now() + Duration::from_secs(60))
+    return version_directories(root, &set, Instant::now() + Duration::from_secs(60), Duration::ZERO)
         .into_iter()
         .map(|version| return format!("{}-{}", version.tool, version.version))
         .collect();
@@ -92,6 +92,7 @@ fn lists_versions_with_their_downloads_and_skips_staging() {
         &root,
         &["node".to_string()].into_iter().collect(),
         Instant::now() + Duration::from_secs(60),
+        Duration::ZERO,
     );
 
     let listed: Vec<String> = found
@@ -205,28 +206,54 @@ fn records_a_size_and_measures_again_once_the_version_is_written() {
     let version: PathBuf = make_version(&root, "node", "26.13.1", 1000);
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
-    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60))[0].bytes, 1000);
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60), Duration::ZERO)[0].bytes, 1000);
     assert_eq!(read_size_records(&root).get("node/26.13.1").map(|record| return record.bytes), Some(1000));
     assert!(root.join(SIZE_RECORDS_FILE_NAME).is_file());
 
     // An install replaces a version as one rename, so the next entry changes the directory's own write time.
     fs::write(version.join("extra"), vec![b'e'; 24]).expect("add a file to the version");
-    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60))[0].bytes, 1024);
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60), Duration::ZERO)[0].bytes, 1024);
 }
 
-/// A version whose directory is unchanged keeps its recorded size even when a file inside it was rewritten in place,
-/// which is the one change a directory's write time does not show.
+/// What:
+/// A record may prove a version young, and a version it says is young keeps its recorded size.
+/// Why:
+/// A write inside the tree only makes the newest write later, so a recorded newest write inside the age floor proves
+/// the version is inside the floor, and the recorded size stands.
 #[test]
-fn trusts_a_record_while_the_version_directory_is_unchanged() {
+fn trusts_a_record_that_proves_a_version_young() {
     let directory = scratch();
     let root: PathBuf = directory.path().join("toolchain");
     let version: PathBuf = make_version(&root, "node", "26.13.1", 1000);
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
-    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60))[0].bytes, 1000);
+    let hour: Duration = Duration::from_secs(3600);
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60), hour)[0].bytes, 1000);
 
     fs::write(version.join("program"), vec![b'b'; 10]).expect("rewrite the program in place");
 
-    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60))[0].bytes, 1000);
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60), hour)[0].bytes, 1000);
+}
+
+/// What:
+/// A record is walked again when what it would prove is that a version is old.
+/// Why:
+/// A record cannot see a write inside the tree, so the recorded newest write is a lower bound; trusting it for the age
+/// would call a freshly written tree old. The walk sees the write, and the size is the tree as it stands.
+#[test]
+fn walks_a_version_a_record_can_only_prove_old() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("toolchain");
+    let version: PathBuf = make_version(&root, "node", "26.13.1", 1000);
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60), Duration::ZERO)[0].bytes, 1000);
+
+    fs::write(version.join("program"), vec![b'b'; 10]).expect("rewrite the program in place");
+
+    assert_eq!(
+        version_directories(&root, &tools, Instant::now() + Duration::from_secs(60), Duration::ZERO)[0].bytes,
+        10,
+        "a record trusted for an age hid a rewrite inside the tree"
+    );
 }
 
 /// A size record file that is not the document this release writes reads as no records,
@@ -240,7 +267,7 @@ fn measures_everything_when_the_size_records_are_not_readable() {
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
     assert!(read_size_records(&root).is_empty());
-    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60))[0].bytes, 1000);
+    assert_eq!(version_directories(&root, &tools, Instant::now() + Duration::from_secs(60), Duration::ZERO)[0].bytes, 1000);
 }
 
 /// The size of a version is the length of every file below it.

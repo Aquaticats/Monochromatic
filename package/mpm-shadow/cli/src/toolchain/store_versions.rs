@@ -33,7 +33,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 /// Imports `Instant`,
 /// `SystemTime` and `UNIX_EPOCH` from `std::time`.
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Imports `Value` from `serde_json`,
 /// which reads the size records.
@@ -345,9 +345,14 @@ fn is_version_entry(entry: &fs::DirEntry, name: &str) -> bool {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function versionDirectories(root: string, tools: ReadonlySet<string>): VersionDirectory[]
+/// export function versionDirectories(root: string, tools: ReadonlySet<string>, ageFloor: Duration): VersionDirectory[]
 /// ```
-pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>, deadline: Instant) -> Vec<VersionDirectory> {
+pub fn version_directories(
+    toolchain_root: &Path,
+    tools: &BTreeSet<String>,
+    deadline: Instant,
+    age_floor: Duration,
+) -> Vec<VersionDirectory> {
     let recorded: BTreeMap<String, SizeRecord> = read_size_records(toolchain_root);
     let mut measured: BTreeMap<String, SizeRecord> = BTreeMap::new();
     let mut found: Vec<VersionDirectory> = Vec::new();
@@ -379,8 +384,13 @@ pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>, dead
             // install replaces the version, so one `stat` per version answers whether the record still holds.
             let key: String = format!("{tool}/{version}");
             let recorded_ns: u64 = written_ns(written);
+            // What: a record is trusted only while what it has to prove is that the tree is young.
+            // Why: a record was read at one moment and a write inside the tree leaves the root's own write time alone,
+            // so the recorded newest write is a lower bound, never the truth. A recorded newest write inside the age
+            // floor proves the version is inside the floor (a write only makes it newer); anything else is walked again.
+            let floor_ns: u64 = written_ns(SystemTime::now()).saturating_sub(u64::try_from(age_floor.as_nanos()).unwrap_or(u64::MAX));
             let facts: TreeFacts = match recorded.get(&key) {
-                Some(record) if record.written_ns == recorded_ns => TreeFacts {
+                Some(record) if record.written_ns == recorded_ns && record.newest_ns >= floor_ns => TreeFacts {
                     bytes: record.bytes,
                     files: record.files,
                     newest: UNIX_EPOCH + std::time::Duration::from_nanos(record.newest_ns),
@@ -419,9 +429,11 @@ pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>, dead
         }
     }
     write_size_records(toolchain_root, &measured);
-    // Oldest write first: the cleanup removes in this order.
+    // Oldest newest write first: the cleanup removes in this order, and a tree a write landed in is not old.
     found.sort_by(|left, right| {
-        let by_write: std::cmp::Ordering = left.written.cmp(&right.written);
+        let left_newest: SystemTime = if left.newest > left.written { left.newest } else { left.written };
+        let right_newest: SystemTime = if right.newest > right.written { right.newest } else { right.written };
+        let by_write: std::cmp::Ordering = left_newest.cmp(&right_newest);
         if by_write != std::cmp::Ordering::Equal {
             return by_write;
         }
@@ -605,11 +617,16 @@ pub fn tree_facts(path: &Path, deadline: Instant) -> TreeFacts {
             return facts;
         }
         let Ok(metadata) = fs::symlink_metadata(&current) else {
-            continue;
+            // What: an entry of the tree that could not be read makes the walk partial.
+            // Why: a tree read only in part proves nothing about what it holds, so the version is kept rather than
+            // judged by a file count and a newest write that left the unread part out.
+            facts.complete = false;
+            return facts;
         };
         if metadata.is_dir() {
             let Ok(children) = fs::read_dir(&current) else {
-                continue;
+                facts.complete = false;
+                return facts;
             };
             for child in children.flatten() {
                 pending.push(child.path());

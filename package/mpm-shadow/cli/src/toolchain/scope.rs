@@ -31,6 +31,10 @@ pub const PLAN_FILE_NAME: &str = "toolchain.plan.jsonc";
 /// The file name of the lock in both scopes.
 pub const LOCK_FILE_NAME: &str = "toolchain.lock.json";
 
+/// The environment variable that names the repository root when the working directory does not,
+/// which a global pass reads to find the worktree locks of the repository it runs for.
+pub const WORKTREE_ROOT_ENV: &str = "MONOCHROMATIC_WORKTREE_ROOT";
+
 /// The generated mise fragment that carries the repository scope's tool environment,
 /// relative to the worktree.
 /// Mise reads every file of `.config/mise/conf.d` in name order;
@@ -317,7 +321,7 @@ pub fn toolchain_roots(env: &EnvMap) -> Vec<PathBuf> {
 /// export function findRepoRoot(start: string, env: EnvMap): string  // throws when none
 /// ```
 pub fn find_repo_root(start: &Path, env: &EnvMap) -> Result<PathBuf, ToolchainError> {
-    if let Some(root) = env.get("MONOCHROMATIC_WORKTREE_ROOT") {
+    if let Some(root) = env.get(WORKTREE_ROOT_ENV) {
         return Ok(PathBuf::from(root));
     }
     for directory in start.ancestors() {
@@ -330,6 +334,21 @@ pub fn find_repo_root(start: &Path, env: &EnvMap) -> Result<PathBuf, ToolchainEr
          set MONOCHROMATIC_WORKTREE_ROOT, or use --global",
         start.display()
     )));
+}
+
+/// What:
+/// The repository root named by `MONOCHROMATIC_WORKTREE_ROOT`,
+/// or `None` when the variable is unset or names no directory that holds a plan.
+/// Why:
+/// A global pass has no plan of its own to find the repository from, and the locks of the repository's worktrees can
+/// still name versions in the shared global store; the variable is where this machine's shells name the worktree, and
+/// a path that holds no plan is not a repository this pass can read locks from.
+pub fn named_repository_root(env: &EnvMap) -> Option<PathBuf> {
+    let root: PathBuf = PathBuf::from(env.get(WORKTREE_ROOT_ENV)?);
+    if root.join(PLAN_FILE_NAME).is_file() {
+        return Some(root);
+    }
+    return None;
 }
 
 /// The scope for a command:

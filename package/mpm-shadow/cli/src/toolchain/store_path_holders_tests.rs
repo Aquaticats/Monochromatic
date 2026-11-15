@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 /// Imports `HoldKind` and the scan under test.
-use crate::toolchain::store_path_holders::{HoldKind, held_reason, holders_of, mapped_path, opaque_reason};
+use crate::toolchain::store_path_holders::{HoldKind, OpaqueProcess, held_reason, holders_of, mapped_path, undescribed_reason};
 use crate::test_scratch::scratch;
 
 /// A deadline far enough away that the scan completes.
@@ -57,7 +57,9 @@ fn finds_the_file_this_test_holds_open() {
     let reason: String = held_reason(&after, &version).expect("the scan must find the open file");
     assert!(reason.contains(&format!("pid {}", std::process::id())), "{reason}");
     assert!(reason.contains("has open"), "{reason}");
-    assert_eq!(after.incomplete, None, "{after:?}");
+    // What: this station holds processes the kernel refuses to describe, and the scan says so.
+    // Why: the rule is that such a process may run any version, so the scan is incomplete exactly when one is listed.
+    assert_eq!(after.incomplete.is_some(), !after.opaque.is_empty(), "{after:?}");
     assert!(after.processes > 0);
     drop(opened);
 }
@@ -102,19 +104,21 @@ fn reports_a_scan_that_ran_out_of_time() {
     assert!(holders.incomplete.is_some(), "{holders:?}");
 }
 
-/// A hidden process whose name is part of a tool's directory name is a reason to keep that tool's versions,
-/// and a hidden process whose name is nothing of the kind is not.
+/// A process the kernel refuses to describe makes the scan incomplete, whatever its name,
+/// and the reason names every such process so a person can end it or decide.
 #[test]
-fn names_a_hidden_process_that_may_run_a_tool() {
-    let mut holders = crate::toolchain::store_path_holders::StoreHolders::default();
-    holders.opaque.push(crate::toolchain::store_path_holders::OpaqueProcess {
-        pid: 4242,
-        comm: "git_policy_cli-".to_string(),
-    });
+fn calls_the_scan_incomplete_when_a_process_cannot_be_described() {
+    let opaque: Vec<OpaqueProcess> = vec![
+        OpaqueProcess { pid: 4242, comm: "fd".to_string() },
+        OpaqueProcess { pid: 4243, comm: "keepassxc".to_string() },
+    ];
 
-    let reason: String = opaque_reason(&holders, "cargo-monochromatic-git-policy-cli").expect("the name names the tool");
-    assert!(reason.contains("4242"), "{reason}");
-    assert!(opaque_reason(&holders, "node").is_none());
+    let reason: String = undescribed_reason(&opaque).expect("two processes cannot be described");
+
+    assert!(reason.contains("2 process(es)"), "{reason}");
+    assert!(reason.contains("pid 4242 (fd)"), "a short name is named like any other: {reason}");
+    assert!(reason.contains("pid 4243 (keepassxc)"), "{reason}");
+    assert!(undescribed_reason(&[]).is_none(), "a scan that described every process is complete");
 }
 
 /// The words a hold is printed with say what the process does with the path.

@@ -290,7 +290,35 @@ pub fn holders_of(store_roots: &[PathBuf], deadline: Instant) -> StoreHolders {
             holders.opaque.push(OpaqueProcess { pid: *pid, comm });
         }
     }
+    // What: a process the kernel refuses to describe makes the whole scan incomplete.
+    // Why: such a process may run any version, and a name is not evidence that its files are unused, whatever its
+    // length; reading "not held" into a process that was never read removed a version a live tool was running.
+    holders.incomplete = undescribed_reason(&holders.opaque);
     return holders;
+}
+
+/// What:
+/// The reason a scan cannot be taken as complete because of the processes it could not describe,
+/// or `None` when there are none.
+/// Why:
+/// A process the kernel refuses to describe may run any version,
+/// so a pass that could not read it cannot tell a version in use from one that is not,
+/// and one sentence naming the processes is what a person needs to end them or decide.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function undescribedReason(opaque: OpaqueProcess[]): string | undefined
+/// ```
+pub fn undescribed_reason(opaque: &[OpaqueProcess]) -> Option<String> {
+    if opaque.is_empty() {
+        return None;
+    }
+    let named: Vec<String> = opaque.iter().map(|process| return format!("pid {} ({})", process.pid, process.comm)).collect();
+    return Some(format!(
+        "{} process(es) of this user cannot be described, so any of them may run any version: {}",
+        opaque.len(),
+        named.join(", ")
+    ));
 }
 
 /// Tells the cleanup that it cannot tell which versions a process uses (no process table on this platform).
@@ -324,47 +352,6 @@ pub fn held_reason(holders: &StoreHolders, version_directory: &Path) -> Option<S
         let others: usize = holders.held.iter().filter(|other| return other.path.starts_with(&resolved)).count();
         let more: String = if others > 1 { format!(" and {} more process(es)", others - 1) } else { String::new() };
         return Some(format!("pid {} {} {}{more}", held.pid, held.kind.words(), held.path.display()));
-    }
-    return None;
-}
-
-/// The letters and digits of `text`, lowercased,
-/// for comparing a process's name with a tool's directory name.
-fn letters_of(text: &str) -> String {
-    return text.chars().filter(|character| return character.is_alphanumeric()).flat_map(char::to_lowercase).collect();
-}
-
-/// The shortest process name that is compared with a tool's directory name.
-/// Shorter names are ordinary words (`sh`, `ps`, `go`) and would match by accident.
-const SHORTEST_COMPARED_NAME: usize = 5;
-
-/// What:
-/// The reason every version of the tool in `tool_directory_name` stays because a process of this user called itself
-/// something that names this tool and the kernel will not say which file it runs,
-/// or `None` when no such process exists.
-/// Why:
-/// A wrapper that holds tokens calls `prctl` to hide its program from every other process,
-/// so a version it runs cannot be found by its path;
-/// its name is all that is left,
-/// and a name that matches the tool is taken as evidence that the version may be in use.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// export function opaqueReason(holders: StoreHolders, toolDirectoryName: string): string | undefined
-/// ```
-pub fn opaque_reason(holders: &StoreHolders, tool_directory_name: &str) -> Option<String> {
-    let tool_letters: String = letters_of(tool_directory_name);
-    for opaque in &holders.opaque {
-        let name: String = letters_of(&opaque.comm);
-        if name.len() < SHORTEST_COMPARED_NAME {
-            continue;
-        }
-        if tool_letters.contains(&name) {
-            return Some(format!(
-                "pid {} calls itself {} and the kernel will not say which file it runs, so it may run this version",
-                opaque.pid, opaque.comm
-            ));
-        }
     }
     return None;
 }
