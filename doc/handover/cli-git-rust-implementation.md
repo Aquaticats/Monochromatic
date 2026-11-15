@@ -1640,6 +1640,47 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The third of the three gate controls is settled: its failure was the control's own, like the other two, and the machine's memory is excluded; its review is queued (2026-11-15T13:01:41-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The three controls that failed for the first time in a gate**,
+  their author's second run,
+  ended 12:57:01 at `8182b750e7`
+  (its merge of `main`,
+  `a93d20e344`,
+  is inside that tip).
+  The third control,
+  which the first run could not reproduce,
+  is reproduced and explained:
+  the control read what a filling's clean had displaced while the filling still ran,
+  because its wait counted records standing in `pending`,
+  `claimed` and `recovering` and a filling the drain runs stands in `held`;
+  the control's own teardown then ended the clean with `SIGKILL`,
+  which is the "stopped by signal 9" line the gate printed.
+  With a clean made to take eight seconds,
+  the reader that did not wait failed two runs of three.
+  The reader now waits while the record stands in any of the four states,
+  and the control's failure says where the record stands and what the service said.
+  **This corrects the first run's report**,
+  which left the machine's memory as a possible cause.
+  It found no fault in `package_repair_cargo_lock.rs`.
+  102 of 102 tests of the three controls' modules pass in the newest gate image;
+  Clippy is clean.
+- Its review is queued eleventh
+  (`main...8182b750e7`,
+  3 code files that are not tests).
+- Read at 13:01:18:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 12:54;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### Four wrapper reviews at once: the fix for the empty-tree commit leaves a door open, the push branch loses its repair record six ways, and two guards are stepped around; three authors go back and one waits for its run to end (2026-11-15T12:58:11-05:00)
 
 Not final and not approved:
