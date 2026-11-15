@@ -403,3 +403,101 @@ fn a_service_that_greets_slower_than_a_look_does_not_make_the_wait_run_for_ever(
         other => panic!("the wait ends with the sentence for a service that is there, not {other:?}"),
     }
 }
+
+/// What:
+///  A unit the manager reports as `activating` is described as a start under way,
+///  and never as one nothing asked to start.
+/// Why:
+///   A socket-activated unit is started by a connection to its socket,
+///   which is what this command makes:
+///   the connection sits in the socket unit's queue,
+///   the manager starts the service,
+///   and the service greets nothing until it is ready.
+///   The manager's answer is then `activating` at every poll,
+///   which is neither `inactive` nor a unit it holds no such unit for,
+///   so this command asks for no explicit start:
+///   a message that read that as "nothing asked it to start" would say the opposite of the state,
+///   and would send a reader after a start that was never requested instead of one that is stuck.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(render(failure)).toContain('under way'); expect(render(failure)).not.toContain('nothing asked it to start');
+/// ```
+#[test]
+fn a_start_the_manager_reports_as_under_way_is_not_described_as_never_asked_for() {
+    let socket: String = address("client-reach-activating");
+    // The socket unit holds the address and nothing accepts: the connection this control makes is the one that asks the
+    //  manager to start the service, and no service greets it while the program starts.
+    let _held_by_the_socket_unit: UnixListener = listen_at(socket.as_str()).expect("the socket unit holds the address");
+    {
+        let mut manager = MANAGER.lock().expect("lock");
+        manager.state = Some(String::from("activating"));
+        manager.unreachable = false;
+        manager.asked.clear();
+    }
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
+    settings.start_wait = Duration::from_millis(200);
+    settings.start_ceiling = Duration::from_millis(400);
+    let mut announced: bool = false;
+    let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+        .expect_err("nothing greets while the manager says a start is under way");
+    let asked_of_the_manager: Vec<String> = asked();
+    let rendered: String = crate::service_messages::render(&failure);
+    assert!(rendered.contains(unit.as_str()), "the person reads which unit was asked about: {rendered}");
+    assert!(rendered.contains("activating"), "the manager's own word is carried: {rendered}");
+    assert!(rendered.contains("under way"), "the person is told a start is under way: {rendered}");
+    assert!(!rendered.contains("nothing asked"), "and never that nothing asked it to start: {rendered}");
+    assert!(
+        !asked_of_the_manager.iter().any(|call| { return call.starts_with("start "); }),
+        "a unit the manager reports as activating is left alone: {asked_of_the_manager:?}"
+    );
+}
+
+/// What:
+///  A unit the manager answers it holds no such unit for,
+///  after a start of it was asked,
+///  is described by that answer,
+///  never as a manager that gave no answer.
+/// Why:
+///   The start asked for a unit the manager unloaded is the one repair that state has,
+///   and a start can be refused or bring nothing up.
+///   When the manager goes on answering that it holds no such unit,
+///   a message that says it gave no answer afterwards names a silence that did not happen,
+///   and sends the reader to look for a broken exchange with a manager that answered every time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(render(failure)).toContain('holds no such unit'); expect(render(failure)).not.toContain('no answer');
+/// ```
+#[test]
+fn a_unit_the_manager_holds_no_such_unit_for_is_not_described_as_a_manager_that_gave_no_answer() {
+    let socket: String = address("client-reach-held-nothing-after-a-start");
+    {
+        let mut manager = MANAGER.lock().expect("lock");
+        // The manager holds no such unit at every poll, and the start it is asked for brings nothing up: no socket is
+        //  named, so the start takes nothing and nothing listens.
+        manager.socket = None;
+        manager.state = None;
+        manager.unreachable = false;
+        manager.asked.clear();
+    }
+    let unit: String = crate::service_instance::service_unit_instance(INSTANCE);
+    let socket_unit: String = crate::service_instance::socket_unit_instance(INSTANCE);
+    let mut settings: ClientConfig = config(socket.as_str(), unit.as_str(), socket_unit.as_str());
+    settings.start_wait = Duration::from_millis(200);
+    settings.start_ceiling = Duration::from_millis(500);
+    let mut announced: bool = false;
+    let failure: ClientFailure = reach(&settings, &mut std::io::sink(), &mut announced, &mut crate::commit_timing::ReachTrace::default(), false)
+        .expect_err("nothing answers, and the manager holds no such unit");
+    let asked_of_the_manager: Vec<String> = asked();
+    assert!(
+        asked_of_the_manager.iter().any(|call| { return call == &format!("start {unit}"); }),
+        "the unit is asked to start, which is the repair of that state: {asked_of_the_manager:?}"
+    );
+    let rendered: String = crate::service_messages::render(&failure);
+    assert!(rendered.contains(unit.as_str()), "the person reads which unit was asked about: {rendered}");
+    assert!(rendered.contains("holds no such unit"), "the manager's own answer is carried: {rendered}");
+    assert!(!rendered.contains("no answer"), "and never that it gave no answer: {rendered}");
+}

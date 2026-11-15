@@ -18,6 +18,70 @@
 //!  (one minute),
 //! and a service that greeted before and then greets nothing is the one that stopped.
 //!
+//! What the wait learns,
+//! and what it says when it ends
+//! (`service_messages_of_a_start_that_was_asked_and_did_not_come.rs`):
+//!  every answer of the manager at a poll,
+//!  what this command does about it,
+//!  what it remembers,
+//!  and the words a person reads at the ceiling.
+//! Two facts are remembered,
+//!  and every sentence is one clause each:
+//!  the manager's last answer
+//!  (`State` with its own word,
+//!  `NotHeld`,
+//!  `Silent`),
+//!  and what this command asked the manager to do
+//!  (`Nothing`,
+//!  `Start`,
+//!  `ResetAndStart`,
+//!  `Restart`).
+//! "Asked" means a call this command made of the manager,
+//!  never a connection:
+//!  connecting to the socket of a socket-activated unit is what asks the manager to start it,
+//!  the client cannot tell whose connection asked,
+//!  and the manager's own `activating` is the fact that a start is under way,
+//!  so no sentence claims who started the unit.
+//! The cells,
+//! with the words each produces
+//!  (`<u>` is the unit this command asked about):
+//!
+//! - `activating`,
+//!   nothing asked:
+//!   "the service manager says <u> is activating,
+//!   so a start of it is under way,
+//!   and this command asked it for nothing itself".
+//!   This is the cell a socket-activated start leaves,
+//!   and it read "nothing asked it to start that unit" before.
+//! - `activating`,
+//!   after a start was asked for a unit the manager held no such unit:
+//!   the same "a start of it is under way",
+//!   "and this command asked it to start <u>".
+//! - `inactive`:
+//!   a start is asked at once,
+//!   and the sentence says the manager's word and that this command asked for the start.
+//! - not held:
+//!   a start is asked,
+//!   and the sentence says the manager answered that it holds no such unit
+//!   and that this command asked for the start.
+//! - `failed`:
+//!   the failed state is forgotten and a start asked,
+//!   once,
+//!   and a second `failed` answer ends the wait with that cell's words.
+//! - `active` with nothing greeting:
+//!   one restart is asked at the ceiling,
+//!   and the sentence says the unit is active and that this command asked for the restart.
+//! - `deactivating`,
+//!   or any other state:
+//!   nothing is asked,
+//!   and the manager's word is what the person reads.
+//! - unreachable:
+//!   nothing is asked and the wait ends at the start wait,
+//!   and the sentence says the manager gave no answer and that this command asked for nothing itself.
+//! - no manager can be asked at all (`start_watch` absent):
+//!   "no service manager could be asked about this worktree's commit service,
+//!   so nothing started it".
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const reader = await reachCurrent(config, notices, announced, trace, serviceSeen);
@@ -201,6 +265,44 @@ pub fn not_greeted(log: std::path::PathBuf) -> ClientFailure {
         crate::service_client_listen_and_ask_to_retire::START_WAIT.as_secs(),
         log.display()
     ));
+}
+
+/// What:
+///  Whether the service manager is due to be asked again,
+///  which is the first time and then once every `every`.
+/// Why:
+///  A named function keeps the condition of the wait readable and keeps no closure over the watch it belongs to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aPollIsDue(lastAsked, every) // lastAsked === undefined || now - lastAsked >= every
+/// ```
+fn a_poll_is_due(last_asked: Option<Instant>, every: Duration) -> bool {
+    return match last_asked {
+        Some(at) => at.elapsed() >= every,
+        None => true,
+    };
+}
+
+/// What:
+///  The last answer of the service manager as the words at the end name it,
+///  keeping "it holds no such unit" and "it gave no answer" apart.
+/// Why:
+///   A unit the manager unloaded is one it answered every poll that it holds no such unit for,
+///   and a manager whose exchange failed is one that answered nothing:
+///   the two have different next steps,
+///   and the wait records the answer itself so the words can say which happened.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// managerLastWords(lastAnswer) // 'state' | 'not-held' | 'silent'
+/// ```
+fn manager_last_words(answer: Option<&ManagerAnswer>) -> ManagerLastWords {
+    return match answer {
+        None | Some(ManagerAnswer::Unreachable) => ManagerLastWords::Silent,
+        Some(ManagerAnswer::NotHeld) => ManagerLastWords::NotHeld,
+        Some(ManagerAnswer::State(state)) => ManagerLastWords::State(state.clone()),
+    };
 }
 
 /// What:

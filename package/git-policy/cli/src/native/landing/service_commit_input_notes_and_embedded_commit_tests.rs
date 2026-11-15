@@ -19,9 +19,10 @@ fn an_unreachable_git_directory_is_named_as_the_cause() {
 }
 
 /// A Git directory that resolves says the account names no runtime directory:
-/// there the missing route is the environment's.
+/// there the missing route is the environment's,
+/// and the message names that setting rather than a platform that cannot start a service (this branch starts it itself).
 #[test]
-fn a_reachable_git_directory_keeps_the_platform_message() {
+fn a_reachable_git_directory_names_the_runtime_directory_setting() {
     let root: PathBuf = fixture("route-refusal-reachable");
     let git_dir: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(git_dir.as_path()).expect("git directory");

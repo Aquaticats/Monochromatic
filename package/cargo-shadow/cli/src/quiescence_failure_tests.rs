@@ -23,7 +23,7 @@ use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use crate::bounded_run::{Bound, RunError, on_start_for_test, on_startup_for_test, output_within};
-use crate::cgroup_test_support::{assert_ran_in_recorded_scope, assert_scope_record, delegated_route, scope_directory_of, wait_until};
+use crate::cgroup_test_support::{assert_ran_in_recorded_scope, assert_scope_record, scope_directory_of, wait_until};
 use crate::control_group::{RouteSettings, detect_route};
 use crate::crates::LockSnapshot;
 use crate::failpoints::{Point, arm};
@@ -97,9 +97,7 @@ fn clean_up(scope: &Path) {
 /// must exist (the writer was running before the fault).
 #[test]
 fn a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     for fault in [Point::ContainmentStopError, Point::ContainmentInspection, Point::ContainmentStopStuck] {
         // The control: no fault armed, the same program and writer.
         let control_root = repository();
@@ -160,9 +158,7 @@ fn a_failure_after_the_start_to_stop_inspect_or_empty_the_scope_is_not_quiescent
 /// which shows that the refusal comes from the failed stop and not from the startup failure alone).
 #[test]
 fn a_failed_startup_completion_with_a_writer_running_is_not_quiescent_when_the_scope_cannot_be_emptied() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     for stuck in [true, false] {
         let root = repository();
         let transaction = begin(root.path(), &[snapshot()], false).expect("begin");
@@ -218,9 +214,7 @@ fn a_failed_startup_completion_with_a_writer_running_is_not_quiescent_when_the_s
 /// and the unrelated child is untouched by either cleanup.
 #[test]
 fn two_starts_and_an_unrelated_spawn_overlap_inside_startup_without_sharing_a_boundary() {
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let original: String = fs::read_to_string("/proc/self/cgroup").expect("own group");
     let (at_start_sender, at_start) = mpsc::channel::<()>();
     let (release_sender, release) = mpsc::channel::<()>();
@@ -302,9 +296,7 @@ fn a_manager_that_does_not_answer_ends_the_discovery_at_its_deadline() {
 #[test]
 fn arguments_that_systemd_run_reads_as_a_grammar_reach_the_program_unchanged() {
     use std::os::unix::ffi::OsStrExt;
-    if delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let arguments: Vec<&[u8]> = vec![b"a$$b", b"${HOME}", b"$HOME", b"$", b"%h %% %n", b"back\\slash", b"it's \"quoted\"", b"two words", b"line\nfeed", b"--looks-like-an-option", b"-", b"semi;colon", b"", b"\xff\xfe not utf-8", b"tab\there"];
     for clean in [false, true] {
         let mut command: Command = Command::new("printf");

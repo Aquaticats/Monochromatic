@@ -22,6 +22,7 @@
 //! stderr.write(render({ kind: 'not-installed' }));
 //! ```
 
+use crate::service_messages_of_a_start_that_was_asked_and_did_not_come::{ManagerLastWords, RequestedStart};
 use std::path::Path;
 use std::time::Duration;
 
@@ -132,8 +133,18 @@ pub enum Platform {
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientFailure {
-    /// The service was started and did not come up.
-    DidNotStart,
+    /// The wait for the commit service ended with nothing greeting it,
+    /// and what it learned about the service manager's own answer is what says why:
+    /// a start that was never asked for leaves the service's log empty.
+    DidNotStart {
+        /// The unit this command asked the service manager about,
+        /// or nothing where no manager can be asked to start a service at all.
+        unit: Option<String>,
+        /// What the service manager last said about that unit.
+        answer: ManagerLastWords,
+        /// What this command asked the manager to do about it.
+        asked: RequestedStart,
+    },
     /// A service is running at the address, took the connection, and has not greeted within the bound a live service's
     /// own recoveries are given: it is alive and still returning to work.
     ServiceRecovering {
@@ -146,6 +157,12 @@ pub enum ClientFailure {
     },
     /// The platform cannot start the service on demand.
     NoActivation(Platform),
+    /// An exchange with the user service manager ran out of the time it was given,
+    /// which says nothing about whether the manager is there.
+    ManagerDidNotAnswer {
+        /// The time that exchange was given.
+        waited: Duration,
+    },
     /// The service on the socket belongs to another account.
     OtherAccount,
     /// The service stopped before it confirmed the commit.
@@ -184,7 +201,9 @@ pub enum ClientFailure {
     /// is
     ///  saved in `file`.
     BranchSwitched { branch: String, now: String, file: Option<String> },
-    /// The service, once it greeted, said nothing for longer than it ever stays silent while it works,
+    /// The service,
+    /// once it greeted,
+    /// said nothing for longer than it ever stays silent while it works,
     /// so the request is given up rather than asked again.
     ServiceSilent,
     /// The service took no part of the request,
@@ -214,6 +233,10 @@ pub enum ClientFailure {
     Interrupted {
         /// The signal the person sent.
         signal: i32,
+        /// The process that sent it,
+        /// where the kernel named one;
+        /// nothing for the terminal's own interrupt.
+        sender: Option<i32>,
         /// What the service last said it was waiting for.
         blocker: Option<String>,
     },
@@ -223,6 +246,9 @@ pub enum ClientFailure {
     InterruptedNotKnown {
         /// The signal the person sent.
         signal: i32,
+        /// The process that sent it,
+        /// where the kernel named one.
+        sender: Option<i32>,
         /// What the service last said it was waiting for.
         blocker: Option<String>,
     },
@@ -317,15 +343,17 @@ pub const NOTHING_CHANGED: &str = "Nothing in the repository changed.";
 /// ```
 pub fn render(failure: &ClientFailure) -> String {
     return match failure {
-        ClientFailure::DidNotStart => format!(
-            "The commit service did not start, so this commit was not made. Its log shows why: `{LOG_COMMAND}`. \
-             Run the commit again after fixing that. {NOTHING_CHANGED}"
+        ClientFailure::DidNotStart { unit, answer, asked } => format!(
+            "The commit service did not start, so this commit was not made: {}. Its log shows why: `{LOG_COMMAND}`. \
+             Run the commit again after fixing that. {NOTHING_CHANGED}",
+            crate::service_messages_of_a_start_that_was_asked_and_did_not_come::did_not_start(unit.as_deref(), answer, *asked)
         ),
         ClientFailure::ServiceRecovering { address, waited, log } => crate::service_messages_of_a_service_that_stopped::service_recovering(address.as_str(), *waited, log.as_deref()),
         ClientFailure::NoActivation(platform) => format!(
             "This computer cannot start the commit service on demand, so this commit was not made. {} {NOTHING_CHANGED}",
             platform_remedy(*platform)
         ),
+        ClientFailure::ManagerDidNotAnswer { waited } => crate::service_messages_of_a_manager_that_did_not_answer::did_not_answer(*waited),
         ClientFailure::OtherAccount => format!(
             "Another account runs the commit service here, so this commit was not made. Use your own account, or ask \
              the other account to stop its service, then run the commit again. {NOTHING_CHANGED}"
@@ -408,8 +436,8 @@ pub fn render(failure: &ClientFailure) -> String {
             CHECK_COMMANDS[0], CHECK_COMMANDS[1]
         ),
         // The two ends of an interrupted commit are worded beside this file, because this one is at its line bound.
-        ClientFailure::Interrupted { signal, blocker } => crate::service_messages_of_an_interrupted_commit::interrupted(*signal, blocker.as_deref()),
-        ClientFailure::InterruptedNotKnown { signal, blocker } => crate::service_messages_of_an_interrupted_commit::not_known(*signal, blocker.as_deref()),
+        ClientFailure::Interrupted { signal, blocker, .. } => crate::service_messages_of_an_interrupted_commit::interrupted(*signal, blocker.as_deref()),
+        ClientFailure::InterruptedNotKnown { signal, blocker, .. } => crate::service_messages_of_an_interrupted_commit::not_known(*signal, blocker.as_deref()),
         ClientFailure::StepTooSlow => format!(
             "A Git step of this commit ran longer than the commit service allows and was ended, so this commit was not made and will not \
              land later by itself. The step is named above, and the commit built for you is kept on the side ref named there when one \
@@ -466,38 +494,10 @@ pub fn render(failure: &ClientFailure) -> String {
     };
 }
 
-/// What:
-///  The remedy sentence for a platform.
-/// Why:
-///   Windows and the BSD systems have no activation yet;
-/// Linux without user services can turn them on.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// platformRemedy(platform)
-/// ```
-pub fn platform_remedy(platform: Platform) -> String {
-    return match platform {
-        Platform::Windows => String::from(
-            "Committing through this wrapper is not supported on Windows yet. Use the Linux or macOS machine for commits \
-             to this repository.",
-        ),
-        Platform::Bsd => String::from(
-            "Committing through this wrapper is not supported on this system yet. Use a Linux or macOS machine for \
-             commits to this repository.",
-        ),
-        Platform::LinuxWithoutUserServices => format!(
-            "This account has no user service manager. Turn it on with `{LINGER_COMMAND}` (the system must run \
-             systemd), or commit from a system that does."
-        ),
-        Platform::Other => String::from(
-            "Committing through this wrapper is not supported on this system. Use a Linux or macOS machine for \
-             commits to this repository.",
-        ),
-    };
-}
-
-
+/// The remedy sentence for a platform is declared beside this file
+/// (`service_messages_of_a_platform.rs`),
+/// because the rendering of every failure is at its line bound.
+pub use crate::service_messages_of_a_platform::platform_remedy;
 
 /// The texts that must never reach a user:
 /// implementation terms the system should have resolved itself.
@@ -513,6 +513,11 @@ pub const DENYLIST: [&str; 22] = [
 pub fn path_text(path: &Path) -> String {
     return path.display().to_string();
 }
+
+/// The word a failure goes by in the timing record is declared beside this file
+/// (`service_messages_of_a_failure.rs`),
+/// because the rendering of every failure is at its line bound.
+pub use crate::service_messages_of_a_failure::failure_code;
 
 
 /// Message controls stay out of the release executable.
