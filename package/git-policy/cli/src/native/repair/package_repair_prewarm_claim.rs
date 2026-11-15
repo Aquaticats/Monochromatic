@@ -56,19 +56,10 @@ pub(crate) fn lease_of(staging: &Path) -> PathBuf {
 ///  from concluding the first one is gone.
 #[derive(Debug)]
 pub(crate) struct TheLease {
-    /// The name the lock was taken on,
-    /// removed when the names are given back.
-    path: PathBuf,
     /// The descriptor the kernel holds the lock for.
     /// Its name begins with an underscore because the descriptor is the lock: nothing reads it, and dropping it releases it.
+    /// The file itself stays where it is for the rest of this build directory's life; nothing unlinks it while it is held.
     _held: std::fs::File,
-}
-
-impl TheLease {
-    /// The name this lease was taken on.
-    pub(crate) fn path(&self) -> &Path {
-        return self.path.as_path();
-    }
 }
 
 /// What:
@@ -119,7 +110,7 @@ pub(crate) fn claim_the_names(staging: &Path) -> TheClaim {
     // SAFETY: the descriptor belongs to `held`, which outlives the call when the lock is taken.
     let taken: i32 = unsafe { libc::flock(held.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
     if taken == 0 {
-        return TheClaim::Held(TheLease { path, _held: held });
+        return TheClaim::Held(TheLease { _held: held });
     }
     let error: std::io::Error = std::io::Error::last_os_error();
     return match error.kind() {

@@ -945,7 +945,6 @@ fn a_link_or_an_oversized_exclude_file_is_refused_before_anything_is_written() {
 /// ```ts
 /// mkfifo(join(entry.root, 'Cargo.lock')); expect(within(10_000, () => fillOne(fill, entry))).toBeFailedNamingThePipe()
 /// ```
-#[test]
 /// What:
 ///  A staging pattern a person left a tab after,
 ///  or a space before,

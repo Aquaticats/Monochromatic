@@ -107,8 +107,8 @@ pub(crate) async fn clean_in_a_mirror(clean: MirrorClean) -> Result<ToolRun, Str
         }
     };
     let resolving: Vec<OsString> = ["metadata", "--offline", "--format-version", "1"].iter().map(OsString::from).collect();
-    let command: ToolCommand = ToolCommand { arguments: resolving, directory: mirrored.clone(), set: Vec::new() };
-    let resolved: ToolRun = crate::package_repair_command::run_tool_awaiting(clean.tool.program.as_path(), &command, clean.tool.limits).await;
+    let resolution: ToolCommand = ToolCommand { arguments: resolving, directory: mirrored.clone(), set: Vec::new() };
+    let resolved: ToolRun = crate::package_repair_command::run_tool_awaiting(clean.tool.program.as_path(), &resolution, clean.tool.limits).await;
     if !matches!(resolved.end, crate::package_repair_command::ToolEnd::Succeeded) {
         remove_the_mirror(root.as_path());
         return Err(format!(

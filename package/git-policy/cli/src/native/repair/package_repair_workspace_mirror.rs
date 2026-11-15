@@ -183,10 +183,10 @@ pub(crate) fn mirror_the_workspace(worktree: &Path, workspace: &Path, root: &Pat
 /// const removeTheMirror = (root) => rmSync(root, { recursive: true, force: true })
 /// ```
 pub(crate) fn remove_the_mirror(root: &Path) {
-    if let Err(error) = std::fs::remove_dir_all(root) {
-        if error.kind() != std::io::ErrorKind::NotFound {
-            crate::diagnostic_log::debug("packageRepairWorkspaceMirror", format!("{} could not be removed ({error})", root.display()).as_str());
-        }
+    if let Err(error) = std::fs::remove_dir_all(root)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        crate::diagnostic_log::debug("packageRepairWorkspaceMirror", format!("{} could not be removed ({error})", root.display()).as_str());
     }
 }
 

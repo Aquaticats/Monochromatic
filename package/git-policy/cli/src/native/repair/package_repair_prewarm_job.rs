@@ -194,6 +194,9 @@ struct TheNames {
     marker: Option<PathBuf>,
     /// The lease that proves this filling is the one at work on these names,
     /// when this run took the usual ones.
+    /// It is held for the whole filling and released when it ends:
+    /// the descriptor is the lease, and nothing reads it (`package_repair_prewarm_claim.rs`).
+    #[allow(dead_code, reason = "the descriptor is the lease: dropping it releases the lock at the end of the filling")]
     lease: Option<TheLease>,
 }
 
@@ -364,14 +367,7 @@ fn remove_if_any(path: &Path) -> Result<(), String> {
     };
 }
 
-/// What the clean is told about the worktree's lock,
-/// so the report of a clean it stopped names the flag to look up.
-/// Why:
-///   The switch itself is one place,
-/// in `package_repair_cargo::locked_clean_arguments`,
-/// and the words a person reads are another,
-/// so the report spells the same flag these words name.
-const LOCK_FLAG: &str = "--locked";
+
 
 /// What:
 ///  Why a tool ended as it did,

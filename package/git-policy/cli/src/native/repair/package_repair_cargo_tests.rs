@@ -457,16 +457,3 @@ fn the_manifest_directories_are_read_as_a_job_of_the_pool() {
         "the tracked manifests were read without asking for a place of the process's bound on blocking jobs, so the reading ran on the task that polls the repairs"
     );
 }
-
-/// What:
-///  Make a named pipe at `path`.
-/// Why:
-///   A named pipe is the one foreign object whose plain open waits for a writer that may never come,
-/// which is what the lock's read must never do at a name anyone can write.
-fn named_pipe_at(path: &Path) {
-    use std::os::unix::ffi::OsStrExt as _;
-    let named: std::ffi::CString = std::ffi::CString::new(path.as_os_str().as_bytes()).expect("a fixture path holds no NUL byte");
-    // SAFETY: the string is NUL-terminated and outlives the call, and the name is a fresh path in the fixture.
-    let made: libc::c_int = unsafe { libc::mkfifo(named.as_ptr(), 0o600) };
-    assert_eq!(made, 0, "make a named pipe at {}: {}", path.display(), std::io::Error::last_os_error());
-}
