@@ -174,7 +174,12 @@ fn a_destroy_records_a_detached_nested_worktree_and_its_file() {
     std::fs::write(nested.join("precious.txt"), b"untracked work that is only here\n").expect("an untracked file");
     let stand: Stand = Stand::new(vec![target.clone()]);
     let outcome: RemoveOutcome = run(&stand, repo.as_path(), &plan_named(target.as_path(), "topic"));
-    assert!(matches!(outcome, RemoveOutcome::Removed), "the stand-in destroys it: {outcome:?}");
+    // The destroy ends as `Removed` when the subvolume is handed over and as `DestroyedInPlace` when another command took
+    //  the hand-over first; both leave every file of the worktree gone, and both write this record.
+    assert!(
+        matches!(outcome, RemoveOutcome::Removed | RemoveOutcome::DestroyedInPlace),
+        "the stand-in destroys it or destroys it here: {outcome:?}"
+    );
     let common: PathBuf = std::fs::canonicalize(repo.join(".git")).expect("common directory");
     let record: String = std::fs::read_to_string(common.join(crate::worktree_removal_deletions::DELETIONS_LOG)).expect("the record of the deletion");
     assert!(record.contains(nested.display().to_string().as_str()), "the record names the detached nested worktree: {record}");

@@ -447,10 +447,12 @@ fn a_scan_that_reached_its_bound_answers_that_it_did_not_finish() {
 ///  which is what the sweep reads on a person's machine.
 #[test]
 fn a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table() {
-    let root: PathBuf = fixture("process-real-open-file");
+    // The kernel writes the path it resolved into `/proc/<pid>/fd`, so both the scan and this control compare the
+    //  canonical spelling: a fixture root reached through a link is the same directory under another name.
+    let root: PathBuf = std::fs::canonicalize(fixture("process-real-open-file").as_path()).expect("the fixture's real path");
     let held: PathBuf = root.join("held.txt");
     std::fs::write(held.as_path(), b"the file the helper holds\n").expect("the file the helper holds open");
-    let elsewhere: PathBuf = fixture("process-real-open-file-elsewhere");
+    let elsewhere: PathBuf = std::fs::canonicalize(fixture("process-real-open-file-elsewhere").as_path()).expect("the helper's real path");
     // `tee` opens its argument for writing and keeps it open while it copies its input, which is held open here.
     let mut child: std::process::Child = spawn_owned(
         std::process::Command::new("tee")
@@ -460,12 +462,44 @@ fn a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table() {
             .stdout(std::process::Stdio::null()),
     )
     .expect("a helper holding a file in the folder");
+    // The start returns before the helper has opened its argument: measured on 2026-11-14, the descriptor was missing at
+    //  that instant in 59 of 60 rounds and appeared 0.20 to 0.35 ms later, which is the window this control scanned in when
+    //  the container gate of 0.6.1-alpha.35 failed it. The control holds the helper at its open before it scans, as the
+    //  control above holds its helper at the working folder.
+    let start: std::time::Instant = std::time::Instant::now();
+    while !descriptors_name(child.id(), held.as_path()) {
+        assert!(start.elapsed() < Duration::from_secs(10), "the helper never opened {}", held.display());
+        std::thread::sleep(Duration::from_millis(5));
+    }
     // The folder was made a moment ago, so every process that hides its working folder started before it.
     let found: ProcessWorking = process_working_inside(root.as_path(), &root.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
     let _ended = child.kill();
     let _waited = child.wait();
     assert_eq!(found, someone(child.id(), "tee", WorkingFolder::OpenFile), "the helper's own descriptor is named");
     std::fs::remove_dir_all(elsewhere.as_path()).expect("the helper's own folder");
+}
+
+/// What:
+///  Whether one process holds this file open,
+///  read from its descriptor links.
+/// Why:
+///  A control that starts a helper must not scan before the helper has opened what it is there to hold:
+///  the start returns before the helper's own `open`, and a scan in that window finds nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const open = descriptorsName(pid, held) // readdirSync(`/proc/${pid}/fd`).some((fd) => readlinkSync(...) === held)
+/// ```
+fn descriptors_name(pid: u32, file: &Path) -> bool {
+    let Ok(descriptors) = std::fs::read_dir(format!("/proc/{pid}/fd")) else {
+        return false;
+    };
+    for descriptor in descriptors.flatten() {
+        if std::fs::read_link(descriptor.path()).ok().as_deref() == Some(file) {
+            return true;
+        }
+    }
+    return false;
 }
 
 /// What:
