@@ -343,24 +343,35 @@ fn restoring_the_owner_access_keeps_group_and_other_bits_and_leaves_a_link_s_tar
 
 /// What:
 ///  The folder a runtime directory stands in is the longest place this account offers that stays inside the room a
-///  control asks for,
-/// and asking for one byte less of room moves it to a shorter place.
+///  control asks for:
+/// a limit of exactly its own length keeps that very place,
+/// byte for byte,
+/// and a limit one byte under it moves the folder to a shorter place.
 /// Why:
 ///   A runtime directory of a fixed length leaves whatever is past its folder for its name,
 /// and how much that is depends on this account and this process:
 /// the gate's container leaves seven bytes under `$HOME/temp/agent` where eight were needed,
 /// so the control that failed there passed here.
 /// A folder chosen once and never shortened is that difference,
-/// so the shortening is what this holds.
+/// so the shortening is what this holds,
+/// and the place that fits its limit to the byte is the half a `>` where `>=` belongs would refuse.
 #[test]
 fn the_folder_of_a_runtime_directory_is_shortened_until_the_room_a_name_needs_is_there() {
     let prefix: &str = "zc";
     let longest_place: PathBuf = runtime_directory_parent(prefix, usize::MAX);
     assert!(longest_place.is_dir(), "the longest place is made: {}", longest_place.display());
-    let shorter: PathBuf = runtime_directory_parent(prefix, longest_place.as_os_str().len() - 1);
+    let room_it_takes: usize = longest_place.as_os_str().len();
+    let exact: PathBuf = runtime_directory_parent(prefix, room_it_takes);
+    assert_eq!(
+        exact.as_os_str(),
+        longest_place.as_os_str(),
+        "a limit of {room_it_takes} bytes keeps {}, the folder that fills it to the byte",
+        longest_place.display()
+    );
+    let shorter: PathBuf = runtime_directory_parent(prefix, room_it_takes - 1);
     assert!(shorter.is_dir(), "the shorter place is made: {}", shorter.display());
     assert!(
-        shorter.as_os_str().len() < longest_place.as_os_str().len(),
+        shorter.as_os_str().len() < room_it_takes,
         "one byte less of room than {} has moves the runtime directory to {}, which is not shorter",
         longest_place.display(),
         shorter.display()
@@ -377,33 +388,35 @@ fn the_folder_of_a_runtime_directory_is_shortened_until_the_room_a_name_needs_is
 ///   The name is what the fixed length is spent on,
 /// and a name shorter or longer than the room would put the directory off the boundary the controls are about:
 /// a control of the longest runtime directory a socket path carries would pass a byte early or fail a byte late.
+/// The two sides are read by the bytes each name is made of, never by a length the two can share:
+/// a tag that fills the room exactly is the tag's own bytes,
+/// and one byte less of room is the leading bytes of its digest.
 #[test]
 fn a_runtime_directory_is_named_for_its_tag_or_for_a_digest_of_it() {
     let parent: PathBuf = runtime_directory_parent("zd", usize::MAX);
-    for tag in ["longest", "at-the-longest"] {
-        let room: usize = room_a_runtime_name_needs(tag);
+    // A tag longer than a digest, so the room can be the tag's own length and, one byte under it, the digest's.
+    let tag: &str = "at-the-longest";
+    for (room, the_room_holds_the_tag) in [
+        (tag.len(), true),
+        (tag.len() - 1, false),
+        (room_a_runtime_name_needs(tag), false),
+    ] {
         let length: usize = parent.as_os_str().len() + 1 + room;
         let runtime: PathBuf = runtime_directory_under(parent.as_path(), length, tag);
         assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
         assert_eq!(runtime.parent(), Some(parent.as_path()), "the directory stands in the folder it was given");
         let name: &OsStr = runtime.file_name().expect("a runtime directory has a name");
         assert_eq!(name.len(), room, "the name fills the room the folder was asked for: {}", runtime.display());
-        let holds_the_tag: bool = name.len() == tag.len();
-        assert_eq!(
-            holds_the_tag,
-            room >= tag.len(),
-            "a name of {} bytes for the tag {tag:?} of {} bytes is {}",
-            name.len(),
-            tag.len(),
-            if holds_the_tag { "the tag itself" } else { "a digest of it" }
-        );
-        if !holds_the_tag {
+        if the_room_holds_the_tag {
+            assert_eq!(name, OsStr::new(tag), "a room of {room} bytes holds the tag, so the name is the tag's own bytes");
+        } else {
             let digest: String = crate::service_instance::digest_of_bytes(tag.as_bytes());
             assert_eq!(
                 name.to_string_lossy().into_owned(),
                 String::from(digest.get(..room).expect("the digest is longer than the room")),
-                "a tag that does not fit is replaced by the first bytes of its digest"
+                "a room of {room} bytes does not hold the tag, so the name is the leading bytes of its digest"
             );
+            assert_ne!(name, OsStr::new(tag), "a room that does not hold the tag does not name the directory for it");
         }
     }
     std::fs::remove_dir_all(parent.as_path()).expect("the folder this control made");

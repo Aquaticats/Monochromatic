@@ -139,16 +139,23 @@ fn commit_through(fixture: &Fixture, repo: &Path, runtime: PathBuf) -> Output {
 /// Why:
 ///   This is the longest runtime directory that keeps the path form,
 /// and the commit must be one no person can tell from any other.
+/// The path form is what the sentence is about, so it is said before the commit runs:
+/// one byte longer would be waited at by a name, and the socket file beside it would answer nothing.
 #[test]
 fn a_commit_is_made_where_the_runtime_directory_is_as_long_as_a_socket_path_allows() {
     let (fixture, repo) = edited("long-runtime-at-the-longest");
     let instance: String = instance_of(repo.join(".git").as_path());
     let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(instance.as_str()), "at-the-longest");
+    let socket: PathBuf = socket_path(runtime.as_path(), instance.as_str());
+    assert!(
+        matches!(socket_address_of(runtime.as_path(), instance.as_str()), Bind::Path(_)),
+        "a runtime directory at the longest keeps the path form, whose socket path is {} bytes",
+        socket.as_os_str().len()
+    );
     let output: Output = commit_through(&fixture, &repo, runtime.clone());
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(0), "{stderr}");
     assert_eq!(git_text(&fixture, &repo, &["log", "-1", "--format=%s"]).trim(), SUBJECT, "the commit was made");
-    let socket: PathBuf = socket_path(runtime.as_path(), instance.as_str());
     assert!(socket.exists(), "the service listens at the socket file the path form names: {}", socket.display());
     remove_settled(&fixture);
 }

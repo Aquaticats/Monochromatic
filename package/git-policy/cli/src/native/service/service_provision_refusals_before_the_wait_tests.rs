@@ -238,6 +238,58 @@ fn a_link_beside(runtime: &Path, name: &str) -> PathBuf {
 }
 
 /// What:
+///  A link beside `runtime`, named so that its own socket path is one byte past what a path form carries,
+/// whatever folder the two stand in.
+/// Why:
+///   The control's sentence is that the manager's abstract socket answers every spelling of one place,
+/// and a link whose own socket path still fit would be reached at a file address instead,
+/// which the abstract name the manager holds does not answer:
+/// with a home directory of two hundred bytes and a process number of two digits the folder was `/r/pr10`,
+/// the link `link-to-a-long-runtime-directory` took exactly 107 bytes with the socket's suffix,
+/// and this control failed where the same control passed with a seven-digit process number.
+/// The name is padded from the limit, so the side is the control's to choose and no folder's length decides it.
+fn a_link_past_the_path_limit(runtime: &Path, instance: &str) -> PathBuf {
+    let folder: &Path = runtime.parent().expect("a runtime directory stands in a folder");
+    // The name that fills one socket address exactly is this long; one byte more puts the address past it.
+    let name_length: usize = longest_runtime_directory(instance).saturating_sub(folder.as_os_str().len()) + 1;
+    let words: &str = "link";
+    let name: String = match name_length > words.len() {
+        true => format!("{words}{}", "x".repeat(name_length - words.len())),
+        false => words.get(..name_length).expect("the words are at least as long as the name").to_string(),
+    };
+    return a_link_beside(runtime, name.as_str());
+}
+
+/// What:
+///  Whether this text is waited at by a name rather than by a socket file.
+/// Why:
+///   A control of a long runtime directory depends on which side of the limit each of its spellings is,
+/// and that is what `socket_address_of` asks the kernel's field size:
+/// naming the side here keeps every such control saying it before it reads the commit.
+fn is_waited_at_by_a_name(spelled: &Path, instance: &str) -> bool {
+    return matches!(socket_address_of(spelled, instance), Bind::Abstract(_));
+}
+
+/// What:
+///  The name `tag` padded so that `parent/<name>/run` takes one byte more than one socket address holds,
+/// whatever folder this account gives.
+/// Why:
+///   The control that uses it is about a spelling no file system can make,
+/// and its sentence is that a commit stops at once instead of binding where an address cannot be;
+/// that holds only while the spelling is on the abstract side:
+/// with a home directory of two bytes the folder was 18 bytes and `a-file-with-room/run` took 38,
+/// which kept the path form, so the control failed there and passed here.
+/// The padding is computed from the limit, so no folder's length decides which form the commit has to stop at.
+fn a_name_that_makes_the_path_past_the_limit(parent: &Path, tag: &str) -> String {
+    // `parent/<name>/run`, its two separators, and the socket's suffix take one byte more than one address holds.
+    let room: usize = (longest_runtime_directory(INSTANCE) + 1).saturating_sub(parent.as_os_str().len() + 1 + "/run".len());
+    return match room > tag.len() {
+        true => format!("{tag}{}", "x".repeat(room - tag.len())),
+        false => String::from(tag),
+    };
+}
+
+/// What:
 ///  Another spelling of the directory `runtime` names,
 /// `rounds` times over:
 /// the directory,
@@ -299,6 +351,18 @@ fn a_service_the_manager_made_at_a_path_is_out_of_reach_of_a_command_that_waits_
     let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(INSTANCE) + 1, "name-and-path");
     let Bind::Abstract(name) = socket_address_of(runtime.as_path(), INSTANCE) else { panic!("an abstract name") };
     let made: String = socket_path(Path::new("/run/user/1000"), INSTANCE).display().to_string();
+    // Two addresses, one on each side: the manager made a path and the client waits at a name, which is what this
+    // control is about, so each side is said here before the refusal is read.
+    assert!(
+        !is_waited_at_by_a_name(Path::new("/run/user/1000"), INSTANCE),
+        "a session's runtime directory is carried as a path: {made} is {} bytes",
+        made.len()
+    );
+    assert!(
+        is_waited_at_by_a_name(runtime.as_path(), INSTANCE),
+        "the client's runtime directory is waited at by a name: {} bytes",
+        socket_path(runtime.as_path(), INSTANCE).as_os_str().len()
+    );
     let mut manager: Addressing = Addressing { addresses: Some(vec![made.clone()]), ..Addressing::default() };
     let began: std::time::Instant = std::time::Instant::now();
     let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager).expect_err("the manager made another address");
@@ -483,6 +547,16 @@ fn two_spellings_of_one_runtime_directory_are_one_service() {
     the_socket_the_manager_made(runtime.as_path());
     let linked: PathBuf = a_link_beside(runtime.as_path(), "lnk");
     let dotted: PathBuf = a_spelling_through_relative_parts(runtime.as_path(), 1);
+    // The socket the manager made stands at a path, so every spelling of it must be on that side too: a spelling whose
+    // own socket path went past the limit would be waited at by a name the file does not answer.
+    for spelled in [runtime.as_path(), linked.as_path(), dotted.as_path()] {
+        assert!(
+            !is_waited_at_by_a_name(spelled, INSTANCE),
+            "{} is on the path side, where the socket the manager made stands: {} bytes",
+            spelled.display(),
+            socket_path(spelled, INSTANCE).as_os_str().len()
+        );
+    }
     for (tag, spelled) in [("a link to it", linked), ("a relative part in it", dotted)] {
         assert_eq!(
             std::fs::canonicalize(&spelled).expect("the spelling resolves"),
@@ -514,8 +588,17 @@ fn two_spellings_of_one_runtime_directory_are_one_service() {
 fn a_runtime_directory_too_long_for_a_path_is_one_service_however_it_is_spelled() {
     let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(INSTANCE) + 1, "spelled");
     let dotted: PathBuf = a_spelling_through_relative_parts(runtime.as_path(), 2);
-    let linked: PathBuf = a_link_beside(runtime.as_path(), "link-to-a-long-runtime-directory");
-    assert!(socket_path(dotted.as_path(), INSTANCE).as_os_str().len() > LONGEST_SOCKET_PATH, "the longer spelling is no path any address carries");
+    let linked: PathBuf = a_link_past_the_path_limit(runtime.as_path(), INSTANCE);
+    // Every spelling is on the abstract side, which is what this control is about: the manager's answer is a name, so a
+    // spelling short enough to have a socket file of its own would be waited at where nothing listens.
+    for spelled in [runtime.as_path(), dotted.as_path(), linked.as_path()] {
+        assert!(
+            is_waited_at_by_a_name(spelled, INSTANCE),
+            "{} is waited at by a name, past what a path form carries: {} bytes",
+            spelled.display(),
+            socket_path(spelled, INSTANCE).as_os_str().len()
+        );
+    }
     let name: String = abstract_name_of(runtime.as_path(), INSTANCE);
     let mut manager: Addressing = Addressing { addresses: Some(vec![format!("@{name}")]), ..Addressing::default() };
     provision_with(&host_with(runtime.clone()), &mut manager).expect("the units are written and the manager was told");
@@ -622,15 +705,23 @@ fn the_bytes_a_socket_path_adds_are_the_ones_it_really_adds() {
 #[cfg(target_os = "linux")]
 fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {
     let parent: PathBuf = short_parent();
-    // Long enough that only a name can carry the service's address, which is the branch a long runtime directory takes.
-    let through_a_file: PathBuf = parent.join("a-file-with-room").join("run");
-    std::fs::write(parent.join("a-file-with-room"), b"not a directory\n").expect("a file where a directory has to be");
-    let through_a_link: PathBuf = parent.join("dangling-link").join("run");
-    std::os::unix::fs::symlink(parent.join("nowhere"), parent.join("dangling-link")).expect("a link that points nowhere");
+    // One byte past the longest runtime directory a path carries, which is the branch a long runtime directory takes,
+    // and the length is the control's to choose: with a home directory of two bytes the folder is 18 bytes, and the
+    // names as they stood took 38, which kept the path form and failed this control.
+    let file_name: String = a_name_that_makes_the_path_past_the_limit(parent.as_path(), "a-file-with-room");
+    let through_a_file: PathBuf = parent.join(file_name.as_str()).join("run");
+    std::fs::write(parent.join(file_name.as_str()), b"not a directory\n").expect("a file where a directory has to be");
+    let link_name: String = a_name_that_makes_the_path_past_the_limit(parent.as_path(), "dangling-link");
+    let through_a_link: PathBuf = parent.join(link_name.as_str()).join("run");
+    std::os::unix::fs::symlink(parent.join("nowhere"), parent.join(link_name.as_str())).expect("a link that points nowhere");
     crate::test_support::track_for_this_thread(through_a_file.as_path());
     crate::test_support::track_for_this_thread(through_a_link.as_path());
     for (tag, runtime) in [("a file in the path", through_a_file), ("a link that points nowhere", through_a_link)] {
-        assert!(matches!(socket_address_of(runtime.as_path(), INSTANCE), Bind::Abstract(_)), "{tag}: the runtime directory is long enough for a name");
+        assert!(
+            is_waited_at_by_a_name(runtime.as_path(), INSTANCE),
+            "{tag}: the runtime directory is past what a path form carries: {} bytes",
+            socket_path(runtime.as_path(), INSTANCE).as_os_str().len()
+        );
         let mut manager: Addressing = Addressing::default();
         let began: std::time::Instant = std::time::Instant::now();
         let refused: ClientFailure = provision_with(&host_with(runtime.clone()), &mut manager).expect_err("{tag}: nothing can make this directory");
