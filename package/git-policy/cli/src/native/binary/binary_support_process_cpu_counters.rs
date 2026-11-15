@@ -56,8 +56,8 @@ pub fn cpu_ticks(pid: u32) -> Option<u64> {
 /// ```
 pub fn thread_numbers(pid: u32) -> std::io::Result<Vec<u32>> {
     let mut numbers: Vec<u32> = Vec::new();
-    for entry in std::fs::read_dir(format!("/proc/{pid}/task"))? {
-        let Ok(entry) = entry else { continue };
+    for listed in std::fs::read_dir(format!("/proc/{pid}/task"))? {
+        let Ok(entry) = listed else { continue };
         if let Some(number) = entry.file_name().to_str().and_then(|name| { return name.parse::<u32>().ok(); }) {
             numbers.push(number);
         }
