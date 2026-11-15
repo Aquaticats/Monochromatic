@@ -336,6 +336,33 @@ pub fn work_listing(work: &Path) -> String {
 }
 
 /// What:
+///  The number of records a work directory holds in the three states a settling wait means,
+/// and the state directory a listing could not read.
+/// Why:
+///   A settling wait that read a listing it could not make as "no record there" answered "settled" without evidence:
+/// the commit service kept the record and ran the tool after the control had already read its result
+///  (`doc/troubleshooting/native-binary-settle-wait-reads-an-unread-state-as-settled.md`).
+///  A state directory that is absent holds nothing (`recovering` is made by the first claim),
+/// while any other refusal is this wait's answer to report and never a record's absence.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const openRecords = (workDir) => STATES.reduce((total, state) => total + countOrThrow(join(workDir, state)), 0);
+/// ```
+fn open_records(work: &Path) -> Result<usize, String> {
+    let mut total: usize = 0;
+    for state in ["pending", "claimed", "recovering"] {
+        let directory: PathBuf = work.join(state);
+        match std::fs::read_dir(directory.as_path()) {
+            Ok(listing) => total += listing.count(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(format!("{} could not be listed ({error}), so whether this repository's after-commit work settled is not known", directory.display())),
+        }
+    }
+    return Ok(total);
+}
+
+/// What:
 ///  Waits until the commit service has settled the after-commit work of the repository around `directory`.
 /// Why:
 ///   A commit that landed through the service returns before its push and its upkeep run,
@@ -349,15 +376,48 @@ pub fn work_listing(work: &Path) -> String {
 /// so a control that waits here cannot see such a record settle.
 /// A control that means to read one attempt of such a record reads that instead
 /// (`observe_without_waiting_for_the_after_commit_work`).
+///  Two readings are taken before the work is called settled,
+/// because a claim moves a record out of `pending` and into `claimed` through `recovering`,
+/// so one pass over the three states can see none of them while the service holds the record;
+/// the second reading is taken at once, so a record cannot pass through `recovering` and reach `claimed` unseen twice.
+/// The data folder is spelled by the wrapper's own rule for a Git directory it reads,
+/// because a repository whose folder still has the earlier release's name holds its queue there.
 pub fn settle_service_work(directory: &Path) {
     let Some(git_dir) = directory.ancestors().map(|candidate| { return candidate.join(".git"); }).find(|candidate| { return candidate.is_dir(); }) else {
         return;
     };
-    let work: PathBuf = git_dir.join(git_policy_cli::work_item::WORK_DIRECTORY);
-    let open = |state: &str| -> usize { return std::fs::read_dir(work.join(state)).map_or(0, Iterator::count); };
+    let work: PathBuf = git_policy_cli::kept_names_in_the_git_directories::path_for_reading(git_dir.as_path(), git_policy_cli::work_item::WORK_DIRECTORY);
     let began: std::time::Instant = std::time::Instant::now();
-    while open("pending") + open("claimed") + open("recovering") > 0 {
+    loop {
+        match settled_by_one_reading(work.as_path()) {
+            Ok(true) => return,
+            Ok(false) => {}
+            Err(unread) => panic!("{unread}: {}", work_listing(work.as_path())),
+        }
         assert!(began.elapsed() < SERVICE_WORK_PATIENCE, "the service never settled the after-commit work in {}: {}", work.display(), work_listing(work.as_path()));
         std::thread::sleep(std::time::Duration::from_millis(20));
     }
+}
+
+/// What:
+///  Whether two readings taken one after the other find no record in `pending`,
+/// `claimed` or `recovering`.
+/// Why:
+///   A record is in one of those three states at every instant,
+/// but the three are listed one after another,
+/// and a claim moves a record from `pending` to `claimed` through `recovering` in between;
+/// so one pass can see none of them while the service holds the record.
+///  A record that reaches `claimed` unseen by the first pass is in `claimed` for the second,
+/// and a record that reaches `claimed` unseen by the second was in `recovering` for it,
+/// so two readings taken at once close that window.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settled = (workDir) => openRecords(workDir) === 0 && openRecords(workDir) === 0;
+/// ```
+fn settled_by_one_reading(work: &Path) -> Result<bool, String> {
+    if open_records(work)? > 0 {
+        return Ok(false);
+    }
+    return Ok(open_records(work)? == 0);
 }
