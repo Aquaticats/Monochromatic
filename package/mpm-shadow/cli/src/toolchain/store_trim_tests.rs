@@ -1859,11 +1859,20 @@ fn keeps_a_version_a_lock_with_a_route_this_release_cannot_read_names() {
 fn keeps_every_version_when_the_global_lock_cannot_be_found() {
     let fixture = Fixture::new();
     let old: PathBuf = fixture.root.join("node/26.11.0");
-    let env: EnvMap = EnvMap::from_pairs(&[("MPM_SHADOW_STORE_SIZE_BOUND", "0"), ("MPM_SHADOW_STORE_AGE_FLOOR", "0")]);
-    let scope = crate::toolchain::scope::repo_scope(&fixture.root, &EnvMap::from_pairs(&[("HOME", "/nonexistent-home")]))
+    // What: a worktree of its own, and a pass handed an environment with no home at all.
+    // Why: the missing home is how the machine-global lock cannot be found, and the stores the pass trims must still be
+    // the fixture's.
+    let home: &std::path::Path = fixture.root.ancestors().nth(4).expect("the fixture's home directory");
+    let work: PathBuf = home.join("work");
+    fs::create_dir_all(&work).expect("make the worktree");
+    let scope = crate::toolchain::scope::repo_scope(&work, &EnvMap::from_pairs(&[("HOME", home.to_str().expect("UTF-8 home"))]))
         .expect("a scope");
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"26.12.0","route":"archive"}}}"#)
+        .expect("write the lock");
+    assert_eq!(scope.toolchain_root, fixture.root, "the scope must trim the fixture's own store");
+    let env: EnvMap = EnvMap::from_pairs(&[("MPM_SHADOW_STORE_SIZE_BOUND", "0"), ("MPM_SHADOW_STORE_AGE_FLOOR", "0")]);
     let runner = FakeRunner::new();
-    runner.answer("git -C", &format!("worktree {}\nHEAD abc\n\n", fixture.root.display()), 0);
+    runner.answer("git -C", &format!("worktree {}\nHEAD abc\n\n", work.display()), 0);
     let host = Host::current();
     let context = Context { scope: &scope, env: &env, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
     let holders: StoreHolders = holders_of_fixture(std::slice::from_ref(&fixture.root));
