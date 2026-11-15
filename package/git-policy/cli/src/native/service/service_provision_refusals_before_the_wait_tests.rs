@@ -238,7 +238,8 @@ fn a_link_beside(runtime: &Path, name: &str) -> PathBuf {
 }
 
 /// What:
-///  A link beside `runtime`, named so that its own socket path is one byte past what a path form carries,
+///  A link beside `runtime`,
+/// named so that its own socket path is one byte past what a path form carries,
 /// whatever folder the two stand in.
 /// Why:
 ///   The control's sentence is that the manager's abstract socket answers every spelling of one place,
@@ -247,7 +248,8 @@ fn a_link_beside(runtime: &Path, name: &str) -> PathBuf {
 /// with a home directory of two hundred bytes and a process number of two digits the folder was `/r/pr10`,
 /// the link `link-to-a-long-runtime-directory` took exactly 107 bytes with the socket's suffix,
 /// and this control failed where the same control passed with a seven-digit process number.
-/// The name is padded from the limit, so the side is the control's to choose and no folder's length decides it.
+/// The name is padded from the limit,
+/// so the side is the control's to choose and no folder's length decides it.
 fn a_link_past_the_path_limit(runtime: &Path, instance: &str) -> PathBuf {
     let folder: &Path = runtime.parent().expect("a runtime directory stands in a folder");
     // The name that fills one socket address exactly is this long; one byte more puts the address past it.
@@ -278,8 +280,10 @@ fn is_waited_at_by_a_name(spelled: &Path, instance: &str) -> bool {
 /// and its sentence is that a commit stops at once instead of binding where an address cannot be;
 /// that holds only while the spelling is on the abstract side:
 /// with a home directory of two bytes the folder was 18 bytes and `a-file-with-room/run` took 38,
-/// which kept the path form, so the control failed there and passed here.
-/// The padding is computed from the limit, so no folder's length decides which form the commit has to stop at.
+/// which kept the path form,
+/// so the control failed there and passed here.
+/// The padding is computed from the limit,
+/// so no folder's length decides which form the commit has to stop at.
 fn a_name_that_makes_the_path_past_the_limit(parent: &Path, tag: &str) -> String {
     // `parent/<name>/run`, its two separators, and the socket's suffix take one byte more than one address holds.
     let room: usize = (longest_runtime_directory(INSTANCE) + 1).saturating_sub(parent.as_os_str().len() + 1 + "/run".len());

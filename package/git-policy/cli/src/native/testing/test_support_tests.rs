@@ -388,7 +388,8 @@ fn the_folder_of_a_runtime_directory_is_shortened_until_the_room_a_name_needs_is
 ///   The name is what the fixed length is spent on,
 /// and a name shorter or longer than the room would put the directory off the boundary the controls are about:
 /// a control of the longest runtime directory a socket path carries would pass a byte early or fail a byte late.
-/// The two sides are read by the bytes each name is made of, never by a length the two can share:
+/// The two sides are read by the bytes each name is made of,
+/// never by a length the two can share:
 /// a tag that fills the room exactly is the tag's own bytes,
 /// and one byte less of room is the leading bytes of its digest.
 #[test]

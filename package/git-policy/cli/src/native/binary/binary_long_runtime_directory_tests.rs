@@ -139,8 +139,10 @@ fn commit_through(fixture: &Fixture, repo: &Path, runtime: PathBuf) -> Output {
 /// Why:
 ///   This is the longest runtime directory that keeps the path form,
 /// and the commit must be one no person can tell from any other.
-/// The path form is what the sentence is about, so it is said before the commit runs:
-/// one byte longer would be waited at by a name, and the socket file beside it would answer nothing.
+/// The path form is what the sentence is about,
+/// so it is said before the commit runs:
+/// one byte longer would be waited at by a name,
+/// and the socket file beside it would answer nothing.
 #[test]
 fn a_commit_is_made_where_the_runtime_directory_is_as_long_as_a_socket_path_allows() {
     let (fixture, repo) = edited("long-runtime-at-the-longest");
