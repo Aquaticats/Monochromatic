@@ -234,7 +234,7 @@ fn commits_of_the_branch(fixture: &Fixture, repo: &Path) -> String {
 }
 
 /// What:
-///  The fixture's service log as a failure carries it:
+///  What the fixture's service log holds now, as the file has it:
 ///  evidence for a person reading why the case failed,
 ///  and never what a verdict rests on.
 /// Why:
@@ -242,9 +242,10 @@ fn commits_of_the_branch(fixture: &Fixture, repo: &Path) -> String {
 /// and the end of the copy is an event this control does not need to wait for when it decides nothing.
 ///  Every service of a fixture appends to this one file,
 /// so a read made before the recovery runs holds the limited attempt's words alone,
-/// and a read made after it holds both.
+/// and a read made after it holds both,
+/// which `the_log_of_the_recovery` tells apart by this text rather than by a byte count that changes between the reads.
 fn the_service_log_of(fixture: &Fixture) -> String {
-    return super::support::service_log(fixture.root.as_path());
+    return std::fs::read_to_string(fixture.root.join(super::support::SERVICE_LOG_FILE)).unwrap_or_default();
 }
 
 /// What:
@@ -880,7 +881,7 @@ fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_reposi
     //  limited attempt's.
     assert!(
         above.landed,
-        "a commit must land at {room} MiB, one search step and one thread pair above the smallest limit at which a commit lands ({lands_at} MiB), and the repository's branch held {} commits before the limited attempt and {} after it, before the recovery ran; the wrapper ended {} and its standard error said: {}
+        "a commit must land at {room} MiB, one search step and one thread pair above the smallest limit at which a commit lands ({lands_at} MiB), and the commits on the repository's branch were {} before the limited attempt and {} after it, before the recovery ran; the wrapper ended {} and its standard error said: {}
 what the limited attempt's service wrote: {}
 what the service wrote while the recovery ran, whose commit is not the one this case is about: {}",
         above.commits_before,
@@ -1067,7 +1068,7 @@ fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
     }
     assert!(
         !case.landed,
-        "a service that ended before it accepted a connection cannot have landed a commit, and the repository's branch held {} commits before the limited attempt and {} after it; the wrapper ended {} and returned success: {}; its standard error said: {}",
+        "a service that ended before it accepted a connection cannot have landed a commit, and the commits on the repository's branch were {} before the limited attempt and {} after it; the wrapper ended {} and returned success: {}; its standard error said: {}",
         case.commits_before, case.commits_after, case.status, case.returned_success, case.stderr
     );
     assert_eq!(case.verdict, Ok(()), "the repository must recover with an unlimited service");
