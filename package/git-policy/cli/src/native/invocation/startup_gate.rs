@@ -28,8 +28,10 @@ use crate::diagnostic_log::debug;
 use crate::diagnostics::{EngineFailureCode, render_engine_failure_with_hint};
 use crate::merge_isolation_kept_copies::any_kept_copy;
 use crate::merge_isolation_recovery::{RecoveryPlace, merge_intents_to_recover, recover_interrupted_merges};
-/// The record of a branch's move that no worktree had checked out, and the command that finishes a stop.
-use crate::auto_push_branch_move_record::{branch_moves_exist, finish_branch_moves};
+/// Whether a branch move's record exists at all, which is the one directory read a command with none pays.
+use crate::auto_push_branch_move_record::branch_moves_exist;
+/// The command that finishes the checkout a stopped move left, and what it answers about this one.
+use crate::auto_push_branch_move_repairs::finish_branch_moves;
 /// The Git context a push's own starts read.
 use crate::auto_push_single_flight::PushGit;
 use crate::random_id::is_canonical_uuid;
@@ -243,8 +245,8 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &
         let mut waited: std::time::Duration = std::time::Duration::ZERO;
         loop {
             match finish_branch_moves(&git, common_dir, out) {
-                Ok(crate::auto_push_branch_move_record::Settled::Yes) => break,
-                Ok(crate::auto_push_branch_move_record::Settled::OldTipLeft { branch, paths }) => {
+                Ok(crate::auto_push_branch_move_repairs::Settled::Yes) => break,
+                Ok(crate::auto_push_branch_move_repairs::Settled::OldTipLeft { branch, paths }) => {
                     let _said = writeln!(
                         out,
                         "monochromatic-git-policy-cli: this checkout still holds {branch}'s files from before its move on {paths}, and the \
@@ -254,7 +256,7 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &
                     );
                     break;
                 }
-                Ok(crate::auto_push_branch_move_record::Settled::Unknown { why }) => {
+                Ok(crate::auto_push_branch_move_repairs::Settled::Unknown { why }) => {
                     let _said = writeln!(
                         out,
                         "monochromatic-git-policy-cli: the checkout this command runs in could not be checked against a branch move ({why}); \
@@ -262,8 +264,8 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &
                     );
                     break;
                 }
-                Ok(crate::auto_push_branch_move_record::Settled::AnotherCommandAtWork)
-                    if waited >= crate::auto_push_branch_move_record::REPAIR_WAIT =>
+                Ok(crate::auto_push_branch_move_repairs::Settled::AnotherCommandAtWork)
+                    if waited >= crate::auto_push_branch_move_repairs::REPAIR_WAIT =>
                 {
                     let _said = writeln!(
                         out,
@@ -272,9 +274,9 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &
                     );
                     break;
                 }
-                Ok(crate::auto_push_branch_move_record::Settled::AnotherCommandAtWork) => {
-                    std::thread::sleep(crate::auto_push_branch_move_record::REPAIR_PAUSE);
-                    waited += crate::auto_push_branch_move_record::REPAIR_PAUSE;
+                Ok(crate::auto_push_branch_move_repairs::Settled::AnotherCommandAtWork) => {
+                    std::thread::sleep(crate::auto_push_branch_move_repairs::REPAIR_PAUSE);
+                    waited += crate::auto_push_branch_move_repairs::REPAIR_PAUSE;
                 }
                 Err(error) => return Err(RecoveryError(error)),
             }

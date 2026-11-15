@@ -206,6 +206,7 @@ pub mod auto_push_reconcile_branch_advance_without_a_checkout;
 /// The record of such a move, written before the reference moves,
 /// and the command that finishes the checkout a stop left behind.
 pub mod auto_push_branch_move_record;
+pub mod auto_push_branch_move_repairs;
 
 /// The reading of a configured push refspec and the judgement of what the refspecs make of one branch.
 pub mod auto_push_refspec_judging;

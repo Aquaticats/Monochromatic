@@ -3793,7 +3793,8 @@ fn a_failed_worktree_listing_does_not_move_a_checked_out_branch() {
 ///  (a review of commit `36cae084ae`, its finding 3).
 #[test]
 fn a_stop_after_the_reference_moves_leaves_a_record_the_next_command_finishes() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, parse_branch_move};
+    use crate::auto_push_branch_move_record::{list_branch_moves, parse_branch_move};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
     let s = nowhere("ar-stop-after-the-reference-moves");
     let taker: PathBuf = s.scenario.root.join("taker");
@@ -3846,7 +3847,8 @@ fn a_stop_after_the_reference_moves_leaves_a_record_the_next_command_finishes() 
 ///  happened; it names nothing that has to be finished.
 #[test]
 fn a_record_whose_branch_never_moved_is_removed_by_the_next_command() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_record::{list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     let s = nowhere("ar-record-of-a-move-that-never-happened");
     let taker: PathBuf = s.scenario.root.join("taker");
     git(&s.scenario.local, &["worktree", "add", "--quiet", taker.to_str().expect("utf-8"), "topic"]);
@@ -3915,7 +3917,8 @@ fn a_reset_before_the_repair_is_reported_and_not_taken_for_a_finished_checkout()
 ///  the record is what the next command reads (a review of commit `36cae084ae`, its finding 3).
 #[test]
 fn a_stop_inside_the_repair_leaves_a_record_the_next_command_finishes() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves};
+    use crate::auto_push_branch_move_record::{list_branch_moves};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
     use crate::auto_push_reconcile_branch_checkout::{Window as CheckoutWindow, in_the_window_in_a_control as in_the_checkout_window};
     let s = nowhere("ar-stop-inside-the-repair");
@@ -3967,7 +3970,8 @@ fn a_stop_inside_the_repair_leaves_a_record_the_next_command_finishes() {
 ///  the record stays for the next command (integration pass 37, and a review of commit `36cae084ae`, its finding 3).
 #[test]
 fn a_held_index_lock_keeps_the_record_and_lets_the_command_go_on() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_record::{list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     let s = nowhere("ar-held-lock-keeps-the-record");
     let taker: PathBuf = s.scenario.root.join("taker");
     git(&s.scenario.local, &["worktree", "add", "--quiet", taker.to_str().expect("utf-8"), "topic"]);
@@ -4038,7 +4042,8 @@ fn an_automatic_merge_that_landed_is_confirmed_before_its_failure_is_answered() 
 ///   (a review of commit `cae78e1d7e`, its finding 2).
 #[test]
 fn a_record_its_writer_left_is_finished_by_a_later_command_while_that_writer_lives() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, parse_branch_move};
+    use crate::auto_push_branch_move_record::{list_branch_moves, parse_branch_move};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
     use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
     let s = nowhere("ar-record-left-by-a-live-writer");
@@ -4090,7 +4095,8 @@ fn a_record_its_writer_left_is_finished_by_a_later_command_while_that_writer_liv
 ///   (a review of commit `cae78e1d7e`, its finding 3).
 #[test]
 fn a_checkout_a_reset_left_holding_the_old_files_is_brought_to_the_branch() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_record::{list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     let s = nowhere("ar-checkout-left-by-a-mixed-reset");
     let taker: PathBuf = s.scenario.root.join("taker");
     git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
@@ -4171,7 +4177,8 @@ fn nowhere_changing(name: &str) -> Nowhere {
 ///  (a review of commit `cae78e1d7e`, its findings 2 and 3).
 #[test]
 fn a_persons_edit_beside_a_leftover_is_kept_and_named() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_record::{list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     let s = nowhere_changing("ar-persons-edit-beside-a-leftover");
     let taker: PathBuf = s.scenario.root.join("taker");
     git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
@@ -4216,7 +4223,8 @@ fn a_persons_edit_beside_a_leftover_is_kept_and_named() {
 ///  (a review of commit `cae78e1d7e`, its finding 3).
 #[test]
 fn a_checkout_that_took_the_branch_before_the_write_and_was_killed_is_finished_by_a_later_command() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves};
+    use crate::auto_push_branch_move_record::{list_branch_moves};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
     use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
     let s = nowhere("ar-took-it-in-the-window-then-killed");
@@ -4351,7 +4359,8 @@ fn a_persons_unstaged_edit_at_the_repair_survives_it() {
 ///  (a review of commit `4ca7aebcdb`, its finding 2).
 #[test]
 fn a_live_writer_does_not_keep_the_sweep_from_repairing_the_checkout() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_record::{list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     let s = nowhere("ar-live-writer-does-not-stop-the-repair");
     let taker: PathBuf = s.scenario.root.join("taker");
     git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
@@ -4361,7 +4370,7 @@ fn a_live_writer_does_not_keep_the_sweep_from_repairing_the_checkout() {
     git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
     let mut stderr: Vec<u8> = Vec::new();
     let settled = finish_branch_moves(&push_git(&taker), common.as_path(), &mut stderr);
-    assert!(matches!(settled, Ok(crate::auto_push_branch_move_record::Settled::Yes)), "the sweep settles the checkout: {settled:?} / {}", String::from_utf8_lossy(&stderr));
+    assert!(matches!(settled, Ok(crate::auto_push_branch_move_repairs::Settled::Yes)), "the sweep settles the checkout: {settled:?} / {}", String::from_utf8_lossy(&stderr));
     // The merge's tree lacks `local.txt`, which the old tip held, so the write the repair applies deletes it too.
     assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "the checkout is brought to the merge: {}", String::from_utf8_lossy(&stderr));
     assert!(list_branch_moves(common.as_path()).expect("the records").is_empty(), "and the record is finished");
@@ -4384,7 +4393,8 @@ fn a_live_writer_does_not_keep_the_sweep_from_repairing_the_checkout() {
 ///  (a review of commit `4ca7aebcdb`, its finding 2).
 #[test]
 fn a_sweep_that_could_not_repair_says_the_checkout_is_not_settled() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_record::{list_branch_moves, record_branch_move};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     let s = nowhere("ar-sweep-says-unsettled");
     let taker: PathBuf = s.scenario.root.join("taker");
     git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
@@ -4400,14 +4410,14 @@ fn a_sweep_that_could_not_repair_says_the_checkout_is_not_settled() {
     let mut stderr: Vec<u8> = Vec::new();
     let settled = finish_branch_moves(&push_git(&taker), common.as_path(), &mut stderr);
     assert!(
-        matches!(settled, Ok(crate::auto_push_branch_move_record::Settled::OldTipLeft { .. })),
+        matches!(settled, Ok(crate::auto_push_branch_move_repairs::Settled::OldTipLeft { .. })),
         "the sweep does not answer that the checkout is settled: {settled:?} / {}",
         String::from_utf8_lossy(&stderr)
     );
     assert_eq!(list_branch_moves(common.as_path()).expect("the records").len(), 1, "and the record stays for a later command");
     std::fs::remove_file(git_dir.join("index.lock")).expect("the lock goes");
     let settled_after = finish_branch_moves(&push_git(&taker), common.as_path(), &mut stderr);
-    assert!(matches!(settled_after, Ok(crate::auto_push_branch_move_record::Settled::Yes)), "a later command settles it: {settled_after:?}");
+    assert!(matches!(settled_after, Ok(crate::auto_push_branch_move_repairs::Settled::Yes)), "a later command settles it: {settled_after:?}");
     assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and the checkout is brought to the merge");
     remove(&s.scenario.root);
 }
@@ -4421,7 +4431,8 @@ fn a_sweep_that_could_not_repair_says_the_checkout_is_not_settled() {
 ///  (a review of commit `4ca7aebcdb`, its finding 3).
 #[test]
 fn a_timed_out_update_hands_its_record_on() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves, parse_branch_move};
+    use crate::auto_push_branch_move_record::{list_branch_moves, parse_branch_move};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
     let s = nowhere("ar-timed-out-update-hands-on");
     let taker: PathBuf = s.scenario.root.join("taker");
@@ -4470,7 +4481,7 @@ process.exit(result.status ?? 1)
     assert!(handed_on, "the timed-out update hands its record on: {records:?}");
     let mut stderr: Vec<u8> = Vec::new();
     let settled = finish_branch_moves(&push_git(&taker), common.as_path(), &mut stderr);
-    assert!(matches!(settled, Ok(crate::auto_push_branch_move_record::Settled::Yes)), "the next command settles the checkout: {settled:?} / {}", String::from_utf8_lossy(&stderr));
+    assert!(matches!(settled, Ok(crate::auto_push_branch_move_repairs::Settled::Yes)), "the next command settles the checkout: {settled:?} / {}", String::from_utf8_lossy(&stderr));
     assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and the checkout is brought to the merge");
     remove(&s.scenario.root);
 }
@@ -4484,7 +4495,8 @@ process.exit(result.status ?? 1)
 ///  (a review of commit `4ca7aebcdb`, its finding 4).
 #[test]
 fn a_checkout_that_finishes_after_the_listing_keeps_the_record() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, list_branch_moves};
+    use crate::auto_push_branch_move_record::{list_branch_moves};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves};
     use crate::auto_push_reconcile_branch_advance::Advanced;
     use crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting;
     use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
@@ -4510,7 +4522,7 @@ fn a_checkout_that_finishes_after_the_listing_keeps_the_record() {
     assert_eq!(list_branch_moves(common.as_path()).expect("the records").len(), 1, "the record is kept");
     let mut stderr: Vec<u8> = Vec::new();
     let settled = finish_branch_moves(&push_git(&taker), common.as_path(), &mut stderr);
-    assert!(matches!(settled, Ok(crate::auto_push_branch_move_record::Settled::Yes)), "the next command settles it: {settled:?} / {}", String::from_utf8_lossy(&stderr));
+    assert!(matches!(settled, Ok(crate::auto_push_branch_move_repairs::Settled::Yes)), "the next command settles it: {settled:?} / {}", String::from_utf8_lossy(&stderr));
     assert_eq!(
         std::fs::read_to_string(taker.join("remote.txt")).expect("the merge's file"),
         "remote side\n",
@@ -4533,7 +4545,8 @@ fn current_owner() -> crate::transaction_owner::TransactionOwner {
 
 #[test]
 fn a_second_command_waits_for_the_repairs_owner() {
-    use crate::auto_push_branch_move_record::{finish_branch_moves, leave_the_repair_to_anyone, record_branch_move, the_repair_owner, REPAIR_OWNER_SUFFIX};
+    use crate::auto_push_branch_move_record::{record_branch_move};
+    use crate::auto_push_branch_move_repairs::{finish_branch_moves, leave_the_repair_to_anyone, the_repair_owner, REPAIR_OWNER_SUFFIX};
     let s = nowhere("ar-second-command-waits");
     let taker: PathBuf = s.scenario.root.join("taker");
     git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
@@ -4559,12 +4572,12 @@ fn a_second_command_waits_for_the_repairs_owner() {
     // is not settled, and leaves that command's place alone.
     // Why: writing beside it would put two repairs on one index, and Git's lock would fail whichever command came
     // second, which a command about to commit must not do.
-    assert!(matches!(settled, Ok(crate::auto_push_branch_move_record::Settled::AnotherCommandAtWork)), "it waits for the owner and does not settle the checkout: {settled:?} / {}", String::from_utf8_lossy(&stderr));
+    assert!(matches!(settled, Ok(crate::auto_push_branch_move_repairs::Settled::AnotherCommandAtWork)), "it waits for the owner and does not settle the checkout: {settled:?} / {}", String::from_utf8_lossy(&stderr));
     assert!(owner.record_path().exists(), "and it leaves the other command's place alone");
     assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "A  local.txt\nD  remote.txt", "the checkout is untouched");
     leave_the_repair_to_anyone(owner.record_path()).expect("the owner is left");
     let settled_after = finish_branch_moves(&push_git(&taker), common.as_path(), &mut stderr);
-    assert!(matches!(settled_after, Ok(crate::auto_push_branch_move_record::Settled::Yes)), "and then it repairs: {settled_after:?}");
+    assert!(matches!(settled_after, Ok(crate::auto_push_branch_move_repairs::Settled::Yes)), "and then it repairs: {settled_after:?}");
     remove(&s.scenario.root);
 }
 
