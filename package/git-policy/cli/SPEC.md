@@ -9195,13 +9195,35 @@ in-process reader can) gives every value of the multi-valued keys.
   the branch the command's own checkout shows is not moved over a merge of another branch,
   which the release before this one did when that checkout stood at the pushed tip.
   The worktree that has the pushed branch is found with `git worktree list --porcelain -z`,
-  and a branch checked out in another worktree moves there,
+  and a listing that ends with anything but success is an error and not the answer "no worktree has it":
+  a branch may move only when the wrapper knows its holders, so a question that could not be answered stops the move
+  and the report says the branch stayed
+  (a review of commit `36cae084ae`,
+  finding 2).
+  A branch checked out in another worktree moves there,
   by the same two-way index and file update and the same compare-and-swap of the ref,
   run in that worktree,
   with that worktree's own intent record.
   A pushed branch that no worktree has checked out moves as a ref alone,
   by `update-ref` from the tip the push sent,
   and no file is written.
+  Its steps, in order, are:
+  read the worktrees that may hold it (a failure moves nothing),
+  read its tip and compare it with the tip the push sent (a branch that moved moves nothing),
+  write a record of the move in the common Git directory
+  (`rev-parse --path-format=absolute --git-common-dir`),
+  `update-ref` with the tip the push sent as the expected old value,
+  read the worktrees again (a failure keeps the record),
+  and finish the checkout that took the branch, if one did.
+  The record names the ref, the old and the new commit, and the transaction it belongs to,
+  and it is written by one `O_EXCL` file whose bytes are flushed before the name appears,
+  so a stop at any step after the write leaves it for a later command:
+  the startup gate of every command lists the records in the common Git directory and finishes each one whose
+  process is gone, which is the repair the stopped move would have made
+  (`src/native/push/auto_push_branch_move_record.rs`,
+  `settle_merges` in `src/native/invocation/startup_gate.rs`).
+  A record whose branch never reached the merge is removed by that sweep,
+  because the compare-and-swap is what decided the move.
   A worktree whose folder is gone still appears in that listing
   (Git marks it prunable) and holds no branch a person can commit in:
   it is not a worktree to move,
@@ -9256,14 +9278,20 @@ in-process reader can) gives every value of the multi-valued keys.
   reads the checkout after the repair and never before it
   (`shows` in `finish_the_checkout_that_raced_the_move`,
   `shown_branch_awaiting` in `src/native/push/auto_push_reconcile_branch_checkout.rs`).
-  The repair a reference-only move makes writes an intent record of its own in the worktree that took
-  the branch, with the pushed tip and the merge, and removes it when the repair finished:
-  a kill between the write of the reference and the repair, or inside the repair,
-  leaves that record, and the next command in that worktree reads it;
-  the merge settle installs the merge when the index still holds the pushed tip's content on the
-  paths the merge changes, which is the state such a kill leaves
-  (`record_merge_intent` in `src/native/push/auto_push_reconcile_branch_advance.rs`,
-  `predecessor_only` in `src/native/merge/merge_isolation_recovery.rs`).
+  The repair a reference-only move makes writes only what it proves is the move's own content,
+  path by path, by `read-tree -u -m` between the pushed tip and the merge,
+  and a kill inside it leaves the record to the next command, which runs the same repair.
+  A merge settle never writes a worktree file of its own:
+  it carries the branch it landed and removes the record the killed repair left,
+  so a path a person staged, staged and unstaged again, or edited keeps its bytes
+  (a review of commit `36cae084ae`,
+  finding 1:
+  the settle installed the merge over a file the person had staged, which merged cleanly and lost their edit).
+  A write Git itself refused, such as one behind another program's index lock, keeps the record and lets the
+  command go on, and the next command once the lock is free finishes the paths
+  (integration pass 37;
+  a review of commit `36cae084ae`,
+  findings 3 and 4).
   An empty status passes trivially;
   uncommitted work in files the move does not write is left exactly as it was,
   and the report says so,

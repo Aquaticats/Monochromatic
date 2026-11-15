@@ -36,7 +36,7 @@ use crate::auto_push_reconcile_branch_advance::{Advanced, BRANCH_MOVED, Brought,
 /// The repair that writes only what its own write proves is the move's own content.
 use crate::auto_push_reconcile_branch_checkout::{bring_the_checkout_to_its_branch_awaiting, shown_branch_awaiting};
 /// The record of the move, written before the reference moves, and the command that finishes a stop.
-use crate::auto_push_branch_move_record::{common_git_dir_awaiting, record_branch_move, remove_branch_move};
+use crate::auto_push_branch_move_record::{record_branch_move, remove_branch_move};
 use crate::auto_push_reconcile_branch_worktree::{git_at, live_holder_awaiting};
 use crate::auto_push_reconcile_basics_and_limits::{TAG, argv};
 use crate::diagnostic_log::debug;
@@ -112,14 +112,34 @@ pub(crate) async fn move_the_ref_only_awaiting(
         );
         return Ok(NowhereMove::Held(taken));
     }
-    let tip = run_query_awaiting(git, &argv(&["rev-parse", "--verify", format!("{branch_ref}^{{commit}}").as_str()])).await?;
-    if tip.code != Some(0) || String::from_utf8_lossy(&tip.stdout).trim() != local {
+    // What: the branch's tip and the common Git directory in one call.
+    // Why: the record's directory is asked for only when the branch is about to move, and one Git spawn is the whole of
+    //      what the record adds to a person's push, so the question the move already asked carries it
+    //      (`keep/timing-the-record-against-36cae084ae.log` in the review's scratch folder).
+    let asked = run_query_awaiting(
+        git,
+        &argv(&[
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-common-dir",
+            "--verify",
+            format!("{branch_ref}^{{commit}}").as_str(),
+        ]),
+    )
+    .await?;
+    let spoke: String = String::from_utf8_lossy(&asked.stdout).into_owned();
+    let mut said = spoke.lines();
+    let common_dir_said: Option<String> = said.next().map(str::to_owned);
+    let tip_said: Option<String> = said.next().map(str::to_owned);
+    if asked.code != Some(0) || tip_said.as_deref() != Some(local) {
         return Ok(NowhereMove::Answered(Advanced::Not {
             reason: String::from(BRANCH_MOVED),
             advice: advice_to_move(merge_oid, where_to),
         }));
     }
-    let common_dir: PathBuf = common_git_dir_awaiting(git).await?;
+    // An answer with no directory in it leaves an empty name, whose record write fails and stops the move with the
+    //  sentence below, which is the one place a repository whose Git directory is gone is reported.
+    let common_dir: PathBuf = PathBuf::from(common_dir_said.unwrap_or_default());
     let Some((record, _movement)) = record_branch_move(common_dir.as_path(), branch_ref, local, merge_oid) else {
         // What: the record could not be written, so the reference is not moved.
         // Why: a stop after the write would leave a checkout with the older files and nothing that finishes it
