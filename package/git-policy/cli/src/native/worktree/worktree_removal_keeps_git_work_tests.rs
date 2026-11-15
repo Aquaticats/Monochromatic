@@ -304,27 +304,6 @@ fn a_record_of_an_operation_that_stopped_names_the_commit_it_holds() {
 }
 
 /// What:
-///  A commit only `FETCH_HEAD` names is not stranded,
-///  and the module's own words say why.
-/// Why:
-///  `FETCH_HEAD` names an object Git fetched from somewhere else,
-///  which is still there where it came from and comes back with the same fetch,
-///  so it is no commit a person made and no work a removal can lose.
-///  Measured on this repository, 2026-11-14: 4 of its 179 linked worktrees hold such a commit, and refusing them
-///  would keep four worktrees standing over an object the far side still has.
-#[test]
-fn a_commit_only_fetch_head_names_is_not_stranded() {
-    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-fetch-head");
-    let head: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
-    let commit: String = git_text(
-        fixture.worktree.as_path(),
-        &["commit-tree", format!("{head}^{{tree}}").as_str(), "-p", head.as_str(), "-m", "a commit only a fetch names"],
-    );
-    std::fs::write(fixture.admin.join("FETCH_HEAD").as_path(), format!("{commit}\t\tbranch 'main' of somewhere\n")).expect("a fetch record");
-    assert_eq!(fixture.stranded(), Ok(Vec::new()), "a fetched object is not work a removal can lose");
-}
-
-/// What:
 ///  A line of a log this program cannot read is the reason nothing is removed.
 /// Why:
 ///  Such a line may name a commit this program cannot see,
@@ -476,4 +455,32 @@ fn a_detached_head_in_capitals_names_the_commit_git_prints() {
     let said: Vec<String> = fixture.stranded().expect("the record can be read");
     assert_eq!(said.len(), 1, "the capital name holds one commit: {said:?}");
     assert!(said[0].contains(&commit[..12]), "and the sentence names it as Git prints it: {}", said[0]);
+}
+
+/// What:
+///  A commit only the worktree's own `FETCH_HEAD` names is stranded,
+///  and the sentence says a fetch brought it.
+/// Why:
+///  `FETCH_HEAD` was left out on the reasoning that what it names came from elsewhere,
+///  and a commit made here and fetched by its object name is named by nothing else:
+///  the removal ended 0 and a collection took it
+///  (a review of `dfd6fab13e`, finding 3).
+#[test]
+fn a_commit_only_fetch_head_names_is_stranded() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-fetch-head");
+    let head: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
+    let commit: String = git_text(
+        fixture.worktree.as_path(),
+        &["commit-tree", format!("{head}^{{tree}}").as_str(), "-p", head.as_str(), "-m", "a commit only a fetch names"],
+    );
+    std::fs::write(
+        fixture.admin.join("FETCH_HEAD").as_path(),
+        format!("{commit}\t\tbranch 'main' of somewhere\n"),
+    )
+    .expect("a fetch record");
+    let said: Vec<String> = fixture.stranded().expect("the records can be read");
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(said[0].contains("the record `FETCH_HEAD`"), "the sentence names the record: {}", said[0]);
+    assert!(said[0].contains(&commit[..12]), "and the commit: {}", said[0]);
+    assert!(said[0].contains("what a fetch brought here"), "and says a fetch brought it: {}", said[0]);
 }

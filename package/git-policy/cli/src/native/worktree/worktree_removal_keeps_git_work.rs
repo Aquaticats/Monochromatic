@@ -132,18 +132,54 @@ const SHA256_DIGITS: usize = 64;
 ///  "Every wait has a bound").
 const NAME_RECORD_LIMIT: u64 = 8 << 20;
 
-/// The records a worktree's own Git directory keeps directly that name a commit.
+/// The records a worktree's own Git directory keeps directly that name a commit,
+/// and the list of the ones it does not, each with its reason.
 /// Why:
-///   Each is a name a removal deletes with the directory,
-///  and each was seen holding a commit when the operation was made in a linked worktree
-///  (`keep/probe-admin-state.log` of the run that answered the review):
-///  a reset's `ORIG_HEAD`,
-///  a merge's `MERGE_HEAD`,
-///  a cherry-pick's and a revert's,
-///  a rebase's `REBASE_HEAD`,
-///  the stash a merge or a rebase put aside,
-///  and a bisect's log and the revision it was about to try.
-const NAMING_RECORDS: [&str; 9] = ["ORIG_HEAD", "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "REBASE_HEAD", "MERGE_AUTOSTASH", "BISECT_LOG", "BISECT_EXPECTED_REV", "BISECT_START"];
+///   A removal deletes the worktree's own Git directory,
+///  so every object name Git wrote there is a name the removal takes away.
+///  The list is taken from Git's own documentation of the repository layout and of the commands that write these
+///  records, not from memory:
+///  `gitrepository-layout(5)` for `HEAD`, `index`, `logs`, `refs`, `packed-refs`, `commondir`, `gitdir`, `config`,
+///  `hooks`, `info`, `shallow` and `worktrees/<id>`,
+///  `git-fetch(1)` for `FETCH_HEAD` ("the names of refs that are fetched, together with the object names they point at,
+///  are written to `.git/FETCH_HEAD`"),
+///  `git-merge(1)` for `MERGE_HEAD`, `MERGE_AUTOSTASH` and `AUTO_MERGE`, and `git-rebase(1)` for `ORIG_HEAD` and
+///  `REBASE_HEAD`;
+///  `rebase-merge/`, `rebase-apply/` and `sequencer/` are the state of an operation that stopped, and the files named
+///  in `NAMING_RECORD_FILES` are the ones that hold the commits of that operation.
+///  In (read for an object name):
+///  `HEAD`, `logs` (the whole tree), `refs` (through the reference query), `packed-refs` (the same query),
+///  `ORIG_HEAD`, `MERGE_HEAD`, `CHERRY_PICK_HEAD`, `REVERT_HEAD`, `REBASE_HEAD`, `MERGE_AUTOSTASH`,
+///  `BISECT_LOG`, `BISECT_EXPECTED_REV`, `BISECT_START`,
+///  `FETCH_HEAD`,
+///  and the operation records listed below.
+///  Out, with the reason:
+///  `index` names the blobs of what is staged; a clean worktree's removal needs none of them, and a worktree whose
+///  staged bytes would be lost is not clean, so Git refuses it before the question is asked;
+///  `shallow` names commits their own refs also reach;
+///  `AUTO_MERGE` names a tree, and the commits it was made from are named by `MERGE_HEAD`;
+///  `MERGE_MSG`, `SQUASH_MSG`, `COMMIT_EDITMSG` and `TAG_EDITMSG` hold messages a person wrote, and a name read out of
+///  one would keep a worktree for a commit nothing names;
+///  `commondir`, `gitdir`, `config`, `config.worktree`, `hooks`, `info`, `locked` and `objects` hold no object name.
+///  `FETCH_HEAD` is in by the project's rule, not by the reading this module had first:
+///  a commit made here and fetched by its object name is named by nothing else, so a refusal that left `FETCH_HEAD` out
+///  let the collection take it
+///  (a review of `dfd6fab13e`, finding 3).
+///  A plain `git fetch` and a `git pull` leave refs naming what they fetched, so the refusal does not reach them;
+///  a fetch of a bare URL or of a branch into nothing leaves commits only `FETCH_HEAD` names, and that refusal is the
+///  one a person meets (measured in the run that answered that review).
+const NAMING_RECORDS: [&str; 10] = [
+    "ORIG_HEAD",
+    "MERGE_HEAD",
+    "CHERRY_PICK_HEAD",
+    "REVERT_HEAD",
+    "REBASE_HEAD",
+    "MERGE_AUTOSTASH",
+    "BISECT_LOG",
+    "BISECT_EXPECTED_REV",
+    "BISECT_START",
+    "FETCH_HEAD",
+];
 
 /// The records inside the directories an operation in progress keeps that name a commit,
 /// with the directory each stands in.
@@ -905,6 +941,14 @@ fn sentence(root: &Path, stranded: &Stranded) -> String {
     let quoted: String = crate::shell_quote::shell_quote(root.as_os_str().as_encoded_bytes());
     // A commit is given a branch, and a tree or a blob a tag, which is the name Git can hold for an object that is no commit.
     return match &stranded.reached {
+        // A fetch record is the one holder a person will not expect: the sentence says where the name came from.
+        Reached::Commit if stranded.holder == "the record `FETCH_HEAD`" => format!(
+            "{} names the commit {short}, which is what a fetch brought here and which nothing else of this repository \
+             names, so a removal would leave nothing that names it and `git gc --prune=now` would take it. Give it a name \
+             that outlives the worktree first, with `git -C {quoted} branch <a name you choose> {short}`, then remove the \
+             worktree again",
+            stranded.holder
+        ),
         Reached::Commit => format!(
             "{} names the commit {short}, and nothing else of this repository does, so a removal would leave nothing that names it and \
              `git gc --prune=now` would take it. Give it a name that outlives the worktree first, with `git -C {quoted} branch <a name you \

@@ -28,6 +28,8 @@
 //! ```
 
 use crate::worktree_registration_proof::read_record_here;
+use std::ffi::OsString;
+use std::os::unix::ffi::OsStringExt;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -111,11 +113,23 @@ pub(crate) fn registered_worktrees(common_dir: &Path) -> Result<Vec<RegisteredWo
 /// ```
 fn registered_worktree(admin: &Path) -> Result<Option<PathBuf>, String> {
     let text: Vec<u8> = read_record_here(admin.join("gitdir").as_path(), "the record that names its worktree").map_err(|refusal| return refusal.into_words())?;
-    let recorded: PathBuf = PathBuf::from(String::from_utf8_lossy(text.trim_ascii_end()).into_owned());
+    // A path is bytes: a worktree whose name is not UTF-8 is a worktree like any other, and decoding the record lossily
+    // named a path that does not exist, so the registration read as one Git had pruned
+    // (a review of `dfd6fab13e`, finding 2).
+    let recorded: PathBuf = PathBuf::from(OsString::from_vec(text.trim_ascii_end().to_vec()));
     let pointer: PathBuf = if recorded.is_absolute() { recorded } else { admin.join(recorded) };
-    let Some(parent) = pointer.parent() else { return Ok(None) };
-    let Ok(root) = std::fs::canonicalize(parent) else { return Ok(None) };
-    return Ok(root.is_dir().then_some(root));
+    let Some(parent) = pointer.parent() else {
+        return Err(format!("the record in {} names no directory", admin.join("gitdir").display()));
+    };
+    return match std::fs::canonicalize(parent) {
+        Ok(root) => Ok(root.is_dir().then_some(root)),
+        // A worktree that is gone is a registration Git prunes, and nothing a removal deletes.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) if error.raw_os_error() == Some(libc::ENOTDIR) => Ok(None),
+        // Anything else is a registration this program cannot follow, and it may name a worktree inside the one being
+        // removed: the reason, not a guess that it is gone.
+        Err(error) => Err(format!("the worktree {} names cannot be resolved ({error})", parent.display())),
+    };
 }
 
 /// What:

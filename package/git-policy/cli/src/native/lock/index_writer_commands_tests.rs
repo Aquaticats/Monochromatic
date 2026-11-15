@@ -22,6 +22,7 @@ fn direct(words: &[&str]) -> ResolvedCommand {
         route: Route::Direct,
         // These controls name a built-in, which no shell alias runs.
         shell_command: None,
+        shell_value: None,
     };
 }
 
@@ -260,6 +261,7 @@ fn global_options_before_the_subcommand_do_not_hide_it() {
         route: Route::Direct,
         // These controls name a built-in, which no shell alias runs.
         shell_command: None,
+        shell_value: None,
     };
     assert!(is_index_writer(&command));
 }
