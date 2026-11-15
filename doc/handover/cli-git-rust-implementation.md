@@ -1671,9 +1671,19 @@ and what it queued.
   the author is asked which they are.
 - **Weighed**:
   all thirteen go back.
-  None of the mpm code in question is in `main`
-  (both cleanup branches are unmerged),
-  so nothing released does these things.
+  Measured on `main` after this was first written,
+  and corrected:
+  `main` holds none of `store_trim.rs`,
+  `store_versions.rs` and `stale_launchers.rs`,
+  nor the records' lock,
+  and its publish takes its guard without giving up,
+  so the deletions and the overwritten publish are the branches' alone.
+  **The missing bound is in the released program,
+  and wider there**:
+  `main`'s runner waits on every program it starts with `command.output()` and has no deadline at all
+  (`toolchain/runner.rs:185`);
+  the removal branch brings the bounded runner and leaves eight call sites without one.
+  The removal author's brief asks for a request type that cannot say "no deadline".
   The briefs ask for shapes and walks,
   not items:
   one reader of the store's names that takes them apart with the constants that built them,
