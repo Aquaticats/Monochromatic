@@ -1734,11 +1734,12 @@ and what it queued.
   (`~/temp/agent/pi-runs/controls-of-a-service-under-an-address-space-limit-make-the-new-assertions-message-true-prompt.md`);
   the review after it reads what is added after `2616009887`.
   What the planted case showed is worth its own line:
-  at a room below the boundary the service landed the commit and the wrapper,
-  ended by its limit,
-  did not report it.
-  That is what the control is about,
-  and the repository recovered.
+  at a room below the boundary the service landed the commit and the wrapper did not return success.
+  How the wrapper ended there is what the message does not say,
+  and so is not known from this run.
+  The assertion before it,
+  that the repository recovered,
+  had passed.
 - **The temperature**,
   read at 10:06:35:
   58.6 degrees,
