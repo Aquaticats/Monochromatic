@@ -1639,6 +1639,83 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landing that never waits has one finding left; the driver's brief writer for every kind of code file answers and goes to review (2026-11-15T08:10:33-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The landing that never waits** (`ff4fc2a1fb`),
+  its review,
+  ended 08:07:34,
+  45 of 45 files and the diff to its last line,
+  **one thing**,
+  reproduced at the blocking budget's own interface,
+  the service's sequence around it by reading:
+  a look of the slow lane that runs out at its 120 s gives back its slow-work permits,
+  while the jobs it started keep their general places until they really end.
+  Replacement work then takes the freed permits and the last general place:
+  three slow jobs under a limit of two,
+  every general place held,
+  and each later round of pushes and upkeep refused for as long as the first storage operations stay stuck
+  (`general places free=0`,
+  a job of the client's path `NotRun`,
+  and `Ran` once the sleepers were let go).
+- **Weighed**:
+  it goes back.
+  It needs storage operations stuck past two minutes,
+  which this machine's home drive has come near
+  (stalls of up to 109 s on 2026-11-15),
+  and it breaks the branch's own sentence,
+  that slow work never takes the places the rest needs.
+  The author is asked to tie the permit to the job and not to the waiter,
+  and to list every other permit or place tied to a waiter whose work outlives it.
+  Its fourth run is queued fifth
+  (`~/temp/agent/pi-runs/landing-never-waits-answers-its-third-review-of-2026-11-15-prompt.md`).
+  Passes 29 and 34 still wait on this branch.
+- **The driver's brief writer reads every kind of code file**,
+  its author's third run,
+  ended 08:04:26 at `89c1554737`:
+  the three findings answered.
+  What a change is
+  (tests,
+  code,
+  or nothing a review reads)
+  is one table of 64 rows,
+  generated from the rule and walked by a test;
+  a file a review cannot judge is left out by name with the reason;
+  Git's listings are asked with `-z` and read byte for byte,
+  so a name Git would quote is the name the brief shows
+  (seven hard names by `core.quotePath` on and off,
+  14 of 14).
+  Three controls fail with their fix out.
+  199 suites pass on the second whole run;
+  two timing-sensitive driver tests failed in the first and passed alone,
+  the subject of the run queued at 06:57.
+  It touched `review-brief.ts` and the brief template,
+  which the review brief's coverage branch also changes;
+  whichever goes into `main` second merges the other.
+  Its review is queued twelfth
+  (`main...89c1554737`,
+  eleven code files that are not tests).
+- **The temperature**,
+  read at 08:09:00:
+  52.4 degrees,
+  budget 32.0 threads,
+  5.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:09:01:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:03;
+  one launcher had outlived its finished run and was stopped
+  (the long runtime directory's review);
+  no process worked inside a worktree whose run was not going;
+  15 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+  The queue held 86 entries at 08:10:33.
+
 ##### Three reviews, each with reproduced findings: the landed removal, the journal branch, the long runtime directory's controls (2026-11-15T08:06:19-05:00)
 
 Not final and not approved:
