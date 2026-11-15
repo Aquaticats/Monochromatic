@@ -580,7 +580,7 @@ and without a file the reviewed commit does not hold.
 
 Which extension is code is not guessed from one package's folders.
 The two lists in `src/which-files-a-review-reads.ts` were measured against what this repository tracks:
-on 2026-11-14 `git ls-files` named 23845 files in 89 extensions,
+on 2026-11-14 the tree this section's lists were measured on named 23845 files in 89 extensions,
 16053 of them code in 24 extensions
 (`.ts`, `.mts`, `.cts`, `.mjs`, `.cjs`, `.js`, `.rs`, `.kt`, `.kts`, `.slint`, `.qml`,
 `.html`, `.css`, `.xml`, `.c`, `.cpp`, `.sh`, `.ps1`, `.bat`, `.sql`, `.hbs`, `.pro`, `.tf` and `.spvasm`),

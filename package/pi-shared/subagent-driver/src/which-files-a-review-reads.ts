@@ -4,10 +4,11 @@
 
  The kind is read from the extension rather than from a file's content, because a review is decided from a diff: the ranges are
  asked which paths they touched, and nothing in that answer says what a file holds. The lists are measured against what this
- repository tracks rather than reasoned from memory. On 2026-11-14 `git ls-files` named 23845 files in 89 extensions: 16053 of
- them in the 24 code extensions below, and 7792 in the 64 left-out ones or in no extension at all. The check kept beside this
- change's report lists every extension with its count and the kind this module gives it, and the report says why each kind is read
- or left out.
+ repository tracks rather than reasoned from memory. On 2026-11-14 the tree this change started from named 23845 files in 89
+ extensions: 16053 of them in the 24 code extensions below, and 7792 in the 64 left-out ones or in no extension at all. The same
+ measurement on the tree this change leaves names 23847, the two more being this module and its test, which are `.ts` files a
+ review reads. The check kept beside this change's report lists every extension with its count and the kind this module gives it,
+ and the report says why each kind is read or left out.
 
  A test or a fixture is not a kind here. Which file is one is the rule in `material-of-a-review.ts` (`_tests.rs` and `.test.ts`
  suffixes, `test_support` and `stand-in-` paths, and a folder named `tests`), because a test is written in the language of the
