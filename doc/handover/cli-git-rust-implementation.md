@@ -1594,6 +1594,90 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Three authors answer: the landing stages under a name only its maker can make and holds no lock, the landed removal refuses on `FETCH_HEAD`, and the fixture's wait keeps what it did not see end (2026-11-15T06:28:33-05:00)
+
+Not final and not approved:
+what three authors report and what the coordinating session queued.
+
+- **The landing that never waits**,
+  its author's third run,
+  ended 06:26:04 at `ff4fc2a1fb`.
+  All three of the review's claims held,
+  each shown by a control first.
+  The answer to the first two is the lock-free shape asked for:
+  a filling stages under a name only its maker can make
+  (`<destination>.monochromatic-prewarm.<pid>~<birth identity>~<pid namespace>.<hex instant>`),
+  so ownership is the name;
+  the marker,
+  the lock,
+  the claim and four lock helpers are deleted,
+  and no lock is left in the module.
+  A leftover is a name whose maker is gone;
+  a live maker,
+  an unreportable one and any name not of this release are left alone.
+  The destination is published by a rename that never replaces.
+  Every caller of the "no place" answer is listed;
+  the journal removal now leaves the stage and says so.
+  One caller is left and named:
+  the prewarm's record still turns "no place" into a failure,
+  because the kind is lost at a text boundary.
+  Its review is queued third
+  (`main...ff4fc2a1fb`,
+  46 code files that are not tests).
+  Integration passes 29 and 34 wait on it.
+- **The landed removal**,
+  its author's thirteenth run,
+  ended 06:23:30 at `746040080c`.
+  The review's three scripts reproduced at the old tip and three controls fail with the fixes taken out.
+  A `!` alias is read as Git reads a command line,
+  inner global options included.
+  A nested registration is followed by its bytes,
+  and one that cannot be resolved refuses the removal and is named.
+  `FETCH_HEAD` is a naming record:
+  the list was written again from Git's own documentation,
+  with what is in and what is out and why.
+  How often an ordinary fetch reaches the new refusal:
+  a plain `git fetch` and a `git pull` leave references that name what they fetched,
+  so the removal goes;
+  `git fetch <url> <branch>` leaves none,
+  so the removal is refused with the sentence and the opt-out.
+  Cost:
+  paired difference minus 2.5 ms with a spread of 16.8 ms,
+  so none that can be measured.
+  Its review is queued fourth
+  (`main...746040080c`,
+  22 code files that are not tests).
+  When it is clean it goes to a pass,
+  and the removal guard merges it after.
+- **The controls of a service under an address-space limit**,
+  its author's fourth run,
+  ended 06:26:36 at `f24d1b9ebd`:
+  the fixture's wait for its log copies keeps a copy it did not see end,
+  so a second wait cannot answer that it ended;
+  a control puts two callers on one fixture,
+  released by a barrier and not a sleep,
+  and fails with the fix taken out
+  (`[false, true]` against `[false, false]`).
+  Its review is queued thirteenth
+  (`main...f24d1b9ebd`,
+  six code files that are not tests).
+  The same helper was changed on the journal branch by another author;
+  the two meet in `binary_support_fixture_service*.rs` when both are merged.
+- **The temperature**,
+  read at 06:27:51:
+  59.1 degrees,
+  budget 32.0 threads,
+  21.8 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 06:27:53:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 06:22;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  15 runs going,
+  none silent for twenty minutes.
+  The queue held 84 entries at 06:28:33.
+
 ##### The gate on `0.6.1-alpha.39` fails 26 of 9,119, three of them for the first time, on a machine held down for its temperature (2026-11-15T06:24:26-05:00)
 
 Not final and not approved:
