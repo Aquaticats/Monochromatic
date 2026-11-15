@@ -1455,6 +1455,57 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The gate on `0.6.1-alpha.38` fails 23: the two-adds control passes, the three push controls pass, and one failure that had no run gets one (2026-11-15T01:58:59-05:00)
+
+Not final and not approved:
+what the coordinating session ran,
+read,
+weighed and queued.
+
+- **The gate on `d7a2f6a013`** (`0.6.1-alpha.38`),
+  started 01:40:31,
+  log written until 01:57:58:
+  `9113 tests run: 9090 passed (6 slow), 23 failed, 28 skipped`,
+  `gate-exit-status=1`,
+  701 s
+  (the four before it took 788 to 893 s).
+- **What pass 49 was for passes**:
+  `worktree_copy_concurrent::an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_copy`
+  and the branch's own `…an_add_says_nothing_about_a_lock_a_live_program_holds_in_another_worktree`.
+- **Of the four that were new in the gate on `0.6.1-alpha.37`, none fails here**:
+  the three `push_minimum_rate::` controls passed in 14.5 to 18.4 s,
+  and `foundation::lazy_runtime::…a_build_that_finishes_while_the_caller_gives_up_is_kept` passed.
+  That is one gate;
+  each of the four has a run queued and none of them is fixed.
+- **21 of the 23 failed in each of the four gates before**.
+  By the fixes this handover records,
+  each of them has a branch in review or with its author,
+  or a fresh run queued.
+- **Two failed in one of the four gates before**:
+  - `landing::service_land::owed_push_tests::a_landed_commit_holds_its_push_where_no_round_runs_it`,
+    "remove only the fixture: … Directory not empty";
+    its fresh run is queued
+    (`owed-push-control-removes-its-fixture-while-nothing-of-its-service-still-writes-there`,
+    twenty-second in the queue).
+  - `worktree::worktree_process_inside::tests::a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table`,
+    "the helper's own descriptor is named",
+    left `None`.
+    No run had it.
+    It guards the refusal of a removal while a process works inside the worktree,
+    so a miss by the code would be a worktree removed under a running program;
+    a fresh run is queued for whether the code or the control is wrong
+    (`~/temp/agent/pi-runs/process-holding-a-file-open-in-a-worktree-is-found-every-time-the-hosts-table-is-read-prompt.md`,
+    queued tenth).
+- **The machine's daily toolchain update ran in the main checkout**:
+  at 01:50:28 `mise run toolchain:update:daily` moved Rust from `nightly-2026-11-14` to `nightly-2026-11-15` in `toolchain.lock.json`
+  (the user journal says so)
+  and went on to `toolchain:install`.
+  The change was uncommitted when read at 01:50:55.
+  It is not this session's and was left alone.
+  The gate ran on its own worktree at the committed lock,
+  so on the older nightly.
+- The queue held 80 entries at 01:58:59.
+
 ##### The commit service that did not start has its cause and a fix in review; the three push controls fail without pass 48 too; three defects those reports show get runs of their own (2026-11-15T01:50:07-05:00)
 
 Not final and not approved:
