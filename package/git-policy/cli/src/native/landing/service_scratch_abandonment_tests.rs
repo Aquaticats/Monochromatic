@@ -70,8 +70,8 @@ fn a_clock_step_forward_never_takes_a_commit_tree_a_live_command_builds_in() {
         may_go(building.as_path(), &building_metadata, stepped, crate::scratch_location::SCRATCH_STALE_AFTER),
         "the age of the tree a live command builds in passed at the stepped clock, which is the case this control is about"
     );
-    let refused = crate::tree_held_by_a_live_process::remove_as_a_sweep(building.as_path(), |path: &Path| {
-        return crate::scratch_entry_removal::remove_within(path, crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING);
+    let refused = crate::tree_held_by_a_live_process::remove_as_a_sweep(building.as_path(), |path: &Path, claim: Option<crate::tree_held_by_a_live_process::HeldTree>| {
+        return crate::scratch_entry_removal::remove_within(path, crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING, claim);
     });
     assert!(
         matches!(refused, crate::tree_held_by_a_live_process::SweptRemoval::HeldByALiveProcess),
@@ -82,8 +82,8 @@ fn a_clock_step_forward_never_takes_a_commit_tree_a_live_command_builds_in() {
         may_go(stopped.as_path(), &stopped_metadata, stepped, crate::scratch_location::SCRATCH_STALE_AFTER),
         "and a commit tree no live command holds still goes at the stepped clock"
     );
-    let taken = crate::tree_held_by_a_live_process::remove_as_a_sweep(stopped.as_path(), |path: &Path| {
-        return crate::scratch_entry_removal::remove_within(path, crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING);
+    let taken = crate::tree_held_by_a_live_process::remove_as_a_sweep(stopped.as_path(), |path: &Path, claim: Option<crate::tree_held_by_a_live_process::HeldTree>| {
+        return crate::scratch_entry_removal::remove_within(path, crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING, claim);
     });
     assert!(
         matches!(taken, crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Finished)),

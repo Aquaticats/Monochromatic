@@ -363,17 +363,49 @@ pub const THE_TREES_A_COMMAND_MAKES_AT_MOST: usize = 3;
 ///  (`scratch_entry_removal.rs`,
 ///  `remove_within`;
 ///  `tree_held_by_a_live_process.rs`).
-///  The pre-fix behaviour, moved here so a control can reach it: the removal is asked for,
-///  its answer is not read,
-///  and the path is handed back while a removal of it may still be running.
+///  The old tree is moved aside, and the aside is removed bounded;
+///  the answer is the path only when the next attempt may write there,
+///  and nothing when it may not.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const path = thePathTheNextAttemptMayUse(tree, ceiling); // the pre-fix behaviour: the removal is not waited for
+/// const path = thePathTheNextAttemptMayUse(tree, ceiling); // the path, or undefined
 /// ```
-pub fn the_path_the_next_attempt_may_use(tree: PathBuf, ceiling: Duration) -> PathBuf {
-    let _gone: crate::scratch_entry_removal::Removal = crate::scratch_entry_removal::remove_within(tree.as_path(), ceiling);
-    return tree;
+pub fn the_path_the_next_attempt_may_use(tree: PathBuf, ceiling: Duration) -> Option<PathBuf> {
+    // What: The old tree is moved aside in one step, and only the aside is removed.
+    // Why:  A removal that has not finished keeps its thread and its claim, so the name it was given is not free until it
+    //       ends; a rename is one step that cannot be half done, so the name the next attempt writes is free the moment
+    //       this returns, whatever the old removal goes on doing at the aside's name
+    //       (the same rule the leftover handling above follows).
+    let Some(parent) = tree.parent() else { return None };
+    let name: String = tree.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
+    let aside: PathBuf = parent.join(format!("{name}.going-{}", crate::random_id::random_uuid().unwrap_or_default()));
+    match std::fs::rename(tree.as_path(), aside.as_path()) {
+        Ok(()) => {
+            match crate::scratch_entry_removal::remove_within(aside.as_path(), ceiling, None::<crate::tree_held_by_a_live_process::HeldTree>) {
+                crate::scratch_entry_removal::Removal::Finished => {}
+                crate::scratch_entry_removal::Removal::Unfinished => debug(
+                    TAG,
+                    format!("the next attempt's tree is free; what was at {} is still being removed after {ceiling:?}", aside.display()).as_str(),
+                ),
+                crate::scratch_entry_removal::Removal::Failed(error) => debug(
+                    TAG,
+                    format!("what was at {} is left to a later sweep: {error}", aside.display()).as_str(),
+                ),
+            }
+            return Some(tree);
+        }
+        // Nothing is at the name, so nothing is removing anything there and the next attempt may have it.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Some(tree),
+        // The name cannot be moved aside, so the removal is asked for where it is and the path is handed on only when it ended.
+        Err(error) => {
+            debug(TAG, format!("{} cannot be moved aside ({error}), so its removal is asked for where it is", tree.display()).as_str());
+            return match crate::scratch_entry_removal::remove_within(tree.as_path(), ceiling, None::<crate::tree_held_by_a_live_process::HeldTree>) {
+                crate::scratch_entry_removal::Removal::Unfinished => None,
+                _ended => Some(tree),
+            };
+        }
+    }
 }
 
 /// What:
@@ -437,7 +469,7 @@ fn make_a_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, ceiling:
                 // A control checks which name the removal below is given (`scratch_location_removal_targets_test_support.rs`).
                 #[cfg(test)]
                 test_targets::note(aside.as_path());
-                match remove_within(aside.as_path(), ceiling) {
+                match remove_within(aside.as_path(), ceiling, None::<crate::tree_held_by_a_live_process::HeldTree>) {
                     Removal::Finished => {}
                     Removal::Unfinished => debug(
                         TAG,
@@ -461,7 +493,7 @@ fn make_a_commit_scratch(common_dir: &Path, git_dir: &Path, name: &str, ceiling:
                 debug(TAG, format!("the leftover {} cannot be moved aside: {error}", tree.display()).as_str());
                 #[cfg(test)]
                 test_targets::note(tree.as_path());
-                if !remove_within(tree.as_path(), ceiling).finished() {
+                if !remove_within(tree.as_path(), ceiling, None::<crate::tree_held_by_a_live_process::HeldTree>).finished() {
                     let fresh: PathBuf = directory.join(format!("{name}-again-{}", crate::random_id::random_uuid().unwrap_or_default()));
                     debug(
                         TAG,
@@ -764,7 +796,9 @@ pub fn sweep_stale(directory: &Path, now: SystemTime, max_age: Duration, ceiling
         //       (`tree_held_by_a_live_process.rs`, `remove_as_a_sweep`).
         //       The removal is bounded like every other one: a device that stalls costs this call the ceiling and leaves the
         //       entry to the next sweep, instead of holding the command that asked for scratch for as long as the device takes.
-        match crate::tree_held_by_a_live_process::remove_as_a_sweep(path.as_path(), |within: &Path| { return remove_within(within, ceiling); }) {
+        match crate::tree_held_by_a_live_process::remove_as_a_sweep(path.as_path(), |within: &Path, claim: Option<crate::tree_held_by_a_live_process::HeldTree>| {
+            return remove_within(within, ceiling, claim);
+        }) {
             crate::tree_held_by_a_live_process::SweptRemoval::Removed(Removal::Finished) => removed += 1,
             crate::tree_held_by_a_live_process::SweptRemoval::Removed(Removal::Unfinished) => {
                 debug(TAG, format!("the stale {} was still being removed after {ceiling:?}", path.display()).as_str());

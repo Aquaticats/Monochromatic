@@ -188,6 +188,15 @@ struct Waiting {
     _renewal: ScratchRenewal,
 }
 
+/// How long a stocked tree's absence may take to be answered, and why.
+/// Why this figure:
+///  One `symlink_metadata` of a path this service wrote itself answers in microseconds on a healthy volume;
+///  fifty milliseconds is the same bound the claim on a tree is asked within
+///  (`tree_held_by_a_live_process.rs`,
+///  `THE_CLAIM_IS_ASKED_FOR_AT_MOST`),
+///  and a volume that has not answered in that time is one this landing cannot wait for.
+const THE_STOCK_IS_ASKED_FOR_AT_MOST: std::time::Duration = std::time::Duration::from_millis(50);
+
 impl DrawnShadows {
     /// What:
     ///  The stock of a service that has drawn nothing yet.
@@ -351,8 +360,29 @@ impl DrawnShadows {
         };
         let mut gone: Vec<PathBuf> = Vec::new();
         for path in paths {
-            if std::fs::symlink_metadata(path.as_path()).is_err() {
-                gone.push(path);
+            // What: The question is put on a thread of its own, and this landing thread waits for it no longer than the ceiling.
+            // Why:  It runs here, on the landing thread, after the batch's work and before its outcomes go out:
+            //       a `symlink_metadata` on a mount whose server stopped answering never returns, and the batch's answer and
+            //       every landing behind it would wait with it (`doc/planning/cli-git-no-unbounded-waits.md`).
+            //       A tree nobody could ask about is kept rather than counted gone: a stock that dropped it would draw another
+            //       in its place, and a tree that is still there is one a commit may be handed.
+            let asked: PathBuf = path.clone();
+            let answered: crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork<bool> =
+                crate::work_awaited_within_a_ceiling::work_within_reporting(THE_STOCK_IS_ASKED_FOR_AT_MOST, move || {
+                    return std::fs::symlink_metadata(asked.as_path()).is_err();
+                });
+            match answered {
+                crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(true) => gone.push(path),
+                crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(false) => {}
+                crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoThreadToStart => {
+                    crate::diagnostic_log::debug("shadowDraw", format!("no thread was left to ask about {}, so the stock keeps it", path.display()).as_str());
+                }
+                crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoAnswer => {
+                    crate::diagnostic_log::debug(
+                        "shadowDraw",
+                        format!("whether {} is still there cannot be asked within {THE_STOCK_IS_ASKED_FOR_AT_MOST:?}, so the stock keeps it", path.display()).as_str(),
+                    );
+                }
             }
         }
         if gone.is_empty() {

@@ -221,11 +221,11 @@ pub enum SweptRemoval {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// removeAsASweep(tree, (path) => removeWithin(path, ceiling)) // removed | heldByALiveProcess
+/// removeAsASweep(tree, (path, claim) => removeWithin(path, ceiling, claim)) // removed | heldByALiveProcess
 /// ```
 pub fn remove_as_a_sweep<F>(tree: &Path, remove: F) -> SweptRemoval
 where
-    F: FnOnce(&Path) -> crate::scratch_entry_removal::Removal,
+    F: FnOnce(&Path, Option<HeldTree>) -> crate::scratch_entry_removal::Removal,
 {
     let claim: Option<HeldTree> = match take_to_remove(tree) {
         ClaimTaken::Yes(claim) => Some(claim),
@@ -235,8 +235,14 @@ where
             None
         }
     };
-    let outcome: crate::scratch_entry_removal::Removal = remove(tree);
-    drop(claim);
+    // What: The claim goes to the removal, which keeps it for as long as it is deleting.
+    // Why:  A removal that outlived its ceiling goes on deleting on its own thread, and a claim dropped here would let a
+    //       commit take the tree and build in it while the old removal emptied it
+    //       (`scratch_entry_removal.rs`,
+    //       `remove_within`).
+    //       So the caller of this function never holds it after the removal started: either the removal ended and the
+    //       claim is spent, or it is still running and the claim is its own.
+    let outcome: crate::scratch_entry_removal::Removal = remove(tree, claim);
     return SweptRemoval::Removed(outcome);
 }
 
@@ -297,7 +303,8 @@ fn hold(tree: &Path) -> ClaimTaken {
 /// What:
 ///  Takes the claim on `tree` for a sweep that means to remove it,
 ///  which is the whole of it and which every holder's share stands in the way of,
-///  and holds it until the removal is over.
+///  and holds it until the removal is over,
+///  which is the removal's thread's end and not the caller's wait for it.
 /// Why:
 ///  A sweep that asked "does anybody hold it" and then removed would let a holder begin in the tree between the question
 ///  and the removal, and the removal would take a tree a commit had claimed and written into.
@@ -419,6 +426,51 @@ impl Share {
 /// const file = open(tree, O_RDONLY | O_NOFOLLOW | O_NONBLOCK); flock(file, mode | LOCK_NB) === 0 ? file : throw errno
 /// ```
 fn lock_without_waiting(tree: &Path, share: Share) -> std::io::Result<std::fs::File> {
+    // What: The open and the `flock` run on a thread of their own, and this caller waits no longer than the ceiling.
+    // Why:  Both are synchronous calls into the kernel, and a directory on a mount whose server stopped answering never
+    //       returns either of them:
+    //       `O_NONBLOCK` limits neither, and `LOCK_NB` only avoids sleeping for a competing lock.
+    //       The package draws that line once, in `work_awaited_within_a_ceiling.rs`, and the claim goes through it,
+    //       so a volume that never answers costs a command the ceiling and no more
+    //       (`doc/planning/cli-git-no-unbounded-waits.md`).
+    //       A job that gave no answer is a volume that cannot be asked, which is the third answer the claim already has.
+    let wanted: std::path::PathBuf = tree.to_path_buf();
+    let answered: crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork<std::io::Result<std::fs::File>> =
+        crate::work_awaited_within_a_ceiling::work_within_reporting(THE_CLAIM_IS_ASKED_FOR_AT_MOST, move || {
+            return lock_now(wanted.as_path(), share);
+        });
+    return match answered {
+        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(outcome) => outcome,
+        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoThreadToStart => Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "the system refused a thread to ask whether this tree is held, so nothing was asked",
+        )),
+        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoAnswer => Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            format!("whether this tree is held cannot be asked within {THE_CLAIM_IS_ASKED_FOR_AT_MOST:?}"),
+        )),
+    };
+}
+
+/// How long the claim may take to be answered, and why.
+/// Why this figure:
+///  The claim is one `open` and one `flock` of a directory that is already this program's own,
+///  which is a few microseconds on a healthy volume and was written down as "never waited for beyond a holder's own fifty
+///  milliseconds" beside the take itself;
+///  a volume that has not answered in that time is one this command cannot wait for, and the tree is left to its age.
+pub(crate) const THE_CLAIM_IS_ASKED_FOR_AT_MOST: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// What:
+///  The open and the `flock` themselves,
+///  on the thread `lock_without_waiting` gives them.
+/// Why:
+///  It is the call the kernel may hold; the caller's wait for it is bounded and this is what it is bounded around.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const file = open(tree, O_RDONLY | O_NOFOLLOW | O_NONBLOCK); flock(file, mode | LOCK_NB) === 0 ? file : throw errno
+/// ```
+fn lock_now(tree: &Path, share: Share) -> std::io::Result<std::fs::File> {
     use std::os::fd::AsRawFd as _;
     use std::os::unix::fs::OpenOptionsExt as _;
     // The open must not wait either: an entry whose open waits for a writer is one a control stands in for the volume

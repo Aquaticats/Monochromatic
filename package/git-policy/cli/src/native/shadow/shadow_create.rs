@@ -632,7 +632,9 @@ pub fn the_shadow_holds_what_a_build_needs(tree: &Path, template: &ShadowTemplat
     if template.ref_format == RefFormat::Reftable {
         return true;
     }
-    if !std::fs::symlink_metadata(tree.join("packed-refs")).is_ok_and(|metadata| { return metadata.is_file(); }) {
+    if template.ref_format == RefFormat::Files
+        && !std::fs::symlink_metadata(tree.join("packed-refs")).is_ok_and(|metadata| { return metadata.is_file(); })
+    {
         return false;
     }
     if matches!(base, crate::transaction_journal::Base::Unborn) {
@@ -674,13 +676,41 @@ pub fn the_shadow_holds_what_a_creation_makes(tree: &Path, template: &ShadowTemp
     if !is_a_directory(&tree.join("refs")) {
         return false;
     }
-    // A reftable repository's shadow is Git's own tables, and the list of them is the one entry a table store always has:
-    //  `git init --ref-format=reftable` makes it, and a tree without it is one Git refuses every transaction in
-    //  (`fatal: reftable: transaction prepare: I/O error`).
-    if template.ref_format == crate::transaction_journal::RefFormat::Reftable
-        && !is_a_file(&tree.join("reftable").join("tables.list"))
-    {
-        return false;
+    // What: A reftable shadow's ref store is its list of tables and every table the list names.
+    // Why:  The list alone answers nothing: a removal killed between entries leaves the list naming a table that is gone,
+    //       and Git then refuses the commit's ref transaction
+    //       (`fatal: reftable: transaction prepare: file does not exist`, measured with Git 2.56.0).
+    //       A store whose list cannot be read is a store this cannot say is whole, and a store that cannot be said to be whole
+    //       is one the commit builds in another tree rather than fails in (`service_native.rs`, `build_with_git`).
+    if template.ref_format == crate::transaction_journal::RefFormat::Reftable {
+        return the_reftable_store_is_whole(tree);
+    }
+    return true;
+}
+
+/// What:
+///  Whether a reftable store is whole:
+///  its list of tables is a file,
+///  and every table the list names is a file too.
+/// Why:
+///  It is the store as Git reads it, and Git reads the list and then the tables it names.
+///  A list that cannot be read says nothing about the tables, so the store is not called whole.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const whole = (tree) => { const list = read('reftable/tables.list'); return list !== undefined && list.split('\n').every((name) => name.trim() === '' || isFile(`reftable/${name.trim()}`)) }
+/// ```
+fn the_reftable_store_is_whole(tree: &Path) -> bool {
+    let list: PathBuf = tree.join("reftable").join("tables.list");
+    let Ok(text) = std::fs::read_to_string(list.as_path()) else { return false };
+    for line in text.lines() {
+        let name: &str = line.trim();
+        if name.is_empty() {
+            continue;
+        }
+        if !std::fs::symlink_metadata(tree.join("reftable").join(name)).is_ok_and(|metadata| { return metadata.is_file(); }) {
+            return false;
+        }
     }
     return true;
 }

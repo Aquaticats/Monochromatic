@@ -107,7 +107,7 @@ impl Drop for Scratch {
         if self.1 {
             return;
         }
-        let _removed: Removal = remove_within(self.0.as_path(), SCRATCH_REMOVAL_CEILING);
+        let _removed: Removal = remove_within(self.0.as_path(), SCRATCH_REMOVAL_CEILING, None::<crate::tree_held_by_a_live_process::HeldTree>);
     }
 }
 

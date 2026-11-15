@@ -332,11 +332,14 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
         //       let a commit claim and write into the tree in between and lose it under its build. Holding the claim makes the
         //       question and the removal one step, and the claim a commit finds taken is one it gives up on
         //       (`tree_held_by_a_live_process.rs`, `remove_as_a_sweep`).
-        match crate::tree_held_by_a_live_process::remove_as_a_sweep(drawn.as_path(), |path: &Path| {
-            return match remove_tree(path) {
+        match crate::tree_held_by_a_live_process::remove_as_a_sweep(drawn.as_path(), |path: &Path, claim: Option<crate::tree_held_by_a_live_process::HeldTree>| {
+            let outcome = match remove_tree(path) {
                 Ok(()) => crate::scratch_entry_removal::Removal::Finished,
                 Err(error) => crate::scratch_entry_removal::Removal::Failed(error),
             };
+            // A removal that runs here holds the claim until it ends; one that runs on goes on holding it.
+            drop(claim);
+            return outcome;
         }) {
             crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Finished) => {
                 crate::diagnostic_log::debug("shadowDrawn", format!("removed the drawn shadow nothing renewed: {}", drawn.display()).as_str());

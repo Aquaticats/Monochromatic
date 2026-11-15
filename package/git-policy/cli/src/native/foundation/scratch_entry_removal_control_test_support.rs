@@ -21,6 +21,10 @@ use std::time::Duration;
 /// Whether the next removal waits before it deletes.
 static HELD: AtomicBool = AtomicBool::new(false);
 
+/// How many removals this process held for a control,
+/// so a control that lost its seam says so instead of passing for another reason.
+static HELD_FOR_A_CONTROL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 /// The release of the removal that is waiting, once one is.
 static WAITING: Mutex<Option<Receiver<()>>> = Mutex::new(None);
 
@@ -46,6 +50,16 @@ pub(crate) fn hold_the_next_removal_for_a_control() -> Sender<()> {
     return release;
 }
 
+/// How many removals this process held for a control.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removalPoint.heldForAControl() // a count
+/// ```
+pub(crate) fn removals_held_for_a_control() -> usize {
+    return HELD_FOR_A_CONTROL.load(Ordering::SeqCst);
+}
+
 /// What:
 ///  Waits where a control holds this removal, and returns at once when none does.
 /// Why:
@@ -61,6 +75,7 @@ pub(crate) fn wait_before_the_deletion() {
     }
     let waited: Option<Receiver<()>> = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
     if let Some(waited) = waited {
+        HELD_FOR_A_CONTROL.fetch_add(1, Ordering::SeqCst);
         let _released = waited.recv_timeout(CONTROL_PATIENCE);
     }
 }

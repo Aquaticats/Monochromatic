@@ -30,14 +30,14 @@ use std::time::{Duration, Instant};
 fn a_removal_says_what_became_of_it() {
     let root: PathBuf = fixture("scratch-removal-outcomes");
     std::fs::create_dir_all(root.as_path()).expect("fixture");
-    assert!(remove_within(root.join("absent").as_path(), SCRATCH_REMOVAL_CEILING).finished(), "an entry that is gone is removed");
+    assert!(remove_within(root.join("absent").as_path(), SCRATCH_REMOVAL_CEILING, None::<crate::tree_held_by_a_live_process::HeldTree>).finished(), "an entry that is gone is removed");
 
     let sealed: PathBuf = root.join("sealed");
     let inside: PathBuf = sealed.join("tree");
     std::fs::create_dir_all(&inside).expect("tree");
     std::fs::write(inside.join("file"), b"x").expect("a file in the tree");
     std::fs::set_permissions(sealed.as_path(), std::fs::Permissions::from_mode(0o500)).expect("seal");
-    let refused: Removal = remove_within(inside.as_path(), SCRATCH_REMOVAL_CEILING);
+    let refused: Removal = remove_within(inside.as_path(), SCRATCH_REMOVAL_CEILING, None::<crate::tree_held_by_a_live_process::HeldTree>);
     std::fs::set_permissions(sealed.as_path(), std::fs::Permissions::from_mode(0o700)).expect("unseal");
     assert!(matches!(&refused, Removal::Failed(_)), "a refusal is named: {refused:?}");
     assert!(inside.exists(), "a refused removal leaves the tree for the next sweep");
@@ -49,7 +49,7 @@ fn a_removal_says_what_became_of_it() {
         std::fs::write(many.join(format!("entry-{at}")), b"x").expect("an entry");
     }
     let before: u64 = outside_the_phases().removals_that_did_not_finish;
-    let late: Removal = remove_within(many.as_path(), Duration::from_micros(1));
+    let late: Removal = remove_within(many.as_path(), Duration::from_micros(1), None::<crate::tree_held_by_a_live_process::HeldTree>);
     assert!(matches!(&late, Removal::Unfinished), "a removal that outlasts its ceiling says so: {late:?}");
     assert_eq!(outside_the_phases().removals_that_did_not_finish, before + 1, "the record counts it");
     remove(root.as_path());
@@ -97,7 +97,7 @@ fn a_removal_reported_finished_has_given_its_place_back() {
     for at in 0..REMOVALS_A_PLACE_MUST_COME_BACK_BEFORE {
         let entry: PathBuf = root.join(format!("entry-{at}"));
         std::fs::write(&entry, b"x").expect("an entry");
-        let removal: Removal = remove_within(entry.as_path(), SCRATCH_REMOVAL_CEILING);
+        let removal: Removal = remove_within(entry.as_path(), SCRATCH_REMOVAL_CEILING, None::<crate::tree_held_by_a_live_process::HeldTree>);
         assert!(removal.finished(), "a removal of one small file finished: {removal:?}");
         assert_eq!(
             unfinished_removals(),
@@ -130,7 +130,7 @@ fn a_removal_reported_failed_has_given_its_place_back() {
     let mut refusals: usize = 0;
     let mut held_late: Option<usize> = None;
     for attempt in 0..REMOVALS_A_PLACE_MUST_COME_BACK_BEFORE {
-        let refused: Removal = remove_within(inside.as_path(), SCRATCH_REMOVAL_CEILING);
+        let refused: Removal = remove_within(inside.as_path(), SCRATCH_REMOVAL_CEILING, None::<crate::tree_held_by_a_live_process::HeldTree>);
         let held_after: usize = unfinished_removals();
         if matches!(&refused, Removal::Failed(_)) {
             refusals += 1;
@@ -158,10 +158,10 @@ fn removals_that_outlast_their_ceiling_hold_a_bounded_number_of_places() {
     let first: PathBuf = a_tree_of(root.as_path(), "first", 500);
     let second: PathBuf = a_tree_of(root.as_path(), "second", 500);
     let began: Instant = Instant::now();
-    let late: Removal = remove_within(first.as_path(), Duration::from_micros(1));
+    let late: Removal = remove_within(first.as_path(), Duration::from_micros(1), None::<crate::tree_held_by_a_live_process::HeldTree>);
     assert!(matches!(&late, Removal::Unfinished), "a removal that outlasts its ceiling says so: {late:?}");
     assert!(unfinished_removals() >= 1, "the stalled removal holds a place");
-    let refused: Removal = remove_within(second.as_path(), SCRATCH_REMOVAL_CEILING);
+    let refused: Removal = remove_within(second.as_path(), SCRATCH_REMOVAL_CEILING, None::<crate::tree_held_by_a_live_process::HeldTree>);
     assert!(matches!(&refused, Removal::Unfinished), "a removal that finds every place held says so: {refused:?}");
     assert!(second.exists(), "an entry no place was free for is left to a later sweep");
     assert!(began.elapsed() < SCRATCH_REMOVAL_CEILING, "a removal with no place does not wait for one");
@@ -171,7 +171,7 @@ fn removals_that_outlast_their_ceiling_hold_a_bounded_number_of_places() {
         assert!(waited.elapsed() < Duration::from_secs(30), "the stalled removal never gave its place back");
         std::thread::sleep(Duration::from_millis(10));
     }
-    let again: Removal = remove_within(second.as_path(), SCRATCH_REMOVAL_CEILING);
+    let again: Removal = remove_within(second.as_path(), SCRATCH_REMOVAL_CEILING, None::<crate::tree_held_by_a_live_process::HeldTree>);
     assert!(again.finished(), "the place came back with the thread: {again:?}");
     assert!(!second.exists(), "the entry goes once a place is free");
     remove(root.as_path());

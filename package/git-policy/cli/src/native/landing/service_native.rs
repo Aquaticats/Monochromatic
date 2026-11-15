@@ -219,7 +219,11 @@ pub fn private_invocation(
 /// a signer that failed);
 /// `TransactionStop::Message` when Git could not be started.
 pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, TransactionStop> {
-    let own_shadow: PathBuf = input.scratch.join("shadow");
+    // What: The path each attempt builds in, which a rebuild may have to take again.
+    // Why:  A removal of the first attempt's tree that has not finished keeps the name it was given,
+    //       so the attempt that follows is handed the name only once it is free (`scratch_location.rs`,
+    //       `the_path_the_next_attempt_may_use`).
+    let mut own_shadow: PathBuf = input.scratch.join("shadow");
     // Named paths while another session's merge, cherry-pick or revert is unfinished: real Git refuses that as a partial commit,
     //  and a commit never fails for another session's unfinished work, so the scratch repository holds none of that state and
     //  builds an ordinary commit of the paths; the worktree's state stays for its owner to conclude on the new head.
@@ -319,11 +323,33 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
         //       a tree of its own is what the commit's scratch name gives every attempt of a command,
         //       and the code that takes or makes one is the same code the first attempt ran.
         if attempt > 1 {
-            let _gone: crate::scratch_entry_removal::Removal = crate::scratch_entry_removal::remove_within(own_shadow.as_path(), crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING);
+            // What: The first attempt's shadow and conclusion copies are moved aside in one step each, and only what was moved
+            //       aside is removed, bounded.
+            // Why:  A removal that outlived its ceiling goes on deleting on its own thread with its claim on the tree it was
+            //       given; writing this attempt's files into that same path would put them where the old removal is about to
+            //       arrive, and the commit would fail for the wrapper's own cleanup (the eighth review's fourth finding).
+            //       The rename frees the name whatever the old removal goes on doing, so this attempt builds elsewhere in effect
+            //       and the type says so: nothing comes back here unless the next attempt may write there.
+            let Some(freed_shadow): Option<PathBuf> =
+                crate::scratch_location::the_path_the_next_attempt_may_use(own_shadow.clone(), crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING)
+            else {
+                return Err(TransactionStop::Message(format!(
+                    "what the first attempt left at {} cannot be moved aside and its removal has not finished, so nothing was committed and nothing landed",
+                    own_shadow.display()
+                )));
+            };
+            own_shadow = freed_shadow;
             // The conclusion copies the first attempt made are made again from the real repository's state, which this
             //  command's captures leave as it was.
             let copies: PathBuf = input.scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
-            let _cleared: crate::scratch_entry_removal::Removal = crate::scratch_entry_removal::remove_within(copies.as_path(), crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING);
+            let Some(_freed_copies): Option<PathBuf> =
+                crate::scratch_location::the_path_the_next_attempt_may_use(copies.clone(), crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING)
+            else {
+                return Err(TransactionStop::Message(format!(
+                    "what the first attempt left at {} cannot be moved aside and its removal has not finished, so nothing was committed and nothing landed",
+                    copies.display()
+                )));
+            };
             // What: The index this command was given is put back exactly as it was read.
             // Why:  Git rewrites the private index as it prepares a commit, and the tree this command asked for is the one the
             //       bytes this command read name; writing them again says what the person staged even when the copy on the
@@ -608,6 +634,78 @@ impl AskedForCommit {
 }
 
 /// What:
+///  What one form of `git commit` asks of the tree and the parents of the commit it builds.
+/// Why:
+///  The two are not one question, and the forms differ:
+///  an amend leaves the parents out and holds the tree;
+///  a reword fixup holds neither the index's tree nor parents of its own;
+///  and every other form holds both.
+///  Each form answers here for itself, so no form reaches "left out" by sharing a branch with another:
+///  `--fixup=amend:<commit>` was answered as a reword fixup once, and its commit carries the person's staged tree
+///  (measured with Git 2.56.0: the tree is the index's tree and only the message is prefixed).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type TheFormOfTheCommit = 'carriesTheIndex' | 'carriesTheRewordedTree' | 'amendsTheLastCommit'
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TheFormOfTheCommit {
+    /// The commit carries the private index's tree and the captured base's parents:
+    ///  the ordinary commit, `-a`, `-o`, `--include`, `--interactive`, `--patch`, pathspecs,
+    /// `--fixup=<commit>`, `--fixup=amend:<commit>`, `--squash=<commit>`,
+    /// and `-C`/`-c`/`--reuse-message=<commit>`.
+    CarriesTheIndex,
+    /// `--fixup=reword:<commit>`:
+    ///  the tree is the reworded commit's own, which this command has not read,
+    ///  and the parents are the captured base's.
+    CarriesTheRewordedTree,
+    /// `--amend`:
+    ///  the tree is the private index's,
+    ///  and the parents are the amended commit's, which this command has not read.
+    AmendsTheLastCommit,
+}
+
+/// What:
+///  Which form the arguments make,
+///  read from the words Git itself reads.
+/// Why:
+///  A form's tree and parents follow from the form alone,
+///  so it is decided once, here,
+///  rather than by flags scattered where each question is asked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const formOf = (args) => args.includes('--amend') ? 'amendsTheLastCommit'
+///   : /^--fixup[= ]reword:/.test(args.join(' ')) ? 'carriesTheRewordedTree' : 'carriesTheIndex'
+/// ```
+fn the_form_of_the_commit(arguments: &[OsString]) -> TheFormOfTheCommit {
+    let mut forms: TheFormOfTheCommit = TheFormOfTheCommit::CarriesTheIndex;
+    let mut index: usize = 0;
+    while index < arguments.len() {
+        let text: String = arguments[index].to_string_lossy().to_string();
+        if text == "--amend" {
+            return TheFormOfTheCommit::AmendsTheLastCommit;
+        }
+        let value: Option<String> = match text.strip_prefix("--fixup") {
+            Some(rest) => match rest.strip_prefix('=') {
+                Some(named) => Some(named.to_string()),
+                // `--fixup <value>` hands the value as the next argument.
+                None if rest.is_empty() => arguments.get(index + 1).map(|value| { return value.to_string_lossy().into_owned(); }),
+                None => None,
+            },
+            None => None,
+        };
+        if let Some(value) = value
+            && value.starts_with("reword:")
+        {
+            forms = TheFormOfTheCommit::CarriesTheRewordedTree;
+        }
+        index += 1;
+    }
+    return forms;
+}
+
+/// What:
 ///  The parents the command asked for,
 ///  taken from the real repository before Git runs in the shadow.
 /// Why:
@@ -623,10 +721,6 @@ impl AskedForCommit {
 /// const parents = amends ? undefined : [base, ...mergeHeadLines(gitDir)];
 /// ```
 fn expected_parents_of(input: &BuildInput<'_>) -> Asked<Vec<String>> {
-    let amends: bool = input.arguments.iter().any(|argument| { return argument == "--amend"; });
-    if amends {
-        return Asked::LeftOut("an amend's parents are the amended commit's, and this command has not read it");
-    }
     let mut parents: Vec<String> = Vec::new();
     if let crate::transaction_journal::Base::Commit(base) = &input.capture.base {
         parents.push(base.clone());
@@ -666,18 +760,20 @@ fn expected_parents_of(input: &BuildInput<'_>) -> Asked<Vec<String>> {
 /// const asked = { parents, tree: writeTree(capturedIndex) };
 /// ```
 fn the_commit_that_was_asked_for(input: &BuildInput<'_>, kept: Result<&[u8], &std::io::Error>) -> AskedForCommit {
-    let parents: Asked<Vec<String>> = expected_parents_of(input);
-    // What: A command whose commit carries the tree it started from asks no tree of its own.
-    // Why:  A reword fixup's commit holds the tree of the branch it rewords, whatever the index stages, so holding the
-    //       index's tree against it would refuse the commit the person asked for; its parents still stand.
-    let carries_its_base_tree: bool = input.arguments.iter().any(|argument| {
-        let text: String = argument.to_string_lossy().to_string();
-        return text.starts_with("--fixup=reword:") || text.starts_with("--fixup=amend:");
-    });
-    if carries_its_base_tree {
+    let form: TheFormOfTheCommit = the_form_of_the_commit(input.arguments);
+    // What: Each form says for itself what tree and what parents its commit must have.
+    // Why:  The forms differ, and a shared branch of a boolean once said "no tree to hold" for `--fixup=amend:`,
+    //       whose commit carries the person's staged tree (`the_form_of_the_commit`).
+    let parents: Asked<Vec<String>> = match form {
+        TheFormOfTheCommit::AmendsTheLastCommit => {
+            Asked::LeftOut("an amend's parents are the amended commit's, and this command has not read it")
+        }
+        TheFormOfTheCommit::CarriesTheIndex | TheFormOfTheCommit::CarriesTheRewordedTree => expected_parents_of(input),
+    };
+    if form == TheFormOfTheCommit::CarriesTheRewordedTree {
         return AskedForCommit {
             parents,
-            tree: Asked::LeftOut("a reword fixup's commit holds the tree of the branch it rewords"),
+            tree: Asked::LeftOut("a reword fixup's commit holds the tree of the commit it rewords, and this command has not read that commit"),
         };
     }
     // What: A private index that could not be kept is a tree nobody can name, and never an empty one.

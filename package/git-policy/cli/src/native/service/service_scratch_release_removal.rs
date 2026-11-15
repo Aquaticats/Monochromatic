@@ -89,7 +89,7 @@ pub fn start(path: PathBuf) {
 async fn remove(path: PathBuf) {
     let named: String = path.display().to_string();
     let outcome: Result<Removal, crate::blocking_job::BlockingJobError> =
-        run_blocking_job(move || { return remove_within(path.as_path(), SCRATCH_REMOVAL_CEILING); }).await;
+        run_blocking_job(move || { return remove_within(path.as_path(), SCRATCH_REMOVAL_CEILING, None::<crate::tree_held_by_a_live_process::HeldTree>); }).await;
     let ceiling: Duration = SCRATCH_REMOVAL_CEILING;
     match outcome {
         Ok(Removal::Finished) => {}

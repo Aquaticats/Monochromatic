@@ -549,11 +549,14 @@ fn sweep_abandoned(root: &Path, now: SystemTime) {
         // Why:  A forward step of the wall clock makes a folder a fill wrote moments ago look older than any fill takes;
         //       a sweep that looked and let go would then remove the staging tree under the live fill that claimed it in
         //       between (`tree_held_by_a_live_process.rs`, `remove_as_a_sweep`).
-        match crate::tree_held_by_a_live_process::remove_as_a_sweep(entry.path().as_path(), |path: &Path| {
-            return match remove_tree(path) {
+        match crate::tree_held_by_a_live_process::remove_as_a_sweep(entry.path().as_path(), |path: &Path, claim: Option<crate::tree_held_by_a_live_process::HeldTree>| {
+            let outcome = match remove_tree(path) {
                 Ok(()) => crate::scratch_entry_removal::Removal::Finished,
                 Err(error) => crate::scratch_entry_removal::Removal::Failed(error),
             };
+            // A removal that runs here holds the claim until it ends; one that runs on goes on holding it.
+            drop(claim);
+            return outcome;
         }) {
             crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Finished) => {
                 crate::diagnostic_log::debug("shadowPool", format!("removed the abandoned fill {name}").as_str());

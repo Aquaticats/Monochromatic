@@ -83,8 +83,8 @@ fn a_tree_whose_removal_has_not_finished_is_still_claimed() {
     std::fs::write(tree.join("refs"), b"a file of the tree").expect("a file in the tree");
     // The removal's thread waits before it deletes until this control releases it.
     let release: std::sync::mpsc::Sender<()> = crate::scratch_entry_removal::test_hold::hold_the_next_removal_for_a_control();
-    let swept: SweptRemoval = remove_as_a_sweep(tree.as_path(), |path: &Path| {
-        return crate::scratch_entry_removal::remove_within(path, std::time::Duration::from_micros(1));
+    let swept: SweptRemoval = remove_as_a_sweep(tree.as_path(), |path: &Path, claim: Option<HeldTree>| {
+        return crate::scratch_entry_removal::remove_within(path, std::time::Duration::from_micros(1), claim);
     });
     assert!(
         matches!(swept, SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Unfinished)),

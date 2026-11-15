@@ -1188,7 +1188,7 @@ fn a_fixup_amend_whose_private_index_goes_is_still_the_commit_that_was_asked_for
     let case: Case = case("fixup-amend-index-goes");
     std::fs::write(case.repo.join("a.txt"), b"base\nstaged\n").expect("the staged edit");
     git(&case.fixture, case.repo.as_path(), &["add", "--", "a.txt"]);
-    let base: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]);
+    let base: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"]).trim().to_string();
     arm_the_later_arrivals(case.markers.as_path(), "shadow-built");
     // The form is reachable with a pathspec: the pathless one is refused by the wrapper's own commit-only policy, which
     //  tells the person that a pathless `--only` commit would leave the staged changes staged (measured, 2026-11-15).

@@ -925,12 +925,19 @@ fn a_path_whose_removal_has_not_finished_is_never_handed_to_the_next_attempt() {
     std::fs::write(tree.join("HEAD"), b"the first attempt's ref store").expect("a file of the first attempt");
     // The removal's thread waits before it deletes until this control releases it.
     let release: std::sync::mpsc::Sender<()> = crate::scratch_entry_removal::test_hold::hold_the_next_removal_for_a_control();
-    let freed: PathBuf = the_path_the_next_attempt_may_use(tree.clone(), SCRATCH_REMOVAL_CEILING);
+    // A ceiling of one millisecond, so the caller stops waiting while the removal's thread is still held by the control.
+    let freed: PathBuf = the_path_the_next_attempt_may_use(tree.clone(), std::time::Duration::from_millis(1))
+        .expect("the path is free once what was there is moved aside");
     // The next attempt writes into the path it was given, as the build does.
     std::fs::create_dir_all(freed.as_path()).expect("the next attempt's tree");
     std::fs::write(freed.join("HEAD"), b"the next attempt's ref store").expect("its own file");
     drop(release);
+    // The old removal is the one that was held: a control whose seam was lost would pass for the wrong reason.
     let began: std::time::Instant = std::time::Instant::now();
+    while crate::scratch_entry_removal::test_hold::removals_held_for_a_control() == 0 {
+        assert!(began.elapsed() < std::time::Duration::from_secs(10), "the old removal was held at the instant the control needs");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
     while began.elapsed() < std::time::Duration::from_millis(300) {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
