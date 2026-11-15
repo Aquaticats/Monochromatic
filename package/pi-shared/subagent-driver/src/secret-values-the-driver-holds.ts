@@ -129,7 +129,8 @@ export function valuesInTheEnvironment({
     if ((!carriesCredentialName({ name, },)) && (!alsoTheseNames.has(name,))) {
       continue;
     }
-    if ((isKeptDespiteItsName(name,)) || (nameSaysTheValueIsNotASecret(name,)) || (!isMaskableValue(value,))) {
+    if ((isKeptDespiteItsName(name,)) || (nameSaysTheValueIsNotASecret(name,))
+      || (!isMaskableValue(value,))) {
       continue;
     }
     values.push({
