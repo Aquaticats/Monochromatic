@@ -11,8 +11,11 @@
 //! (`PLACES_KEPT_TO_ANSWER_A_CLIENT`) and wait for it no longer than `CLIENT_ANSWER_PLACE_CEILING`, and these controls
 //! hold every place of the service's own work to prove that the answers still run, and are answered here rather than
 //!  handed on.
-//! What they do not fix, and do not claim: a *commit's* look still asks for a general place, so a commit whose look finds
-//! every one of them held still answers `Unavailable`.
+//! What a commit's look asks for is none of those places: a look runs on a thread of its own kind
+//! (`foundation/own_thread_for_work_that_can_stall.rs`), counted per kind, so slow work and a look that outlasts its
+//! ceiling cannot take the threads two commits are routed on, and a commit is never answered `Unavailable` for a place.
+//! What a look can still do is stay stuck, and then its own commit's answer waits for the client's ceiling: the control
+//! `the_routing_retry_waits_for_its_own_kind_and_never_starts_a_second_look` holds that state.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -32,6 +35,15 @@ use std::sync::Mutex;
 /// and two places of the service's own work
 ///  (`PLACES_KEPT_TO_ANSWER_A_CLIENT`, and the least a process keeps for its work beside it).
 const THE_ROOM: usize = crate::blocking_jobs_within_the_budget::PLACES_KEPT_TO_ANSWER_A_CLIENT + 2;
+
+/// The room the control of the slow lane needs:
+/// the place kept for the answers a client waits for,
+/// and three places of the service's own work,
+/// so slow work may take two and one is left over for anything else.
+/// Why:
+///  Two places of slow work and one general job was the shape the review of `e1a615aab0` reproduced (F5),
+///  and a room of three gives slow work one place, which cannot fill the bound.
+const THE_ROOM_OF_THE_SLOW_LANE: usize = crate::blocking_jobs_within_the_budget::PLACES_KEPT_TO_ANSWER_A_CLIENT + 3;
 
 /// How long a stuck job's caller waits before it gives up:
 /// long enough that its own wait for a place is never the thing that ends it, on a loaded machine,
@@ -404,10 +416,20 @@ fn a_withdrawal_is_decided_while_a_note_read_is_stuck() {
 ///  A commit's look took a general place, and the slow places' jobs take general places too: two slow jobs and one look
 ///  held every general place, and the second commit's look was `NotRun`, which ends the command as `Unavailable`
 ///  (the review of `e1a615aab0`, F5). The look now runs on a thread of its own kind and takes no place of the bound.
+///  The room is the one the review reproduced in, and the first look is held open in its read, because a look that
+///  answers at once frees whatever it took and hides the shape the review showed: at this room slow work holds two
+///  places and a look that took a third would leave the second commit nothing.
 #[test]
 fn two_commits_are_both_routed_while_every_slow_place_is_held() {
-    let _room: usize = crate::parallel_test_support::room_for("two_commits_are_both_routed_while_every_slow_place_is_held", THE_ROOM);
+    let _room: usize = crate::parallel_test_support::room_for("two_commits_are_both_routed_while_every_slow_place_is_held", THE_ROOM_OF_THE_SLOW_LANE);
+    assert_eq!(
+        crate::blocking_jobs_within_the_budget::places_a_round_may_take(),
+        2,
+        "the room states the shape the review reproduced: two places slow work may take, and one place left over"
+    );
     crate::wait_ceilings::hold_the_routing_look_to(THE_LOOKS_CEILING);
+    // The first look of the two is held inside the read that decides whose a request is, which is no duration.
+    let (reached, let_go) = hooks::hold_the_point(IN_THE_INSTANCE_READ);
     let (mut shared, _journal, mut jobs) = shared_in_a_control("connection-two-commits-beside-stuck-slow-work");
     // The two requests name a Git directory this instance was named for, so each look reads it and says it is this instance's.
     let own: PathBuf = crate::test_support::fixture("connection-two-commits-beside-stuck-slow-work-own");
@@ -450,24 +472,94 @@ fn two_commits_are_both_routed_while_every_slow_place_is_held() {
         .expect("the runtime");
         serving.push(crate::lazy_runtime::spawn_on_runtime(handle_connection(service, shared.clone())).expect("a worker for the connection"));
     }
-    // Both requests reach the landing once their looks answer, which is within one patience of a starved look.
-    let both: bool = crate::lazy_runtime::run_on_runtime(async {
-        let mut queued: usize = 0;
-        let deadline: tokio::time::Instant = tokio::time::Instant::now() + A_BOUND;
+    // One look reached the held read, and the other commit was routed while it was still there: a look of this kind takes
+    //  no place of the bound, so the slow places cannot stand in its way. The held look is then let go, and its own commit
+    //  is routed once its look is asked again.
+    let (one_look_stuck, routed_while_the_look_was_held, both_routed): (bool, bool, bool) = crate::lazy_runtime::run_on_runtime(async move {
+        let stuck: bool = tokio::time::timeout(A_BOUND, reached).await.is_ok_and(|heard| { return heard.is_ok(); });
+        // This wait ends before the held look is let go, so a commit routed here was routed while that look was alive.
+        let routed: bool = tokio::time::timeout(A_BOUND, jobs.recv()).await.is_ok();
+        let _let_the_look_go = let_go.send(());
+        let mut queued: usize = usize::from(routed);
+        // A look that outlasts its ceiling is asked again after the pause between asks.
+        let deadline: tokio::time::Instant = tokio::time::Instant::now() + crate::wait_ceilings::ROUTING_LOOK_RETRY_PAUSE + A_BOUND;
         while queued < 2 && tokio::time::Instant::now() < deadline {
             if tokio::time::timeout(deadline.saturating_duration_since(tokio::time::Instant::now()), jobs.recv()).await.is_ok() {
                 queued += 1;
             }
         }
-        return queued == 2;
+        return (stuck, routed, queued == 2);
     })
     .expect("the runtime");
     let _let_the_places_go = release.send(());
     for holder in stuck {
         holder.abort();
     }
+    assert!(one_look_stuck, "no look was held in its read, so this control did not reach the state it needs");
+    assert!(
+        routed_while_the_look_was_held,
+        "no commit was routed while one look was alive and every slow place was held: a look was refused a place of the bound"
+    );
     for holder in serving {
         holder.abort();
     }
-    assert!(both, "the two commits were not both routed while every slow place was held by work that never ends");
+    assert!(both_routed, "the two commits were not both routed while every slow place was held by work that never ends");
+}
+
+/// The longest this control watches a commit whose look is held:
+/// two of the pauses the routing retry takes before it asks again.
+/// Why:
+///  A look of this kind is asked again only once none of its kind is alive, and the wait for that is this pause at least,
+///  so a request the landing received inside this window was received through a look started beside a live one.
+const A_WATCH_OF_TWO_PAUSES: Duration = crate::wait_ceilings::ROUTING_LOOK_RETRY_PAUSE.saturating_mul(2);
+
+/// What:
+///  A look that never answers is not asked again while it is still alive,
+///  so a look that stopped on storage can fill its own kind's count one retry at a time.
+/// Why:
+///  The retry decides by the free places of the process's bound, and a place that frees for another reason makes that count
+///  say the earlier ask returned when it has not: several looks stay alive together and the invariant that one look of a
+///  kind runs at a time is gone, with the count of that kind as the only thing that still bounds them
+///  (the review of `e1a615aab0`, F4).
+///  The look's own kind is the exact question, and this control states it:
+///  the look is held inside the read that decides whose a request is,
+///  and the request must not reach the landing before that read ends.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdTheLookInItsRead(); send(commit); expect(await routedWithin(twoPauses)).toBe(false); expect(aliveLooks()).toBe(1)
+/// ```
+#[test]
+fn the_routing_retry_waits_for_its_own_kind_and_never_starts_a_second_look() {
+    let _room: usize = crate::parallel_test_support::room_for("the_routing_retry_waits_for_its_own_kind_and_never_starts_a_second_look", THE_ROOM);
+    crate::wait_ceilings::hold_the_routing_look_to(THE_LOOKS_CEILING);
+    let (mut shared, _journal, mut jobs) = shared_in_a_control("connection-look-retry-beside-a-stuck-look");
+    // The request names a Git directory this instance was named for, so its look reads it and says it is this instance's.
+    let own: PathBuf = crate::test_support::fixture("connection-look-retry-beside-a-stuck-look-own");
+    shared.instance = Some(crate::service_instance::instance_of(own.as_path()));
+    let (reached, let_go) = hooks::hold_the_point(IN_THE_INSTANCE_READ);
+    let (service, client_end) = crate::lazy_runtime::run_on_runtime(async { return UnixStream::pair().expect("a connected pair"); }).expect("the runtime");
+    let line: String = encode_client(&ClientMessage::Commit(Box::new(a_commit_request_named("stuck-look", own.as_path()))));
+    // The request line is written before the connection is served: the pair holds it.
+    crate::lazy_runtime::run_on_runtime(async move {
+        let (_read_half, mut write_half) = client_end.into_split();
+        tokio::io::AsyncWriteExt::write_all(&mut write_half, format!("{line}\n").as_bytes()).await.expect("the request line");
+    })
+    .expect("the runtime");
+    let serving: tokio::task::JoinHandle<()> = crate::lazy_runtime::spawn_on_runtime(handle_connection(service, shared)).expect("a worker for the connection");
+    let (one_look_stuck, routed, looks_alive): (bool, bool, usize) = crate::lazy_runtime::run_on_runtime(async move {
+        let stuck: bool = tokio::time::timeout(A_BOUND, reached).await.is_ok_and(|heard| { return heard.is_ok(); });
+        let routed: bool = tokio::time::timeout(A_WATCH_OF_TWO_PAUSES, jobs.recv()).await.is_ok();
+        let alive: usize = crate::own_thread_for_work_that_can_stall::alive_now(crate::own_thread_for_work_that_can_stall::WorkThatCanStall::RoutingALook);
+        let _let_the_look_go = let_go.send(());
+        return (stuck, routed, alive);
+    })
+    .expect("the runtime");
+    serving.abort();
+    assert!(one_look_stuck, "no look was held in its read, so this control did not reach the state it needs");
+    assert!(
+        !routed,
+        "the request reached the landing while the look that decides whose it is had not answered: a retry started a second look beside a live one"
+    );
+    assert_eq!(looks_alive, 1, "exactly the one look that never answered was alive, and no retry added another");
 }

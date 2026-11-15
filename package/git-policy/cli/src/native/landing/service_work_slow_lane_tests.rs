@@ -981,3 +981,65 @@ fn a_look_whose_own_work_stopped_is_looked_at_again_and_settles_nothing() {
     assert_eq!(names_in(&world, CLAIMED).len(), 2, "the records the look held keep their lease, so the look after it finds them");
     remove(world.root.as_path());
 }
+
+/// How long the lane of this control lets one look at a repository take:
+/// a moment,
+/// so a look that stopped on storage is left behind in the control's own time rather than the shipped two minutes.
+const A_LOOK_A_CONTROL_WAITS_OUT: Duration = Duration::from_millis(300);
+
+/// The trash of the repository whose look never ends.
+const THE_TRASH_OF_A_LOOK_THAT_NEVER_ENDS: &str = "cccccccccccccccccccccccccccccccccccccccc";
+
+/// The trash of the repository behind it.
+const THE_TRASH_BEHIND_THAT_LOOK: &str = "dddddddddddddddddddddddddddddddddddddddd";
+
+/// What:
+///  A look at one repository that never ends is left behind, and the repository behind it is served.
+/// Why:
+///  A call into storage cannot be taken back:
+/// a trash's prepare, its removal or its settle that stopped on the disk held the lane, which is one task serving every
+/// repository in turn, so one repository's stuck storage stopped every other repository's work and every record the lane
+/// is the only claimant of (the review of `e1a615aab0`, F7).
+///  The look is now awaited within `LANE_LOOK_CEILING`, and a look that outlasts it is dropped with its records keeping
+/// their lease.
+///  The control holds the first repository's slow step on the code's own hold, so the first look is stuck until a state
+/// changes and never for a duration; the second repository's trash is what must settle while it is stuck.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// lane.ask([first, null]); lane.ask([second, null]); await held; expect(await settled(second)).toBe(true); release()
+/// ```
+#[test]
+fn a_look_that_never_ends_is_left_behind_and_the_next_repository_is_served() {
+    crate::wait_ceilings::hold_the_lane_look_to(A_LOOK_A_CONTROL_WAITS_OUT);
+    let first: Stage = stage("slow-lane-a-look-that-never-ends-first");
+    let second: Stage = stage("slow-lane-a-look-that-never-ends-second");
+    let first_git: PathBuf = first.repo.join(".git");
+    let second_git: PathBuf = second.repo.join(".git");
+    let second_work: PathBuf = work_directory(second_git.as_path());
+    enqueue(work_directory(first_git.as_path()).as_path(), &a_trash_record(&first, THE_TRASH_OF_A_LOOK_THAT_NEVER_ENDS)).expect("the first repository's trash is written");
+    enqueue(second_work.as_path(), &a_trash_record(&second, THE_TRASH_BEHIND_THAT_LOOK)).expect("the second repository's trash is written");
+    let held: HeldTrash = hold_inside_a_trash();
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let lane: SlowLane = crate::merge_second_pass::tests::await_it(async move { return SlowLane::start(&handlers, busy); });
+    lane.ask((first_git, None));
+    lane.ask((second_git, None));
+    assert!(wait_until(&|| { return held.arrived.load(Ordering::SeqCst); }), "the lane is inside the first repository's slow step");
+    // The first look is stuck inside that step and never ends, so what the second repository reads was done beside it.
+    // The second repository's record leaves `pending` when a look of the lane settles it, with the answer of the step.
+    let settled = |oid: &str| -> bool {
+        let wanted: String = format!("trash-{oid}");
+        return [DONE, FAILED].iter().any(|state| {
+            return names_in_at(second_work.as_path(), *state).iter().any(|name| { return name.starts_with(wanted.as_str()); });
+        });
+    };
+    assert!(
+        wait_until(&|| { return settled(THE_TRASH_BEHIND_THAT_LOOK); }),
+        "the lane never went on to the second repository while the first look was stuck"
+    );
+    let _let_go = held.let_go.send(());
+    drop(lane);
+    remove(first.root.as_path());
+    remove(second.root.as_path());
+}

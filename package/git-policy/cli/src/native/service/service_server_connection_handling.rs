@@ -305,12 +305,14 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
         return Some(false);
     }
     // What:
-    //  This look takes a general place, and it waits for it no longer than its ceiling.
+    //  This look runs on a thread of its own kind, awaited no longer than its ceiling, and takes no place of the bound.
     // Why:
-    //  The reserve keeps slow work out of the general places; it does not keep out a general job that outlasts its own
-    //  ceiling, which keeps its place until its work ends (`blocking_jobs_within_the_budget.rs`).
-    //  So a look that finds no place answers `Unavailable` and the command is told, and the answers a client waits for do
-    //  not queue here at all: they have places kept for them (`PLACES_KEPT_TO_ANSWER_A_CLIENT`).
+    //  A place of the bound is held by the job that took it until that job's work ends, and a look that stopped on storage
+    //  outlasts any ceiling; taken from the bound, two such looks filled every general place and the next commit's look was
+    //  refused one, which ends the command as `Unavailable` with no storage at fault
+    //  (the reviews of `0b847be249` and `e1a615aab0`, F5).
+    //  The kind's own count (`WorkThatCanStall`) is what bounds these looks instead, so a look that never answers takes one
+    //  of two threads and no commit is refused a place.
     return match crate::own_thread_for_work_that_can_stall::run_on_its_own_thread(
         crate::own_thread_for_work_that_can_stall::WorkThatCanStall::RoutingALook,
         crate::wait_ceilings::routing_look_ceiling(),
@@ -334,9 +336,10 @@ async fn is_foreign(shared: &ConnectionShared, git_dir: PathBuf) -> Option<bool>
 }
 
 /// `is_foreign`'s read,
-/// as the job of the pool takes it.
+/// as the thread of its own kind takes it.
 fn look_up_the_directory((mine, git_dir): (String, PathBuf)) -> bool {
-    // A control holds this read here, on whichever thread runs it, which is a pool thread and not the thread that set the hold.
+    // A control holds this read here, on whichever thread runs it, which is a thread of the look's own kind and not the
+    //  thread that set the hold.
     crate::service_hold_a_step_for_a_control::hold_blocking(crate::service_hold_a_step_for_a_control::IN_THE_ROUTING_LOOK);
     #[cfg(test)]
     crate::service_fault::hooks::run_on_any_thread(IN_THE_INSTANCE_READ);
