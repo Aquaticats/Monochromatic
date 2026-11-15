@@ -285,7 +285,16 @@ fn a_stop_with_no_worker_still_reaps_its_child_and_judges_the_locks_it_left() {
     assert!(!is_zombie(id, ZOMBIE_BOUND), "the child of a stop with no worker was reaped, not left a zombie for the life of this process");
     assert!(!staging.exists(), "the sweep ran inside the stop without a task of the runtime");
     assert_eq!(sweeps_owed(), owed_before, "and no sweep was recorded as owed, because none was");
-    assert!(said.is_empty(), "and the stop had nothing to say, because its sweep ran: {}", said.warnings());
+    assert!(
+        !said.warnings().contains("were not judged inside the bound"),
+        "and the stop said no sweep was owed, because its sweep ran: {}",
+        said.warnings()
+    );
+    assert!(
+        said.warnings().contains("removed the packed-references staging file"),
+        "and it handed back the sweep's own notice, which a caller says: {}",
+        said.warnings()
+    );
     let _collected: usize = reap_abandoned_children();
     crate::test_support::remove(root.as_path());
 }
@@ -648,8 +657,8 @@ fn a_drained_standard_error_still_gets_the_words_a_stop_hands_back() {
     const THE_CHILD_VARIABLE: &str = "CLI_GIT_TEST_STOP_HAS_A_DRAINED_STANDARD_ERROR";
     if std::env::var_os(THE_CHILD_VARIABLE).is_some() {
         let seen: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = drain_standard_error();
-        let owed: String = the_words_of_a_stop_that_owed_a_sweep();
-        println!("OWED_LINE={owed}");
+        let (owed, took): (String, Duration) = the_words_of_a_stop_that_owed_a_sweep();
+        println!("RETURNED took_ms={} OWED_LINE={owed}", took.as_millis());
         // The caller says them, as the push's attempt does: nothing of the stop holds anything now.
         for line in owed.lines() {
             warn(TAG, line);
@@ -668,8 +677,9 @@ fn a_drained_standard_error_still_gets_the_words_a_stop_hands_back() {
     assert!(printed.contains("DRAINED=true"), "the drained standard error got the words the stop handed back: {printed}");
 }
 
-/// The words of one stop that owed a sweep, for the drained arm's caller to say.
-fn the_words_of_a_stop_that_owed_a_sweep() -> String {
+/// What one stop that owed a sweep said, and how long the stop itself took,
+/// for the drained arm's caller to say and for its cost to be read.
+fn the_words_of_a_stop_that_owed_a_sweep() -> (String, Duration) {
     const CEILING: Duration = Duration::from_millis(200);
     const GRACE: Duration = Duration::from_millis(25);
     const HOLD_BOUND: Duration = Duration::from_secs(10);
@@ -691,13 +701,15 @@ fn the_words_of_a_stop_that_owed_a_sweep() -> String {
     let root: std::path::PathBuf = crate::test_support::fixture("stop-with-a-drained-standard-error");
     let (locks, _staging): (LockLedger, std::path::PathBuf) = ledger_over_an_orphan_staging_file(root.as_path());
     let child: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("a child that accepts the polite stop");
+    let began: Instant = Instant::now();
     let said: WhatAStopWouldSay = crate::lazy_runtime::run_on_runtime(stop_push(adopt(child), GRACE, locks)).expect("the runtime runs the stop");
+    let took: Duration = began.elapsed();
     let _let_go = release.send(());
     let _held = crate::lazy_runtime::run_on_runtime(async {
         return tokio::time::timeout(HOLD_BOUND, holder).await;
     });
     crate::test_support::remove(root.as_path());
-    return said.warnings();
+    return (said.warnings(), took);
 }
 
 //endregion
