@@ -599,9 +599,19 @@ fn two_spellings_of_one_runtime_directory_are_one_service() {
 #[test]
 #[cfg(target_os = "linux")]
 fn a_runtime_directory_too_long_for_a_path_is_one_service_however_it_is_spelled() {
-    let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(INSTANCE) + 1, "spelled");
+    let longest: usize = longest_runtime_directory(INSTANCE);
+    let runtime: PathBuf = runtime_directory_of_length(longest + 1, "spelled");
     let dotted: PathBuf = a_spelling_through_relative_parts(runtime.as_path(), 2);
     let linked: PathBuf = a_link_past_the_path_limit(runtime.as_path(), INSTANCE);
+    // The link is the spelling this control stands on: its whole path, the folder and the separator between it and the
+    // name, is one byte past the longest runtime directory a path carries, and it is held here so a helper a byte off
+    // in either direction fails this control.
+    assert_eq!(
+        linked.as_os_str().len(),
+        longest + 1,
+        "the link {} is one byte past the longest runtime directory, which is {longest} bytes",
+        linked.display()
+    );
     // Every spelling is on the abstract side, which is what this control is about: the manager's answer is a name, so a
     // spelling short enough to have a socket file of its own would be waited at where nothing listens.
     for spelled in [runtime.as_path(), dotted.as_path(), linked.as_path()] {
