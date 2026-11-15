@@ -96,7 +96,7 @@ pub const NESTED_REPOSITORIES: &str = "nestedRepositories";
 ///  "nothing goes":
 ///  a quiet line about a repository that went is worse than a stopped command,
 ///  and the sentence says which reading failed.
-
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// nestedRepositoriesACleanTakes(facts, location, ['-f', '-f', '-d', '-X']) === ['nested'];

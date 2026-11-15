@@ -81,11 +81,11 @@ fn worktree_with_a_nested_repository(name: &str) -> Places {
 /// ```ts
 /// const { outcome, lines } = decideClean(places, ['-f','-f','-d','-X']);
 /// ```
-fn decide_clean(places: &Places, region: &[&str]) -> (PolicyOutcome, Vec<String>) {
+fn decide_clean(places: &Places, written: &[&str]) -> (PolicyOutcome, Vec<String>) {
     let prefix: Vec<OsString> = vec![OsString::from("-C"), places.linked.as_os_str().to_os_string()];
     let mut facts: GitFacts = git_facts(Path::new(REAL_GIT), prefix.as_slice(), isolated_overlay().as_slice());
     let location = facts.location().expect("the linked worktree's identity");
-    let region: Vec<OsString> = region.iter().map(OsString::from).collect();
+    let region: Vec<OsString> = written.iter().map(OsString::from).collect();
     let mut seen: Vec<OsString> = vec![OsString::from("clean")];
     seen.extend(region.iter().cloned());
     let before: usize = audit_lines(places.main.as_path()).len();
