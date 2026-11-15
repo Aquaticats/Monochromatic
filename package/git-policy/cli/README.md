@@ -1361,6 +1361,12 @@ The record names one worktree and not a path:
 A worktree you removed by hand and added again at the same path is therefore a different worktree,
  and the record of the earlier one leaves it exactly as it is.
 
+Every record of a worktree a removal reads back is opened without waiting for a writer,
+so a name a process made a named pipe ends that read with a reason instead of holding your command:
+the registrations' `gitdir` and `HEAD`,
+the kept worktrees a later sweep examines again,
+and the hand-over's own records.
+
 **What goes with the worktree.**
 The files Git ignores in it go too,
  exactly as they do when a person runs `git worktree remove`:
@@ -1371,6 +1377,11 @@ Git work is never destroyed by a removal,
 and everything else a person put into the worktree goes with it,
 each thing recorded where you read it afterwards
 (the next section).
+That the ignored files go rather than keep the worktree is the owner's earlier answer of the same day,
+"Delete ignored, spare busy",
+recorded in `doc/handover/cli-git-rust-implementation.md`,
+"Worktree removal and ignored files":
+delete them as real Git does, and log each one.
 That covers the ignored files,
 a whole ignored directory,
 a worktree nested inside it,
@@ -2875,7 +2886,17 @@ a shell that stands in the worktree and removes it from there loses that folder,
 and so does any other parent standing there.
 Every other process still counts,
 and one whose working folder cannot be read keeps its worktree
-unless its start time proves it predates the worktree.
+unless it runs in another control group than the command's and its start time is older than the worktree.
+A start time does not prove a process is outside a folder,
+so the scan's line is the control group:
+a hidden process in the group the command runs in, or below it,
+is the work a worktree is used by and keeps the worktree whatever its start,
+while the services a session starts with, which sit in another group, are taken as outside.
+A hidden process of yours that began before the worktree and runs in another group can still be inside it,
+and the removal then takes the folder it is working in:
+that is the cost of a removal working at all on a desktop whose session hides its own services,
+the module says so (`src/native/worktree/worktree_process_inside.rs`),
+and `SPEC.md` ("A process that hides its working folder") records the measurement.
 A worktree registered inside the one you named holds work no other copy has:
 an edit to a tracked file or a staged change,
 or a commit that no reference names,
@@ -2889,6 +2910,19 @@ and ends with the same flag.
 With the flag the removal runs exactly as real Git does,
 and what it takes is in the record below,
 the changed tracked files of the nested worktree among them.
+Every registration the repository holds is read by one reader,
+whatever its `HEAD` names,
+so a nested worktree at a detached `HEAD` is seen by the proof and by the record;
+a reader that left those out let the service remove an outer worktree with such a worktree's edit in it.
+A registration's path is the bytes Git wrote, from that read to the comparison, the refusal and the record,
+so a worktree whose name is not UTF-8 is found and refused like any other.
+The proof a removal makes is a proof of a moment:
+the listing of what will go, the walk of the tree and, on the subvolume route, a rename stand between it and the delete,
+so the same question is asked again immediately before anything is deleted,
+and again immediately before real Git is started on the route that leaves the removal to Git.
+Real Git's own run is the part this program cannot look inside,
+and what Git refuses there it still refuses: an unforced removal of a worktree with modified or untracked files.
+
 The flag goes directly after the subcommand word `worktree`,
 because a token after `remove` is read as that subcommand's own argument.
 A forced removal is never refused:

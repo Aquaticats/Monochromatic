@@ -14789,6 +14789,85 @@ The note that names an instance's worktree,
 written beside the socket,
 holds the directory the same way.
 
+### One reader of the registrations, and what a removal asks of it
+
+Every caller that needs the repository's registrations reads them through one reader
+(`src/native/worktree/worktree_landed_registrations.rs`),
+and that reader answers with every registration the common directory holds,
+whatever its `HEAD` names:
+the landed sweep skips the ones without a branch when it builds its candidates,
+and the removal's guard, the nested-worktree question and the record of what a removal deleted see all of them.
+A reader that left the detached ones out made a nested worktree at a detached `HEAD` invisible,
+and the service then removed the outer worktree with that worktree's edit in it.
+
+A registration's path is the bytes Git recorded in its `gitdir`, from that read to every comparison,
+to the words of a refusal and to the record:
+nothing in between turns them into text,
+so a worktree whose name holds a byte that is not UTF-8 is found, refused and recorded like any other,
+and the record names it in those bytes under `worktreeHex=`.
+
+A worktree registered inside the one a removal names keeps it only while Git says it holds work no other copy has:
+an edit to a tracked file, a mark that hides one, or a commit no reference names
+(`src/native/worktree/worktree_nested_git_work.rs`).
+One holding none of those goes with the removal and its files are recorded,
+which is the owner's decision of 2026-11-12, "Delete ignored, spare busy"
+(`doc/handover/cli-git-rust-implementation.md`, "Worktree removal and ignored files").
+
+### The removal's last look
+
+The judgement a removal's policy makes is a proof of a moment,
+and the instruction that deletes comes after a walk of the tree,
+a listing of what will go and, on the subvolume route, a rename.
+So the same question is asked again as late as this program can ask it:
+inside the removal, after its proof of cleanliness and immediately before the destroy,
+on both routes (`LastLook`, `src/native/worktree/worktree_remove_last_look.rs`),
+and immediately before real Git is started on the route that leaves the removal to Git,
+on the person's command and in the commit service.
+A `--no-enforce-worktree` escape and a forced removal ask nothing, which is what the escape promises.
+
+What this cannot close is stated rather than hidden:
+real Git's own removal runs after the wrapper's last look,
+and the wrapper cannot look inside that run.
+What Git itself refuses in that window it still refuses:
+an unforced `git worktree remove` of a worktree with modified or untracked files fails,
+and its own message says so,
+including a nested worktree whose files it finds that way.
+What Git does not refuse there is a worktree that only a process is working in,
+or one holding only files Git ignores,
+and those are the states the wrapper's own look covers before Git starts.
+
+Every record of a removal that is read back goes through the plain-file reader
+(`foundation/plain_file.rs` through `read_record_here`),
+which opens without waiting for a writer:
+the registrations' `gitdir` and `HEAD`,
+the kept worktrees under `kept-landed-worktrees`,
+the hand-over's work items and the identity beside a registration.
+A name a process made a named pipe ends that read with a reason instead of holding the command.
+
+### A process that hides its working folder
+
+A process of this account can hide its working folder from every reader
+(`PR_SET_DUMPABLE` 0 makes `/proc/<pid>/cwd` unreadable to the account that owns the process),
+and the kernel then answers none of the records that name where it is:
+measured on this host,
+`cwd`, `root`, `exe`, `fd`, `maps`, `smaps`, `numa_maps`, `auxv`, `syscall`, `io`, `pagemap`,
+the namespace links and `personality` are refused,
+while `stat`, `status`, `comm`, `cmdline`, `cgroup`, `mountinfo` and `sched` are readable.
+A start time does not prove such a process is outside a worktree,
+because a process that began before the folder existed can change its folder into it afterwards.
+
+So the scan decides with what those records say, and the module says what it cannot see
+(`src/native/worktree/worktree_process_inside.rs`):
+a kernel thread and a process that ended hold no folder and never keep a worktree;
+a process in the command's own control group or one below it keeps the worktree whatever its start,
+because a folder is changed into by the work the command started and not by the services a session starts with;
+and a process that started after the worktree existed may have been started in it and keeps the worktree too.
+What is left is taken as outside and is named in the module and in `README.md`:
+a hidden process of this account that began before the worktree, in another control group than this command's.
+Keeping the worktree for every such process would refuse every removal on a machine whose session starts
+services that hide their folders,
+and only the owner can accept either cost.
+
 ### Where the service listens
 
 One commit service runs per worktree,

@@ -8,6 +8,13 @@
 //!  "How far the protection of a worktree being removed reaches") is "Keep Git work only":
 //!  a removal keeps the work Git names and takes everything else a person put there,
 //!  and each thing it takes is logged.
+//!  That the ignored files go rather than keep the worktree is the owner's earlier answer of the same day,
+//!  "Delete ignored, spare busy",
+//!  recorded in `doc/handover/cli-git-rust-implementation.md`,
+//!  "Worktree removal and ignored files":
+//!  delete them as real Git does, and log each one.
+//!  So this record is what the decision promised,
+//!  and a removal that deletes an ignored file here is behaving as it was told to.
 //!  That is the files Git ignores,
 //!  also whole ignored directories,
 //!  and the untracked and ignored files of a worktree nested inside the one being removed.
