@@ -1396,6 +1396,193 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Five more of the gate's standing failures have their cause and a fix in review: fixtures that leave a runtime directory too little room, and an image without `SPEC.md` (2026-11-15T00:26:57-05:00)
+
+Not final and not approved:
+what one fresh run reports,
+and what the coordinating session queued.
+
+- **The long-runtime-directory controls in the gate's container**,
+  a fresh run,
+  ended 00:20:53 at `a7f7bfd1df`.
+  By its report five of the gate's standing failures have two causes,
+  each shown by a run,
+  and neither is the wrapper's:
+  four controls build their fixture under `$HOME/temp/agent/<prefix><pid>` whatever room that leaves for a socket's name,
+  and in the container that folder is 32 bytes long,
+  leaving seven where the names need eight to thirteen;
+  the fifth reads `SPEC.md`,
+  which the image's snapshot never listed.
+  It found the same defect in one more control that the gate passed only because that run's process number had five digits.
+  Changed:
+  the test support chooses the longest folder that leaves the room a name needs and names every place it tried when none does;
+  `SPEC.md` joins the snapshot.
+  A control of the helper fails with the shortening planted out,
+  and the five still passed in that planted run,
+  which it gives as the reason the defect stayed unseen.
+  All five pass in the gate's container at the gate's own room.
+  Its review is queued second
+  (`main...a7f7bfd1df`,
+  one code file that is not a test).
+- **It also met two TypeScript unit tests of the package red on `main`**:
+  four planted controls that name source text which is no longer there,
+  and a harness digest that does not match.
+  One agent's reading.
+  These have gone stale and been put right before
+  (two earlier briefs say so);
+  a fresh run is queued to put them right and to say which check at a merge would have caught them
+  (`~/temp/agent/pi-runs/planted-controls-of-the-wrapper-name-current-sources-again-and-say-what-let-them-go-stale-prompt.md`).
+  The integration passes' briefs,
+  which this session writes,
+  ask for the Rust build,
+  tests and Clippy and not for the unit tests of `bin/`;
+  from the next pass on they ask for those too.
+- **Where the gate's 25 stand**,
+  by the fixes this handover records and not by a gate:
+  five here,
+  seven on the Git-version branch,
+  three on the refused service start,
+  two on the lock-holders folder,
+  three push controls with pass 48's author,
+  one runtime control in a fresh run;
+  that is 21 of the 25.
+  The other four,
+  read by name from the gate's list at 00:28:
+  `landing::service_round::…a_lane_that_panics_stops_its_lane_and_the_round_says_so`,
+  `push::child_watch_output_watched_on_the_runtime::…a_step_left_running_on_the_runtime_is_collected…` and `push::push_slow_server_tests::a_server_that_takes_the_connection_and_answers_nothing…`,
+  which the queued brief on library tests that pass alone and fail inside the suite names,
+  and `lock::abandoned_lock_proving_tests::a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown`,
+  which a queued fresh run of its own has.
+  Neither had started;
+  both were moved up at 00:28:35,
+  to third and fourth in the queue
+  (from fortieth and fifteenth).
+  So each of the 25 has a run named for it.
+- Read at 00:25:53:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  24 runs going,
+  the cap.
+  The queue held 71 entries at 00:26:57.
+
+##### The brief writer for every kind of code file counts the repository's tests and fixtures and goes to review (2026-11-15T00:16:22-05:00)
+
+Not final and not approved:
+what one author reports,
+and what the coordinating session queued.
+
+- **The review-brief writer that reads every kind of code file**,
+  its author's second run,
+  ended 00:11:40 at `e759dd56fc`,
+  its report whole.
+  The repository's markings of a test and of a fixture were counted over every tracked file and written into the lists file;
+  the older rule matched 5,408 files on the tree the change began from.
+  A file beside a test that is neither is read with the change as material a test may read;
+  a note beside a test is still refused,
+  with both paths named.
+  It states what the rule gets wrong,
+  by its own count:
+  767 files with a code extension sit under a fixture marker and a brief for code leaves them out
+  (six of them are named by production code,
+  all six test support);
+  of 46 files that tests name by a literal path,
+  two are fixture material the lists do not mark,
+  read when changed beside their test and refused when changed alone,
+  with the path named.
+  Both of the review's findings have a control on the real paths,
+  failing with the fix out.
+  Build,
+  lint and type check clean;
+  195 unit tests passing.
+  It names the lines of `material-of-a-review.ts` where its change meets the branch for a change to tests alone.
+- Its review is queued second
+  (`main...e759dd56fc`,
+  six code files).
+- Read at 00:16:04:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  23 runs going.
+  The queue held 71 entries at 00:16:22.
+
+##### The gate on `0.6.1-alpha.37` fails 25: the six pass 48 was for pass, and four fail that did not before, three of them push controls that point at pass 48's own change (2026-11-15T00:08:53-05:00)
+
+Not final and not approved:
+what the coordinating session ran,
+read,
+weighed and queued.
+
+- **The gate on `5a012ba094`** (`0.6.1-alpha.37`),
+  started 23:48:02,
+  log written until 00:07:08:
+  `9109 tests run: 9084 passed (8 slow), 25 failed, 28 skipped`,
+  `gate-exit-status=1`,
+  893 s where the four gates before it took 788 to 814 s.
+- **The six controls pass 48 was for pass**:
+  no `fault_remote::` control and no `package_repair::` control is among the 25.
+  The control of two adds at once and `owed_push` pass too.
+- **Four fail that failed in none of the four gates before**:
+  - `push_minimum_rate::a_server_whose_hook_never_answers_is_ended_at_the_connected_window`,
+    `…a_server_that_drips_its_answer…` and `…a_server_that_reads_the_upload_slowly…`,
+    of the binary target.
+    In the gate before,
+    without pass 48,
+    they passed in 14.4 to 18.3 s;
+    here each failed after about 38 s with "the service never finished the push",
+    the service's own lines saying `outcome=retrying`,
+    a push of 30.8 to 31.1 s,
+    "push will be tried again",
+    and once "moving push-… to failed failed … its lease probably ran out and another instance took the work over".
+  - `foundation::lazy_runtime::tests::a_build_that_finishes_while_the_caller_gives_up_is_kept`,
+    after 0.469 s:
+    "the runtime the build finished with was dropped with the channel the caller closed after its last read".
+- **Weighed**:
+  the three push controls point at pass 48's change,
+  since nothing else of the wrapper lies between the two gates and the lines are of work tried again;
+  that is an order of events and not a measurement,
+  and the gate as a whole ran slower.
+  Pass 48's whole suites on this machine did not show them.
+  `0.6.1-alpha.37` stays installed:
+  what the lines show is a failed push tried again sooner and for longer,
+  and one work item moved by two hands,
+  neither of which loses a commit;
+  the owner's rule is that a gate failure goes to an author and holds no release.
+  The author of that change is resumed at the head of the queue
+  (`~/temp/agent/pi-runs/after-commit-work-three-push-controls-fail-in-the-gate-since-the-slow-lane-serves-a-wake-prompt.md`),
+  asked first to run the three in the gate's image at the merge and at its parent,
+  alternating,
+  and to stop with the counts if they fail at the parent too.
+  The runtime's control failed once in five gates and nothing under `foundation/` changed;
+  its message says the code did the opposite of what the control's name promises,
+  so a fresh run has it
+  (`~/temp/agent/pi-runs/runtime-a-build-finished-with-is-kept-when-the-caller-gave-up-in-the-gate-container-too-prompt.md`,
+  queued ninth).
+- **The 21 others** failed in each of the four gates before.
+  Of them,
+  by the fixes this handover records:
+  seven wait on the Git-version branch,
+  three on the refused service start,
+  two on the lock-holders folder,
+  each back with its author;
+  the rest are counted when those land.
+- **`0.6.1-alpha.37`**,
+  the user journal from 23:47:50 to 23:53:50:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  three starts saying `0.6.1-alpha.37`,
+  each the installed program.
+- Pass 49,
+  going,
+  was sent the new list.
+- Read at 00:01:46:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going.
+  The queue held 71 entries at 00:08:53.
+
 ##### Three authors answer and go to review (the drawn tree, mpm-shadow's install, the discarding commands); the brief writer for tests goes back; this session's own check stopped a launcher that was ending (2026-11-14T23:58:21-05:00)
 
 Not final and not approved:
