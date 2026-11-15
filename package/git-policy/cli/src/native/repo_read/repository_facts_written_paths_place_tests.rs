@@ -340,10 +340,10 @@ fn every_row_names_the_place_of_a_file_git_writes() {
     remove(probe.repo.parent().expect("the fixture's directory"));
     let mut refused: Vec<String> = Vec::<String>::new();
     let mut failures: Vec<String> = Vec::<String>::new();
-    for number in 0..labels.len() {
+    for (number, label) in labels.iter().enumerate() {
         let places: Places = fixture_for(number + 1);
         let row: Row = row_specs(&places).into_iter().nth(number).unwrap_or_else(|| panic!("row {number} is missing"));
-        assert_eq!(row.label, labels[number], "the rows shift between fixtures");
+        assert_eq!(&row.label, label, "the rows shift between fixtures");
         let guarded: Result<Vec<String>, String> = guard_names(row.directory.as_path(), row.command, row.words.as_slice());
         let mut before: BTreeMap<PathBuf, Vec<u8>> = snapshot(places.repo.as_path());
         before.extend(snapshot(places.outside.as_path()));

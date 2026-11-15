@@ -42,9 +42,9 @@ use std::path::{Path, PathBuf};
 /// const insideOnly = (places) => places.map((place) => place.kind === 'inside' ? place.path : fail(place.path));
 /// ```
 fn inside_paths(places: Result<Vec<super::WrittenPlace>, String>) -> Result<Vec<Vec<u8>>, String> {
-    return places.and_then(|places| {
+    return places.and_then(|answered| {
         let mut inside: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-        for place in places {
+        for place in answered {
             match place {
                 super::WrittenPlace::Inside(path) => inside.push(path),
                 super::WrittenPlace::Outside(path) => {

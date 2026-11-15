@@ -1444,14 +1444,14 @@ fn the_places_under_a_prefix(
     prefix: Option<&OsStr>,
     paths: Vec<Vec<u8>>,
 ) -> Result<Vec<WrittenPlace>, String> {
-    let Some(prefix) = prefix else {
+    let Some(named_prefix) = prefix else {
         return Ok(inside_places(paths));
     };
-    let written: Vec<u8> = prefix.as_encoded_bytes().to_vec();
+    let written: Vec<u8> = named_prefix.as_encoded_bytes().to_vec();
     let named: PathBuf = if written.starts_with(b"/") {
-        PathBuf::from(prefix)
+        PathBuf::from(named_prefix)
     } else {
-        root.join(prefix)
+        root.join(named_prefix)
     };
     // One resolution of the prefix, under the same ceiling as a word's place.
     let resolved: PathBuf = match resolve_within_a_ceiling(root, named.as_path()) {
