@@ -316,12 +316,82 @@ fn malformed_values_git_rejects_make_the_readers_decline() {
 #[test]
 fn index_max_path_len_is_a_number_git_reads_before_any_command() {
     let one_past_the_maximum: String = (i64::from(i32::MAX) + 1).to_string();
-    for refused in [Some(b"maybe".as_slice()), None, Some(b""), Some(b"-1"), Some(b"99999999999999999999"), Some(b"~no-such-user-here/x"), Some(one_past_the_maximum.as_bytes())] {
+    for refused in [Some(b"maybe".as_slice()), None, Some(b""), Some(b"-0"), Some(b"-0k"), Some(b"-1"), Some(b"99999999999999999999"), Some(b"~no-such-user-here/x"), Some(one_past_the_maximum.as_bytes())] {
         assert!(!entry_is_accepted("index.maxpathlen", refused), "{refused:?}");
     }
     for accepted in [Some(b"0".as_slice()), Some(b"3"), Some(b"3k"), Some(b"999999999")] {
         assert!(entry_is_accepted("index.maxpathlen", accepted), "{accepted:?}");
     }
+}
+
+/// The spellings every numeric key is swept with:
+///  a minus and a plus on zero,
+/// zero itself,
+/// a space on either side of it,
+/// a base the number reader does not read,
+/// a unit suffix on each signed spelling,
+/// no value at all,
+/// and two numbers past 64 bits.
+const EDGE_SPELLINGS: [Option<&str>; 14] = [Some("-0"), Some("+0"), Some("0"), Some(" 0"), Some("0 "), Some("0x10"), Some("010"), Some("0k"), Some("-0k"), Some("+0k"), Some(""), None, Some("99999999999999999999"), Some("18446744073709551616")];
+
+/// Whether one kind reads a number,
+///  and so is swept for the edge spellings of one.
+fn is_numeric_kind(kind: Kind) -> bool {
+    return matches!(kind, Kind::Integer { .. } | Kind::IntegerOrBoolean | Kind::Abbreviation);
+}
+
+/// The spellings one numeric kind is swept with:
+///  the shared edges,
+/// and a number one past each bound the kind states.
+fn edge_spellings(kind: Kind) -> Vec<Option<String>> {
+    let mut spellings: Vec<Option<String>> = EDGE_SPELLINGS.iter().map(|spelling| { return spelling.map(str::to_string); }).collect();
+    if let Kind::Integer { low, high } = kind {
+        spellings.push(Some((high + 1).to_string()));
+        spellings.push(Some((low - 1).to_string()));
+    }
+    return spellings;
+}
+
+/// Every key whose kind reads a number takes each spelling at the edge of one either by making the readers decline
+/// or by leaving Git to answer:
+///  no repository Git refuses is answered in process.
+///
+/// The rule held here: a kind whose lower bound is zero or more is an unsigned number to Git,
+/// and Git refuses every spelling of an unsigned number that carries a minus sign,
+/// even when the number it stands for is zero
+///  (`git_parse_unsigned` in `parse.c` of the Git under test,
+/// which refuses the sign before it reads the digits),
+/// so such a spelling is declined and Git words the failure.
+#[test]
+fn every_edge_spelling_of_a_numeric_key_is_declined_or_answered_by_git() {
+    let trial = Trial::new("repo-read-typed-edges");
+    let shape: &Shape = trial.shapes.iter().find(|shape| { return shape.0.first().is_some_and(|word| { return *word == "ls-files"; }); }).expect("the listing shape");
+    let mut keys: Vec<(String, Kind)> = Vec::new();
+    for key in documented_keys() {
+        let Some(kind) = kind_of(key.as_str()) else {
+            continue;
+        };
+        if is_numeric_kind(kind) {
+            keys.push((key, kind));
+        }
+    }
+    assert!(keys.len() > 5, "git help --config listed {} numeric keys", keys.len());
+    let mut failures: Vec<String> = Vec::new();
+    for (key, kind) in keys {
+        for spelling in edge_spellings(kind) {
+            trial.configure(config_text(key.as_str(), spelling.as_deref()).as_str());
+            let Some(answer) = ours(trial.root.as_path(), trial.repo.as_path(), shape) else {
+                continue;
+            };
+            let (_stdout, stderr, code) = real(trial.repo.as_path(), shape);
+            if code != Some(0) {
+                failures.push(format!("{key} = {spelling:?}: the readers answered {:?} where Git exits {code:?}: {}", String::from_utf8_lossy(&answer.stdout), String::from_utf8_lossy(&stderr)));
+            }
+        }
+    }
+    trial.configure("");
+    assert!(failures.is_empty(), "{} spellings of a numeric key are answered where Git refuses them: {failures:#?}", failures.len());
+    trial.finish();
 }
 
 /// Every word and number the proof accepts is one real Git runs silently with on every shape,
