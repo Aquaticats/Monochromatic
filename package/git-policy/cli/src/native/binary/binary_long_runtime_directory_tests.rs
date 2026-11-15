@@ -15,7 +15,7 @@
 //!  so what is checked is the program a person runs and the address it really reaches.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, fixture, git, repository, start_fixture_service, start_fixture_service_in};
+use super::support::{Fixture, fixture, git, repository, short_runtime_directory, socket_folder, start_fixture_service, start_fixture_service_in};
 use git_policy_cli::service_address_of_a_worktree::socket_address_of;
 use git_policy_cli::service_instance::{instance_of, longest_runtime_directory, socket_path};
 use git_policy_cli::service_server::Bind;
@@ -34,21 +34,21 @@ const DIGEST_NAME_BYTES: usize = 8;
 
 /// What:
 ///  A runtime directory with a path of exactly `length` bytes,
-///  made under the longest folder this account offers that leaves room for its name.
+///  made under the longest folder this fixture may use that leaves room for its name.
 /// Why:
 ///   The boundary the kernel has is a count of bytes,
 /// so a control that guessed the length would prove nothing about it,
 /// and the fixture root under the build directory is far too long to build one under.
 /// The room below the folder is what is left once its own path and the name are taken,
-/// and it is shorter where the home directory's path is longer or the process number has more digits:
-/// the gate's container leaves seven bytes under `$HOME/temp/agent`,
+/// and it is shorter where the home directory's path is longer:
+/// a home directory of two hundred bytes leaves nothing under `$HOME/temp/agent`,
 /// where a name of `at-the-longest` plus padding needs thirteen.
-/// So the folder is asked for by the room the name needs,
+/// So the folder is asked for by the room the name needs, from the fixture that owns it,
 /// and a control here never depends on how long this account's home directory is.
-fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
+fn runtime_directory_of_length(fixture: &Fixture, length: usize, tag: &str) -> PathBuf {
     let name_length: usize = tag.len().min(DIGEST_NAME_BYTES);
     let longest_parent: usize = length.saturating_sub(1 + name_length);
-    let parent: PathBuf = runtime_directory_parent("lr", longest_parent);
+    let parent: PathBuf = socket_folder(fixture, "lr", longest_parent);
     let room: usize = length.checked_sub(parent.as_os_str().len() + 1).expect("a runtime directory longer than the folder it stands in");
     // The name holds the tag where there is room for it and padding to the byte the control asks for. A tag that does not
     //  fit is replaced by a digest of itself: two controls still get two directories, whichever number this process runs
@@ -64,45 +64,6 @@ fn runtime_directory_of_length(length: usize, tag: &str) -> PathBuf {
     std::fs::create_dir_all(&runtime).expect("the runtime directory");
     assert_eq!(runtime.as_os_str().len(), length, "the directory is exactly as long as the control asks");
     return runtime;
-}
-
-/// What:
-///  The folder this process's runtime directories are made in:
-///  the longest place this account offers that is at most `longest` bytes long.
-/// Why:
-///   A socket address carries 107 bytes of path,
-/// and the room a runtime directory of a fixed length leaves for its own name is what stays past the folder it stands in,
-/// which depends on this account and on this process.
-/// The binary controls cannot use the library's test support (`#[cfg(test)]` is not compiled into this target),
-/// so this is the same choice the unit controls make,
-/// named here for the one thing they share.
-fn runtime_directory_parent(prefix: &str, longest: usize) -> PathBuf {
-    let name: String = format!("{prefix}{}", std::process::id());
-    let mut places: Vec<PathBuf> = Vec::new();
-    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
-        // The folder this package's fixtures keep their sockets in.
-        places.push(home.join("temp/agent").join(name.as_str()));
-        // The same folder without the two segments the package adds, which a short home directory cannot spare.
-        places.push(home.join("temp").join(name.as_str()));
-    }
-    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from) {
-        // The directory the product itself serves a session's sockets in, which is the shortest place an account has.
-        places.push(runtime.join(name.as_str()));
-    }
-    for place in &places {
-        if place.as_os_str().len() > longest {
-            continue;
-        }
-        std::fs::create_dir_all(place).expect("the folder of this control's runtime directories");
-        return place.clone();
-    }
-    let tried: String = if places.is_empty() {
-        String::from("this account names no home directory and no runtime directory")
-    } else {
-        let described: Vec<String> = places.iter().map(|place| { return format!("{} ({} bytes)", place.display(), place.as_os_str().len()); }).collect();
-        described.join(", ")
-    };
-    panic!("no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}");
 }
 
 /// A repository with one committed file and an edit of it waiting for a commit.
@@ -147,7 +108,7 @@ fn commit_through(fixture: &Fixture, repo: &Path, runtime: PathBuf) -> Output {
 fn a_commit_is_made_where_the_runtime_directory_is_as_long_as_a_socket_path_allows() {
     let (fixture, repo) = edited("long-runtime-at-the-longest");
     let instance: String = instance_of(repo.join(".git").as_path());
-    let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(instance.as_str()), "at-the-longest");
+    let runtime: PathBuf = runtime_directory_of_length(&fixture, longest_runtime_directory(instance.as_str()), "at-the-longest");
     let socket: PathBuf = socket_path(runtime.as_path(), instance.as_str());
     assert!(
         matches!(socket_address_of(runtime.as_path(), instance.as_str()), Bind::Path(_)),
@@ -175,7 +136,7 @@ fn a_commit_is_made_where_the_runtime_directory_is_as_long_as_a_socket_path_allo
 fn a_commit_is_made_where_the_runtime_directory_is_past_what_a_socket_path_carries() {
     let (fixture, repo) = edited("long-runtime-past-the-longest");
     let instance: String = instance_of(repo.join(".git").as_path());
-    let runtime: PathBuf = runtime_directory_of_length(longest_runtime_directory(instance.as_str()) + 1, "past-the-longest");
+    let runtime: PathBuf = runtime_directory_of_length(&fixture, longest_runtime_directory(instance.as_str()) + 1, "past-the-longest");
     let output: Output = commit_through(&fixture, &repo, runtime.clone());
     let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
     assert_eq!(output.status.code(), Some(0), "{stderr}");
@@ -236,7 +197,7 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
     assert!(!runtime.exists(), "the spelling's directory is not there when the first commit starts");
     // The stand-in manager's bus stands in a directory of its own, because a bus inside the spelling would make the
     // directory the commit has not made yet.
-    let bus_directory: PathBuf = super::support::short_runtime_directory(&fixture);
+    let bus_directory: PathBuf = short_runtime_directory(&fixture);
     let services: Arc<Mutex<Vec<Child>>> = Arc::new(Mutex::new(Vec::new()));
     let start: Box<dyn Fn() + Send> = {
         // What the stand-in manager's start needs of its own: the spelling it starts a service at, and the instance.

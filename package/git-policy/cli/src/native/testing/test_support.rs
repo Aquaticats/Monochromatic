@@ -353,9 +353,113 @@ pub(crate) fn room_a_runtime_name_needs(tag: &str) -> usize {
     return tag.len().min(DIGEST_NAME_BYTES);
 }
 
+/// The hexadecimal digits a folder's own name token takes.
+const FOLDER_TOKEN_DIGITS: usize = 6;
+
+/// How many tokens one thread tries before it gives up on a place this account offers.
+const FOLDER_TOKEN_ATTEMPTS: usize = 8;
+
 /// What:
-///  The folder this process's runtime directories are made in:
-///  the longest place this account offers that is at most `longest` bytes long.
+///  One test thread's folders: the token every one of them is named with, and the ones it has made.
+/// Why:
+///   A folder named after the process number is not a name of one's own:
+/// about 549 processes start a second on this machine, so a number comes round in about two hours,
+/// and inside a container far sooner,
+/// and two runs of one process number met in one folder and failed each other at `AlreadyExists`.
+/// The token comes from the operating system's random source and every folder is made exclusively,
+/// so two runs cannot share one even when they draw the same token;
+/// the folders are remembered so a second call of one thread finds the folder it made rather than another.
+#[derive(Default)]
+struct ThreadFolders {
+    /// The six hexadecimal digits this thread's folders are named with, made on first use.
+    token: String,
+    /// The folders this thread made, in the order it made them.
+    made: Vec<PathBuf>,
+}
+
+thread_local! {
+    /// The folders the running test thread owns.
+    static THREAD_FOLDERS: std::cell::RefCell<ThreadFolders> = std::cell::RefCell::new(ThreadFolders::default());
+}
+
+/// What:
+///  A fresh token of `FOLDER_TOKEN_DIGITS` hexadecimal digits, the first of a UUID from the operating system.
+/// Why:
+///   Six digits are the room a folder's name has in the shortest place this account offers,
+/// and a name that cannot be guessed is what keeps two runs out of one folder;
+/// the folder is also made exclusively, so a token drawn twice still names two folders.
+fn fresh_folder_token() -> String {
+    let uuid: String = crate::random_id::random_uuid().expect("the operating system's random source");
+    return uuid.get(..FOLDER_TOKEN_DIGITS).expect("a UUID is longer than the token").to_string();
+}
+
+/// What:
+///  The token naming this thread's folders, made on first use.
+/// Why:
+///   Every folder of one thread shares the token,
+/// so a control that asks for one folder twice is answered with the folder it made.
+fn this_threads_folder_token() -> String {
+    return THREAD_FOLDERS.with(|folders| {
+        let mut folders = folders.borrow_mut();
+        if folders.token.is_empty() {
+            folders.token = fresh_folder_token();
+        }
+        return folders.token.clone();
+    });
+}
+
+/// What:
+///  Whether this thread already made `folder`.
+/// Why:
+///   A folder that exists because this thread made it is used again,
+/// where one another run made is passed over.
+fn this_thread_made(folder: &Path) -> bool {
+    return THREAD_FOLDERS.with(|folders| { return folders.borrow().made.iter().any(|made| { return made == folder; }); });
+}
+
+/// What:
+///  Take note that this thread made `folder`, and hand the folder to the thread's cleanup.
+/// Why:
+///   The folder is the one owner of everything the helper puts in it,
+/// so the runtime directories and their own files and links go when the thread ends,
+/// whether its test passed, failed or was killed.
+fn this_thread_made_folder(folder: &Path) {
+    THREAD_FOLDERS.with(|folders| { folders.borrow_mut().made.push(folder.to_path_buf()); });
+    track_for_this_thread(folder);
+}
+
+/// What:
+///  Take another token, for a folder another run already made.
+/// Why:
+///   A folder is never shared:
+/// two runs that draw one token take different names rather than write in one place.
+fn this_thread_takes_another_token() {
+    THREAD_FOLDERS.with(|folders| { folders.borrow_mut().token = fresh_folder_token(); });
+}
+
+/// What:
+///  The places this account offers for a folder a runtime directory stands in, the longest first.
+/// Why:
+///   The place names no part of its own:
+/// the folder under it is this thread's, and the caller adds that.
+fn places_this_account_offers() -> Vec<PathBuf> {
+    let mut places: Vec<PathBuf> = Vec::new();
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        // The folder this package's fixtures keep their sockets in.
+        places.push(home.join("temp/agent"));
+        // The same place without the two segments the package adds, which a short home directory cannot spare.
+        places.push(home.join("temp"));
+    }
+    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from) {
+        // The directory the product itself serves a session's sockets in, which is the shortest place an account has.
+        places.push(runtime);
+    }
+    return places;
+}
+
+/// What:
+///  The folder this thread's runtime directories are made in:
+///  the longest place this account offers that holds its own name and stays within `longest` bytes.
 /// Why:
 ///   A socket address carries 107 bytes of path,
 /// and a runtime directory of a fixed length leaves whatever is past the folder it stands in for its own name,
@@ -366,38 +470,50 @@ pub(crate) fn room_a_runtime_name_needs(tag: &str) -> usize {
 /// number had fewer digits.
 /// The places are tried from the package's own folder to the shortest this account has,
 /// and a place that leaves too little is named rather than assumed away.
+/// The folder is this thread's alone, named with a token and made exclusively,
+/// and it owns everything the helper puts in it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// runtimeDirectoryParent('pr', 32) // '/home/tester/temp/pr123456'
+/// runtimeDirectoryParent('pr', 32) // '/home/tester/temp/agent/pr3f9a1c'
 /// ```
 pub(crate) fn runtime_directory_parent(prefix: &str, longest: usize) -> PathBuf {
-    let name: String = format!("{prefix}{}", std::process::id());
-    let mut places: Vec<PathBuf> = Vec::new();
-    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
-        // The folder this package's fixtures keep their sockets in.
-        places.push(home.join("temp/agent").join(name.as_str()));
-        // The same folder without the two segments the package adds, which a short home directory cannot spare.
-        places.push(home.join("temp").join(name.as_str()));
+    let name_length: usize = prefix.len() + FOLDER_TOKEN_DIGITS;
+    let offered: Vec<PathBuf> = places_this_account_offers();
+    let fitting: Vec<&PathBuf> = offered.iter().filter(|place| { return place.as_os_str().len() + 1 + name_length <= longest; }).collect();
+    if fitting.is_empty() {
+        let tried: String = if offered.is_empty() {
+            String::from("this account names no home directory and no runtime directory")
+        } else {
+            let described: Vec<String> = offered.iter().map(|place| {
+                let folder: PathBuf = place.join(format!("{prefix}{}", "x".repeat(FOLDER_TOKEN_DIGITS)));
+                return format!("{} ({} bytes)", folder.display(), folder.as_os_str().len());
+            }).collect();
+            described.join(", ")
+        };
+        panic!("no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}");
     }
-    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from) {
-        // The directory the product itself serves a session's sockets in, which is the shortest place an account has.
-        places.push(runtime.join(name.as_str()));
-    }
-    for place in &places {
-        if place.as_os_str().len() > longest {
-            continue;
+    for _attempt in 0..FOLDER_TOKEN_ATTEMPTS {
+        let name: String = format!("{prefix}{}", this_threads_folder_token());
+        for place in &fitting {
+            let folder: PathBuf = place.join(name.as_str());
+            if this_thread_made(folder.as_path()) {
+                return folder;
+            }
+            std::fs::create_dir_all(place.as_path()).expect("a place this account offers");
+            match std::fs::create_dir(folder.as_path()) {
+                Ok(()) => {
+                    this_thread_made_folder(folder.as_path());
+                    return folder;
+                }
+                // A folder another run made is not shared, so this thread takes another token.
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => break,
+                Err(error) => panic!("the folder {} cannot be made: {error}", folder.display()),
+            }
         }
-        std::fs::create_dir_all(place).expect("the folder of this thread's runtime directories");
-        return place.clone();
+        this_thread_takes_another_token();
     }
-    let tried: String = if places.is_empty() {
-        String::from("this account names no home directory and no runtime directory")
-    } else {
-        let described: Vec<String> = places.iter().map(|place| { return format!("{} ({} bytes)", place.display(), place.as_os_str().len()); }).collect();
-        described.join(", ")
-    };
-    panic!("no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}");
+    panic!("no folder was left for this thread: {FOLDER_TOKEN_ATTEMPTS} tokens were tried and every one of them named a folder another run had made");
 }
 
 /// What:

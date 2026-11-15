@@ -35,6 +35,10 @@ pub struct Fixture {
     pub service_environment: std::sync::Mutex<Vec<(OsString, OsString)>>,
     /// How the fixture's services are started when a fault control needs more than the plain program.
     pub service_launch: std::sync::Mutex<ServiceLaunch>,
+    /// The token naming the folders this fixture's sockets stand in, made on first use.
+    pub socket_folder_token: std::sync::Mutex<String>,
+    /// The folders this fixture made for its sockets, removed when the fixture goes.
+    pub socket_folders: std::sync::Mutex<Vec<PathBuf>>,
 }
 
 /// The process groups the helper processes of one test thread lead,
@@ -346,6 +350,113 @@ pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
     return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
 }
 
+/// The hexadecimal digits the name token of a folder a control's sockets stand in takes.
+const FOLDER_TOKEN_DIGITS: usize = 6;
+
+/// How many tokens one fixture tries before it gives up on a place this account offers.
+const FOLDER_TOKEN_ATTEMPTS: usize = 8;
+
+/// What:
+///  A fresh token of `FOLDER_TOKEN_DIGITS` hexadecimal digits, the first of a UUID from the operating system.
+/// Why:
+///   A folder named after the process number is not a name of one's own:
+/// about 549 processes start a second on this machine, so a number comes round in about two hours,
+/// and inside a container far sooner,
+/// and two runs of one process number met in one folder and failed each other at `AlreadyExists`.
+/// Six digits are the room a folder's name has in the shortest place this account offers,
+/// and the folder is made exclusively, so a token drawn twice still names two folders.
+fn fresh_folder_token() -> String {
+    let uuid: String = git_policy_cli::random_id::random_uuid().expect("the operating system's random source");
+    return uuid.get(..FOLDER_TOKEN_DIGITS).expect("a UUID is longer than the token").to_string();
+}
+
+/// What:
+///  The places this account offers for a folder a control's sockets stand in, the longest first.
+/// Why:
+///   The place names no part of its own: the folder under it is this fixture's, and its caller adds that.
+fn places_this_account_offers() -> Vec<PathBuf> {
+    let mut places: Vec<PathBuf> = Vec::new();
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        // The folder this package's fixtures keep their sockets in.
+        places.push(home.join("temp/agent"));
+        // The same place without the two segments the package adds, which a short home directory cannot spare.
+        places.push(home.join("temp"));
+    }
+    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from) {
+        // The directory the product itself serves a session's sockets in, which is the shortest place an account has.
+        places.push(runtime);
+    }
+    return places;
+}
+
+/// What:
+///  The folder this fixture's sockets stand in:
+///  the longest place this account offers that holds its own name and stays within `longest` bytes.
+/// Why:
+///   A Unix socket's name must fit `SUN_LEN`,
+/// which is 108 bytes,
+/// and a fixture root under a deep checkout does not,
+/// so a control that bound its socket beside the fixture failed on a long checkout and passed on a short one
+/// (2026-11-08),
+/// and the same control then failed by the length of the home directory it was given (2026-11-15).
+/// The places are tried from the package's own folder to the shortest this account has,
+/// and a place that leaves too little is named rather than assumed away.
+/// The folder is this fixture's alone, named with a token and made exclusively,
+/// and it goes with the fixture, so a passing control leaves nothing in a place it shares.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// socketFolder(fixture, 'rt', 27) // '/home/tester/temp/agent/rt3f9a1c'
+/// ```
+pub fn socket_folder(fixture: &Fixture, prefix: &str, longest: usize) -> PathBuf {
+    let name_length: usize = prefix.len() + FOLDER_TOKEN_DIGITS;
+    let offered: Vec<PathBuf> = places_this_account_offers();
+    if !offered.iter().any(|place| { return place.as_os_str().len() + 1 + name_length <= longest; }) {
+        let tried: String = if offered.is_empty() {
+            String::from("this account names no home directory and no runtime directory")
+        } else {
+            let described: Vec<String> = offered.iter().map(|place| {
+                let folder: PathBuf = place.join(format!("{prefix}{}", "x".repeat(FOLDER_TOKEN_DIGITS)));
+                return format!("{} ({} bytes)", folder.display(), folder.as_os_str().len());
+            }).collect();
+            described.join(", ")
+        };
+        panic!("no folder this account offers leaves room for a runtime directory's name: the control needs a folder of at most {longest} bytes, and the folders are {tried}");
+    }
+    for _attempt in 0..FOLDER_TOKEN_ATTEMPTS {
+        let token: String = {
+            let mut token = fixture.socket_folder_token.lock().expect("the fixture's folder token");
+            if token.is_empty() {
+                *token = fresh_folder_token();
+            }
+            token.clone()
+        };
+        let name: String = format!("{prefix}{token}");
+        for place in &offered {
+            if place.as_os_str().len() + 1 + name_length > longest {
+                continue;
+            }
+            let folder: PathBuf = place.join(name.as_str());
+            if fixture.socket_folders.lock().expect("the fixture's folders").iter().any(|made| { return made == &folder; }) {
+                return folder;
+            }
+            std::fs::create_dir_all(place.as_path()).expect("a place this account offers");
+            match std::fs::create_dir(folder.as_path()) {
+                Ok(()) => {
+                    fixture.socket_folders.lock().expect("the fixture's folders").push(folder.clone());
+                    return folder;
+                }
+                // A folder another run made is not shared, so this fixture takes another token.
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => break,
+                Err(error) => panic!("the folder {} cannot be made: {error}", folder.display()),
+            }
+        }
+        let mut token = fixture.socket_folder_token.lock().expect("the fixture's folder token");
+        *token = fresh_folder_token();
+    }
+    panic!("no folder was left for this fixture: {FOLDER_TOKEN_ATTEMPTS} tokens were tried and every one of them named a folder another run had made");
+}
+
 /// What:
 ///  A directory of this fixture's own,
 ///  short enough to hold a socket name.
@@ -355,19 +466,26 @@ pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
 /// and a fixture root under a deep checkout does not.
 /// A control that bound its socket beside the fixture failed with "path must be shorter than SUN_LEN"
 ///  on a long checkout and passed on a short one (2026-11-08),
-///  so a test depended on how deep the repository sat.
+///  so a test depended on how deep the repository sat;
+/// and it then depended on the length of the home directory as well (2026-11-15),
+///  so the folder now comes from `socket_folder`, which asks every place this account offers and names them when none
+///  is short enough.
 /// The service's own socket already lives in such a directory,
 /// and this is the one place that makes it.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt-${pid}-${n}`
+/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt3f9a1c/rt-0`
 /// ```
 pub fn short_runtime_directory(fixture: &Fixture) -> PathBuf {
-    let _ = fixture;
-    let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
     let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
+    let name: String = format!("rt-{number}");
+    // The runtime directory is one socket path less its name and the socket's own suffix, and every instance of this
+    //  package is `INSTANCE_LENGTH` hexadecimal digits, so the suffix is the same whatever the worktree is.
+    let instance: String = "0".repeat(git_policy_cli::service_instance::INSTANCE_LENGTH);
+    let longest_folder: usize = git_policy_cli::service_instance::longest_runtime_directory(instance.as_str()).saturating_sub(1 + name.len());
+    let folder: PathBuf = socket_folder(fixture, "rt", longest_folder);
+    let runtime: PathBuf = folder.join(name.as_str());
     std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("runtime directory");
     return runtime;
 }
@@ -683,6 +801,12 @@ impl Drop for Fixture {
         // Then whatever product code started here and a failed control never ended (a hook that waits with one `sleep`).
         end_processes_working_in(self.root.as_path());
         settle_fixture(self.root.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
+        // Then the folders this control's sockets stood in, which are this fixture's own and nobody else's.
+        if let Ok(folders) = self.socket_folders.lock() {
+            for folder in folders.iter() {
+                settle_fixture(folder.as_path(), std::env::var_os(KEEP_FIXTURES_VARIABLE).is_some());
+            }
+        }
     }
 }
 

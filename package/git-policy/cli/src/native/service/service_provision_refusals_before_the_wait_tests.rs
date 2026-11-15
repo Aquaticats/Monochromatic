@@ -113,19 +113,17 @@ impl Manager for Addressing {
 }
 
 /// What:
-///  The directory of one test process's runtime directories for these controls.
+///  The folder of the stand-in Git directory and of every runtime directory this module makes,
+///  the longest place this account offers, made by the helper that owns it.
 /// Why:
-///   A stand-in Git directory and every runtime directory this module makes stand under this process's own folder,
-/// never under the fixture root,
+///   Neither the stand-in Git directory nor a runtime directory stands under the fixture root,
 /// which sits under the build directory and is far longer than a socket address carries.
 /// A control whose name needs more room than this folder leaves asks for a shorter one
 /// (`runtime_directory_of_length`).
+/// The folder is this test thread's own, named with a token rather than with the process number,
+/// and it goes with the thread that made it, so this module leaves nothing in a place it shares.
 fn short_parent() -> PathBuf {
-    let directory: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory"))
-        .join("temp/agent")
-        .join(format!("pr{}", std::process::id()));
-    std::fs::create_dir_all(&directory).expect("the scratch directory");
-    return directory;
+    return crate::test_support::runtime_directory_parent("pr", usize::MAX);
 }
 
 /// What:
