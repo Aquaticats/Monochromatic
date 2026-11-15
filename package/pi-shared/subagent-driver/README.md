@@ -569,7 +569,8 @@ and one that holds code or a build decision and no test is reviewed as the chang
 and a file of an extension no list names is read as code and named in the line).
 Every brief names the files the change touched that it does not read,
 with the reason,
-so a note or a data file never decides for the files beside it.
+so a note or a data file never decides for the files beside it,
+and every path is in exactly one of the files read and the files left out.
 The files of a change of code are the code the ranges touched,
 in every language this repository is written in or renders,
 and the manifests and tool configurations that decide how that code is built,
@@ -642,7 +643,9 @@ so the brief names it as left out, with that reason,
 and the test is still read and still broken:
 a line of prose in the same commit never switches a review off.
 A code file beside a test is read too,
-and the brief asks the project's requirements for it as well.
+a file of a kind no list names among them,
+and the brief asks the project's requirements for it as well,
+while the line names every unlisted kind it read.
 The brief says in plain words that the change is to tests,
 and asks for the one thing a reviewer can show about a test:
 for each changed test,

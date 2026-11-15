@@ -7,9 +7,14 @@
  names, M material a test may read, and P prose.
 
  A test is read whatever else the range holds, which is the project's decision that a change to tests alone is reviewed; a file a
- review cannot judge never decides for the files beside it, so it is named in the brief as left out and nothing else changes. A
- range that holds only notes, only material, or nothing at all is answered as nothing to review, and the line the writer prints
- says which files it changed and why a review reads none of them.
+ review cannot judge never decides for the files beside it, so the row leaves it out by name and with the reason, and nothing else
+ changes. A range that holds only notes, only material, or nothing at all is answered as nothing to review, and the line the
+ writer prints says which files it changed and why a review reads none of them.
+
+ Every path of the range is in exactly one of `files` and `filesLeftOut`, which is what makes a brief list a file and never also
+ say it is left out. A file of a kind no extension list names is code wherever it is read, beside a test or not: it is in
+ `filesOfCode`, so the brief asks the project's requirements for it, and in `filesOfAnUnlistedKind`, so the line prints the
+ notice. The brief and the line take those answers and add nothing of their own.
 
  - no file: nothing-a-review-reads; reads none; leaves out none
  - T: tests-and-fixtures; reads T; leaves out none
@@ -28,21 +33,21 @@
  - FCU: tests-and-fixtures; reads FCU; leaves out none
  - TFCU: tests-and-fixtures; reads TFCU; leaves out none
  - M: nothing-a-review-reads; reads none; leaves out none
- - TM: tests-and-fixtures; reads TM; leaves out M
- - FM: tests-and-fixtures; reads FM; leaves out M
- - TFM: tests-and-fixtures; reads TFM; leaves out M
+ - TM: tests-and-fixtures; reads TM; leaves out none
+ - FM: tests-and-fixtures; reads FM; leaves out none
+ - TFM: tests-and-fixtures; reads TFM; leaves out none
  - CM: code-and-build-decisions; reads C; leaves out M
- - TCM: tests-and-fixtures; reads TCM; leaves out M
- - FCM: tests-and-fixtures; reads FCM; leaves out M
- - TFCM: tests-and-fixtures; reads TFCM; leaves out M
+ - TCM: tests-and-fixtures; reads TCM; leaves out none
+ - FCM: tests-and-fixtures; reads FCM; leaves out none
+ - TFCM: tests-and-fixtures; reads TFCM; leaves out none
  - UM: code-and-build-decisions; reads U; leaves out M
- - TUM: tests-and-fixtures; reads TUM; leaves out M
- - FUM: tests-and-fixtures; reads FUM; leaves out M
- - TFUM: tests-and-fixtures; reads TFUM; leaves out M
+ - TUM: tests-and-fixtures; reads TUM; leaves out none
+ - FUM: tests-and-fixtures; reads FUM; leaves out none
+ - TFUM: tests-and-fixtures; reads TFUM; leaves out none
  - CUM: code-and-build-decisions; reads CU; leaves out M
- - TCUM: tests-and-fixtures; reads TCUM; leaves out M
- - FCUM: tests-and-fixtures; reads FCUM; leaves out M
- - TFCUM: tests-and-fixtures; reads TFCUM; leaves out M
+ - TCUM: tests-and-fixtures; reads TCUM; leaves out none
+ - FCUM: tests-and-fixtures; reads FCUM; leaves out none
+ - TFCUM: tests-and-fixtures; reads TFCUM; leaves out none
  - P: nothing-a-review-reads; reads none; leaves out none
  - TP: tests-and-fixtures; reads T; leaves out P
  - FP: tests-and-fixtures; reads F; leaves out P
@@ -60,21 +65,21 @@
  - FCUP: tests-and-fixtures; reads FCU; leaves out P
  - TFCUP: tests-and-fixtures; reads TFCU; leaves out P
  - MP: nothing-a-review-reads; reads none; leaves out none
- - TMP: tests-and-fixtures; reads TM; leaves out MP
- - FMP: tests-and-fixtures; reads FM; leaves out MP
- - TFMP: tests-and-fixtures; reads TFM; leaves out MP
+ - TMP: tests-and-fixtures; reads TM; leaves out P
+ - FMP: tests-and-fixtures; reads FM; leaves out P
+ - TFMP: tests-and-fixtures; reads TFM; leaves out P
  - CMP: code-and-build-decisions; reads C; leaves out MP
- - TCMP: tests-and-fixtures; reads TCM; leaves out MP
- - FCMP: tests-and-fixtures; reads FCM; leaves out MP
- - TFCMP: tests-and-fixtures; reads TFCM; leaves out MP
+ - TCMP: tests-and-fixtures; reads TCM; leaves out P
+ - FCMP: tests-and-fixtures; reads FCM; leaves out P
+ - TFCMP: tests-and-fixtures; reads TFCM; leaves out P
  - UMP: code-and-build-decisions; reads U; leaves out MP
- - TUMP: tests-and-fixtures; reads TUM; leaves out MP
- - FUMP: tests-and-fixtures; reads FUM; leaves out MP
- - TFUMP: tests-and-fixtures; reads TFUM; leaves out MP
+ - TUMP: tests-and-fixtures; reads TUM; leaves out P
+ - FUMP: tests-and-fixtures; reads FUM; leaves out P
+ - TFUMP: tests-and-fixtures; reads TFUM; leaves out P
  - CUMP: code-and-build-decisions; reads CU; leaves out MP
- - TCUMP: tests-and-fixtures; reads TCUM; leaves out MP
- - FCUMP: tests-and-fixtures; reads FCUM; leaves out MP
- - TFCUMP: tests-and-fixtures; reads TFCUM; leaves out MP
+ - TCUMP: tests-and-fixtures; reads TCUM; leaves out P
+ - FCUMP: tests-and-fixtures; reads FCUM; leaves out P
+ - TFCUMP: tests-and-fixtures; reads TFCUM; leaves out P
 
  Without a table a writer asks the kinds in the order it thinks of them, and then the first kind present says what the whole change
  is: one file of a kind no extension list names took the code path and dropped the changed test beside it on 2026-11-15. The plan
@@ -118,6 +123,21 @@ const WHY_A_FILE_IS_LEFT_OUT: ReadonlyMap<KindOfAFileAReviewReads, string> = new
 ],);
 
 /**
+ One changed path with the kind it was handed in with.
+ */
+type APathWithItsKind = {
+  /**
+   The path from the top of the checkout.
+   */
+  readonly path: string;
+
+  /**
+   What kind of file the path is.
+   */
+  readonly kind: KindOfAFileAReviewReads;
+};
+
+/**
  What a review of a change does: what kind of change it is, the files it reads, the code and the files of a kind no list names
  among them, and the files it leaves out with the reason.
  */
@@ -133,18 +153,21 @@ export type ReviewPlan = {
   readonly files: readonly string[];
 
   /**
-   The code among those files, in the order given: what makes a change to tests also ask the project's requirements.
+   The code among those files, in the order given, a file of a kind no list names being code wherever it is read. This is what
+   decides the requirements the brief asks: the project's own for the code whenever it is not empty, and for a change to tests the
+   tests-and-code sentence rather than the tests-alone one.
    */
   readonly filesOfCode: readonly string[];
 
   /**
-   The files among those whose extension is in no list of `which-files-a-review-reads.ts`, in the order given.
+   The files among those whose extension is in no list of `which-files-a-review-reads.ts`, in the order given. This is what the
+   brief says is read as code of a kind the writer does not know, and the line prints the notice from it.
    */
   readonly filesOfAnUnlistedKind: readonly string[];
 
   /**
    The files the change touched that this review does not read, each with the reason its brief gives, in the order git named
-   them.
+   them. No path is in both this and `files`.
    */
   readonly filesLeftOut: readonly LeftOutFile[];
 };
@@ -175,6 +198,18 @@ export function planOfAChange({
   readonly kinds: readonly KindOfAFileAReviewReads[];
 },): ReviewPlan {
   /**
+   Every changed path with the kind it was handed in with, in the order git named them.
+   */
+  const changed: readonly APathWithItsKind[] = paths.map(function withItsKind(
+    path,
+    index,
+  ): APathWithItsKind {
+    return {
+      path,
+      kind: kinds[index] ?? 'material-a-test-may-read',
+    };
+  },);
+  /**
    The paths of the kinds given, in the order git named them.
 
    @param wanted - the kinds to keep
@@ -182,31 +217,43 @@ export function planOfAChange({
    @returns the paths of those kinds
    */
   function pathsOf(wanted: readonly KindOfAFileAReviewReads[],): readonly string[] {
-    return paths.filter(function isWanted(
-      _path,
-      index,
-    ) {
-      return wanted.includes(kinds[index] ?? 'material-a-test-may-read',);
-    },);
+    return changed
+      .filter(function isWanted(entry,) {
+        return wanted.includes(entry.kind,);
+      },)
+      .map(function pathOf(entry,) {
+        return entry.path;
+      },);
   }
   /**
-   The files this review leaves out, each with its reason, which a kind a review reads has none of.
+   The files a row leaves out, each with its reason: the row's own left-out kinds, which are the kinds it does not read and no
+   other, so a file a row reads is never also said to be left out.
+
+   @param leftOutKinds - the kinds the row leaves out
+
+   @returns those files, each with the reason its brief gives
+
+   @throws Error when a kind is left out and no reason is written for it
    */
-  const filesLeftOut = paths.flatMap(function leftOut(
-    path,
-    index,
-  ): readonly LeftOutFile[] {
-    /**
-     Why this kind of file is left out, which no kind a review reads has.
-     */
-    const why = WHY_A_FILE_IS_LEFT_OUT.get(kinds[index] ?? 'material-a-test-may-read',);
-    return ((why === undefined) ? [] : [
-      {
-        path,
-        why,
-      },
-    ]);
-  },);
+  function leftOutOf(leftOutKinds: readonly KindOfAFileAReviewReads[],): readonly LeftOutFile[] {
+    return changed
+      .filter(function isLeftOut(entry,) {
+        return leftOutKinds.includes(entry.kind,);
+      },)
+      .map(function leftOut(entry,) {
+        /**
+         Why this kind of file is left out, which every kind a row leaves out has.
+         */
+        const why = WHY_A_FILE_IS_LEFT_OUT.get(entry.kind,);
+        if (why === undefined) {
+          throw new Error(`no reason is written for leaving out a file of the kind ${entry.kind}`,);
+        }
+        return {
+          path: entry.path,
+          why,
+        };
+      },);
+  }
   if ((pathsOf([
     'a-test',
     'a-fixture',
@@ -222,9 +269,12 @@ export function planOfAChange({
         'a-unlisted-kind',
         'material-a-test-may-read',
       ],),
-      filesOfCode: pathsOf(['code',],),
-      filesOfAnUnlistedKind: [],
-      filesLeftOut,
+      filesOfCode: pathsOf([
+        'code',
+        'a-unlisted-kind',
+      ],),
+      filesOfAnUnlistedKind: pathsOf(['a-unlisted-kind',],),
+      filesLeftOut: leftOutOf(['a-note',],),
     };
   }
   if ((pathsOf([
@@ -239,9 +289,15 @@ export function planOfAChange({
         'code',
         'a-unlisted-kind',
       ],),
-      filesOfCode: [],
+      filesOfCode: pathsOf([
+        'code',
+        'a-unlisted-kind',
+      ],),
       filesOfAnUnlistedKind: pathsOf(['a-unlisted-kind',],),
-      filesLeftOut,
+      filesLeftOut: leftOutOf([
+        'material-a-test-may-read',
+        'a-note',
+      ],),
     };
   }
   return {

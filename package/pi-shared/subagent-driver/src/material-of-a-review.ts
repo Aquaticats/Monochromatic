@@ -149,6 +149,40 @@ export class ReviewGitError extends Error {
 }
 
 /**
+ What a review of a change reads when it reads anything, which is the one answer its brief and the line it prints are written
+ from: the files, the code among them, the files of a kind no list names, and the files it leaves out with the reason.
+
+ Every path of the change is in exactly one of `files` and `filesLeftOut`. A file of a kind no list names is code wherever it is
+ read, beside a test or not, so it is in `filesOfCode` and in `filesOfAnUnlistedKind`, and the brief asks the project's
+ requirements for it and the line prints the notice.
+ */
+export type AReviewReads = {
+  /**
+   The files the reviewer is given, each a path from the top of the checkout, in the order git named them, without the files the
+   review leaves out.
+   */
+  readonly files: readonly string[];
+
+  /**
+   The code among those files, in the order given, a file of a kind no list names being code wherever it is read. Its presence is
+   what makes a change to tests ask the project's requirements as well as the breaks under the tests.
+   */
+  readonly filesOfCode: readonly string[];
+
+  /**
+   The files among those whose extension is in no list of `which-files-a-review-reads.ts`, in the order given. The line the
+   writer prints names them, because a kind nobody listed must not be read as though somebody had.
+   */
+  readonly filesOfAnUnlistedKind: readonly string[];
+
+  /**
+   The files the change touched that this review does not read, each with the reason its brief gives, in the order git named
+   them.
+   */
+  readonly filesLeftOut: readonly LeftOutFile[];
+};
+
+/**
  What a review of a change reads.
 
  A change that holds a test or a fixture is read as `tests-and-fixtures`, whose reviewer is asked to plant a break under each
@@ -165,55 +199,18 @@ export type ReviewMaterial = {
    */
   readonly diff: string;
 } & (
-  | {
+  | ({
     /**
      The change holds code or a build decision, and no test, which a reviewer judges as the change itself.
      */
     readonly kind: 'code-and-build-decisions';
-
-    /**
-     The files the reviewer is given, each a path from the top of the checkout, in the order git named them: the code, the files
-     of a kind no list names, and the build decisions among what the ranges touched, without the tests and fixtures beside them.
-     */
-    readonly files: readonly string[];
-
-    /**
-     The files among those to read whose extension is in no list of `which-files-a-review-reads.ts`, in the order given. A
-     review reads each as code, and the line the writer prints names them, because a kind nobody listed must not be read as
-     though somebody had.
-     */
-    readonly filesOfAnUnlistedKind: readonly string[];
-
-    /**
-     The files the change touched that this review does not read, each with the reason its brief gives, in the order git named
-     them.
-     */
-    readonly filesLeftOut: readonly LeftOutFile[];
-  }
-    | {
+  } & AReviewReads)
+    | ({
       /**
        The change holds a test or a fixture, so the tests themselves are what a reviewer can show something about.
        */
       readonly kind: 'tests-and-fixtures';
-
-      /**
-       The files the reviewer is given, each a path from the top of the checkout, in the order git named them: the tests, the
-       fixtures, the material beside them, and any code the change also holds.
-       */
-      readonly files: readonly string[];
-
-      /**
-       The code among those files, in the order given. Its presence is what makes the brief ask the project's requirements as
-       well as the breaks under the tests.
-       */
-      readonly filesOfCode: readonly string[];
-
-      /**
-       The files the change touched that this review does not read, each with the reason its brief gives, in the order git named
-       them.
-       */
-      readonly filesLeftOut: readonly LeftOutFile[];
-    }
+    } & AReviewReads)
     | {
       /**
        The ranges changed nothing under the source folder that a review reads, so there is no review to start.
@@ -685,6 +682,7 @@ export async function materialOfAReview({
       diff,
       kind: 'code-and-build-decisions',
       files: plan.files,
+      filesOfCode: plan.filesOfCode,
       filesOfAnUnlistedKind: plan.filesOfAnUnlistedKind,
       filesLeftOut: plan.filesLeftOut,
     };
@@ -695,6 +693,7 @@ export async function materialOfAReview({
       kind: 'tests-and-fixtures',
       files: plan.files,
       filesOfCode: plan.filesOfCode,
+      filesOfAnUnlistedKind: plan.filesOfAnUnlistedKind,
       filesLeftOut: plan.filesLeftOut,
     };
   }

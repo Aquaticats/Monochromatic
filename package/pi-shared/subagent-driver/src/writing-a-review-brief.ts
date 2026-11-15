@@ -198,11 +198,10 @@ export async function writeReviewBrief({
    */
   const whereItStarts = `its worktree starts at ${commit}. Its folder is ${reviewFolder}`;
   /**
-   What the line adds about a file of a kind no list names, which is nothing when every file is of a kind one names.
+   What the line adds about the files of a kind no list names, which is nothing when every file is of a kind one names: the plan
+   names them for both kinds of change, so a file of an unlisted kind beside a test is reported as read as code too.
    */
-  const unlisted = (material.kind === 'code-and-build-decisions')
-    ? sentenceOfFilesOfAnUnlistedKind({ files: material.filesOfAnUnlistedKind, },)
-    : '';
+  const unlisted = sentenceOfFilesOfAnUnlistedKind({ files: material.filesOfAnUnlistedKind, },);
   /**
    How many files the reviewer is given.
    */
