@@ -861,7 +861,8 @@ fn every_entry_of_the_scratch_tree_can_go_before_git_and_the_commit_is_the_one_a
         println!("row={} exit={:?} files={:?} rebuilt={:?}", row.entry, row.exit, row.files, row.rebuilt);
     }
     assert!(!rows.is_empty(), "the table has rows");
-    let asked: Vec<String> = vec![String::from("added.txt"), String::from("base.txt")];
+    // The tree the command asked for: the fixture's own file, the one it changed and the one it added.
+    let asked: Vec<String> = vec![String::from("a.txt"), String::from("added.txt"), String::from("base.txt")];
     for row in &rows {
         if row.exit == Some(0) {
             assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.entry);
@@ -879,7 +880,8 @@ fn every_entry_of_the_scratch_tree_can_go_after_git_and_the_commit_is_the_one_as
         println!("row={} exit={:?} files={:?} rebuilt={:?}", row.entry, row.exit, row.files, row.rebuilt);
     }
     assert!(!rows.is_empty(), "the table has rows");
-    let asked: Vec<String> = vec![String::from("added.txt"), String::from("base.txt")];
+    // The tree the command asked for: the fixture's own file, the one it changed and the one it added.
+    let asked: Vec<String> = vec![String::from("a.txt"), String::from("added.txt"), String::from("base.txt")];
     for row in &rows {
         if row.exit == Some(0) {
             assert_eq!(row.files, asked, "the row {} landed the commit that was asked for", row.entry);
