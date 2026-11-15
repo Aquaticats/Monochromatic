@@ -331,3 +331,94 @@ fn a_persons_file_the_checkout_lost_still_stops_the_deletion() {
     assert!(removal_said.contains(record_name(A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE).as_str()), "a person's file at a name this program keeps is named too: {removal_said}");
     remove(parent.as_path());
 }
+
+//region The three controls of the review of 311a65f852, reproduced here as they were written
+// They were added first and run against that tip, and each failed there; the fixes below are what answers them.
+
+/// What the command says when it runs against a stand-in that acts at the copy's clone calls.
+fn run_hooked(platform: &crate::subvolume_test_support::Hooked, arguments: &MigrateArguments, root: &Path) -> (i32, String) {
+    let (code, lines) = run_command(platform, arguments, root, &Interrupt::never());
+    return (code, lines.join("\n"));
+}
+
+/// The review, finding 3:
+/// a notice in the spelling the push reader explicitly accepts from an earlier release
+/// must be carried instead of holding back deletion of the old tree.
+#[test]
+fn review_legacy_push_notice_does_not_hold_back_old_tree_removal() {
+    let (parent, root) = checkout_with_worktree("review-legacy-push-notice");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (migration_code, migration_said) = run(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migration_code, DONE, "{migration_said}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let directory: PathBuf = layout.old_path.join(".git/cli-git/notices");
+    std::fs::create_dir_all(directory.as_path()).expect("legacy notice directory");
+    let notice: PathBuf = directory.join("push+refs+heads+main+1111111111111111111111111111111111111111.txt");
+    let text: &str = "cli-git push notice 1\nbranch: refs/heads/main\ncommit: 1111111111111111111111111111111111111111\n\nThe old remote refused it\n";
+    std::fs::write(notice.as_path(), text.as_bytes()).expect("legacy notice");
+    set_mtime(notice.as_path(), BEFORE_EVERY_CUTOFF);
+    let (code, said) = run(&platform, &remove_old_arguments(), root.as_path());
+    assert_eq!(code, DONE, "the accepted legacy notice spelling was not carried: {said}");
+    assert_eq!(std::fs::read_to_string(root.join(".git/cli-git/notices").join(notice.file_name().expect("name"))).expect("carried notice"), text);
+    remove(parent.as_path());
+}
+
+/// The review, finding 1:
+/// a regular record can become a directory after the directory listing and before bookkeeping classification.
+/// Its contents must not vanish without ever entering the pass.
+#[test]
+fn review_record_replaced_by_a_directory_does_not_lose_the_directory_contents() {
+    let (parent, root) = checkout_with_worktree("review-record-becomes-directory");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (migration_code, migration_said) = run(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migration_code, DONE, "{migration_said}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let record: PathBuf = write_record(records_folder(layout.old_path.as_path()).as_path(), A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE);
+    set_mtime(record.as_path(), BEFORE_EVERY_CUTOFF);
+    let relative: PathBuf = record.strip_prefix(layout.old_path.as_path()).expect("below old tree").to_path_buf();
+    let replaced: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let target: PathBuf = record.clone();
+    watch_entries(Some(Box::new(move |examined: &Path| {
+        if examined != target.as_path() || replaced.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        std::fs::remove_file(target.as_path()).expect("replace the listed record");
+        std::fs::create_dir(target.as_path()).expect("directory at the record name");
+        std::fs::write(target.join("person.txt"), b"words written beside the migration\n").expect("person's file in the replacement directory");
+    })));
+    let (code, said) = run(&platform, &remove_old_arguments(), root.as_path());
+    watch_entries(None);
+    let in_old_tree: PathBuf = record.join("person.txt");
+    let in_checkout: PathBuf = root.join(relative).join("person.txt");
+    assert!(in_old_tree.is_file() || in_checkout.is_file(), "removal code {code}; the replacement directory's person's file exists in neither tree: {said}");
+    remove(parent.as_path());
+}
+
+/// The review, finding 2:
+/// a destination notice written after the pass's initial absence check is concurrent work.
+/// Publishing the old source notice must not rename over it.
+#[test]
+fn review_notice_copy_does_not_replace_a_concurrently_created_destination_file() {
+    let (parent, root) = checkout_with_worktree("review-destination-created-during-copy");
+    let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(|_calls| {}));
+    let (migration_code, migration_said) = run_hooked(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migration_code, DONE, "{migration_said}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    record_push_failure(layout.old_path.join(".git").as_path(), "refs/heads/main", A_COMMIT, PushOutcome::Refused, "the source notice").expect("source notice");
+    let old_notice: PathBuf = only_entry(notice_directory(layout.old_path.join(".git").as_path()).as_path());
+    set_mtime(old_notice.as_path(), BEFORE_EVERY_CUTOFF);
+    let relative: PathBuf = old_notice.strip_prefix(layout.old_path.as_path()).expect("below old tree").to_path_buf();
+    let destination_notice: PathBuf = root.join(relative);
+    let concurrent_notice: PathBuf = destination_notice.clone();
+    let concurrent_text: &str = "monochromatic-git-policy-cli push notice 1\nbranch: refs/heads/main\ncommit: 2222222222222222222222222222222222222222\n\nconcurrent words\n";
+    platform.on_clone = Box::new(move |_calls| {
+        let Some(parent) = concurrent_notice.parent() else { return };
+        std::fs::write(concurrent_notice.as_path(), concurrent_text.as_bytes()).expect("concurrent destination notice");
+        assert!(parent.is_dir());
+    });
+    let (code, said) = run_hooked(&platform, &remove_old_arguments(), root.as_path());
+    let after: String = std::fs::read_to_string(destination_notice.as_path()).unwrap_or_else(|error| format!("destination notice cannot be read: {error}"));
+    assert_eq!(after, concurrent_text, "removal code {code}; the copy replaced the concurrent destination notice: {said}");
+    remove(parent.as_path());
+}
+//endregion
