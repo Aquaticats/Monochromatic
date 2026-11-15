@@ -440,8 +440,8 @@ fn a_place_that_never_came_is_no_place_and_never_a_cancelled_job() {
     let ran: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let flag: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&ran);
     let answer: Result<u8, BlockingJobError> = runtime.block_on(async move {
-        return run_a_job_or_no_place(flag, |flag: Arc<std::sync::atomic::AtomicBool>| {
-            flag.store(true, Ordering::SeqCst);
+        return run_a_job_or_no_place(flag, |started: Arc<std::sync::atomic::AtomicBool>| {
+            started.store(true, Ordering::SeqCst);
             return 3_u8;
         })
         .await;
