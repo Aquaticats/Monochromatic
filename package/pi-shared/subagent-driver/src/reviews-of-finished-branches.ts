@@ -137,7 +137,8 @@ export type ReviewStartingSeams = {
   readonly report?: (line: string) => void;
 
   /**
-   Writes one review's brief and the diff it reads.
+   Writes one review's brief and the diff it reads. A writer that cannot write the brief throws, which the starter says in one
+   line while the rest of the batch go on.
    */
   readonly brief: (request: {
     readonly review: string;
