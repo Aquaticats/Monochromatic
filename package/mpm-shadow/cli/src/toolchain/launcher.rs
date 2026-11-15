@@ -305,19 +305,28 @@ pub(crate) fn claim_launcher_names_within(
 
 /// What:
 /// Whether everything this install would make for the bin `name` already stands there:
-/// the launcher is the program found for it, and its record says what this run would write.
+/// the record says what this run would write, and the launcher is the program this run would place.
 /// Why:
 /// A sequence that would change nothing needs no claim and makes no write,
 /// which is what keeps an install with nothing to do as cheap as it was;
 /// a launcher that is gone makes this false, so a dangling farm link does not keep a missing launcher missing.
+/// The launcher is compared with the copy `place_binary` would make of it, which is what `place_binary` itself
+/// compares before it copies, and never with the tool's own program: a launcher is a copy of `mpm-shadow`, not of the
+/// tool whose name it carries.
 pub(crate) fn launcher_is_current(scope: &Scope, tool_id: &str, name: &str, real: &Path) -> bool {
     let launcher: PathBuf = scope.launcher_dir.join(name);
-    if !is_same_file(real, &launcher) {
-        return false;
-    }
     let record: LaunchRecord =
         LaunchRecord { tool_id: tool_id.to_string(), lock_file: scope.lock_file.clone(), real: real.to_path_buf(), scope: scope.kind };
-    return the_record_at(&record_path(&launcher)).ok().flatten().as_deref() == Some(render_record(&record).as_str());
+    if the_record_at(&record_path(&launcher)).ok().flatten().as_deref() != Some(render_record(&record).as_str()) {
+        return false;
+    }
+    let Ok(running) = running_program() else {
+        return false;
+    };
+    let Ok(source) = launcher_source(scope, running, cfg!(target_os = "linux")) else {
+        return false;
+    };
+    return is_same_file(&source, &launcher);
 }
 
 /// The file name of the lock that makes one folder's record writes one critical section.
