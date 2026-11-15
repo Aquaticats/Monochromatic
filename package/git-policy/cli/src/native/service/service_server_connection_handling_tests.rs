@@ -718,7 +718,7 @@ fn a_connection_that_never_reached_the_queue_is_told_nothing_of_a_queue_wait() {
         assert_eq!(refused.note().await, None, "a request that never reached the queue is told nothing of a queue wait");
     });
     not_queued.store(true, std::sync::atomic::Ordering::SeqCst);
-    let ((), _ticks) = with_a_ticker_beside(async {
+    let ((), _ticks_after_the_queue) = with_a_ticker_beside(async {
         let mut waiting: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(String::from("a-request")), Some(past), Some(Arc::clone(&not_queued)));
         let told: Option<ServiceMessage> = waiting.note().await;
         let Some(ServiceMessage::Waiting { text }) = told else { panic!("the words of the queue wait are said: {told:?}") };
