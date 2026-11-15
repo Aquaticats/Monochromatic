@@ -32,6 +32,13 @@
 //!  - a holder in another PID namespace or on another machine:
 //!    its record judges unknown,
 //!    so the lock stays.
+//!  - a record whose parts are not the kinds of text a writer of this release leaves
+//!    (the boot left out because it could not be read,
+//!    a boot with the kernel's dashes,
+//!    or a machine part with nothing in it):
+//!    each part after the birth stands in its own place,
+//!    so a text whose parts cannot be told apart judges unknown,
+//!    and the lock stays.
 //!  - the wrapper's own forwarded command:
 //!    its `self` record carries the birth the exec'd Git keeps,
 //!    so it stays.
