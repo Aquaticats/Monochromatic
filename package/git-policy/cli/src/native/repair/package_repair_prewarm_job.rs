@@ -194,13 +194,13 @@ fn the_maker_at_the_end_of(name: &std::ffi::OsStr) -> Option<crate::worktree_cop
     let bytes: &[u8] = name.as_bytes();
     // A target directory carries the staging name's maker and one more suffix.
     let named: &[u8] = bytes.strip_suffix(TARGET_SUFFIX.as_bytes()).unwrap_or(bytes);
-    let at: usize = named.iter().rposition(|byte| *byte == b'.')?;
+    let at: usize = named.iter().rposition(|byte| return *byte == b'.')?;
     let (before, instant) = (named.get(..at)?, named.get(at + 1..)?);
     // The instant is the hexadecimal count a filling wrote: anything else ends no maker's name.
     if instant.is_empty() || !instant.iter().all(u8::is_ascii_hexdigit) {
         return None;
     }
-    let token_at: usize = before.iter().rposition(|byte| *byte == b'.')?;
+    let token_at: usize = before.iter().rposition(|byte| return *byte == b'.')?;
     let token: &str = std::str::from_utf8(before.get(token_at + 1..)?).ok()?;
     return crate::worktree_copy_owner::CopyOwner::from_token(token);
 }
