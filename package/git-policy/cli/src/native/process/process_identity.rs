@@ -186,7 +186,7 @@ fn is_kernel_tick(text: &str) -> bool {
 ///  on Linux,
 ///  `linux:` and the kernel's start tick;
 ///  on the platforms whose inspector prints its own words,
-///  any text.
+///  any text but the empty one.
 /// Why:
 ///   A reader compares a recorded birth with the identity of the process that has the number now,
 ///  and a text that is not one spelling of one tick reads as another process,
@@ -196,27 +196,41 @@ fn is_kernel_tick(text: &str) -> bool {
 ///  a text that names something else is compared as the text it is,
 ///  as this reader always did,
 ///  because macOS and Windows have no grammar here that this reader could respell.
+///  The empty text is no identity on any platform:
+///  it names no process,
+///  and a reader that compared it would read every live holder as another process.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// isBirthIdentity('linux:8423337') // true
 /// isBirthIdentity('linux:08423337') // false, the same tick written with a leading zero
 /// isBirthIdentity(' linux:8423337') // false, the same tick behind a space
+/// isBirthIdentity('Linux:8423337') // false, the same tick behind its tag in capitals
+/// isBirthIdentity('') // false, no identity at all
 /// isBirthIdentity('gone') // true, a text this reader has no grammar for
 /// ```
 pub(crate) fn is_birth_identity(birth: &str) -> bool {
+    if birth.is_empty() {
+        return false;
+    }
     #[cfg(target_os = "linux")]
     {
+        let after_a_space_or_none: &str = birth.trim_start_matches(|character: char| { return character.is_ascii_whitespace(); });
+        let names_the_tag: bool = after_a_space_or_none
+            .get(..LINUX_IDENTITY_PREFIX.len())
+            .is_some_and(|tag| { return tag.eq_ignore_ascii_case(LINUX_IDENTITY_PREFIX); });
+        if !names_the_tag {
+            // A text whose grammar this reader does not know is compared as the text it is.
+            return true;
+        }
         let Some(tick) = birth.strip_prefix(LINUX_IDENTITY_PREFIX) else {
-            // A birth that carries this platform's start tick behind a space names it too, in another spelling.
-            let named_behind_space: bool = birth.trim_start_matches(|character: char| { return character.is_ascii_whitespace(); }).starts_with(LINUX_IDENTITY_PREFIX);
-            return !named_behind_space;
+            // The same tag behind a space, or with a letter's case changed, names this platform's tick in another spelling.
+            return false;
         };
         return is_kernel_tick(tick);
     }
     #[cfg(not(target_os = "linux"))]
     {
-        let _ = birth;
         return true;
     }
 }

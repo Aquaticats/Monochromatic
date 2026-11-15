@@ -34,8 +34,8 @@
 //! const holding = holdingIn(recordText); const gone = provenGone(holding.holder);
 //! ```
 
-use crate::claim_time::current_boot_id;
-use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::claim_time::{current_boot_id, is_boot_id};
+use crate::process_identity::{current_birth_identity, is_birth_identity, process_birth_identity};
 use serde_json::{Map, Value};
 
 /// The record field naming the command that will decide the commit's checks.
@@ -242,9 +242,23 @@ pub fn pid_of(holder: &str) -> Option<i64> {
 /// Why:
 ///   Only a proof settles a record:
 /// a text this release cannot read,
+/// a part that is not the value it stands for in the spelling this program writes that value,
 /// a `/proc` that refuses an answer,
 /// and a process of another boot
 ///  number all keep the record as it is.
+/// A part of a holder stands for one value in one spelling,
+/// and two spellings of one boot or one birth compare as two of them,
+/// which proves a command gone that runs and settles a held push its own gate has not decided
+/// (`service_handoff.rs`,
+/// `held_push_line`,
+/// `work_item_holding.rs`,
+/// `undecided_commits`).
+/// So a boot part is a boot ID (`claim_time`,
+/// `is_boot_id`) and a birth part is a birth identity (`process_identity`,
+/// `is_birth_identity`),
+/// and a part in any other shape is no part this reader can compare.
+/// A record written on a host that could not read its own boot names none,
+/// and its process decides.
 /// A process of an earlier boot cannot be running now;
 /// a PID that names a process
 ///  with another birth identity was reused;
@@ -255,7 +269,7 @@ pub fn pid_of(holder: &str) -> Option<i64> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const gone = holder.slice(0, holder.indexOf('/')) !== bootId() || birthIdentityOf(pid) !== birth;
+/// const gone = (boot === '' || (isBootId(boot) && boot === bootId())) && isBirthIdentity(birth) && (pidIsFree(pid) || birthIdentityOf(pid) !== birth);
 /// ```
 pub fn proven_gone(holder: &str) -> bool {
     if holder.is_empty() {
@@ -265,8 +279,22 @@ pub fn proven_gone(holder: &str) -> bool {
     let (Some(boot), Some(pid), Some(birth)) = (parts.next(), parts.next(), parts.next()) else {
         return false;
     };
-    if boot != current_boot_id() {
-        return true;
+    // The boot part is compared with this host's own, so it must be a boot ID in the one spelling both are written in;
+    // and a reader that does not know its own boot has nothing to compare a recorded one with.
+    if !boot.is_empty() {
+        let here: &str = current_boot_id();
+        if !is_boot_id(boot) || here.is_empty() {
+            return false;
+        }
+        // A boot that ended ends every process in it.
+        if boot != here {
+            return true;
+        }
+    }
+    // The birth part stands for one birth in one spelling, and it is compared with the identity the process table reports;
+    //  a part in any other shape names no process this reader can compare, and a record that states none names none either.
+    if !is_birth_identity(birth) {
+        return false;
     }
     let Ok(number) = pid.parse::<i64>() else {
         return false;

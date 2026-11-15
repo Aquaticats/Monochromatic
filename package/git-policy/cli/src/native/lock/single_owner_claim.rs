@@ -44,7 +44,7 @@
 //! ```
 
 use crate::pid_namespace::{ForeignStanding, current_pid_namespace, foreign_owner_standing};
-use crate::process_identity::{current_birth_identity, process_birth_identity};
+use crate::process_identity::{current_birth_identity, is_birth_identity, process_birth_identity};
 use crate::subvolume_error::MigrateError;
 use crate::subvolume_file_write_steps::{sync_directory_to_disk, write_all_then_sync};
 use crate::wrapper_names_old_and_new::DATA_FOLDER;
@@ -303,6 +303,10 @@ const SMALL_RECORD_LIMIT: u64 = 4096;
 /// nothing when the claim is released or its owner is
 ///  gone,
 /// and an error when that cannot be decided.
+/// A birth the record spells another way is one of those:
+/// it is compared with the identity the process table reports now,
+/// so two spellings of one start tick read as two processes,
+/// and the item would be taken from a command that runs.
 fn live_owner(record: &ClaimRecord, path: &Path) -> Result<Option<i64>, MigrateError> {
     let ClaimRecord::Owned { pid, birth, namespace } = record else { return Ok(None) };
     match foreign_owner_standing(namespace.as_deref(), path) {
@@ -313,6 +317,12 @@ fn live_owner(record: &ClaimRecord, path: &Path) -> Result<Option<i64>, MigrateE
         // Owner, 2026-11-04, "Refuse and name it (Recommended)": an old claim of another namespace is neither taken nor trusted.
         Some(ForeignStanding::Refused(refused)) => return Err(MigrateError::Journal(refused.describe(*pid))),
         None => {}
+    }
+    if !is_birth_identity(birth.as_str()) {
+        return Err(MigrateError::Journal(format!(
+            "{} names process {pid}, and its birth identity {birth} is not one this program writes, so whether that process still runs cannot be decided; nothing was changed. Look at the file: if no monochromatic-git-policy-cli command is running on this item, remove it and run the command again",
+            path.display()
+        )));
     }
     return match process_birth_identity(*pid) {
         Ok(Some(current)) => Ok((&current == birth).then_some(*pid)),

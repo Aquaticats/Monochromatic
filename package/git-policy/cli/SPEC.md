@@ -2064,6 +2064,9 @@ the newest generation is the claim and records the owner's process id,
 process birth identity and PID namespace.
 A newer generation replaces an older one only when the older records a released claim or an owner that no longer runs with
 that birth (a reused PID does not count as alive);
+a birth the record spells another way is no birth this reader can compare,
+so the owner counts as alive and the claimant stops naming the file,
+because reading two spellings of one start tick as two processes would take the item from a command that runs.
 an owner in another PID namespace counts as alive until its file is older
 than `FOREIGN_OWNER_PATIENCE`,
 and a command that finds it older stops with an error and takes nothing over (the owner's "Refuse and
@@ -10207,6 +10210,20 @@ then the boot ID,
 the PID namespace and the machine ID.
 A part that cannot be read is left out,
 which makes the judgement unknown instead of wrong.
+A part stands for one value in one spelling:
+a boot ID is 32 lowercase hexadecimal digits,
+and a birth identity is `linux:` and the kernel's start tick with no sign,
+no space and no leading zero
+(`is_boot_id` in `src/native/landing/claim_time.rs`,
+`is_birth_identity` in `src/native/process/process_identity.rs`).
+A part written another way (its letters in capitals,
+the kernel's dashes,
+a tick with a leading zero or behind a space)
+is no part this reader can compare,
+so the judgement is unknown and the lock stays:
+reading two spellings of one boot as two boots,
+or two spellings of one start tick as two processes,
+would prove a live holder gone and remove the lock of a Git that runs.
 
 #### The proof
 
@@ -13273,6 +13290,13 @@ A record whose command still runs decides the other way:
 that command's checks may refuse the commit,
 so the automatic push stops before it until they answer
 (see "A blocked commit is never published").
+A record settles only on a proof that its command is gone,
+and a part of its holder text that is not a boot ID or a birth identity in the one spelling this program writes
+is no part a reader can compare:
+such a record is unknown,
+which keeps it held and named,
+because two spellings of one boot or one birth compare as two of them
+(`proven_gone` in `src/native/landing/held_push_holder_and_verdict.rs`).
 A command whose output a program reads settles the held records too and shows no line,
 because the settlement is not a notice:
 the approval a dead command recorded must not wait for a command a person types,
