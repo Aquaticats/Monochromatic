@@ -78,3 +78,81 @@ fn a_wait_with_nothing_at_the_address_ends_at_its_bound() {
     assert!(!waits_for_a_greeting(&Bind::Path(root.join("none.sock")), Duration::from_millis(50)));
     assert!(began.elapsed() < Duration::from_secs(5), "the bound is the bound");
 }
+
+/// The environment variable that marks the child standing in for a service that is recovering.
+const PREPARING_SERVICE_VARIABLE: &str = "CLI_GIT_TEST_ONLY_PREPARING_SERVICE";
+
+/// The note that child claims.
+const PREPARING_SERVICE_NOTE_VARIABLE: &str = "CLI_GIT_TEST_ONLY_PREPARING_SERVICE_NOTE";
+
+/// What the child of the manager control is: a service that has claimed its instance and does not greet,
+/// as a service recovering the batches an earlier one left open does.
+///  It waits longer than `START_WAIT + MANAGER_START_EXTRA`, so only the manager's own deadline reaches it.
+#[test]
+fn the_preparing_service_a_manager_started() {
+    let Some(note) = std::env::var_os(PREPARING_SERVICE_NOTE_VARIABLE) else { return };
+    crate::service_server_pid_note_of_an_instance::claim(
+        std::path::Path::new(&note),
+        i32::try_from(std::process::id()).expect("a process number"),
+    )
+    .expect("the preparing service claims its instance");
+    std::thread::sleep(Duration::from_secs(60));
+}
+
+/// What:
+///  A start through the manager that sees no greeting looks for a live service that is preparing,
+///  and never ends its group.
+/// Why:
+///  The sixth review of issue 6293 (finding 3):
+///  the manager arm killed the whole process group at `START_WAIT + MANAGER_START_EXTRA` without looking at the note,
+///  so a service recovering the batches an earlier service left open was killed at an arbitrary instruction
+///  and the base start made a second one recover the same batch again.
+/// The service here is the test binary itself, started by a stand-in manager, claiming the note and never greeting.
+#[test]
+fn a_manager_start_that_sees_no_greeting_keeps_a_live_service_that_is_preparing() {
+    let root: PathBuf = folder("manager-preparing");
+    let note: PathBuf = root.join("3f9a.pid");
+    let binary: PathBuf = crate::test_support::this_test_binary().expect("the test binary");
+    // The stand-in manager answers the probe and, for a start, runs the preparing service.
+    let program: PathBuf = root.join("systemd-run");
+    std::fs::write(
+        program.as_path(),
+        format!(
+            "#!/bin/sh\ncase \"$*\" in *'-- /bin/true'*) exec /bin/true ;; esac\n\
+             export {variable}=1 {note_variable}='{note}'\nexec '{binary}' 'service::service_server_start_by_the_wrapper::tests::the_preparing_service_a_manager_started' --exact --nocapture\n",
+            variable = PREPARING_SERVICE_VARIABLE,
+            note_variable = PREPARING_SERVICE_NOTE_VARIABLE,
+            note = note.display(),
+            binary = binary.display()
+        ),
+    )
+    .expect("the stand-in manager");
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o700)).expect("it runs");
+    }
+    let server: ServerToStart = ServerToStart {
+        address: Bind::Path(root.join("3f9a.sock")),
+        directory: root.clone(),
+        instance: String::from("3f9a"),
+        journal: root.join("journal"),
+        git: PathBuf::from("/usr/bin/git"),
+        program: binary.clone(),
+        manager: Some(crate::service_server_start_through_the_manager::ManagerStart { program: program.clone() }),
+    };
+    let began: std::time::Instant = std::time::Instant::now();
+    let attempt: StartAttempt = start(&server);
+    let waited: Duration = began.elapsed();
+    match attempt {
+        StartAttempt::ServiceIsPreparing { service } => {
+            assert_ne!(service.pid, i32::try_from(std::process::id()).expect("a process number"), "the live service is the child that claimed the note, not this command");
+            assert!(crate::service_server_pid_note_of_an_instance::is_still_the_process(&service), "and the process the note names is still alive");
+        }
+        other => panic!("a live service that has not greeted is waited for, not ended: {other:?} after {waited:?}"),
+    }
+    let held: crate::service_server_pid_note_of_an_instance::ServerProcess =
+        crate::service_server_pid_note_of_an_instance::read(note.as_path()).expect("the preparing service's note is still there");
+    assert!(crate::service_server_pid_note_of_an_instance::is_still_the_process(&held), "and the process it names is still alive");
+    // The stand-in service is this test's own child, and it ends with this control.
+    let _ended = std::process::Command::new("/usr/bin/pkill").args(["-9", "-f", PREPARING_SERVICE_VARIABLE]).status();
+}

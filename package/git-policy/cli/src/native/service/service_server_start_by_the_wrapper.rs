@@ -218,6 +218,15 @@ pub fn start(server: &ServerToStart) -> StartAttempt {
         if greeted {
             return StartAttempt::Greeted;
         }
+        // What: A live service that has claimed its instance and is still preparing is waited for, never ended, and the base's
+        //       start is not made beside it.
+        // Why:  A recovery of the batches an earlier service left open runs before the first greeting and can outlast this wait;
+        //       ending the scope's group then kills a live process at an arbitrary instruction and a second service recovers the same
+        //       batch again (the sixth review of issue 6293, finding 3). The wait the person sees is the caller's own ceiling, which
+        //       says a service is preparing.
+        if let Some(preparing) = live_service_that_is_preparing(server.pid_note().as_path()) {
+            return StartAttempt::ServiceIsPreparing { service: preparing };
+        }
         // What: A scope that made nothing answer is ended, and the base's start is what this command does instead.
         // Why:  A manager that made a scope and then failed costs one extra second and never a commit, and the scope's group is
         //       what this command started, so ending it is its own to do.
