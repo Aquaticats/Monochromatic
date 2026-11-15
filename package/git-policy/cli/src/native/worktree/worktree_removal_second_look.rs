@@ -140,8 +140,12 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
             return Some(format!("a {marker} stands in it, so an operation there is unfinished"));
         }
     }
-    if let Some(mark) = bisect_mark_in(admin) {
-        return Some(format!("a bisect is unfinished there, and its {mark} is still in the worktree"));
+    match bisect_mark_in(admin) {
+        Ok(None) => {}
+        Ok(Some(mark)) => return Some(format!("a bisect is unfinished there, and its {mark} is still in the worktree")),
+        // A directory this reader cannot list is not a directory with no bisect in it: the same rule as a registration
+        //  that cannot be read (a review of this change, finding 4).
+        Err(reason) => return Some(cannot_tell(format!("nothing shows whether a bisect is unfinished there ({reason})").as_str())),
     }
     // How long the worktree has existed, which is what tells a process that hides its working folder whether it could be
     // inside at all: a process older than the directory cannot have changed into it.
@@ -256,11 +260,18 @@ pub(crate) fn nested_worktree_reason(inside: &[&Registration]) -> String {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// bisectMarkIn(admin) // 'BISECT_NAMES'
+/// bisectMarkIn(admin) // 'BISECT_NAMES' | undefined, or the reason the directory cannot be listed
 /// ```
-fn bisect_mark_in(admin: &Path) -> Option<String> {
+fn bisect_mark_in(admin: &Path) -> Result<Option<String>, String> {
+    let listing = match std::fs::read_dir(admin) {
+        Ok(listed) => listed,
+        // The directory of a registration this program holds open is read for every removal, and one that cannot be
+        //  listed leaves the question unanswered rather than answered with "no bisect".
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(format!("the directory {} cannot be listed ({error})", admin.display())),
+    };
     let mut marks: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(admin).ok()?.flatten() {
+    for entry in listing.flatten() {
         let Ok(name) = entry.file_name().into_string() else {
             continue;
         };
@@ -269,7 +280,7 @@ fn bisect_mark_in(admin: &Path) -> Option<String> {
         }
     }
     marks.sort();
-    return marks.into_iter().next();
+    return Ok(marks.into_iter().next());
 }
 
 /// What:
