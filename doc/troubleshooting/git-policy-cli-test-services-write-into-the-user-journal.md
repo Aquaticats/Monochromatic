@@ -253,6 +253,98 @@ with the reader itself:
   No entry can allow a start of the service,
   or a shell whose script names this wrapper.
 
+### The other road: a sender in the program that opens the socket itself
+
+The streams are one road to the journal;
+the other is the wrapper's own code,
+and a reviewer of 2026-11-14 found it open after the first was closed.
+
+The release program reaches `/run/systemd/journal/socket` in exactly two places:
+
+- the service's own sink
+  (`service/journald_native.rs`),
+  which takes the native road only when `$JOURNAL_STREAM` names the process its own standard error,
+  and whose target is the address `$CLI_GIT_TEST_ONLY_JOURNAL_SOCKET` names;
+- the sender the wrapper uses as a client
+  (`service/client_journal.rs`),
+  whose target is that same address when it is set and `/run/systemd/journal/socket` when it is not,
+  and which looks at no stream at all.
+
+A service started by the fixture's own launcher was set up by hand,
+cleared its environment and never named the address,
+so a merged file it recorded
+(`merge_second_pass_report::journal_merged`)
+and a shadow's retry note
+(`shadow_create.rs`)
+went to this machine's journal.
+
+What changed:
+
+- `client_journal::record_entry_as` records a service's entry through the service's own sink
+  (`service_timing::log_entry_as`,
+  which keeps the identifier the caller names),
+  and `client_journal::send_entry_as` refuses inside the service altogether,
+  whatever target it is handed.
+  So the client's road is unreachable from a service by construction,
+  and not by a variable.
+- Every launcher that starts a service calls one function,
+  `keep_the_journal_off`,
+  which removes the trigger and names the address nothing listens at:
+  the support's `service_command`,
+  the support's `serve`
+  (which had forgotten it,
+  after its own `env_clear`),
+  the upgrade control that starts the 0.5.4 program,
+  and the control that starts the service through a shell.
+- The guard names the roads
+  (`ROADS_TO_THE_SOCKET`),
+  the two senders
+  (`SENDERS`),
+  the launchers and the call each must make
+  (`SERVICE_LAUNCHERS`),
+  and it reads the route and the refusal in `client_journal.rs`.
+
+### A fixture root's words, and a service that ended
+
+Two more findings were about the words a failure needs:
+
+- every service of a fixture root keeps its words until that root's fixture is made fresh,
+  whichever service started when:
+  the second pipe of a root no longer discards what the first service of it said
+  (`forget_the_log_of` is called where the root is made);
+- a panic about a service that ended before it listened quotes what it wrote
+  (`service_log`) instead of pointing at a stream that no longer carries it.
+
+### A start the reader could not name
+
+The guard used to know four terminal names,
+so `.status_retrying()`
+(`push/start_retry.rs`,
+which ends in `Command::status`)
+was no start to it.
+It now reads a start by what it is:
+
+- a chain that begins with a command this crate builds
+  (`Command::new`,
+  `service_command()`,
+  a function whose return type is a `Command`),
+- whose methods are that command's configuration calls
+  (`CONFIGURING_METHODS`) until one is not,
+- and that ends there unless the method starts the command
+  (`STARTING_METHODS`) or hands back a value of its own
+  (`COMMAND_GETTERS`).
+
+The command's clauses are followed through the binding it is configured on,
+a binding whose own first act is a start is a child and not followed,
+and a start the reader cannot classify is a finding:
+
+- 21 entries of counted starts carry a reason each
+  (shells,
+  starts whose program the reader cannot name,
+  and two calls on a value a start handed back),
+- 26 program expressions carry one each,
+- and one helper whose shape its own body cannot show (`output_retrying`) is listed as the capture it is.
+
 Nothing in the release program changes:
 the installed service decides where its lines go by the same two readings,
 and its lines read the same,
@@ -329,6 +421,42 @@ and what each reports with the change taken out:
   `guard_default_inheritance.rs` fails at the test the review ran,
   naming its own file:
   `default_inherited_service.rs: 1 start(s) of /bin/sh inherit the run's standard error and no entry with a reason covers them`.
+
+- `service::client_journal::tests::a_service_s_entry_takes_the_sink_and_the_client_s_sender_refuses_inside_the_service`
+  fails with the refusal taken out of `send_entry_as`
+  (`the sender refuses inside the service`),
+  and the guard's `the_client_sender_refuses_inside_the_service_and_a_service_s_entry_goes_to_the_sink`
+  fails with the route taken out of `record_entry_as`
+  (`the recorder routes a service's entry through the sink`)
+  and with the refusal taken out
+  (`the client's sender refuses inside the service`).
+- `fixture_guard::every_service_of_a_fixture_root_keeps_its_words_when_the_log_file_cannot_be_made`
+  fails with the per-pipe forgetting put back:
+
+  ```text
+  the first service's words are still there: the fixture's service log file holds nothing (Permission denied (os error 13)); what its services said is kept here (22 bytes kept):
+  second-service-marker
+  ```
+
+- `fixture_guard::a_service_that_ends_before_it_listens_shows_what_it_wrote`
+  fails with the panic pointing at the test's output again:
+
+  ```text
+  the failure quotes what the service wrote: the fixture's commit service ended (exit status: 3) before it listened at …; what it wrote to its log is in this test's output
+  ```
+
+- `source_guard::service_journal_isolation_tests::a_start_that_retries_is_still_a_start`
+  fails with the reader taken back to its four terminal names
+  (`the retrying start is read: []`).
+
+The reviewer's own two programs,
+run against this branch:
+
+- `service_log_second_pipe_erases_first` now fails at its own final assertion,
+  because both markers survive:
+  `AFTER_SECOND_PIPE="…kept here (43 bytes kept): first-service-marker second-service-marker"`;
+- `journal_guard_misses_retrying_service_start` now prints `RETRYING_STATUS_STARTS=1`
+  and fails at its own final assertion.
 
 The measured before and after,
 both in a unit whose standard error was the journal,

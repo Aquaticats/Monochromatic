@@ -95,7 +95,8 @@ pub struct Start {
     /// Whether the start's clause names the wrapper's service mode,
     /// which makes it a start of the service itself.
     pub runs_the_service: bool,
-    /// The helper this start is a call to, when the reader followed one.
+    /// The helper this start is a call to, when the reader followed one,
+    /// which a finding names beside the program the reader could not read.
     pub followed: Option<String>,
 }
 
@@ -226,7 +227,6 @@ fn find(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
 #[derive(Clone, Debug)]
 struct Clause {
     first: usize,
-    last: usize,
     masked: String,
     raw: String,
 }
@@ -274,8 +274,7 @@ fn clauses(masked: &str, raw: &str) -> Vec<Clause> {
 /// with the lines it starts and ends on.
 fn clause_of(masked: &str, raw: &str, from: usize, to: usize) -> Clause {
     let first: usize = masked[..from].matches('\n').count() + 1;
-    let last: usize = first + masked[from..to].matches('\n').count();
-    return Clause { first, last, masked: masked[from..to].to_owned(), raw: raw.get(from..to).unwrap_or("").to_owned() };
+    return Clause { first, masked: masked[from..to].to_owned(), raw: raw.get(from..to).unwrap_or("").to_owned() };
 }
 
 /// What:
@@ -485,13 +484,6 @@ pub fn function_body(source: &str, name: &str) -> Option<String> {
     return functions(mask(source).as_str()).into_iter().find(|function| { return function.name == name; }).map(|function| { return function.body; });
 }
 
-/// Every name `masked` calls,
-/// as a method (`.name(`) or as a free call (`name(`),
-/// with the offset the name starts at.
-fn called_names(masked: &str) -> Vec<(usize, String)> {
-    return called_names_at_depth(masked, true);
-}
-
 /// Every name `masked` calls at the outside level,
 /// with the offset the name starts at.
 /// A call inside an argument list is no method of the chain:
@@ -518,10 +510,8 @@ fn called_names_at_depth(masked: &str, every_depth: bool) -> Vec<(usize, String)
                 if name_end < start {
                     let name: &str = &masked[name_end..start];
                     let first: u8 = bytes[name_end];
-                    if first.is_ascii_alphabetic() || first == b'_' {
-                        if every_depth || depth == 0 {
-                            found.push((name_end, name.to_owned()));
-                        }
+                    if (first.is_ascii_alphabetic() || first == b'_') && (every_depth || depth == 0) {
+                        found.push((name_end, name.to_owned()));
                     }
                 }
                 depth += 1;
@@ -653,43 +643,6 @@ fn shape_of_body(body: &str) -> Shape {
     };
 }
 
-/// The first start name `body` calls, when it calls one.
-fn called_start_name(body: &str, shapes: &BTreeMap<String, Shape>) -> Option<String> {
-    let mut best: Option<(usize, String)> = None;
-    for name in shapes.keys() {
-        let Some(at) = call_offset(body, name.as_str()) else { continue };
-        let longer: bool = best.as_ref().is_none_or(|(_, found)| { return name.len() > found.len(); });
-        if longer {
-            best = Some((at, name.clone()));
-        }
-    }
-    return best.map(|(_, name)| { return name; });
-}
-
-/// The offset of a call to `name` in `masked`,
-/// as a method (`.name(`) or a free call (`name(`),
-/// or nothing when it is no call there.
-fn call_offset(masked: &str, name: &str) -> Option<usize> {
-    let bytes: &[u8] = masked.as_bytes();
-    let needle: &[u8] = name.as_bytes();
-    let mut at: usize = 0;
-    while let Some(start) = find(bytes, at, needle) {
-        at = start + 1;
-        let before_ok: bool = start == 0 || !is_word_byte(bytes[start - 1]);
-        let after: usize = start + needle.len();
-        let after_ok: bool = after < bytes.len() && bytes[after] == b'(';
-        if before_ok && after_ok {
-            let method: bool = start > 0 && bytes[start - 1] == b'.';
-            let head: &str = &masked[..start];
-            let path_call: bool = method || head.trim_end().ends_with("::") || head.trim_end().ends_with(":") || head.trim_end().ends_with('=') || head.trim_end().ends_with('(') || head.trim_end().ends_with(',') || head.trim_end().ends_with("return") || head.trim_end().is_empty();
-            if path_call {
-                return Some(start);
-            }
-        }
-    }
-    return None;
-}
-
 /// What:
 ///  Every start of a child in `raw`,
 ///  with the standard error it gives the child and the program it names.
@@ -786,8 +739,8 @@ fn chain_of(found: &[Clause], index: usize, clause: &Clause, terminal: Option<&F
     // What the clause then calls is called on that child, and following it would read another clause's command.
     if let Some(earliest) = raw_pieces.first() {
         let masked_earliest: &str = masked_pieces.first().map(String::as_str).unwrap_or("");
-        let starts_it: bool = called_names_at_top_level(masked_earliest).first().is_some_and(|(_, name)| {
-            return STARTING_METHODS.contains(&name.as_str()) || name == "spawn_owned" || name == "exec";
+        let starts_it: bool = called_names_at_top_level(masked_earliest).first().is_some_and(|(_, called)| {
+            return STARTING_METHODS.contains(&called.as_str()) || called == "spawn_owned" || called == "exec";
         });
         let _ = earliest;
         if starts_it {
@@ -1058,17 +1011,4 @@ fn the_service_support_is_read_as_a_start_of_the_service() {
     let found = starts(source);
     assert_eq!(found.len(), 1);
     assert!(found[0].runs_the_service, "the support that builds a service start names it");
-}
-
-
-/// A temporary reading of one clause's chain for a probe of the reader itself.
-pub fn debug_chain(text: &str) -> Vec<(usize, String, String)> {
-    let masked: String = mask(text);
-    let found: Vec<Clause> = clauses(masked.as_str(), text);
-    let mut out = Vec::new();
-    for (index, clause) in found.iter().enumerate() {
-        let chain = chain_of(found.as_slice(), index, clause, None);
-        out.push((clause.first, clause.masked.clone(), chain.0));
-    }
-    return out;
 }

@@ -565,7 +565,9 @@ fn every_service_launcher_keeps_the_journal_off_the_service_it_starts() {
     let mut missing: Vec<String> = Vec::new();
     for (file, name) in SERVICE_LAUNCHERS {
         let text: String = source_text(file);
-        let body: String = starts_reader::function_body(text.as_str(), name).unwrap_or_else(|| { return panic!("{file} no longer defines {name}; remove it from the list when the launcher goes") });
+        let Some(body) = starts_reader::function_body(text.as_str(), name) else {
+            panic!("{file} no longer defines {name}; remove it from the list when the launcher goes");
+        };
         if !body.contains(KEEPS_THE_JOURNAL_OFF) {
             missing.push(format!("{file}: {name}"));
         }
@@ -782,11 +784,12 @@ fn a_start_that_retries_is_still_a_start() {
     let source: String = String::from(
         "fn start() {\n    let mut command = Command::new(SERVICE_PROGRAM);\n    command.args(SERVICE_WORDS);\n    let status = command.status_retrying().expect(\"service starts\");\n}\n",
     );
-    let names: starts_reader::Names = starts_reader::read_names(&[source.clone()]);
+    let names: starts_reader::Names = starts_reader::read_names(&[source.as_str().to_owned()]);
     let found: Vec<Start> = starts_reader::starts_following(source.as_str(), &names);
     assert_eq!(found.len(), 1, "the retrying start is read: {found:?}");
     assert_eq!(found[0].standard_error, StandardError::Inherited, "it sets no standard error: {found:?}");
     assert!(found[0].runs_the_service, "its words name the service mode: {found:?}");
+    assert_eq!(found[0].followed.as_deref(), Some("status_retrying"), "the reader names the helper it followed: {found:?}");
     let listing: Vec<(String, String)> = vec![(String::from("a.rs"), source)];
     let findings: Vec<String> = start_findings(listing.as_slice());
     assert_eq!(findings.len(), 1, "the rule refuses it: {findings:?}");
