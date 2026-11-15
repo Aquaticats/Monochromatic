@@ -118,10 +118,26 @@ pub mod abandoned_lock_proving;
 /// and what stands.
 pub mod abandoned_lock_words;
 
-/// Controls of the records a command writes of itself and its children.
+/// Controls of the records a command writes of itself and its children,
+/// and of when a record may be removed.
 #[cfg(test)]
 #[path = "lock_holder_records_tests.rs"]
 mod lock_holder_records_tests;
+
+/// Controls of the order in which the pass reads the records and walks the lock files.
+#[cfg(test)]
+#[path = "abandoned_lock_record_removal_tests.rs"]
+mod abandoned_lock_record_removal_tests;
+
+/// The state a control plants for a record's proof: a process that ran and ended, and a PID file born after its lock.
+#[cfg(test)]
+#[path = "record_proof_test_support.rs"]
+pub(crate) mod record_proof_test_support;
+
+/// The seam a control places another command's lock at, inside the pass.
+#[cfg(test)]
+#[path = "abandoned_lock_pass_fault_hooks_test_support.rs"]
+pub(crate) mod abandoned_lock_pass_fault_hooks_test_support;
 
 /// Controls for the proof and the removal.
 #[cfg(test)]

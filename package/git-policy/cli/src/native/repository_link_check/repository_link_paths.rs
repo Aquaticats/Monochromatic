@@ -21,7 +21,11 @@ use std::path::{Component, Path, PathBuf};
 const GIT_PATH_VARIABLES: [&str; 3] = ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"];
 
 /// The variable that names the Git directory of an invocation.
-const GIT_DIRECTORY_VARIABLE: &str = "GIT_DIR";
+pub const GIT_DIRECTORY_VARIABLE: &str = "GIT_DIR";
+
+/// The variable that names the common Git directory of an invocation,
+/// where its records and its shared references live.
+pub const GIT_COMMON_DIRECTORY_VARIABLE: &str = "GIT_COMMON_DIR";
 
 /// What:
 ///  The text of an option value that names a path,
@@ -116,39 +120,46 @@ pub fn chain_directory(cwd: &Path, global_prefix: &[OsString]) -> PathBuf {
 }
 
 /// What:
-///  The Git directory an invocation names,
-///  from the last `--git-dir` of its global options or from `GIT_DIR`,
-///  read from the directory its `-C` chain ends in,
+///  The Git directory an invocation names with its global options:
+///  the last `--git-dir` it was given,
+///  as the value was written,
 ///  or nothing when it names none.
-///  `&[OsString]` borrows the tokens before the subcommand;
-///  `Option<PathBuf>` is that directory or nothing.
+///  `&[OsString]` borrows the tokens before the subcommand.
 /// Why:
-///   A command that names a Git directory works in that repository,
-///  not in the one its working directory belongs to,
-///  so what the wrapper clears and what it records of the processes it starts belong to the named one.
-///  Git reads a relative value from the directory its options end in,
-///  and the last of two `--git-dir` options wins,
-///  so this reads the same way;
-///  `GIT_DIR` is read only when the options name none,
-///  as Git reads it.
+///   The directory a relative value is read from is the one the `-C` chain ends in,
+///  and that directory is resolved once, by `chain_directory`;
+///  a caller that applied the chain again here would move a relative value twice,
+///  which is how a relative `-C` beside a relative `--git-dir` once looked in a repository nobody named
+///  (a review of `2af2ecb879`, finding 1).
+///  Git keeps the last `--git-dir` it was given,
+///  so the last one wins here too.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// namedGitDirectory('/work/here', ['-C', 'sub', '--git-dir=../cfg.git'], env) // '/work/here/sub/../cfg.git'
+/// lastGitDirOption(['-C', 'sub', '--git-dir=../cfg.git']) // '../cfg.git', unjoined
 /// ```
-pub fn named_git_directory(cwd: &Path, global_prefix: &[OsString], environment: &[(OsString, OsString)]) -> Option<PathBuf> {
-    let (directory, _, from_options): (PathBuf, Vec<PathBuf>, Option<PathBuf>) = prefix_paths(cwd, global_prefix);
-    if let Some(named) = from_options {
-        return Some(directory.join(named));
-    }
-    // The last `GIT_DIR` the environment carries wins, and an empty one names nothing.
-    let mut from_environment: Option<PathBuf> = None;
-    for (name, value) in environment {
-        if name == OsStr::new(GIT_DIRECTORY_VARIABLE) && !value.is_empty() {
-            from_environment = Some(PathBuf::from(value));
+pub fn last_git_dir_option(global_prefix: &[OsString]) -> Option<PathBuf> {
+    let mut named_git_dir: Option<PathBuf> = None;
+    let mut index: usize = 0;
+    while index < global_prefix.len() {
+        let token: &OsString = &global_prefix[index];
+        if token.as_encoded_bytes() == b"-C" && index + 1 < global_prefix.len() {
+            index += 2;
+            continue;
         }
+        if let Some((value, next)) = path_option_value(global_prefix, index, "--git-dir") {
+            named_git_dir = Some(value);
+            index = next;
+            continue;
+        }
+        if let Some((_value, next)) = path_option_value(global_prefix, index, "--work-tree") {
+            index = next;
+            continue;
+        }
+        let takes_value: bool = VALUE_OPTIONS.contains(&token.as_encoded_bytes());
+        index += if takes_value { 2 } else { 1 };
     }
-    return from_environment.map(|named| { return directory.join(named); });
+    return named_git_dir;
 }
 
 /// What:

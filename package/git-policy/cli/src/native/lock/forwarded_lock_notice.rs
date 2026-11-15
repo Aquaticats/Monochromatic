@@ -20,13 +20,12 @@
 //! const notice = forwardedLockNotice({ word: 'fetch', globalPrefix, environment, judge }); process.stderr.write(notice);
 //! ```
 
-use crate::child_environment::environment_value;
 use crate::diagnostic_log::debug;
-use crate::git_directory_roots::roots_for;
+use crate::git_directory_roots::repository_a_command_works_on;
 use crate::stale_ref_lock_judge::Judge;
 use crate::stale_ref_locks::clear_stale_ref_locks;
-use crate::worktree_add_plan::start_directory;
 use std::ffi::OsString;
+/// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::PathBuf;
 
 /// Tag used for diagnostics from this module.
@@ -40,8 +39,14 @@ pub fn is_covered(word: &[u8]) -> bool {
 /// Clear what is provably stale before a forwarded `fetch` or `push` and return the notice to print;
 /// empty for every other
 ///  command,
-/// for a command whose repository is named by an option other than `-C` and `GIT_DIR`,
+/// for a command whose repository no option and no variable names,
 /// and when nothing is found.
+/// The repository is the one every other reader of this invocation resolves
+/// (`repository_a_command_works_on`):
+/// a relative `-C` moves the directory once,
+/// `--git-dir` and `GIT_DIR` name the Git directory,
+/// and `GIT_COMMON_DIR` names the common one,
+/// so a fetch or push that names its repository is judged in the repository Git uses.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -54,14 +59,11 @@ pub fn forwarded_lock_notice(word: &[u8], global_prefix: &[OsString], environmen
     let Ok(current) = std::env::current_dir() else {
         return String::new();
     };
-    let Some(start) = start_directory(global_prefix, current.as_path()) else {
+    let roots: Vec<PathBuf> = repository_a_command_works_on(current.as_path(), global_prefix, environment).roots();
+    if roots.is_empty() {
         return String::new();
-    };
-    let mut named: Option<PathBuf> = None;
-    if let Some(path) = environment_value(environment, "GIT_DIR") {
-        named = Some(start.join(path));
     }
-    let outcome = clear_stale_ref_locks(roots_for(start.as_path(), named).as_slice(), judge);
+    let outcome = clear_stale_ref_locks(roots.as_slice(), judge);
     let notice: String = outcome.notice();
     if !notice.is_empty() {
         // The notice itself is printed on standard error, so the log keeps only a one-line record of it.

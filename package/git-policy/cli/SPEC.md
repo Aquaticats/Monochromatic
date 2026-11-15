@@ -10187,14 +10187,16 @@ The wrapper writes one file per process under `<common-git-dir>/cli-git-lock-hol
 (`src/native/lock/lock_holder_records.rs`),
 named by that process's number and a digest of its identity,
 and holding one line per process:
-`self <pid> <identity>` for the wrapper itself,
+`self <pid> <identity>` for the writer itself,
 and `child <pid> <identity>` for every Git it starts and waits for
 (`src/native/invocation/forwarding.rs`,
 `src/native/push/child_watch_one_shot_run.rs`,
 `src/native/push/child_watch_output_watched_on_the_runtime.rs`,
 `src/native/landing/service_hold_retry.rs`).
-The `self` line is written immediately before this process is replaced by real Git,
-so the replacement keeps the number and the birth identity the line names
+The `self` line is written when the file is made,
+whether the process is replaced by real Git immediately or starts a Git and waits for it,
+so every record names its one writer.
+The replacement keeps the number and the birth identity the line names,
 and the line is there before that Git can take a lock.
 A command that starts no Git,
 or that stops before it starts one,
@@ -10202,20 +10204,55 @@ writes no record and makes no folder:
 a refused commit leaves its repository exactly as it found it.
 
 A record lives under the repository the command works on,
-the one its `-C` chain,
-`--git-dir` or `GIT_DIR` names,
 never under the repository its working directory happens to belong to:
-a command that names another repository works there and leaves this one alone
-(`src/native/invocation/entry.rs`,
-`src/native/repository_link_check/repository_link_paths.rs`).
+a command that names another repository works there and leaves this one alone.
+That repository is resolved once, the way Git resolves it, and one answer serves every reader
+(`src/native/repo_read/git_directory_roots.rs`,
+`repository_a_command_works_on`):
+the `-C` chain is applied once, each link from the one before;
+the last `--git-dir` wins over `GIT_DIR`, read from the directory the chain ends in;
+`GIT_COMMON_DIR` names the common directory, read from that same directory when it is relative;
+and without a named Git directory the repository is found by walking up from that directory,
+which starts no Git.
+The lock pass, the record folder and the clearing of stale reference locks before a forwarded `fetch` or `push`
+all read that one answer,
+so no two of them can disagree about a relative `-C` or a named Git directory
+(a review of `2af2ecb879`,
+finding 1).
 
-A record stays exactly as long as it can explain a lock.
-The pass that meets a repository's locks removes every record whose holders are all gone
-and whose numbers stand beside no lock,
-and removes the folder with the last record it held;
-a command that ends without becoming Git sweeps its own record the same way before it returns
-(`src/native/lock/abandoned_locks.rs`,
-`sweep_the_records_the_command_left`).
+#### Who may remove a record, and on what proof
+
+A record file has one writer: the process its own line names,
+because the file is named by that process's number and identity and only that process ever appends to it.
+Two things remove a record, and each says what it knows
+(`src/native/lock/lock_holder_record_reads.rs`,
+`nothing_can_need`):
+
+- **the writer**, at the end of its command, once every Git it started has ended and it will append nothing more.
+  It reads its own record, walks the lock files, and removes the record only when no lock names any process the
+  record names (`src/native/lock/abandoned_locks.rs`, `sweep_the_records_the_command_left`).
+  No other command can make that promise, which is why the writer is the one that may;
+- **any other command's pass**, only when all of this holds:
+  the record names its writer and that writer is proved gone by the identity judgement
+  (never when its state is unknown, which is what another machine or PID namespace answers);
+  every process the record names is proved gone;
+  and a walk of the lock files made **after** the record was read finds no lock naming any of them.
+  A record that names no writer is left alone by every other command.
+
+A writer proved gone cannot append,
+so the reading is of a file nothing can change any more,
+and a walk made after that reading sees every lock the reading could not know about.
+The two together are the whole proof:
+a removal decided on a reading of the records but on an older sight of the locks loses the record of a lock made in
+between (a review of `2af2ecb879`,
+finding 2),
+and a removal that does not show the writer gone can unlink a line a live Git's wrapper appended after the reading
+(the same review,
+finding 3).
+A record that is left a little longer costs a file;
+a record removed too early turns a lock that could be proved abandoned into a commit that fails.
+
+The folder goes with the last record it held.
 A folder that reads as present can therefore go before a record is made in it,
 and the writer makes the folder again for that one failure.
 
@@ -10414,9 +10451,8 @@ which is why the removal needs no repair afterwards.
 The pass runs once in the wrapper's own process before the command reaches Git
 (`entry.rs`,
 `meet_the_locks_of_the_repository_the_command_works_on`),
-in the repository the command works on:
-the directory its `-C` chain ends in,
-or the Git directory its `--git-dir` or `GIT_DIR` names.
+in the repository the command works on,
+resolved once before it by `repository_a_command_works_on`.
 So every command of any kind meets a clear repository,
 and a command that names another repository changes nothing in the one it runs in.
 The commit service runs it before its landing waits for the index
@@ -10430,7 +10466,9 @@ A repository with no lock pays that walk and one failed lookup of its record fol
 and starts no Git.
 A command that wrote a record of a Git it started and did not itself become Git
 pays that walk once more when it ends,
-so the records it leaves go with it unless a lock still stands in their names.
+so the record it leaves goes with it unless a lock still stands in its names;
+and the records are read before that walk, never after it,
+so a lock another command's Git makes in between keeps the record that explains it.
 A command that removed a lock prints one line naming the file,
 the number its PID file held,
 and what the record proved,

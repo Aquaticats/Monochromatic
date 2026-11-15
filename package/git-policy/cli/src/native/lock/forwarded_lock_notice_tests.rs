@@ -65,17 +65,19 @@ fn other_commands_are_left_alone() {
     stage.finish();
 }
 
-/// A repository named by an option the wrapper does not read is not guessed at.
+/// A repository the line names with `--git-dir` is the repository this clearing is about,
+/// as it is for every reader of the invocation.
 #[test]
-fn a_repository_named_by_another_option_is_not_touched() {
+fn a_repository_named_by_an_option_is_judged() {
     let stage: Stage = killed::stage("forwarded-notice-git-dir", true);
     let mut held: Held = killed::hold_fetch(&stage);
     held.kill();
     let named: Vec<OsString> = vec![OsString::from("--git-dir"), stage.git_dir.clone().into_os_string()];
-    assert_eq!(forwarded_lock_notice(b"fetch", named.as_slice(), &[], &killed::judge()), "");
-    assert!(stage.lock_of(killed::GONE_REF).exists());
+    let notice: String = forwarded_lock_notice(b"fetch", named.as_slice(), &[], &killed::judge());
+    assert!(notice.contains("left the reference lock"), "{notice}");
     stage.finish();
 }
+
 
 /// `GIT_DIR` in the environment names the repository,
 /// as it does for Git.

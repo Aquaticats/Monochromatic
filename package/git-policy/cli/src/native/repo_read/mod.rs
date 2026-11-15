@@ -72,6 +72,11 @@ pub mod sequencer_marker;
 /// found without starting Git.
 pub mod git_directory_roots;
 
+/// Controls of the one answer to which repository a command works on, checked against real Git for every spelling.
+#[cfg(test)]
+#[path = "git_directory_roots_tests.rs"]
+mod git_directory_roots_tests;
+
 /// The system configuration file a real Git executable reads,
 /// learned once per executable identity.
 pub mod git_system_config;

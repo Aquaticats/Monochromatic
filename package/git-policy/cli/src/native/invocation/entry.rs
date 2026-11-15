@@ -35,9 +35,8 @@ use crate::control_terminal::Terminal;
 use crate::effective_target::default_allowed_worktree_dirs;
 use crate::forwarding::replace_process_with_real_git;
 use crate::global_arguments::{GlobalLayout, GlobalOutcome, global_layout};
-/// The directory this command runs in after its `-C` chain, and the Git directory its options or environment name:
-///  the repository whose locks it meets and whose record names the Git it starts.
-use crate::repository_link_paths::{chain_directory, named_git_directory};
+/// The repository this command works on, resolved once for the locks it meets and the record of the Git it starts.
+use crate::git_directory_roots::{CommandRepository, repository_a_command_works_on};
 use crate::management::{host_filesystem_section, plan_management_with_section};
 /// The linter the executable gives the Markdown policy.
 /// The shipped checks and their constructor.
@@ -391,9 +390,11 @@ fn meet_the_locks_here(arguments: &[OsString], environment: &[(OsString, OsStrin
     // `&globals.arguments[..prefix_len]` borrows the globals before the command word: the wrapper's own controls are
     //  stripped out first, so no control is read as one of Git's options.
     let prefix: &[OsString] = &globals.arguments[..globals.layout.prefix_len];
-    let start: PathBuf = chain_directory(std::env::current_dir().unwrap_or_default().as_path(), prefix);
-    let named: Option<PathBuf> = named_git_directory(start.as_path(), prefix, environment);
-    return crate::abandoned_locks::meet_the_locks_of_the_repository_the_command_works_on(start.as_path(), named.as_deref());
+    // What: The repository is resolved once, by the one resolver every other reader of this invocation uses.
+    // Why:  The `-C` chain, the named Git directory and the named common directory must be applied once each: a second
+    //       application of a relative `-C` looked in a repository nobody named (a review of `2af2ecb879`, finding 1).
+    let repository: CommandRepository = repository_a_command_works_on(std::env::current_dir().unwrap_or_default().as_path(), prefix, environment);
+    return crate::abandoned_locks::meet_the_locks_of_the_repository_the_command_works_on(&repository);
 }
 
 /// What:

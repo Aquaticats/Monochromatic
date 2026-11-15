@@ -238,20 +238,38 @@ pub fn record_line(kind: &str, pid: i64, identity: &str) -> String {
 }
 
 /// What:
-///  The record file this process writes,
-///  named by its process number and the digest of its identity.
+///  The record file this process writes and the identity its own line carries,
+///  the file named by its process number and the digest of that identity.
 /// Why:
 ///   A number alone names a different process after a reuse,
 ///  so the file a new process writes cannot be mistaken for the file of the process that had its number before.
+///  The identity comes back with the path because the record's own line is written when the file is made,
+///  and it is the one statement of who may append to that file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// join(folder, `${pid}.${digest(identity)}`)
+/// [join(folder, `${pid}.${digest(identity)}`), identity]
 /// ```
-fn record_file_of_this_process(folder: &Path) -> Option<PathBuf> {
+fn record_of_this_process(folder: &Path) -> Option<(PathBuf, String)> {
     let identity: String = own_identity().ok()?;
     let digest: String = crate::service_instance::digest_of_bytes(identity.as_bytes());
-    return Some(folder.join(format!("{}.{digest}", std::process::id())));
+    return Some((folder.join(format!("{}.{digest}", std::process::id())), identity));
+}
+
+/// What:
+///  The record file this process writes in a repository,
+///  or nothing when its own identity cannot be read.
+/// Why:
+///   The pass removes a record only when the process it names as its writer is proved gone,
+///  so the process that may remove its own record needs the very path the writer made.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// thisProcessRecordPath(commonDir) // '<common>/cli-git-lock-holders/<pid>.<digest>'
+/// ```
+pub fn this_process_record_path(common_dir: &Path) -> Option<PathBuf> {
+    let folder: PathBuf = folder_of(common_dir);
+    return record_of_this_process(folder.as_path()).map(|(path, _)| { return path; });
 }
 
 /// What:
@@ -266,8 +284,7 @@ fn record_file_of_this_process(folder: &Path) -> Option<PathBuf> {
 /// existsSync(join(folder, `${process.pid}.${digest(ownIdentity)}`))
 /// ```
 pub fn this_process_has_a_record(common_dir: &Path) -> bool {
-    let folder: PathBuf = folder_of(common_dir);
-    let Some(path) = record_file_of_this_process(folder.as_path()) else {
+    let Some(path) = this_process_record_path(common_dir) else {
         return false;
     };
     return path.exists();
@@ -333,12 +350,16 @@ pub fn record_a_child_started(common_dir: &Path, pid: u32) {
 
 /// What:
 ///  Add the line for `pid` to this process's record,
-///  making the file and its header first when they are not there,
+///  making the file, its header and this process's own line first when they are not there,
 ///  and making the folder again once when it went between the two.
 /// Why:
 ///   One record per process keeps the folder small enough to read whole,
 ///  and an append of one short line is all a Git start costs.
-///  The pass that sweeps a repository's records removes the folder with the last record it held,
+///  The writer's own line is written when the file is made,
+///  because it is what says who may append to this file and when nothing can add to it:
+///  a process that creates a record for a child it started names itself with the child,
+///  so the record can be told from one whose writer is gone.
+///  The pass that removes a repository's records removes the folder with the last record it held,
 ///  so a folder read as present can be gone before the file is made in it;
 ///  one more try closes that window,
 ///  and a second failure leaves the record unwritten,
@@ -346,10 +367,10 @@ pub fn record_a_child_started(common_dir: &Path, pid: u32) {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// appendFileSync(file, recordLine(kind, pid, identity)) // the folder made again once when it went
+/// appendFileSync(file, recordLine(kind, pid, identity)) // the folder and the writer's own line made again once when they went
 /// ```
 fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
-    let Some(path) = record_file_of_this_process(folder) else {
+    let Some((path, writer)) = record_of_this_process(folder) else {
         return Err(std::io::Error::other("the identity of this process is unavailable"));
     };
     let Some(identity) = identity_of_process(i64::from(pid)) else {
@@ -357,7 +378,7 @@ fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
     };
     let mut made_again: bool = false;
     loop {
-        match write_a_record_line_once(folder, path.as_path(), kind, pid, identity.as_str()) {
+        match write_a_record_line_once(folder, path.as_path(), kind, pid, identity.as_str(), writer.as_str()) {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound && !made_again => {
                 made_again = true;
                 continue;
@@ -368,19 +389,25 @@ fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
 }
 
 /// What:
-///  One attempt at making the record when it is not there and appending the line when it is.
+///  One attempt at making the record when it is not there, with its header and this process's own line, and appending
+///  the line when it is.
 ///       `pub(crate)` so a control can make this attempt fail the way a folder removed under it does.
 /// Why:
 ///   `note` makes this attempt twice, and the second one is the folder being made again;
 ///  a `NotFound` here is the folder or the file going between the look and the write,
 ///  which is the one failure the second attempt can answer.
+///  The writer's own line is written once, when the file is made:
+///  a process's second note appends only its child's line,
+///  and the own line of a process asked for again is already the file's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (!existsSync(file)) { mkdirSync(folder, { recursive: true }); writeFileSync(file, text, { flag: 'wx' }) } else { appendFileSync(file, line) }
+/// if (!existsSync(file)) { mkdirSync(folder, { recursive: true }); writeFileSync(file, header + selfLine + (kind === 'self' ? '' : line), { flag: 'wx' }) } else { appendFileSync(file, line) }
 /// ```
-pub(crate) fn write_a_record_line_once(folder: &Path, path: &Path, kind: &str, pid: u32, identity: &str) -> std::io::Result<()> {
+pub(crate) fn write_a_record_line_once(folder: &Path, path: &Path, kind: &str, pid: u32, identity: &str, writer: &str) -> std::io::Result<()> {
     use std::io::Write as _;
+    // The writer's own line, written when the file is made: it names the one process that appends to this file.
+    let own: (i64, String) = (i64::from(std::process::id()), writer.to_owned());
     if !path.exists() {
         std::fs::create_dir_all(folder)?;
         let mut made: std::fs::File = match std::fs::OpenOptions::new().write(true).create_new(true).open(path) {
@@ -389,7 +416,14 @@ pub(crate) fn write_a_record_line_once(folder: &Path, path: &Path, kind: &str, p
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => std::fs::OpenOptions::new().append(true).open(path)?,
             Err(error) => return Err(error),
         };
-        made.write_all(record_text(&[(kind, i64::from(pid), identity.to_owned())]).as_bytes())?;
+        made.write_all(record_text(&[(SELF_KIND, own.0, own.1.clone())]).as_bytes())?;
+        if kind != SELF_KIND {
+            made.write_all(record_line(kind, i64::from(pid), identity).as_bytes())?;
+        }
+        return Ok(());
+    }
+    // The writer's own line is already the file's, so asking for it again writes nothing.
+    if kind == SELF_KIND {
         return Ok(());
     }
     let mut file: std::fs::File = std::fs::OpenOptions::new().append(true).open(path)?;

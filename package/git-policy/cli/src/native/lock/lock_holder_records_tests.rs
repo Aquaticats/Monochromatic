@@ -2,6 +2,7 @@
 //!  Controls of the record a command writes of itself and of the processes it starts:
 //!  the one spelling the writer and the reader share,
 //!  the two-space form older records carry,
+//!  who may remove a record and on what proof,
 //!  and the folder that must neither grow with every command nor outlive the last record it held.
 //! Why:
 //!  The writer wrote `self  <pid>` with two spaces and the reader parsed only one,
@@ -9,14 +10,21 @@
 //!  and a record with no parseable holder was never swept:
 //!  every forwarded command left a file (a review of `675771e759`,
 //! finding 1).
+//!  A removal decided on a reading of the records, with another writer between, lost the line of a live Git
+//!  (a review of `2af2ecb879`, finding 3),
+//!  so a record is removed only by its writer or after its writer is proved gone.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! expect(holdersOf(recordText([['self', 42, id]]))).toEqual([[42, id]]);
 //! ```
 
-use crate::lock_holder_record_reads::{identities_recorded, sweep};
-use crate::lock_holder_records::{CHILD_KIND, RECORD_HEADER, SELF_KIND, folder_of, identity_of_birth, identity_of_process, record_line, record_text, write_a_record_line_once};
+use crate::lock_holder_record_reads::{Record, every_record, identities_recorded, remove_records_no_one_needs, remove_this_process_record_if_no_lock_needs_it};
+use crate::lock_holder_records::{
+    CHILD_KIND, RECORD_HEADER, SELF_KIND, folder_of, identity_of_birth, identity_of_process, record_a_child_started, record_line, record_text,
+    this_process_record_path, write_a_record_line_once,
+};
+use crate::record_proof_test_support::a_dead_process;
 use crate::test_support::{fixture, remove};
 use std::path::PathBuf;
 
@@ -97,36 +105,131 @@ fn a_record_line_that_is_not_one_names_nobody() {
 }
 
 /// What:
-///  A folder of records whose holders are all gone and which no standing lock names is emptied,
-///  including the records a forwarded command writes of itself.
+///  A folder of records whose writers and holders are all gone and which no standing lock names is emptied,
+///  the folder goes with its last record,
+///  and a number a standing lock names keeps every record that names it.
 /// Why:
-///  The sweep is what keeps the folder small enough that every lookup reads it whole;
-///  records of the self form were never swept before,
+///  The removal is what keeps the folder small enough that every lookup reads it whole;
+///  records of the self form were never removed before,
 /// so every command left a file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// write(selfRecordOfADeadProcess); sweep(folder, []); expect(readdir(folder)).toEqual([]);
+/// write(selfRecordOfADeadProcess); removeRecordsNoOneNeeds(folder, [], []) ; expect(readdir(folder)).toEqual([]);
 /// ```
 #[test]
-fn a_record_of_a_finished_command_is_swept_and_one_a_lock_needs_is_kept() {
+fn a_record_of_a_finished_command_is_removed_and_one_a_lock_needs_is_kept() {
     let root: PathBuf = fixture("record-sweep");
     let folder: PathBuf = folder_of(root.as_path());
     std::fs::create_dir_all(folder.as_path()).expect("the folder");
-    let mut helper: std::process::Child = std::process::Command::new("talk").stdin(std::process::Stdio::null()).spawn().ok().unwrap_or_else(|| { return std::process::Command::new("sleep").arg("0").spawn().expect("a helper"); });
-    let gone: i64 = i64::from(helper.id());
-    let identity: String = identity_of_process(gone).expect("its identity while it runs");
-    helper.wait().expect("the helper ends");
+    let (gone, identity): (i64, String) = a_dead_process();
     // One record of a command that ended, and one whose number a standing lock still names.
-    std::fs::write(folder.join("finished"), record_text(&[(SELF_KIND, gone, identity.clone())]).as_bytes()).expect("a finished command's record");
-    std::fs::write(folder.join("needed"), record_text(&[(CHILD_KIND, gone, identity.clone())]).as_bytes()).expect("a record a lock needs");
-    sweep(root.as_path(), &[gone]);
+    std::fs::write(folder.join("finished"), record_text(&[(SELF_KIND, gone, identity.clone()), (CHILD_KIND, gone, identity.clone())]).as_bytes())
+        .expect("a finished command's record");
+    std::fs::write(folder.join("needed"), record_text(&[(SELF_KIND, gone, identity.clone()), (CHILD_KIND, gone, identity)]).as_bytes()).expect("a record a lock needs");
+    remove_records_no_one_needs(root.as_path(), every_record(root.as_path()).as_slice(), &[gone]);
     assert!(folder.join("finished").exists() && folder.join("needed").exists(), "a number a standing lock names keeps every record that names it");
-    assert!(folder.exists(), "a folder that still holds a record stays, so a lock's proof is never swept with it");
-    sweep(root.as_path(), &[]);
+    assert!(folder.exists(), "a folder that still holds a record stays, so a lock's proof is never removed with it");
+    remove_records_no_one_needs(root.as_path(), every_record(root.as_path()).as_slice(), &[]);
     assert!(!folder.join("finished").exists(), "a record of a command that ended and that no lock names goes");
     assert!(!folder.join("needed").exists(), "and so does the other, once no lock names the number");
     assert!(!folder.exists(), "the folder goes with the last record it held, so a Git directory reads as the command found it");
+    remove(root.as_path());
+}
+
+/// What:
+///  A record whose writer may still run is kept,
+///  even when its only holder is dead and no lock names it,
+///  and the line the writer appends after another command read the record is not lost.
+/// Why:
+///  This is the shape that loses a live Git's line (a review of `2af2ecb879`, finding 3):
+///  a command reads the records, the writer appends its next child's line, and the removal acts on what it read.
+///  The writer is this test process, which is alive and appends through the shipped writer,
+///  so the line is placed by the same seam the pass uses: the reading and the removal are two calls.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const records = everyRecord(folder); recordChild(liveChild); removeRecordsNoOneNeeds(folder, records, []); expect(record).toContain(liveChild);
+/// ```
+#[test]
+fn a_record_whose_writer_may_still_run_is_kept_and_its_new_line_survives() {
+    let root: PathBuf = fixture("record-writer-alive");
+    let folder: PathBuf = folder_of(root.as_path());
+    std::fs::create_dir_all(folder.as_path()).expect("the folder");
+    let (gone, identity): (i64, String) = a_dead_process();
+    let own: i64 = i64::from(std::process::id());
+    let own_identity: String = identity_of_process(own).expect("this process's identity");
+    let record: PathBuf = this_process_record_path(root.as_path()).expect("this process's record path");
+    std::fs::write(record.as_path(), record_text(&[(SELF_KIND, own, own_identity), (CHILD_KIND, gone, identity)]).as_bytes()).expect("a record whose writer is alive and whose only child is gone");
+    // The reading another command makes of this repository's records.
+    let read: Vec<Record> = every_record(root.as_path());
+    // The writer's next child, still running, appended after that reading.
+    let mut live: std::process::Child = std::process::Command::new("sleep")
+        .arg("60")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("a live child starts");
+    record_a_child_started(root.as_path(), live.id());
+    remove_records_no_one_needs(root.as_path(), read.as_slice(), &[]);
+    let kept: String = std::fs::read_to_string(record.as_path()).expect("the record of a writer that may still run stays");
+    assert!(kept.contains(format!("child {} ", live.id()).as_str()), "the line appended after the reading is still there: {kept:?}");
+    let _killed = live.kill();
+    let _waited = live.wait();
+    remove(root.as_path());
+}
+
+/// What:
+///  A record that names no writer is kept when another command reads it.
+/// Why:
+///  Such a record was written by a release before the writer named itself,
+///  so nothing says whether more lines may follow;
+///  leaving it costs a file, and removing it could cost a lock its proof.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// write(header + childLineOfADeadProcess); removeRecordsNoOneNeeds(folder, [], []); expect(record).toBeThere();
+/// ```
+#[test]
+fn a_record_that_names_no_writer_is_never_removed_by_another_command() {
+    let root: PathBuf = fixture("record-no-writer");
+    let folder: PathBuf = folder_of(root.as_path());
+    std::fs::create_dir_all(folder.as_path()).expect("the folder");
+    let (gone, identity): (i64, String) = a_dead_process();
+    let record: PathBuf = folder.join("record-with-no-writer");
+    std::fs::write(record.as_path(), record_text(&[(CHILD_KIND, gone, identity)]).as_bytes()).expect("a record an earlier release wrote");
+    remove_records_no_one_needs(root.as_path(), every_record(root.as_path()).as_slice(), &[]);
+    assert!(record.exists(), "a record that names no writer may still be appended to, so another command leaves it");
+    remove(root.as_path());
+}
+
+/// What:
+///  The writer removes its own record when no lock names what it recorded,
+///  and keeps it while one does.
+/// Why:
+///  The writer is the only process that appends to its record and it will append nothing more,
+///  which is the one thing no other command can know.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeOwnRecord(); removeMyRecordIfNoLockNeedsIt([deadChild]); expect(record).toBeThere(); removeMyRecordIfNoLockNeedsIt([]); expect(record).toBeGone();
+/// ```
+#[test]
+fn the_writer_removes_its_own_record_only_when_no_lock_names_what_it_recorded() {
+    let root: PathBuf = fixture("record-writer-removes");
+    let folder: PathBuf = folder_of(root.as_path());
+    std::fs::create_dir_all(folder.as_path()).expect("the folder");
+    let (gone, identity): (i64, String) = a_dead_process();
+    let own: i64 = i64::from(std::process::id());
+    let own_identity: String = identity_of_process(own).expect("this process's identity");
+    let record: PathBuf = this_process_record_path(root.as_path()).expect("this process's record path");
+    std::fs::write(record.as_path(), record_text(&[(SELF_KIND, own, own_identity), (CHILD_KIND, gone, identity)]).as_bytes()).expect("this process's record");
+    remove_this_process_record_if_no_lock_needs_it(root.as_path(), &[gone]);
+    assert!(record.exists(), "a lock that names a process the record names keeps it");
+    remove_this_process_record_if_no_lock_needs_it(root.as_path(), &[]);
+    assert!(!record.exists(), "with every Git of this command ended and no lock naming one, the record goes");
+    assert!(!folder.exists(), "and the folder goes with it");
     remove(root.as_path());
 }
 
@@ -153,6 +256,7 @@ fn an_attempt_whose_folder_is_not_under_the_file_reports_it_and_makes_nothing() 
         SELF_KIND,
         std::process::id(),
         identity_of_birth("linux:4242").as_str(),
+        identity_of_birth("linux:4243").as_str(),
     )
     .expect_err("a file whose directory is not there cannot be made");
     assert_eq!(failed.kind(), std::io::ErrorKind::NotFound, "the failure says the folder or the file is not there: {failed}");

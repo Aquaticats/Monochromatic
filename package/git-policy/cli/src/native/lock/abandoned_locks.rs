@@ -36,14 +36,15 @@ use crate::abandoned_lock_words::{clearance_line, standing_lock_line};
 /// The names a lock and its PID file have.
 use crate::stopped_git_locks::{LOCK_SUFFIX, PID_LOCK_SUFFIX};
 /// The common Git directory that holds the records of the processes started here.
-use crate::git_directory_roots::{common_dir_for, git_directory_of};
+use crate::git_directory_roots::common_dir_for;
 /// The records themselves:
 /// the repository this command works in,
 /// which every Git it starts is noted in.
 use crate::lock_holder_records::remember_repository;
-/// The read of the records,
-/// for the sweep that keeps only the ones that explain a lock.
-use crate::lock_holder_record_reads::sweep;
+/// The records themselves, read before the walk and removed only on what the walk found after that reading.
+use crate::lock_holder_record_reads::{Record, every_record, remove_records_no_one_needs, remove_this_process_record_if_no_lock_needs_it};
+/// The repository a command works on, resolved once by the one resolver every reader of the invocation uses.
+use crate::git_directory_roots::CommandRepository;
 /// `Path` and `PathBuf` are borrowed and owned filesystem paths.
 use std::path::{Path, PathBuf};
 
@@ -227,24 +228,36 @@ fn is_a_lock_name(name: &str) -> bool {
 /// What:
 ///  Judge every lock of the Git directories `roots`,
 ///  remove the ones whose holder is proven gone,
+///  remove the records nothing can need any more,
 ///  and say what was removed.
 /// Why:
 ///  Every command that may meet a lock calls this once,
 ///  so the proof,
 /// the sequence and the words are one rule everywhere.
+///  The records are read before the walk,
+///  and removed on what that later walk found:
+///  a lock another command's Git makes between the two is then seen,
+///  and the record that explains it stays.
+///  A record read after the walk would be removed on a sight of the locks older than its own reading
+///  (a review of `2af2ecb879`, finding 2).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function clearAbandonedLocks(roots: string[]): Outcome;
+/// function clearAbandonedLocks(roots: string[]): Outcome; // read the records, walk, clear, remove litter
 /// ```
 pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
     let mut outcome: Outcome = Outcome::default();
-    let searched: Walked = walked(roots);
-    let candidates: Vec<PathBuf> = searched.locks;
     let Some(first) = roots.first() else {
         return outcome;
     };
     let common_dir: PathBuf = common_dir_for(first.as_path());
+    // What: The records are read first, so the walk below is the sight of the locks a removal is decided on.
+    // Why:  A record removed on a walk older than its reading loses the proof of a lock made in between.
+    let records: Vec<Record> = every_record(common_dir.as_path());
+    #[cfg(test)]
+    crate::abandoned_lock_pass_fault_hooks_test_support::after_the_records_are_read();
+    let searched: Walked = walked(roots);
+    let candidates: Vec<PathBuf> = searched.locks;
     for lock in &candidates {
         match proving::clear_one(lock.as_path(), common_dir.as_path()) {
             Some(clearance) => outcome.cleared.push(clearance),
@@ -258,14 +271,12 @@ pub fn clear_abandoned_locks(roots: &[PathBuf]) -> Outcome {
             }
         }
     }
-    // The records are swept against the locks that still stand, so a record that can still explain a lock stays and the
+    // The records are removed against the locks that still stand, so a record that can still explain a lock stays and the
     //  litter of finished commands goes.
     //  A walk that stopped at its own bounds has not seen every lock, so a record that no standing lock of it names may
-    //  still explain one below the bound: nothing is swept then. A lock made after this walk cannot be explained by a
-    //  record naming a dead number either, because a Git that takes a lock writes its own number into the PID file, and a
-    //  PID file left over from an earlier holder (the one case a record would be read for) is a lock no pass may remove.
+    //  still explain one below the bound: nothing is removed then.
     if searched.complete {
-        sweep(common_dir.as_path(), standing_lock_pids(outcome.standing.as_slice()).as_slice());
+        remove_records_no_one_needs(common_dir.as_path(), records.as_slice(), pids_named_by_standing_locks(outcome.standing.as_slice()).as_slice());
     }
     return outcome;
 }
@@ -293,21 +304,25 @@ pub fn clear_abandoned_locks_telling(roots: &[PathBuf], out: &mut dyn std::io::W
 }
 
 /// What:
-///  Sweep the records of a repository once the command that met its locks has ended,
-///  against the locks that stand there now.
+///  Remove the record this command wrote once the command that met its locks has ended,
+///  when no lock of the repository names any process that record names,
+///  and the folder with it once it holds no record.
 /// Why:
 ///  A record written for a Git this command started explains a lock that Git may have left;
 ///  once the command returns and no lock of the repository names any process it recorded,
 ///  the record explains nothing and goes with the folder that held it,
 ///  so a command that changed nothing else leaves the Git directory as it found it.
+///  This process is the record's only writer and it will append nothing more,
+///  which is the one thing no other command can know,
+///  so it may remove its own record while every other command must prove this one gone first.
 ///  A process whose only record is the one written just before it became Git never reaches this:
-///  its replacement is the process, and the next command's pass sweeps the record.
-///  The walk and the judgement are the pass's own,
-///  so a lock below their bounds keeps every record that may explain it.
+///  its replacement is the process, and the next command's pass removes the record.
+///  The walk is made here, after the record was read,
+///  and a walk that stopped at its own bounds removes nothing.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// sweepAfterTheCommand(roots) // nothing when this process wrote no record, or the walk was not whole
+/// removeMyRecordAfterTheCommand(roots) // nothing when this process wrote no record, or the walk was not whole
 /// ```
 pub fn sweep_the_records_the_command_left(roots: &[PathBuf]) {
     let Some(first) = roots.first() else {
@@ -322,20 +337,24 @@ pub fn sweep_the_records_the_command_left(roots: &[PathBuf]) {
     if !searched.complete {
         return;
     }
-    sweep(common.as_path(), standing_lock_pids(searched.locks.as_slice()).as_slice());
+    remove_this_process_record_if_no_lock_needs_it(common.as_path(), pids_named_by_standing_locks(searched.locks.as_slice()).as_slice());
 }
 
 /// What:
-///  The numbers that stand beside the locks of one repository now.
+///  The numbers the locks of one repository name,
+///  as their PID files record them,
+///  read from a walk the caller made.
 /// Why:
-///  The sweep keeps every record that can still explain a lock,
-///  and removes the records whose commands are over and whose numbers stand beside nothing.
+///  A record that names one of these numbers can still explain a lock,
+///  so neither the writer nor any other command may remove it.
+///  A caller that removes records takes this from the walk it made after reading them,
+///  so a lock made in between is in the list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const pids = standingLockPids(locks);
+/// const pids = pidsNamedByStandingLocks(locks);
 /// ```
-fn standing_lock_pids(locks: &[PathBuf]) -> Vec<i64> {
+pub fn pids_named_by_standing_locks(locks: &[PathBuf]) -> Vec<i64> {
     let mut pids: Vec<i64> = Vec::new();
     for lock in locks {
         if let Some(pid) = crate::stopped_git_locks::pid_named_by(proving_pid_file(lock).as_path()) {
@@ -378,32 +397,27 @@ pub fn roots_of_git_directory(git_dir: &Path) -> Vec<PathBuf> {
 ///  This is the one place a client command passes,
 ///  so every command of any kind meets a clear repository,
 ///  and a `git status` after a kill is enough to repair what the killed command left.
-///  The repository is the one the command names,
+///  The repository is the one the command works on,
+///  resolved once before this call by the resolver every other reader uses
+///  (`git_directory_roots::repository_a_command_works_on`),
 ///  never the one its working directory happens to belong to:
-///  a command that names another repository leaves no record and clears no lock in this one
-///  (`repository_link_paths::chain_directory`,
-/// `named_git_directory`).
+///  a command that names another repository leaves no record and clears no lock in this one.
 ///  The Git directory is found by reading a few small files,
 /// never by starting Git,
 ///  and a directory outside any repository costs one failed look.
-///  The roots it met come back so the command can sweep the records it leaves behind when it ends
+///  The roots it met come back so the command can remove the record it leaves behind when it ends
 ///  (`sweep_the_records_the_command_left`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// meetTheLocks(start) // -C chain and --git-dir or GIT_DIR, else the start directory's repository
+/// meetTheLocks(repository) // the -C chain, --git-dir or GIT_DIR, and GIT_COMMON_DIR, resolved once
 /// ```
-pub fn meet_the_locks_of_the_repository_the_command_works_on(start: &Path, named: Option<&Path>) -> Vec<PathBuf> {
-    let found: Option<PathBuf> = match named {
-        Some(directory) => Some(directory.to_path_buf()),
-        None => git_directory_of(start),
-    };
-    let Some(git_dir) = found else {
+pub fn meet_the_locks_of_the_repository_the_command_works_on(repository: &CommandRepository) -> Vec<PathBuf> {
+    let Some(common) = repository.common_dir.as_ref() else {
         return Vec::new();
     };
-    let common: PathBuf = common_dir_for(git_dir.as_path());
     remember_repository(common.as_path());
-    let roots: Vec<PathBuf> = roots_of_git_directory(git_dir.as_path());
+    let roots: Vec<PathBuf> = repository.roots();
     clear_abandoned_locks_telling(roots.as_slice(), &mut std::io::stderr());
     return roots;
 }

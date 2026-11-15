@@ -3673,18 +3673,34 @@ naming the wrapper and every Git it started,
 each with the birth identity,
 boot ID,
 PID namespace and machine ID that the commit service's index lock marker already uses.
-The record of the wrapper itself is written immediately before the process becomes Git,
-and a Git it starts and waits for is named as soon as it exists;
+The record's own line is written when the file is made,
+so every record names the one process that wrote it,
+whether that process becomes Git at once or starts a Git and waits for it;
 a command that starts no Git,
 or stops before it starts one,
 leaves no record and makes no folder.
 It sits under the repository the command works on,
-the one its `-C` chain or its `--git-dir` or `GIT_DIR` names,
 never under the repository its working directory happens to belong to.
-A record stays exactly as long as it can explain a lock:
-the pass removes every record whose holders are all gone and whose numbers stand beside no lock,
-and the folder with the last record,
-and a command that ends without becoming Git sweeps its own record the same way before it returns.
+That repository is resolved once, the way Git resolves it, and one answer serves the pass,
+the record and the clearing of stale reference locks before a forwarded `fetch` or `push`:
+the `-C` chain is applied once,
+the last `--git-dir` wins over `GIT_DIR`,
+`GIT_COMMON_DIR` names the common directory,
+and without a named Git directory the repository is found by walking up.
+A record stays exactly as long as it can explain a lock,
+and only two things remove it,
+each of which says what it knows.
+Its writer removes it at the end of its command,
+once every Git it started has ended and it will append nothing more,
+when a walk of the lock files names no process the record names.
+Any other command's pass removes it only when the record names its writer,
+that writer is proved gone,
+every process the record names is proved gone,
+and a walk of the lock files made after the record was read names none of them.
+A writer proved gone cannot append,
+so that reading is of a file nothing can change,
+and the walk made after it sees every lock the reading could not know about.
+The folder goes with the last record it held.
 A lock is cleared when its PID file names a number no live process has,
 its own birth is strictly later than the lock's (a file system that records no birth time,
 or one whose
