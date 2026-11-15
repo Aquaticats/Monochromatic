@@ -1350,8 +1350,11 @@ and what it queued.
   with keeping put as this session's suggestion and not as a requirement,
   and to say so plainly if the choice cannot be made from the project's records
   (`~/temp/agent/pi-runs/landed-removal-answers-its-fifth-review-of-2026-11-14-prompt.md`).
-- **The handover commit of 20:42** took its time with the gate's record;
-  it is timed with this one's.
+- **The handover commits of 20:42:39 and 20:46:58** took 950 ms and 1,314 ms by the clock on either side,
+  with load averages of 23.4 and 11.7.
+  Six commits under `0.6.1-alpha.36` have taken 762 to 1,314 ms;
+  the timing of each handover commit ends here,
+  the install's sample of 2,486 ms having no second like it.
 - Read at 20:45:55:
   no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
   no launcher had outlived a run;
