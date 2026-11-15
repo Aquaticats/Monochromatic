@@ -1639,6 +1639,86 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The wrapper under the gate container's Git: a sixth review finds two more things in the test helper; both are limits, and the doc is what goes back (2026-11-15T09:22:40-05:00)
+
+Not final and not approved:
+what one review reports,
+what the coordinating session read and measured to weigh it,
+what the advisor said,
+and what was queued.
+
+- **The review** of `d73a209b3e`,
+  ended 09:12:56,
+  read three files in full and found no defect in what the branch is for.
+  Two things in the tests' bounded helper,
+  both reproduced:
+  a query killed by a `SIGKILL` of its own or from outside,
+  after the bound's last look and before the helper's signal,
+  is reported as ended at the bound;
+  and after an answer that says a descendant still holds a pipe,
+  the helper's reader and writer threads stay blocked while the descendant holds it.
+- **Read and measured**:
+  - `waitid(2)` fills in the child's number,
+    the child's user,
+    the signal and how the child ended,
+    and nothing about who sent the signal
+    (the manual on this machine),
+    so no code can tell the two deaths apart;
+  - the helper has four callers outside its own tests,
+    all queries of real Git
+    (`--version` and reads of configuration),
+    all asserting that the query ended by itself inside its bound and that nothing holds its output;
+    in the first case the bound has run out and such a test fails with either answer,
+    and none of them leaves a descendant on its pipes;
+  - the package's tests run under `cargo nextest run`,
+    which starts a process for each test
+    ([nextest's own account][nextest-process-per-test]),
+    so a blocked thread ends with its test;
+  - the queue line of 08:42 said the range changes four code files and the review listed three.
+    The fourth is `testing/test_support.rs`,
+    one line that re-exports the helper's names,
+    so the review's reading stands.
+- **Weighed**,
+  after the advisor was asked:
+  neither earns code,
+  and the branch is still not sent to a pass on a dismissal.
+  Both are sentences of the helper's doc that promise more than code can keep,
+  which is why six rounds on this helper have not converged.
+  The author's seventh run changes those sentences into stated limits and nothing else
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-states-two-limits-of-its-test-helper-prompt.md`,
+  queued first at 09:22:40).
+- **Adopted,
+  open to veto**:
+  the review after that run reads the commits added after `d73a209b3e` and nothing before them,
+  with the two limits stated in its brief,
+  since the whole range was read at that commit.
+  A clean review of that delta sends the branch to a pass.
+  The question kept for the owner,
+  whether a branch whose only open findings are in tests may go to a pass,
+  is not answered by this and stays.
+- **A check added to every round**:
+  before a review clears a branch,
+  the count of code files the queue line gave for its range is held against the count the review says it read,
+  and a file the review did not list is named and looked at.
+  For pass 53 the two agree
+  (five and five).
+- **The temperature**,
+  read at 09:17:32:
+  55.3 degrees,
+  budget 32.0 threads,
+  8.0 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:17:34:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:59;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+
+[nextest-process-per-test]: https://nexte.st/docs/design/why-process-per-test/#:~:text=nextest%20runs%20each%20test%20in%20a%20separate%20process
+
 ##### Three reviews with findings (the lock-holders folder, the empty last answer, the silent tool command); the review brief answers; level 17 held its eight hours (2026-11-15T09:02:15-05:00)
 
 Not final and not approved:
