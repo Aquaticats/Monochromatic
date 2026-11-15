@@ -5,6 +5,9 @@
 //! a removal and a
 //!  conversion each finish without waiting for it,
 //! and each new worktree receives exactly its own ignored-state copy.
+//! A command of one worktree also says nothing about a lock a live program holds in another worktree's
+//!  administrative directory,
+//!  which is that worktree's own write.
 //! Why:
 //!  The owner decided on 2026-11-03 that locks are used as little as possible,
 //! that the wrapper almost never waits,
@@ -28,7 +31,7 @@ use super::worktree_copy::repository_with_rules;
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 /// Where the generated rules file lives,
 /// as the repository's configuration names it.
@@ -162,6 +165,52 @@ impl Drop for Held {
 /// The text one summary line ends with for a single new worktree.
 const ONE_WORKTREE_SUMMARY_END: &str = " into 1 new worktree.\n";
 
+/// The text a command that copied ignored state starts its standard error with.
+const COPY_SUMMARY_START: &str = "monochromatic-git-policy-cli: copied ";
+
+/// The PID file Git writes beside one lock under `core.lockfilePid`,
+/// which the wrapper turns on for every Git it starts.
+fn pid_file_of(lock: &Path) -> PathBuf {
+    let name: String = lock.file_name().expect("a lock has a name").to_string_lossy().into_owned();
+    return lock.with_file_name(format!("{}~pid.lock", name.strip_suffix(".lock").expect("a lock ends in .lock")));
+}
+
+/// What:
+///  Write `content` to the PID file beside `lock`,
+/// again and again until the file system proves that file was born after the lock.
+/// Why:
+///  The pass that reads a PID file as this lock's own compares the two births,
+///  and this file system gives two files Git writes a moment apart one birth time nearly always:
+///  a control that needs the proven order writes the file again until the times differ,
+///  which holds the step itself and runs no command a second time.
+///  A file system that records no birth time fails the control naming both times.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writePidFileAfterTheLock('/repo/.git/worktrees/held/index.lock', `pid ${process.pid}\n`);
+/// ```
+fn write_pid_file_after_the_lock(lock: &Path, content: &str) {
+    let pid_file: PathBuf = pid_file_of(lock);
+    let lock_born: Option<SystemTime> = std::fs::symlink_metadata(lock).ok().and_then(|metadata| { return metadata.created().ok(); });
+    let began: Instant = Instant::now();
+    loop {
+        let _ = std::fs::remove_file(pid_file.as_path());
+        std::fs::write(pid_file.as_path(), content.as_bytes()).expect("the PID file");
+        let pid_born: Option<SystemTime> = std::fs::symlink_metadata(pid_file.as_path()).ok().and_then(|metadata| { return metadata.created().ok(); });
+        if let (Some(lock_at), Some(pid_at)) = (lock_born, pid_born)
+            && pid_at > lock_at
+        {
+            return;
+        }
+        assert!(
+            began.elapsed() < CONDITION_PATIENCE,
+            "this file system cannot show that {} was born after {}: the lock is {lock_born:?} and the PID file {pid_born:?}",
+            pid_file.display(),
+            lock.display()
+        );
+    }
+}
+
 /// Two adds in one repository overlap:
 /// the second finishes while the first's real Git is still running,
 /// and neither
@@ -179,7 +228,7 @@ fn an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_
     assert!(held.held_is_running(), "the first add must still be inside its real Git when the second ends");
     let waiting: String = stderr_of(&free);
     assert!(!waiting.contains("waiting"), "{waiting}");
-    assert!(waiting.starts_with("monochromatic-git-policy-cli: copied "), "{waiting}");
+    assert!(waiting.starts_with(COPY_SUMMARY_START), "{waiting}");
     assert!(waiting.ends_with(ONE_WORKTREE_SUMMARY_END), "the second add copied into more than its own worktree: {waiting}");
     let root: PathBuf = held.fixture.root.clone();
     assert_eq!(std::fs::read(root.join("free").join(RULES_FILE)).expect("free's rules"), format!("{}\n", super::worktree_copy::needle()).into_bytes());
@@ -305,4 +354,41 @@ fn an_add_killed_inside_its_real_git_does_not_hold_up_the_next_add() {
     assert!(held.fixture.root.join("free").join(RULES_FILE).exists());
     let again: Observed = run_wrapped(&held.fixture, held.fixture.root.join("free").as_path(), &["rev-parse", "--is-inside-work-tree"]);
     assert_eq!(again.code, Some(0), "{}", stderr_of(&again));
+}
+
+/// What:
+///  An add says only what it copied when another worktree's administrative directory holds an `index.lock`
+///  whose PID file this file system proves was born after the lock and names a live program.
+/// Why:
+///  The gate on `0.6.1-alpha.34` (2026-11-14) failed `an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_copy`
+///  because that run's file system gave the first add's two files a proven order:
+///  the second add then printed a standing-lock line about the first add's `index.lock` before its own copy summary,
+///  and the runs whose file system gave them one birth time printed nothing.
+///  A lock a live program holds in another worktree is that worktree's own write,
+///  its own command ends by itself,
+///  and no command of this worktree may report it as standing in its way.
+///  The state is planted because the two files a real Git writes share one birth time nearly always;
+///  writing the PID file until the order is proven holds that step without waiting and without a second run.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plantLiveLockInAnotherWorktree(repo);
+/// expect(stderr(run(wrapped, ['worktree', 'add', '--quiet', '-b', 'free', '../free']))).toStartWith('monochromatic-git-policy-cli: copied ');
+/// ```
+#[test]
+fn an_add_says_nothing_about_a_lock_a_live_program_holds_in_another_worktree() {
+    let held: Held = Held::new("copy-live-lock-in-another-worktree");
+    let other: Observed = held.run(held.repo.as_path(), &["worktree", "add", "--quiet", "-b", "other", "../other"]);
+    assert_eq!(other.code, Some(0), "{}", stderr_of(&other));
+    let admin: PathBuf = held.repo.join(".git/worktrees/other");
+    let lock: PathBuf = admin.join("index.lock");
+    std::fs::write(lock.as_path(), b"a half-written index the live program never renamed\n").expect("the lock");
+    // This control's own process has the number, so nothing proves the lock abandoned and the lock's own command ends by itself.
+    write_pid_file_after_the_lock(lock.as_path(), format!("pid {}\n", std::process::id()).as_str());
+    let free: Observed = held.run(held.repo.as_path(), &["worktree", "add", "--quiet", "-b", "free", "../free"]);
+    assert_eq!(free.code, Some(0), "the add waited or failed: {}", stderr_of(&free));
+    let said: String = stderr_of(&free);
+    assert!(said.starts_with(COPY_SUMMARY_START), "a command of this worktree says nothing about another worktree's lock: {said}");
+    assert!(said.ends_with(ONE_WORKTREE_SUMMARY_END), "the add copied into more than its own worktree: {said}");
+    assert!(lock.exists(), "a live program's lock is left where it is: {said}");
 }
