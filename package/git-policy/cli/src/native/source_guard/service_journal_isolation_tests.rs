@@ -871,7 +871,7 @@ fn a_character_literal_hides_no_start_behind_it() {
         );
         let tokens: Vec<(usize, String)> = lines_holding(source.as_str(), INHERITED_STREAMS);
         assert_eq!(tokens.len(), 1, "the token after {spelling} is found: the masked source must keep the code that follows it");
-        let names: starts_reader::Names = starts_reader::read_names(&[source.clone()]);
+        let names: starts_reader::Names = starts_reader::read_names(std::slice::from_ref(&source));
         let found: Vec<Start> = starts_reader::starts_following(source.as_str(), &names);
         assert_eq!(found.len(), 1, "the start after {spelling} is read: {found:?}");
         assert_eq!(found[0].standard_error, StandardError::Inherited, "its stream is the run's: {found:?}");
