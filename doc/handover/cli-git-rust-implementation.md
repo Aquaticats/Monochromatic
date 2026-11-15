@@ -1530,6 +1530,56 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landed removal's twelfth run answers its seventh review with three rules and goes to review (2026-11-15T03:50:16-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The landed removal never destroys a nested repository, a detached worktree, a late commit or a hidden edit**,
+  its author's twelfth run,
+  ended 03:45:42 at `dfd6fab13e`,
+  `main` merged.
+  It ran the review's scripts first:
+  all four findings reproduced at its old tip.
+  Answered as three rules,
+  each in one place:
+  which command this is and where it runs
+  (a built-in,
+  a plain alias,
+  an alias of an alias,
+  a `!` alias whose value is one plain `git` command;
+  a `!` alias with no readable `git` command is left to Git,
+  and it says so);
+  what the removal takes
+  (the target and every registration inside it,
+  asked on both routes,
+  so a nested worktree's hidden edit is asked about);
+  names compared as Git compares them
+  (a capital `HEAD` is no longer dropped).
+  With the four fixes planted out the review's scripts reproduce again and six controls fail;
+  restored,
+  24 of 24 pass at four CPUs.
+  Cost against `8858f843ee`,
+  interleaved,
+  spread 2.6 ms first:
+  +5.6 ms paired at the median;
+  no Git start added on the ordinary routes.
+  It names the lines where another agent's branch
+  (the words a guard decides on)
+  would meet its three functions.
+  Its review is queued sixth
+  (`main...dfd6fab13e`,
+  21 code files that are not tests).
+  Integration pass 41 waits on this review and on the removal guard's.
+- Read at 03:49:53:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 03:43;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The queue held 81 entries at 03:50:16.
+
 ##### mpm-shadow's stale launchers, taken over by a fresh run, answer their seventh review and go to review (2026-11-15T03:43:27-05:00)
 
 Not final and not approved:
