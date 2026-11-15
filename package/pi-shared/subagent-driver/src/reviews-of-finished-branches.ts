@@ -6,6 +6,9 @@
  change already reviewed are each said in one line and the rest go on: the scratch starter stopped at the first of them, and two
  reviews of round 231 were lost that way with no line anyone read.
 
+ A branch whose brief cannot be written is a failure of that branch: it is said in one line with the reason, its status is `none`,
+ and the rest of the batch go on, so the command that ran the batch ends with a failure even when nothing was started.
+
  @module
  */
 
@@ -80,7 +83,9 @@ export type StartedReviews = {
   readonly lines: readonly string[];
 
   /**
-   The status each start ended with, or `none` when it could not be started at all.
+   The status of every branch that has one, in the order the branches were asked for: the status its start ended with, or `none`
+   for a branch whose brief could not be written, which was never started. A branch already reviewed, and one whose change leaves
+   nothing to review, is a deliberate skip and has no status.
    */
   readonly statuses: readonly string[];
 };
@@ -334,6 +339,10 @@ export async function startReviews({
     seams.report?.(line,);
   }
   /**
+   What became of each review that has a status, by the review's name, filled as the loop and the starts answer.
+   */
+  const statusOfReview = new Map<string, string>();
+  /**
    One start per review, each resolving when its run has ended, kept beside the review it reads.
    */
   const starts: {
@@ -379,6 +388,10 @@ export async function startReviews({
     },);
     if ('refused' in answer) {
       note(`${run}: its brief could not be written: ${answer.refused}`,);
+      statusOfReview.set(
+        review,
+        'none',
+      );
       continue;
     }
     /**
@@ -415,16 +428,14 @@ export async function startReviews({
       start: await entry.start,
     };
   },),);
-  /**
-   The status each start ended with, or `none` when it could not be started at all.
-   */
-  const statuses = settled.map(function statusOf(entry: { readonly start: StartOfOneReview },) {
-    return statusTextOf(entry.start,);
-  },);
   for (const {
     review,
     start,
   } of settled) {
+    statusOfReview.set(
+      review,
+      statusTextOf(start,),
+    );
     /**
      The run that read that review.
      */
@@ -439,6 +450,20 @@ export async function startReviews({
     // oxlint-disable-next-line eslint/no-await-in-loop -- one review after another, because a saved file is read from that review's own run; see doc/lint/sequential-awaits.md
     note((await seams.save({ review, },)).line,);
   }
+  /**
+   The status of every branch that has one, in the order the branches were asked for.
+   */
+  const statuses = branches.flatMap(function statusOfBranch(branch,) {
+    /**
+     The change this branch is reviewed as.
+     */
+    const review = changeNameOfBranch({ branch, },);
+    /**
+     The status this review's branch has, when it has one.
+     */
+    const status = statusOfReview.get(review,);
+    return (status === undefined) ? [] : [status,];
+  },);
   if (statuses.length > 0) {
     note(`reviews ended with statuses ${statuses.join(' ',)}`,);
   }

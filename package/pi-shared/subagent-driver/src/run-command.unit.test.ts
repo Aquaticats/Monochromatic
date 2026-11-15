@@ -38,6 +38,25 @@ await describe({
       },
     },),
     it({
+      name: 'keeps the bytes a command printed when the caller asks for them, beside the text every caller reads, so a name that is not UTF-8 survives',
+      fn: async () => {
+        /**
+         What asking for a byte a UTF-8 decode cannot carry leaves.
+         */
+        const output = await runCommandWithChildProcess({
+          command: 'sh',
+          words: ['-c', String.raw`printf "a\377b"; printf "err" >&2`,],
+          stdoutAsBytes: true,
+        },);
+        expect(output.status,).toBe(0,);
+        expect(output.stdoutBytes,).toBeDefined();
+        expect(output.stdoutBytes?.toString('hex',),).toBe('61ff62',);
+        // The decoded text is still given, with the replacement character where the byte is not UTF-8.
+        expect(output.stdout,).toBe('a\uFFFDb',);
+        expect(output.stderr,).toBe('err',);
+      },
+    },),
+    it({
       name: 'kills a command that runs past its bound instead of waiting for it',
       fn: async () => {
         /**

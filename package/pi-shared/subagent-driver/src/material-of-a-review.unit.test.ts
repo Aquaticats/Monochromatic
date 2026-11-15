@@ -197,6 +197,23 @@ function aTypeFileNoReviewReads(): string {
 }
 
 /**
+ Reads a path as Git gives it: one code unit for each byte of its UTF-8 text.
+
+ @param path - the name as text
+
+ @returns the name as Git gives it
+
+ @example
+ ```ts
+ const given = asGitGaveIt('naïve.ts');
+ ```
+ */
+function asGitGaveIt(path: string,): string {
+  return Buffer.from(path, 'utf8',)
+    .toString('latin1',);
+}
+
+/**
  One path a stand-in git says a range changed: the status Git reported for it, and the two names a rename or a copy carries.
 
  This is what the writer reads from `git diff --name-status -z`: a status, the path, and, for a copy or a rename, the path it came
@@ -947,7 +964,7 @@ await describe({
              */
             const material = await readAChangeThrough([aModifiedFile(awkward,),],);
             expect(material.kind,).toBe('code-and-build-decisions',);
-            expect(codeFilesOf(material,),).toEqual([awkward,],);
+            expect(codeFilesOf(material,),).toEqual([asGitGaveIt(awkward,),],);
           },
         },),
         it({

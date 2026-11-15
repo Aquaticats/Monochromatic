@@ -28,6 +28,23 @@ import {
 } from '../dist/final/node/index.mjs';
 
 /**
+ Reads a path as Git gives it: one code unit for each byte of its UTF-8 text.
+
+ @param path - the name as text
+
+ @returns the name as Git gives it
+
+ @example
+ ```ts
+ const given = asGitGaveIt('naïve.ts');
+ ```
+ */
+function asGitGaveIt(path: string,): string {
+  return Buffer.from(path, 'utf8',)
+    .toString('latin1',);
+}
+
+/**
  The change a review reads.
 
  @returns the change's name
@@ -563,7 +580,7 @@ await describe({
               '-dash.ts',
             ];
             for (const path of plain) {
-              expect(aPathAsABriefShowsIt({ path, },),).toBe(`\`${path}\``,);
+              expect(aPathAsABriefShowsIt({ path: asGitGaveIt(path,), },),).toBe(`\`${path}\``,);
             }
           },
         },),
@@ -578,6 +595,13 @@ await describe({
           name: 'shows a path with a backtick as a JSON string whose backtick is escaped, because the backtick would end the code span',
           fn: async () => {
             expect(aPathAsABriefShowsIt({ path: 'package/a/src/a`b.ts' },),).toBe('`"package/a/src/a\\u0060b.ts"`',);
+          },
+        },),
+        it({
+          name: 'shows a name whose bytes are not valid UTF-8 as shell ANSI-C quoting, so a reviewer can pass it to a command and open the file',
+          fn: async () => {
+            expect(aPathAsABriefShowsIt({ path: 'a\u00FE.ts', },),).toBe(`\`$'a\\xfe.ts'\``,);
+            expect(aPathAsABriefShowsIt({ path: 'a\u00FF.ts', },),).toBe(`\`$'a\\xff.ts'\``,);
           },
         },),
         it({
@@ -604,6 +628,20 @@ await describe({
             expect(reads,).toContain('- `"package/a/src/a\\nb.ts"`',);
             expect(reads,).toContain('A path written in double quotes is shown as a JSON string',);
             expect(reads,).toContain('open the file it names',);
+          },
+        },),
+        it({
+          name: 'names a file whose bytes are not valid UTF-8 as ANSI-C quoting and says what that form is, so a reviewer can open the file it names',
+          fn: async () => {
+            /**
+             The part of a brief for a change whose only file has a name that is not text.
+             */
+            const reads = whatTheReviewReads({
+              files: ['a\u00FE.ts',],
+              removedOrRenamed: [],
+            },);
+            expect(reads,).toContain(`- \`$'a\\xfe.ts'\``,);
+            expect(reads,).toContain("A path written as $'...' is shell ANSI-C quoting",);
           },
         },),
         it({

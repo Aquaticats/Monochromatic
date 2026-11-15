@@ -62,9 +62,15 @@ export type CommandOutput = {
   readonly status: number;
 
   /**
-   What it printed.
+   What it printed, read as text.
    */
   readonly stdout: string;
+
+  /**
+   Exactly what it printed, when the caller asked for the bytes: a path or another name Git gives is bytes, and decoding them as
+   text loses a name that is not valid UTF-8. Present only for a command that ran to an exit and whose caller asked.
+   */
+  readonly stdoutBytes?: Buffer;
 
   /**
    What it complained about.
@@ -108,6 +114,12 @@ export type RunCommand = (request: {
    How long the command may take, when the caller wants a bound other than the one this module ships.
    */
   readonly timeoutMilliseconds?: number;
+
+  /**
+   Whether to keep the bytes the command printed beside the text, for a caller reading names rather than prose. The decoded text
+   is given either way, so every caller that does not ask reads what it always read.
+   */
+  readonly stdoutAsBytes?: boolean;
 }) => Promise<CommandOutput>;
 
 /**
@@ -150,7 +162,11 @@ function fieldOf({
  ```
  */
 function textFieldOf(value: unknown,): string {
-  return ((typeof value) === 'string') ? value : '';
+  if ((typeof value) === 'string') {
+    return value;
+  }
+  // A command run for its bytes reports a failure's output as a buffer, whose text is what the message reads.
+  return Buffer.isBuffer(value,) ? value.toString('utf8',) : '';
 }
 
 /**
@@ -275,14 +291,48 @@ export async function runCommandWithChildProcess({
   timeoutMilliseconds = COMMAND_TIMEOUT_MILLISECONDS,
   folder,
   environment,
+  stdoutAsBytes = false,
 }: {
   readonly command: string;
   readonly words: readonly string[];
   readonly timeoutMilliseconds?: number;
   readonly folder?: string;
   readonly environment?: Readonly<Record<string, string>>;
+  readonly stdoutAsBytes?: boolean;
 },): Promise<CommandOutput> {
+  /**
+   What every way of running the command is given: its bound, its output cap, and where it runs.
+   */
+  const settings = {
+    maxBuffer: COMMAND_OUTPUT_BYTES,
+    timeout: timeoutMilliseconds,
+    killSignal: 'SIGKILL' as const,
+    ...(folder === undefined ? {} : { cwd: folder, }),
+    ...(environment === undefined ? {} : { env: {
+      ...process.env,
+      ...environment,
+    }, }),
+  };
   try {
+    if (stdoutAsBytes) {
+      /**
+       What the command printed, as the bytes it printed.
+       */
+      const done = await execFileAsync(
+        command,
+        [...words,],
+        {
+          ...settings,
+          encoding: 'buffer',
+        },
+      );
+      return {
+        status: 0,
+        stdout: String(done.stdout,),
+        stdoutBytes: done.stdout,
+        stderr: String(done.stderr,),
+      };
+    }
     /**
      What the command printed.
      */
@@ -290,15 +340,8 @@ export async function runCommandWithChildProcess({
       command,
       [...words,],
       {
+        ...settings,
         encoding: 'utf8',
-        maxBuffer: COMMAND_OUTPUT_BYTES,
-        timeout: timeoutMilliseconds,
-        killSignal: 'SIGKILL',
-        ...(folder === undefined ? {} : { cwd: folder, }),
-        ...(environment === undefined ? {} : { env: {
-          ...process.env,
-          ...environment,
-        }, }),
       },
     );
     return {

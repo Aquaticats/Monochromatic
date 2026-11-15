@@ -12,6 +12,9 @@
  it became. `git-diff(1)` in this installation lists the statuses A, C, D, M, R, T, U and X, and C and R only when something asks
  for copy or rename detection.
 
+ A path is the bytes Git gave, kept one code unit for each byte: a name that is not valid UTF-8 has no text form, and its bytes are
+ what keep two such names two paths. Nothing here decodes a name as text; the brief decides how to show one.
+
  @module
  */
 
@@ -62,9 +65,9 @@ export class ReviewDiffError extends Error {
 }
 
 /**
- How much of Git's answer a message shows when the answer is not whole records.
+ How many bytes of Git's answer a message shows when the answer is not whole records.
  */
-const SHOWN_ANSWER_CHARACTERS = 400;
+const SHOWN_ANSWER_BYTES = 200;
 
 /**
  The statuses this writer reads for a path: the ones a diff between two commits can name, as Git's own `--diff-filter` and raw
@@ -121,12 +124,12 @@ export type ChangedPath = {
   readonly status: string;
 
   /**
-   The path in the newer side of the range, from the top of the checkout.
+   The path in the newer side of the range, from the top of the checkout, as Git gave it: one code unit for each of its bytes.
    */
   readonly path: string;
 
   /**
-   The path in the older side of the range, which a rename or a copy also names.
+   The path in the older side of the range, which a rename or a copy also names, as Git gave it: one code unit for each byte.
    */
   readonly from?: string;
 };
@@ -142,9 +145,51 @@ export type PathKind = 'code' | 'test' | 'unread';
 export type PathKindOfAPath = (path: string) => PathKind;
 
 /**
+ Reads the fields of one NUL-ended answer Git gave: the bytes between its NUL bytes, each field one code unit for each byte it
+ holds.
+
+ No field is decoded as text, so a name that is not valid UTF-8 keeps the bytes Git gave; a field after the last NUL that holds
+ nothing is not a field.
+
+ @param printed - the bytes git printed
+
+ @returns the fields, in the order git printed them
+
+ @example
+ ```ts
+ const fields = fieldsOfGitAnswer({ printed: Buffer.from('M\0src/gate.rs\0', 'latin1'), },);
+ ```
+ */
+export function fieldsOfGitAnswer({ printed, }: { readonly printed: Buffer },): readonly string[] {
+  /**
+   The fields read so far.
+   */
+  const fields: string[] = [];
+  /**
+   Where the field being read begins.
+   */
+  let from = 0;
+  for (let at = 0; at < printed.length; at += 1) {
+    if (printed[at] === 0) {
+      fields.push(printed.subarray(
+        from,
+        at,
+      )
+        .toString('latin1',),);
+      from = at + 1;
+    }
+  }
+  if (from < printed.length) {
+    fields.push(printed.subarray(from,)
+      .toString('latin1',),);
+  }
+  return fields;
+}
+
+/**
  Reads the paths a range changed from what `git diff --name-status -z` printed.
 
- @param printed - what git printed
+ @param printed - the bytes git printed
 
  @returns the paths the range changed, in the order git named them
 
@@ -153,17 +198,14 @@ export type PathKindOfAPath = (path: string) => PathKind;
 
  @example
  ```ts
- const changed = changedPathsIn({ printed: 'M\0src/gate.rs\0', },);
+ const changed = changedPathsIn({ printed: Buffer.from('M\0src/gate.rs\0', 'latin1'), },);
  ```
  */
-export function changedPathsIn({ printed, }: { readonly printed: string },): readonly ChangedPath[] {
+export function changedPathsIn({ printed, }: { readonly printed: Buffer },): readonly ChangedPath[] {
   /**
-   The fields git ended with NUL bytes, of which the last is empty because the answer ends with one.
+   The fields git ended with NUL bytes.
    */
-  const fields = printed.split('\0',);
-  if (fields.at(-1) === '') {
-    fields.pop();
-  }
+  const fields = fieldsOfGitAnswer({ printed, },);
   /**
    The paths read so far.
    */
@@ -192,14 +234,15 @@ export function changedPathsIn({ printed, }: { readonly printed: string },): rea
     at += 1;
     if ((status === '') || (path === '')) {
       /**
-       The head of what git printed, so the message names what was read without becoming a page of it.
+       The head of what git printed, as hex, so the message names the bytes without becoming a page of them.
        */
-      const shown = JSON.stringify(printed,);
+      const shown = printed.subarray(
+        0,
+        SHOWN_ANSWER_BYTES,
+      )
+        .toString('hex',);
       throw new ReviewDiffError(
-        `a range's change names a path without a whole status and path around it: ${shown.slice(
-          0,
-          SHOWN_ANSWER_CHARACTERS,
-        )}`,
+        `a range's change names a path without a whole status and path around it: ${shown}`,
       );
     }
     if (!CHANGE_STATUSES_A_REVIEW_READS.has(letterOfStatus(status,),)) {

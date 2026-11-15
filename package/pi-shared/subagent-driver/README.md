@@ -598,6 +598,13 @@ another control,
 or the backtick that ends the code span.
 The brief says so where it does that,
 and a reviewer reads the JSON string and opens the file it names.
+A path is the bytes Git gave,
+kept one code unit for each byte:
+a name that is not valid UTF-8 has no text form,
+so two such names stay two paths,
+and a brief shows one as `$'a\xfe.ts'`,
+shell ANSI-C quoting a reviewer can pass to a command to open that file.
+
 A value is never read as a template:
 a path,
 a branch,
@@ -690,14 +697,21 @@ and one whose brief could not be written are each one line,
 and the rest go on:
 the scratch starter stopped at the first of them,
 and two reviews of round 231 were lost that way with no line anyone read.
+The first two are deliberate skips and have no status;
+a brief that could not be written is a failure of its branch,
+said in its line with the reason,
+with status `none` in that branch's place.
 
 When a review ends,
 the command saves its last assistant message as its `review.md` when the review wrote none,
 through `save-the-final-message-of-a-review-that-wrote-no-review-file`.
 It ends with `reviews ended with statuses <status>...`,
-one status per review,
-`none` for a start that could not be run at all,
-and exits `0` only when every start ended `0`.
+one status per branch that has one,
+in the order the branches were asked for,
+`none` for a branch whose brief could not be written,
+and exits `0` only when every status is `0`:
+a batch whose briefs all failed starts nothing and still fails,
+while a batch with no branch asked for has no status and exits `0`.
 
 ### `write-a-fix-brief-for-each-review`
 

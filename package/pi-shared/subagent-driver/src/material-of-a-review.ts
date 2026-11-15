@@ -26,6 +26,7 @@ import {
   type PathKind,
   type RemovedOrRenamedPath,
   changedPathsIn,
+  fieldsOfGitAnswer,
   kindOfChangedPath,
   readablePathsOf,
   removedOrRenamedAmong,
@@ -44,6 +45,11 @@ export {
 export type GitQuestion = (request: {
   readonly words: readonly string[];
   readonly folder: string;
+
+  /**
+   Whether the caller reads names rather than prose, and needs the bytes Git printed beside their text.
+   */
+  readonly stdoutAsBytes?: boolean;
 }) => Promise<CommandOutput>;
 
 /**
@@ -113,8 +119,9 @@ export type ReviewMaterial = {
     readonly kind: 'code-and-build-decisions';
 
     /**
-     The files the reviewer is given, each a path from the top of the checkout, in the order git named them: the code and the
-     build decisions among what the ranges touched that the commit still holds, without the tests and fixtures beside them.
+     The files the reviewer is given, each a path from the top of the checkout as Git gave it (one code unit for each byte), in the
+     order git named them: the code and the build decisions among what the ranges touched that the commit still holds, without the
+     tests and fixtures beside them.
      */
     readonly files: readonly string[];
 
@@ -130,8 +137,9 @@ export type ReviewMaterial = {
       readonly kind: 'tests-and-fixtures';
 
       /**
-       The tests and fixtures the reviewer is given, each a path from the top of the checkout, in the order git named them: the
-       tests and fixtures among what the ranges touched that the commit still holds, and nothing else.
+       The tests and fixtures the reviewer is given, each a path from the top of the checkout as Git gave it (one code unit for
+       each byte), in the order git named them: the tests and fixtures among what the ranges touched that the commit still holds,
+       and nothing else.
        */
       readonly files: readonly string[];
 
@@ -189,6 +197,57 @@ export async function outputOfGit({
     );
   }
   return answered.stdout;
+}
+
+/**
+ Asks git one question in the checkout and answers with exactly the bytes it printed.
+
+ A path is the bytes Git gave, and decoding them as text turns every name that is not valid UTF-8 into the same replacement
+ character, so the two questions about paths are asked here rather than through the text answer.
+
+ @param git - how one git question is run
+
+ @param checkoutFolder - the checkout the question is about
+
+ @param words - the question's words
+
+ @returns exactly what git printed
+
+ @throws ReviewGitError when git did not answer with a success
+
+ @example
+ ```ts
+ const shown = await bytesOfGit({ git, checkoutFolder: '/repo', words: ['ls-tree', '--name-only', '-r', '-z', 'main'], },);
+ ```
+ */
+async function bytesOfGit({
+  git,
+  checkoutFolder,
+  words,
+}: {
+  readonly git: GitQuestion;
+  readonly checkoutFolder: string;
+  readonly words: readonly string[];
+},): Promise<Buffer> {
+  /**
+   What git answered.
+   */
+  const answered = await git({
+    words,
+    folder: checkoutFolder,
+    stdoutAsBytes: true,
+  },);
+  if (answered.status !== 0) {
+    throw new ReviewGitError(
+      `git ${words.join(' ',)} in ${checkoutFolder} answered status ${String(answered.status,)}: ${answered.stderr
+        .trim()}`,
+    );
+  }
+  // A stand-in in a test answers text only; every real command gives the bytes when they are asked for.
+  return answered.stdoutBytes ?? Buffer.from(
+    answered.stdout,
+    'utf8',
+  );
 }
 
 /**
@@ -561,7 +620,7 @@ export async function materialOfAReview({
       ],
     },),);
     for (const one of changedPathsIn({
-      printed: await outputOfGit({
+      printed: await bytesOfGit({
         git,
         checkoutFolder,
         words: [
@@ -601,19 +660,21 @@ export async function materialOfAReview({
   /**
    The paths the reviewed commit still holds, so a file a later commit deleted is not given to a reviewer to read.
    */
-  const held = new Set((await outputOfGit({
-    git,
-    checkoutFolder,
-    words: [
-      'ls-tree',
-      '--name-only',
-      '-r',
-      '-z',
-      commit,
-      '--',
-      source,
-    ],
-  },)).split('\0',)
+  const held = new Set(fieldsOfGitAnswer({
+    printed: await bytesOfGit({
+      git,
+      checkoutFolder,
+      words: [
+        'ls-tree',
+        '--name-only',
+        '-r',
+        '-z',
+        commit,
+        '--',
+        source,
+      ],
+    },),
+  },)
     .filter(function isPath(field,) {
       return field !== '';
     },),);

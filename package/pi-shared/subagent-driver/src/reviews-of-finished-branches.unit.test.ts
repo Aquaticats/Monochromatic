@@ -435,12 +435,91 @@ await describe({
               'another brief',
               `${runNameOfAReview({ review: anotherChange(), },)}: started`,
               `${runNameOfAReview({ review: anotherChange(), },)}: has its review.md`,
-              'reviews ended with statuses 0',
+              'reviews ended with statuses none 0',
             ],);
             expect(asked.starts.map(function reviewOf(start,) {
               return start.review;
             },),).toEqual([anotherChange(),],);
-            expect(started.statuses,).toEqual(['0',],);
+            expect(started.statuses,).toEqual(['none', '0',],);
+          },
+        },),
+        it({
+          name: 'answers one status per branch that started, in the order the branches were asked for, so a batch that all went well is a success',
+          fn: async () => {
+            /**
+             The seams, with both changes briefed and started.
+             */
+            const { seams, asked } = seamsAnswering({
+              briefs: new Map([
+                [aChange(), { written: true, line: 'a brief', },],
+                [anotherChange(), { written: true, line: 'another brief', },],
+              ],),
+              starts: new Map([
+                [aChange(), { status: 0, output: '', },],
+                [anotherChange(), { status: 3, output: '', },],
+              ],),
+              saves: new Map(),
+              written: [],
+              merges: [],
+            },);
+            /**
+             What the starter answered.
+             */
+            const started = await startReviews(aStartRequest({ changes: [aChange(), anotherChange(),], seams, },),);
+            expect(started.statuses,).toEqual(['0', '3',],);
+            expect(asked.starts,).toHaveLength(2,);
+          },
+        },),
+        it({
+          name: 'answers a failure status for a branch whose brief could not be written, in the branch\'s own place, so a batch of them is never a success',
+          fn: async () => {
+            /**
+             The seams, with both changes' briefs refusing.
+             */
+            const { seams, asked } = seamsAnswering({
+              briefs: new Map(),
+              starts: new Map(),
+              saves: new Map(),
+              written: [],
+              merges: [],
+              refusals: new Map([
+                [aChange(), 'a first reason',],
+                [anotherChange(), 'a second reason',],
+              ],),
+            },);
+            /**
+             What the starter answered.
+             */
+            const started = await startReviews(aStartRequest({ changes: [aChange(), anotherChange(),], seams, },),);
+            expect(started.statuses,).toEqual(['none', 'none',],);
+            expect(started.lines,).toEqual([
+              `${runNameOfAReview({ review: aChange(), },)}: its brief could not be written: a first reason`,
+              `${runNameOfAReview({ review: anotherChange(), },)}: its brief could not be written: a second reason`,
+              'reviews ended with statuses none none',
+            ],);
+            expect(asked.starts,).toEqual([],);
+          },
+        },),
+        it({
+          name: 'answers no status at all when no branch was asked for, so an empty batch asks nothing of the command',
+          fn: async () => {
+            /**
+             The seams, with no branch asked for.
+             */
+            const { seams, asked } = seamsAnswering({
+              briefs: new Map(),
+              starts: new Map(),
+              saves: new Map(),
+              written: [],
+              merges: [],
+            },);
+            /**
+             What the starter answered.
+             */
+            const started = await startReviews(aStartRequest({ changes: [], seams, },),);
+            expect(started.statuses,).toEqual([],);
+            expect(started.lines,).toEqual([],);
+            expect(asked.briefs,).toEqual([],);
           },
         },),
         it({

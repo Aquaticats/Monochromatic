@@ -104,6 +104,41 @@ const LAST_C1_CONTROL = 0x9F;
 const CODE_SPAN_END = '`';
 
 /**
+ The code point of a space, the first printable character an ANSI-C quoted name prints as itself.
+ */
+const SPACE_CODE_POINT = 0x20;
+
+/**
+ The code point of a tilde, the last printable character an ANSI-C quoted name prints as itself.
+ */
+const TILDE_CODE_POINT = 0x7E;
+
+/**
+ The byte a single quote is, which ANSI-C quoting writes as an escape.
+ */
+const SINGLE_QUOTE_BYTE = 0x27;
+
+/**
+ The byte a backslash is, which ANSI-C quoting writes as an escape.
+ */
+const BACKSLASH_BYTE = 0x5C;
+
+/**
+ The byte a line feed is, which ANSI-C quoting writes as an escape.
+ */
+const LINE_FEED_BYTE = 0x0A;
+
+/**
+ The byte a tab is, which ANSI-C quoting writes as an escape.
+ */
+const TAB_BYTE = 0x09;
+
+/**
+ The byte a carriage return is, which ANSI-C quoting writes as an escape.
+ */
+const CARRIAGE_RETURN_BYTE = 0x0D;
+
+/**
  Says whether a path needs the JSON form: it holds a control character, the backtick that would end the code span it is shown in,
  or a space at both of its ends, which a code span trims.
 
@@ -162,14 +197,168 @@ function jsonTextOf(path: string,): string {
 }
 
 /**
- Reads how a brief shows one path: in a code span as itself, or as a JSON string when the name holds a character a line cannot
- carry.
+ Reads a path as the bytes Git gave it.
 
- A path is text Git gave as bytes, and a brief is a page of lines: a name with a line break, a tab, another control, or the
- backtick that ends a code span cannot stand in it. The JSON string names the same bytes unambiguously, and the brief says what
- that form is where it is used.
+ @param path - a path as Git gave it, one code unit for each byte
 
- @param path - a path from the top of the checkout
+ @returns those bytes
+
+ @example
+ ```ts
+ const bytes = bytesOfGitPath('a\nb.ts',);
+ ```
+ */
+function bytesOfGitPath(path: string,): Buffer {
+  return Buffer.from(
+    path,
+    'latin1',
+  );
+}
+
+/**
+ Reads a path as text, when its bytes are valid UTF-8.
+
+ @param path - a path as Git gave it, one code unit for each byte
+
+ @returns the text its bytes name
+
+ @example
+ ```ts
+ const text = textOfGitPath('a\nb.ts',);
+ ```
+ */
+function textOfGitPath(path: string,): string {
+  return bytesOfGitPath(path,)
+    .toString('utf8',);
+}
+
+/**
+ Says whether a path's bytes are valid UTF-8, which is what lets a brief show it as text at all.
+
+ @param path - a path as Git gave it, one code unit for each byte
+
+ @returns whether the name can be written as text
+
+ @example
+ ```ts
+ const isText = aPathIsText('a\nb.ts',);
+ ```
+ */
+function aPathIsText(path: string,): boolean {
+  /**
+   The path's bytes.
+   */
+  const bytes = bytesOfGitPath(path,);
+  return Buffer.from(
+    textOfGitPath(path,),
+    'utf8',
+  )
+    .equals(bytes,);
+}
+
+/**
+ Says whether a brief shows a path as an ANSI-C quoted string, which it does for a name that is not text.
+
+ @param path - a path as Git gave it, one code unit for each byte
+
+ @returns whether the name is not valid UTF-8
+
+ @example
+ ```ts
+ const isBytes = aPathIsShownAsBytes('a\u00fe.ts',);
+ ```
+ */
+function aPathIsShownAsBytes(path: string,): boolean {
+  return !aPathIsText(path,);
+}
+
+/**
+ Says whether a brief shows a text path as a JSON string, because a line cannot carry its characters.
+
+ @param path - a path as Git gave it, one code unit for each byte
+
+ @returns whether the name needs the JSON form
+
+ @example
+ ```ts
+ const needsJSON = aPathNeedsJSON('a\nb.ts',);
+ ```
+ */
+function aPathNeedsJSON(path: string,): boolean {
+  return aPathIsText(path,) && aPathNeedsJSONText(textOfGitPath(path,),);
+}
+
+/**
+ Reads a path that is not text as shell ANSI-C quoting, which a reviewer can pass to bash and the shell hands the command exactly
+ the bytes Git gave.
+
+ A byte a printable line can carry stands as itself, and every other byte is an escape: a single quote, a backslash, a line feed,
+ a tab and a carriage return have their own, and the rest are written `\xNN`.
+
+ @param path - a path as Git gave it, one code unit for each byte
+
+ @returns the name as `$'...'`
+
+ @example
+ ```ts
+ const quoted = ansiCQuoted({ path: 'a\u00fe.ts', },);
+ ```
+ */
+function ansiCQuoted({ path, }: { readonly path: string },): string {
+  /**
+   The pieces of the quoted name, which opens with the shell's own quoting mark.
+   */
+  const pieces: string[] = ["$'",];
+  for (const byte of bytesOfGitPath(path,)) {
+    if (byte === SINGLE_QUOTE_BYTE) {
+      pieces.push(String.raw`\'`,);
+    }
+    else if (byte === BACKSLASH_BYTE) {
+      pieces.push(String.raw`\\`,);
+    }
+    else if (byte === LINE_FEED_BYTE) {
+      pieces.push(String.raw`\n`,);
+    }
+    else if (byte === TAB_BYTE) {
+      pieces.push(String.raw`\t`,);
+    }
+    else if (byte === CARRIAGE_RETURN_BYTE) {
+      pieces.push(String.raw`\r`,);
+    }
+    else if ((byte >= SPACE_CODE_POINT) && (byte <= TILDE_CODE_POINT)) {
+      pieces.push(String.fromCodePoint(byte,),);
+    }
+    else {
+      /**
+       The byte's two hex digits.
+       */
+      /**
+       The byte's two hex digits, which ANSI-C quoting writes after `\x`.
+       */
+      const digits = byte.toString(16,);
+      /**
+       The digits padded to the two ANSI-C quoting writes.
+       */
+      const padded = digits.padStart(
+        2,
+        '0',
+      );
+      pieces.push(`\\x${padded}`,);
+    }
+  }
+  pieces.push("'",);
+  return pieces.join('',);
+}
+
+/**
+ Reads how a brief shows one path: in a code span as itself, as a JSON string when a text name holds a character a line cannot
+ carry, or as shell ANSI-C quoting when the name is not text.
+
+ A path is the bytes Git gave, and a brief is a page of lines: a name with a line break, a tab, another control, or the backtick
+ that ends a code span cannot stand in it, and a name that is not valid UTF-8 has no text form at all. The JSON string and the
+ ANSI-C quoting name the same bytes unambiguously, and the brief says what each form is where it is used.
+
+ @param path - a path as Git gave it, one code unit for each byte
 
  @returns the path as a brief writes it, inside a code span
 
@@ -179,7 +368,14 @@ function jsonTextOf(path: string,): string {
  ```
  */
 export function aPathAsABriefShowsIt({ path, }: { readonly path: string },): string {
-  return aPathNeedsJSONText(path,) ? `\`${jsonTextOf(path,)}\`` : `\`${path}\``;
+  if (aPathIsShownAsBytes(path,)) {
+    return `\`${ansiCQuoted({ path, },)}\``;
+  }
+  /**
+   The name as text, which its bytes are valid UTF-8 for.
+   */
+  const text = textOfGitPath(path,);
+  return aPathNeedsJSONText(text,) ? `\`${jsonTextOf(text,)}\`` : `\`${text}\``;
 }
 
 /**
@@ -189,7 +385,10 @@ export function aPathAsABriefShowsIt({ path, }: { readonly path: string },): str
  A removed or renamed path is named even though the commit holds no file to read in full at it, because a review of what is left
  would leave the removal unread: the diff holds every line such a path lost, and the reviewer is asked what depended on it.
 
- @param files - the files the reviewer reads in full, each a path from the top of the checkout
+ A path here is the bytes Git gave, one code unit for each byte; the part says which form it used for a name a line cannot carry,
+ so the reviewer can open the file either way.
+
+ @param files - the files the reviewer reads in full, each a path from the top of the checkout as Git gave it
 
  @param removedOrRenamed - the paths the change removed or renamed
 
@@ -234,15 +433,26 @@ export function whatTheReviewReads({
     );
   }
   /**
-   Whether any path the part names needs the JSON form, which the part explains where it is used.
+   Whether any path the part names is not text, and is shown as shell ANSI-C quoting.
    */
-  const anyPathNeedsJSON = files.some(aPathNeedsJSONText,)
+  const anyPathIsShownAsBytes = files.some(aPathIsShownAsBytes,)
+    || removedOrRenamed.some(function namesBytes(removed,) {
+      return aPathIsShownAsBytes(removed.status === 'deleted' ? removed.path : removed.was,)
+        || aPathIsShownAsBytes(removed.status === 'deleted' ? removed.path : removed.now,);
+    },);
+  /**
+   Whether any text path the part names needs the JSON form, which the part explains where it is used.
+   */
+  const anyPathNeedsJSON = files.some(aPathNeedsJSON,)
     || removedOrRenamed.some(function needsJSON(removed,) {
-      return aPathNeedsJSONText(removed.status === 'deleted' ? removed.path : removed.was,)
-        || aPathNeedsJSONText(removed.status === 'deleted' ? removed.path : removed.now,);
+      return aPathNeedsJSON(removed.status === 'deleted' ? removed.path : removed.was,)
+        || aPathNeedsJSON(removed.status === 'deleted' ? removed.path : removed.now,);
     },);
   if (anyPathNeedsJSON) {
     lines.push('A path written in double quotes is shown as a JSON string, because it holds a character a line of this brief cannot carry: read it as the JSON string it is, and open the file it names.',);
+  }
+  if (anyPathIsShownAsBytes) {
+    lines.push("A path written as $'...' is shell ANSI-C quoting, because the name Git gave is not text: bash reads its escapes as the bytes of that name, so pass it to a command as it is written and the command opens that file.",);
   }
   return lines.join('\n',);
 }

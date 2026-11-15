@@ -35,6 +35,11 @@ export type GitRunner = (request: {
    machine stretches far past what any other git question costs.
    */
   readonly timeoutMilliseconds?: number;
+
+  /**
+   Whether the caller reads names rather than prose, and needs the bytes Git printed beside their text.
+   */
+  readonly stdoutAsBytes?: boolean;
 }) => Promise<CommandOutput>;
 
 //region Constants

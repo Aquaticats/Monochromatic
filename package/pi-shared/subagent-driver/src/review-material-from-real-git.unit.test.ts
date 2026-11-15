@@ -38,6 +38,7 @@ import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-ro
 import {
   FOCUS_OF_A_CHANGE_REVIEW,
   type ReviewMaterial,
+  aPathAsABriefShowsIt,
   briefFileOfAReview,
   gitRunnerOf,
   materialOfAReview,
@@ -104,6 +105,23 @@ function aSourceFolder(): string {
  */
 function aRulesFile(): string {
   return new URL('../doc/rules-every-pi-brief-carries.md', import.meta.url,).pathname;
+}
+
+/**
+ Reads a path as Git gives it: one code unit for each byte of its UTF-8 text.
+
+ @param path - the name as text
+
+ @returns the name as Git gives it
+
+ @example
+ ```ts
+ const given = asGitGaveIt('naïve.ts');
+ ```
+ */
+function asGitGaveIt(path: string,): string {
+  return Buffer.from(path, 'utf8',)
+    .toString('latin1',);
 }
 
 /**
@@ -320,6 +338,8 @@ function fastImportPath(path: string,): string {
 
  @param from - the commit this one follows, or nothing for the first commit of a branch
 
+ @param rawPaths - whether a path is already written the way the stream takes it, C-quoted, which a name that is not text needs
+
  @returns the commit's id
 
  @example
@@ -333,12 +353,14 @@ async function fastImportCommit({
   files,
   remove,
   from,
+  rawPaths = false,
 }: {
   readonly folder: string;
   readonly message: string;
   readonly files: ReadonlyMap<string, string>;
   readonly remove: readonly string[];
   readonly from?: string;
+  readonly rawPaths?: boolean;
 }): Promise<string> {
   /**
    The lines of the stream fast-import reads.
@@ -354,13 +376,13 @@ async function fastImportCommit({
   }
   for (const [path, content,] of files) {
     lines.push(
-      `M 100644 inline ${fastImportPath(path,)}`,
+      `M 100644 inline ${rawPaths ? path : fastImportPath(path,)}`,
       `data ${String(Buffer.byteLength(content, 'utf8',),)}`,
       content,
     );
   }
   for (const path of remove) {
-    lines.push(`D ${fastImportPath(path,)}`,);
+    lines.push(`D ${rawPaths ? path : fastImportPath(path,)}`,);
   }
   lines.push('',);
   await gitIn({
@@ -532,7 +554,8 @@ await describe({
               commit: tip,
             },);
             expect(material.kind,).toBe('code-and-build-decisions',);
-            expect(filesOf(material,).toSorted(),).toEqual(names.toSorted(),);
+            expect(filesOf(material,).toSorted(),).toEqual(names.map(asGitGaveIt,)
+              .toSorted(),);
           },
           timeout: 60_000,
         },),
@@ -589,6 +612,124 @@ await describe({
             expect(brief,).toContain('- `"a\\nb.ts"`',);
             expect(brief,).toContain('A path written in double quotes is shown as a JSON string',);
             expect(brief,).not.toContain('The reviewed commit holds no file at a path this change touches',);
+          },
+          timeout: 60_000,
+        },),
+        it({
+          name: 'keeps two changed names whose bytes are not valid UTF-8 as two paths, shows each as ANSI-C quoting, and that form opens the file it names',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The fixture's repository.
+             */
+            const repo = await makeRepository(folder.path,);
+            /**
+             The two names, written the way the stream takes them: a byte that is not UTF-8, in C quoting.
+             */
+            const rawNames = new Map([
+              [String.raw`"a\376.ts"`, 'a',],
+              [String.raw`"a\377.ts"`, 'a',],
+            ],);
+            /**
+             The first commit, which writes both names.
+             */
+            const base = await fastImportCommit({
+              folder: repo,
+              message: 'base',
+              files: rawNames,
+              remove: [],
+              rawPaths: true,
+            },);
+            /**
+             The commit under review, which changes both.
+             */
+            const tip = await fastImportCommit({
+              folder: repo,
+              message: 'change both',
+              files: new Map([
+                [String.raw`"a\376.ts"`, 'b',],
+                [String.raw`"a\377.ts"`, 'b',],
+              ],),
+              remove: [],
+              from: base,
+              rawPaths: true,
+            },);
+            /**
+             What the writer read.
+             */
+            const material = await materialOf({
+              repo,
+              range: `${base}...${tip}`,
+              source: aSourceFolder(),
+              commit: tip,
+            },);
+            expect(material.kind,).toBe('code-and-build-decisions',);
+            /**
+             The changed names, as the bytes Git gave them.
+             */
+            const given = filesOf(material,)
+              .map(function bytesOf(path,) {
+                return Buffer.from(path, 'latin1',);
+              },);
+            expect(given.map(function hexOf(bytes,) {
+              return bytes.toString('hex',);
+            },).toSorted(),).toEqual(['61fe2e7473', '61ff2e7473',],);
+            /**
+             The folder the review keeps its files in.
+             */
+            const reviewsFolder = join(folder.path, 'reviews',);
+            await writeReviewBrief({
+              git,
+              checkoutFolder: repo,
+              review: aReview(),
+              commit: tip,
+              ranges: [`${base}...${tip}`,],
+              source: aSourceFolder(),
+              focus: FOCUS_OF_A_CHANGE_REVIEW,
+              reviewsFolder,
+              runsFolder: join(folder.path, 'runs',),
+              rulesFile: aRulesFile(),
+            },);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await readFile(briefFileOfAReview({
+              reviewsFolder,
+              review: aReview(),
+            },), 'utf8',);
+            expect(brief,).toContain(String.raw`$'a\xfe.ts'`,);
+            expect(brief,).toContain(String.raw`$'a\xff.ts'`,);
+            expect(brief,).toContain("A path written as $'...' is shell ANSI-C quoting",);
+            /**
+             Each name, and what bash printed when handed the quoting the brief shows it as.
+             */
+            const roundTrips = await Promise.all(given.map(async function printedByBash(bytes,) {
+              /**
+               The name as the brief shows it, without the code span around it.
+               */
+              const shown = aPathAsABriefShowsIt({ path: bytes.toString('latin1',), },);
+              const quoted = shown.slice(
+                1,
+                -1,
+              );
+              /**
+               What bash printed when handed that quoting.
+               */
+              const printed = await execFileAsync(
+                'bash',
+                ['-c', `printf %s ${quoted}`,],
+                {
+                  encoding: 'buffer',
+                },
+              );
+              return {
+                bytes,
+                stdout: printed.stdout,
+              };
+            },),);
+            for (const roundTrip of roundTrips) {
+              expect(Buffer.compare(roundTrip.stdout, roundTrip.bytes,),).toBe(0,);
+            }
           },
           timeout: 60_000,
         },),
