@@ -917,7 +917,8 @@ fn keeps_a_version_whose_downloads_an_install_is_unpacking() {
 /// The pass an install runs ends by removing the archives of a version this root no longer has,
 /// so the archives a removal kept for an install are not left on the disk for ever.
 /// Why:
-/// The removal keeps them, and nothing else reads a downloads directory whose version is gone,
+/// The removal keeps them,
+/// and nothing else reads a downloads directory whose version is gone,
 /// so a call that is not made here means a leak nobody clears.
 #[test]
 fn the_install_pass_removes_the_archives_of_a_version_that_is_gone() {
