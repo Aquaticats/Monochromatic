@@ -1639,6 +1639,81 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### A going run wrote into the main checkout's root; the stop of a stopped push answers, and the doubled bound it fixes is in `main` (2026-11-15T09:35:46-05:00)
+
+Not final and not approved:
+what the round's check found,
+what one author reports,
+and what the coordinating session did.
+
+- **Two untracked entries appeared at the main checkout's root**,
+  seen at 09:34:18 because the count of changed files there was eight where it is six:
+  a folder `rt-a/` holding one file of two bytes,
+  and a link `rt-b` to a name that does not exist,
+  both made at 09:25:33.
+  Among the feeds written in the forty minutes before,
+  one names the link's target:
+  the going run `add-never-skips-the-cargo-repair-because-of-a-marker-it-carried-10`
+  (not named by the credential scan).
+  Its command probed `renameSync` onto a dangling link in three places,
+  `/tmp`,
+  a folder under the scratch root,
+  and the main checkout,
+  ran `rm -rf rt-a rt-b` in each before making them,
+  and afterwards removed only the two in `/tmp`.
+  Nothing in the main checkout had those names before,
+  so nothing of a person's was removed.
+- **Done**:
+  the coordinating session removed `rt-a/` and `rt-b` at 09:35:46,
+  after reading what they were;
+  the count is six again.
+  The run got a note in its inbox
+  (`~/temp/agent/notes-to-send/your-probe-of-rename-wrote-into-the-main-checkout-and-into-tmp-2026-11-15T0940.md`)
+  with both rules and their reasons.
+  The note states the removal's time as 09:41 and its own as 09:40;
+  both were written before the clock was read and are wrong by about five minutes.
+- **What it shows**:
+  one more sighting that a Pi run can write into the main checkout,
+  this time by a plain `cd` there,
+  and that `/tmp` is still used.
+  The branch that keeps a run out of the main checkout is with its author.
+  Each round's count of the main checkout's changed files is what caught this,
+  nine minutes after it happened.
+- **The stop of a stopped push**,
+  its author's third run,
+  ended 09:29:56 at `67c565e1f4`:
+  the helper that runs a job "no longer than" a duration now holds one instant for both of its waits.
+  **The helper is `main`'s**,
+  not the branch's:
+  every caller in released code gave it a ceiling and could wait twice that
+  (the stop's sweep up to twice 18.1 s;
+  the after-commit state up to twice 60 s;
+  six steps of the landing and four of the service's work loop,
+  120 s where 60 s was meant).
+  Each caller is listed with its bound before and after.
+  Two controls fail with the fix out
+  (1.40 s against a ceiling of 1 s)
+  and pass with it.
+  Its review is queued fifth
+  (`main...67c565e1f4`,
+  five code files that are not tests).
+  For whoever reads the release that carries it:
+  ten steps of the service now give up at half the time they did,
+  which is what their ceilings always said.
+- **The temperature**,
+  read at 09:34:17:
+  55.4 degrees,
+  budget 32.0 threads,
+  8.5 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:34:20:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:25;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
 ##### The process that holds a file open in a worktree: its review reproduces the miss the owner's open question is about; the doc goes back, the code stays (2026-11-15T09:26:29-05:00)
 
 Not final and not approved:
