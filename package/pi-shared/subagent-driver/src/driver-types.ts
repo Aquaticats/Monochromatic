@@ -76,6 +76,95 @@ export const END_REASONS: readonly EndReason[] = [
 ];
 
 /**
+ What the length of a run that ended this way says about how long the work takes.
+
+ Every end answers, here where the ends are declared. A run cut short by the driver's own machinery lasted as long as it took that
+ machinery to fail, so its length would understate a job; a run that worked until its own end, its turn cap, its wall clock or Pi
+ leaving lasted as long as its work was allowed to, which is evidence of how long such work takes.
+
+ {@link LENGTH_OF_AN_END} is a record over {@link EndReason} with every member named, so an end added to the union without an
+ answer here does not compile.
+ */
+export type LengthOfAnEnd = {
+  /**
+   Whether a run that ended this way lasted as long as its work did.
+   */
+  readonly countsAsWork: boolean;
+
+  /**
+   Why that is so, for a reader of the ends rather than of the code.
+   */
+  readonly why: string;
+};
+
+/**
+ What each end says about the length of a run that had it.
+
+ The rule the table follows: a length is evidence when the run worked until something of the job's own allowance ended it (its
+ agent finishing, its turn cap, its wall clock, the stop file, Pi leaving, Pi outliving the signals), and no evidence when
+ something of the driver's own machinery ended it first (a model error, a refused message, a failed compaction, a start that
+ never took the prompt, a driver failure, a silent command whose ending was never answered). A run cut short by the driver would
+ make the overdue limit shorter than the jobs it is meant to predict.
+
+ @example
+ ```ts
+ const counted = LENGTH_OF_AN_END['idle'].countsAsWork;
+ ```
+ */
+export const LENGTH_OF_AN_END: Readonly<Record<EndReason, LengthOfAnEnd>> = {
+  idle: {
+    countsAsWork: true,
+    why: 'the agent ended its turn with nothing of its own left running, so the run lasted as long as its work did',
+  },
+  'stop-file': {
+    countsAsWork: true,
+    why: 'a coordinator asked the run to stop and it worked until it did, so the time before that is the work\'s',
+  },
+  'prompt-rejected': {
+    countsAsWork: false,
+    why: 'Pi refused a message of the driver\'s, so the run stopped where the driver\'s machinery did rather than at the end of'
+      + ' its job',
+  },
+  'silent-command-unanswered': {
+    countsAsWork: false,
+    why: 'a command that had said nothing could not be ended and its agent was never told, so the run stopped in the driver\'s'
+      + ' own recovery rather than at the end of its job',
+  },
+  'compaction-failed': {
+    countsAsWork: false,
+    why: 'Pi could not put its own session in order, so the run stopped before its job could go on',
+  },
+  'pi-exited': {
+    countsAsWork: true,
+    why: 'Pi left a run that had taken its prompt, so the work ran until Pi went and nothing of the driver\'s ended it first',
+  },
+  'pi-exited-before-prompt': {
+    countsAsWork: false,
+    why: 'no start took the prompt, so nothing of the run\'s work happened',
+  },
+  'turn-cap': {
+    countsAsWork: true,
+    why: 'the run used its whole turn budget, which is the allowance its work was given',
+  },
+  'wall-clock': {
+    countsAsWork: true,
+    why: 'the run used its whole wall clock, which is the allowance its work was given',
+  },
+  'driver-failed': {
+    countsAsWork: false,
+    why: 'the driver itself failed, so the run stopped in the driver rather than at the end of its job',
+  },
+  'model-error': {
+    countsAsWork: false,
+    why: 'the model answered with an error nothing recovered from, so the run stopped there rather than at the end of its job',
+  },
+  'pi-not-stopped': {
+    countsAsWork: true,
+    why: 'the run worked until Pi outlived every signal, which is its own allowance spent rather than the job cut short',
+  },
+};
+
+/**
  Where a run stands: over for a reason, or still going.
  */
 export type RunProgress = EndReason | 'still-running';

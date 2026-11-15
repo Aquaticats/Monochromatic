@@ -10,6 +10,11 @@ import {
   readFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
+import {
+  END_REASONS,
+  type EndReason,
+  LENGTH_OF_AN_END,
+} from './driver-types.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import { isRecord, } from './read-pi-fields.ts';
 
@@ -45,28 +50,57 @@ export type FinishedPiRun = {
   readonly totalMilliseconds: number;
 
   /**
-   Whether that length says how long the work takes. A run the model provider ended, a prompt Pi refused or a compaction Pi could
-   not finish, and a driver that failed all stopped for their own reasons, so their length is no estimate; the calls they
-   finished before stopping are still calls that finished.
+   Whether that length says how long the work takes, as the end the summary names answers in `LENGTH_OF_AN_END`. The calls a run
+   finished before a failure stopped it are still calls that finished.
    */
   readonly lengthCountsAsWork: boolean;
 };
 
 /**
  End reasons whose duration says nothing about how long the work takes, so a run that ended on one is left out of the length
- sample: the model answered with an error, the prompt was refused, Pi could not compact its session, Pi never took the prompt on
- any start so no work was done, or the driver itself failed.
+ sample: the ends whose own answer in {@link LENGTH_OF_AN_END} is that their length is no evidence of a job. The list is derived
+ rather than written, so an end added to the union must answer there and cannot be forgotten here.
 
- A run that hit its wall clock or its turn cap counts all the same: it did the work for as long as it was allowed. Whatever a
- run ended on, the tool calls it finished before stopping are calls that finished, so its feed stays in the call sample.
+ Whatever a run ended on, the tool calls it finished before stopping are calls that finished, so its feed stays in the call
+ sample.
  */
-export const END_REASONS_WITHOUT_A_JOB: readonly string[] = [
-  'model-error',
-  'prompt-rejected',
-  'compaction-failed',
-  'pi-exited-before-prompt',
-  'driver-failed',
-];
+export const END_REASONS_WITHOUT_A_JOB: readonly EndReason[] = END_REASONS.filter(function noJob(reason,) {
+  return !LENGTH_OF_AN_END[reason]
+    .countsAsWork;
+},);
+
+/**
+ What each end says about a run's length, by the end a summary names as text, so a summary's word can be read without casting it to
+ the union of ends this driver knows.
+ */
+const COUNTS_AS_WORK_BY_END: ReadonlyMap<string, boolean> = new Map(END_REASONS.map(function answerOf(reason,) {
+  return [
+    reason,
+    LENGTH_OF_AN_END[reason]
+      .countsAsWork,
+  ];
+},),);
+
+/**
+ Says whether a run that ended this way lasted as long as its work did, reading an end a summary names of any shape.
+
+ An end this driver does not know keeps counting, as it did before this table existed: a summary may come from a newer driver,
+ and nothing says an end nobody here knows is a failure.
+
+ @param endReason - why a run ended, as a summary names it
+
+ @returns whether that run's length is evidence of how long its work takes
+
+ @example
+ ```ts
+ const counted = lengthOfRunCountsAsWork('idle',);
+ ```
+ */
+export function lengthOfRunCountsAsWork(endReason: unknown,): boolean {
+  return ((typeof endReason) === 'string')
+    ? (COUNTS_AS_WORK_BY_END.get(endReason,) ?? true)
+    : true;
+}
 
 /**
  Reads a run's summary, which is absent while the run is still going.
@@ -140,7 +174,7 @@ async function finishedRunIn(folder: string,): Promise<FinishedPiRun | typeof NO
   return {
     folder,
     totalMilliseconds,
-    lengthCountsAsWork: !(((typeof endReason) === 'string') && END_REASONS_WITHOUT_A_JOB.includes(endReason,)),
+    lengthCountsAsWork: lengthOfRunCountsAsWork(endReason,),
   };
 }
 

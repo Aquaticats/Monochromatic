@@ -82,7 +82,11 @@ export {
   type RecordOfPiRunRequest,
   startRecordOfPiRun,
 } from './record-of-pi-run.ts';
-export { END_REASONS, } from './driver-types.ts';
+export {
+  END_REASONS,
+  LENGTH_OF_AN_END,
+  type LengthOfAnEnd,
+} from './driver-types.ts';
 export {
   CLEAN_END_REASONS,
   endReasonOfPromptWait,
@@ -115,6 +119,7 @@ export {
   END_REASONS_WITHOUT_A_JOB,
   type FinishedPiRun,
   finishedPiRunsIn,
+  lengthOfRunCountsAsWork,
 } from './finished-pi-runs.ts';
 export {
   type OverdueLook,

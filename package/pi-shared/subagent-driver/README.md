@@ -1430,10 +1430,14 @@ The run's end follows from those answers:
 An end that is not `idle` is the point:
 a run whose recovery was never told is not a run that finished its turn,
 and `idle` would have said the agent had nothing left when it had never been told what became of its command.
-`silent-command-unanswered` counts in `finished-pi-runs.ts`'s length sample,
-because the run did work until a command stopped saying anything;
-it is not one of the ends whose duration says nothing about how long the work takes.
-A driver that cannot end the operation leaves the run where the coordinator can see it, and never once more at `idle`.
+`silent-command-unanswered` is one of the ends whose length is no evidence of a job,
+because the run stopped in the driver's own failed recovery and not at the end of its work:
+the overdue limit is taken from runs that worked until their own allowance ended them,
+and a run cut short by the driver would make that limit shorter than the jobs it is meant to predict.
+The calls such a run finished before it stopped are still calls that finished,
+so its feed stays in the call sample.
+A driver that cannot end the operation leaves the run where the coordinator can see it,
+and never once more at `idle`.
 
 ## When Pi compacts before it takes the prompt
 
@@ -1786,11 +1790,10 @@ because the work decides them rather than the day they were measured:
 
 - a run is overdue once it has lasted longer than the 90th percentile of `totalMilliseconds`
   in the finished runs,
-  leaving out the runs whose length is no evidence of how long work takes:
-  `model-error`,
-  `prompt-rejected`,
-  `compaction-failed`
-  and `driver-failed`.
+  leaving out every run whose end says its length is no evidence of how long work takes.
+  `LENGTH_OF_AN_END` in `src/driver-types.ts` answers for each end beside the ends themselves,
+  the list of ends without a job is derived from those answers,
+  and an end added without an answer does not compile.
 - a tool call is stuck once it has been open longer than the 99.9th percentile of
   every ended call in those runs,
   read from the moments each feed records.
