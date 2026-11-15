@@ -1330,6 +1330,41 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The gate on `main` with pass 47 fails 28: the standing 27 and, a second time, the control of two adds at once (2026-11-14T21:44:06-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **The gate on `92385d3581`** (`main` with pass 47,
+  the installed program still `0.6.1-alpha.36`),
+  started 21:25:29,
+  log written until 21:42:58:
+  `9108 tests run: 9080 passed (6 slow), 28 failed, 28 skipped`,
+  `gate-exit-status=1`.
+  27 of the 28 failed in each of the four gates before it.
+  The other is `worktree_copy_concurrent::an_add_finishes_while_another_adds_real_git_is_running_and_each_gets_its_own_copy`,
+  which failed in one of those four
+  (on `c6a7e45273`).
+  `landing::service_land::owed_push_tests::a_landed_commit_holds_its_push_where_no_round_runs_it`,
+  which failed in three of them,
+  passes here.
+  The comparison and the panics are kept:
+  `~/temp/agent/gate/keep/failing-tests-of-the-gate-on-92385d3581-against-the-four-gates-before-it.txt`,
+  `…/panics-of-the-failing-tests-of-the-gate-on-92385d3581-2026-11-14T212529.txt`.
+- **The module pass 47 changed** (`landing::service_messages::tests::`):
+  28 `PASS` lines and no `FAIL` line in that log.
+- **The control of two adds at once has now failed in two gates of the six run on 2026-11-14 and passed in four**,
+  with nothing but one test file changed between the gate where it passed and this one.
+  Its panic this time begins with a lock "whose PID file names 316199,
+  which a live process has now,
+  so nothing here proves the lock".
+  The fresh run that has it,
+  going,
+  was sent the sighting and both logs' paths at 21:44:06.
+- **`owed_push` passes in two gates of the six and fails in four**:
+  a timing too;
+  its panics are in each gate's kept file.
+
 ##### The add that never skips the Cargo repair is answered by a change of design, the repair reading the person's `Cargo.lock` and never writing it, and goes to review (2026-11-14T21:36:05-05:00)
 
 Not final and not approved:
