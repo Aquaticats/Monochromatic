@@ -1455,6 +1455,31 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.38` is published and installed; its gate is running (2026-11-15T01:40:51-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **Published** at 01:39:41:
+  the workflow's publish run 43685822390 completed with success,
+  with archives for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`;
+  an alpha is not sent to crates.io.
+- **Installed** on this machine at 01:40:18 through the package's install task
+  (`~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/install-of-0.6.1-alpha.38-output.txt`):
+  one tool installed,
+  65 unchanged,
+  none failed;
+  the program answers `0.6.1-alpha.38`;
+  the lock row is committed as `d7a2f6a013`;
+  that sample commit took 1,401 ms.
+- **The gate** runs since 01:40:31 on `d7a2f6a013`
+  (unit `gpc-gate-wrapper-next-alpha-on-d7a2f6a013-20261115T014031-0500`,
+  log of the same name under `~/temp/agent/gate/`).
+  Its verdict,
+  the comparison with the four gates before and the panics are read by one background command;
+  the user journal of the release's first six minutes by another.
+- The next wrapper release is `0.6.1-alpha.39`.
+
 ##### The landed removal's guard and the landing that never waits answer and go to review; a control that fails only inside the suite gets a run of its own (2026-11-15T01:39:06-05:00)
 
 Not final and not approved:
