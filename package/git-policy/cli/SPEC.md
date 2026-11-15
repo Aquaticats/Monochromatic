@@ -10269,13 +10269,21 @@ The list of what the watch reports, and what it does with each:
   below a root);
   a folder made while the watch runs (a branch name with a slash in it, a reftable that appears) is
   watched in its turn;
-  the object store and the reflog folders are skipped only directly below a Git directory
-  (the folder carries a `HEAD` file, and a root is one),
-  in this walk and in the pass that meets the locks (`src/native/lock/abandoned_locks.rs`),
-  because Git accepts a reference named `refs/heads/objects/topic` and its lock stands in a folder that
-  name gives,
-  so a record of it must be one the pass acts on (a review of `6a506fc03f`,
-  finding 5);
+  which folders are Git directories is a list the wrapper was told
+  (`src/native/lock/git_directories_of_the_repository.rs`),
+  and the object store and the reflog folders are skipped only directly below a folder of that list,
+  in this walk and in the pass that meets the locks (`src/native/lock/abandoned_locks.rs`);
+  the list is the invocation's Git directory,
+  the common Git directory,
+  every linked worktree's registration (the entries of the common directory's own `worktrees` folder)
+  and every submodule's Git directory (the entries of a Git directory's own `modules` folder, to three
+  levels);
+  a folder's contents and its name are never read as its kind,
+  because a person chooses every name under `refs/` and Git accepts a reference called
+  `refs/heads/marker/HEAD`,
+  which made that folder look like a Git directory and hid the `objects` namespace beside it
+  (a review of `6a506fc03f`, finding 5;
+  a review of `ca936e0b93`, finding 2);
   and a folder the count bound leaves unwatched reports nothing, so a lock there keeps the bounded
   wait instead of a record (a review of `fee5557595`, finding 1);
   a repository above that bound keeps every folder the walk reached first and gets no record for a
@@ -10284,7 +10292,8 @@ The list of what the watch reports, and what it does with each:
   (more than 3500 on 2026-11-14, most of them the rerere cache's and the linked worktrees' own),
   so a lock in one of its deeper folders is cleared only by a proof that does not need a record,
   and the sentence about a lock that is kept says so;
-- every Git the wrapper starts for this repository's state is watched, and through one start:
+- every Git the wrapper starts for this repository's state is watched, and through one start,
+  and one of those starts does not yet write the record of the child it started:
   `lock_watch::start_a_watched_git` opens the watch before the child and hands back the child with its
   watcher, and the awaiting face's `start_a_watched_git_awaiting` is the same start for a caller on the
   runtime,
@@ -10301,7 +10310,14 @@ The list of what the watch reports, and what it does with each:
   the command's own forwarded child, the landing's re-try and the ladder's steps were watched before
   this release, and the ceiling-bounded runner and the awaiting face were not
   (a review of `6a506fc03f`,
-  findings 3 and 4);
+  findings 3 and 4).
+  The ceiling-bounded runner writes no record of its child's start
+  (`note_child_started`) yet,
+  so the record it now writes pins the lock and the proof still refuses it: a lock that runner leaves
+  is cleared by the proof that does not need a record,
+  and its own record clears it once the change that writes the child's start there lands
+  (a review of `ca936e0b93`,
+  finding 1);
 - every Git the wrapper's own ladder starts is watched, not only the command's forwarded child:
   a merge moves the branch with `git merge --ff-only <commit>` and an `update-ref` moves any other
   reference, both from a step of the wrapper's own transaction runner,

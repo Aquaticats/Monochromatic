@@ -44,6 +44,19 @@
 //!  those steps wait for their Git through pipes, a descriptor and a progress watch,
 //!  and a branch write is one of them,
 //!  so a merge killed while it moved the branch leaves a lock whose record exists.
+//!  The runners that start a Git for this repository's state, and what each one writes:
+//!  the command's own forwarded child, the landing's re-try, every synchronous and awaiting step of the
+//!  wrapper's own ladder, and the ceiling-bounded ladder step,
+//!  each through `start_a_watched_git` or `start_a_watched_git_awaiting`.
+//!  The ceiling-bounded runner is the one that writes no record of its child's start yet
+//!  (`forwarding.rs`,
+//! `run_real_git_until`):
+//!  the record it writes pins the lock of a Git it started,
+//!  and a proof that also asks for the child's start still refuses it,
+//!  so the lock is cleared by the proof that does not need a record until the change that writes that
+//!  child's start there lands
+//!  (a review of `ca936e0b93`,
+//! finding 1).
 //!  What a kill at each step of a run leaves,
 //!  and who removes it:
 //!

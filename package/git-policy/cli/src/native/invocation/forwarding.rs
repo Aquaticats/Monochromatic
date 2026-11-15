@@ -434,6 +434,12 @@ pub fn run_real_git_until(
     // Why:  The Git of a ladder step takes `index.lock` as a checkout of any other does, and the ceiling ends it while it
     //       holds the lock; a start with no watch left that lock with no record, so the next command could not prove it
     //       and kept it (a review of `6a506fc03f`, finding 3).
+    // What is not here yet: `lock_holder_records::note_child_started`, which every other watched start of this module
+    //  writes beside its spawn. Without it the record this run writes pins the lock, and the proof, which also asks for
+    //  the child's start, refuses it: the lock is cleared only by the proof that does not need a record, and this run's
+    //  own record clears it once the change that writes that child's start here lands (a review of `ca936e0b93`,
+    //  finding 1). It is not written here because another branch writes the same record for these starts, and two
+    //  branches writing one record would collide.
     let (mut child, binder): (std::process::Child, Option<crate::lock_watch::Binder>) = crate::lock_watch::start_a_watched_git(&mut command)?;
     let began: std::time::Instant = std::time::Instant::now();
     loop {

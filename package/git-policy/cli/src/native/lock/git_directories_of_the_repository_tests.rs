@@ -112,7 +112,7 @@ fn the_submodule_levels_stop_at_the_bound() {
     }
     beyond = beyond.join("modules/sub");
     a_folder(&beyond);
-    let directories: Vec<PathBuf> = git_directories_of(&[root.clone()], root.as_path());
+    let directories: Vec<PathBuf> = git_directories_of(std::slice::from_ref(&root), root.as_path());
     let within: bool = is_a_git_directory(directories.as_slice(), deepest_within.as_path());
     let beyond_named: bool = is_a_git_directory(directories.as_slice(), beyond.as_path());
     crate::test_support::remove(root.as_path());
