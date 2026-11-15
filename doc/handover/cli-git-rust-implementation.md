@@ -738,6 +738,19 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-14T20:53:23-05:00,
+  from the landing author's report of its seventh pass
+  (`~/temp/agent/landing-never-waits-behind-housekeeping-2026-11-13-scratch/keep/report-of-the-seventh-pass-2026-11-16.md`,
+  written on 2026-11-14 despite its name),
+  not built and not blocking work:
+  storage that never answers leaves a thread of the commit service stuck for good,
+  and the branch bounds how many such threads each kind of work may hold.
+  A hard end for them needs the work in a process of its own that can be killed,
+  which the author prices at a second executable,
+  a protocol between the two,
+  and trash removals cut half-written.
+  Is that process wanted,
+  or do the bounds on stuck threads stand as the answer?
 - Added 2026-11-14T11:41-05:00,
   each from an author's report of that morning and none blocking work:
   - A commit that waits and receives `SIGINT` or `SIGTERM`:
@@ -1316,6 +1329,86 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The landing author answers seven findings and leaves controls, the guard and the merge open; the discarding commands and the brief writer for tests go back to their authors (2026-11-14T20:53:23-05:00)
+
+Not final and not approved:
+what one author and two reviews report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The landing that never waits**,
+  its author's eighth run,
+  ended 20:47:58 at `de9bb8c909`.
+  By its report all seven findings of the seventh review are answered in code,
+  and three things are not done:
+  four of the seven have no committed control,
+  the guard `source_guard::blocking_code_off_the_runtime` is red on a new thread module,
+  and `main` is not merged
+  (a conflict in `landing/service_work_settling_with_words.rs`,
+  and the wrapper refusing a `checkout --theirs` inside a worktree with a merge in progress).
+  It measured no cost.
+  It asks one question,
+  now in "Questions kept for the owner's return".
+- **Weighed**:
+  not ready for review,
+  by the author's own words.
+  A fresh run from that tip finishes it
+  (`~/temp/agent/pi-runs/landing-never-waits-controls-guard-and-merge-of-main-finished-in-a-fresh-run-prompt.md`,
+  queued second,
+  on a branch of its own),
+  told to read the author's account against the code,
+  to resolve the conflict by reading both sides,
+  and to report as a finding any merge the wrapper stops that it has no reason to stop.
+  A fresh run and not a resume,
+  this session's choice:
+  the author's session is in its eighth run,
+  and what is left is listed and bounded,
+  so a reader with nothing behind it can check the account as well as finish it.
+  Passes 29 and 34 now wait on that fresh run's branch.
+- **The discarding commands** (`fcf5606d75`),
+  seventh review,
+  the first by Kimi,
+  ended 20:50:19,
+  34 of 34 files,
+  four things,
+  three by runs against the built program:
+  a `git clean` deletes a repository made after its dry run;
+  an edit hidden by `assume-unchanged` goes unseen when size,
+  time and mode match the index,
+  and `git reset --hard` replaces it;
+  `--no-guess --guess` is read as guessing switched off where Git obeys the last,
+  so a forced checkout writes over an untracked file;
+  and,
+  by reading,
+  a save rename that succeeds after its ceiling is reported as "nothing was changed".
+  All four weighed as worth their fix.
+  The author is resumed
+  (`~/temp/agent/pi-runs/discarding-commands-answers-its-seventh-review-of-2026-11-14-prompt.md`),
+  asked besides for every repeatable option the guard reads,
+  checked against real Git by a table.
+- **The review-brief writer for a change to tests alone** (`33bda3e7d2`),
+  fourth review,
+  ended 20:46:52,
+  nine of nine files,
+  two things by runs:
+  a brief that cannot be written ends the starter with status 0 and nothing started,
+  an effect of the last round's fix;
+  and two paths that differ only in bytes that are not valid UTF-8 become one path that does not exist.
+  The first weighed as worth its fix,
+  since this session's queue reads that status.
+  The second is a real loss for names that are not text
+  (whether this repository holds any was not counted);
+  it goes to the author with the first.
+  The author is resumed
+  (`~/temp/agent/pi-runs/review-brief-writer-for-tests-answers-its-fourth-review-of-2026-11-14-prompt.md`).
+- Read at 20:51:11:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going.
+  Neither resumed session is named by the credential scan.
+  The queue held 70 entries at 20:53:23,
+  with 21 runs going at 20:51.
 
 ##### The landed removal's fifth review finds one thing: a commit only a worktree's own reflog names is lost with the removal (2026-11-14T20:46:41-05:00)
 
