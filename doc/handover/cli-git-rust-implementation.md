@@ -1358,6 +1358,79 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's reworked removal still removes what it did not judge, five ways; the driver's claims can write over a message; both go back (2026-11-14T23:03:25-05:00)
+
+Not final and not approved:
+what two reviews report,
+how the coordinating session weighed them,
+and what it queued and took back.
+
+- **mpm-shadow's install that leaves no stale launcher** (`68bc782526`),
+  its seventh review,
+  ended 22:57:32,
+  ten of ten files,
+  five things,
+  each reproduced by a script that runs the real code:
+  a replacement renamed onto the visible path after the hard link is unlinked,
+  and the call answers `Ok(Retired)`;
+  a launch record that is a named pipe blocks the retirement with no end;
+  an edit made in place with its modification time put back is deleted;
+  an older install running at the same time writes over the newer launch record,
+  and the launcher starts the older program;
+  a kill directly after the hard link leaves a duplicate that no repair pass clears.
+- **Weighed**:
+  all five worth their fix.
+  Three of them are one thing,
+  a decision on a look and an act on a path that changed in between;
+  the rework moved that window and did not close it.
+- **The fresh run queued at 22:01 to show the five controls failing is taken out of the queue**,
+  before it started
+  (it stood second),
+  and its brief deleted:
+  the code under those controls changes again,
+  and its whole content is in the brief that takes its place.
+  That one is a fresh run from `68bc782526` on a branch of its own which answers the review and shows every control failing,
+  the author's five and its own
+  (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-answers-its-seventh-review-in-a-fresh-run-prompt.md`,
+  queued fourth);
+  a fresh run because the author's eighth run said its budget was spent.
+  `take-one-entry-out-of-the-resume-queue-by-its-name.ts`,
+  beside the other queue scripts,
+  prints the entry it takes so that it can be put back.
+- **The driver's empty last answer** (`179075366e`),
+  its fifth review,
+  ended 22:59:56,
+  nineteen of nineteen files,
+  three things:
+  a claim made again renames a second message of one name over a first that could not be kept,
+  which then has no copy
+  (reproduced,
+  with a name 255 characters long);
+  a message a second driver delivered is still named in the first driver's `inboxNotTaken`
+  (reproduced);
+  and the fallback for a filesystem without hard links renames over a kept message
+  (by reading).
+  All three weighed as worth their fix.
+  The author is resumed,
+  its last report whole
+  (`~/temp/agent/pi-runs/driver-empty-last-answer-answers-its-fifth-review-of-2026-11-14-prompt.md`,
+  queued fifth),
+  asked to list every move of an inbox file with what stands at its destination.
+- An error of this session's own search,
+  for the record:
+  at 23:01 the taken-out entry looked absent from the queue because a pattern with a space after the colon did not match the starter's compact JSON.
+  The check for lost entries,
+  which parses the file,
+  found it;
+  nothing was lost.
+- Read at 23:01:42:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  23 runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 69 entries at 23:03:25.
+
 ##### The landed removal is answered with a refusal while a commit is named only by the worktree's own logs or records, at 64 ms more per removal; it goes to review (2026-11-14T22:57:44-05:00)
 
 Not final and not approved:
