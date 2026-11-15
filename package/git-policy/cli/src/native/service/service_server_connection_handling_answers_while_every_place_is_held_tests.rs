@@ -506,12 +506,6 @@ fn two_commits_are_both_routed_while_every_slow_place_is_held() {
     assert!(both_routed, "the two commits were not both routed while every slow place was held by work that never ends");
 }
 
-/// The longest this control watches a commit whose look is held:
-/// two of the pauses the routing retry takes before it asks again.
-/// Why:
-///  A look of this kind is asked again only once none of its kind is alive, and the wait for that is this pause at least,
-///  so a request the landing received inside this window was received through a look started beside a live one.
-const A_WATCH_OF_TWO_PAUSES: Duration = crate::wait_ceilings::ROUTING_LOOK_RETRY_PAUSE.saturating_mul(2);
 
 /// The longest this control watches for the commit whose first look found no place:
 /// one pause of the retry and the ceiling of an ask, with room for a loaded machine.

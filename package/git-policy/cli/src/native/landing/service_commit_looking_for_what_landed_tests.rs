@@ -263,3 +263,39 @@ fn the_held_record_of_the_open_batch_of_a_request_is_found() {
     assert_eq!(a_held_batch_of(journal.as_path(), git_dir.as_path(), "another-request"), None, "a record of another request is not this one's");
     remove(journal.parent().expect("the control's root"));
 }
+
+/// What:
+///  The finished batch of a request is found however many newer batches landed after it.
+/// Why:
+///  Whether the request landed is a question about its own record, and how many other commits landed since has nothing to
+///  do with it. The look read only the newest `NEWEST_FINISHED_BATCHES` (sixteen), so seventeen successors pushed the
+///  record out of the window: a landed commit exited 1 saying it was not known whether it was made, while it was an
+///  ancestor of the branch (the review of `dbee36149c`, finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeRecord(1, [ID]); for (seq of 2..=18) writeRecord(seq, [`successor-${seq}`]);
+/// expect(looked(ID)).toBe(theCommit)
+/// ```
+#[test]
+fn the_finished_batch_of_a_request_is_found_behind_its_successors() {
+    let journal: PathBuf = a_journal("looking-finished-behind-successors");
+    let commit: String = "7".repeat(40);
+    // This request's batch is the oldest of eighteen finished ones.
+    let ours: Intent = a_record(1, "refs/heads/main", &"2".repeat(40), commit.as_str(), &[ID], &[commit.as_str()]);
+    std::fs::write(batch_path(journal.as_path(), 1, DONE_EXTENSION), intent_text(&ours)).expect("the request's finished record");
+    for seq in 2..=18u64 {
+        let successor: String = format!("{seq:040}");
+        let theirs: Intent = a_record(seq, "refs/heads/main", &"2".repeat(40), successor.as_str(), &[format!("a-successor-{seq}").as_str()], &[successor.as_str()]);
+        std::fs::write(batch_path(journal.as_path(), seq, DONE_EXTENSION), intent_text(&theirs)).expect("a successor's finished record");
+    }
+    let context: GitContext = crate::test_support::git_context();
+    let looked: Option<String> = looking_for_what_landed(LookForWhatLanded {
+        context: &context,
+        cwd: journal.as_path(),
+        journal: Some(journal.as_path()),
+        id: ID,
+        wait: Duration::from_millis(200),
+    });
+    assert_eq!(looked, Some(commit), "the request's own finished batch was not found behind seventeen newer ones");
+}

@@ -179,3 +179,50 @@ fn runs_the_helper(pid: u32) -> bool {
     let state: Option<char> = stat[after_the_name + 1..].trim_start().chars().next();
     return state != Some('Z');
 }
+
+/// What:
+///  A helper the kernel refused to signal is reported as possibly running, not as ended.
+/// Why:
+///  `kill_members` answers `Delivered::Unproven` for a member whose descriptor or signal the kernel refused: it was not
+///  signalled and may still run. The tree's end put that answer into `_below_ended` and dropped it, so the answer was the
+///  leader's alone, `left_running` was false, and the step's words said "and was ended" about a helper nothing had
+///  touched (the review of `dbee36149c`, finding 2).
+///  The refusal is the package's own seam: a descriptor or signal refusal cannot be produced on demand here, so the
+///  kernel's answer is injected as the seam does for the same failure elsewhere.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const owned = adopt(childWithHelper()); refuseTheNextDescriptors(64);
+/// expect(owned.endWithTheProcessesItStarted()).toBe(true); // the helper may still run
+/// ```
+#[test]
+fn a_helper_the_kernel_refused_to_signal_is_reported_as_possibly_running() {
+    let root: PathBuf = fixture("child-ended-with-a-refused-signal");
+    let reported: PathBuf = root.join("helper");
+    let child: std::process::Child = std::process::Command::new("/bin/sh")
+        .arg("-c")
+        .arg(format!("sleep {THE_HELPERS_OWN_SLEEP_SECONDS} & echo $! > '{}'; wait", reported.display()))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("a child of this test");
+    let began: std::time::Instant = std::time::Instant::now();
+    while !reported.exists() && began.elapsed() < crate::parallel_test_support::PATIENCE {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let written: String = std::fs::read_to_string(reported.as_path()).expect("the helper reported its own number");
+    let helper: u32 = written.trim().parse().expect("the number the shell wrote is a process id");
+    let mut owned = adopt(child);
+    // Every descriptor the tree's members need is refused, so no member is signalled and each answer is `Unproven`.
+    crate::member_signalled_through_its_pidfd::refuse_the_next_descriptors(64);
+    let may_still_run: bool = owned.end_with_the_processes_it_started();
+    // The helper was not signalled, so this control ends it itself.
+    // SAFETY: `kill` takes a process id and a signal number and touches no memory; this control started that process.
+    let _ended = unsafe { libc::kill(i32::try_from(helper).unwrap_or(i32::MAX), libc::SIGKILL) };
+    assert!(
+        may_still_run,
+        "a helper whose signal the kernel refused was reported as ended: the tree's answer was dropped and only the leader's read"
+    );
+    remove(root.as_path());
+}

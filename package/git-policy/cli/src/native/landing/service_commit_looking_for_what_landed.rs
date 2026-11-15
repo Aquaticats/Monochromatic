@@ -43,18 +43,7 @@ use std::time::{Duration, Instant};
 /// one `git merge-base` each time.
 pub const LOOK_EVERY: Duration = Duration::from_millis(250);
 
-/// How many of the newest finished batches the look reads.
-/// Why:
-///   The request was sent seconds ago,
-/// so the batch that made it is one of the newest.
-/// Measured:
-/// the busiest
-///  unit in the service journal landed four batches in its busiest ten seconds
-/// (cited with `DONE_RETAINED`,
-///  2026-11-02T09:01:38Z to 2026-11-03T15:11:58Z),
-/// so this many reach back over forty seconds of that traffic,
-///  four times the longest look.
-pub const NEWEST_FINISHED_BATCHES: usize = 16;
+
 
 /// What the look is given.
 pub(crate) struct LookForWhatLanded<'look> {
@@ -133,6 +122,21 @@ pub(crate) fn journal_of_request(request: &CommitRequest) -> Option<PathBuf> {
 
 /// What:
 ///  The commit a finished batch made for `id`,
+///  searching every finished record the journal holds.
+/// Why:
+///  Whether the request landed is a question about its own record, and how many other commits landed since has nothing to
+///  do with it: reading a count of the newest refused a record behind seventeen successors, and a landed commit exited 1
+///  saying it was not known whether it was made (the review of `dbee36149c`, finding 1).
+/// The read is bounded by what the journal itself keeps: `DONE_RETAINED` (1024) finished records are the most it holds
+///  between sweeps, so the look costs the same after sixteen finished batches as after sixteen thousand.
+/// A record is pruned only when a newer one pushes it past that count, so a record still names its commit for as long as the
+///  journal holds it; a request's longest wait is `ANSWER_CEILING` (35 s) of silence, six reconnects, and one unanswered
+///  withdrawal, and the retention holds while fewer than `DONE_RETAINED` batches land in it.
+/// Past that the record is gone and the look finds nothing: it then says nothing is known, never that nothing was made.
+/// A record's name is its batch's sequence number, so the identity is inside the record and the read searches it.
+///
+/// What:
+///  The commit a finished batch made for `id`,
 /// nothing when no finished batch of the newest ones names it.
 /// Why:
 ///   A finished batch's record is written after the branch moved,
@@ -143,7 +147,7 @@ pub(crate) fn journal_of_request(request: &CommitRequest) -> Option<PathBuf> {
 /// finishedBatches.find((record) => record.ids.includes(id))?.commits[at]
 /// ```
 fn a_finished_batch_made(journal: &Path, id: &str) -> Option<String> {
-    for (_path, record) in newest_finished_batches_read_only(journal, NEWEST_FINISHED_BATCHES) {
+    for (_path, record) in newest_finished_batches_read_only(journal, usize::MAX) {
         let Some(parsed) = record else { continue };
         if let Some(commit) = the_commit_of(&parsed, id) {
             return Some(commit);

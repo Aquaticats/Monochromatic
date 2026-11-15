@@ -231,6 +231,11 @@ impl OwnedChild {
     ///  so the tree is read here,
     /// while the child is this process's own unreaped one and no reuse can have taken its number,
     ///  and every member is killed through a descriptor opened while its number still named it.
+    ///  What this ends is the tree **at the instant it is read**, and nothing that left it:
+    /// a helper that detached itself (a `setsid` and a second fork, which a Git does on purpose when
+    ///  `maintenance.autodetach` holds) is reparented out of it, so nothing here signals it and nothing here knows it;
+    /// the answer is then false only because nothing of it was seen, and whether such a helper should be ended is a
+    ///  question the project's record does not decide.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
@@ -239,9 +244,16 @@ impl OwnedChild {
     pub fn end_with_the_processes_it_started(&mut self) -> bool {
         // The tree is read before the leader is signalled: a child's link to its parent is gone once the parent has exited.
         let walked: Option<Vec<TreeMember>> = i32::try_from(self.id()).ok().and_then(descendants_of_read);
-        // The leader is signalled by `end_and_reap`, which owns the grace after that signal and answers whether it took.
-        let _below_ended: Vec<Delivered> = kill_members(walked.as_deref().unwrap_or_default());
-        return self.end_and_reap();
+        let below_ended: Vec<Delivered> = kill_members(walked.as_deref().unwrap_or_default());
+        // What:
+        //  The leader is signalled by `end_and_reap`, which owns the grace after that signal,
+        //  and the answer is true when the leader was left running **or** any member below it was not shown to have ended.
+        // Why:
+        //  `Delivered::Unproven` is a member the kernel refused a descriptor or a signal for: nothing was sent and it may
+        //  still run, so the words may not say the step "was ended" (the review of `dbee36149c`, finding 2).
+        let below_may_still_run: bool = below_ended.iter().any(|answer| { return *answer == Delivered::Unproven; });
+        let leader_left_running: bool = self.end_and_reap();
+        return leader_left_running || below_may_still_run;
     }
 
     /// What:
