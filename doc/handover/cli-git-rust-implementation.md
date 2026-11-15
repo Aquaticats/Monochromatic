@@ -1594,6 +1594,66 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Integration pass 50 reports fit at a tip that lacks pass 51 and goes back to take `main`; a second test file of the masking author hung (2026-11-15T05:58:04-05:00)
+
+Not final and not approved:
+what one pass reports and what the coordinating session did.
+
+- **Integration pass 50** ended 05:52:24 at `962135bcb9`
+  (the log line that leaves its thread only when the stream holds every byte)
+  and reports fit:
+  the merge was clean;
+  the three gate controls pass in the gate's own image with the merged source and fail there without it,
+  with the gate's own panics;
+  library suite 7,899 of 7,902,
+  binary suite 1,213 of 1,215,
+  every failure on both gate lists and none on neither.
+  One of the gate's names,
+  `service_provision::a_runtime_directory_no_address_can_hold_is_refused_at_once`,
+  is renamed by the branch,
+  so a later gate cannot fail it under that name.
+  **Not merged**:
+  its tip holds `main` to `7ee64c07ea`,
+  and `main` has since taken pass 51,
+  six commits that touch the wrapper.
+  By the rule every pass's brief carries,
+  a branch is fit only at a tip that holds `main` as it stands.
+  The pass is resumed at the head of the queue to merge `main` and do the whole round again
+  (`~/temp/agent/pi-runs/integration-pass-50-takes-main-as-it-stands-with-pass-51-in-it-prompt.md`).
+  Integration pass 52,
+  next in the queue,
+  starts from a `main` that holds pass 51.
+- From the pass's report,
+  a thing no run owns:
+  `bin/native-gate-main-tip.unit.test.ts` builds a throwaway checkout through the installed wrapper,
+  so with the session bus address unset,
+  as the rules require,
+  it fails,
+  and with it set it would leave commit-service units of throwaway repositories in the user's manager.
+- **The masking author's command hung a second time**:
+  after the third test file was ended at 05:31,
+  its loop went on to the fourth,
+  `node src/secret-value-masking-extension.unit.test.ts`,
+  which then sat 26 minutes with no CPU time used.
+  The round's check for silent runs showed it at 05:57;
+  the process was ended at 05:57:20.
+  The author already holds the note that a control which hangs must be made to fail within a bound.
+- **The release**:
+  the workflow run 43706095626 ended in success at about 05:53 and its version commit is in `main`
+  (`04054f11e8` merges it);
+  the release itself was not yet listed at 05:58:17,
+  and the package's wait for it is running.
+- Read at 05:57:05:
+  55.1 degrees,
+  budget 32.0 threads,
+  5.9 in use;
+  no lock word,
+  no failed start,
+  no launcher that outlived a run,
+  no leftover process;
+  17 runs going.
+  The queue held 83 entries at 05:58:04.
+
 ##### Integration pass 51 is in `main` and `0.6.1-alpha.39` is dispatched; what stopped the service manager for three minutes is found: a review's stand-in Git (2026-11-15T05:53:33-05:00)
 
 Not final and not approved:
