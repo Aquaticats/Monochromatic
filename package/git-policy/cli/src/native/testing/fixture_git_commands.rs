@@ -229,7 +229,7 @@ pub(crate) fn real_git_within(
         let written: std::io::Result<()> = input_receiver
             .recv_timeout(REAPING)
             .unwrap_or_else(|_| panic!("the input of the query {program:?} was still being written {REAPING:?} after the query was gone"));
-        let _joined = writer.join();
+        let _writer_joined = writer.join();
         match written {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => {}
