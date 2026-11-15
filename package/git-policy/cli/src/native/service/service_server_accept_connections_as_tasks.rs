@@ -19,6 +19,7 @@
 //! server.on('connection', (socket) => handleConnection(socket, shared));
 //! ```
 
+use crate::service_main::EXIT_NO_WORKER;
 use crate::service_runtime_build_report::{no_worker_words, say_how_the_runtime_was_built, start_what_the_service_cannot_serve_without};
 use crate::service_server_connection_handling::{ConnectionShared, handle_connection};
 use std::os::unix::net::UnixListener;
@@ -49,7 +50,7 @@ pub(crate) fn start_acceptor_or_exit(listener: UnixListener, shared: ConnectionS
         return;
     }
     crate::service_error!("{}", no_worker_words("the acceptor of connections"));
-    std::process::exit(4);
+    std::process::exit(EXIT_NO_WORKER);
 }
 
 /// Accepts connections for as long as the process runs,
@@ -57,13 +58,13 @@ pub(crate) fn start_acceptor_or_exit(listener: UnixListener, shared: ConnectionS
 async fn accept_connections(inherited: UnixListener, shared: ConnectionShared) {
     if let Err(error) = inherited.set_nonblocking(true) {
         crate::service_error!("cannot make the listening socket non-blocking for the acceptor: {error}");
-        std::process::exit(4);
+        std::process::exit(EXIT_NO_WORKER);
     }
     let listener: tokio::net::UnixListener = match tokio::net::UnixListener::from_std(inherited) {
         Ok(registered) => registered,
         Err(error) => {
             crate::service_error!("cannot hand the listening socket to the runtime: {error}");
-            std::process::exit(4);
+            std::process::exit(EXIT_NO_WORKER);
         }
     };
     loop {

@@ -123,6 +123,16 @@ pub const EXIT_REFUSED: i32 = 2;
 /// The exit status of a start that could not listen.
 pub const EXIT_NOT_LISTENING: i32 = 3;
 
+/// The exit status of a service that has no worker thread to run a task it cannot serve without:
+/// its acceptor of connections,
+/// its after-commit work,
+/// or its shutdown after a stop.
+/// It ends there instead of holding a socket it never answers on,
+/// and the manager starts it again.
+/// A control whose subject is that end reads this status from the process itself,
+/// never the line the service writes about it.
+pub const EXIT_NO_WORKER: i32 = 4;
+
 /// The exit status of a start that served nothing because the worktree it serves is gone.
 /// Zero,
 /// not a refusal:
