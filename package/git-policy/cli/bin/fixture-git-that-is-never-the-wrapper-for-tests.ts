@@ -16,7 +16,17 @@ import { runGateCommandOrThrow } from './native-gate-run.ts';
 const fixtureGitDeadlineMilliseconds = 120_000;
 
 /**
- The directories a fixture's git commands find their Git in, which are the system ones and never this repository's wrapper.
+ The system Git, by its own path rather than as a word `PATH` is searched for.
+
+ A search order is what a wrapper install changes: this repository puts the wrapper first on `PATH`
+ (`native-gate-paths.ts`, `gitProgram`), and the fixture asks for the program a person's package manager installed
+ (`/usr/bin/git`, the path the package's benchmark and end-to-end fixtures name).
+ */
+const systemGitProgram = '/usr/bin/git';
+
+/**
+ The directories a fixture's git commands find the programs Git itself starts in, which are the system ones and never a
+ directory a wrapper is installed in.
  */
 const systemGitPath = '/usr/bin:/bin';
 
@@ -58,7 +68,7 @@ export async function fixtureGit({
   readonly args: readonly string[];
 }): Promise<string> {
   return (await runGateCommandOrThrow({
-    program: 'git',
+    program: systemGitProgram,
     args: [
       '-C',
       directory,
