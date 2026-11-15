@@ -4,9 +4,12 @@
 
 use super::*;
 
-/// The two times a control reads: when a bound has passed, and how long it waited.
+/// The two times a control reads:
+/// when a bound has passed,
+/// and how long it waited.
 use std::time::{Duration, Instant};
-/// The descriptor behind a pipe end, which `fcntl` and `poll` take.
+/// The descriptor behind a pipe end,
+/// which `fcntl` and `poll` take.
 use std::os::fd::AsRawFd;
 
 /// What:
@@ -209,7 +212,8 @@ fn what_the_stream_gives_within(reader: &mut std::io::PipeReader, within: Durati
 /// and a write that answers `WouldBlock` wrote nothing at all:
 /// the line has to stay the thread's and be written when the room appears,
 /// or the person gets the status without the reason
-/// (the review of 2026-11-15, `nonblocking_stream_is_reported_written_before_a_reader_within_the_bound`).
+/// (the review of 2026-11-15,
+/// `nonblocking_stream_is_reported_written_before_a_reader_within_the_bound`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -248,7 +252,8 @@ fn a_line_a_stream_has_no_room_for_is_written_when_the_room_appears() {
 ///  An answer of `true` promises that every line reached the stream,
 /// so a line the stream never took has to be answered `false`,
 /// and the person's command has to end anyway:
-/// the wait is a promise about the words, never a wait for good.
+/// the wait is a promise about the words,
+/// never a wait for good.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

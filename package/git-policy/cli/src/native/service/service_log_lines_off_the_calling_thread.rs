@@ -90,13 +90,15 @@ pub const WAIT_BEFORE_AN_EXIT: std::time::Duration = std::time::Duration::from_m
 
 /// How often the end of a process asks the thread again for a line a stream refused.
 ///
-/// A wait is what it says: the answer is `true` only when every byte of every line is in the stream,
+/// A wait is what it says:
+/// the answer is `true` only when every byte of every line is in the stream,
 /// and a stream that refused a line may take it a moment later,
 /// so the end asks again rather than answering on the thread's first attempt.
 /// The bound it asks within is `WAIT_BEFORE_AN_EXIT`,
 /// and this is a fiftieth of it.
 /// Measured on 2026-11-15 against this queue:
-/// a reader that made room 50 ms into the wait had the line 4.6 ms later, which is one tick,
+/// a reader that made room 50 ms into the wait had the line 4.6 ms later,
+/// which is one tick,
 /// and an end of a process with no room at all waited 250.06 ms of its 250 ms bound.
 /// So one bound holds the thread to at most `WAIT_BEFORE_AN_EXIT / THE_END_ASKS_AGAIN_EVERY` attempts,
 /// a handful of syscalls at the very end of a process and none during its work.
@@ -185,10 +187,15 @@ fn start_the_queue() -> &'static (Mutex<Queue>, Condvar) {
 ///  A line leaves this thread only when all of its bytes are in the stream,
 /// because the end of a process promises exactly that much and a write can end short:
 /// a stream with no room now (`WouldBlock`) takes the rest of the line later,
-/// so the rest stays here and this thread is asked again, by the next line or by the end of the process;
-/// a partial write takes what it took, and the remainder stays here, so nothing else is written into the middle of one line;
-/// a signal that ended the call (`Interrupted`) changed nothing about the stream, so the attempt is made again at once;
-/// and a stream that is gone (a closed pipe, a descriptor nothing holds) takes nothing ever again,
+/// so the rest stays here and this thread is asked again,
+/// by the next line or by the end of the process;
+/// a partial write takes what it took,
+/// and the remainder stays here,
+/// so nothing else is written into the middle of one line;
+/// a signal that ended the call (`Interrupted`) changed nothing about the stream,
+/// so the attempt is made again at once;
+/// and a stream that is gone (a closed pipe,
+/// a descriptor nothing holds) takes nothing ever again,
 /// so the rest of the line is dropped and the whole queue answers `false` from then on.
 ///
 /// In TS you'd write (pseudocode):
