@@ -177,6 +177,9 @@ pub(crate) enum Kind {
     /// `m` or `g` suffix;
     /// never bare,
     /// never empty.
+    /// A kind whose lower bound is not negative takes no minus sign,
+    /// whether Git reads the key as a signed or an unsigned number,
+    /// so a spelling that carries one is left to Git.
     Integer { low: i64, high: i64 },
     /// Any text;
     /// never bare.
@@ -198,6 +201,8 @@ pub(crate) enum Kind {
     /// a false word,
     /// an empty value,
     /// or a number from the shortest abbreviation up.
+    /// A spelling that stands for zero is a number out of range to Git, not a false word,
+    /// so it is left to Git.
     Abbreviation,
     /// `core.commentChar` and `core.commentString`:
     /// not empty,

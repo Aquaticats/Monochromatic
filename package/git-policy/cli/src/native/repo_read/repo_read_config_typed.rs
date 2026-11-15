@@ -125,6 +125,23 @@ fn number_within(text: &str, low: i64, high: i64) -> bool {
     };
 }
 
+/// Whether `text` reads as a number a kind with these bounds takes.
+/// Why the minus is refused:
+///  a kind whose lower bound is not negative is an unsigned number to Git,
+/// and Git refuses every spelling of an unsigned number that carries a minus sign,
+/// `-0` included,
+/// because the number reader there stops at the sign before it reads any digit
+///  (`git_parse_unsigned` in `parse.c` of the Git under test).
+/// The number reader here negates what it parsed,
+/// and minus zero is zero,
+/// so without this the proof would take a spelling Git refuses.
+fn number_within_a_kind(text: &str, low: i64, high: i64) -> bool {
+    if low >= 0 && text.contains('-') {
+        return false;
+    }
+    return number_within(text, low, high);
+}
+
 /// Whether `byte` is an ASCII hexadecimal digit.
 fn is_hex_byte(byte: u8) -> bool {
     return byte.is_ascii_hexdigit();
@@ -139,10 +156,16 @@ fn is_ref_component_byte(byte: u8) -> bool {
     return byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.');
 }
 
-/// Whether `text` is a false word or empty,
-/// the spellings Git reads as false without a number.
+/// Whether `text` is one of the words Git reads as false, or an empty value,
+/// without reading it as a number.
+fn is_false_word_or_empty(text: &str) -> bool {
+    return text.is_empty() || FALSE_WORDS.contains(&text.to_ascii_lowercase().as_str());
+}
+
+/// Whether `text` is a false word, an empty value,
+/// or a number that stands for false.
 fn is_false_text(text: &str) -> bool {
-    return text.is_empty() || FALSE_WORDS.contains(&text.to_ascii_lowercase().as_str()) || number_of(text) == Some(0);
+    return is_false_word_or_empty(text) || number_of(text) == Some(0);
 }
 
 /// Whether `lowered` is an attribute word,
@@ -254,13 +277,13 @@ fn is_accepted(kind: Kind, value: Option<&[u8]>) -> bool {
         Kind::Boolean => is_boolean_text(text),
         Kind::BooleanOr(words) => is_boolean_text(text) || words.contains(&text),
         Kind::IntegerOrBoolean => is_boolean_text(text) || fits_in_i32(text),
-        Kind::Integer { low, high } => number_within(text, low, high),
+        Kind::Integer { low, high } => number_within_a_kind(text, low, high),
         Kind::Text => true,
         Kind::Pathname => !text.starts_with('~') || text.starts_with("~/"),
         Kind::OneOf { words, empty } => (text.is_empty() && empty) || words.contains(&text),
         Kind::Words { words, empty, negatable } => is_word_list(text, words, empty, negatable),
         Kind::Color => is_color_text(text),
-        Kind::Abbreviation => text == "auto" || is_false_text(text) || number_within(text, MINIMUM_ABBREVIATION, MAXIMUM_ABBREVIATION),
+        Kind::Abbreviation => text == "auto" || is_false_word_or_empty(text) || number_within(text, MINIMUM_ABBREVIATION, MAXIMUM_ABBREVIATION),
         Kind::CommentText => !text.is_empty() && !text.contains('\n'),
         Kind::TraceTarget => text.is_empty() || text == "0" || text.eq_ignore_ascii_case("false"),
         Kind::OffOrBuiltinDaemon => is_false_text(text) || TRUE_WORDS.contains(&text.to_ascii_lowercase().as_str()),
