@@ -24,7 +24,6 @@ use super::support::{
 use std::ffi::{OsStr, OsString};
 use std::os::unix::process::ExitStatusExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// Join fixture-relative directories (and absolute ones) into one PATH value.
 fn path_of(fixture: &Fixture, entries: &[&str]) -> OsString {
@@ -47,10 +46,18 @@ fn path_of(fixture: &Fixture, entries: &[&str]) -> OsString {
 ///  The query runs under `bound` seconds, so a Git that never answers ends this control
 ///  with a verdict that names the query and the bound.
 fn git_version_line(fixture: &Fixture, program: &Path, bound: &str) -> String {
-    let _ = (fixture, bound);
-    let output: std::process::Output = Command::new(program).arg("--version").output().expect("Git starts");
-    assert!(output.status.success(), "{REAL_GIT} --version answered nothing");
-    return String::from_utf8(output.stdout).expect("Git's version line is text");
+    let observed: Observed = observe(
+        bounded_for(fixture, program, OsStr::new("/usr/bin:/bin"), bound).arg("--version"),
+        b"",
+    );
+    // `observe` answers the bound itself, naming the whole command line (the bound among its words) and the directory.
+    assert_eq!(
+        observed.code,
+        Some(0),
+        "the `git --version` query failed: {:?}",
+        String::from_utf8_lossy(&observed.stderr)
+    );
+    return String::from_utf8(observed.stdout).expect("Git's version line is text");
 }
 
 /// Assert that standard output is the Git under test's own version line followed by exactly one banner line.
@@ -286,12 +293,19 @@ fn different_wrapper_build_stops_instead_of_looping() {
     let mut bytes: Vec<u8> = std::fs::read(&fixture.wrapper).expect("wrapper bytes");
     bytes.push(0);
     executable(other.as_path(), bytes.as_slice());
-    let ran = Command::new(&other)
-        .arg("--version")
-        .env_clear()
-        .env("PATH", "/usr/bin")
-        .output();
-    assert_banner_follows_git_line(&fixture, &ran.expect("modified build still runs").stdout);
+    // The modified build must answer on its own, so the bound of one fixture command covers it:
+    // a build that waited without end would hold this control instead of failing it.
+    let ran: Observed = observe(
+        bounded(&fixture, other.as_path(), OsStr::new("/usr/bin")).arg("--version"),
+        b"",
+    );
+    assert_eq!(
+        ran.code,
+        Some(0),
+        "the modified build ended at the bound of {TIME_BOUND_SECONDS} s before it printed a version line ({:?})",
+        String::from_utf8_lossy(&ran.stderr)
+    );
+    assert_banner_follows_git_line(&fixture, &ran.stdout);
     let observed: Observed = observe(
         bounded(
             &fixture,

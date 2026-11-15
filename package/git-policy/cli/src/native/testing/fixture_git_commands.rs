@@ -87,7 +87,27 @@ pub(crate) fn real_git_within(
     input: Option<&[u8]>,
     bound_seconds: &str,
 ) -> Option<Output> {
-    let _ = (directory, environment, input, bound_seconds);
-    let output: Output = Command::new(program).args(arguments).output().expect("the query starts");
-    return Some(output);
+    let mut command: Command = Command::new("/usr/bin/timeout");
+    command.arg("--signal=KILL").arg(bound_seconds).arg(program).args(arguments);
+    if let Some(directory) = directory {
+        command.current_dir(directory);
+    }
+    command.env_clear();
+    for (name, value) in environment {
+        command.env(name, value);
+    }
+    command.stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() });
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let mut child: std::process::Child = command.spawn().expect("the query starts");
+    if let Some(input) = input {
+        let mut standard_input: std::process::ChildStdin = child.stdin.take().expect("piped standard input");
+        standard_input.write_all(input).expect("the query's input");
+    }
+    let output: Output = child.wait_with_output().expect("the query's output");
+    // `timeout` ends the child at the bound and reports a status of its own: 124 with the default signal and 137
+    // when the signal was KILL (measured on this host), and the signal itself on a host where it re-raises it.
+    return match output.status.code() {
+        None | Some(124) | Some(137) => None,
+        Some(_) => Some(output),
+    };
 }

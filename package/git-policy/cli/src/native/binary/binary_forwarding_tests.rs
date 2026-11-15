@@ -396,7 +396,7 @@ fn ended_after_one_line(mut command: Command) -> (Option<i32>, Option<i32>) {
         let _read = errors.read_to_end(&mut kept);
         return kept;
     });
-    let status: std::process::ExitStatus = child.wait().expect("the command ends");
+    let status: std::process::ExitStatus = wait_within(&mut child, SIGNAL_WAIT);
     let _said: Vec<u8> = drained.join().expect("the reader of standard error");
     return (status.code(), status.signal());
 }
@@ -741,8 +741,8 @@ fn the_control_never_signals_a_number_that_is_not_the_wrappers_child() {
     //  waiting on its input.
     drop(unrelated.stdin.take());
     let _ended = through.kill();
-    let _reaped = through.wait();
-    let _reaped_unrelated = unrelated.wait();
+    let _reaped = wait_within(&mut through, SIGNAL_WAIT);
+    let _reaped_unrelated = wait_within(&mut unrelated, SIGNAL_WAIT);
     remove(&fixture);
 }
 
@@ -784,13 +784,14 @@ fn signals_reach_git_in_the_same_process() {
             .expect("wrapper starts");
         // Git blocks reading the open pipe; the same process ID now runs Git.
         wait_until_git(&child);
-        let sent = Command::new("/bin/sh")
+        let mut sender: Child = Command::new("/bin/sh")
             .arg("-c")
             .arg(format!("kill -{name} {}", child.id()))
-            .status()
-            .expect("signal sender");
+            .spawn()
+            .expect("signal sender starts");
+        let sent: std::process::ExitStatus = wait_within(&mut sender, SIGNAL_WAIT);
         assert!(sent.success());
-        let status = child.wait().expect("wait for the signalled process");
+        let status: std::process::ExitStatus = wait_within(&mut child, SIGNAL_WAIT);
         assert_eq!(status.signal(), Some(number), "SIG{name}");
         assert_eq!(status.code(), None, "SIG{name}");
     }
