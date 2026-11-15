@@ -413,7 +413,9 @@ What a launcher may still wait for after its run's end, and each wait's bound:
 
 - the run's unit, for the run's wall clock plus `UNIT_WAIT_GRACE_SECONDS` (fifteen minutes);
 - the work the run left running, for `WORK_AFTER_A_TURN_MILLISECONDS` (thirty minutes);
-- a resumed launcher, for the run's wall clock plus that same grace;
+- a resumed launcher, for the run's wall clock plus that same grace,
+  and the wait ends at that bound whether or not the launcher closed its streams:
+  the bound sends `SIGTERM`, a stated grace later it sends `SIGKILL`, and the caller has its answer at the bound either way;
 - every git question and every `systemctl` question, for the thirty seconds `run-command.ts` gives a machine question.
 
 A process the kernel has already taken away when its own files are asked for is no work of the run:
@@ -655,16 +657,28 @@ and nothing put the entry back or said so where a reader looks for an hour and t
 So every start writes `<runs>/<name>-queue-start.json` beside the runs,
 before its batch's unit is asked for:
 the entry whole, the batch's list, its unit and its output file, the name the run takes, and the moment.
-Every round settles those records first:
+Every round settles those records first,
+and what it asks first is the manager:
 
-- the run exists (its `pi-*` unit is going, or a run folder of its name holds a summary written after the start),
+- the batch's unit is going, so the start is under way:
+  the entry leaves the queue (which is what the filling that was killed meant to do) and the record stays;
+- the manager cannot say what the batch is doing, so nothing is touched and a line says so;
+- the run exists (a `pi-*` unit is going, or a run folder of its name holds a summary written after the start),
   so the entry stays out of the queue and the round says so once;
-- its batch's unit is still going, so the start is under way and the record stays;
-- the queue still holds the entry, which a kill between writing the record and taking the entry out leaves,
+- the batch is not going and the queue still holds the entry, which a start that never got handed on leaves,
   so the record goes and the next round tries the entry again;
-- otherwise the launcher ended without a run, and the last line its batch printed is the reason:
-  a launcher that only gave up at its deadline puts the entry back at the **head** of the queue,
+- otherwise the launcher ended without a run,
+  and the answer it wrote decides what happens:
+  a start that only gave up waiting for a place puts the entry back at the **head** of the queue,
   and any other failure sets the entry aside with that reason.
+
+Why a start failed is a value, not a line:
+the batch writes `<runs>/<name>-start-answer.json` for every entry it started,
+holding the status that entry's start ended with and whether that status is the retrying start giving up for want of a place.
+The last line the batch prints is how many entries failed,
+so a settling that read it took `1 of 1 entries failed: a` for the reason and hid the deadline
+(the review of `main...090e416990` reproduced that).
+A start whose answer is not there is set aside with a reason that says so.
 
 The record goes away once the entry is settled,
 which is what makes the filling say it once.
