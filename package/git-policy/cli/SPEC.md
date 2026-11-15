@@ -19164,6 +19164,13 @@ The dry run is asked at the force count the person typed,
 with no `-f` of the wrapper's own,
 so it names the truth for every count,
 and the force count is no gate anywhere in this reading.
+A clean that cannot delete a directory is not asked about at all:
+without `-d` Git removes no directory
+(`git clean -f -X` in a worktree whose only ignored entry is a directory printed nothing and left it and
+its file in place, measured on this host with native Git 2.56.0, 2026-11-15),
+and a repository is a directory,
+so a clean with no `-d` and no positional path takes no repository and starts no dry run for one.
+A positional path is still asked, because Git removes a directory a pathspec names without `-d`.
 A clean with no force is one Git may refuse before it reads anything
 (`cmd_clean`: `if (!interactive && !dry_run && force == 0 && clean_require_force) die(...)`),
 and that refusal is invisible to the dry run:
@@ -19748,24 +19755,47 @@ and `as_the_worktree_listing_spells_it` in `repo_read/repository_facts_written_p
 one spelling the entries in the way are compared with:
 relative to the worktree root,
 no `.` or `..` component,
-no doubled or trailing separator,
-and nothing at all for a path that leaves the worktree.
+no doubled or trailing separator.
 That is the only spelling Git's own listings print,
 and a join that wrote another one missed the file it stood for:
 `git mv -f a.txt ./b.txt` named `./b.txt` and `git checkout-index -f --prefix=./out/ -a` named
 `./out/a.txt`,
 while Git wrote `b.txt` and `out/a.txt` over an untracked file each
 (the seventh review, 2026-11-15).
+A word that names a file outside the worktree is no "nothing is written":
+`WrittenPlace` in the same file answers either an entry of the worktree,
+spelled as its listings spell it,
+or a path outside it,
+resolved as the operating system reads it,
+and a word the reading cannot place is a refusal that names the word
+(`the_place_a_word_names`).
+The word is placed where Git writes it:
+joined to the directory the command runs in,
+every link resolved as far as the path exists and every `.` and `..` applied there,
+so an absolute path inside the worktree is that entry and a path through a link is the file the link
+reaches.
+A file outside the worktree is a person's file as much as one inside it,
+and the repository holds nothing there,
+so every entry standing at such a place,
+or on the way to it,
+is refused by name:
+`git checkout-index -f --prefix=/abs/outside/ -a` and `--prefix=../outside/` wrote over a file outside
+the worktree with no refusal until the eighth review (2026-11-15),
+and `git mv -f /abs/worktree/a.txt /abs/worktree/b.txt` was left out of the guard because an absolute
+path was answered "nothing".
 The places, each with the directory its own query starts Git in:
 the `ls-tree` of a whole tree asks with `--full-tree` and needs no directory;
 the `ls-tree` of a path form starts in the run directory, so its pathspecs mean what they mean to
 the command, and its answers are rooted with that directory's prefix;
 `ls-files --cached` starts there too, with `:(top)` when the form names no path,
 and its `--full-name` answers are already the worktree root's own, so no prefix is written before them;
-`checkout-index --prefix` is joined to the index path as text and read from the worktree root
-(`setup_work_tree` moves there before any entry is written), so a relative prefix is a root-relative
-name and an absolute one is stripped of the root, with no entry for a pair that lands outside the
-worktree
+`checkout-index --prefix` is joined to the index path as text and resolved once for the whole set from
+the worktree root
+(`setup_work_tree` moves there before any entry is written),
+so a relative prefix is a root-relative name,
+its trailing separator is kept as the person wrote it,
+and a pair that lands outside the worktree is a place there,
+guarded where that file lies (`the_places_under_a_prefix`)
 (`git checkout-index -f --prefix=out/ -- b.txt` run in `sub/` writes `out/sub/b.txt`,
 and `--prefix=out2` writes `out2sub/b.txt`, measured on this host with native Git 2.56.0,
 2026-11-14);
