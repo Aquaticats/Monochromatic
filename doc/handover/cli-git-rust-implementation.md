@@ -1559,6 +1559,92 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The stop of a stopped push has its cause and a fix; three library tests that failed in the suite are green; a migration that refuses its own repository gets a fresh run (2026-11-15T04:44:34-05:00)
+
+Not final and not approved:
+what two fresh runs report and what the coordinating session queued.
+
+- **A push stopped at its window ends within its bound**,
+  a fresh run,
+  ended 04:39:06 at `374f34c4b9`.
+  The cause of the three `push_minimum_rate` controls that fail in the gate:
+  `stop_push` read its bound afresh in two waits after the ceiling it states,
+  the wait after the kill and the wait in `settle_locks`,
+  so a stop whose member the kernel had not yet released took the stop's ceiling of 18.1 s plus a 5 s grace;
+  with the 7 s window that is the gate's 30.4 s.
+  Not the retry,
+  not the sweep,
+  not the window,
+  each measured.
+  The change makes the ceiling the whole stop's bound;
+  the waits take what is left.
+  A control at the code's seam:
+  1.334 s against a 1.000 s bound with the fix out,
+  1.086 s with it in.
+  The three controls' wait is derived from the window,
+  the ceiling and a measured fixture allowance
+  (29.1 s),
+  and they ran in 15.4 to 19.2 s on this machine and three of three in the gate's image.
+  Clippy 0;
+  guards 26 of 26;
+  `SPEC.md` and two docs state the bound.
+  It noticed and left alone:
+  a server-name query that runs after the stop,
+  inside the push's measured time,
+  with a 30 s bound of its own,
+  which could account for the gate's longest sighting of 57.6 s;
+  no run owns that yet.
+  Its scratch folder is named for 2026-11-16,
+  a date not yet come;
+  the name is wrong and the content is today's.
+  Its review is queued fifth
+  (`main...374f34c4b9`,
+  two code files that are not tests).
+- **The library tests that pass alone and fail inside the suite**,
+  a fresh run,
+  ended 04:42:05 at `2c37b9a4c3`.
+  It found that "pass alone,
+  fail in the suite" does not hold for three of the four on today's code:
+  three failed for causes of their own,
+  now fixed in three files,
+  one of them a line of shipped code
+  (a read of the runtime's built flavour replaced by its sibling,
+  one atomic load);
+  the fourth's cause was already removed on `main`.
+  The library suite before:
+  3 of 7,897 failed;
+  after:
+  none of 7,898.
+  Clippy 0.
+  Its review is queued sixth
+  (`main...2c37b9a4c3`,
+  one code file that is not a test).
+  Three of the gate's standing failures wait on it.
+- **A sighting it reported and left**,
+  now a task of its own:
+  `subvolume::the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree` fails two runs in three alone,
+  because a wrapper process writes its own `cli-git-lock-holders` record while the migration copies,
+  the catch-up counts that record as an entry the new subvolume lacks,
+  and the migration refuses its own repository.
+  Two other agents saw that control flaky today.
+  That is a command failing for a reason of the wrapper's own.
+  A fresh run is queued
+  (`~/temp/agent/pi-runs/checkout-migration-does-not-refuse-its-own-repository-for-a-record-a-wrapper-wrote-during-the-copy-prompt.md`,
+  thirteenth).
+- Its other sighting,
+  `commit::native_commit_waiting_notice::tests::a_step_that_appeared_after_the_ceiling_look_is_still_stopped`,
+  passes alone and writes to no disk;
+  the run reads its 19.2 s failure as the start of a process or the paging-in of the binary from a stalled drive.
+  Not measured;
+  no run owns it.
+- Read at 04:43:27:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 04:35;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going.
+  The queue held 82 entries at 04:44:34.
+
 ##### The removal guard goes back for three findings and has two held for the landed removal's branch; the review brief's coverage goes back for a placeholder taken as finished (2026-11-15T04:37:15-05:00)
 
 Not final and not approved:
