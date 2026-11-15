@@ -1358,6 +1358,43 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The fix for the gate's Git version takes `-0` where Git refuses it; the author is resumed to ask Git for every numeric key (2026-11-14T23:22:09-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The wrapper and its controls under the Git the gate's container installs** (`23d830e96d`),
+  its review,
+  ended 23:17:14,
+  both code files and the diff.
+  One thing,
+  reproduced with the library built from the commit beside real Git 2.56.1 in a container with no network,
+  with a control that agrees:
+  for `index.maxPathLen` set to `-0`,
+  Git ends `ls-files` with status 128 and the wrapper's reader answers with status 0,
+  the parser negating a parsed zero and finding it not negative.
+- **Weighed**:
+  worth its fix.
+  The row is new and the parser older,
+  so the same spelling passes for every key of that kind;
+  the review shows it on the one key the change added.
+  The author is resumed
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-answers-its-review-of-2026-11-14-prompt.md`,
+  queued fourth),
+  asked for a control that puts a list of edge spellings to real Git for every numeric key of the table
+  and fails where the reader accepts what Git refuses,
+  with whatever else it finds counted as this task's.
+- **Seven of the gate's standing failures therefore stay** until this branch is clean.
+- Read at 23:21:37:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  21 runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 72 entries at 23:22:09.
+
 ##### The wrapper's wait for its last log line counts a failed write as written; the author is resumed (2026-11-14T23:17:23-05:00)
 
 Not final and not approved:
