@@ -121,6 +121,32 @@ pub(crate) fn parse_claim_name(name: &str) -> Option<(&str, ClaimTime)> {
     return Some((token, ClaimTime::decode(stamp)?));
 }
 
+/// What:
+///  Whether `name` is the file of the claim of `id` of the generation `token`.
+/// Why:
+///   A claim is found by its id and the generation of its acquisition,
+/// so another instance's claim of the same item is not taken for this one's,
+/// and a settlement or a renewal reaches only the claim it was made for.
+/// A claim by an earlier release has no generation,
+/// so any name of that id is its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// namesClaim(name, id, token) // idOfEntry(name) === id && (token === '' || parseClaimName(name)?.[0] === token)
+/// ```
+pub(crate) fn names_claim(name: &str, id: &str, token: &str) -> bool {
+    if id_of_entry(name) != id {
+        return false;
+    }
+    if token.is_empty() {
+        return true;
+    }
+    return match parse_claim_name(name) {
+        Some((found, _stamp)) => found == token,
+        None => false,
+    };
+}
+
 /// A fresh generation:
 /// 32 random hexadecimal digits.
 pub(crate) fn new_generation() -> Result<String, String> {

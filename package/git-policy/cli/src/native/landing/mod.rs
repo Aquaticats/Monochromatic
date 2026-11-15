@@ -430,6 +430,10 @@ pub mod service_native;
 /// The renewal that keeps the claims of a shared work directory from looking abandoned while their holder works.
 pub mod service_claim_renewal;
 
+/// Where a work record is when a move of its claim finds nothing,
+/// and the words that say which order left it there.
+pub mod work_record_where_it_went;
+
 /// The task of a running claim renewal,
 /// its driver for controls,
 /// and its stop.

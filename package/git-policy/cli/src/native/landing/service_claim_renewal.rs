@@ -55,7 +55,7 @@
 //! ```
 
 use crate::claim_time::ClaimTime;
-use crate::work_item::{CLAIMED, Claimed, entries_oldest_first, id_of_entry, parse_claim_name, renew_claim, settle_named};
+use crate::work_item::{CLAIMED, Claimed, entries_oldest_first, id_of_entry, names_claim, parse_claim_name, renew_claim, settle_named};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::cell::RefCell;
@@ -215,7 +215,7 @@ impl ClaimNames {
     /// ```
     fn name_of(&self, claim: &Claim) -> Option<&str> {
         for name in self.by_id.get(claim.id.as_str())? {
-            if names_claim(name.as_str(), claim) {
+            if names_claim(name.as_str(), claim.id.as_str(), claim.token.as_str()) {
                 return Some(name.as_str());
             }
         }
@@ -268,20 +268,6 @@ pub fn held_claims(work_dir: &Path) -> (HeldClaims, Renewer) {
 /// ```
 fn is_unsettled(entry: &(Arc<Claim>, String)) -> bool {
     return !entry.0.settled.load(Ordering::SeqCst);
-}
-
-/// Whether `name` is the file of the claim `claim` (the id and the generation match).
-fn names_claim(name: &str, claim: &Claim) -> bool {
-    if id_of_entry(name) != claim.id {
-        return false;
-    }
-    if claim.token.is_empty() {
-        return true;
-    }
-    return match parse_claim_name(name) {
-        Some((token, _stamp)) => token == claim.token,
-        None => false,
-    };
 }
 
 /// Methods over the held claims.
@@ -424,6 +410,15 @@ impl HeldClaims {
     /// A renewal that renames the
     ///  file between the look and the rename makes the rename find nothing,
     /// and the look is made again.
+    ///  A move that finds nothing says which order left the record elsewhere,
+    /// read from the record's own directories (`work_record_where_it_went.rs`):
+    /// another instance's claim,
+    /// the item queued again,
+    /// a take in flight,
+    /// a record given up on,
+    /// or a work directory that went with a repository removed under the service.
+    /// The claim's absence alone says none of those,
+    /// so it is never read as a lease that ran out.
     pub fn settle(&self, work_dir: &Path, id: &str, state: &str) -> Result<(), String> {
         let claim: Arc<Claim> = {
             let mut claims = self.claims.borrow_mut();
@@ -456,7 +451,8 @@ impl HeldClaims {
             }
         }
         let reason: String = if last.is_empty() { format!("moving {id} to {state} failed: the claim is not in {CLAIMED}") } else { last };
-        return Err(format!("{reason}; its lease probably ran out and another instance took the work over"));
+        let where_it_went: String = crate::work_record_where_it_went::words_for_a_move_that_found_nothing(work_dir, id, claim.token.as_str());
+        return Err(format!("{reason}; {where_it_went}"));
     }
 }
 

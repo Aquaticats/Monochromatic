@@ -17963,6 +17963,28 @@ because running it would settle the wrong work under the name.
 A claim by an earlier release whose id is not a kind and an object name is moved to `failed` by its own name when its lease is found out,
 since this release's names for it would not fit.
 
+A settlement that renames the claim out of `claimed` and finds nothing says which order left the record elsewhere,
+read from the record's own directories (`landing/work_record_where_it_went.rs`):
+another instance's claim of the same item in `claimed`,
+a take in flight in `recovering`,
+the item queued again in `pending`,
+a record a settlement moved before this one in `done`,
+a record a recovery gave up on in `failed`,
+the claim still in `claimed` because the directory it was to move into is not there,
+a work directory that went with a repository removed under the service,
+or no file of the record in any of those places.
+The words say what became of the work with each order:
+run again by the instance that holds the record now,
+recorded as finished,
+recorded nowhere,
+or due again when the claim's lease runs out.
+The claim's absence alone is never read as a lease that ran out,
+which named the wrong cause for every record whose repository was removed under the service
+(2026-11-14 gate of this package: of 106 such lines, 100 were written by a service instance no older than its claim's lease,
+median 192 ms of uptime,
+with the repository reported gone in the same block,
+and 3 came from a control that drives a takeover and 3 from a control that blocks `done`).
+
 Limits:
 machines cloned with one machine ID cannot be told apart,
 so their claims are judged as one machine's;

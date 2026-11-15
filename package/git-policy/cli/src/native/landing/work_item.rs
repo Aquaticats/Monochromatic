@@ -29,7 +29,7 @@ use crate::private_storage::{create_private_directory_all, write_private_file_un
 use crate::service_timing::log;
 pub use crate::work_item_kinds_and_their_names::WorkKind;
 pub use crate::work_item_state_directories_and_claim_names::{CLAIMED, DONE, FAILED, HELD, PENDING, RECOVERING, claim_file_name, id_of_entry, state_directory};
-pub(crate) use crate::work_item_state_directories_and_claim_names::{entries_oldest_first, new_generation, parse_claim_name};
+pub(crate) use crate::work_item_state_directories_and_claim_names::{entries_oldest_first, names_claim, new_generation, parse_claim_name};
 use serde_json::{Map, Value};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
