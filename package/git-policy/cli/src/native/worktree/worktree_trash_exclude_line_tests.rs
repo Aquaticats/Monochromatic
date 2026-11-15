@@ -58,7 +58,7 @@ fn the_line_joins_the_persons_patterns_without_rewriting_them() {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(readFileSync(exclude)).toEqual(Buffer.concat([Buffer.from([0xff, 0x0a]), Buffer.from('/.claude/cli-git-trash/\n')]));
+/// expect(readFileSync(exclude)).toEqual(Buffer.concat([Buffer.from([0xff, 0x0a]), Buffer.from('\n/.claude/cli-git-trash/\n')]));
 /// ```
 #[test]
 fn a_pattern_that_is_not_text_is_kept_byte_for_byte() {
@@ -70,7 +70,9 @@ fn a_pattern_that_is_not_text_is_kept_byte_for_byte() {
     assert!(git(repo.as_path(), &[OsStr::new("check-ignore"), OsStr::new("--quiet"), OsStr::new("--"), name]).status.success(), "control: the person's pattern ignores the file");
     let added: bool = ensure_trash_is_excluded(repo.join(".git").as_path()).expect("the line is written");
     assert!(added, "the line was not there before");
-    assert_eq!(std::fs::read(repo.join(".git/info/exclude")).expect("the file"), b"secret-\xff\n/.claude/cli-git-trash/\n".to_vec(), "not one byte of the person's pattern changed");
+    // The added batch begins with a line end whatever the file ended with when it was read, so a pattern written by another
+    //  command in the window cannot carry this line onto its own (see the append's own reasoning).
+    assert_eq!(std::fs::read(repo.join(".git/info/exclude")).expect("the file"), b"secret-\xff\n\n/.claude/cli-git-trash/\n".to_vec(), "not one byte of the person's pattern changed");
     assert!(git(repo.as_path(), &[OsStr::new("check-ignore"), OsStr::new("--quiet"), OsStr::new("--"), name]).status.success(), "and the pattern still ignores the file it names");
     remove(root.as_path());
 }
@@ -125,7 +127,7 @@ fn a_repository_with_no_exclude_file_gets_one() {
     std::fs::remove_file(repo.join(".git/info/exclude")).expect("Git writes one at init");
     let added: bool = ensure_trash_is_excluded(repo.join(".git").as_path()).expect("the line is written");
     assert!(added);
-    assert_eq!(read(repo.as_path(), ".git/info/exclude"), format!("{TRASH_EXCLUDE_LINE}\n"));
+    assert_eq!(read(repo.as_path(), ".git/info/exclude"), format!("\n{TRASH_EXCLUDE_LINE}\n"), "a blank first line, which Git reads as nothing, and the line");
     remove(root.as_path());
 }
 
@@ -320,5 +322,39 @@ fn a_line_another_writer_appends_between_the_read_and_the_write_keeps_both_lines
         TRASH_EXCLUDE_LINE.as_bytes(),
         "a joined line is not read as the wrapper's pattern"
     );
+    remove(root.as_path());
+}
+
+/// What:
+///  A thousand calls on one repository leave one blank line and one pattern,
+///  and every call after the first writes nothing.
+/// Why:
+///   The batch begins with a line end whether or not one was needed,
+/// and blank lines would then pile up with every add if the step appended every time:
+/// it appends only when its line is missing,
+/// so the file pays one line end per repository and never one per add.
+/// The second answer is what a person's `git add` costs once the line is there.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answers = times(1000, () => ensureTrashIsExcluded(gitDir)); expect(answers.filter(Boolean)).toHaveLength(1); expect(readFileSync(exclude)).toBe('\n/.claude/cli-git-trash/\n')
+/// ```
+#[test]
+fn a_thousand_calls_leave_one_blank_line_and_one_pattern() {
+    let root: PathBuf = fixture("trash-exclude-thousand");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    let mut written: usize = 0;
+    for _ in 0..1_000 {
+        if ensure_trash_is_excluded(repo.join(".git").as_path()).expect("the line is answered for") {
+            written += 1;
+        }
+    }
+    assert_eq!(written, 1, "only the first call writes");
+    // The fixture's file is Git's own template, which the step keeps whole: the addition is one blank line and one pattern
+    // at the end of it, and a thousand calls leave exactly that.
+    let file: String = read(repo.as_path(), ".git/info/exclude");
+    let additions: usize = file.matches(TRASH_EXCLUDE_LINE).count();
+    assert_eq!(additions, 1, "one pattern, however many adds the repository has seen: {file:?}");
+    assert!(file.ends_with(&format!("\n\n{TRASH_EXCLUDE_LINE}\n")), "one blank line before it and one line end after it: {file:?}");
     remove(root.as_path());
 }
