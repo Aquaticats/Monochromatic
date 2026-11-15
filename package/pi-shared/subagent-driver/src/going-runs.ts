@@ -32,16 +32,13 @@ import { optionIn, } from './option-in.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import { unitStateIsRunning, } from './wait-for-a-unit-to-end.ts';
 import {
-  NO_FINISHED_RUN_OF_THAT_NAME,
-  newestFinishedRunOf,
-} from './newest-finished-run-of-a-name.ts';
-import {
   firstWordOf,
   isDigitsOnly,
   valueOfOption,
 } from './text-of-an-option.ts';
 import {
   type HolderOfARunName,
+  runEndedForLauncher,
   startedAtOf,
   unitFactsIn,
   unitFactsOf,
@@ -49,6 +46,7 @@ import {
 
 export {
   type HolderOfARunName,
+  runEndedForLauncher,
   startedAtOf,
   unitFactsIn,
   unitFactsOf,
@@ -443,15 +441,24 @@ export async function goingRunsNow({
       continue;
     }
     // A manager that cannot be asked must never drop a live run from the counts, and a launcher whose unit is not there yet has not
-    // made it: both are counted. Only a launcher whose latest run folder holds a summary is one whose run ended.
+    // made it: both are counted. Only a summary written after this launcher began says its run ended.
     /**
-     Whether the run this launcher started has ended, which its newest run folder holding a summary says.
+     When this launcher began, which is the only moment a summary of its name can be held against.
+     */
+    const since = ((launcher.held
+      ?.kind
+      === 'launcher') ? (launcher.held
+        .since
+        ?? '') : '');
+    /**
+     Whether the run this launcher started has ended, which a summary written after the launcher began says.
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- the run folders of the launcher just read
-    const runEnded = (runsFolder !== undefined) && ((await newestFinishedRunOf({
+    const runEnded = (runsFolder !== undefined) && (await runEndedForLauncher({
       runsFolder,
       runName: launcher.name,
-    },)) !== NO_FINISHED_RUN_OF_THAT_NAME);
+      since,
+    },));
     if (!runEnded) {
       stillGoing.push(launcher,);
     }

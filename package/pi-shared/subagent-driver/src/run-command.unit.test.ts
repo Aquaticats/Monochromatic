@@ -68,9 +68,34 @@ async function processEntries(): Promise<readonly string[]> {
   try {
     return await readdir('/proc',);
   }
-  catch {
+  catch (error) {
+    // A folder that cannot be read here holds no process of this test.
     return [];
   }
+}
+
+/**
+ Says whether a word of the process folder is a process number, which is every character a digit.
+
+ @param word - one entry of the process folder
+
+ @returns whether it is a number
+
+ @example
+ ```ts
+ const number = isDigits({ word: '12' });
+ ```
+ */
+function isDigits({ word, }: { readonly word: string },): boolean {
+  if (word === '') {
+    return false;
+  }
+  for (const character of word) {
+    if ((character < '0') || (character > '9')) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -91,7 +116,7 @@ async function aChildStillRuns({ word, }: { readonly word: string },): Promise<b
    */
   const entries = await processEntries();
   for (const entry of entries) {
-    if (!/^[0-9]+$/.test(entry,)) {
+    if (!isDigits({ word: entry, },)) {
       continue;
     }
     try {
@@ -101,7 +126,7 @@ async function aChildStillRuns({ word, }: { readonly word: string },): Promise<b
         return true;
       }
     }
-    catch {
+    catch (error) {
       // A process of another account, or one that ended between the listing and the read, carries no word of this test.
     }
   }

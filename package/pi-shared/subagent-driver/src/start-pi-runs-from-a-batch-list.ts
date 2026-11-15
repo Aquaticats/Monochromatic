@@ -32,6 +32,7 @@ import {
   retryingStartEntry,
   startThroughTheRetryingStart,
 } from './start-through-the-retrying-start.ts';
+import { keepStartAnswersOfABatch, } from './start-answer-of-an-entry.ts';
 import { reportOnStandardOutput, } from './standard-output-of-a-command.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
 
@@ -73,6 +74,7 @@ const entries = batchEntriesIn({
  */
 const {
   lines,
+  answers,
   failed,
 } = await startBatch({
   entries,
@@ -98,6 +100,12 @@ const {
       report: reportOnStandardError,
     },);
   },
+},);
+
+await keepStartAnswersOfABatch({
+  runsFolder: options.runsFolder,
+  answers,
+  report: reportOnStandardError,
 },);
 
 for (const line of lines) {

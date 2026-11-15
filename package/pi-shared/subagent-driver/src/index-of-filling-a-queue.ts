@@ -88,9 +88,7 @@ export {
   WATCHED_START_FILE_SUFFIX,
   type WatchedStart,
   WatchedStartError,
-  gaveUpAtItsDeadline,
   isAWatchedStartFile,
-  launcherReasonIn,
   removeWatchedStart,
   watchedStartFileOf,
   watchedStartIn,
@@ -102,6 +100,17 @@ export {
   runExistsFor,
   settleWatchedStarts,
 } from './settling-the-starts-a-filling-watches.ts';
+export {
+  NO_START_ANSWER,
+  START_ANSWER_FILE_SUFFIX,
+  type StartAnswerOfAnEntry,
+  StartAnswerError,
+  gaveUpWaitingForAPlaceIn,
+  keepStartAnswersOfABatch,
+  startAnswerFileOf,
+  startAnswerOf,
+  writeStartAnswer,
+} from './start-answer-of-an-entry.ts';
 export {
   FILLING_ROUND_SECONDS,
   STALLED_FILLING_BOUND_MILLISECONDS,

@@ -20,36 +20,15 @@ import {
   readFile,
   rename,
   rm,
-  stat,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { caughtValueText, } from '@monochromatic-dev/caught-value-core/ts';
-import { errorCodeOf, } from './error-code-of.ts';
-import {
-  entriesOrNothingIn,
-  NO_FINISHED_RUN_OF_THAT_NAME,
-  SUMMARY_FILE_NAME,
-  newestFinishedRunOf
-} from './newest-finished-run-of-a-name.ts';
+import { entriesOrNothingIn, } from './newest-finished-run-of-a-name.ts';
 import {
   isQueueRecord,
-  putAQueueEntryIn,
   type QueueRecord,
-  readQueueOfRuns,
 } from './queue-of-runs.ts';
-import type { RunCommand, } from './run-command.ts';
-import { unitNameOfGiven, } from './running-pi-units.ts';
-import { writeSetAsideRecord, } from './set-aside-entry.ts';
-import {
-  unitStateIsRunning,
-  unitStateOf,
-} from './wait-for-a-unit-to-end.ts';
-
-/**
- The code the operating system gives a path that is not there.
- */
-const MISSING_PATH_CODE = 'ENOENT';
 
 /**
  The end of the file one start's record is written to, which sits beside the runs under the entry's name.
@@ -67,17 +46,6 @@ function noReport(): void {
  The end of the file a record is written through, which is renamed over the record.
  */
 const BEING_WRITTEN_SUFFIX = '.being-written';
-
-/**
- How much of what a batch printed is read for the reason its launcher ended with. The line a launcher's failure is on is the last
- one the batch printed, and the whole of what a start printed is kept beside the runs when it is long.
- */
-const BATCH_OUTPUT_TAIL_CHARACTERS = 65_536;
-
-/**
- The words the retrying start prints when it gave up asking for a place before its deadline, which is no fault of the entry.
- */
-const DEADLINE_WORDS = 'no slot freed before the deadline';
 
 /**
  One start the filling made and has not settled.
@@ -128,26 +96,6 @@ export class WatchedStartError extends Error {
    */
   override readonly name = 'WatchedStartError';
 }
-
-/**
- What became of one watched start.
- */
-export type SettledStart = {
-  /**
-   The entry's name.
-   */
-  readonly name: string;
-
-  /**
-   What became of it.
-   */
-  readonly outcome: 'the-run-exists' | 'put-back' | 'set-aside' | 'still-going' | 'never-left-the-queue';
-
-  /**
-   The line the filling says, or nothing while the start is still going.
-   */
-  readonly line?: string;
-};
 
 /**
  Reads the file one start's record is written to.
@@ -441,95 +389,4 @@ export async function removeWatchedStart({
     },),
     { force: true, },
   );
-}
-
-/**
- Reads the last of what a batch's unit printed, which ends with the reason its launcher gave.
-
- @param file - the file both of the unit's streams went to
-
- @returns the text, and nothing when the file is not there
-
- @example
- ```ts
- const said = await tailOf({ file: '/runs/batch-a.out', });
- ```
- */
-async function tailOf({ file, }: { readonly file: string },): Promise<string> {
-  try {
-    /**
-     What the file system says about the file.
-     */
-    const { size, } = await stat(file,);
-    /**
-     The bytes to read, of the end of the file.
-     */
-    const bytes = Math.min(
-      BATCH_OUTPUT_TAIL_CHARACTERS,
-      size,
-    );
-    if (bytes === 0) {
-      return '';
-    }
-    /**
-     The file, read again for its end.
-     */
-    return (await readFile(
-      file,
-      'utf8',
-    )).slice(-bytes,);
-  }
-  catch (error) {
-    if (errorCodeOf(error,) === MISSING_PATH_CODE) {
-      return '';
-    }
-    throw error;
-  }
-}
-
-/**
- Reads the reason a launcher ended with, out of what its batch printed.
-
- @param file - the file both of the batch unit's streams went to
-
- @returns the last line the batch printed, which names the launcher's own reason, and nothing when it printed none
-
- @example
- ```ts
- const reason = await launcherReasonIn({ file: '/runs/batch-a.out', });
- ```
- */
-export async function launcherReasonIn({ file, }: { readonly file: string },): Promise<string> {
-  /**
-   The end of what the batch printed.
-   */
-  const said = await tailOf({ file, },);
-  /**
-   Its lines, without the empty ones a file ends with.
-   */
-  const lines = said.split('\n',)
-    .filter(function isNotBlank(line,) {
-      return line.trim() !== '';
-    },);
-  /**
-   The last line, which the batch prints once every entry it started has ended.
-   */
-  const last = lines.at(-1,);
-  return (last ?? '').trim();
-}
-
-/**
- Says whether a launcher only gave up waiting for a place before any run existed.
-
- @param reason - the last line the batch printed
-
- @returns whether the retrying start gave up at its deadline
-
- @example
- ```ts
- const gaveUp = gaveUpAtItsDeadline({ reason: 'no slot freed before the deadline: --name=a', });
- ```
- */
-export function gaveUpAtItsDeadline({ reason, }: { readonly reason: string },): boolean {
-  return reason.includes(DEADLINE_WORDS,);
 }

@@ -16,6 +16,10 @@ import {
   ENTRY_REASON_CHARACTERS,
   reasonInFailedStart,
 } from './reason-in-a-failed-start.ts';
+import {
+  gaveUpWaitingForAPlaceIn,
+  type StartAnswerOfAnEntry,
+} from './start-answer-of-an-entry.ts';
 
 /**
  Milliseconds between starting one entry and the next, which is what keeps a batch's starts from all asking for a slot at once.
@@ -442,6 +446,11 @@ export type StartedBatch = {
   readonly lines: readonly string[];
 
   /**
+   What each entry own start ended with, in the same order, which the settling reads as a field rather than out of a line.
+   */
+  readonly answers: readonly StartAnswerOfAnEntry[];
+
+  /**
    The names of the entries whose start did not end with status 0, including one that never started at all.
    */
   readonly failed: readonly string[];
@@ -515,10 +524,13 @@ export async function startBatch({
   /**
    The lines it ended with, in the same order.
    */
-  const lines = await Promise.all(answered.map(async function lineFor(
+  const stated = await Promise.all(answered.map(async function lineFor(
     startedEntry,
     index,
-  ) {
+  ): Promise<{
+    readonly line: string;
+    readonly keptAt?: string
+  }> {
     /**
      The run this line is about.
      */
@@ -534,12 +546,48 @@ export async function startBatch({
         name,
         output: startedEntry.output,
       },)).keptAt;
-    return entryLineOf({
-      name,
-      started: startedEntry,
+    return {
+      line: entryLineOf({
+        name,
+        started: startedEntry,
+        ...(keptAt === undefined ? {} : { keptAt, }),
+      },),
       ...(keptAt === undefined ? {} : { keptAt, }),
-    },);
+    };
   },),);
+  /**
+   The line each entry ended with, in the list own order.
+   */
+  const lines = stated.map(function lineOf(one,) {
+    return one.line;
+  },);
+  /**
+   What each entry own start ended with, as a value rather than a line: the status it ended with, and whether that status is the
+   retrying start giving up for want of a place, which is no fault of the entry.
+   */
+  const answers: readonly StartAnswerOfAnEntry[] = stated.map(function answerOf(
+    one,
+    index,
+  ) {
+    /**
+     The run this answer is about.
+     */
+    const name = entries[index]
+      ?.name
+      ?? '';
+    /**
+     The status the start ended with, when it ran to one.
+     */
+    const status = answered[index]
+      ?.status;
+    return {
+      name,
+      ...(status === undefined ? {} : { status, }),
+      gaveUpWaitingForAPlace: gaveUpWaitingForAPlaceIn((status === undefined ? {} : { status, })),
+      line: one.line,
+      ...(one.keptAt === undefined ? {} : { keptOutputAt: one.keptAt, }),
+    };
+  },);
   /**
    The runs that did not start, which are why the batch answers with a failing status.
    */
@@ -557,6 +605,7 @@ export async function startBatch({
   },);
   return {
     lines,
+    answers,
     failed,
   };
 }

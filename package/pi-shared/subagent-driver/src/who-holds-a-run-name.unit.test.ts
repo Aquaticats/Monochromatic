@@ -372,6 +372,18 @@ await describe({
                 '--name=a',
               ],
             },);
+            /**
+             The moment that launcher began, put a minute back so the summary its own run wrote is strictly later.
+             */
+            const aMinuteBefore = new Date(Date.now() - 60_000,);
+            await utimes(
+              join(
+                folder.processes,
+                '21',
+              ),
+              aMinuteBefore,
+              aMinuteBefore,
+            );
             await writeFinishedRun({
               runs: folder.runs,
               name: 'a',

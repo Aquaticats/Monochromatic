@@ -27,9 +27,7 @@ import {
   NO_SET_ASIDE_RECORD,
   type QueueRecord,
   type RunCommand,
-  gaveUpAtItsDeadline,
   isAWatchedStartFile,
-  launcherReasonIn,
   putAQueueEntryIn,
   readQueueOfRuns,
   removeWatchedStart,
@@ -67,6 +65,44 @@ type AThrowawayFolder = {
    */
   readonly [Symbol.asyncDispose]: () => Promise<void>;
 };
+
+/**
+ Writes the answer the batch that started one entry says its start ended with.
+
+ @param folder - the folder the runs live in
+
+ @param name - the entry's own name
+
+ @param answer - what the answer says
+
+ @example
+ ```ts
+ await writeStartAnswer({ folder, name: 'a', answer: { name: 'a', status: 0, gaveUpWaitingForAPlace: false, line: 'a: status 0' }, },);
+ ```
+ */
+async function writeStartAnswer({
+  folder,
+  name,
+  answer,
+}: {
+  readonly folder: AThrowawayFolder;
+  readonly name: string;
+  readonly answer: {
+    readonly name: string;
+    readonly status: number;
+    readonly gaveUpWaitingForAPlace: boolean;
+    readonly line: string;
+    readonly keptOutputAt?: string;
+  };
+},): Promise<void> {
+  await writeFile(
+    join(
+      folder.runs,
+      `${name}-start-answer.json`,
+    ),
+    `${JSON.stringify(answer,)}\n`,
+  );
+}
 
 /**
  A folder a test may write in, with its runs and its queue, removed when the test ends.
@@ -301,41 +337,6 @@ await describe({
       ],
     },),
     describe({
-      name: launcherReasonIn.name,
-      children: [
-        it({
-          name: 'answers the last line the batch printed, nothing when it printed nothing, and names a wait that gave up at its deadline',
-          fn: async () => {
-            await using folder = await makeFolder([],);
-            /**
-             What the batch printed.
-             */
-            const file = join(folder.runs, 'batch-a.out',);
-            await writeFile(
-              file,
-              'ALREADY RUNNING: a\na: status 4 ALREADY RUNNING: a (all it printed: /runs/a-start-failure.log)\n1 of 1 entries failed: a\n',
-            );
-            expect(await launcherReasonIn({ file, },),).toBe('1 of 1 entries failed: a',);
-            expect(gaveUpAtItsDeadline({ reason: await launcherReasonIn({ file, },), },),).toBe(false,);
-            await writeFile(
-              file,
-              'WAITING: a asks for a pool\nno slot freed before the deadline: --name=a\n1 of 1 entries failed: a\n',
-            );
-            /**
-             The line the retrying start ended with.
-             */
-            const gaveUp = 'no slot freed before the deadline: --name=a\n';
-            await writeFile(
-              file,
-              `WAITING: a asks for a pool\n${gaveUp}`,
-            );
-            expect(gaveUpAtItsDeadline({ reason: await launcherReasonIn({ file, },), },),).toBe(true,);
-            expect(await launcherReasonIn({ file: join(folder.runs, 'not-there.out',), },),).toBe('',);
-          },
-        },),
-      ],
-    },),
-    describe({
       name: runExistsFor.name,
       children: [
         it({
@@ -420,6 +421,16 @@ await describe({
               name: 'a',
               printed: 'WAITING: a asks for a pool\nno slot freed before the deadline: --name=a\n',
             },);
+            await writeStartAnswer({
+              folder,
+              name: 'a',
+              answer: {
+                name: 'a',
+                status: 3,
+                gaveUpWaitingForAPlace: true,
+                line: 'a: status 3 no slot freed before the deadline: --name=a',
+              },
+            },);
             /**
              What settling found.
              */
@@ -459,6 +470,17 @@ await describe({
               name: 'a',
               printed: 'ALREADY RUNNING: a\na: status 4 ALREADY RUNNING: a (all it printed: /runs/a-start-failure.log)\n1 of 1 entries failed: a\n',
             },);
+            await writeStartAnswer({
+              folder,
+              name: 'a',
+              answer: {
+                name: 'a',
+                status: 4,
+                gaveUpWaitingForAPlace: false,
+                line: 'a: status 4 ALREADY RUNNING: a',
+                keptOutputAt: '/runs/a-start-failure.log',
+              },
+            },);
             /**
              What settling found.
              */
@@ -471,7 +493,7 @@ await describe({
             },);
             expect(settled[0]?.outcome,).toBe('set-aside',);
             expect(settled[0]?.line,).toContain('set aside a (the-launcher)',);
-            expect(settled[0]?.line,).toContain('1 of 1 entries failed: a',);
+            expect(settled[0]?.line,).toContain('ALREADY RUNNING: a',);
             /**
              The record the set-aside wrote, which holds the entry whole and the reason it was set aside for.
              */
@@ -481,7 +503,7 @@ await describe({
             },);
             expect(typeof record,).toBe('object',);
             if ((typeof record) === 'object') {
-              expect(record.reason,).toBe('1 of 1 entries failed: a',);
+              expect(record.reason,).toBe('a: status 4 ALREADY RUNNING: a',);
               expect(record.entry,).toEqual(anEntry({ name: 'a', },),);
             }
             expect(await readQueueOfRuns({ queueFile: folder.queueFile, },),).toEqual([],);

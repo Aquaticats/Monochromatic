@@ -12,7 +12,10 @@ import {
 } from 'node:child_process';
 import { once, } from 'node:events';
 import { promisify, } from 'node:util';
-import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
+import {
+  MILLISECONDS_PER_SECOND,
+  TEARDOWN_ANSWER_MILLISECONDS,
+} from './driver-constants.ts';
 
 /**
  Bytes in one mebibyte.
@@ -336,6 +339,90 @@ export type ShownCommandEnding = {
 };
 
 /**
+ How long a program that has been sent the polite signal is given to close before it is killed.
+
+ Five seconds, the answer `TEARDOWN_ANSWER_MILLISECONDS` already gives a program at teardown: a program that has not closed five
+ seconds after its polite signal is not going to, and its caller must not wait on it.
+ */
+const POLITE_SIGNAL_GRACE_MILLISECONDS: number = TEARDOWN_ANSWER_MILLISECONDS;
+
+/**
+ The caller's own bound: the polite signal at the bound, a kill a stated grace after it, and an answer at the bound itself.
+
+ The answer is the bound's own, never the program's: a program that ignores the polite signal would otherwise hold its caller for as
+ long as it likes, which the review of `main...090e416990` reproduced on 2026-11-15 with a child that ignored `SIGTERM` and a
+ caller with a 100 ms bound still unsettled after a second.
+
+ What such a bound leaves behind is the program itself: sent the polite signal at the bound, and killed a grace later if it has not
+ closed. Nothing of the caller waits on it, because the child and both timers are unref-ed, and the program's streams are the
+ caller's own (a terminal, or a unit's output file), so no pipe of the caller keeps it alive.
+
+ @param child - the process the bound is on
+
+ @param timeoutMilliseconds - when the bound passes
+
+ @returns the answer that settles at the bound, and how to clear it when the program closes first
+
+ @example
+ ```ts
+ const bound = aBoundOf({ child, timeoutMilliseconds: 1_000, },);
+ ```
+ */
+function aBoundOf({
+  child,
+  timeoutMilliseconds,
+}: {
+  readonly child: ChildProcess;
+  readonly timeoutMilliseconds: number;
+},): {
+  readonly answer: Promise<ShownCommandEnding>;
+  readonly stop: () => void;
+} {
+  /**
+   The timer the bound is kept by, which the caller may clear.
+   */
+  const keeping: { timer?: NodeJS.Timeout } = {};
+  /**
+   The answer the bound settles, which no program of its own can postpone.
+   */
+  // A timer is a callback API, and this promise settles once: at the bound, or never when the program closes first.
+  // oxlint-disable-next-line promise/avoid-new -- the one bridge the package needs around a timer, which settles exactly once
+  const answer = new Promise<ShownCommandEnding>(function settleAtTheBound(resolve,) {
+    // The one bridge this package needs around a timer: a callback API that settles once, which the rule about promises allows.
+    keeping.timer = setTimeout(
+      function endAtItsBound() {
+        // The polite signal, so a launcher ended this way still prints the line it ends with.
+        child.kill('SIGTERM',);
+        /**
+         The kill a stated grace after the polite signal, which runs on its own: the caller has its answer already.
+         */
+        const kill = setTimeout(
+          function killIt() {
+            child.kill('SIGKILL',);
+          },
+          POLITE_SIGNAL_GRACE_MILLISECONDS,
+        );
+        kill.unref();
+        // The caller does not wait for the program, so nothing it holds keeps the caller alive.
+        child.unref();
+        resolve({ endedByItsOwnBound: true, },);
+      },
+      timeoutMilliseconds,
+    );
+    keeping.timer
+      .unref();
+  },);
+  return {
+    answer,
+    stop: function clearTheBound() {
+      if (keeping.timer !== undefined) {
+        clearTimeout(keeping.timer,);
+      }
+    },
+  };
+}
+
+/**
  Waits for one command to close, and answers how it did.
 
  @param child - the process
@@ -422,33 +509,33 @@ export async function runCommandShowingItsOutput({
     },
   );
   /**
-   Whether the caller's own bound is what ended it.
+   How the command ended when it closed on its own, or why it could not be started.
    */
-  const ended: { byItsOwnBound: boolean } = { byItsOwnBound: false, };
+  const closing = closingOfACommand(child,);
   /**
-   The timer that ends it at the caller's own bound, or nothing when the caller gave none.
+   How the caller's own bound ends the wait, or nothing when the caller gave none.
    */
   const bound = (timeoutMilliseconds === undefined)
     ? undefined
-    : setTimeout(
-      function endAtItsBound() {
-        ended.byItsOwnBound = true;
-        // The polite signal, so a launcher ended this way still prints the line it ends with.
-        child.kill('SIGTERM',);
-      },
+    : aBoundOf({
+      child,
       timeoutMilliseconds,
-    );
+    },);
   /**
-   How the process ended, or why it could not be started.
+   How the command ended, which is its own close or the bound, whichever came first.
    */
-  const closing: ShownCommandEnding = await closingOfACommand(child,);
+  /**
+   How the command ended, which is its own close or the bound, whichever came first.
+   */
+  const ending = (bound === undefined)
+    ? await closing
+    : await Promise.race([
+      closing,
+      bound.answer,
+    ],);
+
   if (bound !== undefined) {
-    clearTimeout(bound,);
+    bound.stop();
   }
-  return ended.byItsOwnBound
-    ? {
-      ...closing,
-      endedByItsOwnBound: true,
-    }
-    : closing;
+  return ending;
 }

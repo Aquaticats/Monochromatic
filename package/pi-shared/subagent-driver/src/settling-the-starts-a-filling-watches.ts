@@ -2,8 +2,11 @@
  Settling the starts a filling made: the entry is out of the queue only when its run exists, and an entry whose launcher ended
  without a run goes back to the head of the queue or aside with the launcher's own reason.
 
- Both are read from the record one start writes, in `start-of-a-queue-entry-the-filling-watches.ts`; this module is the round that
- acts on it.
+ Both are read from the record one start writes, in `start-of-a-queue-entry-the-filling-watches.ts`, and from the answer the
+ batch that started it wrote, in `start-answer-of-an-entry.ts`; this module is the round that acts on them.
+
+ What the manager says of the batch's unit is asked first: an entry still queued beside a batch that is going is the state a
+ filling killed between its start and its take leaves, and taking the entry out there settles it to that one batch.
 
  @module
  */
@@ -19,13 +22,16 @@ import {
 import {
   putAQueueEntryIn,
   readQueueOfRuns,
+  takeAQueueEntryOut,
 } from './queue-of-runs.ts';
 import type { RunCommand, } from './run-command.ts';
 import { unitNameOfGiven, } from './running-pi-units.ts';
 import { writeSetAsideRecord, } from './set-aside-entry.ts';
 import {
-  launcherReasonIn,
-  gaveUpAtItsDeadline,
+  NO_START_ANSWER,
+  startAnswerOf,
+} from './start-answer-of-an-entry.ts';
+import {
   removeWatchedStart,
   type WatchedStart,
   watchedStartsIn,
@@ -47,7 +53,13 @@ export type SettledStart = {
   /**
    What became of it.
    */
-  readonly outcome: 'the-run-exists' | 'put-back' | 'set-aside' | 'still-going' | 'never-left-the-queue';
+  readonly outcome: 
+    | 'the-run-exists'
+      | 'put-back'
+      | 'set-aside'
+      | 'still-going'
+      | 'never-left-the-queue'
+      | 'batch-state-unread';
 
   /**
    The line the filling says, or nothing while the start is still going.
@@ -226,11 +238,48 @@ async function settleOneStart({
    */
   const time = new Date(now(),).toISOString();
   /**
+   What the manager says of the batch unit now, which is asked before anything is dropped: an entry still queued beside a batch
+   that is going is the state a kill leaves, and it settles to that one batch.
+   */
+  const batchState = await unitStateOf({
+    run,
+    unitName: `${record.unit}.service`,
+  },);
+  if (batchState === '') {
+    // A manager that cannot be asked says nothing about the batch. Dropping the record could start a second batch for one entry, so
+    // the record stays and a reader is told why.
+    return {
+      name: record.name,
+      outcome: 'batch-state-unread',
+      line: `${time} ${record.name}: the state of ${record.unit}.service could not be read, so its start is left as it is and its entry stays where it is`,
+    };
+  }
+  if (unitStateIsRunning({ state: batchState, },)) {
+    /**
+     What taking the entry out of the queue answered, which says whether the filling that was killed had left it there.
+     */
+    const taken = await takeAQueueEntryOut({
+      queueFile,
+      name: record.name,
+    },);
+    return {
+      name: record.name,
+      outcome: 'still-going',
+      ...((taken.taken
+        .length
+        === 0)
+        ? {}
+        : {
+          line: `${time} ${record.name}: its batch is going, so its entry leaves the queue and the record of its start stays until that batch settles`,
+        }),
+    };
+  }
+  /**
    The queue as it stands.
    */
   const queue = await readQueueOfRuns({ queueFile, },);
-  // A kill between writing the record and taking the entry out leaves the entry where it was: nothing is lost, so the record goes
-  // away and the next pass tries the entry again.
+  // The batch is not going, so an entry still queued is a start that never got handed on: nothing is lost, the record goes and the
+  // next pass tries the entry again.
   if (queue.some(function isStillQueued(entry,) {
     return entry.name === record.name;
   },)) {
@@ -242,19 +291,6 @@ async function settleOneStart({
       name: record.name,
       outcome: 'never-left-the-queue',
       line: `${time} ${record.name}: its entry never left the queue, so the record of its start is dropped and the entry is tried again`,
-    };
-  }
-  /**
-   Whether the batch that was asked for this entry is still going, which is the start being under way.
-   */
-  const batchState = await unitStateOf({
-    run,
-    unitName: `${record.unit}.service`,
-  },);
-  if (unitStateIsRunning({ state: batchState, },)) {
-    return {
-      name: record.name,
-      outcome: 'still-going',
     };
   }
   /**
@@ -277,16 +313,19 @@ async function settleOneStart({
     };
   }
   /**
-   The reason the launcher ended with, read from what its batch printed.
+   What the launcher said its start ended with, which is a field beside the runs and never the last line its batch printed.
    */
-  const reason = await launcherReasonIn({ file: record.outputFile, },);
+  const answer = await startAnswerOf({
+    runsFolder,
+    name: record.name,
+  },);
   /**
-   What to say about the launcher when it printed nothing at all.
+   What a launcher that said nothing leaves behind.
    */
-  const why = (reason === '')
-    ? `its launcher ended with no run and printed nothing into ${record.outputFile}`
-    : reason;
-  if (gaveUpAtItsDeadline({ reason: why, },)) {
+  const why = (answer === NO_START_ANSWER)
+    ? 'its launcher ended with no run and wrote no start answer beside the runs'
+    : answer.line;
+  if ((answer !== NO_START_ANSWER) && answer.gaveUpWaitingForAPlace) {
     await putAQueueEntryIn({
       queueFile,
       entry: record.entry,
@@ -299,11 +338,11 @@ async function settleOneStart({
     return {
       name: record.name,
       outcome: 'put-back',
-      line: `${time} put ${record.name} back at the head of the queue: its launcher gave up waiting for a place before any run existed (${why})`,
+      line: `${time} put ${record.name} back at the head of the queue: it gave up waiting for a place before any run existed (${why})`,
     };
   }
   /**
-   Where the entry's set-aside record was written.
+   Where the entry set-aside record was written.
    */
   const file = await writeSetAsideRecord({
     runsFolder,
