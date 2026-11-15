@@ -3236,6 +3236,10 @@ What the removal deletes besides the files Git tracks is named in the line that 
  with the tip of every branch it holds,
  because the owner's decision of 2026-11-12T13:04:14-05:00 lets both go and says each thing that goes is
  logged.
+A removal deletes an ignored folder with what it holds, a Git repository included,
+ and the line that reports the removal says that a repository went and which branches it held
+ (the owner's decision of 2026-11-15, "Delete as ignored", keeps that literal:
+ the nested repository goes with the worktree and the deletion is logged).
  The service proves that same list again immediately before it destroys anything
  (`src/native/worktree/worktree_removal_second_look.rs`):
  the registrations are read again,
@@ -11391,27 +11395,22 @@ so no event is an exception.
   A shell alias (`!...`) is run by Git's shell,
   which finds real Git's own `git` first on `PATH`,
   so the command inside it runs with the options Git gives that shell and not with these.
+  Every `!` alias is forwarded to real Git as it is
+  (the owner's decision of 2026-11-15, "Forward them unguarded"): it is not judged, refused, or asked for an opt-out,
+  and every alias keeps working.
+  The hole that decision accepts, stated here where a person meets the guard:
+  **a shell alias that runs a removal of a worktree is not looked at.**
   Nothing of the wrapper can stand inside that shell: it never starts itself as a shim and never writes shell text
   (`doc/planning/cli-git-no-self-invocation.md`,
   the owner's "We should never invoke ourselves recursively"),
-  and a text a shell runs cannot be read to the end,
-  because a shell can build the words another way (`action=remove; git worktree $action`, a substitution, a function,
-  `eval`, a second alias).
-  So a `!` alias is judged when its own command is one plain Git command line this wrapper can read
-  (an inner `-C`, `-c`, `--git-dir` or `--work-tree` included, followed and judged where it points),
-  and it is refused when it is anything else,
-  with the words of what could not be read and with `git --no-enforce-worktree <the alias and its words>` as the way
-  out, which runs it as real Git runs it.
-  That refusal is the price of the ban: a shell alias holding a pipe, a function or a variable is run only through that
-  opt-out.
-  A stated limit, which no guard of the wrapper can close:
-  a plain alias whose value runs a program by absolute path
-  (`alias.x=/usr/bin/git worktree remove`),
-  and a program a `!` alias names by absolute path once the opt-out has run it,
-  run real Git with no wrapper in between,
-  and whatever they do to a worktree happens outside every policy,
-  exactly as typing that absolute path would.
-  A `!` alias value that itself starts with an absolute path is refused rather than run.
+  and a text a shell runs cannot be read to the end, because a shell can build the words another way
+  (`action=remove; git worktree $action`, a substitution, a function, `eval`, a second alias).
+  So a worktree a `!` alias removes goes with the edit a mark hides and the commit only its `HEAD` names,
+  and the person who means to keep them runs the removal itself, where the guard is.
+  An alias that is no shell alias (a plain word list Git expands itself) is not what the decision is about:
+  its expanded words are judged as words typed are,
+  and an alias value that runs a program by absolute path (`alias.x=/usr/bin/git worktree remove`)
+  runs that program with no wrapper in between.
 - `git config` starts that only report or change configuration go without the options,
   because they report what the
   repository configures and the wrapper reads `core.hooksPath` and `core.fsmonitor` that way (the commit warning,

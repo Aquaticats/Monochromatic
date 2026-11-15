@@ -113,9 +113,6 @@ const PER_WORKTREE_PREFIXES: [&str; 3] = ["refs/worktree/", "refs/bisect/", "ref
 ///  and twelve digits are that prefix with room to be unambiguous in a repository of any size this program meets.
 const SHOWN_DIGITS: usize = 12;
 
-/// How many names of one nested repository this asks the removing repository about before it counts the rest.
-const ASKED_NESTED_NAMES: usize = 64;
-
 /// How many stranded commits one answer names before it counts the rest.
 const SHOWN_COMMITS: usize = 3;
 
@@ -276,21 +273,7 @@ pub(crate) fn git_work_a_removal_would_strand(context: &GitContext, common_dir: 
     let mut said: Vec<String> = Vec::new();
     let mut counted: usize = 0;
     for one in places {
-        let (root, own) = match one {
-            Taken::Worktree { root, admin } => (root.as_path(), admin.as_path()),
-            // A repository this removal deletes that this repository does not register: its commits and branches are its
-            // own, and its Git directory goes with the directory the removal deletes.
-            Taken::Repository { root, git_dir } => {
-                let mut held: Vec<String> = git_work_a_nested_repository_holds(context, common_dir, root.as_path(), git_dir.as_path())?;
-                counted += held.len();
-                for said_one in held.drain(..) {
-                    if said.len() < SHOWN_COMMITS {
-                        said.push(said_one);
-                    }
-                }
-                continue;
-            }
-        };
+        let (root, own) = (one.root.as_path(), one.admin.as_path());
         for stranded in stranded_commits(context, common_dir, root, own)? {
             counted += 1;
             if said.len() < SHOWN_COMMITS {
@@ -936,117 +919,6 @@ fn files_beneath(directory: &Path) -> std::io::Result<Vec<PathBuf>> {
         }
     }
     return Ok(found);
-}
-
-/// What:
-///  Why a nested repository the removal deletes holds Git work nothing else names,
-///  as the sentences a person reads,
-///  or the reason that could not be proven.
-/// Why:
-///   A repository inside an ignored folder of the worktree is not this repository's,
-///  so its commits and branches are its own, and its Git directory goes with the directory the removal deletes:
-///  nothing outside it names what its refs name, unless this repository happens to name the same commits.
-///  A commit its own state names that this repository names too is not lost with it;
-///  a name this repository does not answer for is one nothing here can show to be named elsewhere, and the removal
-///  stops on it
-///  (a review of `746040080c`, finding 3, published as a question for the owner in the report of the run that answered
-///  it).
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// gitWorkANestedRepositoryHolds({ context, commonDir, root, gitDir }) // string[]; throws the reason
-/// ```
-fn git_work_a_nested_repository_holds(context: &GitContext, common_dir: &Path, root: &Path, git_dir: &Path) -> Result<Vec<String>, String> {
-    // What the nested repository's own state names, which the removal deletes with it: its references, its `HEAD`, and
-    // the logs and records under its own Git directory.
-    let arguments: Vec<OsString> = [OsString::from("for-each-ref"), OsString::from("--format=%(objectname)")].to_vec();
-    let request: GitRequest = GitRequest { without_prefix: true, ..GitRequest::new(root, arguments.as_slice()) };
-    let inner: GitOutput = run_git(context, &request).map_err(|error| return format!("nothing proves which commits {} names ({error})", root.display()))?;
-    if inner.code != Some(0) {
-        return Err(format!(
-            "nothing proves which commits {} names ({})",
-            root.display(),
-            String::from_utf8_lossy(inner.stderr.as_slice()).trim()
-        ));
-    }
-    let mut candidates: Vec<String> = Vec::new();
-    for line in String::from_utf8_lossy(inner.stdout.as_slice()).lines() {
-        if is_an_object_name(line) {
-            candidates.push(as_git_prints_an_object_name(line));
-        }
-    }
-    for (commit, _holder) in names_that_die_with_the_worktree(git_dir)? {
-        candidates.push(commit);
-    }
-    let head: Vec<OsString> = [OsString::from("rev-parse"), OsString::from("--verify"), OsString::from("--quiet"), OsString::from("HEAD")].to_vec();
-    let head_request: GitRequest = GitRequest { without_prefix: true, ..GitRequest::new(root, head.as_slice()) };
-    if let Ok(finished) = run_git(context, &head_request)
-        && finished.code == Some(0)
-    {
-        let named: String = String::from_utf8_lossy(finished.stdout.as_slice()).trim().to_owned();
-        if is_an_object_name(named.as_str()) {
-            candidates.push(as_git_prints_an_object_name(named.as_str()));
-        }
-    }
-    let mut unique: Vec<String> = Vec::new();
-    for commit in candidates {
-        if !unique.contains(&commit) {
-            unique.push(commit);
-        }
-    }
-    if unique.is_empty() {
-        // A repository with no commit and no name holds no Git work: the directory is an empty record and goes.
-        return Ok(Vec::new());
-    }
-    let mut said: Vec<String> = Vec::new();
-    let mut counted: usize = 0;
-    for commit in unique {
-        if counted >= ASKED_NESTED_NAMES {
-            said.push(format!(
-                "and more names the state of the repository {root} holds, so nothing proves this repository names them",
-                root = root.display()
-            ));
-            break;
-        }
-        counted += 1;
-        if !naming_refs_in(context, common_dir, commit.as_str())?.is_empty() {
-            continue;
-        }
-        let short: &str = &commit[..SHOWN_DIGITS.min(commit.len())];
-        said.push(format!(
-            "the repository {root} inside it holds the commit {short}, which nothing else of the removing repository names, so removing this worktree would delete the only name of it and `git gc --prune=now` would take it",
-            root = root.display()
-        ));
-    }
-    return Ok(said);
-}
-
-/// What:
-///  The references of the repository at `common_dir` that name `commit`,
-///  or nothing when none does,
-///  or the reason the question could not be answered.
-/// Why:
-///  `for-each-ref --contains` is the same question Git's own collection asks,
-///  and a commit the removing repository does not hold at all is one no reference of it names.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// namingRefsIn(context, commonDir, commit) // string[]; throws the reason
-/// ```
-fn naming_refs_in(context: &GitContext, common_dir: &Path, commit: &str) -> Result<Vec<String>, String> {
-    let arguments: Vec<OsString> = [format!("--contains={commit}"), String::from("--format=%(refname)")].into_iter().map(OsString::from).collect();
-    let mut all: Vec<OsString> = vec![OsString::from("for-each-ref")];
-    all.extend(arguments);
-    let request: GitRequest = GitRequest { without_prefix: true, ..GitRequest::new(common_dir, all.as_slice()) };
-    let output: GitOutput = match run_git(context, &request) {
-        Ok(finished) => finished,
-        Err(error) => return Err(format!("nothing proves which references name {commit} ({error})")),
-    };
-    if output.code != Some(0) {
-        // A commit this repository does not hold at all is a name no reference of it answers for.
-        return Ok(Vec::new());
-    }
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).lines().map(|line| return line.to_owned()).collect());
 }
 
 /// What:

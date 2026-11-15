@@ -1051,31 +1051,25 @@ fn a_registration_this_program_cannot_read_is_refused_and_the_nested_worktree_st
 }
 
 /// What:
-///  Every route by which a removal reaches Git through this program is guarded,
-///  and the words judged are the words Git runs:
-///  the built-in typed as it is,
-///  a plain alias,
-///  an alias of an alias,
-///  a `!` alias whose shell runs one plain `git` command,
-///  with the caller's own `-c` before the alias word and the removal's own words after it.
+///  Every route by which a removal reaches Git through this program,
+///  and which of them the guard judges.
 /// Why:
-///  The guard read `command.arguments`, which for `alias.rmwt='!git worktree remove'` still start with `rmwt`, so
-///  `git rmwt <worktree>` exited 0 and deleted a hidden edit the same removal typed as the built-in was refused for
-///  (a review of `8858f843ee`, finding 1).
-///  The alias is handed to Git as the person typed it, and the shell inside it runs the command the guard judged.
-///  The opt-out arm is the way out: `--no-enforce-worktree` before a `!` alias still runs the removal as real Git runs it.
+///  A plain alias is expanded by Git itself, so the words are judged like words typed.
+///  A `!` alias is run by Git's shell, and the owner's decision of 2026-11-15 forwards every one of them as it is:
+///  all aliases keep working with no opt-out, and a removal a shell alias runs is not guarded.
+///  `SPEC.md` states that hole.
 #[test]
 fn every_route_a_removal_reaches_git_by_is_guarded() {
-    for (name, aliases, words) in [
-        // A plain alias, and an alias of that alias.
-        ("removal-route-plain-alias", vec![("alias.rmwt", "worktree remove")], vec!["rmwt"]),
-        ("removal-route-alias-of-alias", vec![("alias.rmwt", "worktree remove"), ("alias.again", "rmwt")], vec!["again"]),
-        // A `!` alias, whose shell runs one plain `git` command.
-        ("removal-route-shell-alias", vec![("alias.rmwt", "!git worktree remove")], vec!["rmwt"]),
+    for (name, aliases, words, guarded) in [
+        // A plain alias, and an alias of that alias: Git expands these itself, and the words are judged.
+        ("removal-route-plain-alias", vec![("alias.rmwt", "worktree remove")], vec!["rmwt"], true),
+        ("removal-route-alias-of-alias", vec![("alias.rmwt", "worktree remove"), ("alias.again", "rmwt")], vec!["again"], true),
+        // A `!` alias: forwarded as it is.
+        ("removal-route-shell-alias", vec![("alias.rmwt", "!git worktree remove")], vec!["rmwt"], false),
         // The caller's own `-c` before the alias word, which is what the alias is.
-        ("removal-route-config-alias", Vec::new(), vec!["-c", "alias.rmwt=worktree remove", "rmwt"]),
+        ("removal-route-config-alias", Vec::new(), vec!["-c", "alias.rmwt=worktree remove", "rmwt"], true),
         // The removal's own words after the alias word.
-        ("removal-route-after-the-word", vec![("alias.rmwt", "worktree remove")], vec!["rmwt", "--"]),
+        ("removal-route-after-the-word", vec![("alias.rmwt", "worktree remove")], vec!["rmwt", "--"], true),
     ] {
         let scene: Scene = a_repository_with_a_recorded_worktree(name);
         let task: String = scene.task.display().to_string();
@@ -1090,24 +1084,20 @@ fn every_route_a_removal_reaches_git_by_is_guarded() {
         arguments.push(task.as_str());
         let aliased: Observed = scene.remove_with(arguments.as_slice());
         let said: String = stderr_of(&aliased);
-        assert_eq!(aliased.code, Some(1), "{name}: the aliased form is refused too: {said}");
-        assert!(said.contains(TRACKED), "{name}: and names the hidden edit: {said}");
-        assert!(scene.task.join(TRACKED).exists(), "{name}: and nothing was removed");
+        match guarded {
+            true => {
+                assert_eq!(aliased.code, Some(1), "{name}: the aliased form is judged and refused too: {said}");
+                assert!(said.contains(TRACKED), "{name}: and names the hidden edit: {said}");
+                assert!(scene.task.join(TRACKED).exists(), "{name}: and nothing was removed");
+            }
+            // The hole the owner's decision accepts: a shell alias that removes a worktree is not looked at.
+            false => {
+                assert_eq!(aliased.code, Some(0), "{name}: a shell alias is forwarded as it is: {said}");
+                assert!(!scene.task.exists(), "{name}: and the removal it runs is not guarded, so the worktree goes");
+            }
+        }
         remove(&scene.fixture);
     }
-
-    // The way out reaches through a `!` alias too: the wrapper's own control stands before the alias word, and the
-    // removal Git then runs is Git's.
-    let scene: Scene = a_repository_with_a_recorded_worktree("removal-route-shell-alias-escape");
-    let task: String = scene.task.display().to_string();
-    scene.hide_an_edit();
-    run_direct(&scene.fixture, scene.repo.as_path(), &["config", "alias.rmwt", "!git worktree remove"]);
-    let refused: Observed = scene.remove_with(&["rmwt", task.as_str()]);
-    assert_eq!(refused.code, Some(1), "the alias is refused first: {}", stderr_of(&refused));
-    let escaped: Observed = scene.remove_with(&["--no-enforce-worktree", "rmwt", task.as_str()]);
-    assert_eq!(escaped.code, Some(0), "and the opt-out before the alias runs it: {}", stderr_of(&escaped));
-    assert!(!scene.task.exists(), "with the worktree gone, as real Git leaves it");
-    remove(&scene.fixture);
 }
 
 /// What:
@@ -1299,98 +1289,50 @@ fn a_relative_c_removes_like_real_git_and_still_guards() {
 }
 
 /// What:
-///  A `!` alias whose own Git command is one plain command line this program reads is judged, wherever it points,
-///  and every other alias is refused with the opt-out that runs it as real Git runs it.
-///  an alias whose text names a removal but cannot be read is refused,
-///  and one whose text names no removal is left to Git.
+///  Every `!` alias is forwarded as it is, and a removal one of them runs is not guarded.
 /// Why:
-///  The reader of a shell command declined an inner command that had a global option of its own, so the removal was
-///  forwarded as the person typed it and the alias deleted a detached commit the direct route refused
-///  (a review of `dfd6fab13e`, finding 1).
-///  An alias the guard cannot read is not shown to be harmless, so a text that names a removal is refused with the way
-///  out, and one that names none is Git's.
+///  The owner's decision of 2026-11-15: "Forward them unguarded".
+///  Every `!` alias is passed to real Git as it is, all aliases keep working with no opt-out, and a `git <alias>` that
+///  ends in a worktree removal is not looked at.
+///  A reader of a shell's text cannot follow it to the end, and nothing of this program stands inside Git's shell
+///  (`doc/planning/cli-git-no-self-invocation.md`).
 #[test]
-fn an_alias_whose_command_carries_a_global_option_is_judged_and_one_that_cannot_be_read_is_refused() {
-    // A command line this program reads, whose options do not move it: the removal is judged here, and refused for the
-    // commit it would destroy.
-    for (name, value) in [
-        ("removal-alias-plain", "!git worktree remove"),
-        ("removal-alias-inner-c-config", "!git -c core.ignorecase=false worktree remove"),
-        ("removal-alias-second-alias", "!git rwt-inside"),
+fn every_shell_alias_is_forwarded_and_a_removal_it_runs_is_not_guarded() {
+    for (name, value, removes) in [
+        ("removal-alias-plain", "!git worktree remove", true),
+        ("removal-alias-inner-c-directory", "!git -C {repo} worktree remove", true),
+        ("removal-alias-inner-c-config", "!git -c core.ignorecase=false worktree remove", true),
+        ("removal-alias-second-alias", "!git rwt-inside", true),
+        ("removal-alias-pipe", "!git worktree remove \"$1\" | cat", true),
+        ("removal-alias-two-commands", "!true; git worktree remove", true),
+        ("removal-alias-substitution", "!git worktree remove $(printf %s)", true),
+        ("removal-alias-variable", "!action=remove; git worktree $action", true),
+        ("removal-alias-function", "!f() { git worktree remove \"$@\"; }; f", true),
+        ("removal-alias-eval", "!eval \"git worktree remove\"", true),
+        ("removal-alias-env", "!env git worktree remove", true),
+        // An alias that runs no Git at all keeps working too, which is the whole point of the decision.
+        ("removal-alias-echo", "!echo hello", false),
     ] {
         let scene: Scene = a_repository_with_a_recorded_worktree(name);
         let task: String = scene.task.display().to_string();
-        scene.detach_and_commit();
+        scene.hide_an_edit();
         run_direct(&scene.fixture, scene.repo.as_path(), &["config", "alias.rwt-inside", "worktree remove"]);
-        run_direct(&scene.fixture, scene.repo.as_path(), &["config", "alias.rmwt", value]);
-        let refused: Observed = scene.remove_with(&["--no-worktree-copy", "rmwt", task.as_str()]);
-        let said: String = stderr_of(&refused);
-        assert_eq!(refused.code, Some(1), "{name}: the alias is judged: {said}");
-        assert!(said.contains("detached HEAD"), "{name}: and names the commit it would destroy: {said}");
-        assert!(scene.task.exists(), "{name}: and nothing was removed");
-        remove(&scene.fixture);
-    }
-
-    // An inner option that moves the removal to another directory or names another repository is refused rather than
-    // judged against the repository this invocation reads.
-    for (name, value) in [
-        ("removal-alias-inner-c-directory", "!git -C {repo} worktree remove"),
-        ("removal-alias-inner-git-dir", "!git --git-dir={repo}/.git worktree remove"),
-    ] {
-        let scene: Scene = a_repository_with_a_recorded_worktree(name);
-        let task: String = scene.task.display().to_string();
-        scene.detach_and_commit();
         let spelled: String = value.replace("{repo}", scene.repo.to_str().expect("a UTF-8 fixture path").as_ref());
         run_direct(&scene.fixture, scene.repo.as_path(), &["config", "alias.rmwt", spelled.as_str()]);
-        let refused: Observed = scene.remove_with(&["rmwt", task.as_str()]);
-        let said: String = stderr_of(&refused);
-        assert_eq!(refused.code, Some(1), "{name}: the moved removal is refused: {said}");
-        assert!(said.contains("moves the removal to another directory"), "{name}: and says why: {said}");
-        assert!(said.contains("--no-enforce-worktree"), "{name}: and prints the way out: {said}");
-        assert!(scene.task.exists(), "{name}: and nothing was removed");
+        let aliased: Observed = scene.remove_with(&["rmwt", task.as_str()]);
+        // What a shell's own command ends with is the shell's business (a `| cat` of a removed directory ends 1); what
+        // matters is that nothing of this program speaks about the alias.
+        assert!(
+            !stderr_of(&aliased).contains("monochromatic-git-policy-cli:"),
+            "{name}: the alias is forwarded and nothing of this program speaks about it: {}",
+            stderr_of(&aliased)
+        );
+        match removes {
+            true => assert!(!scene.task.exists(), "{name}: a removal the alias runs is not guarded, so the worktree goes"),
+            false => assert!(scene.task.exists(), "{name}: and an alias that removes nothing removes nothing"),
+        }
         remove(&scene.fixture);
     }
-
-    // Every alias whose own command is not one plain Git command line this program reads is refused: a shell can build
-    // the words another way, and nothing of this program can stand inside Git's shell.
-    for (name, value) in [
-        ("removal-alias-pipe", "!git worktree remove \"$1\" | cat"),
-        ("removal-alias-two-commands", "!true; git worktree remove"),
-        ("removal-alias-substitution", "!git worktree remove $(printf %s)"),
-        ("removal-alias-variable", "!action=remove; git worktree $action"),
-        ("removal-alias-function", "!f() { git worktree remove \"$@\"; }; f"),
-        ("removal-alias-eval", "!eval \"git worktree remove\""),
-        ("removal-alias-env", "!env git worktree remove"),
-        // An alias naming real Git by an absolute path is the stated limit of `SPEC.md`; as a value it is unreadable, so
-        // this program refuses it here, and only a readable alias value naming an absolute program stays beyond it.
-        ("removal-alias-absolute-path", "!/usr/bin/git worktree remove"),
-    ] {
-        let scene: Scene = a_repository_with_a_recorded_worktree(name);
-        let task: String = scene.task.display().to_string();
-        scene.detach_and_commit();
-        run_direct(&scene.fixture, scene.repo.as_path(), &["config", "alias.rmwt", value]);
-        let refused: Observed = scene.remove_with(&["rmwt", task.as_str()]);
-        let said: String = stderr_of(&refused);
-        assert_eq!(refused.code, Some(1), "{name}: an alias whose command cannot be read is refused: {said}");
-        assert!(said.contains("nothing here can check a removal it runs"), "{name}: and says why: {said}");
-        assert!(said.contains("--no-enforce-worktree"), "{name}: and prints the way out: {said}");
-        assert!(scene.task.exists(), "{name}: and nothing was removed");
-        // The opt-out runs the alias as real Git runs it; what the shell then does and ends with is its own.
-        let escaped: Observed = scene.remove_with(&["--no-enforce-worktree", "rmwt", task.as_str()]);
-        assert!(!stderr_of(&escaped).contains("nothing here can check"), "{name}: the opt-out is not asked about: {}", stderr_of(&escaped));
-        remove(&scene.fixture);
-    }
-
-    // An alias that runs no Git at all is refused too, because a shell can build the words another way; its opt-out
-    // runs it, which is the price of the ban on a shim.
-    let scene: Scene = a_repository_with_a_recorded_worktree("removal-alias-names-none");
-    let refused: Observed = scene.remove_with(&["-c", "alias.hello=!echo hello", "hello"]);
-    assert_eq!(refused.code, Some(1), "an alias whose command cannot be read is refused: {}", stderr_of(&refused));
-    assert!(stderr_of(&refused).contains("nothing here can check"), "and says why: {}", stderr_of(&refused));
-    let escaped: Observed = scene.remove_with(&["--no-enforce-worktree", "-c", "alias.hello=!echo hello", "hello"]);
-    assert_eq!(escaped.code, Some(0), "and the opt-out runs it: {}", stderr_of(&escaped));
-    assert!(String::from_utf8_lossy(escaped.stdout.as_slice()).contains("hello"), "which prints what it says: {}", String::from_utf8_lossy(escaped.stdout.as_slice()));
-    remove(&scene.fixture);
 }
 
 /// What:
@@ -1492,18 +1434,15 @@ fn a_commit_only_fetch_head_names_keeps_the_worktree() {
 }
 
 /// What:
-///  A repository inside an ignored folder keeps the outer worktree when it holds a commit nothing else names,
-///  and an ignored folder with no repository in it, or a repository with no commit, lets the removal go.
+///  A repository inside an ignored folder is deleted with the worktree, and the removal's line names it.
 /// Why:
-///  The removal deletes what Git ignores, and a repository there holds commits and branches, which are Git work and
-///  not a file Git ignores: its Git directory went with the outer one and the only branch naming its commit with it
-///  (a review of `746040080c`, finding 3, adopted as the project's reading of its own record for ignored files).
-///  The two arms after it are the line the record draws: an ignored folder with no repository is deleted as decided,
-///  and an empty repository holds no commit to lose.
+///  The owner's decisions of 2026-11-12 ("Delete ignored, spare busy") and of 2026-11-15 ("Delete as ignored"):
+///  the nested repository goes with the worktree and the deletion is logged.
+///  The line that names it was there before this round looked for such a repository, because the removal already names
+///  the ignored directories and the repositories inside them for its own report.
 #[test]
-fn a_repository_inside_an_ignored_folder_keeps_the_outer_worktree() {
-    // The arm that keeps it: a nested repository with a commit on its only branch, ignored by the outer worktree.
-    let scene: Scene = a_repository_with_a_recorded_worktree("removal-ignored-repository-with-a-commit");
+fn a_repository_inside_an_ignored_folder_is_deleted_with_the_log_line_that_says_so() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-ignored-repository");
     let outer: String = scene.task.display().to_string();
     std::fs::write(scene.task.join(".gitignore"), "/inner/\n/deps/\n".as_bytes()).expect("the ignore file");
     run_direct(&scene.fixture, scene.task.as_path(), &["add", ".gitignore"]);
@@ -1514,37 +1453,18 @@ fn a_repository_inside_an_ignored_folder_keeps_the_outer_worktree() {
     std::fs::write(inner.join("only-here.txt"), "made here\n").expect("a file in the nested repository");
     run_direct(&scene.fixture, inner.as_path(), &["add", "only-here.txt"]);
     run_direct(&scene.fixture, inner.as_path(), &["commit", "--quiet", "--message=the only branch's commit"]);
-    let named: std::process::Output = git(&scene.fixture, inner.as_path(), &["rev-parse", "HEAD"]);
-    let commit: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
-    let refused: Observed = scene.remove_with(&["worktree", "remove", outer.as_str()]);
-    let said: String = stderr_of(&refused);
-    assert_eq!(refused.code, Some(1), "the repository inside keeps the outer worktree: {said}");
-    assert!(said.contains(&inner.display().to_string()), "and the refusal names it: {said}");
-    assert!(said.contains(&commit[..12]), "and the commit nothing else names: {said}");
-    assert!(inner.join(".git").exists(), "and its Git directory stays");
-    // The line the record draws, part one: an ignored folder with no repository in it goes, with the log.
     let deps: PathBuf = scene.task.join("deps");
     std::fs::create_dir_all(deps.join("lib").as_path()).expect("an ignored folder with no repository");
     for index in 0..200 {
         std::fs::write(deps.join(format!("lib/file-{index}.txt")), b"dependency\n").expect("a file of the ignored folder");
     }
-    std::fs::remove_dir_all(inner.as_path()).expect("the nested repository goes for this arm");
     let removed: Observed = scene.remove_with(&["worktree", "remove", outer.as_str()]);
-    assert_eq!(removed.code, Some(0), "an ignored folder with no repository in it is deleted as decided: {}", stderr_of(&removed));
-    assert!(!scene.task.exists(), "and the outer worktree goes");
+    let said: String = stderr_of(&removed);
+    assert_eq!(removed.code, Some(0), "an ignored folder holding a repository is deleted as ignored: {said}");
+    assert!(!scene.task.exists(), "and the worktree goes");
+    assert!(!inner.exists(), "and the repository inside it goes with it");
+    // The line that names a repository that went is the removal report's own, on the automatic route: the control of its
+    // words is `worktree_removal_takes_tests::a_git_repository_inside_an_ignored_directory_is_named_with_its_branch_tips`,
+    // which reads the line without any walk this round added.
     remove(&scene.fixture);
-
-    // The line the record draws, part two: a repository with no commit holds nothing to lose.
-    let empty: Scene = a_repository_with_a_recorded_worktree("removal-ignored-empty-repository");
-    let empty_outer: String = empty.task.display().to_string();
-    std::fs::write(empty.task.join(".gitignore"), "/inner/\n".as_bytes()).expect("the ignore file");
-    run_direct(&empty.fixture, empty.task.as_path(), &["add", ".gitignore"]);
-    run_direct(&empty.fixture, empty.task.as_path(), &["commit", "--quiet", "--message=ignore the nested folder"]);
-    let empty_inner: PathBuf = empty.task.join("inner");
-    std::fs::create_dir_all(empty_inner.as_path()).expect("the nested folder");
-    run_direct(&empty.fixture, empty_inner.as_path(), &["init", "--quiet", "--initial-branch=main"]);
-    let removed_empty: Observed = empty.remove_with(&["worktree", "remove", empty_outer.as_str()]);
-    assert_eq!(removed_empty.code, Some(0), "a repository with no commit holds nothing to lose: {}", stderr_of(&removed_empty));
-    assert!(!empty.task.exists(), "and the outer worktree goes");
-    remove(&empty.fixture);
 }

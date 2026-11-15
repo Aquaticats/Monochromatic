@@ -13,7 +13,7 @@
 //! ```
 
 use super::{NAMING_RECORD_FILES, NAMING_RECORDS, detached_head, git_work_a_removal_would_strand};
-use crate::worktree_removal_worktrees_it_takes::the_things_a_removal_takes;
+use crate::worktree_removal_worktrees_it_takes::the_worktrees_it_takes;
 use crate::test_support::{fixture, git, git_context, git_text, repository};
 use crate::transaction_git::GitContext;
 use std::path::PathBuf;
@@ -38,7 +38,7 @@ impl Fixture {
         let context: GitContext = git_context();
         // The list of what this removal takes is made once, here as in the guard: a registration it cannot read is the
         // reason nothing is removed, before any question is asked.
-        let taken = the_things_a_removal_takes(&context, self.common.as_path(), self.worktree.as_path(), self.admin.as_path())?;
+        let taken = the_worktrees_it_takes(self.common.as_path(), self.worktree.as_path(), self.admin.as_path())?;
         return git_work_a_removal_would_strand(&context, self.common.as_path(), taken.as_slice());
     }
 
@@ -216,13 +216,11 @@ fn a_head_that_names_neither_a_branch_nor_a_commit_is_the_reason_nothing_is_remo
             Err(reason) => assert!(reason.contains("names neither a branch nor a commit"), "{torn:?} answered: {reason}"),
             Ok(named) => panic!("a HEAD that names neither a branch nor a commit must be a record this program cannot read, but it answered {named:?} for {torn:?}"),
         }
-        // The whole question. A worktree whose HEAD cannot be read is one this program's own look cannot read either, so
-        // the answer is a refusal either way, and the words of the first question that needed Git there are what a person
-        // reads: the removal is kept, which is what the control is about.
+        // The whole question, with no per-worktree reference to make it ask Git instead.
         let _removed = std::fs::remove_dir_all(fixture.admin.join("refs").as_path());
         let said: Result<Vec<String>, String> = fixture.stranded();
         match said {
-            Err(reason) => assert!(!reason.is_empty(), "{torn:?} is answered in words: {reason}"),
+            Err(reason) => assert!(reason.contains("names neither a branch nor a commit"), "{torn:?} answered: {reason}"),
             Ok(empty) => panic!("a removal of a worktree whose HEAD cannot be read must keep it, but it answered {empty:?} for {torn:?}"),
         }
     }

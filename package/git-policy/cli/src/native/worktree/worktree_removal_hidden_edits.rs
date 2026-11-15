@@ -89,11 +89,7 @@ const INDEX_LIMIT: u64 = 256 << 20;
 pub(crate) fn hidden_edits_beneath(context: &GitContext, places: &[Taken], common_dir: &Path) -> Result<Vec<String>, String> {
     let mut said: Vec<String> = Vec::new();
     for one in places {
-        // A repository the removal deletes without registering it keeps its own index, whose marks hide edits there too.
-        let (root, own) = match one {
-            Taken::Worktree { root, admin } => (root.as_path(), admin.as_path()),
-            Taken::Repository { root, git_dir } => (root.as_path(), git_dir.as_path()),
-        };
+        let (root, own) = (one.root.as_path(), one.admin.as_path());
         let mut edits: Vec<String> = hidden_edits_in_one(context, root, own, common_dir)?;
         said.append(&mut edits);
     }
@@ -119,19 +115,8 @@ fn hidden_edits_in_one(context: &GitContext, worktree: &Path, admin: &Path, comm
     //  The open is the one every record of this program uses: no follow of a final link, and no waiting for a
     //  writer when the name holds a named pipe, which would hold a merge or a removal for ever.
     let index_path: PathBuf = admin.join("index");
-    let index_file: std::fs::File = match crate::private_storage::open_regular_file(index_path.as_path()) {
-        Ok(opened) => opened,
-        // A worktree with no index has nothing marked in it, and nothing to compare: an empty repository inside a
-        // worktree being removed is the case (its Git directory goes with the removal and holds no mark).
-        Err(crate::private_storage::ReadRefusal::Missing) => return Ok(Vec::new()),
-        Err(refusal) => {
-            return Err(format!(
-                "the index of {} cannot be read as one plain file ({}), so no marked entry can be compared with its file",
-                worktree.display(),
-                refusal_words(&refusal)
-            ));
-        }
-    };
+    let index_file: std::fs::File = crate::private_storage::open_regular_file(index_path.as_path())
+        .map_err(|refusal| return format!("the index of {} cannot be read as one plain file ({}), so no marked entry can be compared with its file", worktree.display(), refusal_words(&refusal)))?;
     let index_seconds: u32 = index_file
         .metadata()
         .map_err(|error| return format!("the index of {} cannot be examined ({error})", worktree.display()))?

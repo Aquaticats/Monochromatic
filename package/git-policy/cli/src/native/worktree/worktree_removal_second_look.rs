@@ -35,7 +35,7 @@ use crate::transaction_git::GitContext;
 use crate::worktree_landed_ignored_files::ignored_entries_alone_here;
 use crate::worktree_landed_registrations::{RegisteredWorktree, registered_worktrees};
 use crate::worktree_removal_hidden_edits::hidden_edits_beneath;
-use crate::worktree_removal_worktrees_it_takes::{Taken, the_things_a_removal_takes};
+use crate::worktree_removal_worktrees_it_takes::{Taken, the_worktrees_it_takes};
 use crate::worktree_removal_keeps_git_work::git_work_a_removal_would_strand;
 use crate::worktree_process_inside::process_working_inside;
 use crate::worktree_removal_rescue::snapshot_one;
@@ -141,7 +141,7 @@ pub(crate) fn why_the_worktree_stays(look: &SecondLook<'_>, worktree: &Path, adm
     // A commit only this worktree's own state names dies with it, and an edit a mark hides from Git goes with the worktree
     // Git removes: both are Git work, which no removal destroys. The commits of a worktree registered inside this one are
     // asked too, because this removal takes that worktree's own Git directory as well.
-    let taken: Vec<Taken> = match the_things_a_removal_takes(look.context, look.common_dir, worktree, admin) {
+    let taken: Vec<Taken> = match the_worktrees_it_takes(look.common_dir, worktree, admin) {
         Ok(found) => found,
         Err(reason) => return Some(format!("nothing proves which worktrees this removal takes, so nothing is removed: {reason}")),
     };
