@@ -738,6 +738,29 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T05:22:17-05:00,
+  from the author of mpm-shadow's removal of old versions
+  (branch tip `e9af93e68a`,
+  in review),
+  not blocking work,
+  and the same question as the removal guard's of 03:06 from another side:
+  with the rule "what the pass cannot see is protected",
+  the removal of old versions is inert on this desktop.
+  Fifteen of this account's processes cannot be described
+  (`ssh-agent`,
+  `systemd`,
+  `keepassxc`,
+  `kwin_wayland`,
+  screen lockers,
+  the mail client),
+  so all 27 versions the old decision would remove
+  (25.3 GiB of 49.6 GiB in 109 versions)
+  stay.
+  Keep the rule and accept that the pass removes nothing while such processes run;
+  have the pass leave out processes that provably cannot use a tool's version
+  (by which proof);
+  or give the pass a way to read them?
+
 - Added 2026-11-15T04:25:14-05:00,
   from the third review of the Git-version branch
   (`253b4238cc`),
@@ -1558,6 +1581,93 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The landing goes back a third time, for a marker and a lock that two fillings can both hold; mpm's removal of old versions is answered and is inert on a desktop (2026-11-15T05:22:17-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The landing that never waits** (`a7a6958f9d`),
+  its second review,
+  ended 05:20:07,
+  45 files and the diff,
+  three things,
+  all by reading;
+  the one test it ran concerns none of them,
+  so they are claims.
+  A cleanup with nothing to clean makes a marker and leaves it,
+  and the next filling takes that marker as proof and removes another command's staging folder;
+  a `flock` that was refused on a marker just made is bound to `_held_now` and dropped,
+  so two fillings both own the names;
+  and the new "no place" answer is turned back into the whole removal,
+  in place,
+  by a caller that treats every error alike.
+  All three name lines and a sequence.
+  **Weighed**:
+  the first two are the cost of the design the last round chose,
+  a shared name,
+  a marker and a lock on the marker,
+  three facts read at different instants.
+  The project's rule is lock-free first.
+  The author is resumed,
+  its third run,
+  with a control for each claim first,
+  and asked why two fillings share a name at all:
+  a staging folder only its maker can have,
+  made by an exclusive create,
+  is owned by having been made
+  (`~/temp/agent/pi-runs/landing-never-waits-answers-its-second-review-of-2026-11-15-prompt.md`,
+  queued second).
+  Integration passes 29 and 34 go on waiting.
+  The review's compile took 7 m 44 s under the CPU budget.
+- **mpm-shadow, removal of old versions**,
+  its author's second run,
+  ended 05:16:14 at `e9af93e68a`,
+  `main` merged.
+  The review's four programs all reproduced at its old tip.
+  The rule is in the module's doc:
+  every protector of a version,
+  the read that knows it,
+  and that a read which fails or is partial means protected.
+  Seven controls,
+  each failing only for its own fix.
+  863 of 863 tests;
+  Clippy 0.
+  **What the rule costs**,
+  counted on this machine:
+  175 locks,
+  109 versions,
+  49.6 GiB;
+  the old decision would remove 27 versions,
+  25.3 GiB;
+  with the rule all 27 stay,
+  because 15 of this account's processes cannot be described.
+  The pass is inert on a desktop.
+  That is kept as a question for the owner.
+  Its review is queued seventh
+  (`main...e9af93e68a`,
+  seven code files that are not tests).
+- **Corrected**:
+  the launchers named `…second-review-…` are the ordinary launchers of range reviews;
+  the filling unit's words for starting any range review are "asked for the second review".
+  The line appeared this night only because this session added it to what its check prints.
+  The three reviews it named are going.
+- **The temperature**,
+  read at 05:22:15:
+  55.0 degrees,
+  budget 28.8 threads,
+  9.3 in use,
+  profile `power-saver`.
+- Read at 05:20:49:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 05:06;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  15 runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 83 entries at 05:22:17.
 
 ##### The owner sleeps and the CPU is held under 80 degrees; six runs are routed, among them two reviews that send mpm's stale launchers and the killed-Git lock back (2026-11-15T05:08:56-05:00)
 
