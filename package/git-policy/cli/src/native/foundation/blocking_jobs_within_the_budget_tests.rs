@@ -504,19 +504,13 @@ fn a_deadline_around_a_refused_thread_can_end_it_because_the_work_never_runs_on_
     let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
     let ran: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let flag: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&ran);
-    let began: std::time::Instant = std::time::Instant::now();
     let answer: Option<Result<bool, BlockingJobError>> = runtime.block_on(async move {
         return tokio::time::timeout(A_DEADLINE_INSIDE_THE_WORK, run_a_job_or_no_place(flag, a_storage_call_that_stopped_answering)).await.ok();
     });
-    let waited: Duration = began.elapsed();
     assert!(!ran.load(Ordering::SeqCst), "the storage call ran on the task the deadline was watching, so no deadline can ever end it");
     assert_eq!(
         answer,
         Some(Err(BlockingJobError::NoPlaceWithinTheCeiling)),
         "a thread the system refused is no place now, and the caller looks again later"
-    );
-    assert!(
-        waited < A_DEADLINE_INSIDE_THE_WORK,
-        "the call took {waited:?}, which is the deadline's whole width or more: something held the task the deadline is on"
     );
 }

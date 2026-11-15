@@ -8,7 +8,7 @@
 //! and a lane set that leaves an item out is refused.
 
 use super::*;
-use crate::blocking_jobs_within_the_budget::{budgeted_blocking_jobs, hold_blocking_jobs_to};
+use crate::blocking_jobs_within_the_budget::{hold_blocking_jobs_to, places_for_the_services_own_work};
 use crate::no_threads_child_test_support::ran_in_child;
 use crate::parallel_runner::Event;
 use crate::parallel_test_support::{PATIENCE, Rendezvous};
@@ -51,10 +51,13 @@ fn lane_of_one_item(index: usize) -> Vec<usize> {
 /// (`parallel_runner_on_the_runtime.rs`),
 /// and every job takes a place of that bound before it starts,
 /// so a run never has more than the fewest of the workers it is asked for,
-/// its lanes and `budgeted_blocking_jobs()` in flight;
+/// its lanes and the places the process's own work may take in flight;
 /// a control that expects a typed four fails wherever the bound is two.
+/// The places and not the whole bound, because one of the bound's places is kept for the answers a client waits for
+/// (`PLACES_KEPT_TO_ANSWER_A_CLIENT`) and no job of a run may hold it: an item more than the places waits out
+/// `PLACE_WAIT_CEILING` and the run answers `NoPlaceWithinTheCeiling` (the merge of `0.6.1-alpha.38` measured that).
 fn jobs_that_may_overlap(workers: usize, lanes: usize) -> usize {
-    return workers.min(lanes).min(budgeted_blocking_jobs());
+    return workers.min(lanes).min(places_for_the_services_own_work());
 }
 
 /// A run whose items all end with their index times ten.
