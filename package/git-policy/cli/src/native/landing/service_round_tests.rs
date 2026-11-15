@@ -550,7 +550,8 @@ fn a_lane_drains_its_directories_in_the_order_they_were_named() {
 ///  (`parallel_runner_on_the_runtime_awaiting.rs`,
 /// `finish_the_run`),
 /// and a handler's own panic no longer reaches it.
-///  What this control keeps is the part a person sees: the record that broke is named and settled,
+///  What this control keeps is the part a person sees:
+/// the record that broke is named and settled,
 /// the work behind it is not lost,
 ///  and the round that covered three directories is a full answer.
 ///
