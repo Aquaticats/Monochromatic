@@ -34,6 +34,11 @@ export type PiExit = {
  means Pi was still alive when every bound on ending it ran out, `compaction-failed` means a compaction Pi reported failing left
  it silent instead of taking the prompt, and `driver-failed` covers the driver's own failures.
 
+ `prompt-rejected` is Pi answering a message of the driver's with a refusal, and `silent-command-unanswered` is Pi answering one
+ with nothing at all: a command that had said nothing was due to be ended, and the abort or the message that says what ended got
+ no answer, so the run cannot be said to have gone on. A run that ended that way is never `idle`, because its agent was never told
+ what became of its command.
+
  `pi-exited` is Pi leaving a run that had taken its prompt, so work may have been done. `pi-exited-before-prompt` is Pi leaving
  every start the driver made before any of them took the prompt: nothing of the run's work happened, and the summary names what Pi
  printed instead.
@@ -42,6 +47,7 @@ export type EndReason =
   | 'idle'
     | 'stop-file'
     | 'prompt-rejected'
+    | 'silent-command-unanswered'
     | 'compaction-failed'
     | 'pi-exited'
     | 'pi-exited-before-prompt'
@@ -58,6 +64,7 @@ export const END_REASONS: readonly EndReason[] = [
   'idle',
   'stop-file',
   'prompt-rejected',
+  'silent-command-unanswered',
   'compaction-failed',
   'pi-exited',
   'pi-exited-before-prompt',
@@ -321,6 +328,14 @@ export type RunSummary = {
  */
 export type SilentCommand = {
   /**
+   The identifier Pi gave this one call, absent when Pi reported none.
+
+   It is what tells one call of a tool from another: two calls of `bash` can be in flight at once, and their ends can arrive in
+   any order.
+   */
+  readonly toolCallId?: string;
+
+  /**
    The tool that runs the command, such as `bash`.
    */
   readonly tool: string;
@@ -342,6 +357,14 @@ export type SilentCommand = {
 };
 
 /**
+ What one step of ending a silent command got: an answer that did it, a refusal, or no answer at all.
+ */
+export type RecoveryAnswer =
+  | 'done'
+    | 'refused'
+    | 'unanswered';
+
+/**
  One stretch in which a run said nothing, as the feed notes it and the summary keeps it.
  */
 export type SilenceOfRun = {
@@ -351,24 +374,29 @@ export type SilenceOfRun = {
   readonly silentMilliseconds: number;
 
   /**
-   The command the run was sitting in, when one was in flight; absent when the silence was Pi's own or a model's.
+   The commands the run was sitting in, when any were in flight; absent when the silence was Pi's own or a model's.
    */
-  readonly command?: SilentCommand;
+  readonly commands?: readonly SilentCommand[];
 
   /**
-   Whether the driver ended the command this silence named, which only a silence past the driver's second stated time does.
+   What Pi answered the abort with, which is the operation-wide end every command in flight shares.
    */
-  readonly ended?: boolean;
+  readonly abort?: RecoveryAnswer;
 
   /**
-   Whether Pi took the message that told the agent what was ended.
+   Whether the session was idle after the abort, as the run's own records say: a settle that never came is no session to message.
    */
-  readonly told?: boolean;
+  readonly settled?: boolean;
 
   /**
-   Why the message that tells the agent what was ended did not reach it, when it did not.
+   What Pi answered the message that tells the agent what was ended: the question its next turn begins with.
    */
-  readonly failure?: string;
+  readonly message?: RecoveryAnswer;
+
+  /**
+   Why a step did not go through, in Pi's own words or its silence, one line per step that was asked.
+   */
+  readonly problems?: readonly string[];
 };
 
 /**

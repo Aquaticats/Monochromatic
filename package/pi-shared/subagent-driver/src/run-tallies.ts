@@ -98,10 +98,11 @@ export function startRunTallies({
    */
   const dialogs: PiRecord[] = [];
   /**
-   The tool commands started and not yet ended, oldest first. A tool that starts another leaves both open, and the one started last
-   is the one the run is sitting in.
+   The tool commands started and not yet ended, oldest first. A tool that starts another leaves both open, and two calls of one tool
+   can be in flight at once.
    */
   const inFlight: {
+    readonly toolCallId: string;
     readonly tool: string;
     readonly args: unknown;
     readonly sinceMilliseconds: number
@@ -110,6 +111,7 @@ export function startRunTallies({
     commandsInFlight: function commandsInFlightOfRun() {
       return inFlight.map(function running(started,) {
         return {
+          ...((started.toolCallId === '') ? {} : { toolCallId: started.toolCallId, }),
           tool: started.tool,
           args: started.args,
           milliseconds: millisecondsSoFar() - started.sinceMilliseconds,
@@ -136,6 +138,7 @@ export function startRunTallies({
         (toolHistogram.get(tool,) ?? 0) + 1,
       );
       inFlight.push({
+        toolCallId: textOf(event.toolCallId,),
         tool,
         args: event.args,
         sinceMilliseconds: millisecondsSoFar(),
@@ -159,11 +162,30 @@ export function startRunTallies({
        */
       const tool = textOf(event.toolName,);
       /**
-       Where the command this ends was started, which is the last one of that name still open.
+       The identifier Pi gave the call this ends, which is empty when it gave none.
        */
-      const startedAt = inFlight.findLastIndex(function sameTool(entry,) {
-        return entry.tool === tool;
-      },);
+      const toolCallId = textOf(event.toolCallId,);
+      /**
+       The call this ends: the one Pi named. Pi names every call on its start and on its end
+       (`docs/json.md` in the installed Pi), so a second call of the same tool is never taken for the first.
+
+       A Pi that names none, or names one no start carried, leaves only the tool's name to go on, and the entry taken is the last
+       one of that name still open: with two calls of one tool in flight, that can take the wrong one, which is the case the
+       identifier is here to remove.
+       */
+      const named = (toolCallId === '')
+        ? (-1)
+        : inFlight.findIndex(function sameCall(entry,) {
+          return entry.toolCallId === toolCallId;
+        },);
+      /**
+       Where the command this ends was started.
+       */
+      const startedAt = (named === (-1))
+        ? inFlight.findLastIndex(function sameTool(entry,) {
+          return entry.tool === tool;
+        },)
+        : named;
       if (startedAt !== (-1)) {
         inFlight.splice(
           startedAt,

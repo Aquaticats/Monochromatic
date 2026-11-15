@@ -269,7 +269,11 @@ export function startRecordOfPiRun({
         .push(silence,);
     },
     noteSilenceEnded: function noteSilenceEnded(silence,) {
-      activity.at = now();
+      // Only an operation Pi said it ended leaves the run saying something: an abort nobody answered changed nothing, and counting
+      // it as activity would have the next look wait a whole silent ending again for a command still in flight.
+      if (silence.abort === 'done') {
+        activity.at = now();
+      }
       feed.note({
         kind: 'silence-ended',
         ...silence,

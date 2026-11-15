@@ -36,7 +36,6 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   aSilenceInTheRun,
-  aSilentCommandIsDueToEnd,
   declaredBoundOf,
   type CommandAnswer,
   type CommandRequest,
@@ -45,6 +44,7 @@ import {
   endedCommandMessageOf,
   fieldsOf,
   isRecord,
+  recordsIn,
   keptCommand,
   POLL_MILLISECONDS,
   type RecordOfPiRun,
@@ -53,6 +53,7 @@ import {
   SILENT_ENDING_SECONDS,
   SILENT_NOTICE_SECONDS,
   startRecordOfPiRun,
+  theOperationIsDueToEnd,
   type WatchRequest,
   watchUntilEnded,
 } from '../dist/final/node/index.mjs';
@@ -350,6 +351,44 @@ function observeCommandEnd(run: RunAtAClock,): void {
     toolName: 'bash',
     isError: false,
     result: { content: [], },
+  },);
+}
+
+/**
+ A connection that ends the operation as Pi does: the abort is answered after the session settles, and the recovery message is
+ taken, so the run goes on.
+
+ @param sent - where the commands the watch sends are recorded
+
+ @param run - the run whose record the settle is written on
+
+ @param toolCallId - the call the abort ends
+
+ @returns the connection a watch reads
+
+ @example
+ ```ts
+ const connection = endingConnectionFor({ sent, run, toolCallId: 'call-silent' },);
+ ```
+ */
+function endingConnectionFor({
+  sent,
+  run,
+  toolCallId,
+}: {
+  readonly sent: Record<string, unknown>[];
+  readonly run: RunAtAClock;
+  readonly toolCallId: string
+},): ConnectionToPi {
+  return endingConnection({
+    sent,
+    abort: 'done',
+    message: 'done',
+    before: {
+      abort: function settle() {
+        observeAbortedCall(run, toolCallId,);
+      },
+    },
   },);
 }
 
@@ -880,7 +919,7 @@ await describe({
         /**
          The command the first notice names.
          */
-        const named = fieldsOf(notices[0]?.command,);
+        const named = fieldsOf(recordsIn(notices[0]?.commands,)[0],);
         expect(named.tool,).toBe('bash',);
         expect(String(named.args,),).toContain('rg -l',);
         // The notice is written down without counting as the run's own activity, so the silence it names keeps growing: a line
@@ -890,7 +929,7 @@ await describe({
         );
         expect(sent,).toHaveLength(0,);
         expect(summaryOf(run.record,).silences,).toHaveLength(1,);
-        expect(summaryOf(run.record,).silences?.[0]?.ended,).toBeUndefined();
+        expect(summaryOf(run.record,).silences?.[0]?.abort,).toBeUndefined();
       },
     },),
     it({
@@ -950,7 +989,11 @@ await describe({
         const sent: Record<string, unknown>[] = [];
         const watch = watchOf({
           run,
-          connection: recordingConnection({ sent, },),
+          connection: endingConnectionFor({
+            sent,
+            run,
+            toolCallId: '',
+          },),
           silentSeconds: SILENT_NOTICE_SECONDS,
           silentEndSeconds: SILENT_ENDING_SECONDS,
         },);
@@ -969,25 +1012,25 @@ await describe({
          What the agent was told.
          */
         const told = String(sent[1]?.message,);
-        expect(told,).toContain('The driver ended the command you were running: bash `',);
+        expect(told,).toContain('The driver ended the operation you were in, after it had said nothing for',);
         expect(told,).toContain('rg -l --fixed-strings something',);
         expect(told,).toContain(`${String(SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,)} ms`,);
-        expect(told,).toContain('It declared no bound of its own.',);
+        expect(told,).toContain('no bound of its own',);
         expect(told,).toContain('give the bash tool its `timeout` argument',);
         /**
          The lines the feed holds for the ending.
          */
         const endings = await linesOfKindWhenWritten(join(run.folder, 'feed.jsonl',), 'silence-ended',);
         expect(endings,).toHaveLength(1,);
-        expect(endings[0]?.ended,).toBe(true,);
-        expect(endings[0]?.told,).toBe(true,);
+        expect(endings[0]?.abort,).toBe('done',);
+        expect(endings[0]?.message,).toBe('done',);
         /**
          What the summary keeps of it.
          */
         const kept = summaryOf(run.record,).silences ?? [];
-        expect(kept.at(-1,)?.ended,).toBe(true,);
-        expect(kept.at(-1,)?.told,).toBe(true,);
-        expect(kept.at(-1,)?.command?.tool,).toBe('bash',);
+        expect(kept.at(-1,)?.abort,).toBe('done',);
+        expect(kept.at(-1,)?.message,).toBe('done',);
+        expect(kept.at(-1,)?.commands?.[0]?.tool,).toBe('bash',);
         // The ending is the driver talking, so the clock starts again from it rather than staying hours behind.
         expect(run.record.silentMilliseconds(),).toBe(0,);
       },
@@ -1048,7 +1091,11 @@ await describe({
         const sent: Record<string, unknown>[] = [];
         const watch = watchOf({
           run,
-          connection: recordingConnection({ sent, },),
+          connection: endingConnectionFor({
+            sent,
+            run,
+            toolCallId: '',
+          },),
           silentSeconds: SILENT_NOTICE_SECONDS,
           silentEndSeconds: SILENT_ENDING_SECONDS,
         },);
@@ -1072,7 +1119,7 @@ await describe({
           'prompt',
         ],);
         expect(String(sent[1]?.message,),).toContain(
-          `It declared a bound of ${String(DECLARED_BOUND_SECONDS,)} seconds for itself`,
+          `a bound of ${String(DECLARED_BOUND_SECONDS,)} seconds of its own`,
         );
       },
     },),
@@ -1111,9 +1158,15 @@ await describe({
         await using run = await startRunAtAClock();
         const watch = watchOf({
           run,
-          connection: recordingConnection({
+          connection: endingConnection({
             sent: [],
-            refuses: true,
+            abort: 'done',
+            message: 'refused',
+            before: {
+              abort: function settle() {
+                observeAbortedCall(run, '',);
+              },
+            },
           },),
           silentSeconds: SILENT_NOTICE_SECONDS,
           silentEndSeconds: SILENT_ENDING_SECONDS,
@@ -1129,8 +1182,8 @@ await describe({
          What the summary says about the ending nobody heard.
          */
         const kept = summaryOf(run.record,).silences ?? [];
-        expect(kept.at(-1,)?.told,).toBe(false,);
-        expect(kept.at(-1,)?.failure,).toContain('Pi refused the message: refused',);
+        expect(kept.at(-1,)?.message,).toBe('refused',);
+        expect(kept.at(-1,)?.problems,).toContain('Pi refused the message: refused',);
       },
     },),
     it({
@@ -1151,13 +1204,13 @@ await describe({
         /**
          The command the first notice names.
          */
-        const named = fieldsOf(notices[0]?.command,);
+        const named = fieldsOf(recordsIn(notices[0]?.commands,)[0],);
         expect(named.tool,).toBe('bash',);
         expect(String(named.args,),).toContain('rg -l',);
         // One prompt is the driver's own, and no second went out: a notice ends nothing, so the agent was never told.
         expect(run.commands.filter((command,) => command === 'prompt',),).toHaveLength(1,);
         expect(linesOfKind(run.feed, 'silence-ended',),).toHaveLength(0,);
-        expect(run.summary.silences?.[0]?.ended,).toBeUndefined();
+        expect(run.summary.silences?.[0]?.abort,).toBeUndefined();
         expect(run.summary.endReason,).toBe('wall-clock',);
       },
     },),
@@ -1174,7 +1227,7 @@ await describe({
         // The abort ends the operation in flight, and only after it was answered does the message go.
         expect(run.commands.filter((command,) => command === 'abort',).length,).toBeGreaterThanOrEqual(1,);
         expect(run.messages,).toHaveLength(2,);
-        expect(run.messages[1],).toContain('The driver ended the command you were running: bash',);
+        expect(run.messages[1],).toContain('The driver ended the operation you were in',);
         expect(run.messages[1],).toContain('rg -l --fixed-strings something',);
         expect(run.messages[1],).toContain('give the bash tool its `timeout` argument',);
         // The agent's next turn is the run going on, and its reply is what the run ends with.
@@ -1185,10 +1238,10 @@ await describe({
         /**
          What the summary keeps of the command the driver ended, which is the one silence it ended.
          */
-        const ended = (run.summary.silences ?? []).filter((silence,) => silence.ended === true);
+        const ended = (run.summary.silences ?? []).filter((silence,) => silence.abort === 'done');
         expect(ended,).toHaveLength(1,);
-        expect(ended[0]?.told,).toBe(true,);
-        expect(ended[0]?.command?.tool,).toBe('bash',);
+        expect(ended[0]?.message,).toBe('done',);
+        expect(ended[0]?.commands?.[0]?.tool,).toBe('bash',);
       },
     },),
     it({
@@ -1220,7 +1273,7 @@ await describe({
         expect(run.status,).toBe(CLEAN_STATUS,);
         expect(run.descendants.length,).toBeGreaterThanOrEqual(1,);
         expect(run.messages,).toHaveLength(2,);
-        expect(run.messages[1],).toContain('The driver ended the command you were running: bash',);
+        expect(run.messages[1],).toContain('The driver ended the operation you were in',);
         expect(linesOfKind(run.feed, 'silence-ended',),).toHaveLength(1,);
         expect(run.summary.lastAssistantText,).toBe(WENT_ON,);
         expect(run.summary.endReason,).toBe('idle',);
@@ -1234,72 +1287,81 @@ await describe({
 },);
 
 await describe({
-  name: aSilentCommandIsDueToEnd.name,
+  name: theOperationIsDueToEnd.name,
   children: [
     it({
-      name: 'is due only once the run has said nothing for the stated time as well as the command having run that long',
-      fn: async () => {
-        expect(aSilentCommandIsDueToEnd({
-          silentMilliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
-          silentEndMilliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
-          graceSeconds: SILENT_BOUND_GRACE_SECONDS,
-          command: {
-            tool: 'bash',
-            args: COMMAND_ARGS,
-            milliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
-          },
-        },),).toBe(true,);
-        expect(aSilentCommandIsDueToEnd({
-          silentMilliseconds: (SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND) - 1,
-          silentEndMilliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
-          graceSeconds: SILENT_BOUND_GRACE_SECONDS,
-          command: {
-            tool: 'bash',
-            args: COMMAND_ARGS,
-            milliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
-          },
-        },),).toBe(false,);
-      },
-    },),
-    it({
-      name: 'is not due for a command whose own bound has not passed, and is due a grace after that bound',
+      name: 'is due only once the run has said nothing for the stated time as well as every call having run that long',
       fn: async () => {
         /**
-         The command, which declared a bound longer than the driver's own stated end.
+         One call that has run as long as the stated time.
          */
         const command = {
           tool: 'bash',
           args: COMMAND_ARGS,
-          milliseconds: 0,
-          boundSeconds: DECLARED_BOUND_SECONDS,
+          milliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
         };
-        expect(aSilentCommandIsDueToEnd({
-          silentMilliseconds: DECLARED_BOUND_SECONDS * MILLISECONDS_PER_SECOND,
+        expect(theOperationIsDueToEnd({
+          silentMilliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
           silentEndMilliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
           graceSeconds: SILENT_BOUND_GRACE_SECONDS,
-          command: {
-            ...command,
-            milliseconds: DECLARED_BOUND_SECONDS * MILLISECONDS_PER_SECOND,
-          },
+          commands: [command,],
+        },),).toBe(true,);
+        expect(theOperationIsDueToEnd({
+          silentMilliseconds: (SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND) - 1,
+          silentEndMilliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
+          graceSeconds: SILENT_BOUND_GRACE_SECONDS,
+          commands: [command,],
         },),).toBe(false,);
-        expect(aSilentCommandIsDueToEnd({
+      },
+    },),
+    it({
+      name: 'waits for a call whose own bound has not passed, and is due a grace after that bound',
+      fn: async () => {
+        /**
+         The call that declared a bound longer than the driver's own stated end, beside one that declared none.
+         */
+        const longBound = {
+          tool: 'bash',
+          args: COMMAND_ARGS,
+          milliseconds: DECLARED_BOUND_SECONDS * MILLISECONDS_PER_SECOND,
+          boundSeconds: DECLARED_BOUND_SECONDS,
+        };
+        /**
+         The call that declared no bound, which is past the stated end.
+         */
+        const unbounded = {
+          tool: 'bash',
+          args: COMMAND_ARGS,
+          milliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
+        };
+        expect(theOperationIsDueToEnd({
+          silentMilliseconds: (SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND) + 1,
+          silentEndMilliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
+          graceSeconds: SILENT_BOUND_GRACE_SECONDS,
+          commands: [longBound, unbounded,],
+        },),).toBe(false,);
+        expect(theOperationIsDueToEnd({
           silentMilliseconds: (DECLARED_BOUND_SECONDS + SILENT_BOUND_GRACE_SECONDS) * MILLISECONDS_PER_SECOND,
           silentEndMilliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
           graceSeconds: SILENT_BOUND_GRACE_SECONDS,
-          command: {
-            ...command,
-            milliseconds: (DECLARED_BOUND_SECONDS + SILENT_BOUND_GRACE_SECONDS) * MILLISECONDS_PER_SECOND,
-          },
+          commands: [
+            {
+              ...longBound,
+              milliseconds: (DECLARED_BOUND_SECONDS + SILENT_BOUND_GRACE_SECONDS) * MILLISECONDS_PER_SECOND,
+            },
+            unbounded,
+          ],
         },),).toBe(true,);
       },
     },),
     it({
-      name: 'is never due without a command, which is a silence no command is sitting in',
+      name: 'is never due without a call in flight, which is a silence no command is sitting in',
       fn: async () => {
-        expect(aSilentCommandIsDueToEnd({
+        expect(theOperationIsDueToEnd({
           silentMilliseconds: 10 * SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
           silentEndMilliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
           graceSeconds: SILENT_BOUND_GRACE_SECONDS,
+          commands: [],
         },),).toBe(false,);
       },
     },),
@@ -1334,16 +1396,16 @@ await describe({
          What the agent is told about a command that declared no bound.
          */
         const told = endedCommandMessageOf({
-          command: {
+          commands: [{
             tool: 'bash',
             args: COMMAND_ARGS,
             milliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
-          },
+          },],
           silentMilliseconds: SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND,
         },);
-        expect(told,).toContain('The driver ended the command you were running: bash `',);
+        expect(told,).toContain('The driver ended the operation you were in, after it had said nothing for',);
         expect(told,).toContain('rg -l --fixed-strings something',);
-        expect(told,).toContain('It declared no bound of its own.',);
+        expect(told,).toContain('no bound of its own',);
         expect(told,).toContain('A command that may run long needs a bound of its own',);
         expect(told,).toContain('Go on from here',);
       },
@@ -1355,16 +1417,15 @@ await describe({
          What the agent is told about a command that declared a bound.
          */
         const told = endedCommandMessageOf({
-          command: {
+          commands: [{
             tool: 'bash',
             args: COMMAND_ARGS,
             milliseconds: DECLARED_BOUND_SECONDS * MILLISECONDS_PER_SECOND,
             boundSeconds: DECLARED_BOUND_SECONDS,
-          },
+          },],
           silentMilliseconds: DECLARED_BOUND_SECONDS * MILLISECONDS_PER_SECOND,
         },);
-        expect(told,).toContain(`It declared a bound of ${String(DECLARED_BOUND_SECONDS,)} seconds for itself`,);
-        expect(told,).toContain(`${String(SILENT_BOUND_GRACE_SECONDS,)} seconds past that bound`,);
+        expect(told,).toContain(`a bound of ${String(DECLARED_BOUND_SECONDS,)} seconds of its own`,);
       },
     },),
   ],
@@ -1524,6 +1585,7 @@ await describe({
          */
         const outcomes: Record<string, unknown>[] = [];
         for (const abort of ['done', 'refused', 'unanswered'] as const) {
+          /* oxlint-disable eslint/no-await-in-loop -- one run per answer, ended before the next is started. */
           await using run = await startRunInASilentCommand();
           /**
            Every command the watch sent Pi.
@@ -1560,7 +1622,8 @@ await describe({
             progress,
             keptAbort: kept?.abort,
             commandTypes: sent.map((command,) => command.type,),
-          });
+          },);
+          // oxlint-enable eslint/no-await-in-loop
         }
         expect(outcomes,).toEqual([
           {
@@ -1592,6 +1655,7 @@ await describe({
          */
         const outcomes: Record<string, unknown>[] = [];
         for (const message of ['done', 'refused', 'unanswered'] as const) {
+          /* oxlint-disable eslint/no-await-in-loop -- one run per answer, ended before the next is started. */
           await using run = await startRunInASilentCommand();
           /**
            Every command the watch sent Pi.
@@ -1620,6 +1684,7 @@ await describe({
             },),
             keptMessage: summaryOf(run.record,).silences?.at(-1,)?.message,
           },);
+          // oxlint-enable eslint/no-await-in-loop
         }
         expect(outcomes,).toEqual([
           {
@@ -1894,7 +1959,7 @@ await describe({
           isError: false,
           result: { content: [], },
         },);
-              expect(run.record
+        expect(run.record
           .commandsInFlight()
           .map(function named(command,) {
             return fieldsOf(command.args,).command;

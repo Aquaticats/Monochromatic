@@ -938,14 +938,17 @@ each written as `--name=value`:
   a command whose output stopped,
   or whose own process went and left a descendant holding its pipe,
   is.
-  The line names the command in flight and how long it has said nothing,
+  The line names every command in flight and how long each has said nothing,
   and ends nothing.
 - `--silent-end-seconds`:
-  how long a command that says nothing is given before the driver ends it and tells the agent what it ended,
+  how long a command that says nothing is given before the driver ends the operation it is in,
   one hour by default.
-  A command that declared a bound of its own with the bash tool's `timeout` argument is left alone until that bound has passed,
-  and is ended a minute past it when that bound could not end it.
-  The section "A command that says nothing" states what both values come from.
+  The operation is due only when every command in flight has outlived what it declared:
+  the stated time where it declared none,
+  and the bound it gave the bash tool's `timeout` a minute past that bound where it declared one.
+  The section "A command that says nothing" states what both values come from,
+  what the agent is told,
+  and which end a recovery that fails leaves the run with.
 - `--turn-cap`:
   how many model turns the run may start.
   An attempt of Pi's own automatic retry is a turn too,
@@ -1025,7 +1028,12 @@ the launcher that builds the session's environment asks it, once, before it make
   each with its exit, the pause that followed it and the last lines Pi printed,
   `piStartStoppedBy` names the bound that stopped the starts when none of them took the prompt,
   `silences` holds every stretch in which the run said nothing,
-  each naming the command it sat in and whether the driver ended that command,
+  each naming the commands it sat in,
+  and what the driver's ending of them got where it ended them:
+  Pi's answer to the abort (`abort`),
+  whether the session settled (`settled`),
+  its answer to the recovery message (`message`),
+  and why a step that was asked did not go through (`problems`),
   and `retries` and `rateLimitErrors` count what the driver retried and what the run met of the failures the
   coordinator measures apart.
 - `stderr.log`:
@@ -1127,6 +1135,7 @@ or in the provider's own store.
 `endReason` in the summary says how.
 `idle` and `stop-file` exit 0.
 `prompt-rejected`,
+`silent-command-unanswered`,
 `compaction-failed`,
 `pi-exited`,
 `pi-exited-before-prompt`,
@@ -1154,6 +1163,10 @@ so nothing is owed and the run ends as it did before;
 one Pi refuses ends the run `prompt-rejected`,
 and the `wake` line carries the refusal,
 because the agent was never told its work ended and that run must not read as one that came back.
+`prompt-rejected` is the end for any message of the driver's that Pi answers with a refusal,
+which the section "A command that says nothing" also reaches when Pi refuses an abort.
+A message Pi answers with nothing at all is a different end there:
+`silent-command-unanswered`.
 The run's own wall clock bounds that wait:
 a run whose work outlasts it ends `wall-clock`,
 and its feed gains a `problem` line naming the work it waited for,
@@ -1305,7 +1318,7 @@ and both are options of the run.
 `--silent-seconds` is the first,
 ten minutes by default.
 The first time a silence passes it the driver writes one `silence` line,
-naming the command it is sitting in and how long it has said nothing,
+naming every command it is sitting in and how long it has said nothing,
 and one entry in the summary's `silences`,
 and ends nothing:
 a whole-suite run that prints nothing for a while is noticed rather than cut.
@@ -1314,32 +1327,6 @@ not one per look.
 
 `--silent-end-seconds` is the second,
 one hour by default.
-Past it the driver does what the wall clock does:
-it sends Pi `abort`,
-which ends the operation in flight and kills the tool's process tree,
-and then sends the agent a message of its own naming the command,
-how long it had said nothing,
-and that a command which may run long needs a bound of its own.
-The run goes on in the turn that message starts;
-a message Pi refuses ends the run `prompt-rejected`,
-because an agent that was never told does not know what became of its command.
-The `silence-ended` line and the summary entry that goes with it say whether Pi took the message.
-
-The driver cannot tell a hang from a long honest command by silence,
-so it does not pretend to.
-It puts the second time above every honest silence it measured,
-and an agent that knows a command may run long says so in advance by giving the bash tool its `timeout` argument,
-in seconds.
-Pi enforces that bound itself by killing the command's process tree,
-and the driver does not end the command before the bound has passed.
-A bound buys time,
-never immunity:
-a command whose own bound could not end it,
-which is a descendant holding the pipe after the command's process went,
-is ended by the driver a minute past that bound,
-and the message says the bound had passed and the command was still going.
-A bound longer than the run's wall clock changes nothing about when the run ends,
-because the wall clock stays the outer bound of every wait.
 
 Both values come from the 2 346 feeds of `${HOME}/temp/agent/pi-runs` read on 2026-11-15,
 holding 248 424 bash commands and 612 100 stretches with no command open
@@ -1354,6 +1341,97 @@ at 30 seconds to 7 300,
 and 334 of them ran past it,
 302 of those within a minute.
 The numbers and the sentence each value rests on are in `src/driver-constants.ts`.
+
+### When the operation is due
+
+The end the protocol offers is of the whole operation,
+not of one call:
+`abort` runs `session.abort()`,
+which ends the run's operation and kills every tool's process tree with it,
+as `dist/core/agent-session.js` in Pi 1.5.2 shows in `abort()` and in the `signal` its tools execute under.
+`abort_bash` looks like the narrower end but is not one:
+it aborts the `_bashAbortControllers` that `executeBash` fills,
+which is the `bash` command a client sends over RPC,
+so a tool the agent ran is not in that set at all.
+The SDK and the extension API offer no per-call cancel either:
+an extension can block a `tool_call` before it runs,
+and nothing ends one already running.
+Source read,
+not assumed:
+`agent-session.js` fills that set at one place,
+which is `executeBash`,
+and `abort()` reaches every tool through the run's own controller.
+
+So the question the watch asks is about the operation:
+it is due when the run has said nothing for the second stated time,
+and every call still in flight has outlived what it declared.
+A call that declared a bound with the bash tool's `timeout` is given that bound and a minute past it;
+a call that declared none is given the stated time.
+Where calls with and without a bound run side by side,
+the one without waits for its peer:
+ending the operation ends them both,
+so waiting is the only rule that keeps a bound a bound.
+The price is stated rather than hidden:
+an unbounded call beside a two-hour one is ended after two hours,
+not after one.
+
+A call is a call by its `toolCallId`.
+Pi writes one on `tool_execution_start` and on `tool_execution_end`,
+and the driver matches by it,
+so two calls of one tool in flight at once are told apart and their ends may arrive in any order.
+Where Pi sends an end with no identifier,
+or with one no start carried,
+the driver falls back to the most recently started call of the same tool name;
+with two calls of that tool in flight,
+that fallback can take the wrong one,
+which is the case the identifier exists to remove.
+Both the feed's line for the ending and the summary name each call by its identifier when Pi gave one.
+
+### What the agent is told, and how the run ends
+
+Past that time the driver sends `abort`,
+then reads the run's own records for the settle,
+and then sends the agent a message of its own:
+which commands were in flight,
+each with the bound it declared and how long it had run,
+how long the run had said nothing,
+that every command ended with the operation,
+and that a command which may run long needs a bound of its own.
+
+Each of the three steps answers three ways,
+and `summary.json` keeps which.
+`abort` and `message` are `done`,
+`refused`,
+or `unanswered`,
+and `settled` says whether the session was idle afterwards.
+The run's end follows from those answers:
+
+- abort `done`,
+  `settled` true,
+  message `done`:
+  the run goes on in the turn that message started.
+- abort `done`,
+  message `refused`:
+  the run ends `prompt-rejected`,
+  because Pi answered no to the message that would have told the agent.
+- abort `done`,
+  `settled` false:
+  the run ends `silent-command-unanswered` and no message is sent,
+  because a session still at work is not one whose next turn is the agent's.
+- abort `refused`:
+  the run ends `prompt-rejected`,
+  because Pi answered no to the abort and the operation was never ended.
+- abort `unanswered`,
+  or abort `done` with message `unanswered`:
+  the run ends `silent-command-unanswered`.
+
+An end that is not `idle` is the point:
+a run whose recovery was never told is not a run that finished its turn,
+and `idle` would have said the agent had nothing left when it had never been told what became of its command.
+`silent-command-unanswered` counts in `finished-pi-runs.ts`'s length sample,
+because the run did work until a command stopped saying anything;
+it is not one of the ends whose duration says nothing about how long the work takes.
+A driver that cannot end the operation leaves the run where the coordinator can see it, and never once more at `idle`.
 
 ## When Pi compacts before it takes the prompt
 

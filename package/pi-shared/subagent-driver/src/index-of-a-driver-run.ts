@@ -20,11 +20,13 @@ export {
 } from './answer-a-model-error.ts';
 export {
   aSilenceInTheRun,
-  aSilentCommandIsDueToEnd,
   declaredBoundOf,
+  dueAtOf,
   endedCommandMessageOf,
   keptCommand,
+  keptCommands,
   type SilenceWaitedFor,
+  theOperationIsDueToEnd,
 } from './a-command-that-says-nothing.ts';
 export {
   COMMAND_ANSWER_MILLISECONDS,
@@ -42,6 +44,7 @@ export {
 export type {
   NoFurtherStart,
   PiStartFailure,
+  RecoveryAnswer,
   SilenceOfRun,
   SilentCommand,
 } from './driver-types.ts';
