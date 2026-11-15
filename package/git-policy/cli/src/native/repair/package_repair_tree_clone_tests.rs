@@ -177,6 +177,40 @@ fn an_unreadable_directory_is_made_empty_and_left_out() {
     remove(&root);
 }
 
+/// What:
+///  A clone that cannot read one source file never removes a file another command put where that entry goes.
+/// Why:
+///  The cleanup branch removed the destination whenever the copy failed,
+///  and a create that found another command's file fails before this clone made anything:
+///  the wrong result was loss of that command's file,
+///  which the review of `e1a615aab0` reproduced (F1) with a program that called `place` in exactly this state.
+///  The interleaving that state needs is placed here rather than timed:
+///  the listing holds the entry,
+///  the destination already holds another command's file,
+///  and the source file cannot be read.
+#[test]
+fn a_clone_never_removes_a_file_another_command_put_at_the_entrys_place() {
+    let root: PathBuf = fixture("tree-clone-another-commands-file");
+    let source: PathBuf = root.join("source");
+    let destination: PathBuf = root.join("destination");
+    std::fs::create_dir_all(source.as_path()).expect("source");
+    std::fs::create_dir_all(destination.as_path()).expect("the destination the clone already made");
+    std::fs::write(source.join("victim"), b"source").expect("source file");
+    std::fs::set_permissions(source.join("victim"), std::fs::Permissions::from_mode(0o000)).expect("no access to the source file");
+    // Another command won the race and put its own file where this entry goes.
+    let anothers: PathBuf = destination.join("victim");
+    std::fs::write(anothers.as_path(), b"another command's data").expect("the other command's file");
+    let placed: Result<Option<PathBuf>, String> = place(source.as_path(), destination.as_path(), &Entry { relative: PathBuf::from("victim"), kind: Kind::File });
+    assert_eq!(placed.expect("an unreadable source file is left out and named"), Some(PathBuf::from("victim")));
+    assert_eq!(
+        std::fs::read(anothers.as_path()).expect("the other command's file is still where that command put it"),
+        b"another command's data",
+        "the clone removed a file it never made"
+    );
+    std::fs::set_permissions(source.join("victim"), std::fs::Permissions::from_mode(0o600)).expect("give the source its access back");
+    remove(&root);
+}
+
 /// A tree with nothing unreadable leaves nothing out (the control that the new field is not always filled).
 #[test]
 fn a_readable_tree_leaves_nothing_out() {

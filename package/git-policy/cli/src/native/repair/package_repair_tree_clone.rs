@@ -205,7 +205,7 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<Path
         return Ok(None);
     }
     let before: Metadata = say_where(std::fs::metadata(&from), from.as_path(), "cannot be read")?;
-    if let Err(error) = copy_file_exclusive(&from, &to) {
+    if let Err(failure) = copy_file_exclusive(&from, &to) {
         // A file without read permission cannot be cloned or copied by anyone but its owner's chmod, which the source is never given:
         //  the file stays out of the destination (a missing file only makes Cargo rebuild what needs it) and is named.
         if matches!(std::fs::File::open(&from), Err(ref denied) if denied.kind() == std::io::ErrorKind::PermissionDenied) {
@@ -213,14 +213,17 @@ fn place(source: &Path, destination: &Path, entry: &Entry) -> Result<Option<Path
             //  The partial file is removed only when this clone made it.
             // Why:
             //  A create that found something already at the destination belongs to another command,
-            //  and a file nothing of this clone made is never removed
+            //  and a source this clone could not read proves it made nothing at all,
+            //  so a file of another command's is never removed
             //  (the review of `e1a615aab0`, F1: another command's destination file was deleted).
-            if error.kind() != std::io::ErrorKind::AlreadyExists {
+            //  The answer says whether the copy made the destination, which the error's kind cannot:
+            //  a source that cannot be read fails with `PermissionDenied` before any create is tried.
+            if failure.made_the_destination {
                 let _removed = std::fs::remove_file(&to);
             }
             return Ok(Some(entry.relative.clone()));
         }
-        return Err(format!("{} cannot be cloned ({error})", from.display()));
+        return Err(format!("{} cannot be cloned ({})", from.display(), failure.error));
     }
     say_where(std::fs::set_permissions(&to, before.permissions()), to.as_path(), "cannot take its mode")?;
     let times: FileTimes = FileTimes::new().set_accessed(before.accessed().unwrap_or(std::time::UNIX_EPOCH)).set_modified(before.modified().unwrap_or(std::time::UNIX_EPOCH));

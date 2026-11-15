@@ -257,24 +257,49 @@ fn copied_file_has_identical_bytes() {
 }
 
 /// A refused exclusive copy reports the operating system's own error,
-///  so a caller acts on the kind instead of reading the message.
+///  so a caller acts on the kind instead of reading the message,
+///  and says whether this copy made the destination it left.
+/// Why:
+///  Only a file this copy made is its own to remove, and the kind cannot say that:
+///  a create that found another command's file and a source that could not be read fail before
+///  anything of this copy exists (the review of `e1a615aab0`, F1).
 #[test]
 fn a_refused_exclusive_copy_reports_the_operating_systems_error() {
     let root: PathBuf = fixture("stage-exclusive-kind");
     std::fs::write(root.join("source"), b"payload").expect("source");
     copy_file_exclusive(root.join("source").as_path(), root.join("copy").as_path()).expect("copy");
-    let existing: std::io::Error = copy_file_exclusive(
+    let existing: CopyFileFailure = copy_file_exclusive(
         root.join("source").as_path(),
         root.join("copy").as_path(),
     )
     .expect_err("existing destination");
-    assert_eq!(existing.kind(), std::io::ErrorKind::AlreadyExists);
-    let missing: std::io::Error = copy_file_exclusive(
+    assert_eq!(existing.error.kind(), std::io::ErrorKind::AlreadyExists);
+    assert!(!existing.made_the_destination, "the file at the destination was found there, so this copy did not make it");
+    let missing: CopyFileFailure = copy_file_exclusive(
         root.join("absent").as_path(),
         root.join("other").as_path(),
     )
     .expect_err("missing source");
-    assert_eq!(missing.kind(), std::io::ErrorKind::NotFound);
+    assert_eq!(missing.error.kind(), std::io::ErrorKind::NotFound);
+    assert!(!missing.made_the_destination, "a source that could not be opened made nothing at the destination");
+    assert!(!root.join("other").exists(), "nothing was created for the source that could not be opened");
+    remove(root.as_path());
+}
+
+/// A copy that fails while writing says it made the destination,
+/// which is the only case where a partial file is the copy's own to remove.
+/// The source is a plain file the kernel refuses to read,
+/// so the exclusive create succeeds and the bytes that follow it fail.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_copy_that_failed_while_writing_says_it_made_the_destination() {
+    let root: PathBuf = fixture("stage-copy-made-the-destination");
+    let destination: PathBuf = root.join("copy");
+    let failure: CopyFileFailure = copy_file_exclusive_with(Path::new("/proc/self/mem"), destination.as_path(), clone_refuses)
+        .expect_err("the kernel refuses to read this process's memory at its first address");
+    assert_eq!(failure.error.raw_os_error(), Some(libc::EIO), "the write that followed the create is what failed: {failure:?}");
+    assert!(failure.made_the_destination, "the destination exists and this copy created it, so it is this copy's to remove");
+    assert!(destination.exists(), "the partial file the copy made is left for its caller to remove");
     remove(root.as_path());
 }
 

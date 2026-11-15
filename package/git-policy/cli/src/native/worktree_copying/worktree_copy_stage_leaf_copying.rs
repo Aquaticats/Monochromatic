@@ -98,20 +98,45 @@ pub fn try_clone(_source: &std::fs::File, _destination: &std::fs::File) -> bool 
 }
 
 /// What:
+///  A copy that did not finish,
+///  the operating system's own error,
+///  and whether this call made the destination file it left behind.
+/// Why:
+///   A caller may remove a partial destination only when the copy made it.
+///  A create that found a file already at the destination proves the file belongs to another command,
+///  and a source that could not be opened proves this call made nothing at all,
+///  so the error's kind alone cannot tell a caller whether the file is its own to remove
+///  (the review of `e1a615aab0`, F1: another command's destination file was deleted).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type CopyFileFailure = { error: Error; madeTheDestination: boolean }
+/// ```
+#[derive(Debug)]
+pub struct CopyFileFailure {
+    /// The operating system's own error,
+    /// so a caller that is not this copy reads the cause from its kind.
+    pub error: std::io::Error,
+    /// Whether this call created `destination`,
+    /// which makes a partial file it left its own to remove.
+    pub made_the_destination: bool,
+}
+
+/// What:
 ///  Creates a destination file exclusively and fills it with the source's bytes,
 ///  cloning when the filesystem allows.
 /// Why:
 ///   Exclusive creation never overwrites an existing staged file.
 ///  The failure is the operating system's own,
-/// so a caller that is not this copy reads the cause from its kind
-///  instead of guessing it from the message,
-/// and the copy stage words it for the person.
+///  and it says whether this call made the destination,
+///  so a caller that is not this copy reads the cause from the error's kind
+///  and never removes a file that belongs to another command.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// await copyFile(sourcePath, stagePath, COPYFILE_EXCL | COPYFILE_FICLONE);
 /// ```
-pub fn copy_file_exclusive(source: &Path, destination: &Path) -> Result<(), std::io::Error> {
+pub fn copy_file_exclusive(source: &Path, destination: &Path) -> Result<(), CopyFileFailure> {
     return copy_file_exclusive_with(source, destination, try_clone).map(drop);
 }
 
@@ -226,6 +251,8 @@ pub(crate) fn stamp_is_settled(changed: (i64, i64)) -> bool {
 ///  is refused at once instead of waiting for a writer that may never come,
 /// with the checkout held and nothing
 ///  said ("nothing should ever wait forever or indefinitely").
+/// The failure says whether this call made the destination,
+/// so a caller removes only a file of its own.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -235,16 +262,24 @@ pub fn copy_file_exclusive_with(
     source: &Path,
     destination: &Path,
     clone: fn(&std::fs::File, &std::fs::File) -> bool,
-) -> Result<Option<FileStamp>, std::io::Error> {
-    let mut input: std::fs::File = crate::plain_file::open_plain_file(source)?;
+) -> Result<Option<FileStamp>, CopyFileFailure> {
+    let mut input: std::fs::File = crate::plain_file::open_plain_file(source).map_err(|error| {
+        return CopyFileFailure { error, made_the_destination: false };
+    })?;
     let mut output: std::fs::File = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
-        .open(destination)?;
+        .open(destination)
+        .map_err(|error| {
+            return CopyFileFailure { error, made_the_destination: false };
+        })?;
     let before: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
     // A successful clone already holds every byte, so only a refused clone copies them.
     if !clone(&input, &output) {
-        std::io::copy(&mut input, &mut output)?;
+        std::io::copy(&mut input, &mut output).map_err(|error| {
+            // The destination is this call's, so the partial file it left is its own to remove.
+            return CopyFileFailure { error, made_the_destination: true };
+        })?;
         return Ok(None);
     }
     let after: Option<FileStamp> = input.metadata().ok().as_ref().and_then(stamp_of);
@@ -464,7 +499,7 @@ pub fn copy_one_leaf(source_root: &Path, stage_path: &Path, entry: &WorktreeCopy
         EntryKind::File => match copy_file_exclusive_with(source_path.as_path(), stage_path, clone) {
             Ok(stamp) => Ok(CopiedLeaf::Staged(stamp)),
             Err(_no_longer_the_listed_entry) if !still_holds_the_listed_kind(&source_path, EntryKind::File) => Ok(CopiedLeaf::Gone),
-            Err(error) => Err(named_source_failure(&source_path, "cannot be copied", &error)),
+            Err(failure) => Err(named_source_failure(&source_path, "cannot be copied", &failure.error)),
         },
         EntryKind::Symlink => match std::fs::read_link(source_path.as_path()) {
             Ok(target) => {
