@@ -121,7 +121,7 @@ fn where_no_thread_can_start_a_withdrawal_goes_to_the_landing_thread() {
                 tokio::time::sleep(Duration::from_millis(1)).await;
             }
         };
-        let (job, ()) = tokio::join!(
+        let (job, _handed) = tokio::join!(
             async {
                 let job: Job = landing.await;
                 // Dropping the reply is answering the request: the waiting connection ends.
@@ -276,7 +276,7 @@ fn where_no_thread_can_start_a_commit_naming_this_worktree_still_reaches_the_lan
     let ((), _ticks) = with_a_ticker_beside(async move {
         let (_read_half, mut write_half, _client) = connection();
         let answered: Option<Job> = tokio::select! {
-            () = answer_request(line.as_str(), &mut write_half, &shared, Instant::now()) => None,
+            _handed = answer_request(line.as_str(), &mut write_half, &shared, Instant::now()) => None,
             queued = jobs.recv() => queued,
         };
         assert!(matches!(answered, Some(Job::Commit(..))), "the request named this worktree and reached the landing");

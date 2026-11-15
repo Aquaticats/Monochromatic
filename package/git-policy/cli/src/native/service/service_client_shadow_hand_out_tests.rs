@@ -116,7 +116,11 @@ fn a_drawn_tree_is_handed_over() {
     let drawn: PathBuf = drawn_root(&template).join("drawn-00000000000000000000000000000001");
     std::fs::create_dir_all(drawn.as_path()).expect("a drawn tree");
     let socket: PathBuf = a_stand_in("drawn", Behaviour::Hands(drawn.clone()));
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()), Some(drawn));
+    let (handed, answer): (PathBuf, std::os::unix::net::UnixStream) =
+        ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()).expect("the tree the service drew");
+    assert_eq!(handed, drawn, "the answer names the tree the service drew");
+    // The connection is kept until the commit's claim, and closing it is what lets the service's claim go.
+    drop(answer);
     remove(root.as_path());
 }
 
@@ -129,7 +133,7 @@ fn a_service_that_holds_none_leaves_the_commit_to_the_pool() {
     let (repo, scratch) = repository_with_a_scratch(root.as_path());
     let template: crate::shadow_create::ShadowTemplate = template_of(repo.as_path());
     let socket: PathBuf = a_stand_in("none", Behaviour::HoldsNone);
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()), None);
+    assert!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()).is_none(), "a stock that holds none answers nothing");
     remove(root.as_path());
 }
 
@@ -146,7 +150,7 @@ fn a_service_that_says_nothing_costs_the_deadline_and_no_more() {
     let template: crate::shadow_create::ShadowTemplate = template_of(repo.as_path());
     let socket: PathBuf = a_stand_in("silent", Behaviour::SaysNothing);
     let began: Instant = Instant::now();
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()), None);
+    assert!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()).is_none(), "a stock that holds none answers nothing");
     let waited: Duration = began.elapsed();
     assert!(waited >= DRAWN_ANSWER_DEADLINE, "the deadline is what ended the wait, and it took {waited:?}");
     assert!(waited < DRAWN_ANSWER_DEADLINE * 10, "the wait is the deadline and not a wait of its own: {waited:?}");
@@ -162,9 +166,9 @@ fn a_socket_nobody_listens_on_or_one_that_closes_is_answered_without_a_tree() {
     let (repo, scratch) = repository_with_a_scratch(root.as_path());
     let template: crate::shadow_create::ShadowTemplate = template_of(repo.as_path());
     let missing: PathBuf = root.join("nothing-here.sock");
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(missing), &template, scratch.as_path()), None);
+    assert!(ask_for_a_drawn_shadow(&Bind::Path(missing), &template, scratch.as_path()).is_none(), "a socket file that is not there is no service");
     let socket: PathBuf = a_stand_in("closes", Behaviour::ClosesAtOnce);
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()), None);
+    assert!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()).is_none(), "a stock that holds none answers nothing");
     remove(root.as_path());
 }
 
@@ -183,6 +187,6 @@ fn an_answer_naming_another_tree_is_refused() {
     let elsewhere: PathBuf = root.join("drawn-00000000000000000000000000000002");
     std::fs::create_dir_all(elsewhere.as_path()).expect("a tree of another place");
     let socket: PathBuf = a_stand_in("elsewhere", Behaviour::Hands(elsewhere));
-    assert_eq!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()), None);
+    assert!(ask_for_a_drawn_shadow(&Bind::Path(socket), &template, scratch.as_path()).is_none(), "a stock that holds none answers nothing");
     remove(root.as_path());
 }

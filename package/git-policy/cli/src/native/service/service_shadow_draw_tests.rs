@@ -179,6 +179,45 @@ fn a_sweep_in_the_gap_between_the_answer_and_the_claim_does_not_take_the_tree() 
 }
 
 /// What:
+///  A tree whose commit sent its request is let go by the service at the landing that reads that request,
+///  and a sweep takes it then.
+/// Why:
+///  The service's claim covers the hand-over and ends when the commit has its own:
+///  the request is sent only after the commit has built in the tree and claimed it,
+///  so the landing lets the service's claim go (`service_server_land_group.rs`, `let_go_of`),
+///  and a client that died after its request leaves a tree nobody holds, which its age collects.
+///  This is the other end of the claim the hand-out keeps: what a client that never asks leaves is the connection's
+///  (`a_client_killed_before_its_request_leaves_no_claimed_tree`).
+#[test]
+fn a_tree_whose_request_arrived_is_let_go_at_the_landing() {
+    let root: PathBuf = fixture("shadow-draw-request-arrived");
+    let repo: PathBuf = repository(root.as_path(), "repo");
+    std::fs::write(repo.join("a.txt"), "a\n").expect("a");
+    git(repo.as_path(), &["add", "a.txt"]);
+    git(repo.as_path(), &["commit", "--quiet", "--message=a"]);
+    let context: GitContext = git_context();
+    let layout = capture_invocation_layout(&context, repo.as_path(), false).expect("layout");
+    let capture: InvocationCapture = capture_invocation_base(&context, repo.as_path(), layout).expect("capture");
+    let template: ShadowTemplate = ShadowTemplate::of(&context, &capture.layout).expect("template");
+    let _member: PathBuf = fill(&context, &template).expect("a fill").expect("a member");
+    let drawn: PathBuf = crate::shadow_drawn::draw(&context, &template).expect("a draw").expect("a drawn tree");
+    let stock: Arc<DrawnShadows> = DrawnShadows::none_yet();
+    stock.note_ready(drawn.clone());
+    let handed: PathBuf = stock.hand_out().expect("the service answers with the tree");
+    age_tree(handed.as_path(), crate::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
+    // Held by the service, so no sweep takes it, however old the clock says it is.
+    let before: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn_of(template.common_dir.as_path(), template.git_dir.as_path(), SystemTime::now());
+    assert!(before.is_empty(), "a tree the service holds is no tree a sweep takes: {before:?}");
+    assert!(handed.exists(), "and it is still there for the commit that asked");
+    // The landing that reads the request lets the service's claim go.
+    assert!(stock.let_go_of(handed.as_path()), "the service held the tree its answer named");
+    let after: Vec<PathBuf> = crate::shadow_drawn::sweep_drawn_of(template.common_dir.as_path(), template.git_dir.as_path(), SystemTime::now());
+    assert_eq!(after, vec![handed.clone()], "and a sweep takes the tree once nobody holds it");
+    assert!(!handed.exists(), "the tree is gone");
+    remove(root.as_path());
+}
+
+/// What:
 ///  A stock that counts a tree the drawn folder no longer holds draws another one,
 ///  so the commit the landing drew for is not answered a path that is gone.
 /// Why:

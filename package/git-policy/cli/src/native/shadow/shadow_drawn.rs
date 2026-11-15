@@ -240,25 +240,6 @@ fn note_refusal(drawn: &Path, reason: &str) {
     crate::diagnostic_log::debug("shadowDrawn", format!("refused the drawn shadow {}: {reason}", drawn.display()).as_str());
 }
 
-/// What:
-///  Whether the tree the service handed this commit is still there for it to write into.
-/// Why:
-///   A commit that loses the tree it was handed between the question it asks of it and the first write into it
-///  is not a failure of the commit:
-///  the tree is the wrapper's own cache,
-///  and the commit takes the pool's member or makes its own instead
-///  (`SPEC.md`,
-///  "Merges and commits never fail").
-///  The question is asked only after a write failed,
-///  so the path of a commit that works pays nothing for it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const stillThere = (tree) => lstatSync(tree, { throwIfNoEntry: false })?.isDirectory() ?? false;
-/// ```
-pub fn drawn_tree_is_still_there(tree: &Path) -> bool {
-    return std::fs::symlink_metadata(tree).is_ok_and(|metadata| { return metadata.is_dir(); });
-}
 
 /// What:
 ///  Removes every drawn tree of every worktree that nothing has renewed,

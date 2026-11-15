@@ -39,6 +39,25 @@ use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 /// How long a connection may take to send its request line before it is dropped.
 pub const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// How long the service keeps its claim on a tree it handed out,
+/// waiting for the connection the answer went out on to close.
+/// Why:
+///  The claim must cover the instant between the answer and the commit's own claim on the tree, and no longer:
+///  a client takes its claim as it reads the answer and closes this connection as it does,
+///  so a close inside this span is the client's own hand-over,
+///  and a client killed before its claim closes the connection by dying.
+///  A client that neither claims nor dies is one whose commit is stalled before its claim,
+///  and the claim is let go at this bound so the tree ages out as any unheld tree does:
+///  nothing waits for good (`SPEC.md`),
+///  and the tree's own holder, if there is one by then, keeps it without the service.
+///  Measured:
+///  an answer to this question took at most 1.684 ms in 3,000 round trips
+///  (`doc/planning/git-policy-cli-shadow-pool-claim-rename-options.md`,
+///  "A. The service hands a drawn tree out"),
+///  and the commit's claim follows the answer with no other work between them,
+///  so this is thousands of times the largest answer seen.
+pub const THE_CLIENTS_CLAIM_IS_WAITED_FOR: Duration = Duration::from_secs(5);
+
 /// The point at which this file reads a Git directory's instance,
 /// for a control that holds that read (`service_fault_hooks_test_support.rs`).
 #[cfg(test)]
@@ -246,7 +265,18 @@ pub(crate) async fn handle_connection(stream: UnixStream, shared: ConnectionShar
         crate::service_warn!("refused a request line that ended with its connection instead of its framing newline, so nothing of it was read as a message and nothing was queued");
         return;
     }
-    answer_request(&line, &mut write_half, &shared, accepted).await;
+    let handed: Option<PathBuf> = answer_request(&line, &mut write_half, &shared, accepted).await;
+    let Some(tree) = handed else { return };
+    // What: The claim the service kept on the tree it handed out goes when the client closes this connection,
+    //       or at the bound if it never does.
+    // Why:  The client takes its own claim as it reads the answer and closes this connection as it does,
+    //       so a client killed between the answer and that claim closes it by dying and leaves a tree nobody holds,
+    //       which the sweep collects a bound later;
+    //       a client that took its claim does not need the service's, and the tree stays the commit's own.
+    //       The wait is bounded, so a client that neither claims nor dies costs this task the bound and no more.
+    let _waited: Result<Result<usize, std::io::Error>, tokio::time::error::Elapsed> =
+        tokio::time::timeout(THE_CLIENTS_CLAIM_IS_WAITED_FOR, reader.read(&mut [0u8; 1])).await;
+    let _let_go: bool = shared.drawn.let_go_of(tree.as_path());
 }
 
 /// Whether a Git directory belongs to another instance of the service than this one,
@@ -312,13 +342,17 @@ async fn refuse_a_message_for(git_dir: &std::path::Path, write_half: &mut OwnedW
 /// ```ts
 /// const tree = shared.drawn.handOut(); send(writeHalf, tree ? { type: 'drawn', tree } : { type: 'no-shadow' });
 /// ```
-async fn answer_the_shadow_question(scratch: &std::path::Path, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared) {
+async fn answer_the_shadow_question(scratch: &std::path::Path, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared) -> Option<PathBuf> {
     match shared.drawn.hand_out() {
         Some(tree) => {
             crate::diagnostic_log::debug("shadowDrawn", format!("handed {} to the commit that asked from {}", tree.display(), scratch.display()).as_str());
-            send(write_half, &ServiceMessage::Drawn { tree }).await;
+            send(write_half, &ServiceMessage::Drawn { tree: tree.clone() }).await;
+            return Some(tree);
         }
-        None => send(write_half, &ServiceMessage::NoShadow).await,
+        None => {
+            send(write_half, &ServiceMessage::NoShadow).await;
+            return None;
+        }
     };
 }
 
@@ -331,7 +365,7 @@ async fn tell_unavailable(write_half: &mut OwnedWriteHalf) {
 /// refuses what another instance serves,
 /// answers what needs no landing,
 /// and queues the rest.
-async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant) {
+async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &ConnectionShared, accepted: Instant) -> Option<PathBuf> {
     // A message about another worktree is not this instance's to act on: each worktree has its own instance, so one that
     //  reaches the wrong socket is a mistake of the sender's, refused where it can be seen.
     match decode_client(line.trim_end_matches('\n')) {
@@ -340,6 +374,7 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
             //  whose own read waits on storage never leaves the client silent (`queue_a_commit`).
             let deciding = is_foreign(shared, request.git_dir.clone());
             queue_a_commit(request, write_half, shared, accepted, deciding).await;
+            return None;
         }
         Ok(ClientMessage::Work { git_dir, review_key }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
@@ -353,11 +388,19 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
         // Why:  The answer is taken out of the service's own stock and written by this connection's task, never by the
         //       landing thread: a commit that waited for its tree through the landing queue would queue behind every other
         //       commit's landing, which is the wait the hand-out exists to remove.
-        Ok(ClientMessage::Shadow { git_dir, scratch }) => match is_foreign(shared, git_dir.clone()).await {
-            Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
-            Some(false) => answer_the_shadow_question(scratch.as_path(), write_half, shared).await,
-            None => tell_unavailable(write_half).await,
-        },
+        Ok(ClientMessage::Shadow { git_dir, scratch }) => {
+            return match is_foreign(shared, git_dir.clone()).await {
+                Some(true) => {
+                    refuse_a_message_for(git_dir.as_path(), write_half).await;
+                    None
+                }
+                Some(false) => answer_the_shadow_question(scratch.as_path(), write_half, shared).await,
+                None => {
+                    tell_unavailable(write_half).await;
+                    None
+                }
+            };
+        }
         Ok(ClientMessage::Warm { repository, git_dir }) => match is_foreign(shared, git_dir.clone()).await {
             Some(true) => refuse_a_message_for(git_dir.as_path(), write_half).await,
             // Nothing is answered: the compile is a job of the blocking pool, and the connection closes with this function.
@@ -374,6 +417,7 @@ async fn answer_request(line: &str, write_half: &mut OwnedWriteHalf, shared: &Co
             send(write_half, &ServiceMessage::Failed { id: String::new(), code: FailureCode::Rejected }).await;
         }
     };
+    return None;
 }
 
 /// What:

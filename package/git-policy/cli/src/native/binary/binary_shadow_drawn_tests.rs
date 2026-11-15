@@ -20,6 +20,11 @@
 //!  which is linked into the shadow and holds Git inside the build while the tree goes.
 //!  Nothing here is a stand-in for the wrapper.
 //!
+//!  A removal is not one step: a process killed between its steps leaves the tree's root with some of its entries gone,
+//!  and a commit that built in it would fail. Each of the three points where the build reads the tree is controlled with
+//!  that state too, so the recovery question is "does the tree still hold what the build was given" and not "is there a
+//!  directory at that path".
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! pauseAt('shadow-handed'); await rm(handed, { recursive: true }); release(); expect(await commit()).toLand();
@@ -27,7 +32,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, FixtureService, Observed, fixture, git, observe, repository, stderr_of, start_fixture_service};
+use super::support::{Fixture, FixtureService, Observed, executable, fixture, git, observe, repository, stderr_of, start_fixture_service};
 use git_policy_cli::commit_timing::TIMING_FILE;
 use git_policy_cli::transaction_phase::PHASE_SIGNAL_VARIABLE;
 use git_policy_cli::wrapper_names_old_and_new::SHADOW_DRAWN_FOLDER;
@@ -342,5 +347,181 @@ fn a_commit_whose_handed_tree_goes_after_git_built_it_still_lands() {
         record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
     assert!(parts.contains_key("shadow went"), "the record says the shadow went and the commit built again: {record}");
     assert_eq!(record["attempts"], serde_json::Value::from(1), "the attempt count is the commit's own and the rebuild is inside it: {record}");
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  A `GIT_EDITOR` that takes `HEAD` out of the tree Git is building in, once, and lets the commit go on.
+/// Why:
+///  The build's own Git is the only thing running while the tree is read and written,
+///  so an editor that removes one entry of it leaves a tree that is partly there *after* the recovery's first question
+///  had seen it whole:
+///  the question the recovery asks is the one this control is about, and Git's own failure follows from the tree
+///  (`fatal: not a git repository`).
+///  It removes once and never again, so the commit's second build is not spoiled the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const editor = (tree, markers) => ifExists(join(markers, 'editor-ran')) ? exit(0) : (unlink(join(tree, 'HEAD')), exit(0))
+/// ```
+fn an_editor_that_removes_head_once(case: &Case, tree: &Path) -> PathBuf {
+    let ran: PathBuf = case.markers.join("editor-ran");
+    let editor: PathBuf = case.markers.join("an-editor-that-removes-head");
+    executable(
+        editor.as_path(),
+        format!(
+            "#!/bin/sh\n\
+             if [ -e '{ran}' ]; then exit 0; fi\n\
+             printf ran > '{ran}'\n\
+             rm --force '{head}'\n\
+             exit 0\n",
+            ran = ran.display(),
+            head = tree.join("HEAD").display()
+        )
+        .as_bytes(),
+    );
+    return editor;
+}
+
+/// What:
+///  A commit whose handed tree lost `HEAD` before Git was asked to build in it lands in another tree,
+///  and its record says so.
+/// Why:
+///  A removal killed after unlinking `HEAD` leaves the root directory and the rest of the tree,
+///  so a question that asks only whether the root is a directory answers yes about a tree Git cannot use.
+///  The build asks whether the tree still holds what it was given, and a tree that has lost an entry is one the commit
+///  builds in another tree rather than fails in (`service_native.rs`, `build_with_git`;
+///  `shadow_create.rs`, `the_shadow_holds_what_a_build_needs`).
+#[test]
+fn a_commit_whose_handed_tree_lost_head_before_git_still_lands() {
+    let (case, handed): (Case, PathBuf) = a_repository_with_a_drawn_tree("handed-tree-lost-head-before-git");
+    std::fs::write(case.markers.join("shadow-built-2.release"), b"").expect("the release of a second build");
+    let mut command: Command = a_commit_paused_at(&case, "shadow-built", "two");
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("shadow-built-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the instant its shadow is built and Git is about to run in it");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(the_commit_built_in(handed.as_path()), "the commit wrote its ref store into the tree it was handed, so this control is exercising a handed tree");
+    // A removal killed after unlinking HEAD and before its last rmdir leaves exactly this.
+    std::fs::remove_file(handed.join("HEAD")).expect("HEAD goes");
+    assert!(handed.is_dir(), "the root of the tree is still a directory, which is all a root-only question sees");
+    std::fs::write(markers.join("shadow-built-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "a commit whose handed tree lost HEAD before Git must still land: {words}");
+    let subjects: String = git_text(&case.fixture, case.repo.as_path(), &["log", "--format=%s"]);
+    assert_eq!(subjects.lines().collect::<Vec<&str>>(), vec!["two", "one", "base", "initial"], "the commit is on the branch");
+    let record: serde_json::Value = last_record(case.repo.as_path());
+    let parts: &serde_json::Map<String, serde_json::Value> =
+        record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
+    assert!(parts.contains_key("shadow went"), "the record says the shadow went and the commit built again: {record}");
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  A commit whose handed tree loses `HEAD` while Git builds in it lands in another tree,
+///  and its record says so.
+/// Why:
+///  Git fails on a tree that has lost an entry, and the recovery after a failed build asks whether the tree still holds
+///  what the build was given: a tree that has lost one is one the commit builds in again
+///  (`service_native.rs`, `build_with_git`).
+#[test]
+fn a_commit_whose_handed_tree_loses_head_while_git_builds_still_lands() {
+    let (case, handed): (Case, PathBuf) = a_repository_with_a_drawn_tree("handed-tree-loses-head-while-git-builds");
+    let editor: PathBuf = an_editor_that_removes_head_once(&case, handed.as_path());
+    let mut command: Command = wrapped_commit(&case.fixture, case.repo.as_path(), &["commit", "--edit", "--message=two", "--", "a.txt"]);
+    command.env("XDG_RUNTIME_DIR", &case.service.runtime);
+    command.env("GIT_EDITOR", &editor);
+    let seen: Observed = observe(&mut command, b"");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "a commit whose handed tree lost HEAD while Git built must still land: {words}");
+    let subjects: String = git_text(&case.fixture, case.repo.as_path(), &["log", "--format=%s"]);
+    assert_eq!(subjects.lines().collect::<Vec<&str>>(), vec!["two", "one", "base", "initial"], "the commit is on the branch");
+    let record: serde_json::Value = last_record(case.repo.as_path());
+    let parts: &serde_json::Map<String, serde_json::Value> =
+        record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
+    assert!(parts.contains_key("shadow went"), "the record says the shadow went and the commit built again: {record}");
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  A commit whose handed tree lost `HEAD` after Git succeeded and before the read-back lands in another tree.
+/// Why:
+///  The ref that names Git's commit lives in the tree, so a tree that lost an entry cannot be read back;
+///  the recovery asks whether the tree still holds what the build was given and builds again
+///  (`service_native.rs`, `build_with_git`).
+#[test]
+fn a_commit_whose_handed_tree_lost_head_before_the_read_back_still_lands() {
+    let (case, handed): (Case, PathBuf) = a_repository_with_a_drawn_tree("handed-tree-lost-head-before-read-back");
+    std::fs::write(case.markers.join("shadow-readable-2.release"), b"").expect("the release of a second attempt");
+    let mut command: Command = a_commit_paused_at(&case, "shadow-readable", "two");
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("shadow-readable-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper reached the instant Git had built its commit in the handed tree");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(the_commit_built_in(handed.as_path()), "the commit wrote its ref store into the tree it was handed, so this control is exercising a handed tree");
+    std::fs::remove_file(handed.join("HEAD")).expect("HEAD goes");
+    assert!(handed.is_dir(), "the root of the tree is still a directory, which is all a root-only question sees");
+    std::fs::write(markers.join("shadow-readable-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "a commit whose handed tree lost HEAD before its read-back must still land: {words}");
+    let subjects: String = git_text(&case.fixture, case.repo.as_path(), &["log", "--format=%s"]);
+    assert_eq!(subjects.lines().collect::<Vec<&str>>(), vec!["two", "one", "base", "initial"], "the commit is on the branch");
+    let record: serde_json::Value = last_record(case.repo.as_path());
+    let parts: &serde_json::Map<String, serde_json::Value> =
+        record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
+    assert!(parts.contains_key("shadow went"), "the record says the shadow went and the commit built again: {record}");
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  A client killed after its hand-out and before its request leaves no tree the service keeps.
+/// Why:
+///  The service's claim on a tree it handed out is the half of the hand-over the client cannot cover:
+///  it must last until the commit's own claim exists, and no longer.
+///  A client killed before it asks for a landing never sends the request that would let the claim go at the landing,
+///  so the claim's life is tied to the connection the answer came on, which the kernel closes when the client dies
+///  (`service_server_connection_handling.rs`, `handle_connection`).
+///  Nothing else ends it: the constant `A_DRAWN_TREE_IS_KEPT_FOR` is the owner's unanswered question.
+#[test]
+fn a_client_killed_before_its_request_leaves_no_claimed_tree() {
+    let (case, handed): (Case, PathBuf) = a_repository_with_a_drawn_tree("handed-tree-of-a-killed-client");
+    let mut command: Command = a_commit_paused_at(&case, "shadow-built", "two");
+    let mut client: std::process::Child = command.spawn().expect("the wrapped commit");
+    let reached: PathBuf = case.markers.join("shadow-built-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(began.elapsed() < PATIENCE, "the wrapper built in the tree the service handed it");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(the_commit_built_in(handed.as_path()), "the commit wrote its ref store into the tree it was handed, so this control is exercising a handed tree");
+    // The client dies at this instruction: no request is sent, and its connection to the service closes with it.
+    client.kill().expect("kill the paused client");
+    let _ended: std::io::Result<std::process::ExitStatus> = client.wait();
+    let waited: Instant = Instant::now();
+    while git_policy_cli::tree_held_by_a_live_process::whether_held(handed.as_path()) != git_policy_cli::tree_held_by_a_live_process::WhetherHeld::ByNobody {
+        assert!(
+            waited.elapsed() < PATIENCE,
+            "the service let go of the tree whose client died before its request: {:?}",
+            git_policy_cli::tree_held_by_a_live_process::whether_held(handed.as_path())
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // Nobody holds it now, so a sweep takes it once it is past the bound: the tree is not kept for the service's life.
+    let old: std::time::SystemTime = std::time::SystemTime::now() - (git_policy_cli::service_scratch_abandonment::SCRATCH_TREE_ABANDONED_AFTER + Duration::from_secs(60));
+    std::fs::File::open(handed.as_path()).expect("the handed tree").set_modified(old).expect("age it past the bound");
+    let common_dir: PathBuf = case.repo.join(".git");
+    let swept: Vec<PathBuf> = git_policy_cli::shadow_drawn::sweep_drawn_of(common_dir.as_path(), common_dir.as_path(), std::time::SystemTime::now());
+    assert_eq!(swept, vec![handed.clone()], "a sweep takes the tree of a client that died before its request");
+    assert!(!handed.exists(), "and the tree is gone");
     remove_settled(&case.fixture);
 }

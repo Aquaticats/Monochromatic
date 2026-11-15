@@ -232,6 +232,8 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
         }
     }
     let carry_conclusion: bool = !(input.mode == TransactionMode::ExplicitPath && has_conclusion_state);
+    // The facts the shadow was made from, which the recovery asks about a tree before it trusts or leaves it.
+    let template: crate::shadow_create::ShadowTemplate = crate::shadow_create::ShadowTemplate::of(input.context, &input.capture.layout)?;
     // The wrapper adds no option of its own to the person's command line: Git prints what it prints, and `--quiet` reaches it only
     //  when the person typed it.
     let (globals, commit_args): (Vec<OsString>, Vec<OsString>) =
@@ -270,7 +272,7 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
             object_directory: Some(input.capture.layout.object_directory.as_path()),
         };
         input.clock.next("client build");
-        if !crate::shadow_drawn::drawn_tree_is_still_there(shadow.as_path()) {
+        if !crate::shadow_create::the_shadow_holds_what_a_build_needs(shadow.as_path(), &template, &input.capture.base) {
             // The tree went between this commit's claim on it and the build, so Git is not started in it: a build that cannot
             //  succeed is one whose words would only alarm the person about the wrapper's own cache.
             note_build_part(SHADOW_WENT_PART, Duration::ZERO, Duration::ZERO);
@@ -294,7 +296,7 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
             //       under it for a cause no sweep explains (`SPEC.md`, "Merges and commits never fail"). A second build in a
             //       fresh tree is the commit's own work again and its own ceilings bound it; a third would be a commit that
             //       could not end, so this is one more and no more.
-            if attempt == 1 && !crate::shadow_drawn::drawn_tree_is_still_there(shadow.as_path()) {
+            if attempt == 1 && !crate::shadow_create::the_shadow_holds_what_a_build_needs(shadow.as_path(), &template, &input.capture.base) {
                 note_build_part(SHADOW_WENT_PART, Duration::ZERO, Duration::ZERO);
                 crate::diagnostic_log::debug(
                     "serviceNative",
@@ -324,7 +326,7 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
                 //       command line again, an editor and a signer asked a second time among it.
                 //       A read-back whose tree is still there failed for the repository's or the volume's reason and is the
                 //       commit's to report (`SPEC.md`, "Merges and commits never fail").
-                if attempt == 1 && !crate::shadow_drawn::drawn_tree_is_still_there(shadow.as_path()) {
+                if attempt == 1 && !crate::shadow_create::the_shadow_holds_what_a_build_needs(shadow.as_path(), &template, &input.capture.base) {
                     note_build_part(SHADOW_WENT_PART, Duration::ZERO, Duration::ZERO);
                     crate::diagnostic_log::debug(
                         "serviceNative",
