@@ -27,8 +27,10 @@ import {
   WAKE_LIMIT,
   WORK_POLL_MILLISECONDS,
   type ProcessAtAFolder,
+  type WorktreeLauncherOptions,
   isOwnFolder,
   ownComponentOf,
+  parseWorktreeLauncherOptions,
   processesAtTheirFolders,
   processesStillWorkingFor,
   wakePromptOf,
@@ -36,6 +38,285 @@ import {
   wakeIfItsOwnWorkOutlivesItsTurn,
   workWaitMillisecondsOf,
 } from '../dist/final/node/index.mjs';
+
+/**
+ The note a resumed agent reads, which replaces the run's first prompt.
+ */
+const WAKE_PROMPT = '/runs/a-1/wake-prompt.md';
+
+/**
+ The session file a resumed run continues.
+ */
+const RESUMED_SESSION = '/sessions/a.jsonl';
+
+/**
+ The first prompt of the run a case resumes, which the wake replaces with its own note.
+ */
+const FIRST_PROMPT = '/runs/a-prompt.md';
+
+/**
+ The values every launcher's command line carries, so a case below writes only the option it is about.
+ */
+const REQUIRED_LAUNCHER_VALUES: readonly (readonly [string, string])[] = [
+  ['name', 'a',],
+  ['branch', 'feat/a',],
+  ['prompt', FIRST_PROMPT,],
+  ['cpu', '800',],
+  ['memory', '1G',],
+  ['tasks', '100',],
+  ['wall', '600',],
+];
+
+/**
+ One option of the launcher's command line: the name it is written under, a value a case writes for it, and what the launcher reads
+ from that value.
+ */
+type LauncherOptionCase = {
+  readonly option: string;
+  readonly value: string;
+  readonly expected: unknown;
+  readonly read: (options: WorktreeLauncherOptions) => unknown;
+};
+
+/**
+ The options a wake carries over, each with the value a case writes for it and what the launcher reads from it.
+ */
+const CARRIED_OPTIONS: readonly LauncherOptionCase[] = [
+  {
+    option: 'name',
+    value: 'a',
+    expected: 'a',
+    read: function name(options,) {
+      return options.name;
+    },
+  },
+  {
+    option: 'branch',
+    value: 'feat/a',
+    expected: 'feat/a',
+    read: function branch(options,) {
+      return options.branch;
+    },
+  },
+  {
+    option: 'base',
+    value: 'main',
+    expected: 'main',
+    read: function base(options,) {
+      return options.base;
+    },
+  },
+  {
+    option: 'cpu',
+    value: '800',
+    expected: 800,
+    read: function cpuPercent(options,) {
+      return options.cpuPercent;
+    },
+  },
+  {
+    option: 'memory',
+    value: '1G',
+    expected: '1G',
+    read: function memory(options,) {
+      return options.memory;
+    },
+  },
+  {
+    option: 'tasks',
+    value: '100',
+    expected: 100,
+    read: function taskCount(options,) {
+      return options.taskCount;
+    },
+  },
+  {
+    option: 'wall',
+    value: '600',
+    expected: 600,
+    read: function wallSeconds(options,) {
+      return options.wallSeconds;
+    },
+  },
+  {
+    option: 'provider',
+    value: 'neuralwatt',
+    expected: 'neuralwatt',
+    read: function provider(options,) {
+      return options.provider;
+    },
+  },
+  {
+    option: 'model',
+    value: 'deepseek-v4.1-flash',
+    expected: 'deepseek-v4.1-flash',
+    read: function model(options,) {
+      return options.model;
+    },
+  },
+  {
+    option: 'turn-cap',
+    value: '400',
+    expected: 400,
+    read: function turnCap(options,) {
+      return options.turnCap;
+    },
+  },
+  {
+    option: 'idle-seconds',
+    value: '60',
+    expected: 60,
+    read: function idleSeconds(options,) {
+      return options.idleSeconds;
+    },
+  },
+  {
+    option: 'runs-folder',
+    value: '/runs',
+    expected: '/runs',
+    read: function runsFolder(options,) {
+      return options.runsFolder;
+    },
+  },
+  {
+    option: 'checkout-folder',
+    value: '/repo',
+    expected: '/repo',
+    read: function checkoutFolder(options,) {
+      return options.checkoutFolder;
+    },
+  },
+];
+
+/**
+ The options a wake replaces, each with what a resumed launch must read instead of the value the first command line wrote, and the
+ word the wake itself writes for it where the resumed launch needs one.
+ */
+const REPLACED_OPTIONS: readonly (LauncherOptionCase & { readonly replacement?: string })[] = [
+  {
+    option: 'prompt',
+    value: FIRST_PROMPT,
+    expected: WAKE_PROMPT,
+    replacement: `--prompt=${WAKE_PROMPT}`,
+    read: function promptFile(options,) {
+      return options.promptFile;
+    },
+  },
+  {
+    option: 'session',
+    value: '/sessions/before-this-wake.jsonl',
+    expected: RESUMED_SESSION,
+    replacement: `--session=${RESUMED_SESSION}`,
+    read: function session(options,) {
+      return options.session;
+    },
+  },
+  {
+    option: 'run',
+    value: '5',
+    expected: undefined,
+    read: function runNumber(options,) {
+      return options.runNumber;
+    },
+  },
+];
+
+/**
+ The words of every launcher option that must be there for a command line to be read at all, without the one a case writes itself.
+
+ @param option - the option a case writes for itself, or nothing to carry every required option
+
+ @returns the words
+
+ @example
+ ```ts
+ const words = requiredWordsWithout('name');
+ ```
+ */
+function requiredWordsWithout(option?: string,): readonly string[] {
+  return REQUIRED_LAUNCHER_VALUES
+    .filter(function isAnotherOne([name,],) {
+      return name !== option;
+    },)
+    .map(function asOneWord([name, value,],) {
+      return `--${name}=${value}`;
+    },);
+}
+
+/**
+ The spellings Node's own option parser accepts for one option and one value: attached, detached, either of them written before
+ every other option, and both at once. A command line here carries every option a launcher needs.
+
+ @param optionCase - the option a case is about
+
+ @returns one label and one command line per spelling
+
+ @example
+ ```ts
+ const spellings = spellingsOf({ option: 'run', value: '5', expected: undefined, read },);
+ ```
+ */
+function spellingsOf(optionCase: LauncherOptionCase,): readonly (readonly [string, readonly string[]])[] {
+  /**
+   The values the launcher needs, without the option a case writes for itself.
+   */
+  const others = requiredWordsWithout(optionCase.option,);
+  return [
+    ['attached', [...others, `--${optionCase.option}=${optionCase.value}`,],],
+    ['detached', [...others, `--${optionCase.option}`, optionCase.value,],],
+    [
+      'attached before the other options',
+      [`--${optionCase.option}=${optionCase.value}`, ...others,],
+    ],
+    [
+      'detached before the other options',
+      [`--${optionCase.option}`, optionCase.value, ...others,],
+    ],
+    [
+      'written both ways at once',
+      [...others, `--${optionCase.option}=${optionCase.value}`, `--${optionCase.option}`, optionCase.value,],
+    ],
+  ];
+}
+
+/**
+ Reads a launcher command line the way a launcher does.
+
+ @param commandLine - the words to read
+
+ @returns what the launcher was asked for
+
+ @example
+ ```ts
+ const options = launcherOptionsIn(['--name=a', '--run=5',]);
+ ```
+ */
+function launcherOptionsIn(commandLine: readonly string[],): WorktreeLauncherOptions {
+  return parseWorktreeLauncherOptions({
+    commandLine,
+    checkoutFolder: '/repo',
+  },);
+}
+
+/**
+ Reads the words a wake resumes a run with.
+
+ @param commandLine - the launcher's own words
+
+ @returns the words for the resumed launch
+
+ @example
+ ```ts
+ const words = resumedWordsOf(['--name=a',]);
+ ```
+ */
+function resumedWordsOf(commandLine: readonly string[],): readonly string[] {
+  return wakeResumeWordsOf({
+    commandLine,
+    wakePrompt: WAKE_PROMPT,
+    sessionFile: RESUMED_SESSION,
+  },);
+}
 
 /**
  A folder a test throws away.
@@ -315,6 +596,67 @@ await describe({
     describe({
       name: wakeResumeWordsOf.name,
       children: [
+        ...CARRIED_OPTIONS.map(function keepsOneOption(optionCase,) {
+          return it({
+            name: `keeps --${optionCase.option} with the value the launcher read, whether it is written attached, detached, before the other options, after them, or both ways at once`,
+            fn: async () => {
+              for (const [spelling, commandLine,] of spellingsOf(optionCase,)) {
+                expect(
+                  `${spelling}: ${String(optionCase.read(launcherOptionsIn(commandLine,),),)}`,
+                ).toBe(`${spelling}: ${String(optionCase.expected,)}`,);
+                /**
+                 The words the session is resumed with.
+                 */
+                const resumed = resumedWordsOf(commandLine,);
+                expect(resumed,).toContain(`--${optionCase.option}=${optionCase.value}`,);
+                expect(
+                  `${spelling}: ${String(optionCase.read(launcherOptionsIn(resumed,),),)}`,
+                ).toBe(`${spelling}: ${String(optionCase.expected,)}`,);
+              }
+            },
+          },);
+        },),
+        ...REPLACED_OPTIONS.map(function replacesOneOption(optionCase,) {
+          return it({
+            name: `replaces --${optionCase.option} in every spelling the launcher reads, so no word of the first command line carries it into the resumed run`,
+            fn: async () => {
+              for (const [spelling, commandLine,] of spellingsOf(optionCase,)) {
+                /**
+                 The words the session is resumed with.
+                 */
+                const resumed = resumedWordsOf(commandLine,);
+                expect(
+                  `${spelling}: ${String(optionCase.read(launcherOptionsIn(resumed,),),)}`,
+                ).toBe(`${spelling}: ${String(optionCase.expected,)}`,);
+                expect(
+                  `${spelling}: ${JSON.stringify(resumed.filter(function namesIt(word,) {
+                    return (word === `--${optionCase.option}`) || word.startsWith(`--${optionCase.option}=`,);
+                  },),)}`,
+                ).toBe(`${spelling}: ${JSON.stringify((optionCase.replacement === undefined) ? [] : [optionCase.replacement,],)}`,);
+              }
+            },
+          },);
+        },),
+        it({
+          name: 'drops the folder number however its digits are written, so the resumed run takes a folder no run holds',
+          fn: async () => {
+            for (const written of ['5', '05', '5.0', '0x5', '5e0', '+5', ' 5',]) {
+              expect(launcherOptionsIn([...requiredWordsWithout('run',), '--run', written,],).runNumber,).toBe(5,);
+              expect(launcherOptionsIn(resumedWordsOf([...requiredWordsWithout('run',), '--run', written,],),).runNumber,).toBeUndefined();
+            }
+          },
+        },),
+        it({
+          name: 'drops a run number written twice, of which the launcher reads the last',
+          fn: async () => {
+            /**
+             A command line naming two numbers, one of them detached.
+             */
+            const commandLine = ['--run=5', '--run', '6', ...requiredWordsWithout('run',),];
+            expect(launcherOptionsIn(commandLine,).runNumber,).toBe(6,);
+            expect(launcherOptionsIn(resumedWordsOf(commandLine,),).runNumber,).toBeUndefined();
+          },
+        },),
         it({
           name: 'replaces the prompt and the session, drops the run number so the resumed run writes a folder of its own, and keeps every other word',
           fn: async () => {

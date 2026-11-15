@@ -329,6 +329,14 @@ export {
 } from './split-pi-output.ts';
 
 /**
+ Exported so a test can hand the writer a folder of its own and read what it left there, beside a summary that was there first.
+ @internal
+ */
+export {
+  writeSummary,
+} from './write-summary.ts';
+
+/**
  The library surface of reading a run's own records, kept in a file of its own for the same reason.
  */
 export * from './index-of-reading-a-run.ts';
