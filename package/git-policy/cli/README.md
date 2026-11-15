@@ -1110,6 +1110,22 @@ Read-only commands,
      That is what finishes a directory whose queue record was settled before the rename,
      one whose command was killed between the rename and its own repair,
      and one the service gave up on.
+     A release before that record existed wrote none,
+     so a removal of that release that was killed after its rename,
+     or whose own destroy the kernel refused,
+     left a directory of that shape that nothing named.
+     The command looks for one where a removal renames,
+     which is the directory each worktree the repository registers stands in,
+     and it asks the kernel what stands there:
+     a directory that is the root of a subvolume whose own id the name holds is this program's own,
+     and it is queued for a delete as any other leftover is.
+     A directory that is no subvolume,
+     or a subvolume another id names,
+     is never queued for a delete:
+     a name alone proves nothing about what stands at it,
+     so the command names such a directory once,
+     with the `btrfs subvolume delete` line that removes one of yours,
+     and leaves it exactly as it is.
      After the queueings such a record may cost,
    which is the three attempts a record may cost,
      that command
