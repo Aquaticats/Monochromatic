@@ -1655,7 +1655,7 @@ and what it queued.
   (`invocation/forwarding.rs`,
   line 299),
   and the author is asked to run the review's arm against that path and say so plainly.
-  Read on `main` at 05:50:
+  Read on `main` at 05:47:
   `run_real_git_naming` spawns the child,
   then calls `note_child_started`,
   and `note` in `lock/lock_holder_records.rs` gives up at line 337 when the child's identity cannot be read,
