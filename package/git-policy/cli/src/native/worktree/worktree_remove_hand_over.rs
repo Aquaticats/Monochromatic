@@ -44,7 +44,7 @@ use crate::transaction_git::{GitContext, GitOutput, GitRequest, run_git};
 use crate::wait_ceilings::{ANSWER_CEILING, HAND_OVER_GREETING_WAIT, SHORT_EXTRA_WAIT, WITHDRAW_CEILING, waiting_notice_after};
 use crate::work_item::{FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
 use crate::worktree_removal_interrupted_destroy::record_leaving;
-use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, forget_the_leaving, queue_the_delete_again, record_a_leaving};
+use crate::worktree_removal_leaving_that_outlives_its_record::{Leaving, forget_the_leaving, mark_the_leaving, queue_the_delete_again, record_a_leaving};
 use crate::service_work::Verdict;
 use crate::worktree_added_by_the_wrapper::added_by_the_wrapper;
 use crate::worktree_kept_notices::record_kept_worktree;
@@ -361,6 +361,10 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         return Err(reason);
     }
     let deleting: OsString = deleting_name(id);
+    // What: The mark this program carries on a subvolume it renames aside, written before the rename.
+    // Why:  It travels with the subvolume, so a leftover of this release is proved by the directory itself even when
+    //       every record of the repository is gone; a mark that cannot be written costs that proof and nothing else.
+    mark_the_subvolume(parent, name, id);
     // Where the files will stand is written before the rename, so a command killed between the two leaves a record whose
     // worktree path is gone and whose place is named, which is a state the next command finishes the registration by
     // (a review finding, F4).
@@ -408,6 +412,33 @@ pub fn hand_over_with(common_dir: &Path, parent: &File, parent_path: &Path, name
         warn(TAG, format!("the delete of {} is recorded and not woken ({why})", target.display()).as_str());
     }
     return Ok(());
+}
+
+/// What:
+///  Mark the open entry `name` of `parent` as a subvolume this program is renaming aside,
+///  and say in the diagnostic log when the mark cannot be written.
+/// Why:
+///   The entry is opened as a directory below the parent the removal already holds,
+///  so nothing here follows a link or waits for what the name holds.
+///   A missing mark is no reason to refuse the hand-over:
+///  the leaving and queue records name the directory as before,
+///  so the removal goes on and only the proof that travels with the subvolume is absent.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// markTheSubvolume(parent, name, id); // warn when the attribute is refused
+/// ```
+fn mark_the_subvolume(parent: &File, name: &OsStr, id: u64) {
+    let held: File = match open_directory_at(parent, name) {
+        Ok(opened) => opened,
+        Err(error) => {
+            warn(TAG, format!("the subvolume {id} is not marked as one this program renames aside, because it cannot be opened ({error}); its records still name it").as_str());
+            return;
+        }
+    };
+    if let Err(reason) = mark_the_leaving(&held, id) {
+        warn(TAG, format!("the subvolume {id} is not marked as one this program renames aside ({reason}); its records still name it").as_str());
+    }
 }
 
 /// What:

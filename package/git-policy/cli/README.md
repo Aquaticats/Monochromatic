@@ -1115,18 +1115,27 @@ Read-only commands,
      so a removal of that release that was killed after its rename,
      or whose own destroy the kernel refused,
      left a directory of that shape that nothing named.
-     The command looks for one where a removal renames,
-     which is the directory each worktree the repository registers stands in,
-     and it asks the kernel what stands there:
-     a directory that is the root of a subvolume whose own id the name holds is this program's own,
-     and it is queued for a delete as any other leftover is.
-     A directory that is no subvolume,
-     or a subvolume another id names,
-     is never queued for a delete:
-     a name alone proves nothing about what stands at it,
-     so the command names such a directory once,
+     The command looks for one in the directory each linked worktree of the repository stands in,
+     which is where a removal of one renames its subvolume,
+     and it asks the kernel what stands there,
+     of the directory it opened once and never by its path again:
+     a directory that is the root of a subvolume whose own id the name holds is the object to judge,
+     and the name alone is no proof of who put it there,
+     because a person can read a subvolume's id and name a directory after it.
+     Two things prove it,
+     and either is enough:
+     the mark this program writes onto a subvolume before it renames it,
+     an extended attribute naming that subvolume's own id,
+     which travels with the subvolume and survives the loss of every record;
+     or a record of that very delete,
+     in a state a round still owes or in one a round settled `done` or `failed`,
+     which is what a release that wrote no leaving record left behind.
+     A directory nothing proves is never queued for a delete:
+     the command names it once,
      with the `btrfs subvolume delete` line that removes one of yours,
      and leaves it exactly as it is.
+     A directory whose parent is not named by text is refused the same way,
+     because a record names its paths in text and a lossy path would report a delete at a place that does not exist.
      After the queueings such a record may cost,
    which is the three attempts a record may cost,
      that command

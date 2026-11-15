@@ -205,6 +205,25 @@ pub fn open_directory_at(parent: &File, name: &OsStr) -> std::io::Result<File> {
 }
 
 /// What:
+///  Open the subdirectory `name` of `parent` as `open_directory_at` does,
+///  and never wait for what stands there.
+/// Why:
+///  A caller that looks at a directory entry it did not create cannot know what the entry holds by the time of the open
+/// (`worktree_removal_leavings_no_record_names.rs`):
+///  a named pipe put at the name between a question and the open holds a reader inside `openat` until a writer comes.
+///  The directory-only flag already refuses every entry that is no directory,
+///  and this flag states the intent as well,
+///  so the open answers at once whatever the entry became.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const opened = openDirectoryAtWithoutWaiting(parent, name); // O_RDONLY|O_DIRECTORY|O_NONBLOCK below parent
+/// ```
+pub fn open_directory_at_without_waiting(parent: &File, name: &OsStr) -> std::io::Result<File> {
+    return open_beneath(parent, name, libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NONBLOCK, 0);
+}
+
+/// What:
 ///  A handle naming the subdirectory `name` of `parent`,
 ///  which asks what the entry is without following a link,
 ///  crossing a mount or needing any permission on the entry itself.

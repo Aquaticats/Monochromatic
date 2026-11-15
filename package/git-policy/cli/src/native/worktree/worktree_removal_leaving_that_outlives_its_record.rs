@@ -44,6 +44,7 @@ use crate::private_storage::{create_private_directory_all, replace_private_file_
 use crate::process_identity::current_birth_identity;
 use crate::service_work::work_directory;
 use crate::work_item::{DONE, FAILED, PENDING, WorkItem, requeue_after_giving_up, state_directory};
+use std::fs::File;
 use std::path::{Path, PathBuf};
 
 /// The folder of the common Git directory that holds one record per subvolume a removal has renamed aside and not yet
@@ -63,6 +64,25 @@ const TRIES_PREFIX: &str = "tries=";
 /// The prefix of the record's line that says a command found this leaving by its name alone,
 /// so no command of this program renamed it and none may still be between a record and a rename.
 const ADOPTED_PREFIX: &str = "adopted=";
+
+/// What a subvolume this program is about to rename aside carries from then on:
+/// an extended attribute naming that subvolume's own id,
+/// which travels with it through the rename.
+/// Why:
+///  a name is no proof of who renamed a directory
+/// (`worktree_removal_leavings_no_record_names.rs`),
+///  and a record lives in the repository's Git directory,
+///  which a person may delete or a disaster may take.
+///  The attribute is carried by the directory itself,
+///  so the look that finds one of this program's leftovers can tell it from a person's directory even when every record
+///  is gone.
+///  The bytes are the id in the same sixteen hexadecimal digits the leaving name ends in,
+///  so a copy of the attribute onto another subvolume names an id that directory does not have and proves nothing.
+const LEAVING_MARK: &str = "user.monochromatic-git-policy-cli-leaving";
+
+/// The most bytes of a leaving mark this reads,
+/// which is the sixteen digits and nothing else.
+const MARK_LIMIT: usize = 32;
 
 /// The most bytes of a leaving record this reads.
 /// What bounds it:
@@ -250,6 +270,73 @@ pub(crate) fn record_a_leaving_found_by_a_scan(common_dir: &Path, item: &WorkIte
 }
 
 /// What:
+///  Mark an open subvolume as one this program is about to rename aside,
+///  by writing its own id into an extended attribute on it.
+/// Why:
+///   The mark is written before the rename and travels with the subvolume,
+///  so a command killed between the two leaves a marked subvolume under the worktree's own name,
+///  which is nothing this program acts on,
+///  and never a directory under the leaving name that carries no mark.
+///  It is not a record:
+///  it lives on the directory the removal moves,
+///  so it outlives the Git directory a person may delete.
+///  A mark that cannot be written costs that proof and nothing else:
+///  the leaving and queue records still name the directory,
+///  so the caller warns rather than refusing the hand-over.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// markTheLeaving(held, id); // setxattr(held, 'user.monochromatic-git-policy-cli-leaving', hex(id))
+/// ```
+///
+/// # Errors
+///
+/// The words for an attribute the filesystem or the permission refuses.
+pub(crate) fn mark_the_leaving(held: &File, id: u64) -> Result<(), String> {
+    use std::os::fd::AsRawFd as _;
+    let name = match std::ffi::CString::new(LEAVING_MARK) {
+        Ok(named) => named,
+        Err(_nul) => return Err(String::from("the mark's own name holds a NUL byte")),
+    };
+    let value: String = format!("{id:016x}");
+    // SAFETY: `name` and `value` outlive the call, and `held` is an open descriptor of the directory the mark goes on.
+    let result: libc::c_int = unsafe { libc::fsetxattr(held.as_raw_fd(), name.as_ptr(), value.as_ptr().cast(), value.len(), 0) };
+    if result != 0 {
+        return Err(format!("the mark {} cannot be set ({})", LEAVING_MARK, std::io::Error::last_os_error()));
+    }
+    return Ok(());
+}
+
+/// What:
+///  The subvolume id the mark on an open directory names,
+///  or nothing when it carries no mark this program wrote.
+/// Why:
+///   The mark is written before the rename and read through the descriptor the look already proved,
+///  so a directory replaced at the path between the open and this read cannot lend its mark to another subvolume.
+///  An attribute that is missing, longer than a mark, or not sixteen hexadecimal digits is no mark of this program's.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const marked = theMarkOf(held); // hex id, or undefined
+/// ```
+pub(crate) fn the_mark_of(held: &File) -> Option<u64> {
+    use std::os::fd::AsRawFd as _;
+    let name: std::ffi::CString = std::ffi::CString::new(LEAVING_MARK).ok()?;
+    let mut buffer: [u8; MARK_LIMIT] = [0; MARK_LIMIT];
+    // SAFETY: `name` outlives the call, `buffer` is a live writable region of the length passed, and `held` is open.
+    let read: libc::ssize_t = unsafe { libc::fgetxattr(held.as_raw_fd(), name.as_ptr(), buffer.as_mut_ptr().cast(), buffer.len()) };
+    if read <= 0 {
+        return None;
+    }
+    let length: usize = usize::try_from(read).ok()?;
+    let text: &str = std::str::from_utf8(buffer.get(..length)?).ok()?;
+    if text.len() != 16 || !text.bytes().all(|byte| { return byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte) }) {
+        return None;
+    }
+    return u64::from_str_radix(text, 16).ok();
+}
+
+/// What:
 ///  Drop the record of one leaving,
 ///  once nothing of this program's stands where it named.
 /// Why:
@@ -416,7 +503,7 @@ pub fn queue_the_delete_again(common_dir: &Path, leaving: &Leaving) -> Result<()
 /// ```ts
 /// await rewriteLeaving({ ...leaving, tries: leaving.tries + 1 });
 /// ```
-fn note_the_attempt(common_dir: &Path, leaving: &Leaving) {
+pub(crate) fn note_the_attempt(common_dir: &Path, leaving: &Leaving) {
     let tries: u32 = leaving.tries.saturating_add(1);
     if let Err(reason) = write_the_leaving(common_dir, &leaving.item, leaving.owner.as_deref(), tries, leaving.adopted) {
         debug(TAG, format!("{reason}; the delete of {} is queued, and the count of its attempts is not", leaving.item.parent).as_str());

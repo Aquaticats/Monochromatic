@@ -169,8 +169,8 @@ pub mod worktree_removal_leavings_a_command_queues_again;
 pub mod worktree_removal_leavings_already_reported;
 
 /// The leaving a name alone still shows:
-/// a directory of this program's shape that no record names,
-/// queued for its delete only while the name and the kernel agree on which subvolume it is.
+/// a directory of this program's leaving shape that no leaving record names,
+/// queued for its delete only while the mark this program set on it or a record of its delete proves it.
 pub mod worktree_removal_leavings_no_record_names;
 
 /// The moment a hand-over has renamed its subvolume and not yet looked at the queue, for a control that acts there.

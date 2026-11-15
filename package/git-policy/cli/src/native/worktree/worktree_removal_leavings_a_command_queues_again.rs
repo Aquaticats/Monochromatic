@@ -70,7 +70,12 @@ const SAID: &str = "monochromatic-git-policy-cli:";
 /// type Leavings = { queued: boolean; said: string[] };
 /// ```
 pub struct Leavings {
-    /// Whether this command queued a delete a round of the service will run.
+    /// What:
+    ///  Whether this command asked for a round of the service:
+    ///  it queued a delete, or a delete a round already owes was told again.
+    /// Why:
+    ///   The caller wakes the service on this answer, and a record a killed command queued and never woke is exactly the
+    ///  state a wake is owed for.
     pub queued: bool,
     /// What the person reads:
     /// one line per leaving this program may not delete and per queueing that could not be made.
@@ -83,14 +88,15 @@ pub struct Leavings {
 /// Why:
 ///   This is what every command of the repository runs,
 /// so a repository in which no removal left anything pays one open
-///  that finds no folder and one listing of each directory a removal renames into.
+///  that finds no folder, and one listing of each directory a linked worktree of it stands in.
 ///   A record whose command may still be running is left alone:
 ///  the record is written before the rename,
 ///  so only that command knows whether the rename happened,
 ///  and a look that decided before it did would drop the only record of a directory about to appear.
-///   A directory of this program's leaving shape that no record names at all,
+///   A directory of this program's leaving shape that no leaving record names at all,
 ///  which a release before the leaving record left,
-///  is proved and queued as well (`worktree_removal_leavings_no_record_names.rs`).
+///  is proved by the mark on it or by a record of its delete and queued as well
+///  (`worktree_removal_leavings_no_record_names.rs`).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -312,15 +318,11 @@ fn queue_one_leaving(common_dir: &Path, record: &Path, id: &str, owed: &HashSet<
 /// ```
 fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving, target: &Path, owed: &HashSet<String>, answer: &mut Leavings) {
     if owed.contains(leaving.item.id().as_str()) {
-        debug(TAG, format!("a round of the service owes the delete of {}, so nothing here is queued", target.display()).as_str());
+        wake_a_pending_delete(common_dir, leaving, target, answer);
         return;
     }
     if leaving.tries >= MAX_TRIES {
-        answer.said.push(format!(
-            "{SAID} the subvolume a removed worktree was renamed to at {named} is still there after {} more attempts to delete it, so nothing here deletes it; `journalctl --identifier=monochromatic-git-policy-cli` says why the commit service could not, and `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
-            leaving.tries,
-            named = target.display()
-        ));
+        answer.said.push(attempts_are_spent_line(target, leaving.tries));
         return;
     }
     if let Err(reason) = queue_the_delete_again(common_dir, leaving) {
@@ -331,6 +333,51 @@ fn queue_the_delete_of_one_standing_leaving(common_dir: &Path, leaving: &Leaving
         return;
     }
     answer.queued = true;
+}
+
+/// What:
+///  Ask the service for the round that already owes one leaving's delete,
+///  counting the ask against the attempts a record may cost.
+/// Why:
+///   A command killed between queueing a delete and waking the service leaves a record nothing starts a round for,
+///  and no later command would ever wake it if only a newly queued delete were told.
+///  Every ask writes one line into the leaving's own record,
+///  so a service that cannot run costs a bounded number of wakes and not one on every command of the repository.
+///  Once those are spent the person reads the directory and the command that removes it by hand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// if (leaving.tries >= MAX_TRIES) return said.push(attemptsAreSpentLine(target, leaving.tries));
+/// noteTheAttempt(commonDir, leaving); answer.queued = true;
+/// ```
+pub(crate) fn wake_a_pending_delete(common_dir: &Path, leaving: &Leaving, target: &Path, answer: &mut Leavings) {
+    if leaving.tries >= MAX_TRIES {
+        answer.said.push(attempts_are_spent_line(target, leaving.tries));
+        return;
+    }
+    crate::worktree_removal_leaving_that_outlives_its_record::note_the_attempt(common_dir, leaving);
+    debug(TAG, format!("a round of the service owes the delete of {}, so it is told again and nothing is queued", target.display()).as_str());
+    answer.queued = true;
+}
+
+/// What:
+///  The line a person reads once the attempts a leaving may cost have run out.
+/// Why:
+///   The directory is theirs to remove then,
+///  and the line names it,
+///  where the service's reason is,
+///  and the command that takes the subvolume,
+///  so the space comes back without this program queueing the same work on every command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const line = `${SAID} the subvolume a removed worktree was renamed to at ${path} is still there after ${tries} more attempts to delete it, ...`;
+/// ```
+fn attempts_are_spent_line(target: &Path, tries: u32) -> String {
+    return format!(
+        "{SAID} the subvolume a removed worktree was renamed to at {named} is still there after {tries} more attempts to delete it, so nothing here deletes it; `journalctl --identifier=monochromatic-git-policy-cli` says why the commit service could not, and `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
+        named = target.display()
+    );
 }
 
 /// Controls stay out of the release executable.

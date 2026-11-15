@@ -36,7 +36,7 @@ use crate::fs_btrfs_ioctl::subvolume_id;
 use crate::private_storage::create_private_directory_all;
 use crate::service_work::work_directory;
 use crate::work_item::{WorkItem, WorkKind, enqueue};
-use crate::worktree_removal_leaving_that_outlives_its_record::{forget_the_leaving, record_a_leaving};
+use crate::worktree_removal_leaving_that_outlives_its_record::{forget_the_leaving, mark_the_leaving, record_a_leaving};
 use crate::iso_time::now_iso;
 use std::ffi::OsString;
 use std::fs::File;
@@ -169,6 +169,11 @@ pub(crate) fn leave_a_subvolume_for_the_service(common_dir: &Path, from: &Path, 
         return Err(format!("the delete of {} cannot be recorded: {reason}", from.display()));
     }
     let left: PathBuf = PathBuf::from(item.parent.as_str());
+    // The mark travels with the subvolume, so a leftover of this release is proved by the directory itself even when every
+    // record of the repository is gone; one that cannot be written costs that proof and nothing else.
+    if let Err(reason) = mark_the_leaving(&held, id) {
+        debug(TAG, format!("the subvolume {id} that is moved to {} is not marked as one this program renames aside ({reason}); its records still name it", left.display()).as_str());
+    }
     if let Err(error) = std::fs::rename(from, left.as_path()) {
         forget_the_leaving(common_dir, item.id().as_str());
         return Err(format!("the subvolume {} cannot be moved to {} ({error})", from.display(), left.display()));

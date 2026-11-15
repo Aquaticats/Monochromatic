@@ -1,7 +1,8 @@
 //! What:
-//!  The look every command makes for a subvolume a removal renamed aside whose record nothing kept:
-//!  a directory of this program's own leaving shape standing in a directory a removal renames into,
-//!  queued for its delete only while its name and the kernel agree on which subvolume it is.
+//!  The look every command makes for a subvolume a removal renamed aside whose leaving record nothing kept:
+//!  a directory of this program's leaving shape standing in a directory a removal of this repository renames into,
+//!  proved by the mark this program sets on a subvolume before it moves it, or by a record of its delete,
+//!  and never by its name.
 //! Why:
 //!  A removal renames its subvolume to `cli-git-deleting-<id>`
 //!  and writes a record that outlives every queue record for the same place
@@ -12,21 +13,66 @@
 //!  (`5214f4e553`) queued a delete whose first round looked before the rename and settled it as done,
 //!  so a removal that was then killed,
 //!  or whose own destroy the kernel refused,
-//!  left the person's files under a name no record named at all.
-//!  A directory of that shape standing where a removal renames is therefore looked at,
-//!  and it is proved this program's by two things nothing else answers:
-//!  it is the root of a btrfs subvolume,
-//!  and the id in its name is that subvolume's own id,
-//!  which only this program writes (`deleting_name`).
-//!  A name alone proves nothing, so an entry that is no subvolume,
-//!  no directory,
-//!  or a subvolume another id names is the person's and is never queued for a delete;
-//!  it is named once with the command that removes it,
-//!  and never touched.
-//!  Nothing here deletes anything either:
-//!  a proved leftover is written into a leaving record of its own and queued for a round,
+//!  left the person's files under a name nothing read any more.
+//!
+//!  What a name proves:
+//!  only that someone wrote sixteen hexadecimal digits equal to the subvolume's own kernel id.
+//!  No accident reaches that:
+//!  a directory entry is named before the subvolume under it has an id,
+//!  and nothing guesses a 64-bit id,
+//!  so by accident the shape and the id never meet.
+//!  By intent they do,
+//!  and a person can read a subvolume's id
+//!  (`btrfs subvolume show`) and name their own directory after it,
+//!  so a name is no proof of who renamed a directory,
+//!  and this look never deletes on one.
+//!
+//!  What it requires instead is evidence this program left behind:
+//!  - the mark it sets on a subvolume before it renames it,
+//!    an extended attribute naming that subvolume's own id
+//!    (`mark_the_leaving`).
+//!    It travels with the subvolume through the rename,
+//!    so it is carried by the directory itself and survives the loss of every record of the repository.
+//!    A copy of the attribute onto another subvolume names a different id,
+//!    so it never carries over.
+//!  - or a record of that very delete, in any state the queue keeps:
+//!    one a round still owes, or one settled `done` or `failed`,
+//!    which a release that wrote no leaving record wrote before it renamed the same place
+//!    (`a_settled_record_names`).
+//!    Those records are why a leftover of an earlier release is still proved:
+//!    the queue never forgot it,
+//!    only the leaving did.
+//!
+//!  Where it looks:
+//!  the directory each linked worktree of this repository stands in,
+//!  and nothing else.
+//!  A removal renames its subvolume inside the directory that holds the worktree it removes,
+//!  in one call on the parent it already holds open
+//!  (`worktree_remove_hand_over.rs`, `hand_over_with`).
+//!  The main checkout is no such directory:
+//!  Git removes no main worktree,
+//!  and a linked worktree placed beside the main checkout is registered itself,
+//!  so its own directory is looked at through its own registration.
+//!
+//!  How it opens what it finds:
+//!  a directory entry the look did not create is opened once,
+//!  as a directory,
+//!  without waiting for anything,
+//!  below the held directory the entry was listed from,
+//!  and every question after that is asked of that open descriptor:
+//!  its inode says it is a subvolume's root,
+//!  its own id says it is the subvolume the name holds,
+//!  and the mark is read through the same descriptor.
+//!  Nothing here asks the path a second time,
+//!  so an entry replaced by a link, a device or a named pipe between two questions cannot make this command wait
+//!  or act on what it did not check.
+//!
+//!  What it never does:
+//!  it deletes nothing.
+//!  A proved leftover is written into a leaving record of its own and queued for a round,
 //!  which is where every handed-over delete goes
-//!  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`).
+//!  (`doc/planning/git-policy-cli-btrfs-transaction-waits.md`),
+//!  and a directory it cannot prove is named once with the command that removes it and left exactly as it is.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -36,15 +82,18 @@
 //! ```
 
 use crate::diagnostic_log::debug;
+use crate::fs_beneath::{handle_path, identity_of, open_directory_at_without_waiting, open_root};
 use crate::fs_btrfs_ioctl::subvolume_id;
-use crate::fs_kind::is_subvolume_root;
-use crate::worktree_remove_hand_over::removal_item;
-use crate::worktree_removal_leaving_that_outlives_its_record::record_a_leaving_found_by_a_scan;
-use crate::worktree_removal_leavings_a_command_queues_again::Leavings;
+use crate::fs_kind::BTRFS_SUBVOLUME_ROOT_INODE;
+use crate::plain_file::read_plain_file;
+use crate::work_item::{DONE, FAILED, WorkItem, WorkKind, queued_ids, state_directory};
+use crate::worktree_remove_hand_over::{DELETE_REFERENCE, removal_item};
+use crate::worktree_removal_leaving_that_outlives_its_record::{RECORD_LIMIT, record_a_leaving_found_by_a_scan, the_mark_of};
+use crate::worktree_removal_leavings_a_command_queues_again::{Leavings, wake_a_pending_delete};
 use crate::worktree_removal_leavings_already_reported::{forget_the_report, report_once};
 use crate::worktree_removal_takes_its_pending_deletions::is_a_leaving_name;
 use std::collections::HashSet;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::{Path, PathBuf};
@@ -65,26 +114,27 @@ const THE_ROOT: &str = "/";
 const IDENTIFIER_DIGITS: usize = 16;
 
 /// What:
-///  Every directory this repository's removals rename a subvolume into:
-///  the directory each of its worktrees stands in.
+///  Every directory a removal of this repository renames a subvolume into:
+///  the directory each of its linked worktrees stands in.
 /// Why:
 ///   A removal renames its subvolume inside the directory that holds the worktree,
-///  in one call on the parent it already holds open
-///  (`worktree_remove_hand_over.rs`, `hand_over_with`),
+///  in one call on the parent it already holds open,
 ///  so a leftover of one stands beside the worktrees of the same directory.
-///  The repository's own registrations are what names those directories,
-///  and a registration a removal of this program left behind names one too,
-///  so a removal killed before its registration went is still looked at.
-///  The checkout itself is dropped:
-///  the files of a worktree are a person's and never a place this program renames into.
+///  The registrations of the repository are what names those directories.
+///  The main checkout is not one of them:
+///  no removal of this program renames anything beside it,
+///  because Git removes no main worktree,
+///  and a linked worktree beside it is registered itself and names its own directory.
+///  The checkout itself is never a place a removal renames into:
+///  the files of a worktree are a person's.
 ///  A directory that cannot be listed leaves the list empty,
 ///  which costs the repair and nothing else.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const places = theDirectoriesRemovalsRenameInside(commonDir); // distinct, never the root, never the checkout
+/// const places = theDirectoriesARemovalRenamesInside(commonDir); // distinct, never the root, never a checkout
 /// ```
-fn the_directories_removals_rename_inside(common_dir: &Path) -> Vec<PathBuf> {
+fn the_directories_a_removal_renames_inside(common_dir: &Path) -> Vec<PathBuf> {
     let worktrees: PathBuf = common_dir.join("worktrees");
     let Ok(registered) = crate::worktree_remove_registry::registered_paths(common_dir, worktrees.as_path()) else {
         debug(TAG, format!("the worktrees of {} cannot be listed, so no directory a removal renames into is looked at", common_dir.display()).as_str());
@@ -92,6 +142,10 @@ fn the_directories_removals_rename_inside(common_dir: &Path) -> Vec<PathBuf> {
     };
     let mut places: Vec<PathBuf> = Vec::new();
     for listed in registered {
+        // The main checkout is no linked worktree, so no removal of this program renames inside its directory.
+        if listed.id.is_none() {
+            continue;
+        }
         let checkout: PathBuf = PathBuf::from(OsStr::from_bytes(listed.path.as_slice()));
         let Some(parent) = checkout.parent() else { continue };
         if parent.as_os_str().is_empty() || parent == Path::new(THE_ROOT) {
@@ -127,33 +181,27 @@ fn id_in_the_name(path: &Path) -> Option<u64> {
 }
 
 /// What:
-///  Whether what stands at `path` is the subvolume the id in its name says,
-///  or the sentence for the person saying why it is not proved.
+///  The subvolume id of one open entry the name says is a subvolume's root,
+///  or the sentence for the person saying why the entry is not the subvolume the name holds.
 /// Why:
-///   The name is what this program wrote and the id is what the kernel made,
-///  and comparing them is the one proof that costs no trust in either alone.
-///  A directory that is no subvolume,
-///  or a subvolume another id names,
-///  is the person's or another program's and is never queued for a delete.
+///   The inode of a subvolume's root is the kernel's own, and the id comes from the open descriptor,
+///  so the two answers are about the directory this command opened and not about whatever the path holds later.
+///  A directory that is no subvolume's root is not a directory this program renamed aside,
+///  and one whose id the name does not hold is another program's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const proved = theSubvolumeTheNameShows(path, namedId, fileType); // throws the reason it is not this program's
+/// const proved = theSubvolumeOfTheOpenEntry({ held, namedId, path }); // throws the reason it is not this program's
 /// ```
-fn the_subvolume_the_name_shows(path: &Path, named_id: u64, kind: std::fs::FileType) -> Result<u64, String> {
-    if !kind.is_dir() {
-        return Err(String::from("what stands there is not a directory"));
-    }
-    match is_subvolume_root(path) {
-        Ok(true) => {}
-        Ok(false) => return Err(String::from("what stands there is not the root of a btrfs subvolume")),
-        Err(error) => return Err(format!("what stands there cannot be examined ({error})")),
-    }
-    let held: File = match File::open(path) {
-        Ok(opened) => opened,
-        Err(error) => return Err(format!("it cannot be opened ({error})")),
+fn the_subvolume_of_the_open_entry(held: &File, named_id: u64, path: &Path) -> Result<u64, String> {
+    let identity = match identity_of(held) {
+        Ok(found) => found,
+        Err(error) => return Err(format!("its identity cannot be read ({error})")),
     };
-    return match subvolume_id(&held, path) {
+    if identity.inode != BTRFS_SUBVOLUME_ROOT_INODE {
+        return Err(String::from("what stands there is not the root of a btrfs subvolume"));
+    }
+    return match subvolume_id(held, path) {
         Ok(id) if id == named_id => Ok(id),
         Ok(id) => Err(format!("the subvolume standing there is {id} and the name says {named_id}, so another program wrote that name")),
         Err(error) => Err(format!("the subvolume standing there cannot be identified ({error})")),
@@ -161,7 +209,42 @@ fn the_subvolume_the_name_shows(path: &Path, named_id: u64, kind: std::fs::FileT
 }
 
 /// What:
-///  Queue the delete of a proved leftover and name the places this command may not act on,
+///  Whether a queue record names the delete of exactly this place and this subvolume,
+///  in the states a round still owes or a round settled.
+/// Why:
+///   This is the proof a release that wrote no leaving record left behind:
+///  the delete of the renamed path was queued before the rename,
+///  and the first round that looked too early settled it `done`,
+///  which names the place and the subvolume to this day.
+///  The record is read as the queue reads it,
+///  and its own id must be the one this place and subvolume derive,
+///  so a record of another place or another subvolume proves nothing here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = aSettledRecordNames(work, item); // done/<id> or failed/<id> holds this item
+/// ```
+fn a_settled_record_names(work: &Path, item: &WorkItem) -> bool {
+    for state in [DONE, FAILED] {
+        let record: PathBuf = state_directory(work, state).join(item.id());
+        let Ok(bytes) = read_plain_file(record.as_path(), RECORD_LIMIT) else { continue };
+        let Ok(text) = std::str::from_utf8(bytes.as_slice()) else { continue };
+        let Ok(settled) = WorkItem::decode(text) else { continue };
+        if settled.kind != WorkKind::SubvolumeDelete || settled.branch_ref != DELETE_REFERENCE {
+            continue;
+        }
+        if settled.oid != item.oid || settled.parent != item.parent {
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
+/// What:
+///  Queue the delete of a proved leftover,
+///  or ask for the round that already owes it,
+///  and name the places this command may not act on,
 ///  once each.
 /// Why:
 ///   A proved leftover is this program's own,
@@ -170,28 +253,39 @@ fn the_subvolume_the_name_shows(path: &Path, named_id: u64, kind: std::fs::FileT
 ///  the attempts a delete may cost,
 ///  and then the line that names the directory and the command that removes it
 ///  (`worktree_removal_leavings_a_command_queues_again.rs`).
-///   A place that is not proved is said once and untouched,
-///  and the memory of the line goes with the state that earned it.
+///   A delete a round already owes is what this command would queue,
+///  so nothing is written for it and the round is told instead,
+///  which is the wake a killed command never made.
+///   A place that is not proved is said once and untouched.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const answer = { queued: false, said: [] };
-/// for (const found of readdir(place)) queueOneFoundName({ commonDir, work, named, found, answer });
+/// for (const place of places) for (const found of readdir(place)) queueOneFoundName({ commonDir, work, place, found, answer });
 /// return answer;
 /// ```
 pub(crate) fn queue_the_leavings_no_record_names(common_dir: &Path, work: &Path, named: &HashSet<PathBuf>) -> Leavings {
     let mut answer: Leavings = Leavings { queued: false, said: Vec::new() };
-    for place in the_directories_removals_rename_inside(common_dir) {
-        let listing = match std::fs::read_dir(place.as_path()) {
+    // One listing of each state a round owes, asked only when a place turns out to need it.
+    let mut owed: Option<HashSet<String>> = None;
+    for place in the_directories_a_removal_renames_inside(common_dir) {
+        let held_place: File = match open_root(place.as_path()) {
+            Ok(opened) => opened,
+            Err(error) => {
+                debug(TAG, format!("{} cannot be opened, so no leftover of a removal is looked for in it ({error})", place.display()).as_str());
+                continue;
+            }
+        };
+        // The listing is of the held descriptor's own name, so it is that directory and never a path that could be replaced.
+        let listing = match std::fs::read_dir(handle_path(&held_place)) {
             Ok(listing) => listing,
-            // A directory that cannot be listed names no leftover: a place this program cannot read is not one it acts on.
             Err(error) => {
                 debug(TAG, format!("{} cannot be listed, so no leftover of a removal is looked for in it ({error})", place.display()).as_str());
                 continue;
             }
         };
         for found in listing.flatten() {
-            queue_one_found_name(common_dir, work, named, found, &mut answer);
+            queue_one_found_name(common_dir, work, place.as_path(), &held_place, named, &mut owed, found.file_name(), &mut answer);
         }
     }
     return answer;
@@ -206,56 +300,97 @@ pub(crate) fn queue_the_leavings_no_record_names(common_dir: &Path, work: &Path,
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// queueOneFoundName({ commonDir, work, named, found, answer });
+/// queueOneFoundName({ commonDir, work, place, heldPlace, named, owed, name, answer });
 /// ```
-fn queue_one_found_name(common_dir: &Path, work: &Path, named: &HashSet<PathBuf>, found: std::fs::DirEntry, answer: &mut Leavings) {
-    let path: PathBuf = found.path();
-    // A name no removal of this program gives anything is the person's own, and a place a record already names is that
-    // record's to decide, which this command has just done or left alone.
+fn queue_one_found_name(
+    common_dir: &Path,
+    work: &Path,
+    place: &Path,
+    held_place: &File,
+    named: &HashSet<PathBuf>,
+    owed: &mut Option<HashSet<String>>,
+    name: OsString,
+    answer: &mut Leavings,
+) {
+    let path: PathBuf = place.join(name.as_os_str());
+    // A name no removal of this program gives anything is the person's own, and a place a leaving record already names is
+    // that record's to decide, which this command has just done or left alone.
     if !is_a_leaving_name(path.as_path()) || named.contains(&path) {
         return;
     }
     let Some(named_id) = id_in_the_name(path.as_path()) else { return };
-    let kind: std::fs::FileType = match found.file_type() {
-        Ok(kind) => kind,
+    // One open, below the held directory, as a directory, and without waiting: an entry a concurrent command replaced with a
+    // link, a device or a named pipe is refused here instead of being followed.
+    let held: File = match open_directory_at_without_waiting(held_place, name.as_os_str()) {
+        Ok(opened) => opened,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
         Err(error) => {
-            say_unproved(common_dir, path.as_path(), format!("it cannot be examined ({error})"), answer);
+            say_unproved(common_dir, path.as_path(), format!("it cannot be opened as a directory ({error})"), answer);
             return;
         }
     };
-    let id: u64 = match the_subvolume_the_name_shows(path.as_path(), named_id, kind) {
+    let id: u64 = match the_subvolume_of_the_open_entry(&held, named_id, path.as_path()) {
         Ok(proved) => proved,
         Err(why) => {
             say_unproved(common_dir, path.as_path(), why, answer);
             return;
         }
     };
-    queue_the_leaving_found(common_dir, work, path.as_path(), id, answer);
+    if the_mark_of(&held) == Some(id) {
+        debug(TAG, format!("{} carries the mark this program sets on a subvolume it renames aside", path.display()).as_str());
+        queue_the_leaving_found(common_dir, work, place, path.as_path(), id, owed, answer);
+        return;
+    }
+    // A record names its paths in text, so a directory that is not named by text has no record this program could have
+    // written of its delete, and the hand-over refuses one for the same reason (`the_removal_of`).
+    if place.to_str().is_none() {
+        say_unproved(
+            common_dir,
+            path.as_path(),
+            String::from("the directory that holds it is not named by text, so no record of its delete can name the path a delete would act on"),
+            answer,
+        );
+        return;
+    }
+    let item: WorkItem = removal_item(common_dir, place, id);
+    // Both answers end in one step: a round that owes the delete is told, and a delete only a settled record names is
+    // queued again (`queue_the_leaving_found`).
+    let proved: bool = {
+        let owes: &HashSet<String> = owed.get_or_insert_with(|| { return queued_ids(work); });
+        owes.contains(item.id().as_str()) || a_settled_record_names(work, &item)
+    };
+    if proved {
+        queue_the_leaving_found(common_dir, work, place, path.as_path(), id, owed, answer);
+        return;
+    }
+    say_unproved(
+        common_dir,
+        path.as_path(),
+        String::from("neither the mark this program sets on a subvolume before it moves it nor a record of its delete names it, so a person or another program wrote that name"),
+        answer,
+    );
 }
 
 /// What:
 ///  Write the leaving a found directory needs and queue its delete,
-///  unless a round already owes that delete,
+///  or ask for the round that already owes it,
 ///  and say so when the record or the queue cannot be written.
 /// Why:
-///   The record is what bounds a delete the kernel keeps refusing,
-///  and the queue record is what a round acts on,
-///  so the two outlive the command a person ran exactly as a hand-over's do.
-///   A queue record a round already owes is the work this command would ask for,
-///  so nothing is queued again and the leaving still names the directory.
+///   The record is what names the directory once every queue record is settled,
+///  and it is what bounds a delete the kernel keeps refusing,
+///  so both outlive the command a person ran exactly as a hand-over's do.
+///   A delete a round already owes is the work this command would ask for,
+///  so nothing is queued again and the round is told instead,
+///  within the attempts a record may cost, which is what stops every command from asking for ever.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const leaving = await recordALeavingFoundByAScan(commonDir, removalItem(commonDir, place, id));
-/// if (owed.has(leaving.item.id())) return;
+/// if (owed.has(leaving.item.id())) return wakeAPendingDelete(commonDir, leaving, path);
 /// await queueTheDeleteAgain(commonDir, leaving);
 /// ```
-fn queue_the_leaving_found(common_dir: &Path, work: &Path, path: &Path, id: u64, answer: &mut Leavings) {
-    let place: &Path = match path.parent() {
-        Some(parent) => parent,
-        None => return,
-    };
-    let item = removal_item(common_dir, place, id);
+fn queue_the_leaving_found(common_dir: &Path, work: &Path, place: &Path, path: &Path, id: u64, owed: &mut Option<HashSet<String>>, answer: &mut Leavings) {
+    let item: WorkItem = removal_item(common_dir, place, id);
     let leaving = match record_a_leaving_found_by_a_scan(common_dir, &item) {
         Ok(found) => found,
         Err(reason) => {
@@ -263,13 +398,14 @@ fn queue_the_leaving_found(common_dir: &Path, work: &Path, path: &Path, id: u64,
             return;
         }
     };
-    if crate::work_item::queued_ids(work).contains(item.id().as_str()) {
-        debug(TAG, format!("a round of the service owes the delete of {}, so nothing here is queued", path.display()).as_str());
+    let owes: &HashSet<String> = owed.get_or_insert_with(|| { return queued_ids(work); });
+    if owes.contains(item.id().as_str()) {
+        wake_a_pending_delete(common_dir, &leaving, path, answer);
         return;
     }
     match crate::worktree_removal_leaving_that_outlives_its_record::queue_the_delete_again(common_dir, &leaving) {
         Ok(()) => {
-            debug(TAG, format!("the subvolume {} no record named is recorded and queued for a round's delete", path.display()).as_str());
+            debug(TAG, format!("the subvolume {} no leaving record named is recorded and queued for a round's delete", path.display()).as_str());
             forget_the_report(common_dir, path);
             answer.queued = true;
         }
@@ -320,3 +456,8 @@ fn say_unproved(common_dir: &Path, path: &Path, why: String, answer: &mut Leavin
     );
     report_once(common_dir, path, line, &mut answer.said);
 }
+
+/// Controls stay out of the release executable.
+#[cfg(test)]
+#[path = "worktree_removal_leavings_no_record_names_tests.rs"]
+mod tests;
