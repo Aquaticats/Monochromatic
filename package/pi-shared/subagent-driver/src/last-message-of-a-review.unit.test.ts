@@ -693,6 +693,44 @@ await describe({
           },
         },),
         it({
+          name: 'ends with a status of 1 and says a review whose saved last message states no range did not cover its change, so it is never taken as clean',
+          fn: async () => {
+            await using folder = await makeFolder();
+            await recordWhatTheReviewWasGiven({
+              reviewFolder: join(folder.path, 'reviews',),
+              review: 'a-round-1',
+              files: theFilesGiven(),
+            },);
+            // The run wrote no review file, and its last message answers "nothing found" without saying what it read: the
+            // message is saved as the review, and it is that saved file the command reads.
+            /**
+             The session file the run's summary names.
+             */
+            const sessionFile = join(folder.path, 'session.jsonl',);
+            await writeFile(sessionFile, `${sessionLine('assistant', ['Not final.\n\nNo concrete defects found.'],)}\n`,);
+            /**
+             The run's folder.
+             */
+            const runFolder = join(folder.path, 'runs', `${runNameOfAReview({ review: 'a-round-1', },)}-1`,);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(join(runFolder, 'summary.json',), JSON.stringify({
+              endReason: 'idle',
+              sessionStats: { sessionFile, },
+            },),);
+            /**
+             What the command answered.
+             */
+            const ended = runSaveReviewCommand({
+              reviewFolder: join(folder.path, 'reviews',),
+              runsFolder: join(folder.path, 'runs',),
+              review: 'a-round-1',
+            },);
+            expect(ended.status,).toBe(1,);
+            expect(ended.stdout,).toContain('saved its last message as review.md',);
+            expect(ended.stdout,).toContain('which does not cover its change: it states no range',);
+          },
+        },),
+        it({
           name: 'ends with a status of 0 and says a review whose last message states the ranges it was given covers its change',
           fn: async () => {
             await using folder = await makeFolder();
