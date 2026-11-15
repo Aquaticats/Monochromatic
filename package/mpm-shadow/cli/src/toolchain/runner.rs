@@ -420,6 +420,22 @@ fn descendants_of(root: u32, deadline: Instant) -> Vec<u32> {
 }
 
 /// What:
+/// The processes of a stopped program that are still running,
+/// the program itself included when it was not reaped in time.
+/// Why:
+/// A program held in an uninterruptible call keeps running after its SIGKILL is queued,
+/// and the caller must be told about the one process the command was about, not only about what it started;
+/// a program that was reaped is gone and is not named.
+pub(crate) fn still_running(tree: &[u32], leader: u32, reaped: bool) -> Vec<u32> {
+    let mut alive: Vec<u32> = tree.iter().copied().filter(|pid| return is_running(*pid)).collect();
+    if !reaped && is_running(leader) {
+        alive.push(leader);
+    }
+    alive.sort_unstable();
+    return alive;
+}
+
+/// What:
 /// Stops a program whole:
 /// the program,
 /// the process group it leads,
@@ -442,21 +458,24 @@ fn stop(child: &mut std::process::Child) -> Option<String> {
         let _killed = child.kill();
     }
     let give_up_at: Instant = Instant::now() + REAP_GRACE;
+    let mut reaped: bool = false;
     while Instant::now() < give_up_at {
         match child.try_wait() {
-            Ok(Some(_status)) => break,
+            Ok(Some(_status)) => {
+                reaped = true;
+                break;
+            }
             Ok(None) => std::thread::sleep(FIRST_PAUSE),
             Err(_unknown) => break,
         }
     }
     let settle_until: Instant = Instant::now() + STOP_SETTLE_GRACE;
     loop {
-        let mut alive: Vec<u32> = tree.iter().copied().filter(|pid| return is_running(*pid)).collect();
+        let alive: Vec<u32> = still_running(&tree, leader, reaped);
         if alive.is_empty() {
             return None;
         }
         if Instant::now() >= settle_until {
-            alive.sort_unstable();
             return Some(format!("these processes it started are still running: {alive:?}"));
         }
         std::thread::sleep(FIRST_PAUSE);

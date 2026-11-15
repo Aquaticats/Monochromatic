@@ -75,8 +75,8 @@ use super::scope::{EnvMap, ScopeKind, global_scope};
 use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_reason};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
-    VersionDirectory, downloads_in_use, install_directory_name, leftover_downloads, tombstone_of, tombstones, tree_size,
-    version_directories,
+    DOWNLOADS_DIRECTORY_NAME, TOMBSTONE_PREFIX, VersionDirectory, downloads_in_use, downloads_of, install_directory_name,
+    leftover_downloads, tombstone_of, tombstones, tree_size, version_directories,
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
@@ -685,6 +685,44 @@ pub fn apply_trim(plan: &TrimPlan, run: &TrimRun) -> TrimOutcome {
     return outcome;
 }
 
+/// What:
+/// Removes a flat download an earlier layout left,
+/// by moving it to a hidden name of its own first and deleting it only when what moved is the file the scan measured.
+/// Why:
+/// Nothing writes these names any more, but an install can still publish an archive at one of them
+/// (`downloads/<tool>-<version>-<file>`),
+/// and a check and then a delete would take the new archive from an install that landed in between:
+/// the move is one atomic step, so whatever stood at the name is in hand and can be compared with the one judged,
+/// and anything else goes back.
+fn remove_leftover(candidate: &TrimCandidate) -> Removal {
+    let name: String = file_name_text(&candidate.directory);
+    let set_aside: PathBuf = candidate.directory.with_file_name(format!(".{name}.{}", std::process::id()));
+    match fs::rename(&candidate.directory, &set_aside) {
+        Ok(()) => {}
+        Err(error) if error.kind() == ErrorKind::NotFound => return Removal::Gone,
+        Err(error) => return Removal::Kept(format!("it cannot be moved aside: {error}")),
+    }
+    let moved: Option<SystemTime> = fs::symlink_metadata(&set_aside).ok().and_then(|metadata| return metadata.modified().ok());
+    if moved != Some(candidate.written) {
+        // What: a file another run published after the scan goes back to the name it had.
+        // Why: it is not the file that was judged, and the install that wrote it is about to unpack it.
+        return match fs::rename(&set_aside, &candidate.directory) {
+            Ok(()) => Removal::Kept("another run wrote it while the cleanup ran".to_string()),
+            Err(error) => Removal::Kept(format!(
+                "another run wrote it while the cleanup ran, and what it wrote cannot be put back: {error}; \
+                 it is kept at {} instead of {}",
+                set_aside.display(),
+                candidate.directory.display()
+            )),
+        };
+    }
+    return match fs::remove_file(&set_aside) {
+        Ok(()) => Removal::Removed(candidate.bytes),
+        Err(error) if error.kind() == ErrorKind::NotFound => Removal::Gone,
+        Err(error) => Removal::Kept(format!("it was moved aside and cannot be removed: {error}; it is at {}", set_aside.display())),
+    };
+}
+
 /// What one removal did.
 /// Why:
 /// A pass that ran out of its time is not a version that was kept for a reason about the version,
@@ -729,11 +767,7 @@ fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
     // next pass finishes it (`finish_removals`).
     let out_of_time = || return run.started.elapsed() >= run.bounds.work_limit;
     if candidate.leftover {
-        return match fs::remove_file(&candidate.directory) {
-            Ok(()) => Removal::Removed(candidate.bytes),
-            Err(error) if error.kind() == ErrorKind::NotFound => Removal::Gone,
-            Err(error) => Removal::Kept(format!("it cannot be removed: {error}")),
-        };
+        return remove_leftover(candidate);
     }
     if out_of_time() {
         return Removal::Deferred;
@@ -760,9 +794,16 @@ fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
     let Some(claimed) = claim_name_beside(&candidate.directory) else {
         return Removal::Kept("no free claim name is left beside it, so it is not moved aside".to_string());
     };
-    // What: the marker is written before the first rename.
-    // Why: a run killed inside `remove_dir_all` leaves the marker, and the next install finishes the removal.
-    let _ = fs::write(unfinished_marker(&candidate.root), b"");
+    // What: the marker is written and known to be written before the first move.
+    // Why: the marker is what makes a later sync look at this root,
+    // so destructive work must not begin without it:
+    // a removal that cannot write it removes nothing, and its line says why.
+    if let Err(error) = fs::write(unfinished_marker(&candidate.root), b"") {
+        return Removal::Kept(format!(
+            "its recovery marker {} cannot be written, so nothing was removed: {error}",
+            unfinished_marker(&candidate.root).display()
+        ));
+    }
     if out_of_time() {
         return Removal::Deferred;
     }
@@ -1083,10 +1124,23 @@ fn give_back_claimed(
             return;
         }
         match fs::rename(&claimed, tool_directory.join(&claim.version)) {
-            Ok(()) => lines.push(format!(
-                "mpm-shadow: gave back {} of {}, which a removal an earlier run started had taken out of its name",
-                claim.version, tool
-            )),
+            Ok(()) => {
+                lines.push(format!(
+                    "mpm-shadow: gave back {} of {}, which a removal an earlier run started had taken out of its name",
+                    claim.version, tool
+                ));
+                // What: the archives moved aside for this version come back with it.
+                // Why: the removal moved the downloads before the version, so a kill between the two leaves the
+                // version under its claim and the archives under their tombstone:
+                // giving the version back and then letting the tombstone pass delete the archives would restore a
+                // version without the files it was installed with.
+                if let Err(error) = give_back_downloads(root, tool, &claim.version) {
+                    lines.push(format!(
+                        "mpm-shadow: gave back {} of {} without its archives: {error}",
+                        claim.version, tool
+                    ));
+                }
+            }
             // Another pass gave this one back a moment before this one reached it:
             // the version is where it belongs, and nothing here failed.
             Err(error) if error.kind() == ErrorKind::NotFound => {}
@@ -1105,6 +1159,69 @@ fn give_back_claimed(
 /// so the pass gives them back in one order every time.
 fn compare_by_version(left: &(ClaimedVersion, PathBuf), right: &(ClaimedVersion, PathBuf)) -> std::cmp::Ordering {
     return left.0.version.cmp(&right.0.version);
+}
+
+/// What:
+/// The names of the versions a claim under any of `tools` holds in this root.
+/// Why:
+/// The tombstone pass has to know which archives a claim is still using or is being given back with,
+/// and a claim's name is the only record of the version it holds.
+fn claimed_versions(root: &Path, tools: &BTreeSet<String>) -> BTreeSet<String> {
+    let mut versions: BTreeSet<String> = BTreeSet::new();
+    for tool in tools {
+        let Ok(entries) = fs::read_dir(root.join(tool)) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name: String = entry.file_name().to_string_lossy().to_string();
+            if let Some(claim) = ClaimedVersion::parse(&name) {
+                versions.insert(claim.version);
+            }
+        }
+    }
+    return versions;
+}
+
+/// What:
+/// The version a downloads tombstone was made for,
+/// or `None` for a tombstone of a version directory.
+/// Why:
+/// A downloads tombstone sits in `<root>/downloads/<tool>/` and a version's in `<root>/<tool>/`,
+/// and only the first is tied to a claim under the tool directory: the second is a version the store has already
+/// taken out of its name and nothing else may use.
+fn downloads_tombstone_version(root: &Path, marker: &Path) -> Option<String> {
+    // A downloads tombstone sits under `<root>/downloads/<tool>/`, and a version's under `<root>/<tool>/`.
+    let downloads_directory: PathBuf = root.join(DOWNLOADS_DIRECTORY_NAME);
+    if !marker.starts_with(&downloads_directory) {
+        return None;
+    }
+    let name: String = file_name_text(marker);
+    let version: &str = name.strip_prefix(TOMBSTONE_PREFIX)?;
+    if version.is_empty() {
+        return None;
+    }
+    return Some(version.to_string());
+}
+
+/// What:
+/// Renames the downloads tombstone of `version` back to the directory it was made from,
+/// when one is there.
+/// Why:
+/// The archives were moved aside before the version, so a removal that is given back needs them back too,
+/// and the name it was moved to is the only record of where they are.
+fn give_back_downloads(root: &Path, tool: &str, version: &str) -> Result<(), String> {
+    let downloads: PathBuf = downloads_of(root, tool, version);
+    let marker: PathBuf = tombstone_of(&downloads);
+    if fs::symlink_metadata(&marker).is_err() {
+        // Nothing was moved aside for this version, or another pass took it: either way there is nothing to give back.
+        return Ok(());
+    }
+    return match fs::rename(&marker, &downloads) {
+        Ok(()) => Ok(()),
+        // The archives are back under their name already, which is where this call wanted them.
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("{} cannot be renamed back: {error}", marker.display())),
+    };
 }
 
 /// What:
@@ -1129,10 +1246,20 @@ pub fn finish_removals(
         for tool in tools {
             give_back_claimed(root, tool, run, &mut lines, &mut unfinished);
         }
+        let claimed_here: BTreeSet<String> = claimed_versions(root, tools);
         for marker in tombstones(root, tools) {
             if run.started.elapsed() >= run.bounds.work_limit {
                 unfinished.insert(root.clone());
                 break;
+            }
+            // What: a downloads tombstone whose version is still claimed is left where it is.
+            // Why: that claim is a removal still using its archives, or one this pass gave back above and restored
+            // the archives with; deleting it would take the archives from the install or from the version just
+            // restored.
+            if let Some(version) = downloads_tombstone_version(root, &marker)
+                && claimed_here.contains(&version)
+            {
+                continue;
             }
             let bytes: u64 = tree_size(&marker);
             match fs::remove_dir_all(&marker) {
@@ -1401,6 +1528,14 @@ pub fn trim_after_install(ctx: &Context, installed: &[(String, String)]) {
         let outcome: TrimOutcome = apply_trim(&plan, &run);
         lines.extend(outcome.lines);
         unfinished.extend(outcome.unfinished);
+    }
+    // What: a pass that could not read the locks keeps every root's marker, because it could look at nothing.
+    // Why: with no tool directory named, the claim and tombstone scans cover nothing,
+    // so "nothing is left" would be an answer about nothing;
+    // a marker deleted then is never looked at again by a sync that installs nothing,
+    // and the claimed version stays hidden for good.
+    if named.unreadable.is_some() {
+        unfinished.extend(roots.iter().cloned());
     }
     settle_markers(&roots, &tools, &unfinished);
     for line in lines {

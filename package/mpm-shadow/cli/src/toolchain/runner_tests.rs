@@ -160,3 +160,27 @@ fn a_stopped_programs_descendant_does_not_go_on_writing() {
     std::thread::sleep(Duration::from_millis(1_600));
     assert!(!marker.exists(), "a descendant of the stopped program kept running and wrote its marker");
 }
+
+/// What:
+/// The answer a stopped program leaves names the program itself when it was not reaped,
+/// and does not name it when it was.
+/// Why:
+/// The review of this change found the answer built from the program's descendants alone:
+/// a program in an uninterruptible call keeps running after its SIGKILL is queued, and the command then said it had
+/// been stopped.
+/// That state cannot be made here (it needs a stalled device or file system, which this run may not hang),
+/// so this control drives the one function that decides the answer instead.
+#[test]
+fn a_stopped_program_that_was_not_reaped_is_named() {
+    let mut child: std::process::Child =
+        std::process::Command::new("sleep").arg("30").spawn().expect("start a program that stays alive");
+    let leader: u32 = child.id();
+
+    let not_reaped: Vec<u32> = super::runner::still_running(&[], leader, false);
+    let reaped: Vec<u32> = super::runner::still_running(&[], leader, true);
+
+    let _killed = child.kill();
+    let _reaped = child.wait();
+    assert_eq!(not_reaped, vec![leader], "a program that was not reaped is missing from the answer");
+    assert!(reaped.is_empty(), "a stopped program that was reaped is named as still running");
+}

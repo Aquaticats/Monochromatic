@@ -93,3 +93,35 @@ fn an_install_does_not_write_under_a_removal_that_holds_the_right() {
     drop(ownership);
     assert!(live_owner(&downloads).is_none(), "the owner file outlived the ownership");
 }
+
+/// What:
+/// A removal claim a killed remover left does not block an install for good:
+/// the claim names its maker, and a claim whose maker has ended is cleared before the right is taken again.
+/// Why:
+/// The review of this change showed one kill leaving the claim behind and every later install of that version waiting
+/// two seconds and failing, for ever, with nothing to point at but an internal file.
+#[test]
+fn a_claim_a_killed_remover_left_does_not_block_an_install() {
+    let directory = scratch();
+    let root: PathBuf = directory.path().join("store");
+    let downloads: PathBuf = downloads_of(&root, "bin", "0.29.4");
+    fs::create_dir_all(&downloads).expect("make the downloads directory");
+    let claim: PathBuf = downloads.with_file_name(".0.29.4.download-removal");
+    // A claim naming a process that has ended, as a kill between the create and the drop leaves it.
+    fs::write(&claim, format!("{}.{}\n", u32::MAX - 1, 12_345)).expect("leave the stale claim");
+    let aged: std::time::SystemTime = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+    fs::File::options()
+        .write(true)
+        .open(&claim)
+        .expect("open the claim to age it")
+        .set_times(std::fs::FileTimes::new().set_modified(aged))
+        .expect("age the claim");
+
+    let first: Result<DownloadsOwner, _> = DownloadsOwner::take(&root, "bin", "0.29.4");
+    assert!(first.is_ok(), "a dead remover's claim blocked the install: {:?}", first.err());
+    drop(first.expect("the first install owns the downloads"));
+
+    let second: Result<DownloadsOwner, _> = DownloadsOwner::take(&root, "bin", "0.29.4");
+    assert!(second.is_ok(), "the same stale claim still blocked a retry: {:?}", second.err());
+    assert!(live_owner(&downloads).is_some(), "the install owns the directory after taking it");
+}

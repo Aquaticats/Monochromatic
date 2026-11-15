@@ -415,11 +415,25 @@ pub fn current_after_removal(ctx: &Context, plan: &LoserPlan) -> CurrentAfterRem
     let Some(tool) = find_tool(ctx.tools, &plan.tool_id) else {
         return CurrentAfterRemoval::Leave;
     };
+    // What: a root with no `current` link is still a root whose versions this run removes.
+    // Why: the plan's forward names what an emptied root must point at,
+    // and a root left with neither a finished version nor a link has nothing for a launcher or a record to follow;
+    // "the link could not be read" is not "there is nothing to settle".
     let Some(link) = current_in(&plan.root, tool) else {
-        return CurrentAfterRemoval::Leave;
+        return match &plan.forward {
+            Some((forward_link, target)) => CurrentAfterRemoval::Forward(forward_link.clone(), target.clone()),
+            None => CurrentAfterRemoval::Leave,
+        };
     };
     let Some(named) = running_version_of(&plan.root, tool) else {
-        return CurrentAfterRemoval::Leave;
+        // What: a link that names no readable version still gets the plan's forward when it has one.
+        // Why: the link is there (it can dangle) and a root that keeps no finished version needs it to point at the
+        // winner, or launchers and records that follow it stop working once the version goes;
+        // a link we cannot read and no forward to write stays where it is, because it is not this run's to remove.
+        return match &plan.forward {
+            Some((forward_link, target)) => CurrentAfterRemoval::Forward(forward_link.clone(), target.clone()),
+            None => CurrentAfterRemoval::Leave,
+        };
     };
     let going: bool = plan.copies.iter().any(|copy| return copy.version == named);
     if !going {

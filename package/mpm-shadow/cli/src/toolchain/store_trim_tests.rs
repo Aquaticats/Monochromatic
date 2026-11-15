@@ -31,7 +31,7 @@ use std::time::{Duration, Instant, SystemTime};
 use crate::toolchain::store_trim::{
     ClaimedVersion, DEFAULT_SIZE_BOUND_BYTES, TrimBounds, TrimCandidate, TrimPlan, TrimRun, TrimStep, apply_trim,
     candidates_of, DEFAULT_AGE_FLOOR_SECONDS, TrimOutcome, finish_removals, format_age, has_unfinished_removal,
-    parse_duration, parse_size, plan_trim, read_named_versions, settle_markers, unfinished_marker,
+    parse_duration, parse_size, plan_trim, read_named_versions, settle_markers, trim_after_install, unfinished_marker,
 };
 use crate::toolchain::util::{ProcessIdentity, this_process};
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, tombstone_of};
@@ -1013,6 +1013,179 @@ fn an_inventory_past_its_deadline_stops_and_says_so() {
     assert!(candidates_late.is_empty(), "a scan past its deadline listed versions after all: {candidates_late:?}");
     assert_eq!(stopped_late.len(), 1, "the scan says it is not the whole store: {stopped_late:?}");
     assert!(stopped_late[0].contains("ran out of its time limit"), "{stopped_late:?}");
+}
+
+//endregion
+
+//region the table: the names a removal leaves, and who puts them right
+
+/// What:
+/// A recovery gives a claimed version back and its archives with it.
+/// Why:
+/// The removal moves the archives aside before the version, so a kill between the two leaves the version under its
+/// claim and the archives under their tombstone;
+/// the review of this change showed the version restored and the tombstone pass then deleting the archives,
+/// which leaves the version without the files it was installed with.
+#[test]
+fn a_recovery_gives_a_version_back_with_its_downloads() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    let downloads: PathBuf = fixture.root.join("downloads/node/26.11.0");
+    fs::create_dir_all(&downloads).expect("make the downloads");
+    fs::write(downloads.join("node.tar.gz"), b"archive").expect("write the archive");
+    let downloads_marker: PathBuf = tombstone_of(&downloads);
+    fs::rename(&downloads, &downloads_marker).expect("the removal moves the downloads aside first");
+    let claimed: PathBuf = fixture.root.join("node").join(claimed_name("26.11.0", A_PROCESS_NUMBER_NO_MACHINE_HAS, 987_654));
+    fs::rename(&version, &claimed).expect("a kill lands after the version claim");
+    fs::write(unfinished_marker(&fixture.root), b"").expect("leave the recovery marker");
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+
+    let (lines, _unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+
+    assert!(version.join("program").is_file(), "the claimed version was not given back: {lines:?}");
+    assert!(
+        downloads.join("node.tar.gz").is_file(),
+        "the version came back without the archives the removal moved aside: {lines:?}"
+    );
+    assert!(!downloads_marker.exists(), "the downloads tombstone is still there");
+}
+
+/// What:
+/// A downloads tombstone whose version a live claim holds is left for that claim,
+/// and goes once the claim is gone.
+/// Why:
+/// The review showed the live order too: removal A moves the archives aside, a concurrent pass deletes the tombstone,
+/// and A's restore then finds nothing to put back, so the version it keeps has no archives.
+#[test]
+fn a_downloads_tombstone_a_claim_holds_is_not_deleted() {
+    let fixture = Fixture::new();
+    let tool_directory: PathBuf = fixture.root.join("node");
+    let downloads: PathBuf = fixture.root.join("downloads/node/26.12.0");
+    fs::create_dir_all(&downloads).expect("make the downloads");
+    fs::write(downloads.join("node.tar.gz"), b"archive").expect("write the archive");
+    let downloads_marker: PathBuf = tombstone_of(&downloads);
+    fs::rename(&downloads, &downloads_marker).expect("removal A moves the archives aside");
+    // Removal A is alive and is between its downloads move and its version claim.
+    let maker: ProcessIdentity = this_process().expect("this process's start time is readable");
+    let claimed: PathBuf = tool_directory.join(claimed_name_made_by("26.12.0", maker));
+    fs::create_dir_all(&claimed).expect("a directory standing in for the live claim");
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+
+    let _ = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    assert!(downloads_marker.is_dir(), "a pass deleted the archives a live removal had moved aside");
+
+    // Control: with the claim gone, the same pass finishes the tombstone.
+    fs::remove_dir_all(&claimed).expect("drop the stand-in claim");
+    let (lines, _unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    assert!(!downloads_marker.exists(), "the tombstone stayed with no claim over it: {lines:?}");
+}
+
+/// The claim name a removal of `version` by the process `maker` writes.
+fn claimed_name_made_by(version: &str, maker: ProcessIdentity) -> String {
+    return ClaimedVersion { version: version.to_string(), maker, attempt: 0 }.to_name();
+}
+
+/// What:
+/// A flat download another install replaced after the plan was made is not deleted:
+/// the removal moves it aside, compares its write time with the one judged, and puts it back.
+/// Why:
+/// The review showed a new archive published over a planned flat download being deleted,
+/// because that branch removed the file without checking that it was still the one the scan measured.
+#[test]
+fn a_flat_download_replaced_after_the_plan_is_not_deleted() {
+    let fixture = Fixture::new();
+    let downloads: PathBuf = fixture.root.join("downloads");
+    fs::create_dir_all(&downloads).expect("make the downloads");
+    let archive: PathBuf = downloads.join("node-26.11.0-node-v26.11.0-linux-x64.tar.gz");
+    fs::write(&archive, b"old archive").expect("write the old archive");
+    let judged: SystemTime = SystemTime::now() - Duration::from_secs(2 * 24 * 60 * 60);
+    fs::File::options()
+        .write(true)
+        .open(&archive)
+        .expect("open the old archive")
+        .set_times(FileTimes::new().set_modified(judged))
+        .expect("give it the age the scan would have measured");
+    let candidate = TrimCandidate {
+        root: fixture.root.clone(),
+        tool: "node".to_string(),
+        version: String::new(),
+        directory: archive.clone(),
+        downloads: None,
+        bytes: 11,
+        written: judged,
+        leftover: true,
+    };
+    let plan: TrimPlan = TrimPlan { total_bytes: 11, over_bound: true, steps: vec![TrimStep::Remove(candidate)] };
+    // Another install publishes its archive at that path after the plan was made.
+    let replacement: PathBuf = downloads.join("replacement.download");
+    fs::write(&replacement, b"new archive waiting for unpack").expect("write the new download");
+    fs::rename(&replacement, &archive).expect("publish the new archive over the old name");
+
+    let outcome = apply_trim(&plan, &fixture.run());
+
+    assert_eq!(outcome.removed, 0, "the cleanup deleted a file it did not judge: {:?}", outcome.lines);
+    assert_eq!(fs::read(&archive).expect("read the replacement"), b"new archive waiting for unpack");
+}
+
+/// What:
+/// A pass that could not read the locks keeps the recovery marker, because it could look at nothing.
+/// Why:
+/// The review showed the worktree list failing, then no tool directory named, no claim scan and no tombstone scan,
+/// and the marker deleted: a later sync with nothing to install returns early and the claimed version stays hidden.
+#[test]
+fn an_unreadable_lock_keeps_the_recovery_marker() {
+    let rig = crate::toolchain::fakes::Rig::new();
+    let root = rig.scope.toolchain_root.clone();
+    let version: PathBuf = root.join("bin").join("0.0.1");
+    fs::create_dir_all(&version).expect("make the version");
+    fs::write(version.join("payload"), b"user program").expect("write the payload");
+    let maker: ProcessIdentity = ProcessIdentity { pid: A_PROCESS_NUMBER_NO_MACHINE_HAS, started: 12_345 };
+    let claimed: PathBuf = version.with_file_name(claimed_name_made_by("0.0.1", maker));
+    fs::rename(&version, &claimed).expect("a kill landsed after the claim");
+    fs::write(unfinished_marker(&root), b"").expect("leave the recovery marker");
+    rig.runner.answer("git -C", "", 128);
+
+    trim_after_install(&rig.context(), &[]);
+
+    assert!(has_unfinished_removal(&root), "a pass that could read nothing deleted the only recovery trigger");
+    assert!(claimed.join("payload").is_file(), "the claimed version must stay for a later pass to give back");
+}
+
+/// What:
+/// A removal that cannot write its recovery marker removes nothing and says why.
+/// Why:
+/// The marker is what makes a later sync look at the root, so destructive work must not start without it;
+/// the review showed the version deleted although the marker could not be written.
+#[test]
+fn a_marker_that_cannot_be_written_stops_the_removal() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.13.1");
+    let written: SystemTime = fs::symlink_metadata(&version).expect("read the version").modified().expect("write time");
+    let candidate = TrimCandidate {
+        root: fixture.root.clone(),
+        tool: "node".to_string(),
+        version: "26.13.1".to_string(),
+        directory: version.clone(),
+        downloads: None,
+        bytes: 1_000,
+        written,
+        leftover: false,
+    };
+    let plan: TrimPlan = TrimPlan { total_bytes: 1_000, over_bound: true, steps: vec![TrimStep::Remove(candidate)] };
+    fs::set_permissions(&fixture.root, fs::Permissions::from_mode(0o555)).expect("make the marker unwritable");
+
+    let outcome = apply_trim(&plan, &fixture.run());
+
+    fs::set_permissions(&fixture.root, fs::Permissions::from_mode(0o755)).expect("give the fixture its access back");
+    assert_eq!(outcome.removed, 0, "the removal ran without a recovery marker: {:?}", outcome.lines);
+    assert!(version.join("program").is_file(), "the version went although its recovery marker could not be written");
+    assert!(
+        outcome.lines.iter().any(|line| return line.contains("recovery marker") && line.contains("cannot be written")),
+        "the line says why nothing was removed: {:?}",
+        outcome.lines
+    );
 }
 
 //endregion

@@ -61,6 +61,12 @@ const OWNERSHIP_WAIT: Duration = Duration::from_secs(2);
 /// The pause between two attempts at a removal claim.
 const OWNERSHIP_POLL: Duration = Duration::from_millis(20);
 
+/// How many times taking a removal claim clears a stale one and tries again.
+/// Why:
+/// Each attempt clears one dead holder; more than a few at once means something is writing claims this call cannot
+/// read, and the answer then is no, not an endless loop.
+const CLAIM_ATTEMPTS: u32 = 8;
+
 /// What:
 /// An install's ownership of one version's downloads directory,
 /// held until the value is dropped.
@@ -113,7 +119,7 @@ impl DownloadsOwner {
             // What: the claim is looked for after the owner file was written.
             // Why: the remover writes its claim before it looks for an owner, so of the two creates at least one is
             // seen by the other, and whoever sees it backs off before touching a byte.
-            if fs::symlink_metadata(&claim).is_err() {
+            if !claim_is_held(&claim) {
                 return Ok(DownloadsOwner { owner });
             }
             let _ = fs::remove_file(&owner);
@@ -208,16 +214,91 @@ pub fn take_removal_right(root: &Path, tool: &str, version: &str) -> Result<Remo
         return Ok(RemovalRight::Absent);
     }
     let claim: PathBuf = removal_claim_of(root, tool, version);
-    match OpenOptions::new().write(true).create_new(true).open(&claim) {
-        Ok(file) => {
-            drop(file);
-            return Ok(RemovalRight::Held { claim: RemovalClaim { path: claim } });
+    let mut attempts: u32 = 0;
+    loop {
+        attempts += 1;
+        match OpenOptions::new().write(true).create_new(true).open(&claim) {
+            Ok(mut file) => {
+                // What: the claim says which process holds it before it is handed out.
+                // Why: a claim left by a kill must be provable stale by the next remover,
+                // and a bare file name proves nothing; the number and start time are what a later process can check.
+                let maker: ProcessIdentity = this_process().unwrap_or(ProcessIdentity { pid: std::process::id(), started: 0 });
+                let _written = std::io::Write::write_all(&mut file, format!("{}.{}\n", maker.pid, maker.started).as_bytes());
+                drop(file);
+                return Ok(RemovalRight::Held { claim: RemovalClaim { path: claim } });
+            }
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(ToolchainError::failure(format!("cannot write the removal claim {}: {error}", claim.display())));
+            }
         }
-        Err(error) if error.kind() == ErrorKind::AlreadyExists => return Ok(RemovalRight::Taken),
-        Err(error) => {
-            return Err(ToolchainError::failure(format!("cannot write the removal claim {}: {error}", claim.display())));
+        match claim_holder(&claim) {
+            // A live command holds it: this one has nothing to do.
+            Some(maker) if !process_has_ended(&maker) => return Ok(RemovalRight::Taken),
+            // What: a claim that does not say who holds it counts as held while it is young.
+            // Why: the holder writes its number immediately after creating the file,
+            // so a file read in that instant looks empty; a younger claim than the wait an install gives it is
+            // therefore a writer in progress, and one older than that is a kill's leftover nobody finished.
+            None if claim_is_young(&claim) => return Ok(RemovalRight::Taken),
+            // The maker has ended, or the claim never got a readable maker and is old: a kill's leftover, which goes
+            // before the right is taken again.
+            _ => {
+                if attempts > CLAIM_ATTEMPTS {
+                    return Ok(RemovalRight::Taken);
+                }
+                let _ = fs::remove_file(&claim);
+            }
         }
     }
+}
+
+/// What:
+/// Whether a live command still holds the removal claim at `claim`,
+/// clearing a claim whose maker has ended before answering.
+/// Why:
+/// A claim left by a kill names its maker, and a later process can prove it gone:
+/// answering "held" for ever would let one kill block every later install of that version,
+/// and answering "free" for a live holder would put two commands on one directory.
+/// A claim that cannot be read counts as held while it is young, because its holder writes its number immediately
+/// after creating the file.
+fn claim_is_held(claim: &Path) -> bool {
+    match claim_holder(claim) {
+        Some(maker) if !process_has_ended(&maker) => return true,
+        None if claim_is_young(claim) => return true,
+        // The maker has ended, or the claim never got a readable maker and is old: a kill's leftover, which goes.
+        _ => {}
+    }
+    let _ = fs::remove_file(claim);
+    return false;
+}
+
+/// Whether the removal claim was written less than `OWNERSHIP_WAIT` ago.
+/// Why:
+/// A claim is created empty and then given its holder's number;
+/// a claim read in between says nothing, and the age is what tells that in-progress write from a claim a kill left
+/// before it could be given a holder at all.
+fn claim_is_young(claim: &Path) -> bool {
+    let Ok(metadata) = fs::symlink_metadata(claim) else {
+        return false;
+    };
+    let Ok(written) = metadata.modified() else {
+        return false;
+    };
+    return std::time::SystemTime::now().duration_since(written).unwrap_or(Duration::ZERO) < OWNERSHIP_WAIT;
+}
+
+/// What:
+/// The process a removal claim names as its holder,
+/// or `None` when it names one this call cannot read.
+/// Why:
+/// A claim whose holder has ended is a kill's leftover and must not block the next remover for good;
+/// the number and start time together are what tells a live holder from a later process with the same number.
+fn claim_holder(claim: &Path) -> Option<ProcessIdentity> {
+    let text: String = fs::read_to_string(claim).ok()?;
+    let mut fields = text.trim().splitn(2, '.');
+    let pid: u32 = fields.next()?.parse().ok()?;
+    let started: u64 = fields.next()?.parse().ok()?;
+    return Some(ProcessIdentity { pid, started });
 }
 
 /// What:
