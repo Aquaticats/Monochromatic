@@ -14800,6 +14800,11 @@ and the removal's guard, the nested-worktree question and the record of what a r
 A reader that left the detached ones out made a nested worktree at a detached `HEAD` invisible,
 and the service then removed the outer worktree with that worktree's edit in it.
 
+A registration that exists and cannot be read is not a registration that is missing:
+the reader answers three things (`registered_worktree`), a registration it read, no registration at all,
+and a record that is there and could not be read,
+and the third keeps the worktree with a reason naming the registration and the error,
+because a worktree whose `HEAD` or marks this program could not read is one it knows nothing about.
 A registration's path is the bytes Git recorded in its `gitdir`, from that read to every comparison,
 to the words of a refusal and to the record:
 nothing in between turns them into text,
@@ -14824,6 +14829,23 @@ on both routes (`LastLook`, `src/native/worktree/worktree_remove_last_look.rs`),
 and immediately before real Git is started on the route that leaves the removal to Git,
 on the person's command and in the commit service.
 A `--no-enforce-worktree` escape and a forced removal ask nothing, which is what the escape promises.
+
+The rule is one sentence, and every route obeys it: the last look is the last thing the wrapper does before the
+destroy.
+A step that is not the destroy itself stands before the look, however late it seems, and what the destroy step
+contains is the destroy and its own journal lines, written immediately before the kernel call or the rename.
+So the deletion listing of a removal (`RemovalDeletions::of`, two Git queries) and its `begun` line stand before the
+look on the typed subvolume route, on the commit service's route and on the plain forwarded route,
+and the look is followed by the rename or by the kernel call on the first two and by the person's Git on the third.
+The listing is then the record of what went, read a moment before the look:
+a listing taken after the look would be the stale side of the race the look exists for.
+The plain route asks its look inside the run, after the lifecycle's recovery of unfinished worktree copies and
+immediately before the person's Git is started, because the recovery is work the wrapper does and a look asked before it
+would not be last.
+A refusal that comes after the `begun` line is written says so in the record (`outcome: refused`, with the words the
+person read), so the log never claims a deletion that did not happen,
+and a refusal that the listing's own entries already show is taken before the line is written at all:
+a removal whose record names a changed tracked file of a nested worktree is a removal the guard would have kept.
 
 What this cannot close is stated rather than hidden:
 real Git's own removal runs after the wrapper's last look,

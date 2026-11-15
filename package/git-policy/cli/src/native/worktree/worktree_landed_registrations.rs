@@ -32,7 +32,7 @@
 //! const before = registeredBefore(commonDir); // the names that existed before the merge
 //! ```
 
-use crate::worktree_registration_proof::read_record_here;
+use crate::worktree_registration_proof::{RegistrationRefusal, read_record_here};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -97,8 +97,22 @@ pub(crate) fn registered_worktrees(common_dir: &Path) -> Result<Vec<Registration
     let mut found: Vec<Registration> = Vec::new();
     for entry in listing.flatten() {
         let admin: PathBuf = entry.path();
-        let Some(worktree) = registered_worktree(admin.as_path()) else {
-            continue;
+        // Three answers, and only the middle one may be skipped:
+        //  a registration Git wrote and this reader read,
+        //  no registration at all (the name is gone, or the record is not one Git writes),
+        //  and a record that exists and cannot be read.
+        //  The third is not "no worktree here": the caller asked which worktrees the repository holds and this reader
+        //  could not answer for one of them, so it says so and the caller refuses (a review of this change, finding 4).
+        let worktree: PathBuf = match registered_worktree(admin.as_path()) {
+            Ok(Some(root)) => root,
+            Ok(None) => continue,
+            Err(refused) => {
+                return Err(format!(
+                    "the registration {} cannot be read, so nothing proves which worktrees this repository holds: {}",
+                    admin.display(),
+                    refused.into_words()
+                ));
+            }
         };
         let branch: Option<String> = head_branch(admin.as_path());
         found.push(Registration { admin, worktree, branch });
@@ -108,7 +122,8 @@ pub(crate) fn registered_worktrees(common_dir: &Path) -> Result<Vec<Registration
 
 /// What:
 ///  The worktree root a registration's `gitdir` file names,
-/// when that root is still a directory.
+///  `None` when there is no registration to read,
+///  and the reason when one is there and cannot be read.
 /// Why:
 ///   The record holds the bytes Git wrote,
 ///  and a Git pathname is those bytes:
@@ -118,18 +133,40 @@ pub(crate) fn registered_worktrees(common_dir: &Path) -> Result<Vec<Registration
 ///  (a review of this change,
 ///  finding 3).
 ///  Nothing between this read and the comparisons, the refusal and the record turns them into text.
+///  A record that cannot be read is not a missing registration:
+///  a `gitdir` at a mode nothing may read, or one whose bytes the system refuses, is a registration whose worktree this
+///  reader knows nothing about,
+///  and answering "no worktree" for it let an unforced removal delete a nested worktree with an edit in it
+///  (finding 4).
+///  So the three answers are kept apart here and named by the caller.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const recorded = Buffer.from(readRecord(admin + '/gitdir')).trimEnd();
+/// const recorded = readRegistration(admin + '/gitdir'); // { kind: 'worktree', root } | { kind: 'none' } | throws
 /// ```
-fn registered_worktree(admin: &Path) -> Option<PathBuf> {
+fn registered_worktree(admin: &Path) -> Result<Option<PathBuf>, RegistrationRefusal> {
     use std::os::unix::ffi::OsStrExt as _;
-    let recorded_bytes: Vec<u8> = read_record_here(admin.join("gitdir").as_path(), "the record that names its worktree").ok()?;
+    let recorded_bytes: Vec<u8> = match read_record_here(admin.join("gitdir").as_path(), "the record that names its worktree") {
+        Ok(bytes) => bytes,
+        // The record of a name that is gone, or a file Git does not write there, is this directory not being a
+        //  registration of this repository: Git may be in the middle of removing it.
+        Err(RegistrationRefusal::NotThisRepository(_absent)) => return Ok(None),
+        Err(refused) => return Err(refused),
+    };
     let recorded: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(recorded_bytes.trim_ascii_end()));
     let pointer: PathBuf = if recorded.is_absolute() { recorded } else { admin.join(recorded) };
-    let root: PathBuf = std::fs::canonicalize(pointer.parent()?).ok()?;
-    return root.is_dir().then_some(root);
+    let Some(parent) = pointer.parent() else { return Ok(None) };
+    return match std::fs::canonicalize(parent) {
+        Ok(root) if root.is_dir() => Ok(Some(root)),
+        // A worktree whose directory is gone is a registration Git has not pruned yet, which is no worktree this
+        //  repository holds.
+        Ok(_a_file) => Ok(None),
+        Err(error) if crate::worktree_registration_proof::is_absent(&error) => Ok(None),
+        Err(error) => Err(RegistrationRefusal::Undecided(format!(
+            "the worktree directory {} it names cannot be read ({error})",
+            parent.display()
+        ))),
+    };
 }
 
 /// What:

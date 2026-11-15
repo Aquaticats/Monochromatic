@@ -150,6 +150,41 @@ fn a_worktree_a_nested_worktree_holds_work_in_stays_on_the_second_look() {
 }
 
 /// What:
+///  A nested registration that exists and cannot be read keeps the worktree, and the reason names the registration.
+/// Why:
+///  A registration whose record holds bytes nothing may read is not a registration that is not there:
+///  it is a worktree the guard knows nothing about,
+///  and a reader that answered "no worktree" for it let an unforced removal delete a nested worktree with an edit in it
+///  (a review of this change,
+///  finding 4).
+///  The control makes the read answer the way a refused read does,
+///  because the gate runs this suite as root, where no mode makes a file unreadable.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// theNextRecordReadAnswersUndecided(); expect(whyTheWorktreeStays(look, worktree, admin)).toContain('cannot be read');
+/// ```
+#[test]
+fn a_nested_registration_that_cannot_be_read_keeps_the_worktree() {
+    let fixture: Fixture = a_repository_with_a_worktree("second-look-nested-unreadable", ".claude/\n");
+    let inside: PathBuf = fixture.worktree.join(".claude/worktrees/b");
+    git(fixture.worktree.as_path(), &["worktree", "add", "--quiet", "-b", "sub", inside.to_str().expect("a UTF-8 fixture path")]);
+    let context: crate::transaction_git::GitContext = git_context();
+    let empty: PathBuf = fixture.root.join("proc");
+    std::fs::create_dir(empty.as_path()).expect("an empty process table");
+    let look: SecondLook<'_> = SecondLook { context: &context, common_dir: fixture.common.as_path(), proc_root: empty.as_path(), left_out: &LeftOut::none() };
+    let answered: Option<String> = {
+        crate::worktree_registration_proof::THE_RECORD_READ_ANSWERS_UNDECIDED.with(|answer| answer.set(true));
+        let why: Option<String> = why_the_worktree_stays(&look, fixture.worktree.as_path(), fixture.admin().as_path());
+        crate::worktree_registration_proof::THE_RECORD_READ_ANSWERS_UNDECIDED.with(|answer| answer.set(false));
+        why
+    };
+    let said: String = answered.expect("a registration that cannot be read keeps the worktree");
+    assert!(said.contains("cannot be read"), "the reason says the read was refused: {said}");
+    assert!(said.contains(fixture.common.join("worktrees").display().to_string().as_str()), "and names the registration's folder: {said}");
+}
+
+/// What:
 ///  A nested worktree that holds no Git work is not a reason to keep the outer one,
 ///  and what a removal takes from it is recorded.
 /// Why:

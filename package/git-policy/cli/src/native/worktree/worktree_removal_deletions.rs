@@ -463,6 +463,43 @@ pub struct RemovalDeletions {
 
 impl RemovalDeletions {
     /// What:
+    ///  The words that keep `worktree` when the listing this removal just made says a worktree inside it holds Git work,
+    ///  or `None` when it holds none.
+    /// Why:
+    ///  The listing reads each nested worktree's changed tracked files and the marks that hide an edit,
+    ///  which is exactly what the guard keeps a worktree for.
+    ///  A removal that wrote that entry into its record and then deleted the worktree would contradict itself,
+    ///  and the record is the only thing left of the file it named
+    ///  (a review of this change,
+    ///  finding 2).
+    ///  A stranded commit no reference names is not in the listing, so that half stays the guard's:
+    ///  this net is the one the record itself can see.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// deletions.workAGuardKeeps(worktree) // sentence | undefined
+    /// ```
+    pub fn work_a_guard_keeps(&self, worktree: &Path) -> Option<String> {
+        let mut holding: Vec<crate::worktree_nested_git_work::NestedHoldingGitWork> = Vec::new();
+        for one in &self.nested {
+            if one.changed.total == 0 && one.hidden.total == 0 {
+                continue;
+            }
+            holding.push(crate::worktree_nested_git_work::NestedHoldingGitWork {
+                worktree: one.worktree.clone(),
+                changed: one.changed.clone(),
+                hidden: one.hidden.clone(),
+                // The listing asks no `for-each-ref`, so the commit question is not this net's to answer: the guard asks it.
+                holds_a_commit_nothing_else_names: false,
+            });
+        }
+        if holding.is_empty() {
+            return None;
+        }
+        return Some(crate::worktree_removal_refusal::a_nested_worktree_holds_git_work(worktree, holding.as_slice()));
+    }
+
+    /// What:
     ///  Everything one removal is about to delete,
     ///  read before it deletes anything.
     /// Why:
@@ -704,6 +741,24 @@ pub fn record_removal_deleted(common_dir: &Path, begun: &RemovalBegun, worktree:
 }
 
 /// What:
+///  Write the line that says one removal was refused after it had already listed what it would delete.
+/// Why:
+///   The list is written before the last look, because a kill between the deletion and its record would lose it,
+///  and the last look can then refuse.
+///  A `begun` line whose id has no `deleted` line is a removal interrupted by a kill,
+///  which is not what happened here: the removal was refused and nothing was deleted,
+///  so the record says so in its own words and a reader is not left to check the worktree to find out.
+///  A failed write is a debug line and changes nothing about the refusal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// recordRemovalRefused(commonDir, begun, worktree, reason);
+/// ```
+pub fn record_removal_refused(common_dir: &Path, begun: &RemovalBegun, worktree: &Path, reason: &str) {
+    append(common_dir, refused_line(begun, worktree, reason, now_millis()).as_str());
+}
+
+/// What:
 ///  Append one line to the repository's deletion log,
 ///  and say nothing when it cannot be written.
 /// Why:
@@ -844,6 +899,31 @@ pub(crate) fn deleted_line(begun: &RemovalBegun, worktree: &Path, time_millis: u
     let _ = write!(line, ",\"kind\":{},\"outcome\":{},\"id\":{}", quote("worktree-removal"), quote("deleted"), quote(begun.id.as_str()));
     let _ = write!(line, ",\"worktree\":{}", quote(worktree.to_string_lossy().as_ref()));
     let _ = write!(line, ",\"worktreeHex\":{}", quote(hex_of_path(worktree).as_str()));
+    line.push_str("}\n");
+    return line;
+}
+
+/// What:
+///  The line that says one removal was refused after it had listed what it would delete,
+///  with the clock given by its caller.
+/// Why:
+///   It carries the pair's id, the outcome, the worktree and the words of the refusal,
+///  so a reader of the log learns from the log itself that nothing was deleted,
+///  and the words are the same ones the person read.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refusedLine({ id: '0123abcd-1-2' }, '/x/y', 'another worktree ... is inside it', 1700000000000)
+/// ```
+pub(crate) fn refused_line(begun: &RemovalBegun, worktree: &Path, reason: &str, time_millis: u128) -> String {
+    let mut line: String = String::with_capacity(384);
+    line.push_str("{\"schemaVersion\":1");
+    let stamp: i64 = i64::try_from(time_millis).unwrap_or(i64::MAX);
+    let _ = write!(line, ",\"time\":{},\"release\":{}", quote(format_iso_milliseconds(stamp).as_str()), quote(RELEASE));
+    let _ = write!(line, ",\"kind\":{},\"outcome\":{},\"id\":{}", quote("worktree-removal"), quote("refused"), quote(begun.id.as_str()));
+    let _ = write!(line, ",\"worktree\":{}", quote(worktree.to_string_lossy().as_ref()));
+    let _ = write!(line, ",\"worktreeHex\":{}", quote(hex_of_path(worktree).as_str()));
+    let _ = write!(line, ",\"refused\":{}", quote(reason));
     line.push_str("}\n");
     return line;
 }

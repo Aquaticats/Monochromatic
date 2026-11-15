@@ -2910,16 +2910,23 @@ and ends with the same flag.
 With the flag the removal runs exactly as real Git does,
 and what it takes is in the record below,
 the changed tracked files of the nested worktree among them.
+A registration that exists and cannot be read keeps the worktree it belongs to, and the reason names it:
+a registration this program could not read is a worktree it knows nothing about, not one that is not there.
 Every registration the repository holds is read by one reader,
 whatever its `HEAD` names,
 so a nested worktree at a detached `HEAD` is seen by the proof and by the record;
 a reader that left those out let the service remove an outer worktree with such a worktree's edit in it.
 A registration's path is the bytes Git wrote, from that read to the comparison, the refusal and the record,
 so a worktree whose name is not UTF-8 is found and refused like any other.
-The proof a removal makes is a proof of a moment:
-the listing of what will go, the walk of the tree and, on the subvolume route, a rename stand between it and the delete,
-so the same question is asked again immediately before anything is deleted,
-and again immediately before real Git is started on the route that leaves the removal to Git.
+The proof a removal makes is a proof of a moment, so it is made again as the removal runs, and one sentence says where:
+the last look is the last thing this program does before the delete.
+The listing of what will go stands immediately before that look, and is therefore the record of what the deletion
+takes, read a moment earlier; the walk of the tree, the pools and, on the subvolume route, everything else stand before
+it too.
+On the route that leaves the removal to real Git the look is asked after the recovery of unfinished copies the wrapper
+does at the start of every settled command, and immediately before Git is started.
+A removal the look refuses after its list was written says so in its own record, with the words you read, so the log
+never claims a deletion that did not happen.
 Real Git's own run is the part this program cannot look inside,
 and what Git refuses there it still refuses: an unforced removal of a worktree with modified or untracked files.
 

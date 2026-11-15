@@ -476,10 +476,38 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
         debug(TAG, format!("{reason}; Git decides").as_str());
         return RemoveOutcome::LeftToGit;
     }
-    // The caller's own last look comes after the proof of cleanliness and after every check above it: a worktree a command
-    // added inside this one, or a record written into its Git directory, can arrive while that proof runs, and a caller
-    // that read them before it proved this one clean has read them too early. Nothing is changed when it refuses.
+    // What the destroy takes beside the files Git keeps is read while it is still there, and what it read is written down
+    //  before anything is destroyed: after the destroy nothing at that path can be listed any more, and a process killed
+    //  between the destroy and its record would otherwise leave the files gone with nothing saying they were ever there
+    //  (the owner's decision of 2026-11-12T13:04:14, `worktree_removal_deletions.rs`).
+    //  This is a read of the tree and two Git queries, and it stands before the last look rather than after it: the look is
+    //  the last thing this program does before the destroy, and a listing taken after it would be the stale side of the
+    //  race the look exists for (a review of this change, finding 2). The listing is then the record of what went, read a
+    //  moment before the look, and the look is what says whether the removal may still run.
+    let deletions: crate::worktree_removal_deletions::RemovalDeletions = crate::worktree_removal_deletions::RemovalDeletions::of(request.context, request.common_dir, target);
+    // The record's own second net, decided on the listing this program just made and costing no further read: what the
+    //  listing says a worktree inside this one holds is exactly what the guard keeps a worktree for, and a removal that
+    //  wrote that entry and then went on would contradict itself (a review of this change, finding 2).
+    //  The net needs a guard: what it notices is the record contradicting the question the guard was asked, and a caller
+    //  that asks none (a control, the around route's own use) has only the record to go by, which is the decision's own
+    //  shape.
+    if !request.plan.force && request.last_look.is_some() && let Some(why) = deletions.work_a_guard_keeps(target) {
+        return RemoveOutcome::Refused(why);
+    }
+    let deletions_begun: Option<crate::worktree_removal_deletions::RemovalBegun> = crate::worktree_removal_deletions::record_removal_begins(
+        request.common_dir,
+        target,
+        crate::worktree_removal_deletions::removal_words(target, request.plan.force).as_slice(),
+        &deletions,
+    );
+    // The caller's own last look comes after the proof of cleanliness, after every check above it and after the listing:
+    // a worktree a command added inside this one, or a record written into its Git directory, can arrive while that proof
+    // runs, and a listing taken before the look is what the record of the deletion holds. Nothing is changed when it
+    // refuses, and the list it wrote says the removal was refused rather than leaving a line that claims a deletion.
     if let Err(reason) = last_look::before_the_destroy(request, target) {
+        if let Some(begun) = &deletions_begun {
+            crate::worktree_removal_deletions::record_removal_refused(request.common_dir, begun, target, reason.as_str());
+        }
         return RemoveOutcome::Refused(reason);
     }
     if goes_around {
@@ -487,21 +515,12 @@ pub fn remove_with(operations: &dyn RemoveOperations, request: &RemoveRequest<'_
     }
     // What is about to be destroyed is recorded before the kernel call, so a command killed between the destroy and the
     // removal of the registration leaves a state the next command can finish instead of one only `git worktree prune`
-    // could. A record that cannot be written costs that finish and nothing else, so the destruction goes on.
+    // could. A record that cannot be written costs that finish and nothing else, so the destruction goes on. This line and
+    // the one marking the kernel call are the destroy's own journal, written immediately before it: nothing else stands
+    // between the look above and the instruction that deletes.
     if let Err(reason) = record_destroy(request.common_dir, registration.id.as_os_str(), &held.admin_identity, target) {
         warn(TAG, format!("the destroy of {} is not recorded, so a command that dies before its registration is removed leaves it to `git worktree prune`: {reason}", target.display()).as_str());
     }
-    // What the destroy takes beside the files Git keeps is read while it is still there, and what it read is written down
-    //  before anything is destroyed: after the destroy nothing at that path can be listed any more, and a process killed
-    //  between the destroy and its record would otherwise leave the files gone with nothing saying they were ever there
-    //  (the owner's decision of 2026-11-12T13:04:14, `worktree_removal_deletions.rs`).
-    let deletions: crate::worktree_removal_deletions::RemovalDeletions = crate::worktree_removal_deletions::RemovalDeletions::of(request.context, request.common_dir, target);
-    let deletions_begun: Option<crate::worktree_removal_deletions::RemovalBegun> = crate::worktree_removal_deletions::record_removal_begins(
-        request.common_dir,
-        target,
-        crate::worktree_removal_deletions::removal_words(target, request.plan.force).as_slice(),
-        &deletions,
-    );
     // The subvolume is handed to the service when it can be: it is renamed inside the parent this removal holds, a durable record
     // names it, and the service's own call deletes it later, so the person waits for one rename and no kernel delete.
     let mut marked: bool = false;

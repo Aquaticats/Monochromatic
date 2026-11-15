@@ -957,15 +957,6 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
         force = true;
         debug(TAG, format!("the removal of {} began and was cut short; it is finished now", target.display()).as_str());
     }
-    // The look above was made before this service proved cleanliness, walked the tree and listed what will go, and
-    //  real Git's own removal is the instruction that deletes: a process can enter the worktree, and a worktree can be
-    //  registered inside it, in that window, so the same question is asked again here, immediately before Git is started
-    //  (a review of this change, finding 5). Real Git's run is the part this program cannot look inside, and what it
-    //  refuses there is stated where that window is measured (`worktree_removal_second_look.rs`).
-    let again: TheWorktreeStillStays<'_> = TheWorktreeStillStays { context: &context, common_dir: item.git_dir.as_path(), proc_root: Path::new(PROCESS_TABLE), target: target.as_path(), admin: registration.admin.as_path(), left_out: &left_out };
-    if let Some(why) = why_the_worktree_stays(&SecondLook { context: again.context, common_dir: again.common_dir, proc_root: again.proc_root, left_out: again.left_out }, target.as_path(), registration.admin.as_path()) {
-        return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), why.as_str(), kept.said.as_slice());
-    }
     let mut arguments: Vec<OsString> = vec![OsString::from("worktree"), OsString::from("remove")];
     if force {
         arguments.push(OsString::from("--force"));
@@ -974,9 +965,29 @@ fn remove_the_worktree_of(item: &WorkItem) -> Verdict {
     // What Git is about to delete is read while it is still there, and written down before Git runs: the owner's decision of
     //  2026-11-12T13:04:14 records every ignored file and every nested worktree's files a removal takes, and a kill between
     //  Git's deletion and its record would leave them gone with nothing saying so (`worktree_removal_deletions.rs`).
+    //  The listing stands before the last look, not after it: the look is the last thing this service does before it starts
+    //  Git, and a listing taken after the look would be the stale side of the race the look exists for
+    //  (a review of this change, finding 2).
     let deletions: crate::worktree_removal_deletions::RemovalDeletions = crate::worktree_removal_deletions::RemovalDeletions::of(&context, item.git_dir.as_path(), target.as_path());
+    // The record's own second net, on the listing this service just made: what it says a worktree inside this one holds is
+    //  what the guard keeps a worktree for, and a removal that wrote that entry and went on would contradict itself.
+    if let Some(why) = deletions.work_a_guard_keeps(target.as_path()) {
+        return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), why.as_str(), kept.said.as_slice());
+    }
     let deletions_begun: Option<crate::worktree_removal_deletions::RemovalBegun> =
         crate::worktree_removal_deletions::record_removal_begins(item.git_dir.as_path(), target.as_path(), arguments.as_slice(), &deletions);
+    // The look above was made before this service proved cleanliness, walked the tree and listed what will go, and
+    //  real Git's own removal is the instruction that deletes: a process can enter the worktree, and a worktree can be
+    //  registered inside it, in that window, so the same question is asked again here, immediately before Git is started
+    //  (a review of this change, finding 5). Real Git's run is the part this program cannot look inside, and what it
+    //  refuses there is stated where that window is measured (`worktree_removal_second_look.rs`).
+    let again: TheWorktreeStillStays<'_> = TheWorktreeStillStays { context: &context, common_dir: item.git_dir.as_path(), proc_root: Path::new(PROCESS_TABLE), target: target.as_path(), admin: registration.admin.as_path(), left_out: &left_out };
+    if let Some(why) = why_the_worktree_stays(&SecondLook { context: again.context, common_dir: again.common_dir, proc_root: again.proc_root, left_out: again.left_out }, target.as_path(), registration.admin.as_path()) {
+        if let Some(listed) = &deletions_begun {
+            crate::worktree_removal_deletions::record_removal_refused(item.git_dir.as_path(), listed, target.as_path(), why.as_str());
+        }
+        return keep_the_worktree(item, target.as_path(), registration.admin.as_path(), why.as_str(), kept.said.as_slice());
+    }
     let output: GitOutput = match run_git(&context, &GitRequest::new(item.repository.as_path(), arguments.as_slice())) {
         Ok(finished) => finished,
         Err(error) => return Verdict::Retry(format!("Git could not be started to remove {} ({error})", target.display())),

@@ -272,12 +272,171 @@ fn a_forwarded_removal_looks_once_more_before_it_starts_git() {
     );
     let _ended = child.kill();
     let _waited = child.wait();
-    assert_eq!(finished, ForwardedRun::Ran(1), "the last look refuses and Git is not started");
+    let ForwardedRun::Failed { stderr: refused, code } = &finished else { panic!("the last look refuses and Git is not started: {finished:?}") };
+    assert_eq!(*code, crate::subvolume_command::REFUSED_EXIT_CODE, "a refusal is the wrapper's refusal status: {refused}");
+    assert!(refused.contains("is working in it"), "the refusal names the program working there: {refused}");
+    assert_eq!(refused.matches("refusing to remove the worktree").count(), 1, "the words are said once: {refused}");
     assert!(worktree.is_dir(), "the worktree the program is working in stays");
     remove(root.as_path());
 }
 
-/// A forwarded removal takes the removed worktree's shadow pool with it:
+/// What:
+///  The look that decides is asked after the listing that reads what the removal will delete, and before Git.
+/// Why:
+///  The listing is two Git queries and it used to stand after the last look,
+///  so a nested worktree registered and edited while it ran went with the removal,
+///  and the removal's own record said `changed` for the file it deleted
+///  (a review of this change,
+///  finding 2). The rule the module states is that the last look is the last thing before the destroy,
+///  and this control asks the stand-in Git to record the listing and the removal, and the look to say what it saw:
+///  the listing's record must exist when the look is asked, and the removal's must not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const look = { ask: () => listingRan() ? Err('after the listing') : Err('before the listing') };
+/// expect(runSettled(proxy, args, overlay, facts, Some(look))).toMatchObject({ kind: 'failed' });
+/// expect(personRan()).toBe(false);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_forwarded_removal_asks_its_last_look_after_the_deletion_listing_and_before_git() {
+    use std::os::unix::fs::PermissionsExt as _;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let root: PathBuf = fixture("forward-removal-look-order");
+    let (main, common) = source(root.as_path());
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
+    let listing_ran: PathBuf = root.join("listing-ran");
+    let person_ran: PathBuf = root.join("the-persons-git-ran");
+    let proxy: PathBuf = root.join("stand-in-git");
+    let script: String = format!(
+        "#!/bin/sh\ncase \"$*\" in\n  *--ignored*) : > '{listing}'; ;;\n  *worktree*remove*) : > '{person}'; ;;\nesac\nexec {real} \"$@\"\n",
+        listing = listing_ran.display(),
+        real = crate::test_support::REAL_GIT,
+        person = person_ran.display(),
+    );
+    std::fs::write(proxy.as_path(), script.as_bytes()).expect("the stand-in Git");
+    std::fs::set_permissions(proxy.as_path(), std::fs::Permissions::from_mode(0o755)).expect("an executable stand-in");
+    let facts: CopyFacts = CopyFacts {
+        identity: main_identity(main.as_path(), common.as_path()),
+        creates: false,
+        destination: None,
+        add_plan: None,
+        removal_escaped: false,
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
+        quiet: false,
+    };
+    /// A look that says what it saw when it was asked, and lets nothing through.
+    struct StandingLook<'a> {
+        /// The record the listing leaves.
+        listing: &'a Path,
+        /// Whether the look was asked at all.
+        asked: &'a AtomicBool,
+    }
+    impl crate::worktree_remove::LastLook for StandingLook<'_> {
+        fn ask(&self) -> Result<(), String> {
+            self.asked.store(true, Ordering::SeqCst);
+            let when: &str = if self.listing.exists() { "after the listing" } else { "before the listing" };
+            return Err(format!("a control's own look, asked {when}"));
+        }
+    }
+    let asked: AtomicBool = AtomicBool::new(false);
+    let look = StandingLook { listing: listing_ran.as_path(), asked: &asked };
+    let finished: ForwardedRun = run_served(
+        proxy.as_path(),
+        arguments(&["-C", main.to_str().expect("utf8"), "worktree", "remove", worktree.to_str().expect("utf8")]).as_slice(),
+        isolated_overlay().as_slice(),
+        &facts,
+        Some(&look),
+    );
+    let ForwardedRun::Failed { stderr: refused, code } = &finished else { panic!("the look refuses and Git is not started: {finished:?}") };
+    assert_eq!(*code, crate::subvolume_command::REFUSED_EXIT_CODE, "a refusal is the wrapper's refusal status: {refused}");
+    assert!(asked.load(Ordering::SeqCst), "the look was asked at all: {refused}");
+    assert!(refused.contains("after the listing"), "the look stands after the listing that reads what the removal deletes: {refused}");
+    assert!(!person_ran.exists(), "real Git was never started, so nothing was deleted by it");
+    assert!(worktree.is_dir(), "the worktree stays");
+    remove(root.as_path());
+}
+
+/// What:
+///  The look that decides is asked after the lifecycle's recovery of unfinished worktree copies, not before it.
+/// Why:
+///  `run_settled` recovers the copies an interrupted add owes before it starts the person's Git,
+///  and a look asked before that recovery would be a judgement of a moment the recovery then takes time over
+///  (a review of this change,
+///  finding 3).
+///  The rule is the module's: the last look is the last thing before the destroy.
+///  This control plants a journal record recovery settles, hands in a look that refuses, and asserts both that the record
+///  was settled (recovery ran) and that Git never started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// writeFileSync(join(journalRoot(common), 'junk'), 'not a journal');
+/// const finished = runSettled(proxy, args, overlay, facts, Some(refusingLook));
+/// expect(junkSettled(common)).toBe(true); expect(personRan()).toBe(false);
+/// ```
+#[cfg(unix)]
+#[test]
+fn a_forwarded_removal_asks_its_last_look_after_the_lifecycles_recovery() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let root: PathBuf = fixture("forward-removal-look-after-recovery");
+    let (main, common) = source(root.as_path());
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
+    // A record recovery has to settle: a journal name with no owner, which an interrupted add leaves behind.
+    let journal: PathBuf = crate::worktree_copy_journal::journal_root(common.as_path());
+    std::fs::create_dir_all(journal.as_path()).expect("the journal folder");
+    // The journal folder is trusted only as a private one, so the control makes it private the way the product's own
+    //  creation does.
+    for folder in [journal.parent().expect("the journal's parent"), journal.as_path()] {
+        std::fs::set_permissions(folder, std::fs::Permissions::from_mode(0o700)).expect("a private journal folder");
+    }
+    // A name only a journal has, so the sweep reads it, and no owner token in it, so no writer is waited for.
+    let junk: PathBuf = journal.join(format!("junk-with-no-owner{}", crate::worktree_copy_journal_encoding_and_validation::JOURNAL_SUFFIX));
+    std::fs::write(junk.as_path(), b"not a journal any release wrote\n").expect("a record recovery settles");
+    std::fs::set_permissions(junk.as_path(), std::fs::Permissions::from_mode(0o600)).expect("a private journal record");
+    let person_ran: PathBuf = root.join("the-persons-git-ran");
+    let proxy: PathBuf = root.join("stand-in-git");
+    let script: String = format!(
+        "#!/bin/sh\ncase \"$*\" in\n  *worktree*remove*) : > '{person}'; ;;\nesac\nexec {real} \"$@\"\n",
+        real = crate::test_support::REAL_GIT,
+        person = person_ran.display(),
+    );
+    std::fs::write(proxy.as_path(), script.as_bytes()).expect("the stand-in Git");
+    std::fs::set_permissions(proxy.as_path(), std::fs::Permissions::from_mode(0o755)).expect("an executable stand-in");
+    let facts: CopyFacts = CopyFacts {
+        identity: main_identity(main.as_path(), common.as_path()),
+        creates: false,
+        destination: None,
+        add_plan: None,
+        removal_escaped: false,
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
+        quiet: false,
+    };
+    /// A look that refuses, so nothing runs after it.
+    struct Refusing;
+    impl crate::worktree_remove::LastLook for Refusing {
+        fn ask(&self) -> Result<(), String> {
+            return Err(String::from("a control's own look, which refuses"));
+        }
+    }
+    let finished: ForwardedRun = run_served(
+        proxy.as_path(),
+        arguments(&["-C", main.to_str().expect("utf8"), "worktree", "remove", worktree.to_str().expect("utf8")]).as_slice(),
+        isolated_overlay().as_slice(),
+        &facts,
+        Some(&Refusing),
+    );
+    let ForwardedRun::Failed { stderr: refused, code } = &finished else { panic!("the look refuses and Git is not started: {finished:?}") };
+    assert_eq!(*code, crate::subvolume_command::REFUSED_EXIT_CODE, "a refusal is the wrapper's refusal status: {refused}");
+    assert!(refused.contains("a control's own look"), "the refusal is the look's: {refused}");
+    assert!(!junk.exists(), "the record recovery settles is gone, so recovery ran before the look");
+    assert!(!person_ran.exists(), "real Git was never started, so nothing was deleted by it");
+    assert!(worktree.is_dir(), "the worktree stays");
+    remove(root.as_path());
+}
+
+/// A forwarded removal takes the removed worktree's shadow pool with it:/// A forwarded removal takes the removed worktree's shadow pool with it:
 /// the pool's name is the administrative directory the removal deletes,
 /// so nothing can ever claim a member of it
 ///  again,

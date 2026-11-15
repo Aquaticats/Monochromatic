@@ -319,7 +319,10 @@ pub fn run_forwarded_git_with_unit_stop(
         if let Some(facts) = copy {
             // The instance of a removed worktree is a hash of a directory the removal deletes, so it is named first.
             let about: Option<WorktreeAboutToGo> = units_of_worktree_about_to_go(facts);
-            let finished: ForwardedRun = run_served(real_git, arguments, overlay, facts);
+            // The look is built once, here, and travels into the run: it is asked inside the removal immediately before
+            //  the destroy, and inside the run immediately before the person's Git is started.
+            let again: Option<TheLookAgain<'_>> = the_look_again(real_git, overlay, facts);
+            let finished: ForwardedRun = run_served(real_git, arguments, overlay, facts, again.as_ref().map(|found| return found as &dyn crate::worktree_remove::LastLook));
             // Only a removal that ended well can have taken the worktree; the stop checks that its Git directory is gone.
             if let (Some(gone), ForwardedRun::Ran(0)) = (about.as_ref(), &finished) {
                 stop_units(gone);
@@ -386,17 +389,21 @@ fn units_of_worktree_about_to_go(facts: &CopyFacts) -> Option<WorktreeAboutToGo>
 /// (await removeBySubvolume(facts)) ?? (await runSettled(facts));
 /// ```
 #[cfg(unix)]
-fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], facts: &CopyFacts) -> ForwardedRun {
-    #[cfg(unix)]
-    use std::io::Write as _;
-    // The guard this command passed is a judgement of a moment, and the moment has passed: its proof of cleanliness, the
-    //  listing of what will go and, on the subvolume route, a rename stand between it and the instruction that deletes. So
-    //  the same question is asked again here, as late as this program can ask it, and again inside the removal
-    //  immediately before the destroy. A process can enter the worktree, and a nested worktree can be added inside it, in
-    //  that window, and a removal on the early answer deleted an edit made there (a review of this change, finding 5).
-    let again: Option<TheLookAgain<'_>> = the_look_again(real_git, overlay, facts);
+fn run_served(
+    real_git: &Path,
+    arguments: &[OsString],
+    overlay: &[(OsString, OsString)],
+    facts: &CopyFacts,
+    again: Option<&dyn crate::worktree_remove::LastLook>,
+) -> ForwardedRun {
+    // The guard this command passed is a judgement of a moment, and the moment has passed: everything below it stands
+    //  between it and the instruction that deletes. So the same question is asked again where the rule puts it
+    //  (`worktree_remove_last_look.rs`): inside the subvolume removal immediately before its destroy, and inside the run
+    //  below immediately before the person's Git is started, after that run's own recovery. A process can enter the
+    //  worktree, and a nested worktree can be added inside it, in either window, and a removal on the early answer deleted
+    //  an edit made there (reviews of this change, findings 5 and 3).
     #[cfg(target_os = "linux")]
-    if let Some(finished) = remove_by_subvolume(real_git, overlay, facts, again.as_ref()) {
+    if let Some(finished) = remove_by_subvolume(real_git, overlay, facts, again) {
         return finished;
     }
     // A removal Git makes itself deletes the files it ignores without a word, so what is there is read before Git runs and
@@ -412,20 +419,10 @@ fn run_served(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsS
         }
         _ => None,
     };
-    // The look is the last thing before Git is started: the listing above starts a Git of its own, and a process that
-    //  entered the worktree, or a worktree registered inside it, can arrive while that listing runs. Real Git's own run is
-    //  the part this program cannot look inside, which is why nothing of this program's comes after this answer but Git.
-    if let Some(look) = &again
-        && let Err(why) = crate::worktree_remove::LastLook::ask(look)
-    {
-        let _closed = writeln!(
-            std::io::stderr(),
-            "monochromatic-git-policy-cli: refusing to remove the worktree {}: {why}",
-            facts.remove_plan.as_ref().expect("a removal plan").target.display()
-        );
-        return ForwardedRun::Ran(1);
-    }
-    let finished: ForwardedRun = run_settled(real_git, arguments, overlay, facts);
+    // The look travels into the run and is asked there, immediately before the person's Git is started: the listing above
+    //  starts a Git of its own, and the lifecycle's recovery of unfinished copies runs between this point and Git, so a look
+    //  asked here would not be the last thing this program does before the delete (a review of this change, finding 3).
+    let finished: ForwardedRun = run_settled(real_git, arguments, overlay, facts, again);
     if let (Some((common, begun)), ForwardedRun::Ran(0)) = (&about_to_go, &finished) {
         reach_test_fault(AFTER_DELETION);
         record_removal_deleted(common.as_path(), begun, facts.remove_plan.as_ref().expect("a removal plan").target.as_path());
@@ -504,7 +501,7 @@ fn removal_git_context(real_git: &Path, overlay: &[(OsString, OsString)]) -> cra
 /// facts.removePlan === undefined ? undefined : outcomeToRun(await removeSubvolumeWorktree(request))
 /// ```
 #[cfg(all(unix, target_os = "linux"))]
-fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts, again: Option<&TheLookAgain<'_>>) -> Option<ForwardedRun> {
+fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts: &CopyFacts, again: Option<&dyn crate::worktree_remove::LastLook>) -> Option<ForwardedRun> {
     use std::io::Write;
     use crate::worktree_remove::{RemoveOutcome, RemoveRequest, remove_subvolume_worktree};
     let plan = facts.remove_plan.as_ref()?;
@@ -517,11 +514,7 @@ fn remove_by_subvolume(real_git: &Path, overlay: &[(OsString, OsString)], facts:
     };
     // The last look this removal can take, asked after its own proof of cleanliness and immediately before the destroy:
     //  what the caller proved before it is a judgement of a moment that has passed.
-    let last_look: Option<&dyn crate::worktree_remove::LastLook> = match again {
-        Some(found) => Some(found),
-        None => None,
-    };
-    let outcome: crate::worktree_remove::RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look });
+    let outcome: crate::worktree_remove::RemoveOutcome = remove_subvolume_worktree(&RemoveRequest { context: &context, plan, common_dir, last_look: again });
     match outcome {
         RemoveOutcome::LeftToGit => return None,
         RemoveOutcome::Removed | RemoveOutcome::DestroyedInPlace => {
@@ -574,6 +567,7 @@ fn run_settled(
     arguments: &[OsString],
     overlay: &[(OsString, OsString)],
     facts: &CopyFacts,
+    look: Option<&dyn crate::worktree_remove::LastLook>,
 ) -> ForwardedRun {
     use std::io::Write;
     use crate::checkout_workers::{insert_parallel_checkout, is_fallback_checkout, parallel_checkout_wanted};
@@ -655,6 +649,13 @@ fn run_settled(
         /// The signal the last Git step was ended by,
         /// so a forwarded command's caller sees what Git's caller sees.
         signalled: Option<i32>,
+        /// The removal's last look,
+        /// asked immediately before the person's Git is started,
+        /// or nothing when this command removes no worktree.
+        look: Option<&'a dyn crate::worktree_remove::LastLook>,
+        /// Why the look refused,
+        /// which is the reason Git was never started.
+        refused: Option<String>,
     }
 
     impl GitRunner for ForwardedGit<'_> {
@@ -688,6 +689,17 @@ fn run_settled(
             //  word it names, and a filter or a filesystem that never answers must not hold a ladder step (owner: nothing waits
             //  forever).
             let ladder_started: bool = matches!(step, GitStep::Other { .. });
+            // The removal's last look, and the last thing this wrapper does before the person's Git is started: the
+            //  lifecycle's recovery, the ladder's own queries and this step's argument work all stand before it, and the
+            //  child below is the instruction that deletes. A refusal starts nothing, and nothing runs after it
+            //  (`worktree_remove_last_look.rs`, the rule and each route's steps).
+            if matches!(step, GitStep::Person)
+                && let Some(look) = self.look
+                && let Err(why) = crate::worktree_remove::LastLook::ask(look)
+            {
+                self.refused = Some(why);
+                return Ok(GitStatus { code: Some(crate::subvolume_command::REFUSED_EXIT_CODE) });
+            }
             // The person's step is the person's command and keeps the person's monitor setting; a ladder step is the wrapper's own.
             let owner: StartOwner = if ladder_started { StartOwner::Wrapper } else { StartOwner::Person };
             let ceiling: Option<std::time::Duration> = if ladder_started { crate::ladder_step_ceilings::ceiling_of(child_arguments.as_slice()) } else { None };
@@ -716,9 +728,24 @@ fn run_settled(
         }
     }
     // The runner starts Git as a child, so the wrapper is still there to copy once Git returns.
-    let mut run_git: ForwardedGit<'_> = ForwardedGit { overlay, arguments, facts, invocation: &invocation, real_git, parallel: None, signalled: None };
+    let mut run_git: ForwardedGit<'_> = ForwardedGit {
+        overlay,
+        arguments,
+        facts,
+        invocation: &invocation,
+        real_git,
+        parallel: None,
+        signalled: None,
+        look,
+        refused: None,
+    };
     match run_with_worktree_copy(&invocation, &mut run_git, &mut stderr) {
         Ok(settlement) => {
+            // The last look refused, so the person's Git never started: nothing changed, and the words are the guard's.
+            // The guard's words already name the program, the worktree and the escape, so they are printed as they are.
+            if let Some(why) = run_git.refused.clone() {
+                return ForwardedRun::Failed { stderr: format!("{why}\n"), code: crate::subvolume_command::REFUSED_EXIT_CODE };
+            }
             if let Some(failure) = &settlement.copy_failure {
                 // A closed standard error leaves nowhere to report the failure, and the exit status still carries it.
                 let _ = writeln!(stderr, "{}", failure.0);
