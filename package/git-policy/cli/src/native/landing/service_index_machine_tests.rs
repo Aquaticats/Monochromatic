@@ -177,12 +177,13 @@ fn split_birth_parts(identity: &str) -> (&str, &str, &str, &str) {
 /// a live holder whose marker spells one part of its identity another way is never judged gone,
 /// and its lock stays.
 /// Why:
-///   Four spellings a person or another program can produce without changing the value:
+///   Five spellings a person or another program can produce without changing the value:
 ///  hexadecimal letters in the boot in capitals,
 ///  a leading zero on the start tick of the birth,
+///  a space before the birth,
 ///  a leading zero on the process number,
 ///  and a leading zero on the PID namespace.
-///  Two spellings of one boot are no proof of another boot,
+///  Two spellings of one boot or one start tick are no proof of another,
 ///  and a padded number is the same number,
 ///  so a reader that cannot compare them like for like answers unknown or running,
 ///  never gone.
@@ -201,11 +202,15 @@ fn a_live_holders_identity_spelled_another_way_is_never_gone() {
     let respelled_boot: String = format!("{birth}#{uppercase_boot}#{scope}{tail}");
     let respelled_tick: String = format!("{padded_tick}#{boot}#{scope}{tail}");
     let respelled_scope: String = format!("{birth}#{boot}#{padded_scope}{tail}");
-    let arms: [(&str, &str, &str, &str, HolderState); 4] = [
+    // A double space after the process number leaves the space in the birth field, which is how a person or a program
+    //  that padded the fields writes the same birth.
+    let respelled_space: String = format!(" {identity}");
+    let arms: [(&str, &str, &str, &str, HolderState); 5] = [
         ("the boot in capitals", "uppercase-boot", pid_field.as_str(), respelled_boot.as_str(), HolderState::Unknown),
         ("a leading zero on the start tick", "padded-tick", pid_field.as_str(), respelled_tick.as_str(), HolderState::Unknown),
         ("a leading zero on the process number", "padded-pid", padded_pid.as_str(), identity.as_str(), HolderState::Running),
         ("a leading zero on the PID namespace", "padded-scope", pid_field.as_str(), respelled_scope.as_str(), HolderState::Unknown),
+        ("a space before the birth", "space-before-birth", pid_field.as_str(), respelled_space.as_str(), HolderState::Unknown),
     ];
     // Every arm is asked and every wrong answer is kept, so one run of the control names each spelling that was read
     //  as another process instead of the first one that was.
