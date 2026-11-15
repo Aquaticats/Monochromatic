@@ -132,10 +132,8 @@ struct Queue {
 }
 
 /// The queue of this process and the condition its thread waits on,
-/// as the one value the process keeps.
-type TheQueueOfThisProcess = (Mutex<Queue>, Condvar);
-
-/// The one queue of this process and the condition its thread waits on.
+/// as the one value the process keeps,
+/// and the one lock of this file.
 /// Lock kept:
 ///  the lines waiting for the diagnostic stream,
 ///  how many found no room,
@@ -148,6 +146,10 @@ type TheQueueOfThisProcess = (Mutex<Queue>, Condvar);
 ///  runs outside it,
 ///  and no Git process,
 ///  no file and no other lock runs under it.
+type TheQueueOfThisProcess = (Mutex<Queue>, Condvar);
+
+/// The one queue of this process,
+/// made on the first line.
 static QUEUE: OnceLock<&'static TheQueueOfThisProcess> = OnceLock::new();
 
 /// The queue,
