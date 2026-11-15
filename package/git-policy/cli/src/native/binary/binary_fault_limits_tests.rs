@@ -127,6 +127,9 @@ struct Case {
     /// Whether the first run ended with a check failure,
     /// or the recovery after it did not hold.
     verdict: Result<(), String>,
+    /// What the fixture's service wrote to its log while the case ran,
+    /// for a control that must prove the state it made before it reads the outcome.
+    log: String,
 }
 
 /// One commit with `service` limits on the commit service and `wrapper` limits on the wrapper,
@@ -155,8 +158,9 @@ fn run_case(label: &str, service: &[Limit], wrapper: &[Limit], may_abort: bool, 
     };
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
     let landed: bool = output.status.code() == Some(0);
+    let log: String = super::support::service_log(fixture.root.as_path());
     remove_settled(&fixture);
-    return Case { landed, verdict };
+    return Case { landed, verdict, log };
 }
 
 /// What:
@@ -688,8 +692,9 @@ fn run_case_lowered(label: &str, step: u64) -> Case {
     let judged: Result<(), String> = first.and_then(|()| { return verify_recovery_with(&fixture, repo.as_path(), label, said.as_str(), run_unsettled); });
     let verdict: Result<(), String> = super::fault_run::keeping_the_service_log(&fixture, judged);
     let landed: bool = output.status.code() == Some(0);
+    let log: String = super::support::service_log(fixture.root.as_path());
     remove_settled(&fixture);
-    return Case { landed, verdict };
+    return Case { landed, verdict, log };
 }
 
 /// A running service whose address-space limit is lowered in place to each of `MEMORY_STEPS` parts of its mapped size plus the
@@ -734,22 +739,76 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
     assert!(landed > 0, "no limit let the commit land, so none was close to exhaustion (steps {headrooms:?})");
 }
 
-/// A service whose address-space limit is below the smallest under which it greets a client ends before it listens:
-/// no commit
-///  lands,
+/// What:
+///  A service whose address-space limit leaves the runtime plan no worker ends before it accepts a connection:
+/// it binds its socket,
+/// says that it has no worker to accept on,
+/// and ends.
+/// No commit lands through it,
 /// and the repository recovers with a fresh service that has no limit.
 /// Why:
-///  The sweep above meets this case by chance at the one limit just under the service's mapped size,
-/// which moves with every build
-///  (174 MiB for the build of 2026-11-07);
-/// this control meets it at every build.
+///  A limit only a little under the size at which the plan first leaves a worker is a knife edge,
+///  because the threshold that size marks sits wherever the build's own mapped size puts it:
+///  the plan leaves a worker from `ADDRESS_SPACE_RESERVE_BYTES` plus one thread pair upward
+///  (`runtime_plan::workers_by_address_space`),
+///  and the search answers a whole mebibyte.
+///  Measured on this host at 2026-11-14T21:18-05:00 in a scope held to `CPUQuota=400%`,
+///  by halving over one mebibyte:
+///  the service's own start path first landed a commit at 117 MiB + 8 KiB,
+///  while the search's own start path first greeted a client at 117 MiB + 60 KiB.
+///  So the search answered 118 MiB and one mebibyte below it still ran in the case's own path,
+///  where a start whose mapped size was 8 KiB smaller needed one worker less.
+///  That is what the integration pass of 2026-11-14 measured at its tip (`b7af79961f`):
+///  "a service under 117 MiB cannot run, so no commit can have landed through it" at a tree where the same path first
+///  landed at 117 MiB or lower, with the wrapper right in both runs.
+///  This control sets the limit `mebibytes_below_the_one_that_greets` below the size the search answers,
+///  which is below the size at which any worker fits whatever the build's mapped size is,
+///  and it reads the service's own log to prove the state it asserts on instead of trusting a search's step.
+///  What it no longer proves is where the boundary is:
+///  the descriptor and address-space sweeps of this module measure the sizes,
+///  and this control proves what the far side of the boundary does to a repository.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const startsAt = await smallestServiceLimit('address-space', 65536);
+/// await expectEndedBeforeAcceptingAndRecovery({ serviceAddressSpaceMib: startsAt - mebibytesBelowTheOneThatGreets() });
+/// ```
 #[test]
 fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
     let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
-    let (service, wrapper): (Vec<Limit>, Vec<Limit>) = service_memory(starts_at - 1);
+    let below: u64 = starts_at.saturating_sub(mebibytes_below_the_one_that_greets());
+    let (service, wrapper): (Vec<Limit>, Vec<Limit>) = service_memory(below);
     let case: Case = run_case("as-service-below-start", service.as_slice(), wrapper.as_slice(), true, true);
-    assert!(!case.landed, "a service under {} MiB cannot run, so no commit can have landed through it", starts_at - 1);
+    assert!(
+        case.log.contains(ENDED_BEFORE_ACCEPTING),
+        "the service at {below} MiB must end before it accepts a connection, or this control tests nothing: {}",
+        case.log
+    );
+    assert!(!case.landed, "a service that ended before it accepted a connection cannot have landed a commit, so none can have landed through it");
     assert_eq!(case.verdict, Ok(()), "the repository must recover with an unlimited service");
+}
+
+/// What the service says when it has bound its socket and can accept nothing:
+/// the sentence this control reads as proof that the state it asserts on is the state it made.
+const ENDED_BEFORE_ACCEPTING: &str = "cannot start the acceptor of connections";
+
+/// What:
+///  How far below the smallest address space at which the service greets a client this control sets the limit,
+///  in mebibytes.
+/// Why:
+///  The search answers a whole mebibyte, so its answer is at most one mebibyte above the size at which the plan first leaves
+///  a worker,
+///  and one worker and its blocking-pool partner take `THREAD_VIRTUAL_BYTES` twice
+///  (`runtime_plan::workers_by_address_space`).
+///  Subtracting both puts the limit below the size at which any worker fits whatever the build's mapped size is,
+///  because the build moves the search's answer and this limit together.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const below = Math.ceil((MiB + 2 * THREAD_VIRTUAL_BYTES) / MiB);
+/// ```
+fn mebibytes_below_the_one_that_greets() -> u64 {
+    return (MEBIBYTE + 2 * git_policy_cli::runtime_plan::THREAD_VIRTUAL_BYTES).div_ceil(MEBIBYTE);
 }
 
 /// How many times the service is started under a limit it cannot run under,
