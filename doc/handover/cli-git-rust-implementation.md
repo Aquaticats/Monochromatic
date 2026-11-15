@@ -1661,9 +1661,18 @@ and what it queued.
   and `note` in `lock/lock_holder_records.rs` gives up at line 337 when the child's identity cannot be read,
   with nothing returned to the caller.
   So the order the review faults is in the released code.
-  Whether a commit then fails there is not shown by reading:
-  it depends on what `main`'s lock pass does with a lock no record names,
-  and only the author's run of the arm against `main` shows that.
+  And `main`'s proof keeps such a lock:
+  `proved_gone_writer` in `lock/lock_holder_record_reads.rs` answers nothing when no record names the process number
+  ("no record at all is unknown, and keeps it"),
+  so the next command meets the lock,
+  waits its bounded wait and reports it.
+  So by reading,
+  all three links of the review's sequence are in the released code.
+  It needs a Git killed between taking its lock and the wrapper's read of its identity,
+  which the review opened with a 100 ms delay planted in the parent;
+  how often that happens unplanted is not known.
+  The author's brief says this and asks for the review's arm run against `main` first,
+  and for a fix that covers every place the wrapper starts a Git.
   The author is resumed,
   its fourth run
   (`~/temp/agent/pi-runs/lock-holders-folder-answers-its-fourth-review-of-2026-11-15-prompt.md`,
