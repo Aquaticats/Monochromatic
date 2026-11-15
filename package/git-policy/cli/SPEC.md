@@ -10342,13 +10342,18 @@ The list of what the watch reports, and what it does with each:
   and it costs no record a complete run needed
   (a review of `6a506fc03f`, finding 2);
 - the kernel's own events are read as they arrive,
-  and a lock counts only when its name still refers to the file that was created,
-  when the PID file beside it was created **after** it,
-  and when that PID file names the command's own child
-  (`Tracker::locks_taken`).
+  and a lock counts by **what the watch saw**: a name this run saw created,
+  that still refers to the file that was created,
+  and that nothing removed since (`Tracker::locks_taken`).
+  The PID file, where it stands, is a **second witness** that must name the command's own child;
+  it is never a requirement, because a Git can be killed between creating its lock and writing that
+  file, and a rule that asked for it left exactly that lock with no record and no proof, for good
+  (a review of `0fe1e01e9f`, finding 1).
   Git writes the PID file only after it created the lock (`lockfile.c:182-184`, Git 2.56.0),
   writes none at all when it did not create the lock,
   and writes none beside a PID file it found in the way;
+  a lock written without one is bound like any other, and its record is the only proof it will ever
+  have;
 - the command writes **one file**: the hard link that pins the very inode the lock had, in
   `<common-git-dir>/cli-git-lock-holders/pinned/<path digest>.h2.<folder device>.<folder inode>.<lock device>.<lock inode>.<pid>.<birth identity>.hold`,
   and the path that digest stands for in `<path digest>.lock-path`, written once per path before any
@@ -10398,6 +10403,39 @@ The list of what the watch reports, and what it does with each:
   which a sweep keeps while that Git runs and removes once it is gone,
   and a writer whose temporary a sweep took away makes it again rather than leave a standing lock
   with no record.
+
+#### The evidence is what the wrapper saw
+
+A process can be killed at any instruction,
+and a commit is never failed for a reason of the wrapper's own,
+so what the next command needs must already be there when the kill lands:
+the record of a take the wrapper watched,
+the record of the child that made it,
+and a clearance that can be entered again.
+Four rules follow from that, and each is built in one place:
+
+- **What the wrapper saw is the evidence, not what Git wrote beside the lock.**
+  The watcher saw a watched child create a lock;
+  that sight, bound to the child's identity, is written whether or not Git got as far as its PID file,
+  and that record, with the proof that the child is gone, clears the lock.
+  The PID file is a second witness where it stands and is never required
+  (`Tracker::locks_taken`, `lock_bindings::write`, `bound_holder`).
+- **Every watched start leaves a start record.**
+  One function starts a watched Git and records the child,
+  and its awaiting face does the same, so no runner can watch without recording
+  (`lock_watch::start_a_watched_git`, `start_a_watched_git_awaiting`).
+- **A clearance is re-enterable.**
+  It removes the PID file while the lock still holds the path,
+  then the lock, then the record,
+  and what a kill at any of those steps leaves is cleared by the next command:
+  a lock that stands with its binding and no PID file is explained by the binding.
+- **No count drops a lock silently.**
+  The list one run reports is bounded by the names it follows,
+  and never by a count of locks.
+
+The controls that make this a property rather than four fixes are
+`a_kill_at_each_step_of_a_take_and_of_a_clearance_leaves_what_the_next_command_clears`
+and the four above it, and each row below names the control that states it where one does.
 
 #### What looks, and what acts on it later
 
@@ -10468,8 +10506,26 @@ and the row that changed names the control that states it.
   `a_lock_that_stands_when_the_watch_opens_is_known_and_never_bound`.)*
 - **The events, then the pin** (`Tracker::locks_taken` then `lock_bindings::write`):
   the write is an act that refuses when what was looked at has changed:
-  the folder's identity, the file standing at the path, and the PID file's number are all re-read at
-  the write and once more after the link.
+  the folder's identity, the file standing at the path, and the PID file's number, where one stands,
+  are all re-read at the write and once more after the link.
+  *(This row changed: a lock without a PID file was not a take at all, so a Git killed inside that
+  window left a lock nothing could prove.
+  Controls: `a_lock_its_git_left_without_a_pid_file_is_bound_by_the_sight_and_cleared`,
+  `the_sight_of_a_lock_is_the_evidence_and_the_pid_file_is_a_second_witness`.)*
+- **A clearance's steps and the record the next command needs** (`clear_one`):
+  a clearance is **re-enterable**: the PID file goes while the lock still holds its path,
+  then the lock, then the record, and the state after any of those steps is one the binding explains,
+  because the proof takes the PID file as a witness and never as a requirement.
+  *(This row changed: a kill after the PID file's unlink left a lock whose binding the proof then
+  refused.
+  Controls: `a_clearance_killed_after_its_pid_file_unlink_is_finished_by_the_next_command`,
+  `a_kill_at_each_step_of_a_take_and_of_a_clearance_leaves_what_the_next_command_clears`.)*
+- **Every watched start and the record of its child** (`lock_watch::start_a_watched_git` and its
+  awaiting face): the child is recorded in the one place every watched start goes through, so no
+  runner can watch a Git and leave its locks unexplainable.
+  *(This row changed: the bounded runner watched its Git and recorded no child, so the record it wrote
+  could not be used.
+  Control: `a_git_the_bounded_runner_started_records_its_child`.)*
 - **A finished take, then the removal of its record** (`forget_what_the_child_finished`):
   the record's own name, so safe whatever happened.
 - **A path's text** (`name_the_path`): written once per path with the same bytes, so safe.
@@ -10477,16 +10533,15 @@ and the row that changed names the control that states it.
   written once per process, and the atomic read that decides it is one step under one owner.
 - **The words for a lock that is kept** (`abandoned_lock_words.rs`): words only.
 
-Two limits are stated beside those rows:
+One limit is stated beside those rows, and one rule about bounds:
 
-- A lock a **bounded runner** left has a pin and still no record of its child's start
-  (`forwarding.rs`,
-  `run_real_git_until`),
-  so the proof that also asks for that record refuses it until the change that writes it there lands.
 - A lock **found by reading a folder** is known and cannot be bound until a record of the holders this
   repository started can name a take for it;
   until then it is cleared only by the proof that does not need a record,
   and a lock with neither is kept.
+- **No count drops a standing take.** The locks one run reports are bounded by the names it follows
+  (`MOST_NAMES`), and a take the run saw and a bound would leave out is a lock nothing could ever prove
+  again (a review of `0fe1e01e9f`, finding 4).
 
 #### The record's life, step by step, and what may run beside each step
 

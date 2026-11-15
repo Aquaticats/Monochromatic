@@ -57,19 +57,23 @@
 //!  and a lock with neither is kept
 //!  (a review of `6c2272132b`,
 //! finding 3).
+//!  What the wrapper saw is the evidence, and not what Git wrote beside the lock:
+//!  a lock this run saw a watched child create is that child's take,
+//!  bound to the child's identity and written whether or not Git got as far as its PID file,
+//!  and the file Git writes after the lock is a second witness where it stands.
+//!  A Git killed between the two files therefore leaves a lock the next command clears
+//!  (a review of `0fe1e01e9f`,
+//! finding 1).
+//!  No count drops a standing take:
+//!  the list is bounded by the names one run follows and never by a count of locks.
 //!  The runners that start a Git for this repository's state, and what each one writes:
 //!  the command's own forwarded child, the landing's re-try, every synchronous and awaiting step of the
 //!  wrapper's own ladder, and the ceiling-bounded ladder step,
 //!  each through `start_a_watched_git` or `start_a_watched_git_awaiting`.
-//!  The ceiling-bounded runner is the one that writes no record of its child's start yet
-//!  (`forwarding.rs`,
-//! `run_real_git_until`):
-//!  the record it writes pins the lock of a Git it started,
-//!  and a proof that also asks for the child's start still refuses it,
-//!  so the lock is cleared by the proof that does not need a record until the change that writes that
-//!  child's start there lands
-//!  (a review of `ca936e0b93`,
-//! finding 1).
+//!  Each of them records the child it starts, in the one place every watched start goes through,
+//!  so no runner can watch a Git and leave its locks unexplainable
+//!  (a review of `0fe1e01e9f`,
+//! finding 3).
 //!  What a kill at each step of a run leaves,
 //!  and who removes it:
 //!
