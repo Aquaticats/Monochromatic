@@ -1220,6 +1220,11 @@ fn os_string_of(bytes: &[u8]) -> OsString {
     return path_from_bytes(bytes);
 }
 
+/// The walk over every spelling of a path a form writes, each row against real Git.
+#[cfg(test)]
+#[path = "repository_facts_written_paths_place_tests.rs"]
+mod place_tests;
+
 /// The names this reading takes from Git's answers,
 /// and the paths they resolve to,
 /// beside real-Git controls of each way a word becomes a tree.
