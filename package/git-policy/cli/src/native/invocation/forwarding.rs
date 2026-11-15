@@ -35,7 +35,6 @@ use crate::started_as_git::{StartMode, mark_real_git_start};
 #[cfg(unix)]
 use crate::start_retry::exec_retrying;
 /// Starts that ride out a short shortage of processes.
-use crate::start_retry::RetryStart;
 /// Who a real-Git start runs for:
 /// the wrapper's own work or the command the person typed.
 use crate::hooks_off::StartOwner;
@@ -293,15 +292,22 @@ pub fn run_real_git_naming(
     // ```ts
     // const status = await spawn(realGit, args, { stdio: 'inherit' });
     // ```
-    // What: The watch on the directories this command's Git writes in is opened before the child starts.
+    // What: The watch on the directories this command's Git writes in is opened before the child starts, and the
+    //       watcher that records what it takes starts with it.
     // Why:  A lock this Git takes is created microseconds after it starts, and a watch opened after the start would
-    //       miss the event that proves whose lock it is; the watch itself never delays or refuses the start.
-    let watch: Option<(crate::lock_watch::Watch, crate::lock_watch::Watched)> = crate::lock_watch::watch_before_starting();
-    let mut child: std::process::Child = git_command(real_git, arguments, overlay, owner).spawn_retrying()?;
+    //       miss the event that proves whose lock it is; the watch itself never delays or refuses the start. The two come
+    //       back with the child, so no start of a Git for this repository's state can be made without them
+    //       (`lock_watch.rs`, `start_a_watched_git`).
+    let (mut child, binder): (std::process::Child, Option<crate::lock_watch::Binder>) = crate::lock_watch::start_a_watched_git(&mut git_command(real_git, arguments, overlay, owner))?;
     on_started.started(child.id());
     // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
     crate::lock_holder_records::note_child_started(child.id());
-    let status: std::process::ExitStatus = crate::lock_watch::wait_for_a_watched_child(&mut child, watch)?;
+    let status: std::process::ExitStatus = child.wait()?;
+    // The watcher's last look is taken now that the child has ended, so a record of its last take exists before the
+    //  command can be killed.
+    if let Some(watcher) = binder {
+        watcher.finish();
+    }
     // `Ok(...)` is the success variant carrying how the child ended.
     return Ok(outcome_of(status));
 }
@@ -424,20 +430,37 @@ pub fn run_real_git_until(
     owner: StartOwner,
 ) -> std::io::Result<ChildOutcome> {
     let mut command: Command = git_command(real_git, arguments, overlay, owner);
-    let mut child: std::process::Child = command.spawn_retrying()?;
+    // What: A step the wrapper runs under a ceiling is watched exactly as the person's forwarded command is.
+    // Why:  The Git of a ladder step takes `index.lock` as a checkout of any other does, and the ceiling ends it while it
+    //       holds the lock; a start with no watch left that lock with no record, so the next command could not prove it
+    //       and kept it (a review of `6a506fc03f`, finding 3).
+    let (mut child, binder): (std::process::Child, Option<crate::lock_watch::Binder>) = crate::lock_watch::start_a_watched_git(&mut command)?;
     let began: std::time::Instant = std::time::Instant::now();
     loop {
         match child.try_wait() {
-            Ok(Some(status)) => return Ok(outcome_of(status)),
+            Ok(Some(status)) => {
+                if let Some(watcher) = binder {
+                    watcher.finish();
+                }
+                return Ok(outcome_of(status));
+            }
             Ok(None) if began.elapsed() >= ceiling => break,
             Ok(None) => std::thread::sleep(BOUNDED_LOOK_INTERVAL),
             Err(error) => {
                 stop_git(&mut child);
+                if let Some(watcher) = binder {
+                    watcher.finish();
+                }
                 return Err(error);
             }
         }
     }
     let outcome: StopOutcome = stop_git(&mut child);
+    // The watcher's last look is taken after the child ends; one the kernel cannot stop keeps its watcher, which ends with
+    //  the child.
+    if let Some(watcher) = binder {
+        watcher.finish();
+    }
     // The report says only what is known: Git ended, or it has not exited, and a helper Git started may still run, which is
     //  the one thing native Git also leaves behind when it is killed. The helper holds the streams it inherited, so a caller
     //  that waits for this command's standard error to close waits for that helper and not for this command.

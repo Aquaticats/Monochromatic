@@ -380,7 +380,10 @@ fn a_finished_child_takes_away_only_the_record_of_its_own_lock() {
             std::fs::write(hook_lock.as_path(), b"another command's unfinished index\n").expect("the concurrent lock");
             std::fs::write(crate::stale_ref_lock_walk::pid_file_beside(hook_lock.as_path()).as_path(), format!("pid {}\n", held.0).as_bytes())
                 .expect("the concurrent Git's PID file");
-            assert!(lock_bindings::write(hook_common.as_path(), hook_lock.as_path(), &held).is_some(), "the concurrent command pins its own lock");
+            assert!(
+                lock_bindings::write(hook_common.as_path(), hook_lock.as_path(), &held, folder_named(hook_common.as_path())).is_some(),
+                "the concurrent command pins its own lock"
+            );
             planted_by_the_hook.set(true);
         }),
     );
@@ -827,8 +830,8 @@ fn a_lock_in_a_folder_this_watch_lost_is_never_bound_to_this_git() {
     //  review reproduced.
     let clearance = crate::abandoned_lock_proving::clear_one(replacement_lock.as_path(), common.as_path());
     let replacement_writer_alive: bool = crate::lock_holder_records::identity_of_process(i64::from(replacement_writer.id())).is_some();
-    let _killed = replacement_writer.kill();
-    let _reaped = replacement_writer.wait();
+    let _writer_killed = replacement_writer.kill();
+    let _writer_reaped = replacement_writer.wait();
     let stands: bool = replacement_lock.exists();
     remove(common.as_path());
     assert!(replacement_writer_alive, "the replacement writer ran through the judgement, as a live writer does");
@@ -873,10 +876,11 @@ fn a_drain_that_reaches_its_bound_records_nothing() {
     let taken: Vec<PathBuf> = tracker.locks_taken(pid);
     drop(watch);
     remove(directory.as_path());
+    let read: usize = events.iter().filter(|event| { return event.mask & libc::IN_Q_OVERFLOW == 0; }).count();
+    assert!(read <= crate::lock_watch::MOST_DRAINED_EVENTS, "one drain reads at most its bound, and this one read {read} events");
     assert!(
-        events.len() <= crate::lock_watch::MOST_DRAINED_EVENTS,
-        "one drain reads at most its bound, and this one read {} events",
-        events.len()
+        events.iter().any(|event| { return event.mask & libc::IN_Q_OVERFLOW != 0; }),
+        "a drain that stops at its bound says the watch may have missed something"
     );
     assert!(taken.is_empty(), "a watch that may have missed something records nothing: {taken:?}");
 }
@@ -1053,4 +1057,20 @@ fn plant_a_child_record(common: &Path, pid: i64, identity: &str) {
     let folder: PathBuf = crate::lock_holder_records::folder_of(common);
     std::fs::create_dir_all(folder.as_path()).expect("the record folder");
     std::fs::write(folder.join("a-child-record"), crate::lock_holder_records::record_text(&[("child", pid, identity.to_owned())])).expect("the child record");
+}
+
+/// What:
+///  The device and inode the kernel reports for one folder,
+///  which is how a record names the folder a lock was taken in.
+/// Why:
+///  A record is written only while the folder standing at the lock's path is the folder the watch opened there,
+///  and a control that plants one states that folder itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = folderNamed(dir) // [statSync(dir).dev, statSync(dir).ino]
+/// ```
+fn folder_named(path: &Path) -> (u64, u64) {
+    let seen = crate::index_lock_evidence::read_lock_metadata(path).ok().flatten().expect("the folder's own identity");
+    return (seen.device, seen.inode);
 }

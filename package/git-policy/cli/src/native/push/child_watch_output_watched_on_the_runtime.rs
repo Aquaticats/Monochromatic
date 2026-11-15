@@ -200,12 +200,16 @@ pub async fn output_watched_within_for_a_stop_awaiting(
     };
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
-    let spawned: std::io::Result<Child> = spawn_retrying_without_blocking(command).await;
+    // What: The watch is opened before the start and its watcher starts with the child, as the synchronous face does.
+    // Why:  This face runs the transaction's Git and the merge recovery's `update-ref`, and a reference lock either of
+    //       them leaves had no record, so on a file system of one birth stamp nothing cleared it (a review of
+    //       `6a506fc03f`, finding 4).
+    let spawned: std::io::Result<(Child, Option<crate::lock_watch::Binder>)> = start_a_watched_git_awaiting(command).await;
     // The command holds the write ends of the pipes until they are replaced, and the readers see no end of output while it does.
     if pipes.is_some() {
         release_write_ends(command);
     }
-    let child: Child = spawned?;
+    let (child, binder): (Child, Option<crate::lock_watch::Binder>) = spawned?;
     // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
     crate::lock_holder_records::note_child_started(child.id());
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
@@ -255,6 +259,11 @@ pub async fn output_watched_within_for_a_stop_awaiting(
         }
     };
     watch.end();
+    // The watcher's last look is taken now that the step's Git has ended, so a record of its last take exists before the
+    //  command can be killed. A step the command stopped waiting for keeps its watcher, which ends with the child.
+    if let Some(watcher) = binder {
+        watcher.finish();
+    }
     // Nobody will read what a step that was left running writes from here on, and it is held in memory until the step ends.
     if left_running
         && let Some(files) = captured.as_ref()
@@ -277,6 +286,29 @@ pub async fn output_watched_within_for_a_stop_awaiting(
         Some(error) => Err(error),
         None => output,
     };
+}
+
+/// What:
+///  Start `command` with the watch on this command's Git directories opened before it can take a lock,
+///  and with the watcher that records what it takes already reading when it returns.
+/// Why:
+///  The synchronous face starts its Git through `lock_watch::start_a_watched_git`;
+///  this face cannot, because its start awaits,
+///  and a start that opened no watch left the lock of a Git killed under it with no record
+///  (a review of `6a506fc03f`,
+/// finding 4).
+///  The child and its watcher come back together,
+///  so a caller of this face cannot have the child without the watcher either.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [child, binder] = await startAWatchedGitAwaiting(command)
+/// ```
+pub async fn start_a_watched_git_awaiting(command: &mut Command) -> std::io::Result<(Child, Option<crate::lock_watch::Binder>)> {
+    let watched: Option<(crate::lock_watch::Watch, crate::lock_watch::Watched)> = crate::lock_watch::watch_before_starting();
+    let child: Child = spawn_retrying_without_blocking(command).await?;
+    let binder: Option<crate::lock_watch::Binder> = crate::lock_watch::bind_while_the_caller_waits(watched, child.id());
+    return Ok((child, binder));
 }
 
 /// Watched-run controls for a caller that is a task stay out of the release executable.

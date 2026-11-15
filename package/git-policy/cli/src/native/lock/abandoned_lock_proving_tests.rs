@@ -604,7 +604,7 @@ fn plant_bound(common_dir: &Path, name: &str, pid: i64, identity: &str) {
     let file: PathBuf = folder_of(common_dir).join(format!("record-{name}"));
     std::fs::write(file, record_text(&[("child", pid, String::from(identity))])).expect("the record");
     assert!(
-        crate::lock_bindings::write(common_dir, lock.as_path(), &(pid, String::from(identity))).is_some(),
+        crate::lock_bindings::write(common_dir, lock.as_path(), &(pid, String::from(identity)), folder_named(common_dir)).is_some(),
         "the lock that stands can be pinned"
     );
 }
@@ -694,7 +694,23 @@ fn a_bound_lock_of_a_live_or_unrecorded_git_is_kept() {
     std::fs::write(lock.as_path(), b"a lock of a Git no command of this repository started\n").expect("the lock");
     let pid_file: PathBuf = pid_file_beside(lock.as_path());
     std::fs::write(pid_file.as_path(), format!("pid {dead_pid}\n").as_bytes()).expect("the PID file");
-    assert!(crate::lock_bindings::write(unrecorded.as_path(), lock.as_path(), &(dead_pid, dead_identity)).is_some());
+    assert!(crate::lock_bindings::write(unrecorded.as_path(), lock.as_path(), &(dead_pid, dead_identity), folder_named(unrecorded.as_path())).is_some());
     assert!(matches!(looked(unrecorded.as_path(), "index.lock"), Ended::Kept), "a record naming a process no record of this repository explains proves nothing");
     remove(unrecorded.as_path());
+}
+
+/// What:
+///  The device and inode the kernel reports for one folder,
+///  which is how a record names the folder a lock was taken in.
+/// Why:
+///  A record is written only while the folder standing at the lock's path is the folder the watch opened there,
+///  and a control that plants one states that folder itself.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const named = folderNamed(dir) // [statSync(dir).dev, statSync(dir).ino]
+/// ```
+fn folder_named(path: &Path) -> (u64, u64) {
+    let seen = crate::index_lock_evidence::read_lock_metadata(path).ok().flatten().expect("the folder's own identity");
+    return (seen.device, seen.inode);
 }

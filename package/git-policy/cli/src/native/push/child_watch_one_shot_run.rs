@@ -20,7 +20,6 @@ use crate::child_watch_clock_marks_and_stopping::WatchTerms;
 use crate::child_watch_running_task::a_waiter_thread_is_refused_now;
 use crate::child_watch_step_bounds_and_errors::{NotKnown, Outlived, StepBound, ending_of_a_watched_step, not_known_text, output_of, refused_while_stopping};
 use crate::output_capture::Capture;
-use crate::start_retry::RetryStart;
 use crate::step_output_read_whole_through_pipes::{StepPipes, attach_pipes, release_write_ends};
 use crate::stop_of_the_service_noticed_by_its_children::{StopArm, Unfinished, begin_unfinished_work};
 use crate::stopped_git_locks::LockLedger;
@@ -172,23 +171,20 @@ pub fn output_watched_within_for_a_stop(
     };
     // Taken before the child starts, so a lock born earlier is never taken for the child's.
     let locks: LockLedger = LockLedger::before_start(command);
-    // What: The watch on the directories this Git writes in is opened before it starts.
+    // What: The watch on the directories this Git writes in is opened before it starts, and the watcher that records
+    //       what it takes starts with it.
     // Why:  A lock this Git takes is created microseconds after it starts, and a watch opened after the start would
     //       miss the event that proves whose lock it is. A step of the wrapper's own ladder moves a branch through
     //       such a lock (`merge --ff-only`, `update-ref`), and this wait is no place a watch can be read, so the
     //       record is written by a watcher thread of its own (`lock_watch.rs`).
-    let watched: Option<(crate::lock_watch::Watch, crate::lock_watch::Watched)> = crate::lock_watch::watch_before_starting();
-    let spawned: std::io::Result<Child> = command.spawn_retrying();
+    let starting: std::io::Result<(Child, Option<crate::lock_watch::Binder>)> = crate::lock_watch::start_a_watched_git(command);
     // The command holds the write ends of the pipes until they are replaced, and the readers see no end of output while it does.
     if pipes.is_some() {
         release_write_ends(command);
     }
-    let child: Child = spawned?;
+    let (child, binder): (Child, Option<crate::lock_watch::Binder>) = starting?;
     // The repository's record names this Git, so a lock it takes is explainable after the command that started it is gone.
     crate::lock_holder_records::note_child_started(child.id());
-    // A killed `merge --ff-only` otherwise left `refs/heads/<name>.lock` with no record, and the next command kept it
-    //  (the fifth review's finding 1).
-    let binder: Option<crate::lock_watch::Binder> = crate::lock_watch::bind_while_the_caller_waits(watched, child.id());
     // A step that a stop lets finish keeps its count and takes no arm, so nothing ends it when the stop is told.
     let arm: Option<StopArm> = if a_stop_lets_it_finish { None } else { unfinished.take_arm() };
     let started: ChildWatch = ChildWatch::start_under_stop(waiting_for, child.id(), terms, locks, arm).kept_as(ledger_step);

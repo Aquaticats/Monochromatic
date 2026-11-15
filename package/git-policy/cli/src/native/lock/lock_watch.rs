@@ -145,17 +145,34 @@ const MOST_WATCH_DEPTH: usize = 8;
 
 /// What one watch asks the kernel for:
 /// the creations and removals of names in a folder,
-/// and a folder that is made into one.
+/// a folder that is made into one,
+/// and the events that say the watched folder itself is no longer where it was.
 /// Why:
 ///   A lock is a name created in a folder and renamed away from it,
 ///  and a folder made after the watch began has to be watched in its turn,
 ///  which is why the kernel's own "this is a directory" bit matters here.
-const WATCHED_EVENTS: u32 = libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_DELETE | libc::IN_MOVED_FROM | libc::IN_ONLYDIR;
+///  A folder that is renamed away or deleted keeps its watch descriptor,
+///  so the kernel goes on reporting what happens in it under the path this module remembers,
+///  which is then another folder's path:
+///  the events of that folder are what a moved folder's binding would be made from,
+///  so those events must arrive and be read as reasons to trust nothing this watch says
+///  (`IN_MOVE_SELF`, `IN_DELETE_SELF`, `IN_UNMOUNT`).
+const WATCHED_EVENTS: u32 = libc::IN_CREATE | libc::IN_MOVED_TO | libc::IN_DELETE | libc::IN_MOVED_FROM | libc::IN_ONLYDIR | libc::IN_MOVE_SELF | libc::IN_DELETE_SELF;
 
 /// The folders below a Git directory that hold no lock of the worktree's state,
 /// which the pass skips too:
 /// the object store, whose `*.lock` files are a pack writer's own,
 /// and the logs.
+/// Why the skip is only for a folder directly below a Git directory:
+///  Git accepts a reference called `refs/heads/objects/topic`,
+///  and its lock stands in the folder that name gives;
+///  a walk that skipped the name at every depth left that lock with no record
+///  (a review of `6a506fc03f`,
+/// finding 5).
+///  The object stores and the reflog folders are the ones directly below a Git directory,
+///  including a linked worktree's own and a submodule's,
+///  and each of those folders carries a `HEAD` file.
+///  Any other folder is watched, because Git may put a reference in it.
 const UNWATCHED_FOLDERS: [&str; 2] = ["objects", "logs"];
 
 /// The most locks one run writes a record for.
@@ -567,11 +584,41 @@ pub struct Watch {
     /// The child's own descriptor,
     ///  which no platform without `pidfd_open` has.
     child: Option<i32>,
-    /// The directory each watch descriptor is about.
-    directories: Vec<(i32, PathBuf)>,
+    /// The folders this watch opened, each with the folder itself as the kernel reported it then.
+    directories: Vec<WatchedFolder>,
     /// The roots the watch was opened for,
     ///  which an event that names no folder is reported against.
     roots: Vec<PathBuf>,
+}
+
+/// What:
+///  One folder this watch opened,
+///  the descriptor the kernel gave it,
+///  and the folder's own identity when the watch was opened.
+/// Why:
+///  A pathname is what this module remembers,
+///  and a folder can be renamed away while the watch on it goes on reporting what happens inside it:
+///  the kernel reports those events under the descriptor,
+///  and the descriptor is the folder that was watched,
+///  not the folder that stands at the path now.
+///  So a folder is named by its device and inode as well as by its path,
+///  and a binding is written only while the folder standing at the path is that one
+///  (a review of `6a506fc03f`,
+/// finding 1).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WatchedFolder = { descriptor: number; path: string; device: number; inode: number };
+/// ```
+struct WatchedFolder {
+    /// The descriptor `inotify_add_watch` answered.
+    descriptor: i32,
+    /// The path the watch was opened at.
+    path: PathBuf,
+    /// The device the folder sat on when the watch was opened.
+    device: u64,
+    /// The inode the folder had when the watch was opened.
+    inode: u64,
 }
 
 impl Watch {
@@ -640,15 +687,23 @@ impl Watch {
                 let Ok(entries) = std::fs::read_dir(folder.as_path()) else {
                     continue;
                 };
+                // What: Whether this folder is a Git directory, which its own `HEAD` file says.
+                // Why:  The object store and the reflog folders of a Git directory hold no lock of the worktree's state,
+                //       and a reference namespace of the same name does (a review of `6a506fc03f`, finding 5).
+                let is_a_git_directory: bool = depth == 0 || folder.join("HEAD").is_file();
                 let mut below: Vec<PathBuf> = Vec::new();
                 for entry in entries.flatten() {
                     let Ok(kind) = entry.file_type() else {
                         continue;
                     };
                     let name: std::borrow::Cow<'_, str> = entry.file_name().to_string_lossy().into_owned().into();
-                    if kind.is_dir() && !UNWATCHED_FOLDERS.contains(&name.as_ref()) {
-                        below.push(entry.path());
+                    if !kind.is_dir() {
+                        continue;
                     }
+                    if is_a_git_directory && UNWATCHED_FOLDERS.contains(&name.as_ref()) {
+                        continue;
+                    }
+                    below.push(entry.path());
                 }
                 // One folder's names are read in the order the file system lists them, and sorted so two runs of the
                 //  same repository watch the same folders within the bound.
@@ -680,6 +735,12 @@ impl Watch {
         if self.directories.len() >= MOST_WATCHED_FOLDERS {
             return false;
         }
+        // What: The folder itself, by the device and inode the kernel reports before the watch is opened.
+        // Why:  A binding is written only while the folder standing at this path is this one, and a folder whose
+        //       identity cannot be read has nothing a binding may rest on.
+        let Ok(Some(identity)) = crate::index_lock_evidence::read_lock_metadata(folder) else {
+            return false;
+        };
         let Ok(path) = std::ffi::CString::new(folder.as_os_str().as_bytes()) else {
             return false;
         };
@@ -688,10 +749,34 @@ impl Watch {
         if watched < 0 {
             return false;
         }
-        if !self.directories.iter().any(|(descriptor, _)| { return *descriptor == watched; }) {
-            self.directories.push((watched, folder.to_path_buf()));
+        if !self.directories.iter().any(|held| { return held.descriptor == watched; }) {
+            self.directories.push(WatchedFolder { descriptor: watched, path: folder.to_path_buf(), device: identity.device, inode: identity.inode });
         }
         return true;
+    }
+
+    /// What:
+    ///  Whether the folder standing at `folder` now is the one this watch opened there,
+    ///  by the identity the kernel gives it.
+    /// Why:
+    ///  The events of a watched folder arrive under the path this module remembers,
+    ///  and a folder renamed away is no longer the folder at that path:
+    ///  its events are the events of a folder this run lost,
+    ///  so nothing may be bound from them.
+    ///  A folder this watch never opened reports nothing here.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// watch.folderIsStillTheWatchedFolder(refsHeads) // stat(refsHeads) is the watched inode
+    /// ```
+    fn folder_is_still_the_watched_folder(&self, folder: &Path) -> bool {
+        let Some(held) = self.directories.iter().find(|held| { return held.path == folder; }) else {
+            return false;
+        };
+        let Ok(Some(standing)) = crate::index_lock_evidence::read_lock_metadata(folder) else {
+            return false;
+        };
+        return standing.device == held.device && standing.inode == held.inode;
     }
 
     /// What:
@@ -803,7 +888,7 @@ impl Watch {
             self.deliver(watched, mask, name.as_encoded_bytes(), &mut events);
         }
         let mut buffer: [u8; 8192] = [0; 8192];
-        loop {
+        'reading: loop {
             // SAFETY: the buffer is valid for its whole length and the descriptor is this watch's.
             let read: isize = unsafe { libc::read(self.descriptor, buffer.as_mut_ptr().cast(), buffer.len()) };
             let Ok(count) = usize::try_from(read) else {
@@ -813,9 +898,20 @@ impl Watch {
                 return events;
             }
             for (watched, mask, name) in events_in(&buffer[..count]) {
+                // What: One drain reads at most `MOST_DRAINED_EVENTS`, and says so when it stops there.
+                // Why:  The drain reads until the kernel has nothing more, and a program that makes names at least as
+                //       fast as they are read would keep it reading after its Git had ended (a review of `6a506fc03f`,
+                //       finding 2). What was not read is the same news a lost queue is, so it is reported the same way and
+                //       the run records nothing.
+                if events.len() >= MOST_DRAINED_EVENTS {
+                    break 'reading;
+                }
                 self.deliver(watched, mask, name, &mut events);
             }
         }
+        let somewhere: PathBuf = self.roots.first().cloned().unwrap_or_default();
+        events.push(Event { directory: somewhere, mask: libc::IN_Q_OVERFLOW, name: std::ffi::OsString::new() });
+        return events;
     }
 
     /// What:
@@ -836,7 +932,7 @@ impl Watch {
     /// ```
     fn deliver(&mut self, watched: i32, mask: u32, name: &[u8], events: &mut Vec<Event>) {
         use std::os::unix::ffi::OsStringExt as _;
-        let found: Option<PathBuf> = self.directories.iter().find(|(descriptor, _)| { return *descriptor == watched; }).map(|(_, root)| { return root.clone(); });
+        let found: Option<PathBuf> = self.directories.iter().find(|held| { return held.descriptor == watched; }).map(|held| { return held.path.clone(); });
         let Some(directory) = found else {
                     // What: An event that names no watched folder is delivered as the whole run's event when it says the
                     //       kernel dropped events or ended a watch: the kernel reports an overflow with a watch
@@ -850,6 +946,16 @@ impl Watch {
             }
             return;
         };
+        // What: A watched folder that was moved away, deleted or unmounted is no folder this watch knows any more.
+        // Why:  The kernel keeps reporting what happens inside it under the path this module remembers, and that path
+        //       is another folder's now: a binding from those events would name a lock this run never saw created
+        //       (a review of `6a506fc03f`, finding 1). The events of the run become unprovable, and the folder is
+        //       forgotten, so nothing that comes from it is read as a name of the worktree's state.
+        if mask & (libc::IN_MOVE_SELF | libc::IN_DELETE_SELF | libc::IN_UNMOUNT) != 0 {
+            self.directories.retain(|held| { return held.descriptor != watched; });
+            events.push(Event { directory, mask, name: std::ffi::OsString::new() });
+            return;
+        }
         if mask & libc::IN_ISDIR != 0 {
                     // What: A folder was made or moved into a watched one: it is watched in its turn, and the folder
                     //       itself is no name a lock is recorded from.
@@ -896,6 +1002,35 @@ pub fn watch_before_starting() -> Option<(Watch, Watched)> {
     let watched: Watched = remembered()?;
     let watch: Watch = Watch::over(watched.roots.as_slice())?;
     return Some((watch, watched));
+}
+
+/// What:
+///  Start `command` with the watch on this command's Git directories opened before it can take a lock,
+///  and with the watcher that records what it takes already reading when it returns.
+/// Why:
+///  A lock is created microseconds after its Git starts,
+///  so the watch has to be opened before the start and the record written while the child runs.
+///  A runner that starts its Git its own way is a runner that can leave a lock with no record:
+///  the wrapper's bounded ladder runner and the runner that awaits on the runtime did,
+///  and a Git killed under either left a lock the next command kept
+///  (a review of `6a506fc03f`,
+/// findings 3 and 4).
+///  So the child and its watcher come back as one value,
+///  and a caller cannot have the child without the watcher that reads the watch.
+///  A command outside a repository,
+///  and one whose plan remembered no directories,
+///  gets no watcher and starts exactly as it did before.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [child, binder] = startAWatchedGit(command) // [Child, Binder | undefined]
+/// ```
+pub fn start_a_watched_git(command: &mut std::process::Command) -> std::io::Result<(std::process::Child, Option<Binder>)> {
+    use crate::start_retry::RetryStart as _;
+    let watched: Option<(Watch, Watched)> = watch_before_starting();
+    let child: std::process::Child = command.spawn_retrying()?;
+    let binder: Option<Binder> = bind_while_the_caller_waits(watched, child.id());
+    return Ok((child, binder));
 }
 
 /// What:
@@ -999,7 +1134,7 @@ impl Binding {
     /// ```
     fn look(&mut self, watch: &mut Watch) {
         let events: Vec<Event> = watch.wait(watch.step());
-        self.take(events);
+        self.take(events, watch);
     }
 
     /// What:
@@ -1014,7 +1149,7 @@ impl Binding {
     /// ```
     fn drain(&mut self, watch: &mut Watch) {
         let events: Vec<Event> = watch.read_events();
-        self.take(events);
+        self.take(events, watch);
     }
 
     /// What:
@@ -1026,9 +1161,9 @@ impl Binding {
     /// ```ts
     /// binding.take(watch.readEvents())
     /// ```
-    fn take(&mut self, events: Vec<Event>) {
+    fn take(&mut self, events: Vec<Event>, watch: &Watch) {
         self.tracker.feed(events.as_slice());
-        bind_what_the_child_took(&self.tracker, self.common_dir.as_path(), self.child_pid, self.identity.as_str(), &mut self.bound);
+        bind_what_the_child_took(&self.tracker, watch, self.common_dir.as_path(), self.child_pid, self.identity.as_str(), &mut self.bound);
         forget_what_the_child_finished(&mut self.bound);
     }
 }
@@ -1194,8 +1329,23 @@ fn the_child_has_ended(watch: &Watch, child_pid: i64, identity: &str) -> bool {
 /// ```ts
 /// for (const lock of tracker.locksTaken(pid)) if (!written.some(w => w.name === nameOf(lock))) writeBinding(lock)
 /// ```
-fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64, identity: &str, written: &mut Vec<Written>) {
+fn bind_what_the_child_took(tracker: &Tracker, watch: &Watch, common_dir: &Path, child_pid: i64, identity: &str, written: &mut Vec<Written>) {
     for lock in tracker.locks_taken(child_pid) {
+        // What: The folder standing at the lock's path must still be the folder this watch opened there.
+        // Why:  An event names a watch descriptor and a name in that folder, and the path is what this module remembers.
+        //       A folder renamed away keeps its descriptor and goes on reporting, under the remembered path, what happens
+        //       inside it; joining that with the path's new folder is how another Git's lock came to be recorded as this
+        //       one's (a review of `6a506fc03f`, finding 1). A lock in a folder this watch lost gets no record, and a lock
+        //       with no record is kept.
+        let Some(folder) = lock.parent() else {
+            continue;
+        };
+        if !watch.folder_is_still_the_watched_folder(folder) {
+            continue;
+        }
+        let Ok(Some(identity_of_the_folder)) = crate::index_lock_evidence::read_lock_metadata(folder) else {
+            continue;
+        };
         // A take of this path this run has already recorded, and whose record still names the file standing there, is
         //  recorded once: a Git that renames its lock away and takes the path again is a different file and is written
         //  again (`a_child_that_takes_the_same_lock_again_is_recorded_again`).
@@ -1205,7 +1355,8 @@ fn bind_what_the_child_took(tracker: &Tracker, common_dir: &Path, child_pid: i64
         // A control reaches here, with the take reported and its record not yet pinned, to act as the Git finishing
         //  the take and another Git taking the path in the gap.
         crate::service_fault::reach(BEFORE_A_TAKE_IS_PINNED);
-        if let Some(recorded) = lock_bindings::write(common_dir, lock.as_path(), &(child_pid, identity.to_owned())) {
+        let folder_named: (u64, u64) = (identity_of_the_folder.device, identity_of_the_folder.inode);
+        if let Some(recorded) = lock_bindings::write(common_dir, lock.as_path(), &(child_pid, identity.to_owned()), folder_named) {
             written.push(recorded);
         }
     }

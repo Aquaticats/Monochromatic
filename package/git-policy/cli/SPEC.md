@@ -10217,7 +10217,46 @@ Nothing on disk tells a dead Git's lock from a later Git's lock standing beside 
 A command that keeps its process around its Git knows what no later reader can:
 it watched that Git create the lock and write the PID file after it.
 So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
-`src/native/lock/lock_bindings.rs`):
+`src/native/lock/lock_bindings.rs`).
+
+A record is the wrapper's licence to delete a file,
+so what one claims is stated here, and each part of it is checked against the thing itself at the
+instant the record is made (a review of `6a506fc03f`,
+finding 1):
+
+- **the folder.** The lock was taken in the folder this watch opened at that path,
+  and that folder is the one standing there now, by the device and inode the kernel reported when the
+  watch was opened and reports again when the record is written and once more after the link.
+  A watch knows a path, and the kernel goes on reporting a watched folder that was renamed away under
+  that path:
+  an event names a watch descriptor and a name, and what the descriptor is a folder of is what this
+  check asks.
+  A folder that cannot be shown to be the one watched gets no record.
+- **the file.** The name in the event is the file standing at the path now,
+  by the device and inode the pin holds and the file at the path shares,
+  checked after the link.
+  A file renamed away and made again between the event and the link records nothing.
+- **the PID file.** The PID file in that same folder holds the number of the Git this command started,
+  and the number's birth identity is the one the command read of its own child while it ran.
+  A number a later process has is not this Git, and a PID file an earlier Git left names an earlier
+  Git.
+- **the run.** The event sequence is complete: a queue the kernel dropped,
+  a watch that ended,
+  a folder that was moved away, deleted or unmounted,
+  and a drain that stopped at its own bound each make the run record nothing.
+
+The record's own file name carries the folder's device and inode beside the file's,
+so the pass that deletes by it checks every part once more against the lock it is about to remove:
+the folder standing at the lock's path (`bindings_of`),
+the pin holding the file that stands there,
+the PID file naming the recorded number,
+and the record read again at the last instant before the `unlink`
+(`abandoned_lock_proving.rs`).
+A record written by an earlier release carries no folder, is read by no reader of this one,
+and is swept as litter, so a lock it described is kept rather than cleared on a claim this release
+cannot check.
+
+The list of what the watch reports, and what it does with each:
 
 - a watch on the Git directory and the common Git directory is opened **before** the child starts,
   and on **every folder below them** at the depth the lock pass reads,
@@ -10229,7 +10268,12 @@ So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
   (`refs/heads`, `refs/tags`, `reftable` and a linked worktree's own directory all sit a few steps
   below a root);
   a folder made while the watch runs (a branch name with a slash in it, a reftable that appears) is
-  watched in its turn,
+  watched in its turn;
+  the object store and the reflog folders are skipped only directly below a Git directory
+  (the folder carries a `HEAD` file, and a root is one),
+  because Git accepts a reference named `refs/heads/objects/topic` and its lock stands in a folder that
+  name gives (a review of `6a506fc03f`,
+  finding 5);
   and a folder the count bound leaves unwatched reports nothing, so a lock there keeps the bounded
   wait instead of a record (a review of `fee5557595`, finding 1);
   a repository above that bound keeps every folder the walk reached first and gets no record for a
@@ -10238,6 +10282,24 @@ So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
   (more than 3500 on 2026-11-14, most of them the rerere cache's and the linked worktrees' own),
   so a lock in one of its deeper folders is cleared only by a proof that does not need a record,
   and the sentence about a lock that is kept says so;
+- every Git the wrapper starts for this repository's state is watched, and through one start:
+  `lock_watch::start_a_watched_git` opens the watch before the child and hands back the child with its
+  watcher, and the awaiting face's `start_a_watched_git_awaiting` is the same start for a caller on the
+  runtime,
+  so a runner cannot have the child without the watch.
+  The runners that use it are the command's forwarded child (`forwarding.rs`),
+  the wrapper's ceiling-bounded ladder step (`forwarding.rs`,
+  `run_real_git_until`),
+  the transaction's synchronous step and the push's watched step
+  (`child_watch_one_shot_run.rs`),
+  the transaction's awaiting step and the merge recovery's `update-ref`
+  (`child_watch_output_watched_on_the_runtime.rs`),
+  and the landing's re-try (`service_hold_retry.rs`).
+  This paragraph's next bullet names the ladder's own steps;
+  the command's own forwarded child, the landing's re-try and the ladder's steps were watched before
+  this release, and the ceiling-bounded runner and the awaiting face were not
+  (a review of `6a506fc03f`,
+  findings 3 and 4);
 - every Git the wrapper's own ladder starts is watched, not only the command's forwarded child:
   a merge moves the branch with `git merge --ff-only <commit>` and an `update-ref` moves any other
   reference, both from a step of the wrapper's own transaction runner,
@@ -10251,6 +10313,16 @@ So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
   `IN_IGNORED`, `IN_UNMOUNT`, `IN_MOVE_SELF`) is delivered whatever watch descriptor it carries, and
   it makes that run's record say nothing, because an incomplete event sequence must never be read as a
   complete one (a review of `fee5557595`, finding 2);
+  a watched folder that the kernel reports moved away, deleted or unmounted is a folder this watch no
+  longer knows where it is: the same treatment,
+  and the folder is forgotten, so nothing that comes from it is read as a name of this worktree's
+  state (a review of `6a506fc03f`, finding 1);
+  one drain reads at most `MOST_DRAINED_EVENTS` events, four times the most names one run follows,
+  and a drain that stops there reports what a lost queue reports and the run records nothing.
+  The bound is what keeps a program that makes names at least as fast as they are read from holding
+  the command after its Git has ended,
+  and it costs no record a complete run needed
+  (a review of `6a506fc03f`, finding 2);
 - the kernel's own events are read as they arrive,
   and a lock counts only when its name still refers to the file that was created,
   when the PID file beside it was created **after** it,
@@ -10260,7 +10332,7 @@ So it writes that down as it happens (`src/native/lock/lock_watch.rs`,
   writes none at all when it did not create the lock,
   and writes none beside a PID file it found in the way;
 - the command writes **one file**: the hard link that pins the very inode the lock had, in
-  `<common-git-dir>/cli-git-lock-holders/pinned/<path digest>.<device>.<inode>.<pid>.<birth identity>.hold`,
+  `<common-git-dir>/cli-git-lock-holders/pinned/<path digest>.h2.<folder device>.<folder inode>.<lock device>.<lock inode>.<pid>.<birth identity>.hold`,
   and the path that digest stands for in `<path digest>.lock-path`, written once per path before any
   record of it.
   While the link exists the file system cannot give that inode to another file,

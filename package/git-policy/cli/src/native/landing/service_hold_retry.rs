@@ -32,7 +32,6 @@ use crate::scratch_location::scratch_file;
 use crate::service_index_wait::{Waited, foreign_holds, wait_for_service_hold_within};
 use crate::wait_ceilings::SERVICE_HOLD_CEILING;
 use crate::wait_progress::Cadence;
-use crate::start_retry::RetryStart;
 use crate::worktree_copy_forward::ForwardedRun;
 use std::ffi::OsString;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -108,17 +107,19 @@ pub fn may_run_again(word: &[u8], after_word: &[OsString]) -> bool {
 /// runOnce(argv, capturedFd) // { exited: n } | { signaled: n }
 /// ```
 fn run_once(real_git: &Path, arguments: &[OsString], overlay: &[(OsString, OsString)], captured: std::fs::File) -> std::io::Result<ChildOutcome> {
-    // What: The watch on this Git's directories is opened before it starts, as every start of a Git that may take a lock
-    //       of this repository makes it.
+    // What: The watch on this Git's directories is opened before it starts, and the watcher that records what it takes
+    //       starts with it, as every start of a Git that may take a lock of this repository does.
     // Why:  A merge run again while the commit service holds the index takes that lock itself, and a record of it must
     //       exist before a kill that takes this command and that Git together (`lock_watch.rs`).
-    let watch: Option<(crate::lock_watch::Watch, crate::lock_watch::Watched)> = crate::lock_watch::watch_before_starting();
     let mut command = git_command(real_git, arguments, overlay, StartOwner::Person);
     command.stderr(Stdio::from(captured));
-    let mut child: std::process::Child = command.spawn_retrying()?;
+    let (mut child, binder): (std::process::Child, Option<crate::lock_watch::Binder>) = crate::lock_watch::start_a_watched_git(&mut command)?;
     // The repository's record names this Git, so a lock it takes is explainable after this process is gone.
     crate::lock_holder_records::note_child_started(child.id());
-    let status: std::process::ExitStatus = crate::lock_watch::wait_for_a_watched_child(&mut child, watch)?;
+    let status: std::process::ExitStatus = child.wait()?;
+    if let Some(watcher) = binder {
+        watcher.finish();
+    }
     return Ok(outcome_of(status));
 }
 

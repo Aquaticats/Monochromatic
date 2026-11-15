@@ -102,9 +102,24 @@ const PATH_TEXT_TEMP_INFIX: &str = ".lock-path.";
 /// a path and nothing else.
 const LOCK_PATH_LIMIT: u64 = 64 * 1024;
 
+/// What every record's own file name carries after the path's digest:
+/// the mark of the shape this release writes.
+/// Why:
+///   A record written by an earlier release named the file's device and inode and the holder,
+///  and nothing of the folder the lock was taken in.
+///  This release reads no such record:
+///  a name without this mark is litter to it and is swept,
+///  and a lock such a record described is kept,
+///  because keeping a lock costs a command that waits and reporting it,
+///  and clearing one on a record this release cannot check costs another writer's work
+///  (a review of `6a506fc03f`,
+/// finding 1).
+const NAME_MARK: &str = "h2";
+
 /// The most bytes a record's own file name may take,
 /// which keeps a long birth identity from failing the link with a name that is too long.
-const MOST_NAME_BYTES: usize = 200;
+/// The file system's own limit is 255 bytes for one name.
+const MOST_NAME_BYTES: usize = 240;
 
 /// What:
 ///  The instant the pin of a record has just been made reachable under its own name,
@@ -151,6 +166,9 @@ pub struct Binding {
     /// The record's own file:
     ///  the pin that names the lock's inode.
     pub pin: PathBuf,
+    /// The folder the lock was taken in,
+    ///  by the device and inode it had when the watch was opened there.
+    pub folder: (u64, u64),
     /// The Git that took the lock,
     ///  by the number its PID file carries.
     pub pid: i64,
@@ -253,12 +271,39 @@ fn lock_path_file(folder: &Path, digest: &str) -> PathBuf {
 /// ```ts
 /// `${digest}.${dev}.${ino}.${pid}.${identity}.hold`
 /// ```
-fn pin_name(digest: &str, file: (u64, u64), holder: &(i64, String)) -> Option<String> {
-    let name: String = format!("{digest}.{}.{}.{}.{}{HOLD_SUFFIX}", file.0, file.1, holder.0, holder.1);
+fn pin_name(digest: &str, folder: (u64, u64), file: (u64, u64), holder: &(i64, String)) -> Option<String> {
+    let name: String = format!("{digest}.{NAME_MARK}.{}.{}.{}.{}.{}.{}{HOLD_SUFFIX}", folder.0, folder.1, file.0, file.1, holder.0, holder.1);
     if name.len() > MOST_NAME_BYTES || holder.1.contains('/') || holder.1.contains('\0') {
         return None;
     }
     return Some(name);
+}
+
+/// What:
+///  What one record's own file name says:
+///  the folder the lock was taken in,
+///  the file the take made,
+///  and the Git that took it.
+/// Why:
+///  The name is the whole record,
+///  and every part of it is checked against the things themselves:
+///  the pin's own metadata against the file part,
+///  the folder standing at the lock's path against the folder part,
+///  and the PID file's number against the holder.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type PinFields = { folder: [number, number]; file: [number, number]; pid: number; identity: string };
+/// ```
+struct PinFields {
+    /// The device and inode of the folder the lock was taken in.
+    folder: (u64, u64),
+    /// The device and inode of the file the take made.
+    file: (u64, u64),
+    /// The Git that took the lock, by the number its PID file carries.
+    pid: i64,
+    /// That Git's birth identity.
+    identity: String,
 }
 
 /// What:
@@ -273,17 +318,20 @@ fn pin_name(digest: &str, file: (u64, u64), holder: &(i64, String)) -> Option<St
 /// ```ts
 /// parsePinName('3f9a…') // [pid, identity] | undefined
 /// ```
-fn holder_of_pin_name(digest: &str, name: &str) -> Option<(i64, String)> {
+fn pin_fields(digest: &str, name: &str) -> Option<PinFields> {
     let rest: &str = name.strip_prefix(format!("{digest}.").as_str())?.strip_suffix(HOLD_SUFFIX)?;
-    let mut fields = rest.splitn(4, '.');
-    let _device: u64 = fields.next()?.parse::<u64>().ok()?;
-    let _inode: u64 = fields.next()?.parse::<u64>().ok()?;
+    let mut fields = rest.splitn(7, '.');
+    if fields.next()? != NAME_MARK {
+        return None;
+    }
+    let folder: (u64, u64) = (fields.next()?.parse::<u64>().ok()?, fields.next()?.parse::<u64>().ok()?);
+    let file: (u64, u64) = (fields.next()?.parse::<u64>().ok()?, fields.next()?.parse::<u64>().ok()?);
     let pid: i64 = fields.next()?.parse::<i64>().ok()?;
     let identity: &str = fields.next()?;
     if identity.is_empty() {
         return None;
     }
-    return Some((pid, identity.to_owned()));
+    return Some(PinFields { folder, file, pid, identity: identity.to_owned() });
 }
 
 /// What:
@@ -321,17 +369,23 @@ fn holder_of_pin_name(digest: &str, name: &str) -> Option<(i64, String)> {
 /// ```ts
 /// linkSync(lock, pinName); if (statSync(pin).ino !== statSync(lock).ino || pidOf(pidFile) !== holder.pid) return undefined;
 /// ```
-pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<Written> {
-    let folder: PathBuf = folder_of(common_dir);
-    std::fs::create_dir_all(folder.as_path()).ok()?;
+pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String), folder: (u64, u64)) -> Option<Written> {
+    // What: The folder the lock's path names must still be the folder the watch opened there.
+    // Why:  The name of this record carries that folder, and a record whose folder is gone describes a path this run
+    //       never saw the lock made at (a review of `6a506fc03f`, finding 1).
+    if folder_of_the_lock(lock) != Some(folder) {
+        return None;
+    }
+    let records: PathBuf = folder_of(common_dir);
+    std::fs::create_dir_all(records.as_path()).ok()?;
     // The file this record is named for is the one standing at the path now; the link below is checked against it
     //  before this returns.
     let seen: LockMetadata = crate::index_lock_evidence::read_lock_metadata(lock).ok()??;
     let file: (u64, u64) = (seen.device, seen.inode);
     let digest: String = digest_of_path(lock);
-    name_the_path(folder.as_path(), digest.as_str(), lock, holder)?;
-    let name: String = pin_name(digest.as_str(), file, holder)?;
-    let pin: PathBuf = folder.join(name.as_str());
+    name_the_path(records.as_path(), digest.as_str(), lock, holder)?;
+    let name: String = pin_name(digest.as_str(), folder, file, holder)?;
+    let pin: PathBuf = records.join(name.as_str());
     // A file of a killed run of this very take, or a planted one, goes first: this name belongs to this one take.
     let _removed = std::fs::remove_file(pin.as_path());
     std::fs::hard_link(lock, pin.as_path()).ok()?;
@@ -353,7 +407,30 @@ pub fn write(common_dir: &Path, lock: &Path, holder: &(i64, String)) -> Option<W
         let _unlinked = std::fs::remove_file(pin.as_path());
         return None;
     }
+    // The third look: the folder standing at the path must still be the one this record names. A folder renamed away
+    //  between the first look and the link would leave a record of a path that is another folder's now.
+    if folder_of_the_lock(lock) != Some(folder) {
+        let _unlinked = std::fs::remove_file(pin.as_path());
+        return None;
+    }
     return Some(Written { pin, lock: lock.to_path_buf() });
+}
+
+/// What:
+///  The device and inode of the folder the lock at `lock` stands in,
+///  or nothing when the path has no folder this process can read.
+/// Why:
+///  A record names the folder a take was watched in,
+///  and both the writer and the reader compare it with the folder standing at the path now.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// folderOfTheLock(dir/index.lock) // [dev, ino] of dir
+/// ```
+fn folder_of_the_lock(lock: &Path) -> Option<(u64, u64)> {
+    let folder: &Path = lock.parent()?;
+    let seen: LockMetadata = crate::index_lock_evidence::read_lock_metadata(folder).ok()??;
+    return Some((seen.device, seen.inode));
 }
 
 /// What:
@@ -459,6 +536,12 @@ pub fn bindings_of(common_dir: &Path, lock: &Path) -> Vec<Binding> {
     let Ok(Some(standing)) = crate::index_lock_evidence::read_lock_metadata(lock) else {
         return found;
     };
+    // What: The folder standing at the lock's path now, which every record of it must have been written about.
+    // Why:  A record is a licence to delete a file, and a record written in a folder that has since been renamed
+    //       away describes a path that is another folder's now (a review of `6a506fc03f`, finding 1).
+    let Some(here): Option<(u64, u64)> = folder_of_the_lock(lock) else {
+        return found;
+    };
     let digest: String = digest_of_path(lock);
     if !lock_path_says(folder.as_path(), digest.as_str(), lock) {
         return found;
@@ -478,9 +561,13 @@ pub fn bindings_of(common_dir: &Path, lock: &Path) -> Vec<Binding> {
         if pinned.device != standing.device || pinned.inode != standing.inode {
             continue;
         }
-        if let Some((pid, identity)) = holder_of_pin_name(digest.as_str(), name.as_ref()) {
-            found.push(Binding { lock: lock.to_path_buf(), pin: entry.path(), pid, identity });
+        let Some(named) = pin_fields(digest.as_str(), name.as_ref()) else {
+            continue;
+        };
+        if named.folder != here || named.file != (pinned.device, pinned.inode) {
+            continue;
         }
+        found.push(Binding { lock: lock.to_path_buf(), pin: entry.path(), folder: named.folder, pid: named.pid, identity: named.identity });
     }
     // The order a directory lists its names in belongs to the file system; the records are judged in the same order
     //  everywhere, so a repository judged on one machine is judged the same way on another.
@@ -615,7 +702,7 @@ pub fn sweep(common_dir: &Path) {
             }
             continue;
         }
-        if !rest.ends_with(HOLD_SUFFIX) || holder_of_pin_name(digest, name.as_ref()).is_none() {
+        if !rest.ends_with(HOLD_SUFFIX) || pin_fields(digest, name.as_ref()).is_none() {
             let _removed = std::fs::remove_file(entry.path().as_path());
             continue;
         }

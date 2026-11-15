@@ -298,6 +298,14 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     if crate::stopped_git_locks::pid_named_by(pid_file.as_path()) != Some(i32::try_from(pid).ok()?) {
         return None;
     }
+    // What: A removal that acts on a record reads that record once more, here, against the lock it is about to remove.
+    // Why:  A record names the folder the take was watched in, the file the take made, and the Git that held it,
+    //       and this is the last instant at which all three can be asked again: a folder renamed away since the
+    //       judgement, or a lock replaced, makes the record describe something else (a review of `6a506fc03f`,
+    //       finding 1).
+    if evidence == Evidence::Binding && crate::lock_bindings::of(common_dir, lock).is_none() {
+        return None;
+    }
     let pid_file_judged: Option<crate::index_lock_evidence::LockMetadata> = read_lock_metadata(pid_file.as_path()).ok().flatten();
     std::fs::remove_file(lock).ok()?;
     // A control reaches here to act as a Git that takes the freed name at this instant.
