@@ -846,3 +846,52 @@ fn the_guards_read_rust_s_tokens_and_judge_a_setter_by_what_it_is_given() {
     let configured_names: starts_reader::Names = starts_reader::read_names(&[String::from(configured)]);
     assert_eq!(starts_reader::starts_following(configured, &configured_names)[0].standard_error, StandardError::Given);
 }
+
+/// What:
+///  The mask reads Rust's character and byte-character literals whole, escapes included,
+///  and takes a lifetime for no literal:
+///  a start planted after each of them is read, its token found, and the rule refuses it.
+/// Why:
+///   A review of 2026-11-15 found `'\"'` read as a three-byte literal's first byte,
+/// so the quote inside it opened a string,
+///  the mask blanked the code that followed,
+///  and a service start with `Stdio::inherit()` passed both layers of the guard.
+///  A guard a legal spelling can walk past guards nothing a person relies on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const spelling of ["'\''", "'\\'", "'\"'", "'\n'", "'\x41'", "'\u{1F600}'", "b'\''", "'a", "'static"]) expect(judgedAfter(spelling)).toHaveLength(1)
+/// ```
+#[test]
+fn a_character_literal_hides_no_start_behind_it() {
+    let spellings: [&str; 9] = ["'\\''", "'\\\\'", "'\\\"'", "'\\n'", "'\\x41'", "'\\u{1F600}'", "b'\\''", "'a", "'static"];
+    for spelling in spellings {
+        let source: String = format!(
+            "fn f() {{\n    let lit = {spelling};\n    let mut command = Command::new(SERVICE_PROGRAM);\n    command.args(SERVICE_WORDS).stderr(Stdio::inherit()).spawn();\n}}\n"
+        );
+        let tokens: Vec<(usize, String)> = lines_holding(source.as_str(), INHERITED_STREAMS);
+        assert_eq!(tokens.len(), 1, "the token after {spelling} is found: the masked source must keep the code that follows it");
+        let names: starts_reader::Names = starts_reader::read_names(&[source.clone()]);
+        let found: Vec<Start> = starts_reader::starts_following(source.as_str(), &names);
+        assert_eq!(found.len(), 1, "the start after {spelling} is read: {found:?}");
+        assert_eq!(found[0].standard_error, StandardError::Inherited, "its stream is the run's: {found:?}");
+        assert_eq!(start_findings(&[(String::from("probe.rs"), source)]).len(), 1, "the rule refuses it ({spelling})");
+    }
+}
+
+/// What:
+///  A block comment that holds another is one comment:
+///  nothing inside it is code, and the code after it is read.
+/// Why:
+///   Rust nests block comments, and a mask that ends at the first `*/` reads the rest of the outer comment as source.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(linesHolding('/* a /* b */ c Stdio::inherit */ let after = Needle;', 'Stdio::inherit')).toHaveLength(0)
+/// ```
+#[test]
+fn a_nested_block_comment_is_one_comment() {
+    let nested: &str = "fn f() { /* outer /* inner */ still the outer comment with Stdio::inherit */ let after = Needle; }\n";
+    assert_eq!(lines_holding(nested, INHERITED_STREAMS).len(), 0, "a token inside a nested block comment is no code");
+    assert_eq!(lines_holding(nested, "Needle").len(), 1, "the code after a nested block comment is read");
+}
