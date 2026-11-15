@@ -285,6 +285,9 @@ pub fn run(arguments: &[String]) -> i32 {
     //  A worktree that is there is remembered, so the serving loop asks again: a removal by another Git leaves the socket
     //  listening while this service runs, and a start is not what such a service gets.
     let named_instance: Option<String> = option(arguments, "--instance");
+    // What: The worktree's own Git directory, as the command that started this service names it.
+    // Why:  The note that names this worktree is written from it (finding 2 of the review of `b896c60d97`).
+    let own_git_dir_of_the_arguments: Option<PathBuf> = option(arguments, "--git-dir").map(PathBuf::from);
     let mut own_git_dir: Option<PathBuf> = None;
     if let Some(name) = named_instance.as_deref() {
         match own_worktree_state(name, journal.as_path()) {
@@ -369,6 +372,13 @@ pub fn run(arguments: &[String]) -> i32 {
     settings.earlier_journal = context.journal.parent().map(std::path::Path::to_path_buf);
     // The line the time from a start to `ready` was measured from; the earlier release's recovery is inside the loop now.
     log(started_line(settings.release.as_str(), PROTOCOL_VERSION, settings.instance.as_deref()).as_str());
+    // What: The note that names the worktree this service is of is written now, once the address and its folder are its own.
+    // Why:  The check for a worktree that was removed reads that note first: a service that wrote none maps its worktree to
+    //       nothing, so the check never ran for it, and its leftover work kept writing into a repository that was gone
+    //       (the review of `b896c60d97`, finding 2).
+    if let (Some(instance), Some(folder), Some(git_dir)) = (settings.instance.as_deref(), socket_directory_of(&address), own_git_dir_of_the_arguments.as_deref()) {
+        crate::service_files_of_a_stopped_instance::note_worktree(folder.parent().unwrap_or(folder.as_path()), instance, git_dir);
+    }
     crate::service_log!("ready");
     // The repository this service served before warms its compiled rules now, on the blocking pool, so an upgrade's new cache is
     //  filled before the first commit that would compile it.

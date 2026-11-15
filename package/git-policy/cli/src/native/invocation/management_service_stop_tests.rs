@@ -70,7 +70,7 @@ fn a_service_that_answers_is_asked_to_leave_and_the_command_says_so() {
             }
         }
     });
-    let stopped = stop(&crate::service_server::Bind::Path(socket.clone()), "3f9a");
+    let stopped = stop(&crate::service_server::Bind::Path(socket.clone()), socket.parent().unwrap_or(std::path::Path::new(".")), "3f9a");
     told.recv_timeout(std::time::Duration::from_secs(5)).expect("the service was asked to leave");
     assert_eq!(stdout_of(&stopped), "The commit service of this worktree (instance 3f9a) was asked to leave and has.\n");
     assert_eq!(stderr_of(&stopped), "", "nothing is asked of the person");
@@ -87,7 +87,7 @@ fn a_service_that_answers_is_asked_to_leave_and_the_command_says_so() {
 ///  A worktree whose service has exited is the ordinary state between commands.
 #[test]
 fn an_address_nothing_answers_on_is_nothing_to_stop() {
-    let stopped = stop(&crate::service_server::Bind::Path(address("none")), "3f9a");
+    let stopped = stop(&crate::service_server::Bind::Path(address("none")), std::path::Path::new("."), "3f9a");
     assert!(stdout_of(&stopped).starts_with("No commit service answers for this worktree"), "{}", stdout_of(&stopped));
     assert_eq!(stderr_of(&stopped), "");
     match &stopped {
@@ -126,4 +126,53 @@ fn an_account_with_nowhere_to_listen_stops_nothing() {
     let action = plan_service_stop(Vec::new().as_slice(), git_dir.as_path());
     assert!(stderr_of(&action).contains("no runtime directory and no home"), "{}", stderr_of(&action));
     crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A service that is there and does not answer is ended by its own note, and the command says what it did.
+/// Why:
+///  This command is the remedy every failure text names for that state; before the fix it answered "there was nothing to
+///  stop" and exited 0 while the process kept the address (the review of `b896c60d97`, finding 1).
+#[test]
+fn a_service_that_is_there_and_does_not_answer_is_ended_by_the_note_that_names_it() {
+    use std::os::unix::process::CommandExt;
+    let root: std::path::PathBuf = crate::test_support::short_directory_for_sockets("stop-silent");
+    let socket: std::path::PathBuf = root.join("3f9a.sock");
+    // The service: a listener that takes connections and greets nothing, and a process of this control's own that its note
+    // names with the process's birth identity.
+    let service: UnixListener = listen_at(socket.as_path()).expect("the service listens");
+    let holding = std::thread::spawn(move || {
+        let mut held: Vec<std::os::unix::net::UnixStream> = Vec::new();
+        while let Ok((stream, _)) = service.accept() {
+            held.push(stream);
+            if held.len() > 32 {
+                return;
+            }
+        }
+    });
+    let mut process: std::process::Child = {
+        let mut command: std::process::Command = std::process::Command::new("/usr/bin/tail");
+        command.args(["--follow=name", "--retry", "/dev/null"]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        // SAFETY: the child calls `setsid` before it execs, and nothing else runs between the fork and that call.
+        unsafe {
+            command.pre_exec(|| {
+                libc::setsid();
+                return Ok(());
+            });
+        }
+        command.spawn().expect("the service's process")
+    };
+    let pid: i32 = i32::try_from(process.id()).expect("a process number");
+    let identity: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("a readable identity").expect("the process is alive");
+    std::fs::write(crate::service_server_pid_note_of_an_instance::path(root.as_path(), "3f9a").as_path(), format!("{pid} {identity}\n")).expect("the service's own note");
+    let stopped = stop(&crate::service_server::Bind::Path(socket.clone()), root.as_path(), "3f9a");
+    let ended: bool = matches!(process.try_wait(), Ok(Some(_status)));
+    if !ended {
+        let _killed: std::io::Result<()> = process.kill();
+        let _reaped: std::io::Result<std::process::ExitStatus> = process.wait();
+    }
+    std::mem::forget(holding);
+    assert_eq!(stdout_of(&stopped), format!("The commit service of this worktree (instance 3f9a) was running and answered nothing, so it was ended (pid {pid}) and its address is free.\n"));
+    assert_eq!(stderr_of(&stopped), "");
+    assert!(ended, "the process the note named is gone");
 }

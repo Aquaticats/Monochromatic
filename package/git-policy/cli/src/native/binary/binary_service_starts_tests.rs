@@ -127,6 +127,8 @@ fn two_starts_at_once_leave_one_service() {
         address: git_policy_cli::service_server::Bind::Path(socket_for(runtime.as_path(), repo.join(".git").as_path())),
         directory: git_policy_cli::service_instance::socket_path(runtime.as_path(), instance.as_str()).parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return runtime.clone(); }),
         instance: instance.clone(),
+
+        git_dir: std::path::PathBuf::from("/repo/.git"),
         journal: fixture.root.join("journal"),
         git: PathBuf::from("/usr/bin/git"),
         program: PathBuf::from(service_executable()),

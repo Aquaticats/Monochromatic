@@ -179,8 +179,14 @@ pub fn stop_units_after_removal(about: &WorktreeAboutToGo, folders: &UnitFolders
 /// await stopUnitsOfRemovedWorktree(about, env); // never throws
 /// ```
 pub fn stop_units_of_removed_worktree(about: &WorktreeAboutToGo) {
-    let Some(runtime) = non_empty_variable("XDG_RUNTIME_DIR") else { return };
-    let runtime_dir: PathBuf = PathBuf::from(runtime);
+    // What: The runtime directory this program serves in: the environment's, or the account's home when it named none.
+    // Why:  This hook did nothing at all in a container or a cron job, the two cases the fallback folder exists for.
+    let Some(runtime_dir) = crate::service_host_of_a_worktree::runtime_directory(
+        crate::service_route::non_empty_path_variable("XDG_RUNTIME_DIR").as_deref(),
+        crate::service_route::non_empty_path_variable("HOME").as_deref(),
+    ) else {
+        return;
+    };
     // The journal's state directory, which the units' `StateDirectory=` names and the sweep reads back: without it a
     // removed worktree's journal outlives its units.
     let state_dir: Option<PathBuf> = state_dir_of_the_user();

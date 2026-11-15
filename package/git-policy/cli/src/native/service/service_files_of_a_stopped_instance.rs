@@ -458,8 +458,20 @@ pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: 
             reason: String::from("the service that writes it may still be running"),
         }));
     }
+    // What: The journal is asked again at the instant it would be removed, and a record a service wrote since the caller
+    //       looked keeps it.
+    // Why:  A survey is a look taken earlier: between it and this removal a worktree can be made again and its service write
+    //       the open batch of a landing, and removing the folder whole then takes that landing's durable record, so a client
+    //       that resends its identity is no longer told "already landed" and the commit can land twice
+    //       (the review of `b896c60d97`, finding 4).
     return Some(match kept_entry_of(journal.as_path(), &ClaimTime::read()) {
         Ok(None) => {
+            if let Ok(Some(kept)) = kept_entry_of(journal.as_path(), &ClaimTime::read()) {
+                return Some(match kept {
+                    Kept::Work(entry, reason) => JournalAfterStop::HoldsWork(KeptJournal { journal, entry, reason: String::from(reason) }),
+                    Kept::Read(entry, reason) => JournalAfterStop::StillRead(KeptJournal { journal, entry, reason: String::from(reason) }),
+                });
+            }
             if let Err(error) = std::fs::remove_dir_all(journal.as_path())
                 && error.kind() != std::io::ErrorKind::NotFound
             {
@@ -494,6 +506,18 @@ pub fn remove_journal_of_a_stopped_instance(state_dir: Option<&Path>, instance: 
 pub fn forget_stopped_instance(runtime_dir: &Path, instance: &str) {
     let socket: PathBuf = socket_path(runtime_dir, instance);
     let claim: PathBuf = crate::service_address_takeover_claim::path(socket.as_path());
+    // What: Nothing is removed while a service of this instance is still there, nor while the path names something that is
+    //       not the file this command judged.
+    // Why:  These unlinks took whatever the path named, so a worktree made again while a survey was being worked through lost
+    //       its live address and its live note, and the running service became unreachable
+    //       (the review of `b896c60d97`, finding 4).
+    if sockets_of_this_instance_still_answer(&socket) || a_note_names_a_live_process(runtime_dir, instance) {
+        warn(
+            TAG,
+            format!("the files of {instance} are kept: a service of it is there and was not stopped, so its address and note are its own").as_str(),
+        );
+        return;
+    }
     for path in [note_path(runtime_dir, instance), socket, claim] {
         if let Err(error) = std::fs::remove_file(path.as_path())
             && error.kind() != std::io::ErrorKind::NotFound
@@ -501,4 +525,37 @@ pub fn forget_stopped_instance(runtime_dir: &Path, instance: &str) {
             warn(TAG, format!("{} could not be removed after the units of {instance} were stopped ({error})", path.display()).as_str());
         }
     }
+}
+
+/// What:
+///  Whether something accepts a connection at this instance's address,
+///  which a service that answered nothing also does.
+/// Why:
+///  The one fact that says a service is there, asked at the instant a file would be removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// accepts(socketAddressOf(runtimeDir, instance))
+/// ```
+fn sockets_of_this_instance_still_answer(socket: &Path) -> bool {
+    return crate::service_server_start_by_the_wrapper::accepts(&crate::service_server::Bind::Path(socket.to_path_buf()));
+}
+
+/// What:
+///  Whether the note that names an instance's process still names that process.
+/// Why:
+///  A note is the wrapper's proof of which process serves an instance,
+///  and one that names a live process is a service the files of which are its own to remove.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// readNote(dir, instance) != undefined && isStillTheProcess(note)
+/// ```
+fn a_note_names_a_live_process(runtime_dir: &Path, instance: &str) -> bool {
+    let note: PathBuf = crate::service_server_pid_note_of_an_instance::path(
+        socket_path(runtime_dir, instance).parent().unwrap_or(runtime_dir),
+        instance,
+    );
+    let named: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> = crate::service_server_pid_note_of_an_instance::read(note.as_path());
+    return named.as_ref().is_some_and(crate::service_server_pid_note_of_an_instance::is_still_the_process);
 }

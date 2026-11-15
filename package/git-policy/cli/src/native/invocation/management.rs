@@ -221,11 +221,18 @@ fn optional_real_git(inputs: &ResolutionInputs) -> (Option<PathBuf>, Option<Stri
 /// function planServiceWith(globalArguments, environment, realGit?: string): Action;
 /// ```
 fn plan_service_with(global_arguments: &[OsString], environment: &[(OsString, OsString)], real_git: Option<&Path>) -> Action {
-    // An empty runtime directory is no directory.
-    let runtime: Option<PathBuf> = match environment_value(environment, "XDG_RUNTIME_DIR") {
+    // What: The runtime directory this program serves in, which the environment names or the account's home gives.
+    // Why:  A container or a cron job names no `XDG_RUNTIME_DIR`, and a status that read only the variable said "does not
+    //       answer" about a service that was running in the fallback folder (the review of `b896c60d97`, finding 3).
+    let named: Option<PathBuf> = match environment_value(environment, "XDG_RUNTIME_DIR") {
         Some(text) if !text.is_empty() => Some(PathBuf::from(text)),
         _ => None,
     };
+    let home: Option<PathBuf> = match environment_value(environment, "HOME") {
+        Some(text) if !text.is_empty() => Some(PathBuf::from(text)),
+        _ => None,
+    };
+    let runtime: Option<PathBuf> = crate::service_host_of_a_worktree::runtime_directory(named.as_deref(), home.as_deref());
     // The worktree the command runs in has its own service; outside a repository the answer counts any.
     let git_dir: Option<PathBuf> = match status_git_dir(global_arguments, environment, real_git) {
         Selection::Found(found) => Some(found),

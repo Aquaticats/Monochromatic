@@ -57,6 +57,30 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
     let started: Instant = Instant::now();
     let mut connected: bool = false;
     loop {
+        // What: Every pass of this loop asks the bound before it does anything else, so no path through it can be taken
+        //       again without the clock being looked at.
+        // Why:  A `continue` after a start went straight back to the connect with no look at the bound and no pause, so a
+        //       service that greeted a look's millisecond of read and never the look itself was connected to, started and
+        //       connected to again for as long as the machine ran: a command that spun for twelve hours, at half a core, and
+        //       was killed by hand (found 2026-11-15 from the process record of that command).
+        //       `Greeted` says a look somewhere did see a greeting; it is never a reason to skip the bound.
+        // What: A service that is there and has not greeted is a service that is alive and still returning to work, and it is
+        //       waited for its own bound; one this command started, or one that answers with something that is not this
+        //       protocol, keeps the start's own bound.
+        // Why:  The two states have two next steps and two sentences: an address nothing listens on is a start that failed, and
+        //       a service that takes the connection and greets nothing is one that is running and recovering.
+        let connected_ceiling: Duration = config.recovering_ceiling;
+        let start_bound: Duration = match &config.starter {
+            Some(_) => config.start_ceiling,
+            None => config.start_wait,
+        };
+        if connected {
+            if started.elapsed() >= connected_ceiling {
+                return Err(recovering(config, started.elapsed()));
+            }
+        } else if started.elapsed() >= start_bound {
+            return Err(ClientFailure::DidNotStart);
+        }
         trace.tries += 1;
         match connect(&config.address) {
             Ok(stream) => {
@@ -87,8 +111,8 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
         //       waiting command is brought back by the same code. A start another command is making is waited for instead.
         if let Some(server) = config.starter.as_ref() {
             match start(server) {
-                StartAttempt::Greeted => continue,
-                StartAttempt::AnotherCommandStartsIt => {}
+                // A greeting a look could not read inside its own patience: the next pass asks again, after the bound.
+                StartAttempt::Greeted | StartAttempt::AnotherCommandStartsIt => {}
                 StartAttempt::DidNotGreet(log) => return Err(not_greeted(log)),
             }
         }
@@ -106,29 +130,6 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
                     false => starting_notice(address.as_str(), "and this command starts it when it is not running"),
                 }
             );
-        }
-        // What: A service that is there and has not greeted is a service that is alive and still returning to work, and it is
-        //       waited for its own bound; a start that was made and keeps sending nothing keeps the start's own bound.
-        // Why:  The two states have two next steps and two sentences: an address nothing listens on is a start that failed,
-        //       and a service that takes the connection and greets nothing is one that is running and recovering — from the
-        //       batches an earlier release left open, or from the build of its own runtime. Saying "nothing answered" about
-        //       the second failed commits a live service would have served (the review of `77f5d525e3`, finding 3).
-        // What: The bound of a service that is there is its own, not the start's: it is longer in production (`RECOVERING_CEILING`
-        //       is the sum of the two recoveries a live service may be inside), and a control shortens it without touching the
-        //       start's bound, which is what the binary control of these words does.
-        let connected_ceiling: Duration = config.recovering_ceiling;
-        // A start this command made, or a service that keeps answering with something that is not this protocol, ends at the
-        // start's bound; without an executable to start, the bound is the start wait, which is the same kind of bound.
-        let start_bound: Duration = match &config.starter {
-            Some(_) => config.start_ceiling,
-            None => config.start_wait,
-        };
-        if connected {
-            if started.elapsed() >= connected_ceiling {
-                return Err(recovering(config, started.elapsed()));
-            }
-        } else if started.elapsed() >= start_bound {
-            return Err(ClientFailure::DidNotStart);
         }
         std::thread::sleep(CONNECT_PAUSE);
     }
@@ -152,8 +153,13 @@ pub(crate) fn reach(config: &ClientConfig, notices: &mut dyn Write, announced: &
 /// ```
 fn greeting_patience(config: &ClientConfig, started: Instant) -> Duration {
     let remaining: Duration = config.start_wait.saturating_sub(started.elapsed());
+    // What: A look waits as long for a greeting as the look `answered` makes, and no longer than what is left of the start
+    //       wait, so the notice of the wait is still printed while it lasts.
+    // Why:  A look that read for a shorter time than `answered` did could report a silence about a service `answered` then
+    //       called greeted, which is how the command that spun for twelve hours got its `continue`: the two waits disagreed
+    //       (`answered` reads for `GREETING_READ`, this read shrank to a millisecond once the start wait had passed).
     // A read timeout of no time at all is refused by the system, so one millisecond is the shortest attempt there is.
-    return remaining.min(START_NOTICE_GRACE).max(Duration::from_millis(1));
+    return remaining.min(crate::service_server_start_by_the_wrapper::GREETING_READ).max(Duration::from_millis(1));
 }
 
 /// What:

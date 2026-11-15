@@ -50,7 +50,6 @@ use crate::path_bytes_in_records as path_bytes;
 use crate::path_bytes_in_records::{GITDIR_HEX_PREFIX, path_of_hex};
 use crate::service_server::Bind;
 use crate::service_instance::{INSTANCE_LENGTH, SOCKET_DIRECTORY, instance_of, socket_path};
-use crate::service_route::non_empty_path_variable;
 use crate::wrapper_names_old_and_new::SERVICE_UNIT;
 use crate::service_is_gone_after_a_stop::service_is_gone;
 use crate::service_server_pid_note_of_an_instance::{path as pid_note_path, remove as remove_pid_note};
@@ -377,7 +376,16 @@ pub enum OwnWorktree {
 /// ownWorktreeState(instance, journal) // { gone: gitDir } | { served: gitDir } | 'unmapped'
 /// ```
 pub fn own_worktree_state(instance: &str, journal: &Path) -> OwnWorktree {
-    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return OwnWorktree::Unmapped };
+    // What: The runtime directory this program serves in, which the environment names or the account's home gives.
+    // Why:  A container or a cron job names no `XDG_RUNTIME_DIR`, and that is exactly where the fallback folder is used: a
+    //       reader that answered "unmapped" there left the gone-worktree check of every service dead
+    //       (the review of `b896c60d97`, finding 3).
+    let Some(runtime_dir) = crate::service_host_of_a_worktree::runtime_directory(
+        crate::service_route::non_empty_path_variable("XDG_RUNTIME_DIR").as_deref(),
+        crate::service_route::non_empty_path_variable("HOME").as_deref(),
+    ) else {
+        return OwnWorktree::Unmapped;
+    };
     let state: Option<PathBuf> = state_dir_of_journal(journal, instance);
     let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
     return match worktree_of(&folders, instance) {
@@ -405,11 +413,57 @@ pub fn own_worktree_state(instance: &str, journal: &Path) -> OwnWorktree {
 /// ```ts
 /// await stopOne(dir, instance); // { asked } | { nothing-listens } then unlink what is stale
 /// ```
+/// What:
+///  Stops one instance's service,
+///  and only while its worktree is still gone.
+/// Why:
+///  A survey is a look taken earlier:
+/// between it and this ask a worktree can be made again at the same path,
+/// and its instance is the same one (the name is a hash of the Git directory).
+/// Asking then retires the live service of a worktree that exists, which is what the sweep did and called
+///  "the removed worktree" (the review of `b896c60d97`, finding 4).
+///  `Ok(false)` is a worktree that is there again, and nothing was done to its service.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stopUnitsOfAGoneWorktree(folders, instance) // true: handled, false: the worktree is there again
+/// ```
+pub fn stop_units_of_a_gone_worktree(folders: &UnitFolders<'_>, instance: &str) -> Result<bool, String> {
+    // What: The worktree is asked again, at the instant of the ask, about the state the survey judged earlier.
+    // Why:  Nothing is deleted or stopped on a look taken earlier (`AGENTS.md`, the concurrency rule: prove again at the act).
+    let still_gone: bool = match worktree_of(folders, instance) {
+        UnitWorktree::Known(git_dir) => worktree_is_gone(git_dir.as_path()),
+        UnitWorktree::Unmapped => false,
+    };
+    if !still_gone {
+        return Ok(false);
+    }
+    stop_units(folders, instance)?;
+    return Ok(true);
+}
+
 pub fn stop_units(folders: &UnitFolders<'_>, instance: &str) -> Result<(), String> {
     let address: Bind = crate::service_address_of_a_worktree::socket_address_of(folders.runtime_dir, instance);
     if answered(&address) {
         // The service finishes its batch, removes its own files and exits.
         crate::service_client_listen_and_ask_to_retire::ask_to_retire(&address);
+        return Ok(());
+    }
+    // What: A service that takes connections and greets nothing is alive, and is ended by the note its own process wrote.
+    // Why:  "Nothing serves here" about it left the process holding the address, and the sweep then printed that it had
+    //       stopped the removed worktree's service while the service kept running
+    //       (the review of `b896c60d97`, finding 1).
+    if crate::service_server_start_by_the_wrapper::accepts(&address) {
+        let ended: bool = crate::service_server_start_through_the_manager::end_the_service_the_note_names(
+            crate::service_instance::socket_path(folders.runtime_dir, instance).parent().unwrap_or(folders.runtime_dir),
+            instance,
+        );
+        if !ended {
+            return Err(format!(
+                "a service of the removed worktree takes connections at {} and greets nothing, and the note beside its address names no process that is still running, so this sweep cannot end it",
+                crate::service_server::address_text(&address)
+            ));
+        }
         return Ok(());
     }
     // Nothing serves here; what is left is a file, and it goes when no process of the instance is left.
@@ -577,7 +631,13 @@ fn stop_own_socket(folders: &UnitFolders<'_>, instance: &str) {
 /// stopOwnSocketWhenTheWorktreeIsGone(instance, journal) // true: gone, so serve nothing
 /// ```
 pub fn stop_own_socket_when_the_worktree_is_gone(instance: &str, journal: &Path) -> bool {
-    let Some(runtime_dir) = non_empty_path_variable("XDG_RUNTIME_DIR") else { return false };
+    // The same runtime directory every other reader asks for, fallback folder included (`own_worktree_state`).
+    let Some(runtime_dir) = crate::service_host_of_a_worktree::runtime_directory(
+        crate::service_route::non_empty_path_variable("XDG_RUNTIME_DIR").as_deref(),
+        crate::service_route::non_empty_path_variable("HOME").as_deref(),
+    ) else {
+        return false;
+    };
     let state: Option<PathBuf> = state_dir_of_journal(journal, instance);
     let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };
     let OwnWorktree::Gone(gone) = own_worktree_state(instance, journal) else { return false };
@@ -611,8 +671,10 @@ pub fn stop_units_of_gone_worktrees(folders: &UnitFolders<'_>) -> SweepOutcome {
     let mut outcome: SweepOutcome = SweepOutcome { survey: surveyed.clone(), ..SweepOutcome::default() };
     let directory: PathBuf = folders.runtime_dir.join(SOCKET_DIRECTORY);
     for instance in &surveyed.gone {
-        match stop_units(folders, instance.as_str()) {
-            Ok(()) => {
+        match stop_units_of_a_gone_worktree(folders, instance.as_str()) {
+            // A worktree that is there again: nothing of its service is this sweep's to stop.
+            Ok(false) => {}
+            Ok(true) => {
                 // The service is asked to leave, and its own note says when its process is gone; only then may the journal it
                 //  wrote be removed.
                 let quiet: bool = service_is_gone(directory.as_path(), instance.as_str());

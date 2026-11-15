@@ -106,6 +106,7 @@ impl ServiceHost {
                 return self.runtime_dir.clone();
             }),
             instance: self.instance.clone(),
+            git_dir: self.git_dir.clone(),
             journal: self.journal(),
             git: self.git.clone(),
             program: self.service_binary.clone(),

@@ -235,6 +235,8 @@ fn config_with_a_gate(socket: &std::path::Path, runtime: &std::path::Path) -> Cl
         address: Bind::Path(socket.to_path_buf()),
         directory: socket.parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
+
+        git_dir: std::path::PathBuf::from("/repo/.git"),
         journal: runtime.join("journal"),
         git: std::path::PathBuf::from("/usr/bin/git"),
         program: std::path::PathBuf::from("/bin/true"),
@@ -354,4 +356,50 @@ fn a_service_that_takes_the_connection_and_greets_nothing_is_said_to_be_recoveri
     assert!(waited >= settings.start_ceiling, "and the start's own bound was not the end of it: {waited:?}");
     assert!(waited < settings.recovering_ceiling + Duration::from_millis(600), "it ends within the bound a live service is given: {waited:?}");
     std::mem::forget(serving);
+}
+
+/// What:
+///  A service that greets a look's own patience but never the look's millisecond is waited for, and the wait ends at its
+///  bound rather than running for ever.
+/// Why:
+///  A `continue` after a start went back to the connect with no look at the bound and no pause: the fixture's service
+///  greeted within its 1 s greeting read but not within a look's last millisecond, so `answered` said greeted, the look said
+///  silence, and the command connected, started and connected again for twelve hours at half a core
+///  (found 2026-11-15 from the process record of that command, `spin6`).
+/// The stand-in here greets every connection after a delay the look's millisecond cannot cover and `answered`'s second can,
+/// and the control asks that the call ends, within its bound, with the failure for a service that is there.
+#[test]
+fn a_service_that_greets_slower_than_a_look_does_not_make_the_wait_run_for_ever() {
+    use std::io::Write;
+    let socket: String = address("greets-slower-than-a-look");
+    let service = listen_at(socket.as_str()).expect("the service listens");
+    let stand_in = std::thread::spawn(move || {
+        // What: the greeting arrives a moment after each connection is taken, which is what a service busy with its own
+        //       recovery looks like to a client.
+        while let Ok((mut stream, _)) = service.accept() {
+            std::thread::sleep(Duration::from_millis(60));
+            let _sent = stream.write_all(line(&ServiceMessage::Welcome { version: PROTOCOL_VERSION, release: Some(String::from(RELEASE)) }).as_slice());
+        }
+    });
+    let mut settings: ClientConfig = config(socket.as_str());
+    // A start wait long enough that the look's patience is what it is after the start wait has passed: a millisecond.
+    settings.start_wait = Duration::from_millis(50);
+    settings.start_ceiling = Duration::from_millis(50);
+    settings.recovering_ceiling = Duration::from_millis(400);
+    let the_bound: Duration = settings.recovering_ceiling;
+    // A starter whose own answer is "greeted", which is the `continue` this control is about.
+    settings.activation = Activation::StartedByTheWrapper;
+    let mut announced: bool = false;
+    let ended: Option<Result<(BufReader<UnixStream>, u32, Option<String>), ClientFailure>> =
+        crate::testing::parallel_test_support::finished_within_at(Duration::from_secs(10), move || {
+            return reach(&settings, &mut std::io::sink(), &mut announced, &mut ReachTrace::default(), false);
+        });
+    std::mem::forget(stand_in);
+    let reached = ended.expect("the wait ends within ten seconds, whatever the service does: a loop whose every pass asks its bound");
+    match reached {
+        Err(ClientFailure::ServiceRecovering { waited, .. }) => {
+            assert!(waited >= the_bound, "the wait ended at the bound a live service is given: {waited:?}");
+        }
+        other => panic!("the wait ends with the sentence for a service that is there, not {other:?}"),
+    }
 }

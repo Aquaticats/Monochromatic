@@ -61,24 +61,19 @@ pub fn record_file(runtime_dir: &Path) -> PathBuf {
     return runtime_dir.join(SOCKET_DIRECTORY).join(RECORD_NAME);
 }
 
+
 /// What:
-///  The absolute path a record's text names,
-/// or nothing when it names none.
+///  The path a record's bytes name,
+///  or nothing when they name no absolute path.
 /// Why:
-///  The note holds one line and that line is the path,
-/// so a record with more lines,
-/// or with a line that is not an absolute path,
-/// names nothing this wrapper can trust.
-///  A relative path is no record,
-/// because it would mean a different file for each directory the wrapper runs in.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function recordedGitPath(text: string): string | undefined { const line = text.split('\n')[0].trim(); return isAbsolute(line) ? line : undefined; }
-/// ```
-pub fn recorded_git_path(text: &str) -> Option<PathBuf> {
-    let line: &str = text.lines().next()?.trim();
-    let path: PathBuf = PathBuf::from(line);
+///  `remember` writes the path's bytes and nothing else,
+/// so the reader must take them as bytes:
+/// a path that is not UTF-8 cannot be held in the text this file used to hold
+/// (`Path::display` wrote U+FFFD for such bytes, and the fallback then named a place that does not exist).
+pub fn recorded_git_bytes(bytes: &[u8]) -> Option<PathBuf> {
+    use std::os::unix::ffi::OsStrExt;
+    let without_the_newline: &[u8] = bytes.strip_suffix(b"\n").unwrap_or(bytes);
+    let path: PathBuf = PathBuf::from(std::ffi::OsStr::from_bytes(without_the_newline));
     return if path.is_absolute() { Some(path) } else { None };
 }
 
@@ -104,9 +99,9 @@ pub fn read_recorded_git(record: &Path) -> Option<PathBuf> {
     if read > MAX_SCRIPT_INSPECTION_BYTES {
         return None;
     }
-    // A file that is not text is no record: a path with a replacement character names another place.
-    let text: &str = std::str::from_utf8(bytes.as_slice()).ok()?;
-    return recorded_git_path(text);
+    // What: The path is read as the bytes the record holds, never as text.
+    // Why:  A path that is not UTF-8 is a path like any other, and reading it as text names a place that does not exist.
+    return recorded_git_bytes(bytes.as_slice());
 }
 
 /// What:
@@ -118,16 +113,25 @@ pub fn read_recorded_git(record: &Path) -> Option<PathBuf> {
 /// The write is a temporary file and a rename,
 /// so a reader never sees half a path.
 ///
+///  What it holds is the path's bytes, written as its bytes:
+/// the record is read by a command that has no Git on `PATH` and only this file to go by,
+/// and a path written as text loses every byte that is not UTF-8 (`Path::display` writes U+FFFD for those),
+/// so the fallback would name a place that does not exist.
+/// Every other record of a path in this program keeps the bytes (`path_bytes_in_records.rs`).
+///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writeAtomic(recordFile(runtimeDir), `${git}\n`);
+/// writeAtomic(recordFile(runtimeDir), pathBytes(git).join('\n'));
 /// ```
 pub fn remember(runtime_dir: &Path, git: &Path) -> std::io::Result<()> {
+    use std::os::unix::ffi::OsStrExt;
     let directory: PathBuf = runtime_dir.join(SOCKET_DIRECTORY);
     std::fs::create_dir_all(&directory)?;
     let record: PathBuf = directory.join(RECORD_NAME);
     let temporary: PathBuf = directory.join(format!("{RECORD_NAME}.writing"));
-    std::fs::write(&temporary, format!("{}\n", git.display()))?;
+    let mut content: Vec<u8> = git.as_os_str().as_bytes().to_vec();
+    content.push(b'\n');
+    std::fs::write(&temporary, content)?;
     return std::fs::rename(&temporary, record);
 }
 

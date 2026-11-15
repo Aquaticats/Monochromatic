@@ -8,20 +8,28 @@
 
 #![cfg(unix)]
 
-use super::{read_recorded_git, recorded_git_path, record_file};
+use super::{read_recorded_git, recorded_git_bytes, record_file};
+use std::os::unix::ffi::OsStrExt;
 use crate::real_git_candidate::MAX_SCRIPT_INSPECTION_BYTES;
 use crate::test_support::{fixture, remove};
 use std::path::{Path, PathBuf};
 
-/// The note the wrapper writes is one line and the path,
-///  and a relative or empty line names nothing.
+/// What:
+///  The note is one line and the path,
+///  a line that is not an absolute path names nothing,
+///  and a path that is not text is read as the bytes it holds.
+/// Why:
+///  A path is bytes, so reading the record as text named a place with U+FFFD in it (`Path::display`).
 #[test]
-fn the_recorded_path_is_the_first_absolute_line() {
-    assert_eq!(recorded_git_path("/usr/bin/git\n"), Some(PathBuf::from("/usr/bin/git")));
-    assert_eq!(recorded_git_path("  /opt/git/bin/git  \n"), Some(PathBuf::from("/opt/git/bin/git")));
-    assert_eq!(recorded_git_path("git\n"), None);
-    assert_eq!(recorded_git_path(""), None);
-    assert_eq!(recorded_git_path("\n"), None);
+fn the_recorded_path_is_the_first_absolute_line_and_a_path_that_is_not_text_is_one_too() {
+    assert_eq!(recorded_git_bytes(b"/usr/bin/git\n"), Some(PathBuf::from("/usr/bin/git")));
+    // What no record may name: a path that only starts after a space is not an absolute path.
+    assert_eq!(recorded_git_bytes(b"  /opt/git/bin/git  \n"), None);
+    assert_eq!(recorded_git_bytes(b"git\n"), None);
+    assert_eq!(recorded_git_bytes(b""), None);
+    assert_eq!(recorded_git_bytes(b"\n"), None);
+    // What a path that is not UTF-8 keeps: every byte the file system gave.
+    assert_eq!(recorded_git_bytes(b"/opt/git\xff/git\n"), Some(PathBuf::from(std::ffi::OsStr::from_bytes(b"/opt/git\xff/git"))));
 }
 
 /// The record is the note beside the sockets.
@@ -43,9 +51,10 @@ fn what_is_remembered_is_read_and_a_file_that_is_not_a_record_names_nothing() {
     assert_eq!(read_recorded_git(record_file(root.as_path()).as_path()), Some(git.clone()));
     assert_eq!(read_recorded_git(root.join("missing").as_path()), None);
     assert_eq!(read_recorded_git(root.as_path()), None);
+    // What a record of a Git whose path is not text names: the path itself, never a place with U+FFFD in it.
     let binary: PathBuf = root.join("binary");
-    std::fs::write(&binary, b"/opt/git\xff/git\n").expect("bytes that are not text");
-    assert_eq!(read_recorded_git(binary.as_path()), None);
+    std::fs::write(&binary, b"/opt/git\xff/git\n").expect("a path that is not text");
+    assert_eq!(read_recorded_git(binary.as_path()), Some(PathBuf::from(std::ffi::OsStr::from_bytes(b"/opt/git\xff/git"))));
     let long: PathBuf = root.join("long");
     let mut text: String = String::from("/opt/git/bin/git\n");
     text.push_str("#".repeat(MAX_SCRIPT_INSPECTION_BYTES).as_str());

@@ -136,6 +136,7 @@ fn the_start_through_the_manager_wraps_the_bases_own_words() {
 
         directory: root.join("run/3f9a.sock").to_path_buf().parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
+        git_dir: PathBuf::from("/repo/.git"),
         journal: root.join("run/journal"),
         git: PathBuf::from("/usr/bin/git"),
         program: PathBuf::from("/bin/git"),

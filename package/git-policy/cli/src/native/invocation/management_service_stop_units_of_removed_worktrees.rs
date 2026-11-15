@@ -42,14 +42,24 @@ use std::path::PathBuf;
 /// named in every message about it.
 const COMMAND: &str = "git monochromatic-git-policy-cli service stop-units-of-removed-worktrees";
 
-/// The user's runtime directory the environment names,
-/// nothing when it is unset or empty.
+/// What:
+///  The runtime directory this program serves in:
+///  the one the environment names,
+///  or the account's own folder below its home when it names none.
+/// Why:
+///  A container or a cron job names no `XDG_RUNTIME_DIR`, and that is where the fallback folder is used;
+/// a sweep that refused there left a removed worktree's service and files for good
+///  (the review of `b896c60d97`, finding 3).
 fn runtime_dir_of(environment: &[(OsString, OsString)]) -> Option<PathBuf> {
-    let value: OsString = environment_value(environment, "XDG_RUNTIME_DIR")?;
-    if value.is_empty() {
-        return None;
-    }
-    return Some(PathBuf::from(value));
+    let named: Option<PathBuf> = match environment_value(environment, "XDG_RUNTIME_DIR") {
+        Some(value) if !value.is_empty() => Some(PathBuf::from(value)),
+        _ => None,
+    };
+    let home: Option<PathBuf> = match environment_value(environment, "HOME") {
+        Some(value) if !value.is_empty() => Some(PathBuf::from(value)),
+        _ => None,
+    };
+    return crate::service_host_of_a_worktree::runtime_directory(named.as_deref(), home.as_deref());
 }
 
 /// The worktree an instance belongs to,
@@ -202,7 +212,7 @@ pub(crate) fn stop_units_action(folders: &UnitFolders<'_>) -> Action {
 /// ```
 pub(crate) fn plan_stop_units_of_removed_worktrees(environment: &[(OsString, OsString)]) -> Action {
     let Some(runtime_dir) = runtime_dir_of(environment) else {
-        return refused("XDG_RUNTIME_DIR is not set, so there is no user runtime directory whose services could be looked at; run it from a login session");
+        return refused("this account names no runtime directory and no home, so there is no folder whose services could be looked at; set XDG_RUNTIME_DIR or HOME and run it again");
     };
     let state: Option<PathBuf> = state_dir_of(environment);
     let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime_dir.as_path(), state_dir: state.as_deref() };

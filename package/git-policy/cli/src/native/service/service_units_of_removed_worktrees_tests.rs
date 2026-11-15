@@ -148,3 +148,139 @@ fn a_service_removes_a_leftover_claim_file_and_leaves_a_held_one() {
     drop(again);
     drop(listening);
 }
+
+/// What:
+///  A service that takes connections and greets nothing is ended by the sweep, and a sweep that cannot end it says so
+///  instead of reporting it stopped.
+/// Why:
+///  Before the fix the sweep answered "nothing serves here", then the live note blocked every removal, and the command
+///  printed "stopped the commit service of the removed worktree" while the service kept running
+///  (the review of `b896c60d97`, finding 1).
+#[test]
+fn the_sweep_ends_a_service_that_takes_connections_and_greets_nothing() {
+    use std::os::unix::process::CommandExt;
+    let runtime: PathBuf = machine("sweep-silent");
+    let instance: &str = "3f9a";
+    let directory: PathBuf = runtime.join(SOCKET_DIRECTORY);
+    let socket: PathBuf = socket_path(runtime.as_path(), instance);
+    let service = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("the service's address");
+    let holding = std::thread::spawn(move || {
+        let mut held: Vec<std::os::unix::net::UnixStream> = Vec::new();
+        while let Ok((stream, _)) = service.accept() {
+            held.push(stream);
+            if held.len() > 32 {
+                return;
+            }
+        }
+    });
+    let mut process: std::process::Child = {
+        let mut command: std::process::Command = std::process::Command::new("/usr/bin/tail");
+        command.args(["--follow=name", "--retry", "/dev/null"]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        // SAFETY: the child calls `setsid` before it execs, and nothing else runs between the fork and that call.
+        unsafe {
+            command.pre_exec(|| {
+                libc::setsid();
+                return Ok(());
+            });
+        }
+        command.spawn().expect("the service's process")
+    };
+    let pid: i32 = i32::try_from(process.id()).expect("a process number");
+    let identity: String = crate::process_identity::process_birth_identity(i64::from(pid)).expect("a readable identity").expect("the process is alive");
+    std::fs::write(crate::service_server_pid_note_of_an_instance::path(directory.as_path(), instance).as_path(), format!("{pid} {identity}\n")).expect("the service's own note");
+    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime.as_path(), state_dir: None };
+    let stopped: Result<(), String> = stop_units(&folders, instance);
+    // A signal another process sends ends this one a moment later, so the end is waited for, bounded.
+    let ended: bool = crate::testing::parallel_test_support::finished_within_at(std::time::Duration::from_secs(5), move || {
+        let began: std::time::Instant = std::time::Instant::now();
+        loop {
+            match process.try_wait() {
+                Ok(Some(_status)) => return Some(()),
+                _ if began.elapsed() >= std::time::Duration::from_secs(4) => return None,
+                _ => std::thread::sleep(std::time::Duration::from_millis(10)),
+            }
+        }
+    })
+    .flatten()
+    .is_some();
+    std::mem::forget(holding);
+    assert!(stopped.is_ok(), "the sweep ended the service it found: {stopped:?}");
+    assert!(ended, "the process the note named is gone");
+
+    // What a note that proves nothing leaves the sweep saying: it says so, and never that the instance was stopped.
+    let second: PathBuf = machine("sweep-silent-unproven");
+    let second_socket: PathBuf = socket_path(second.as_path(), instance);
+    let service = std::os::unix::net::UnixListener::bind(second_socket.as_path()).expect("the service's address");
+    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: second.as_path(), state_dir: None };
+    let refused: Result<(), String> = stop_units(&folders, instance);
+    drop(service);
+    assert!(refused.is_err(), "a service nothing proves is not reported as stopped: {refused:?}");
+}
+
+/// What:
+///  A worktree that was made again while a survey was being worked through keeps its service.
+/// Why:
+///  The instance name is a hash of the Git directory, so a worktree removed and re-added at the same path is the same
+///  instance: the sweep asked the live service of a worktree that existed to retire, on a survey taken before it existed
+///  (the review of `b896c60d97`, finding 4).
+#[test]
+fn a_worktree_that_came_back_keeps_its_service() {
+    let runtime: PathBuf = machine("interrupted-survey");
+    let instance: &str = "3f9a";
+    let directory: PathBuf = runtime.join(SOCKET_DIRECTORY);
+    let socket: PathBuf = socket_path(runtime.as_path(), instance);
+    // The worktree's Git directory, which is there: it was made again.
+    let git_dir: PathBuf = runtime.join("repo.git");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the worktree's Git directory");
+    // The note that maps this instance to it, as a service of this release writes it.
+    crate::service_files_of_a_stopped_instance::record_worktree(runtime.as_path(), instance, git_dir.as_path()).expect("the note of the worktree");
+    // The live service: it greets, so a retire would be its end.
+    let service = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("the live service's address");
+    let greeted: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let served: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::clone(&greeted);
+    let serving = std::thread::spawn(move || {
+        let mut asked_to_retire: bool = false;
+        while let Ok((mut stream, _)) = service.accept() {
+            let _sent = std::io::Write::write_all(&mut stream, format!("{}\n", crate::service_protocol_encode_messages_to_lines::encode_service(&crate::service_protocol::ServiceMessage::Welcome { version: crate::service_protocol::PROTOCOL_VERSION, release: Some(String::from("test")) })).as_bytes());
+            let mut heard: [u8; 256] = [0; 256];
+            if let Ok(read) = std::io::Read::read(&mut stream, &mut heard)
+                && std::str::from_utf8(&heard[..read]).unwrap_or_default().contains("retire")
+            {
+                asked_to_retire = true;
+                served.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        let _also: bool = asked_to_retire;
+    });
+    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: runtime.as_path(), state_dir: None };
+    let handled: Result<bool, String> = stop_units_of_a_gone_worktree(&folders, instance);
+    let was_asked: bool = greeted.load(std::sync::atomic::Ordering::SeqCst);
+    std::mem::forget(serving);
+    assert_eq!(handled.ok(), Some(false), "the worktree is there again, so nothing was done");
+    assert!(!was_asked, "and the live service was never asked to retire");
+    let _unused: &PathBuf = &directory;
+}
+
+/// What:
+///  The files of an instance whose service is there are kept, and removed only when it is not.
+/// Why:
+///  These unlinks took whatever the path named, so a live service's address and note went with a survey that judged them
+///  stale: the service was left listening where no path names it, and a second service was started for the same worktree
+///  (the review of `b896c60d97`, finding 4).
+#[test]
+fn the_files_of_an_instance_whose_service_is_there_are_kept() {
+    let runtime: PathBuf = machine("forget-live");
+    let instance: &str = "3f9a";
+    let directory: PathBuf = runtime.join(SOCKET_DIRECTORY);
+    let socket: PathBuf = socket_path(runtime.as_path(), instance);
+    let service = std::os::unix::net::UnixListener::bind(socket.as_path()).expect("the live service's address");
+    std::fs::write(crate::service_files_of_a_stopped_instance::note_path(runtime.as_path(), instance).as_path(), b"gitdirHex=2f7265706f2f2e676974").expect("the note of the worktree");
+    forget_stopped_instance(runtime.as_path(), instance);
+    assert!(socket.exists(), "the live service's address is kept");
+    assert!(crate::service_files_of_a_stopped_instance::note_path(runtime.as_path(), instance).exists(), "and so is its note");
+    // With nothing there, the same call removes them.
+    drop(service);
+    forget_stopped_instance(runtime.as_path(), instance);
+    assert!(!socket.exists(), "an instance nothing serves loses its address");
+    let _unused: &PathBuf = &directory;
+}

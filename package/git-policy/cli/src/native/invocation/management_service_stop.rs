@@ -23,7 +23,7 @@ use crate::service_host_of_a_worktree::runtime_directory;
 use crate::service_address_of_a_worktree::socket_address_of;
 use crate::service_route::non_empty_path_variable;
 use crate::service_server::Bind;
-use crate::service_server_start_by_the_wrapper::answered;
+use crate::service_server_start_by_the_wrapper::{answered, accepts};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -33,6 +33,16 @@ const COMMAND: &str = "git monochromatic-git-policy-cli service stop";
 
 /// How often the command looks for the address to be free.
 const POLL: Duration = Duration::from_millis(25);
+
+/// What:
+///  The one bound of this command:
+///  how long a service it asked to leave is waited for,
+///  and how long a service it ended is waited for to stop taking connections.
+/// Why:
+///  It is one start's bound (`START_WAIT`): a service finishing the batch it holds does so inside the time a start is
+///  given, and the same number is what a person pays at most for a service that cannot be ended.
+///  One constant, because the two waits are one question: is the address free now?
+pub const STOP_BOUND: Duration = START_WAIT;
 
 /// What:
 ///  Plans `service stop` for the worktree this command runs in.
@@ -70,7 +80,10 @@ pub fn plan_service_stop(environment: &[(std::ffi::OsString, std::ffi::OsString)
         };
     };
     let address: Bind = socket_address_of(runtime_dir.as_path(), instance.as_str());
-    return stop(&address, instance.as_str());
+    let directory: PathBuf = crate::service_instance::socket_path(runtime_dir.as_path(), instance.as_str()).parent().map(Path::to_path_buf).unwrap_or_else(|| {
+        return runtime_dir.clone();
+    });
+    return stop(&address, directory.as_path(), instance.as_str());
 }
 
 /// What:
@@ -84,33 +97,122 @@ pub fn plan_service_stop(environment: &[(std::ffi::OsString, std::ffi::OsString)
 /// ```ts
 /// stopAt(socket) // 'left' | 'none' | 'did-not-leave'
 /// ```
-fn stop(address: &Bind, instance: &str) -> Action {
-    if !answered(address) {
+/// What:
+///  Ends this worktree's service:
+///  asks one that answers to leave,
+///  and ends one that is alive and does not answer,
+///  by the process its own note proves,
+///  and waits for the address to be free within `STOP_BOUND`.
+/// Why:
+///  This command is the remedy every failure text of this program names for a service that is there and does not answer,
+///  so it has to end that service too: a service stopped inside its own process, under a debugger, or in a kernel wait takes
+///  connections and greets nothing, and "there was nothing to stop" about it sent the person back to the same failure
+///  (the review of `b896c60d97`, finding 1).
+///  What ends it is the note the service wrote with its own birth identity, never a number this command guessed
+///  (`service_server_start_through_the_manager.rs`, `end_the_service_the_note_names`).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answered = greet(address); if (answered) askToRetire(address)
+/// else if (accepts(address)) { const note = readNote(dir, instance); if (proven(note)) kill(note.pid) }
+/// await freeWithin(STOP_BOUND)
+/// ```
+fn stop(address: &Bind, directory: &Path, instance: &str) -> Action {
+    let greeted: bool = answered(address);
+    if greeted {
+        ask_to_retire(address);
+    } else if accepts(address) {
+        // What: A service that takes connections and greets nothing is ended by the note its own process wrote.
+        // Why:  Nothing else proves which process serves this address, and a number read from a file with no identity is a
+        //       stranger's process (`end_the_service_the_note_names`).
+        let note: PathBuf = crate::service_server_pid_note_of_an_instance::path(directory, instance);
+        let service: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> = crate::service_server_pid_note_of_an_instance::read(note.as_path());
+        let proven: bool = service.as_ref().is_some_and(crate::service_server_pid_note_of_an_instance::is_still_the_process);
+        if !proven {
+            return Action::Exit {
+                code: 1,
+                stdout: String::new(),
+                stderr: format!(
+                    "{COMMAND}: the commit service of this worktree (instance {instance}) is there at {} and does not answer, and the note beside its address names no process that is still running, so this command cannot end it. Look at what holds that address (its note is {}) and end that process, or remove the address and the note once nothing is left. Nothing else was changed.\n",
+                    crate::service_server::address_text(address),
+                    note.display()
+                ),
+            };
+        }
+        let ended: bool = crate::service_server_start_through_the_manager::end_the_service_the_note_names(directory, instance);
+        let pid: i32 = service.map_or(0, |named| { return named.pid; });
+        if ended && wait_until_free(address, STOP_BOUND) {
+            return Action::Exit {
+                code: 0,
+                stdout: format!(
+                    "The commit service of this worktree (instance {instance}) was running and answered nothing, so it was ended (pid {pid}) and its address is free.\n"
+                ),
+                stderr: String::new(),
+            };
+        }
+        return Action::Exit {
+            code: 1,
+            stdout: String::new(),
+            stderr: format!(
+                "{COMMAND}: the commit service of this worktree (instance {instance}, pid {pid}) does not answer, and it was ended but its address was still taken after {} seconds. Look at {} and at its output beside it.\n",
+                STOP_BOUND.as_secs(),
+                crate::service_server::address_text(address)
+            ),
+        };
+    } else {
+        // Nothing takes a connection at the address: no service of this worktree is there.
+        let note: PathBuf = crate::service_server_pid_note_of_an_instance::path(directory, instance);
+        let service: Option<crate::service_server_pid_note_of_an_instance::ServerProcess> = crate::service_server_pid_note_of_an_instance::read(note.as_path());
+        if service.as_ref().is_some_and(crate::service_server_pid_note_of_an_instance::is_still_the_process) {
+            // A service whose address is gone but whose process runs: it is ended by its note, as one that answers nothing is.
+            let _ended: bool = crate::service_server_start_through_the_manager::end_the_service_the_note_names(directory, instance);
+            return Action::Exit {
+                code: 0,
+                stdout: format!("The commit service of this worktree (instance {instance}) held no address and was ended by the note that names it.\n"),
+                stderr: String::new(),
+            };
+        }
         return Action::Exit {
             code: 0,
             stdout: format!("No commit service answers for this worktree (instance {instance}), so there was nothing to stop.\n"),
             stderr: String::new(),
         };
     }
-    ask_to_retire(address);
-    let deadline: Instant = Instant::now() + START_WAIT;
+    if wait_until_free(address, STOP_BOUND) {
+        return Action::Exit {
+            code: 0,
+            stdout: format!("The commit service of this worktree (instance {instance}) was asked to leave and has.\n"),
+            stderr: String::new(),
+        };
+    }
+    return Action::Exit {
+        code: 1,
+        stdout: String::new(),
+        stderr: format!(
+            "{COMMAND}: the commit service of this worktree (instance {instance}) was asked to leave and is still there after {} seconds. It finishes the batch it holds first; run this command again once that batch has landed.\n",
+            STOP_BOUND.as_secs()
+        ),
+    };
+}
+
+/// What:
+///  Waits, bounded, until nothing takes a connection at the address.
+/// Why:
+///   A service that was asked to leave finishes the batch it holds first,
+/// and one that was ended stops taking connections a moment later.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// waitUntilFree(address, bound) // true when nothing accepts
+/// ```
+fn wait_until_free(address: &Bind, bound: Duration) -> bool {
+    let deadline: Instant = Instant::now() + bound;
     loop {
-        if !answered(address) {
-            return Action::Exit {
-                code: 0,
-                stdout: format!("The commit service of this worktree (instance {instance}) was asked to leave and has.\n"),
-                stderr: String::new(),
-            };
+        if !accepts(address) {
+            return true;
         }
         if Instant::now() >= deadline {
-            return Action::Exit {
-                code: 1,
-                stdout: String::new(),
-                stderr: format!(
-                    "{COMMAND}: the commit service of this worktree (instance {instance}) was asked to leave and is still there after {} seconds. It finishes the batch it holds first; run this command again once that batch has landed.\n",
-                    START_WAIT.as_secs()
-                ),
-            };
+            return false;
         }
         std::thread::sleep(POLL);
     }

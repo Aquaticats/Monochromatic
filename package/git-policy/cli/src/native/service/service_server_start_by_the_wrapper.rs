@@ -85,6 +85,15 @@ pub struct ServerToStart {
     /// The worktree's instance name,
     /// which names its files beside the socket.
     pub instance: String,
+    /// What:
+    ///  The worktree's own Git directory.
+    /// Why:
+    ///  The service writes the note that names its worktree when it starts,
+    ///  and that note is what the check for a worktree that was removed reads
+    ///  (`service_files_of_a_stopped_instance.rs`, `note_worktree`):
+    /// without it a first start maps its worktree to nothing and never asks again, so a service of a removed worktree
+    ///  listened for hours (the review of `b896c60d97`, finding 2).
+    pub git_dir: PathBuf,
     /// The folder the service keeps its journal in.
     pub journal: PathBuf,
     /// The real Git the service runs.
@@ -164,6 +173,8 @@ impl ServerToStart {
             crate::service_server_start_spawns_a_detached_process::argument(self.git.as_path()),
             text_argument("--instance"),
             text_argument(self.instance.as_str()),
+            text_argument("--git-dir"),
+            crate::service_server_start_spawns_a_detached_process::argument(self.git_dir.as_path()),
         ]);
         return words;
     }

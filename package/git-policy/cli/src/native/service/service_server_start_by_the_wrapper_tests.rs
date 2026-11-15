@@ -96,6 +96,8 @@ fn a_command_waits_at_an_address_that_accepts_and_greets_nothing() {
 
         directory: socket.clone().to_path_buf().parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
+
+        git_dir: std::path::PathBuf::from("/repo/.git"),
         journal: root.join("journal"),
         git: PathBuf::from("/usr/bin/git"),
         // A program that runs and exits without binding, so nothing about this control depends on a missing file: the address
@@ -142,6 +144,8 @@ fn an_address_whose_queue_is_full_is_not_answered_on_within_the_bound() {
 
         directory: socket.clone().to_path_buf().parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
+
+        git_dir: std::path::PathBuf::from("/repo/.git"),
         journal: root.join("journal"),
         git: PathBuf::from("/usr/bin/git"),
         program: PathBuf::from("/bin/true"),
@@ -237,6 +241,8 @@ fn a_scope_that_reports_no_process_number_does_not_hold_the_base_start_back() {
 
         directory: socket.clone().to_path_buf().parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
+
+        git_dir: std::path::PathBuf::from("/repo/.git"),
         journal: root.join("journal"),
         git: PathBuf::from("/usr/bin/git"),
         program,
@@ -341,6 +347,8 @@ fn a_scope_that_made_nothing_answer_ends_its_own_service_and_no_other() {
 
         directory: socket.clone().to_path_buf().parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
+
+        git_dir: std::path::PathBuf::from("/repo/.git"),
         journal,
         git: PathBuf::from("/usr/bin/git"),
         program,

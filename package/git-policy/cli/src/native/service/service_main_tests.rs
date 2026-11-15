@@ -86,6 +86,8 @@ fn the_start_names_the_service_mode_words_and_the_worktrees_files() {
 
         directory: std::path::PathBuf::from("/run/user/1000/monochromatic-git-policy-cli/3f9a.sock").to_path_buf().parent().map(std::path::Path::to_path_buf).unwrap_or_else(|| { return std::path::PathBuf::from("."); }),
         instance: String::from("3f9a"),
+
+        git_dir: std::path::PathBuf::from("/repo/.git"),
         journal: std::path::PathBuf::from("/state/monochromatic-git-policy-cli/service/3f9a"),
         git: std::path::PathBuf::from("/usr/bin/git"),
         program: std::path::PathBuf::from("/bin/git"),
