@@ -1673,7 +1673,10 @@ and what it queued.
   54.4 degrees,
   budget 32.0 threads,
   4.5 in use.
-  The highest sample while the gate ran that this session read was 60.5.
+  Over the controller's 325 samples while the gate ran,
+  the highest was 63.6 degrees at 06:18:14;
+  over its 1,178 samples since the power-saver profile took hold at 05:06:20,
+  the highest was 66.0 at 05:10:54.
 - Read at 06:22:20:
   no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
   no failed start and no brief refused since 06:14;
