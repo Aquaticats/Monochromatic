@@ -1446,7 +1446,7 @@ and what it queued.
   with a control first for each of the two that were not run.
   This branch has now had nine reviews,
   each by a reader new to it and each finding something the one before did not;
-  the findings are concrete and get smaller,
+  each finding names its lines and its sequence,
   and no count of rounds is taken as a sign of the end.
 - Read at 23:50:59:
   no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
