@@ -1330,6 +1330,32 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The filling unit is restarted between two of its rounds, for eight hours more, with no entry lost (2026-11-14T22:32:37-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- The filling unit started at 15:55:07 would have ended at 23:55:07.
+  A round takes an entry off the queue and then starts its launcher,
+  so a stop between those two steps loses the entry.
+  `restart-the-filling-unit-between-two-of-its-rounds.ts`,
+  beside the other queue scripts,
+  waits until the unit's last journal line is between 60 and 140 s old
+  (inside the sleep after a round's work,
+  by rounds of about 195 s)
+  and only then stops it and starts the next.
+- It stopped `…-20261114T155507` at 22:32:27,
+  its last line 69 s old,
+  and started `fill-free-places-and-put-ended-reviews-back-at-level-24-20261114T223227` in the same second,
+  which ends about 06:32 on 2026-11-15.
+- The check for lost entries,
+  run at 22:32:37 across both units:
+  138 names queued today,
+  69 entries in the queue,
+  one name printed,
+  the known rename;
+  none doubled.
+
 ##### The check for lost queue entries printed six reviews as missing that had run; its matching is corrected and no entry is lost (2026-11-14T22:29:38-05:00)
 
 Not final and not approved:
