@@ -1301,6 +1301,86 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Pass 45 is in `main` with one control known red at its tree, and `0.6.1-alpha.35` is dispatched; the journal change's review finds two things (2026-11-14T19:12:18-05:00)
+
+Not final and not approved:
+what one pass and one review report,
+and what the coordinating session measured,
+weighed,
+merged and queued.
+
+- **Integration pass 45** (tip `b7af79961f`:
+  the package state of a new worktree is relinked,
+  or the wrapper says why not)
+  reported fit at 19:06:03,
+  holding `main` with pass 44:
+  build,
+  both test compiles and Clippy green;
+  the 60 controls of the modules it changes and its new binary control passing in both scopes;
+  both guard modules passing;
+  pass 44's words and its own both in the merged tree.
+  Outside the gate's 28 it names two failures.
+  `package_repair::quiet_runs_the_repair_and_says_nothing_about_success` failed once in eleven runs and passed alone four times:
+  by the pass's reading the control asserts the service's later result at the moment the add returns.
+  And `fault_limits::a_service_that_ends_before_it_listens_leaves_a_recoverable_repository` fails at its tip,
+  in the suite and alone,
+  with "a service under 117 MiB cannot run, so no commit can have landed through it".
+- **Measured by this session before the merge**:
+  that `fault_limits` control passes at `main` with pass 44,
+  alone on this machine at 19:11:02 (11.7 s),
+  and passed in the gate on `0.6.1-alpha.34`.
+  So the tree with pass 45 is what moves it,
+  though the branch does not change its file.
+  What the failure means is not measured:
+  a size that is no longer one number from one start to the next,
+  or a commit that lands by a way that needs no service under that limit.
+- **Weighed and merged**:
+  the pass says fit,
+  and by the owner's answer of 15:15 a failure of the gate goes to an author and does not hold a release.
+  This is unlike pass 41,
+  which answered no of itself and whose failing controls printed its branch's own refusal.
+  `main` held nothing under the wrapper or its locks that the tip lacked,
+  so it was merged as `5169db84b0` at 19:11:35,
+  the merge's message naming the control as known red at that tree.
+  The first dispatch of `0.6.1-alpha.35` at 19:11:37 was refused because `origin` did not hold the merge yet;
+  it did at 19:12:08,
+  and the dispatch of 19:12:18 went through
+  (run 43657005257).
+  The wait,
+  the install,
+  the sample commit and the start of the gate run as one background command.
+  A fresh run is queued for the `fault_limits` control,
+  to say which of the two readings holds
+  (`~/temp/agent/pi-runs/control-of-a-service-that-ends-before-it-listens-holds-at-the-tree-with-the-relinked-package-state-prompt.md`);
+  the `quiet_runs` sighting went as a note to the run on after-commit work.
+  Passes 46 and 47,
+  going,
+  were told that `main` holds pass 45.
+  The fuzz sidecar's type check on `main` at `5169db84b0`:
+  exit 0 at 19:12:53.
+  The next wrapper release is `0.6.1-alpha.36`.
+- **A service a test starts writes no line into the user journal** (`582df0c10c`),
+  its review,
+  on Kimi,
+  ended 19:05:35,
+  two things,
+  each reproduced:
+  when the fixture's log file cannot be opened,
+  everything the service said is dropped,
+  where the code before still sent it to the test's standard error;
+  and the new guard looks for the literal `Stdio::inherit`,
+  so a child whose streams are not set at all,
+  which inherits them by Rust's default,
+  passes it.
+  This session weighs both as worth their fix,
+  the second most:
+  it is the regression the guard was written against.
+  The author is resumed
+  (`…/service-a-test-starts-writes-no-line-into-the-user-journal-answers-its-review-of-2026-11-14-prompt.md`).
+- Read at 19:10:06:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+
 ##### The first two reviews on Kimi: six reproduced defects in the queue filling, back to its author; the drawn tree's read one commit of twelve files' range and goes on (2026-11-14T19:04:12-05:00)
 
 Not final and not approved:
