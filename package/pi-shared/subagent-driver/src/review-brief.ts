@@ -351,6 +351,94 @@ function ansiCQuoted({ path, }: { readonly path: string },): string {
 }
 
 /**
+ The run of backticks ending at the character just read, and the longest run read so far.
+ */
+type BacktickRuns = {
+  /**
+   The run ending at the character just read.
+   */
+  readonly run: number;
+
+  /**
+   The longest run read so far.
+   */
+  readonly longest: number;
+};
+
+/**
+ Reads the longest run of backticks a text holds, one character at a time.
+
+ @param text - the text to read
+
+ @returns the longest run, in characters
+
+ @example
+ ```ts
+ const longest = longestBacktickRun({ text: 'a``b', },);
+ ```
+ */
+function longestBacktickRun({ text, }: { readonly text: string },): number {
+  /**
+   The characters of the text.
+   */
+  const characters = Array.from(text,);
+  /**
+   The run ending at each character, and the longest seen so far.
+   */
+  const counted = characters.reduce(
+    function longer(
+      soFar: BacktickRuns,
+      character: string,
+    ) {
+      /**
+       The run that ends at this character.
+       */
+      const run = (character === CODE_SPAN_END) ? (soFar.run + 1) : 0;
+      return {
+        run,
+        longest: (run > soFar.longest) ? run : soFar.longest,
+      };
+    },
+    {
+      run: 0,
+      longest: 0,
+    },
+  );
+  return counted.longest;
+}
+
+/**
+ Reads text as a Markdown code span whose own delimiter no run of backticks in the text can close.
+
+ Markdown closes a code span with a run of as many backticks as opened it, so the delimiter is one backtick longer than the longest
+ run the text holds; a text that begins or ends with a backtick is padded with a space on both sides, which a code span trims.
+
+ @param text - the text to show
+
+ @returns the text inside its own code span
+
+ @example
+ ```ts
+ const span = codeSpanAround({ text: "$'a`\xff.ts'", },);
+ ```
+ */
+export function codeSpanAround({ text, }: { readonly text: string },): string {
+  /**
+   The longest run of backticks the text holds, which the delimiter must be longer than.
+   */
+  const longestRun = longestBacktickRun({ text, },);
+  /**
+   The backticks that open and close the span.
+   */
+  const delimiter = CODE_SPAN_END.repeat(longestRun + 1,);
+  /**
+   The text, padded where it begins or ends with a backtick so the delimiter cannot join that run.
+   */
+  const padded = (text.startsWith(CODE_SPAN_END,) || text.endsWith(CODE_SPAN_END,)) ? ` ${text} ` : text;
+  return `${delimiter}${padded}${delimiter}`;
+}
+
+/**
  Reads how a brief shows one path: in a code span as itself, as a JSON string when a text name holds a character a line cannot
  carry, or as shell ANSI-C quoting when the name is not text.
 
@@ -369,13 +457,13 @@ function ansiCQuoted({ path, }: { readonly path: string },): string {
  */
 export function aPathAsABriefShowsIt({ path, }: { readonly path: string },): string {
   if (aPathIsShownAsBytes(path,)) {
-    return `\`${ansiCQuoted({ path, },)}\``;
+    return codeSpanAround({ text: ansiCQuoted({ path, },), },);
   }
   /**
    The name as text, which its bytes are valid UTF-8 for.
    */
   const text = textOfGitPath(path,);
-  return aPathNeedsJSONText(text,) ? `\`${jsonTextOf(text,)}\`` : `\`${text}\``;
+  return codeSpanAround({ text: aPathNeedsJSONText(text,) ? jsonTextOf(text,) : text, },);
 }
 
 /**

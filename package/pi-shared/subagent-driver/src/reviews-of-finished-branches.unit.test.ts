@@ -283,12 +283,14 @@ function seamsAnswering({
 function aStartRequest({
   changes,
   seams,
+  branches,
 }: {
   readonly changes: readonly string[];
   readonly seams: ReviewStartingSeams;
+  readonly branches?: readonly string[];
 }) {
   return {
-    branches: changes.map(function branchOfOne(change,) {
+    branches: branches ?? changes.map(function branchOfOne(change,) {
       return branchOf({ change, },);
     },),
     integration: anIntegrationBranch(),
@@ -498,6 +500,48 @@ await describe({
               'reviews ended with statuses none none',
             ],);
             expect(asked.starts,).toEqual([],);
+          },
+        },),
+        it({
+          name: 'refuses a second branch reviewed as the same change as one already asked for, naming both, so one review folder and one run name never stand for two branches',
+          fn: async () => {
+            /**
+             The two distinct branches whose names derive one change name.
+             */
+            const firstBranch = 'fix/shared-change';
+            const secondBranch = 'feat/shared-change';
+            /**
+             The seams, with the first branch's brief written and started.
+             */
+            const { seams, asked } = seamsAnswering({
+              briefs: new Map([[changeOfBranch({ branch: firstBranch, },), { written: true, line: 'a shared brief', },],],),
+              starts: new Map(),
+              saves: new Map(),
+              written: [],
+              merges: [],
+            },);
+            /**
+             What the starter answered.
+             */
+            const started = await startReviews(aStartRequest({
+              changes: [changeOfBranch({ branch: firstBranch, },), changeOfBranch({ branch: secondBranch, },),],
+              branches: [firstBranch, secondBranch,],
+              seams,
+            },),);
+            expect(started.lines,).toEqual([
+              'a shared brief',
+              `${runNameOfAReview({ review: changeOfBranch({ branch: firstBranch, },), },)}: started`,
+              `${runNameOfAReview({ review: changeOfBranch({ branch: firstBranch, },), },)}: ${secondBranch} is not reviewed: `
+                + `another branch in this batch, ${firstBranch}, is reviewed as the same change, so both would share one review `
+                + 'folder and one run name; ask for this branch in a batch of its own',
+              `${runNameOfAReview({ review: changeOfBranch({ branch: firstBranch, },), },)}: has its review.md`,
+              'reviews ended with statuses 0 none',
+            ],);
+            expect(asked.briefs.map(function reviewOf(brief,) {
+              return brief.review;
+            },),).toEqual([changeOfBranch({ branch: firstBranch, },),],);
+            expect(asked.starts,).toHaveLength(1,);
+            expect(started.statuses,).toEqual(['0', 'none',],);
           },
         },),
         it({

@@ -35,6 +35,8 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
+import remarkParse from 'remark-parse';
+import { unified, } from 'unified';
 import {
   FOCUS_OF_A_CHANGE_REVIEW,
   type ReviewMaterial,
@@ -43,6 +45,7 @@ import {
   gitRunnerOf,
   materialOfAReview,
   runCommandWithChildProcess,
+  whatTheReviewReads,
   writeReviewBrief,
 } from '../dist/final/node/index.mjs';
 
@@ -503,6 +506,101 @@ function removalsOf(material: ReviewMaterial,) {
   return material.removedOrRenamed;
 }
 
+/**
+ One node of the Markdown tree this file parses, kept to what the walk reads.
+ */
+type MarkdownNode = {
+  /**
+   The node's type, as the parser names it.
+   */
+  readonly type: string;
+
+  /**
+   The text of a node that carries one.
+   */
+  readonly value?: string;
+
+  /**
+   The nodes inside this one.
+   */
+  readonly children?: readonly MarkdownNode[];
+};
+
+/**
+ Collects every node of one type in a tree, in the order the tree reads them.
+
+ @param nodes - the nodes to walk
+
+ @param type - the type to collect
+
+ @param found - the nodes collected so far, which this adds to
+
+ @returns every node of that type, in reading order
+
+ @example
+ ```ts
+ const items = nodesOfType({ nodes: [tree], type: 'listItem', found: [] },);
+ ```
+ */
+function nodesOfType({
+  nodes,
+  type,
+  found,
+}: {
+  readonly nodes: readonly MarkdownNode[];
+  readonly type: string;
+  readonly found: MarkdownNode[];
+},): readonly MarkdownNode[] {
+  for (const node of nodes) {
+    if (node.type === type) {
+      found.push(node,);
+    }
+    if (node.children !== undefined) {
+      nodesOfType({
+        nodes: node.children,
+        type,
+        found,
+      },);
+    }
+  }
+  return found;
+}
+
+/**
+ Reads a name's bytes as the stream line of `git fast-import` names them: every byte as an octal escape, inside double quotes.
+
+ @param bytes - the name's bytes
+
+ @returns the path as the stream takes it
+
+ @example
+ ```ts
+ const field = octalQuotedPathFor(Buffer.from([0x61, 0xFF],),);
+ ```
+ */
+function octalQuotedPathFor(bytes: Buffer,): string {
+  /**
+   The pieces of the quoted path.
+   */
+  const pieces: string[] = ['"',];
+  for (const byte of bytes) {
+    /**
+     The byte's octal digits.
+     */
+    const digits = byte.toString(8,);
+    /**
+     The digits padded to the three an octal escape holds.
+     */
+    const padded = digits.padStart(
+      3,
+      '0',
+    );
+    pieces.push(`\\${padded}`,);
+  }
+  pieces.push('"',);
+  return pieces.join('',);
+}
+
 await describe({
   name: '',
   children: [
@@ -732,6 +830,179 @@ await describe({
             }
           },
           timeout: 60_000,
+        },),
+        it({
+          name: 'shows every byte a name may carry in a span that holds the whole name, and what the brief shows reads back to the same bytes',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The fixture's repository.
+             */
+            const repo = await makeRepository(folder.path,);
+            /**
+             The byte values a name may carry: every byte but NUL, which no path can hold, and the slash, which separates one path
+             from the next.
+             */
+            const byteValues = Array.from(
+              { length: 256, },
+              function valueAt(_unused, index,) {
+                return index;
+              },
+            )
+              .filter(function isAllowed(byte,) {
+                return (byte !== 0x00) && (byte !== 0x2F);
+              },);
+            /**
+             Each name's bytes: an `a`, the byte, and `.ts`, so every name is a code file.
+             */
+            const names = byteValues.map(function nameFor(byte,) {
+              return Buffer.from([0x61, byte, 0x2E, 0x74, 0x73,],);
+            },);
+            /**
+             The first commit, which writes every name.
+             */
+            const base = await fastImportCommit({
+              folder: repo,
+              message: 'base',
+              files: new Map(names.map(function withContent(bytes,) {
+                return [octalQuotedPathFor(bytes,), 'a',];
+              },),),
+              remove: [],
+              rawPaths: true,
+            },);
+            /**
+             The commit under review, which changes every name.
+             */
+            const tip = await fastImportCommit({
+              folder: repo,
+              message: 'change every byte',
+              files: new Map(names.map(function withContent(bytes,) {
+                return [octalQuotedPathFor(bytes,), 'b',];
+              },),),
+              remove: [],
+              from: base,
+              rawPaths: true,
+            },);
+            /**
+             What the writer read.
+             */
+            const material = await materialOf({
+              repo,
+              range: `${base}...${tip}`,
+              source: aSourceFolder(),
+              commit: tip,
+            },);
+            expect(material.kind,).toBe('code-and-build-decisions',);
+            /**
+             The names the material lists, as the bytes it kept.
+             */
+            const given = filesOf(material,)
+              .map(function bytesOf(path,) {
+                return Buffer.from(path, 'latin1',);
+              },);
+            expect(given,).toHaveLength(names.length,);
+            expect(given.map(function hexOf(bytes,) {
+              return bytes.toString('hex',);
+            },).toSorted(),).toEqual(names.map(function hexOf(bytes,) {
+              return bytes.toString('hex',);
+            },).toSorted(),);
+            /**
+             The folder the review keeps its files in.
+             */
+            const reviewsFolder = join(folder.path, 'reviews',);
+            await writeReviewBrief({
+              git,
+              checkoutFolder: repo,
+              review: aReview(),
+              commit: tip,
+              ranges: [`${base}...${tip}`,],
+              source: aSourceFolder(),
+              focus: FOCUS_OF_A_CHANGE_REVIEW,
+              reviewsFolder,
+              runsFolder: join(folder.path, 'runs',),
+              rulesFile: aRulesFile(),
+            },);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await readFile(briefFileOfAReview({
+              reviewsFolder,
+              review: aReview(),
+            },), 'utf8',);
+            /**
+             The part of the brief that names every file, which the brief carries whole.
+             */
+            const block = whatTheReviewReads({
+              files: filesOf(material,),
+              removedOrRenamed: [],
+            },);
+            expect(brief,).toContain(block,);
+            /**
+             The Markdown the parser reads, which is that part of the brief.
+             */
+            const tree = unified()
+              .use(remarkParse,)
+              .parse(block,) as unknown as MarkdownNode;
+            /**
+             The code span of every list item, in the order the block lists them.
+             */
+            const shown = nodesOfType({
+              nodes: nodesOfType({
+                nodes: [tree,],
+                type: 'listItem',
+                found: [],
+              },),
+              type: 'inlineCode',
+              found: [],
+            },)
+              .map(function valueOf(node,) {
+                return node.value ?? '';
+              },);
+            expect(shown,).toHaveLength(given.length,);
+            /**
+             The names shown as ANSI-C quoting, with the place each stands in.
+             */
+            const quoted = shown.flatMap(function quotingAt(value, at,) {
+              return value.startsWith("$'",) ? [{ at, value, },] : [];
+            },);
+            /**
+             What bash printed for each ANSI-C quoted name, in the order given.
+             */
+            const printed = await execFileAsync(
+              'bash',
+              ['-c', `printf '%s\\0' ${quoted.map(function formOf(entry) {
+                return entry.value;
+              },)
+                .join(' ',)}`,],
+              {
+                encoding: 'buffer',
+                maxBuffer: 4 * 1_024 * 1_024,
+              },
+            );
+            /**
+             The bytes bash gave back, one name for each quoting.
+             */
+            const printedFields = printed.stdout.toString('latin1',)
+              .split('\0',)
+              .filter(function isAField(field,) {
+                return field !== '';
+              },);
+            expect(printedFields,).toHaveLength(quoted.length,);
+            for (const [at, entry,] of quoted.entries()) {
+              expect(printedFields[at],).toBe(given[entry.at]?.toString('latin1',),);
+            }
+            for (const [at, value,] of shown.entries()) {
+              if (value.startsWith("$'",)) {
+                continue;
+              }
+              if (value.startsWith('"',)) {
+                expect(JSON.parse(value,),).toBe(given[at]?.toString('utf8',),);
+                continue;
+              }
+              expect(value,).toBe(given[at]?.toString('utf8',),);
+            }
+          },
+          timeout: 120_000,
         },),
         it({
           name: 'keeps both of two renames whose status and names joined by spaces are equal, because one change is told from another by its parts',

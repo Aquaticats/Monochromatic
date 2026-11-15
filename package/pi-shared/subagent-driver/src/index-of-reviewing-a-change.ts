@@ -61,6 +61,7 @@ export {
   placeholdersInTheReviewBrief,
   reviewBriefValues,
   aPathAsABriefShowsIt,
+  codeSpanAround,
   subjectOfAChangeToTests,
   subjectOfAReview,
   whatTheReviewReads,

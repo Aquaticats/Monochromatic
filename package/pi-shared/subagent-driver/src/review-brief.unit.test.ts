@@ -20,6 +20,7 @@ import {
   aPathAsABriefShowsIt,
   briefOfAChangeToTests,
   briefOfAReview,
+  codeSpanAround,
   placeholdersIn,
   placeholdersInTheBriefOfAChangeToTests,
   placeholdersInTheReviewBrief,
@@ -558,6 +559,33 @@ await describe({
       ],
     },),
     describe({
+      name: codeSpanAround.name,
+      children: [
+        it({
+          name: 'opens and closes a span with one backtick when the text holds none, so every ordinary path reads as it always did',
+          fn: async () => {
+            expect(codeSpanAround({ text: 'package/a/src/gate.rs', },),).toBe('`package/a/src/gate.rs`',);
+          },
+        },),
+        it({
+          name: 'uses one more backtick than the longest run the text holds, so no backtick in the text can close the span',
+          fn: async () => {
+            expect(codeSpanAround({ text: 'a`b', },),).toBe('``a`b``',);
+            expect(codeSpanAround({ text: 'a``b`c', },),).toBe('```a``b`c```',);
+            expect(codeSpanAround({ text: 'a```b', },),).toBe('````a```b````',);
+          },
+        },),
+        it({
+          name: 'pads a text that begins or ends with a backtick, which a code span trims, so the delimiter cannot join that run',
+          fn: async () => {
+            expect(codeSpanAround({ text: '`a`', },),).toBe('`` `a` ``',);
+            expect(codeSpanAround({ text: '`a', },),).toBe('`` `a ``',);
+            expect(codeSpanAround({ text: 'a`', },),).toBe('`` a` ``',);
+          },
+        },),
+      ],
+    },),
+    describe({
       name: aPathAsABriefShowsIt.name,
       children: [
         it({
@@ -602,6 +630,28 @@ await describe({
           fn: async () => {
             expect(aPathAsABriefShowsIt({ path: 'a\u00FE.ts', },),).toBe(`\`$'a\\xfe.ts'\``,);
             expect(aPathAsABriefShowsIt({ path: 'a\u00FF.ts', },),).toBe(`\`$'a\\xff.ts'\``,);
+          },
+        },),
+        it({
+          name: 'holds a name that is not UTF-8 and carries a backtick in a span whose delimiter the backtick cannot close',
+          fn: async () => {
+            /**
+             The name whose bytes are `a`, a backtick, a byte that is not UTF-8, and `.ts`.
+             */
+            const named = Buffer.from([0x61, 0x60, 0xFF, 0x2E, 0x74, 0x73,],)
+              .toString('latin1',);
+            expect(aPathAsABriefShowsIt({ path: named, },),).toBe("``$'a`\\xff.ts'``",);
+          },
+        },),
+        it({
+          name: 'holds a name with two backticks in a span three backticks wide, so neither run closes it',
+          fn: async () => {
+            /**
+             The name whose bytes are `a`, two backticks, a byte that is not UTF-8, and `.ts`.
+             */
+            const named = Buffer.from([0x61, 0x60, 0x60, 0xFF, 0x2E, 0x74, 0x73,],)
+              .toString('latin1',);
+            expect(aPathAsABriefShowsIt({ path: named, },),).toBe("```$'a``\\xff.ts'```",);
           },
         },),
         it({

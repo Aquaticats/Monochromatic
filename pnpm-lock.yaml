@@ -4357,9 +4357,15 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.6
+      remark-parse:
+        specifier: 'catalog:'
+        version: 11.0.0
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
+      unified:
+        specifier: 'catalog:'
+        version: 11.0.5
 
   package/pipe/core:
     dependencies:

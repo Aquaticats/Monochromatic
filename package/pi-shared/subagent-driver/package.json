@@ -41,7 +41,9 @@
     "@monochromatic-dev/config-typescript": "workspace:*",
     "@monochromatic-dev/test-harness-core": "workspace:*",
     "@types/node": "catalog:",
-    "typescript": "catalog:"
+    "remark-parse": "catalog:",
+    "typescript": "catalog:",
+    "unified": "catalog:"
   },
   "files": [
     "dist/final",

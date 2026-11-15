@@ -604,6 +604,9 @@ a name that is not valid UTF-8 has no text form,
 so two such names stay two paths,
 and a brief shows one as `$'a\xfe.ts'`,
 shell ANSI-C quoting a reviewer can pass to a command to open that file.
+The code span around a name is opened and closed with one more backtick than the longest run the name holds,
+so no backtick in a name can end the span,
+whether the name is text or not.
 
 A value is never read as a template:
 a path,
@@ -701,6 +704,14 @@ The first two are deliberate skips and have no status;
 a brief that could not be written is a failure of its branch,
 said in its line with the reason,
 with status `none` in that branch's place.
+Two branches whose names derive the same change name,
+such as `fix/shared-change` and `feat/shared-change`,
+cannot both be reviewed in one batch:
+they would share one review folder,
+one brief and one run name,
+so the second is refused in one line naming both branches,
+with status `none`,
+while the first goes on.
 
 When a review ends,
 the command saves its last assistant message as its `review.md` when the review wrote none,

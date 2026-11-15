@@ -9,6 +9,9 @@
  A branch whose brief cannot be written is a failure of that branch: it is said in one line with the reason, its status is `none`,
  and the rest of the batch go on, so the command that ran the batch ends with a failure even when nothing was started.
 
+ Two branches whose names derive one change name cannot both be reviewed in one batch: they would share one review folder, one
+ brief and one run name, so the second is refused in one line naming both branches, with status `none`, while the first goes on.
+
  @module
  */
 
@@ -84,8 +87,9 @@ export type StartedReviews = {
 
   /**
    The status of every branch that has one, in the order the branches were asked for: the status its start ended with, or `none`
-   for a branch whose brief could not be written, which was never started. A branch already reviewed, and one whose change leaves
-   nothing to review, is a deliberate skip and has no status.
+   for a branch that was not reviewed because its brief could not be written or because another branch in the batch is reviewed as
+   the same change. A branch already reviewed, and one whose change leaves nothing to review, is a deliberate skip and has no
+   status.
    */
   readonly statuses: readonly string[];
 };
@@ -339,19 +343,26 @@ export async function startReviews({
     seams.report?.(line,);
   }
   /**
-   What became of each review that has a status, by the review's name, filled as the loop and the starts answer.
+   What became of each branch that has a status, by the branch's place in the request, filled as the loop and the starts answer. A
+   place, and nothing derived from a branch's name, stands for the branch: two branches can derive one change name.
    */
-  const statusOfReview = new Map<string, string>();
+  const statusOfBranch = new Map<number, string>();
   /**
-   One start per review, each resolving when its run has ended, kept beside the review it reads.
+   The branch each review name was first asked for by, so a second branch that would be reviewed as the same change is refused
+   rather than sharing its folder, its brief and its run name.
+   */
+  const firstBranchForReview = new Map<string, string>();
+  /**
+   One start per branch, each resolving when its run has ended, kept beside the branch it reads and its place in the request.
    */
   const starts: {
+    readonly at: number;
     readonly review: string;
     readonly start: Promise<StartOfOneReview>
   }[] = [];
   /* oxlint-disable eslint/no-await-in-loop -- one branch after another, because each brief and start is written and made before
      the next, and the stagger is what keeps their slots in the order given. See doc/lint/sequential-awaits.md. */
-  for (const branch of branches) {
+  for (const [at, branch,] of branches.entries()) {
     /**
      The change this branch is reviewed as.
      */
@@ -360,6 +371,23 @@ export async function startReviews({
      The run that reads it.
      */
     const run = runNameOfAReview({ review, },);
+    /**
+     The branch this review name was first asked for by, when another one already took it.
+     */
+    const firstBranch = firstBranchForReview.get(review,);
+    if (firstBranch !== undefined) {
+      note(`${run}: ${branch} is not reviewed: another branch in this batch, ${firstBranch}, is reviewed as the same change, so `
+        + 'both would share one review folder and one run name; ask for this branch in a batch of its own',);
+      statusOfBranch.set(
+        at,
+        'none',
+      );
+      continue;
+    }
+    firstBranchForReview.set(
+      review,
+      branch,
+    );
     if (await seams.reviewIsWritten({ review, },)) {
       note(`${run}: already reviewed`,);
       continue;
@@ -388,8 +416,8 @@ export async function startReviews({
     },);
     if ('refused' in answer) {
       note(`${run}: its brief could not be written: ${answer.refused}`,);
-      statusOfReview.set(
-        review,
+      statusOfBranch.set(
+        at,
         'none',
       );
       continue;
@@ -404,6 +432,7 @@ export async function startReviews({
     }
     note(`${runNameOfAReview({ review, },)}: started`,);
     starts.push({
+      at,
       review,
       start: seams.start({
         review,
@@ -424,16 +453,18 @@ export async function startReviews({
    */
   const settled = await Promise.all(starts.map(async function settledStart(entry,) {
     return {
+      at: entry.at,
       review: entry.review,
       start: await entry.start,
     };
   },),);
   for (const {
+    at,
     review,
     start,
   } of settled) {
-    statusOfReview.set(
-      review,
+    statusOfBranch.set(
+      at,
       statusTextOf(start,),
     );
     /**
@@ -453,17 +484,16 @@ export async function startReviews({
   /**
    The status of every branch that has one, in the order the branches were asked for.
    */
-  const statuses = branches.flatMap(function statusOfBranch(branch,) {
+  const statuses: string[] = [];
+  for (let at = 0; at < branches.length; at += 1) {
     /**
-     The change this branch is reviewed as.
+     The status this branch has, when it has one.
      */
-    const review = changeNameOfBranch({ branch, },);
-    /**
-     The status this review's branch has, when it has one.
-     */
-    const status = statusOfReview.get(review,);
-    return (status === undefined) ? [] : [status,];
-  },);
+    const status = statusOfBranch.get(at,);
+    if (status !== undefined) {
+      statuses.push(status,);
+    }
+  }
   if (statuses.length > 0) {
     note(`reviews ended with statuses ${statuses.join(' ',)}`,);
   }
