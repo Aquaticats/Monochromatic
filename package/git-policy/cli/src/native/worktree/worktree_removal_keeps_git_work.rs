@@ -386,7 +386,7 @@ fn with_the_repository(context: &GitContext, common_dir: &Path) -> GitContext {
 ///  the walk it then does is bounded by the candidates,
 ///  while the surviving names are tips the answer excludes,
 ///  and walking the survivors first costs 6.9 s here where this costs 30 to 98 ms
-///  (`keep/measurement-worktree-reflogs-and-cost.log` of the run that answered the review).
+///  (`keep/measurement-cost-of-the-reflog-question.log` of the run that answered the review).
 ///  A name that is missing or is no commit is no candidate:
 ///  nothing can be lost that is not there, and a tree or a blob is no commit a removal strands.
 ///
