@@ -1,5 +1,7 @@
 //! What:
-//!  The bound one observed command is given, who ended it, and the two pipes its output came through.
+//!  The bound one observed command is given,
+//!  who ended it,
+//!  and the two pipes its output came through.
 //! Why:
 //!  The bound is this wait's own promise and this wait keeps it:
 //!  it reads the bound the command's own line states,
@@ -7,8 +9,8 @@
 //!  reaps the command,
 //!  reads the two pipes on threads under one grace,
 //!  and says which of those things ended the command.
-//!  The faces that run a command live next door in `binary_support_observation.rs`,
-//!  and both files are re-exported as one `support` module.
+//!  The faces a control calls live next door in `binary_support_observation.rs`,
+//!  which reaches these items as `crate::support_observation_bound`.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
