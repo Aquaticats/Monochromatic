@@ -1615,6 +1615,61 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landing that never waits: its review read the whole range, ran nothing of the package, and makes four claims; the author goes back with a control asked for each (2026-11-15T12:28:14-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The landing never waits** (`7a6504e5b6`),
+  its fourth review,
+  ended 12:22:42,
+  of the whole range against `main`.
+  **Coverage**:
+  46 files read in full;
+  the range changes 47 code files that are not named as tests
+  (3 added,
+  44 changed),
+  and the one the brief did not list is `testing/parallel_test_support.rs`,
+  which is test support.
+  **It built and ran nothing of the package**;
+  one of its four rests on a small program that shows how the operating system behaves,
+  and three are read from the code.
+  By the reading adopted here,
+  such a review clears nothing and its findings are claims that need a control first.
+- **The four claims**:
+  a prewarm record whose `stagedIn` names an unrelated folder with a base name of the maker's shape has that folder deleted,
+  since the cleanup checks the name alone and the decoder takes any path;
+  a service gone silent whose withdrawal is unanswered
+  (the new `ServiceGoneUnconfirmed`)
+  skips the look at the journal and the branch,
+  so a commit that landed is reported as unknown and the command fails;
+  a dropped Git child that leads no process group has its helpers left running,
+  because the group signal answers `ESRCH`
+  (the mechanism is the part that was run);
+  and a routing retry waits for no routing look to be alive where one free place would do,
+  so a stuck look elsewhere can end a commit as `Unavailable`.
+- **Weighed**:
+  all four go back as claims.
+  For each the author is asked for the control first,
+  and then for the fix at the place that makes the next instance impossible,
+  or for what stands in the way where the control cannot be made to fail;
+  and to say which of the lines `main` holds too.
+  Looked at here and no further:
+  `main`'s `package_repair_prewarm_job.rs` has no `give_back_the_staged_state`.
+  The author's fifth run is queued third.
+  **Passes 29 and 34 go on waiting on this branch.**
+- Read at 12:27:07:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 12:17;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### The lock a killed Git left: four ways a kill still strands a lock for good, and the author goes back; the driver's silent tool command answers its review (2026-11-15T12:18:13-05:00)
 
 Not final and not approved:
