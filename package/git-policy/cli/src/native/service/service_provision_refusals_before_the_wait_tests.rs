@@ -755,25 +755,34 @@ fn a_runtime_directory_that_cannot_be_made_stops_at_once_and_names_it() {
 }
 
 /// What:
-///  Two runs with one process number each make the file and the link no spelling can cross,
-///  and the second run is not stopped by what the first left.
+///  Two runs with one process number, at once, each make the file and the link no spelling can cross.
 /// Why:
 ///   A name built from a process number is not a name of one's own:
 /// about 549 processes start a second on this machine, so a number comes round in about two hours,
 /// and inside a container far sooner.
-/// With the folder named after the process number, one run's file made the next stop at `AlreadyExists`
+/// With the folder named after the process number, the two runs made one folder and one of them stopped at
+/// `AlreadyExists`
 /// before it read anything,
-/// which fails a later run for fixture reuse rather than for the behaviour under test.
-/// Two threads of this test carry this process's number, so they stand for two runs with one number.
+/// which fails a run for fixture reuse rather than for the behaviour under test.
+/// Two threads of this test carry this process's number and run together, so they stand for two runs with one number.
 #[test]
 #[cfg(target_os = "linux")]
 fn two_runs_with_one_process_number_do_not_meet_in_the_folder_they_make() {
-    for run in 1..=2 {
-        let made: std::thread::Result<()> = std::thread::spawn(|| {
-            let parent: PathBuf = short_parent();
-            let _spellings: [(&'static str, PathBuf); 2] = spellings_no_file_system_can_make(parent.as_path());
+    let runs: Vec<std::thread::JoinHandle<()>> = (1..=2)
+        .map(|_run| {
+            return std::thread::spawn(|| {
+                let parent: PathBuf = short_parent();
+                let _spellings: [(&'static str, PathBuf); 2] = spellings_no_file_system_can_make(parent.as_path());
+            });
         })
-        .join();
-        assert!(made.is_ok(), "run {run} makes its file and its link where the run before it made its own");
+        .collect();
+    for (number, run) in runs.into_iter().enumerate() {
+        let made: std::thread::Result<()> = run.join();
+        assert!(
+            made.is_ok(),
+            "run {} makes its file and its link where run {} made its own",
+            number + 1,
+            if number == 0 { 2 } else { 1 }
+        );
     }
 }
