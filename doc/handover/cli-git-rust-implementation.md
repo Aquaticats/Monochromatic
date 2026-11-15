@@ -1639,6 +1639,56 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The address-space controls answer their one finding by a measurement; a review of the one added commit is written by hand and queued (2026-11-15T09:40:57-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The controls of a service under an address-space limit**,
+  their author's fifth run,
+  ended 09:35:21 at `dfa97b5998`
+  (the change is commit `2616009887`,
+  thirteen lines added to one test file;
+  the rest is a merge of `main`).
+  Which of the two was true:
+  the case above the boundary lands.
+  Measured with the control's own machinery in a scope of four CPUs:
+  the search answered 50 MiB,
+  and a commit landed at the answer and at seven sizes from one to ten mebibytes above it,
+  three rounds each,
+  24 of 24.
+  So the doc keeps its sentence and the control now asserts it,
+  with a message that names the room and carries the service's words.
+  With the room taken down to a size the search refuses,
+  the control fails in 3.1 s with that message;
+  unchanged it passes.
+  16 of 16 `fault_limits::` controls pass.
+- **Its review** reads that one commit and nothing before it,
+  by the scope adopted at 09:22:40,
+  since the range before was read whole at `f24d1b9ebd`.
+  The package's writer takes no change to tests alone,
+  so the folder is written by hand
+  (`~/temp/agent/change-reviews/git-policy-cli-controls-of-a-service-under-an-address-space-limit-the-assertion-added-after-their-third-review/`,
+  a diff of 32 lines),
+  and the review is queued third,
+  on Kimi,
+  at the commit itself.
+  A clean review sends the branch to a pass.
+- **The temperature**,
+  read at 09:39:57:
+  55.3 degrees,
+  budget 32.0 threads,
+  9.8 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:40:00:
+  the main checkout shows its six changed files and no more;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:34;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
 ##### A going run wrote into the main checkout's root; the stop of a stopped push answers, and the doubled bound it fixes is in `main` (2026-11-15T09:35:46-05:00)
 
 Not final and not approved:
