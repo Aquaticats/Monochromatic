@@ -1639,6 +1639,84 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Two authors answer and go to review: the wrapper under the gate container's Git, and the process that holds a file open in a worktree (2026-11-15T08:42:01-05:00)
+
+Not final and not approved:
+what two authors report and what the coordinating session queued.
+
+- **The wrapper under the gate container's Git**,
+  its author's sixth run,
+  ended 08:38:37 at `d73a209b3e`:
+  both findings of its fifth review answered in the tests' bounded helper.
+  The helper owns its wait
+  (`try_wait` each millisecond,
+  no second thread that collects the query),
+  signals the group it leads at the bound,
+  and takes the ending from the status the wait returns,
+  never from whether the signal could be sent;
+  that also closes one of the two findings weighed as a limit at 07:35,
+  without more code.
+  An input a descendant still holds is said in the answer
+  (`input_held`)
+  and no longer ends in a panic.
+  Both controls fail with the fix out,
+  the first at a seam
+  (`waitid(WNOWAIT)`)
+  and not by a count of attempts.
+  The typed-value sweep takes 31.5 s where it took 24.9 s with the blocked wait,
+  which the author reports as the cost.
+  47 of 47 named tests pass at four CPUs with `main` at `0.6.1-alpha.41` merged.
+  Its review is queued third
+  (`main...d73a209b3e`,
+  four code files that are not tests).
+  Seven of the gate's standing failures wait on this branch.
+- **The process that holds a file open in a worktree**,
+  a fresh run,
+  ended 08:37:09 at `3c43b9142a`.
+  The gate's failure
+  (`worktree_process_inside`,
+  in two gates)
+  was the control's:
+  the walk of the process table ran before the helper `tee` held its file,
+  which takes a third of a millisecond here.
+  The control now waits for the helper's own word,
+  and a second control makes both orders happen.
+  The author also found a hole in the reading itself:
+  a process whose working folder is readable and whose table of open files is refused
+  (`EACCES`)
+  was answered "holds nothing".
+  It is now "may hold one",
+  bounded by the same age rule a hidden folder gets;
+  unbounded it kept every worktree on this machine,
+  because one long-lived program of the desktop refuses that table.
+  No cost to a removal is measurable
+  (ratios 0.93 to 1.01 over five interleaved rounds).
+  Left alone and named:
+  a process table that cannot be listed still answers "nothing inside".
+  Its review is queued seventh
+  (`main...3c43b9142a`,
+  one code file that is not a test).
+  The change to the reading meets the question kept for the owner at 03:06:17
+  (the removal guard and hidden processes);
+  this branch uses the rule that question is about
+  (a hidden process younger than the worktree keeps it),
+  so the owner's answer there decides this one too;
+  the question is still open.
+- **The temperature**,
+  read at 08:41:30:
+  56.3 degrees,
+  budget 32.0 threads,
+  15.2 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:41:32:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:35;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The queue held 86 entries at 08:42:01.
+
 ##### The driver's brief writer for tests: nothing found in what it does with a change to tests; two findings about who owns a review's folder (2026-11-15T08:36:37-05:00)
 
 Not final and not approved:
