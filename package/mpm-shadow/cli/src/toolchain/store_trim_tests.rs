@@ -1316,20 +1316,22 @@ fn a_lock_tool_id_that_is_not_one_name_is_refused() {
 /// so the gathered path leaves the store and the cleanup must not act on it.
 #[test]
 fn a_tool_directory_that_resolves_outside_the_store_is_not_judged() {
-    let fixture = Fixture::new();
-    let outside: PathBuf = fixture.directory.path().join("outside");
+    let directory = crate::test_scratch::scratch();
+    let root: PathBuf = directory.path().join("store");
+    let outside: PathBuf = directory.path().join("outside");
+    fs::create_dir_all(&root).expect("make the store");
     fs::create_dir_all(outside.join("9.9.9")).expect("make a version outside the store");
     fs::write(outside.join("9.9.9").join("payload"), b"user data").expect("write user data outside the store");
-    std::os::unix::fs::symlink(&outside, fixture.root.join("node")).expect("point the tool directory outside the store");
+    std::os::unix::fs::symlink(&outside, root.join("node")).expect("point the tool directory outside the store");
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
-    let (candidates, incomplete) = candidates_of(std::slice::from_ref(&fixture.root), &tools, far_deadline());
+    let (candidates, incomplete) = candidates_of(std::slice::from_ref(&root), &tools, far_deadline());
 
     assert!(
         !candidates.iter().any(|found| return found.directory.starts_with(&outside)),
         "the cleanup listed a version outside the store: {candidates:?}"
     );
-    assert!(!incomplete.is_empty(), "the scan says why it left something out: {incomplete:?}");
+    assert!(!incomplete.is_empty(), "the scan says why it left the thing out: {incomplete:?}");
 }
 
 /// What:
