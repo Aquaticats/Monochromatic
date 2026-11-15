@@ -67,10 +67,8 @@ export {
   messageToPiCameTo,
   type MessageToPi,
 } from './what-pi-did-with-a-message.ts';
-export {
-  INBOX_CLAIMS_FOLDER,
-  recoverClaimsOfGoneDrivers,
-} from './messages-from-the-inbox.ts';
+export { recoverClaimsOfGoneDrivers, } from './claims-of-a-gone-driver.ts';
+export { INBOX_CLAIMS_FOLDER, } from './messages-from-the-inbox.ts';
 export {
   cgroupOf,
   unitNamedBy,

@@ -337,9 +337,10 @@ export type RunSummary = {
 
   /**
    The inbox messages Pi never took, by the name each was published under: one it refused while it rested, one it refused while it
-   worked and the run ended before it rested again, or one the run ended before it could hand over. Every one of them is also kept
-   on disk under a dot name; this field is what a reader of the summary alone sees, so whoever sent the message learns it was not
-   read. Absent when Pi took every message the inbox held.
+   worked and the run ended before it rested again, one the run ended before it could hand over, or one this driver could not claim
+   because it could not read the start of its own process. Every one of them is also kept on disk under a name a person reads, but
+   for the one never claimed, which stays in the inbox under its own name; this field is what a reader of the summary alone sees, so
+   whoever sent the message learns it was not read. Absent when Pi took every message the inbox held.
    */
   readonly inboxNotTaken?: readonly string[];
 

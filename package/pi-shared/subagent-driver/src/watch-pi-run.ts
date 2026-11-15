@@ -20,13 +20,13 @@ import {
 } from './answer-a-model-error.ts';
 import type { WorkWaitedFor, } from './kept-while-work-runs.ts';
 import { endingOfARestingRun, } from './ending-of-a-resting-run.ts';
+import { recoverClaimsOfGoneDrivers, } from './claims-of-a-gone-driver.ts';
 import {
   deliverHeldMessage,
   deliverReadyMessage,
   type HeldMessage,
   holdMessagesTheRunOwes,
   readyMessages,
-  recoverClaimsOfGoneDrivers,
 } from './messages-from-the-inbox.ts';
 import type { WatchRequest, } from './watch-request.ts';
 import { mayEndIdle, } from './when-a-run-may-end.ts';
@@ -90,16 +90,21 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
    */
   await using owed = holdMessagesTheRunOwes(watch,);
   /**
-   What a driver that is gone claimed before this watch took anything: each such message is kept under its name and named, so a
-   kill never leaves an inbox message behind under a name nothing reads again.
+   What the run came to, with the messages it still owes kept and named on the way out, and the ones it could not claim named too.
+   */
+  const endReason = await watchWhileItGoesOn({
+    watch,
+    held: owed.claimed,
+    unclaimable: owed.unclaimable,
+  },);
+  /**
+   What a driver that is gone claimed while the run took its last steps, looked at once more before the run is put away: no ending
+   leaves a message of this run's inbox neither delivered nor named in its summary.
    */
   await recoverClaimsOfGoneDrivers({
     watch,
   },);
-  return await watchWhileItGoesOn({
-    watch,
-    held: owed.claimed,
-  },);
+  return endReason;
 }
 
 /**
@@ -114,9 +119,11 @@ export async function watchUntilEnded(watch: WatchRequest,): Promise<EndReason> 
 async function watchWhileItGoesOn({
   watch,
   held,
+  unclaimable,
 }: {
   readonly watch: WatchRequest;
-  readonly held: HeldMessage[]
+  readonly held: HeldMessage[];
+  readonly unclaimable: string[]
 },): Promise<EndReason> {
   /**
    Where the watch stands with the model error it last answered, so one error is answered by one attempt.
@@ -137,6 +144,15 @@ async function watchWhileItGoesOn({
     const progress = await progressAgainstLimits({
       watch,
       wallDeadline: watch.deadline,
+    },);
+    /**
+     What a driver that is gone claimed, looked at on every look rather than once before the loop: a claim whose owner dies while
+     the run waits is found out here, kept and named before this look decides anything, rather than waiting for a driver that may
+     never come. It costs one read of the inbox's claims folder per look and one read of a process's record for each claim it
+     holds.
+     */
+    await recoverClaimsOfGoneDrivers({
+      watch,
     },);
     if (progress !== 'still-running') {
       // A run the wall clock ended while it waited for work it left running did not end with nothing to do, and its summary
@@ -197,7 +213,20 @@ async function watchWhileItGoesOn({
             watch,
             name: nextMessage,
           },);
-          if ((delivered !== 'could-not-take') && (delivered.ending === 'at-work')) {
+          if ((delivered !== 'could-not-take') && (delivered.ending === 'cannot-claim')) {
+            // This driver cannot read the start of its own process, so it cannot claim a message under a name a later driver could
+            // prove it owns. The message stays in the inbox under its own name, and this run names it instead of reading as one
+            // that took it; a driver that can prove its identity delivers it later.
+            if (!unclaimable.includes(nextMessage,)) {
+              unclaimable.push(nextMessage,);
+              watch.record
+                .note({
+                  kind: 'problem',
+                  problem: `the message ${nextMessage} stays in the inbox: this driver cannot read the start time of its own process, so it cannot claim a message a later driver could prove it owns`,
+                },);
+            }
+          }
+          else if ((delivered !== 'could-not-take') && (delivered.ending === 'at-work')) {
             held.push(delivered.held,);
           }
         }

@@ -69,6 +69,23 @@ const START_UNREADABLE: unique symbol = Symbol('its record cannot be read');
 export const NO_KEPT_NAME: unique symbol = Symbol('message could not be kept');
 
 /**
+ The absence of a claim owner: this driver cannot read the clock ticks its own process began at, so it cannot name a folder a
+ later driver could prove it owns.
+ */
+export const NO_CLAIM_OWNER: unique symbol = Symbol('own process start cannot be read');
+
+/**
+ A driver that cannot read the start time of its own process, so it cannot claim a message under a name a later driver could
+ check. The message stays in the inbox, under its own name, rather than being claimed unverifiably.
+ */
+export class ClaimOwnerUnreadableError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'ClaimOwnerUnreadableError';
+}
+
+/**
  The absence of an entry: nothing is at the path that was read.
  */
 const NO_ENTRY: unique symbol = Symbol('nothing is at the path');
@@ -236,10 +253,8 @@ export async function claimOwnerIsGone({
    */
   const owner = ownerIn(ownerName,);
   if ((typeof owner) === 'symbol') {
-    return true;
-  }
-  if (owner.start === START_UNKNOWN) {
-    return true;
+    // A folder whose name says nothing of a process is not a claim this code made, and nothing here proves its owner gone.
+    return false;
   }
   /**
    What the process folder says of that process now.
@@ -248,6 +263,11 @@ export async function claimOwnerIsGone({
     processFolder,
     entry: owner.pid,
   },);
+  if (owner.start === START_UNKNOWN) {
+    // A claim whose own start could not be read is proven gone only by its process number being gone: while the number names a
+    // process, that process may be the owner, and nothing else here proves anything.
+    return start === PROCESS_IS_MISSING;
+  }
   if (start === PROCESS_IS_MISSING) {
     return true;
   }
@@ -381,7 +401,7 @@ export function lastPartOf(path: string,): string {
  const name = await ownerFolderNameOf('/proc',);
  ```
  */
-async function ownerFolderNameOf(processFolder: string,): Promise<string> {
+async function ownerFolderNameOf(processFolder: string,): Promise<string | typeof NO_CLAIM_OWNER> {
   /**
    When this driver began, which tells its own claim from one a killed driver left.
    */
@@ -389,7 +409,10 @@ async function ownerFolderNameOf(processFolder: string,): Promise<string> {
     processFolder,
     entry: 'self',
   },);
-  return `${String(process.pid,)}-${((typeof start) === 'string') ? start : START_UNKNOWN}`;
+  if ((typeof start) !== 'string') {
+    return NO_CLAIM_OWNER;
+  }
+  return `${String(process.pid,)}-${start}`;
 }
 
 /**
@@ -417,10 +440,23 @@ export async function claimMessage({
   /**
    The folder this driver's claims live in, named for the driver so a later one can tell whether it is still there.
    */
+  const processFolder = processFolderOf(watch,);
+  /**
+   The name of the owner folder, or the sentinel that says this driver cannot name one a later driver could verify.
+   */
+  const ownerName = await ownerFolderNameOf(processFolder,);
+  if ((typeof ownerName) === 'symbol') {
+    throw new ClaimOwnerUnreadableError(
+      `this driver cannot read the start time of its own process from ${processFolder}, so it cannot claim a message under a name a later driver could prove it owns`,
+    );
+  }
+  /**
+   The folder this driver's claims live in.
+   */
   const ownerFolder = join(
     watch.inbox,
     INBOX_CLAIMS_FOLDER,
-    await ownerFolderNameOf(processFolderOf(watch,),),
+    ownerName,
   );
   await mkdir(
     ownerFolder,

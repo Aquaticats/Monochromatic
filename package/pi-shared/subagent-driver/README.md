@@ -1040,13 +1040,19 @@ the launcher that builds the session's environment asks it, once, before it make
   and the message keeps its own name inside it:
   at every instant the inbox says which message is claimed and by which driver.
   A driver killed before it laid the claim down leaves that folder behind,
-  and the next driver to read the inbox asks the process folder whether `<pid>` still began at `<start>`:
+  and every driver that reads the inbox asks the process folder whether `<pid>` still began at `<start>`:
   an entry that has gone, or that names another start for that number, is a driver that is gone,
   whose message is kept as `.orphaned-<name>` and named in `inboxNotTaken`;
   an entry that is still there, or that cannot be read, keeps its claim.
+  A claim whose owner's start could not be read is proven gone only by its process number being gone:
+  while the number names something, nothing here tells that something from the owner.
   A claim says only that delivery had begun and never whether Pi took the message,
   so it is kept and named rather than sent again on a guess,
   and a person reading the inbox finds it under the message's own name before any driver does.
+  A driver that cannot read the start of its own process does not claim at all:
+  the message stays in the inbox under its own name,
+  a driver that can prove its identity delivers it later,
+  and a run that ends first names it in `inboxNotTaken` instead of sending it under an unverifiable claim.
 - `stop`:
   create this file to end the run early.
 
@@ -1256,6 +1262,11 @@ the attempt after a model error is not counted and goes again once Pi rests,
 and the steer or prompt a message arrives as is chosen again on the look that sends it.
 Every message that is claimed is claimed into a folder named for the driver that claims it,
 so a kill at any instruction leaves a name a person reads and a later driver resolves rather than an opaque claim.
+The claims are read again on every look at the run and once more before the run is put away,
+not once when the watch begins:
+a claim whose driver dies while the run waits is kept and named in that run's summary,
+and an ending never leaves a message of the run's inbox neither delivered nor named.
+It costs one read of the inbox's claims folder per look, and one read of a process's record for each claim it holds.
 Every send reads what came of it from the state Pi was left in and from the words Pi refused with:
 Pi 1.5.2 refuses a prompt sent while it streams with
 "Agent is already processing. Specify streamingBehavior ... to queue the message.",
