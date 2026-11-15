@@ -1598,6 +1598,55 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Three more answers of the owner are acted on; the commit that does not wait behind the service's writes answers its review and has the slow start reproduced (2026-11-15T11:00:48-05:00)
+
+Not final and not approved:
+what the owner answered,
+what one author reports,
+and what the coordinating session queued.
+
+- **The owner's three answers of 10:59** are under "Owner decisions in force",
+  "Answers on waking, second round".
+  A shell alias is forwarded unguarded and an ignored repository is deleted as ignored:
+  both go the other way from the landed removal's tip `5ca2149aea`.
+  Its author's fifteenth run is queued second,
+  to take the refusals and the look out and to state the hole in `SPEC.md`
+  (`~/temp/agent/pi-runs/landed-removal-two-decisions-of-2026-11-15-shell-aliases-forwarded-and-ignored-repositories-deleted-prompt.md`).
+  A review of `5ca2149aea` had started before the answers and goes on;
+  what it finds in the parts that come out falls away with them.
+  The briefing rule in `AGENTS.md` names both folders since `73ee82f26d`.
+- **The commit that does not wait behind the service's writes**,
+  its author's second run,
+  ended 10:54:00 at `c024c12583`:
+  the review's three claims shown and answered
+  (a commit held 6,156 ms against a bound of 5,000 at the old tip and 46 ms at the new;
+  a taken request told it was not taken;
+  a wait's words naming the landing's own write).
+  **The slow start of `0.6.1-alpha.41` is reproduced and has its cause**:
+  with the removal of old finished batches' records held where the service's loop stands,
+  the first commit took 6,081 ms;
+  moved beside the loop,
+  226 ms.
+  The start's steps that must stay now name themselves in the journal and to the client when they pass one second.
+  Two arms interleaved:
+  a median ratio of 1.011.
+  Its review is queued fifth
+  (`main...c024c12583`,
+  11 code files that are not tests).
+- **Queued since the section before this one**:
+  the reviews of what the file holder and the address-space controls added after their reviewed commits,
+  each written by hand and told to run the controls
+  (fourth and fifth at 10:57);
+  the sighting of the gate's first-time failure is in the brief of the fresh run for the controls that fail only inside a suite.
+- Read at 10:57:32:
+  the main checkout shows its six changed files;
+  no failed start and no brief refused since the cap went to 20;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  18 runs going,
+  none silent for twenty minutes;
+  Tctl 75.1 degrees.
+
 ##### The owner is back: the limits are lifted, the cap is 20, pass 54 is queued under the new rule; the gate on `0.6.1-alpha.42` failed 16; the masking's third review finds eight more (2026-11-15T10:53:13-05:00)
 
 Not final and not approved:
