@@ -115,6 +115,67 @@ fn a_real_process_in_a_real_folder_is_found_in_the_hosts_own_table() {
 }
 
 /// What:
+///  The same table, saying the machine was up for `uptime_seconds` and the process started at `start_ticks`.
+/// Why:
+///   The ages are the whole question for whatever the read could not see,
+///  and a fixture writes both numbers instead of waiting for a process to be born.
+fn saying_it_started(table: PathBuf, pid: u32, uptime_seconds: u64, start_ticks: u64) -> PathBuf {
+    std::fs::write(table.join("uptime"), format!("{uptime_seconds}.00 0.00\n")).expect("the machine's uptime");
+    std::fs::write(table.join(pid.to_string()).join("stat"), stat_with_start_ticks(pid, start_ticks)).expect("the process's own row");
+    return table;
+}
+
+/// What:
+///  A stand-in process table with one process whose working folder is elsewhere
+///  and whose descriptor table this account may not read.
+/// Why:
+///   A program can stop every other reader seeing what it holds open while it runs,
+///  and no fixture can make a real process do that,
+///  so the control writes a descriptor directory with no permission to read it:
+///  the kernel refuses that read for a process that is there,
+///  which is an answer the read must never turn into none.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const table = aTableWithOneProcessWhoseDescriptorsCannotBeRead(elsewhere, 4242);
+/// ```
+fn a_table_with_one_process_whose_descriptors_cannot_be_read(elsewhere: &Path, pid: u32) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt as _;
+    let table: PathBuf = a_table_with_one_process_in(elsewhere, pid);
+    let descriptors: PathBuf = table.join(pid.to_string()).join("fd");
+    std::fs::create_dir_all(descriptors.as_path()).expect("a descriptor directory");
+    std::fs::set_permissions(descriptors.as_path(), std::fs::Permissions::from_mode(0o000)).expect("a descriptor directory this account may not read");
+    return table;
+}
+
+/// What:
+///  A process older than the worktree whose descriptor table cannot be read keeps the worktree.
+/// Why:
+///   The age of a process excuses a working folder it could not have changed into,
+///  and it excuses nothing about a file:
+///  a program that started before the worktree was made can open a file in it at any moment since,
+///  so a refused look at its descriptor table is the one look that could have shown that file,
+///  and what the read could not see is a process that may be inside, never none.
+#[test]
+fn a_process_older_than_the_worktree_whose_descriptor_table_cannot_be_read_keeps_it() {
+    let root: PathBuf = fixture("process-descriptors-hidden");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
+    let elsewhere: PathBuf = root.join("elsewhere");
+    std::fs::create_dir(elsewhere.as_path()).expect("a folder the process was started in");
+    let pid: u32 = 5353;
+    // Up for a thousand seconds and started at the second, so it is far older than a folder made five seconds ago.
+    let table: PathBuf = saying_it_started(a_table_with_one_process_whose_descriptors_cannot_be_read(elsewhere.as_path(), pid), pid, 1_000, 100);
+    let found: Option<WorkingProcess> =
+        process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(Duration::from_secs(5)));
+    // The permission is given back before the fixture goes, which needs to list the directory it holds.
+    use std::os::unix::fs::PermissionsExt as _;
+    let descriptors: PathBuf = table.join(pid.to_string()).join("fd");
+    std::fs::set_permissions(descriptors.as_path(), std::fs::Permissions::from_mode(0o700)).expect("the descriptor directory is readable again");
+    assert!(found.is_some(), "a refused read of the files a process holds is never none: {found:?}");
+}
+
+/// What:
 ///  A stand-in process table with one process of this account whose working folder cannot be read.
 /// Why:
 ///   A program can hide its working folder from every other reader,
@@ -198,10 +259,7 @@ fn stat_with_start_ticks(pid: u32, start_ticks: u64) -> String {
 /// const table = aTableOfAHiddenProcessStartedAt(pid, uptimeSeconds, startTicks);
 /// ```
 fn a_table_of_a_hidden_process_started_at(pid: u32, uptime_seconds: u64, start_ticks: u64) -> PathBuf {
-    let table: PathBuf = a_table_with_a_process_whose_folder_cannot_be_read(pid);
-    std::fs::write(table.join("uptime"), format!("{uptime_seconds}.00 0.00\n")).expect("the machine's uptime");
-    std::fs::write(table.join(pid.to_string()).join("stat"), stat_with_start_ticks(pid, start_ticks)).expect("the process's own row");
-    return table;
+    return saying_it_started(a_table_with_a_process_whose_folder_cannot_be_read(pid), pid, uptime_seconds, start_ticks);
 }
 
 #[test]
@@ -338,30 +396,100 @@ fn a_descriptor_whose_file_is_already_unlinked_counts() {
 }
 
 /// What:
+///  A shell started in `elsewhere` that holds `held` open on descriptor 3 and says so once it does.
+/// Why:
+///   A descriptor is the kernel's own record of what a program holds,
+///  and only a real process proves the reading finds what the kernel writes there.
+///  The shell says it holds the file by making `said`,
+///  which happens only after the redirect that opens `held`:
+///  a shell that has not reached its redirect is a process holding nothing,
+///  so the control waits for that file instead of sleeping.
+///  Its input is a pipe this control keeps open,
+///  so the `read` after the marker waits until the control ends the helper,
+///  and descriptor 3 stays open for every walk taken meanwhile.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const helper = startAHolder({ script, held, said, elsewhere });
+/// ```
+fn start_a_holder(script: &str, held: &Path, said: &Path, elsewhere: &Path) -> std::process::Child {
+    return spawn_owned(
+        std::process::Command::new("sh")
+            .args(["-c", script, held.to_str().expect("a UTF-8 file path"), said.to_str().expect("a UTF-8 marker path")])
+            .current_dir(elsewhere)
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null()),
+    )
+    .expect("a helper holding a file in the folder");
+}
+
+/// What:
 ///  A real process that holds a file open in a folder and was started elsewhere is found in the host's own table.
 /// Why:
 ///  The stand-in table writes the links this control assumes;
 ///  only a real child proves the kernel writes them that way,
 ///  which is what the sweep reads on a person's machine.
+///  The walk waits for the helper's own word that the file is open:
+///  a walk taken straight after the start reads a table in which the helper holds nothing yet,
+///  which is how this control failed in the gate on `0.6.1-alpha.38`,
+///  answering `left: None` for a helper that was alive and wrote nothing to its standard error.
 #[test]
 fn a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table() {
     let root: PathBuf = fixture("process-real-open-file");
+    let elsewhere: PathBuf = fixture("process-real-open-file-elsewhere");
     let held: PathBuf = root.join("held.txt");
     std::fs::write(held.as_path(), b"the file the helper holds\n").expect("the file the helper holds open");
-    let elsewhere: PathBuf = fixture("process-real-open-file-elsewhere");
-    // `tee` opens its argument for writing and keeps it open while it copies its input, which is held open here.
-    let mut child: std::process::Child = spawn_owned(
-        std::process::Command::new("tee")
-            .arg(held.as_path())
-            .current_dir(elsewhere.as_path())
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::null()),
-    )
-    .expect("a helper holding a file in the folder");
+    // The helper opens `held` on descriptor 3 and then makes this file, which is the word the wait below is for.
+    let said: PathBuf = elsewhere.join("it-holds-the-file");
+    let mut helper: std::process::Child =
+        start_a_holder("exec 3<\"$0\"; : > \"$1\"; read x", held.as_path(), said.as_path(), elsewhere.as_path());
+    assert!(crate::test_support::wait_until(&|| { return said.exists(); }), "the helper says it holds the file");
     // The folder was made a moment ago, so every process that hides its working folder started before it.
     let found: Option<WorkingProcess> = process_working_inside(root.as_path(), &root.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
-    let _ended = child.kill();
-    let _waited = child.wait();
-    assert_eq!(found, Some(WorkingProcess { pid: child.id(), folder: WorkingFolder::OpenFile }), "the helper's own descriptor is named");
-    std::fs::remove_dir_all(elsewhere.as_path()).expect("the helper's own folder");
+    let _ended = helper.kill();
+    let _waited = helper.wait();
+    assert_eq!(found, Some(WorkingProcess { pid: helper.id(), folder: WorkingFolder::OpenFile }), "the helper's own descriptor is named");
+}
+
+/// What:
+///  The two orders the gate's failure falls between:
+///  a walk taken before the helper opens the file names it for nothing,
+///  and a walk taken after the helper said it holds the file names it.
+/// Why:
+///  The control above failed in two gate runs by reading the table too early,
+///  and neither the reading nor the control is shown right by repeating a race:
+///  this control makes each order happen once,
+///  so the order the table answers nothing in is seen every time this runs,
+///  and the answer the other order earns is seen in the same run.
+///  The helper opens nothing until this control says so on the helper's own input,
+///  so no sleep and no luck decides which order the first walk meets.
+#[test]
+fn a_walk_before_the_helper_opens_the_file_names_nothing_and_a_walk_after_it_names_the_helper() {
+    let root: PathBuf = fixture("process-real-open-file-orders");
+    let elsewhere: PathBuf = fixture("process-real-open-file-orders-elsewhere");
+    let held: PathBuf = root.join("held.txt");
+    std::fs::write(held.as_path(), b"the file the helper holds\n").expect("the file the helper holds open");
+    let said: PathBuf = elsewhere.join("it-holds-the-file");
+    let mut helper: std::process::Child =
+        start_a_holder("read go || exit 1; exec 3<\"$0\"; : > \"$1\"; read x", held.as_path(), said.as_path(), elsewhere.as_path());
+    let before: Option<WorkingProcess> = process_working_inside(root.as_path(), &root.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
+    assert!(
+        !before.is_some_and(|working| { return working.pid == helper.id(); }),
+        "the file is not open yet, so nothing the table says names the helper: {before:?}"
+    );
+    {
+        use std::io::Write as _;
+        let go: &mut std::process::ChildStdin = helper.stdin.as_mut().expect("the helper's own input");
+        go.write_all(b"go\n").expect("the helper is told to open the file");
+        go.flush().expect("the word reaches the helper");
+    }
+    assert!(crate::test_support::wait_until(&|| { return said.exists(); }), "the helper says it holds the file");
+    let after: Option<WorkingProcess> = process_working_inside(root.as_path(), &root.join(".git"), Path::new("/proc"), Some(Duration::ZERO));
+    let _ended = helper.kill();
+    let _waited = helper.wait();
+    assert_eq!(
+        after,
+        Some(WorkingProcess { pid: helper.id(), folder: WorkingFolder::OpenFile }),
+        "the same walk names the helper once it holds the file"
+    );
 }
