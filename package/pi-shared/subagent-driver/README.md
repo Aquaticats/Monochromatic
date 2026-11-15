@@ -265,6 +265,13 @@ and exits `0` when it started a run,
 `3` when no pool has room or the build volume is under the floor,
 and `4` when a run of that name is already going,
 which is what the retrying start reads.
+Its `ALREADY RUNNING` line names what holds the name and since when:
+`ALREADY RUNNING: copy-route, held since Sat 2026-11-14 09:42:51 EST by unit pi-copy-route.service (active)`,
+or `held … by launcher process 1234` for a launcher that has not made its unit yet.
+A launcher whose unit is not going and whose newest run folder holds a summary is one that outlived its run,
+and it holds no name:
+on 2026-11-14 one such launcher held the name of a finished review for three hours,
+and the start that asked for that run again was answered `ALREADY RUNNING` and lost.
 The counts line ends with `<n> GiB free on <volume>`,
 and a refusal under the floor names that room,
 the floor,
@@ -389,9 +396,28 @@ such as a build or a reproduction in a scope of its own,
 and before 2026-11-11 this launcher called such a run finished and removed its worktree,
 so a review whose reproduction was still running was never written.
 Now the launcher waits for that work,
-at most the run's own wall clock,
+at most thirty minutes,
 then resumes the agent's session with a short note naming what it left running,
 at most five wakes per run name.
+The bound is not the run's own wall clock, which is what it waited out until 2026-11-15:
+a run is over when its turn ends,
+and a launcher still waiting for what the run left is also a launcher holding the run's name,
+so a six-hour wait refused every start of that name for six hours.
+The resume happens whether or not the work ended,
+and its note says what still runs,
+so a build that outlasts the bound is read by the agent rather than lost.
+A resumed launcher is followed for the run's own wall clock plus the unit's grace,
+so a resume that never ends cannot hold this launcher forever.
+
+What a launcher may still wait for after its run's end, and each wait's bound:
+
+- the run's unit, for the run's wall clock plus `UNIT_WAIT_GRACE_SECONDS` (fifteen minutes);
+- the work the run left running, for `WORK_AFTER_A_TURN_MILLISECONDS` (thirty minutes);
+- a resumed launcher, for the run's wall clock plus that same grace;
+- every git question and every `systemctl` question, for the thirty seconds `run-command.ts` gives a machine question.
+
+A process the kernel has already taken away when its own files are asked for is no work of the run:
+two launchers ended with an uncaught `ESRCH` on 2026-11-14 while they read the process table just as a run's own teardown was dying.
 A resumed run gets a folder number of its own,
 so it never writes over the summary the first run wrote.
 
@@ -614,6 +640,40 @@ A kill between the two therefore leaves the entry in both places,
 which loses nothing:
 the next round reads a record whose name the queue still holds as an unfinished set-aside,
 drops the record and tries the entry again.
+
+### A start whose launcher never makes a run
+
+An entry is out of the queue only when its run exists.
+The start's own end is the moment its batch's unit is asked for,
+and a launcher that fails after that point (a unit of the name still there, a manager that refused it)
+or gives up waiting for a place at its deadline
+used to leave the entry nowhere at all:
+on 2026-11-14T11:28:41-05:00 the filling started a queued review,
+the launcher answered `ALREADY RUNNING` twenty seconds later,
+and nothing put the entry back or said so where a reader looks for an hour and three quarters.
+
+So every start writes `<runs>/<name>-queue-start.json` beside the runs,
+before its batch's unit is asked for:
+the entry whole, the batch's list, its unit and its output file, the name the run takes, and the moment.
+Every round settles those records first:
+
+- the run exists (its `pi-*` unit is going, or a run folder of its name holds a summary written after the start),
+  so the entry stays out of the queue and the round says so once;
+- its batch's unit is still going, so the start is under way and the record stays;
+- the queue still holds the entry, which a kill between writing the record and taking the entry out leaves,
+  so the record goes and the next round tries the entry again;
+- otherwise the launcher ended without a run, and the last line its batch printed is the reason:
+  a launcher that only gave up at its deadline puts the entry back at the **head** of the queue,
+  and any other failure sets the entry aside with that reason.
+
+The record goes away once the entry is settled,
+which is what makes the filling say it once.
+
+A coordinator sees, in one place, what became of every entry a filling started:
+the filling's own journal (`journalctl --user -u fill-free-places-from-a-queue`) holds one line per start,
+per entry put back and per entry set aside, with the reason;
+the records left beside the runs are the starts still under way;
+and `list-the-entries-a-queue-set-aside` prints what was set aside, with the reason and the record that holds it whole.
 
 ### `list-the-entries-a-queue-set-aside` and `put-a-set-aside-entry-back-into-a-queue`
 
