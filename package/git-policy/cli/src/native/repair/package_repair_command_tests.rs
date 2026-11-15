@@ -997,3 +997,83 @@ fn a_standard_error_whose_reader_stopped_draining_does_not_hold_the_tool_past_it
     assert_eq!(said.len(), 1, "the notice of the wait was made, and one only: {said:?}");
     remove(&root);
 }
+
+/// How long the control waits for a tool to report the descendant it started:
+/// the patience every control of this package waits with, not a duration the tool is expected to take.
+const THE_DESCENDANT_REPORTS_WITHIN: Duration = crate::parallel_test_support::PATIENCE;
+
+/// How long the descendant the tool started would live if nothing ended it:
+/// far longer than the control waits, so a descendant that is gone is one something ended.
+const THE_DESCENDANTS_OWN_SLEEP_SECONDS: u64 = 300;
+
+/// The longest the control gives the tool's whole group to end, and to be reaped:
+/// the grace the normal ceiling path gives a killed child (`STOP_GRACE`) and the margin a loaded machine needs.
+const THE_GROUP_ENDS_WITHIN: Duration = crate::bounded_push::STOP_GRACE.saturating_add(Duration::from_secs(5));
+
+/// Whether the process `pid` is running: a name in `/proc` that is a zombie holds no files and runs nothing, so it
+/// counts as ended.
+fn runs(pid: u32) -> bool {
+    let Ok(stat) = std::fs::read_to_string(format!("/proc/{pid}/stat").as_str()) else { return false };
+    let Some(after_the_name) = stat.rfind(')') else { return true };
+    let state: Option<char> = stat[after_the_name + 1..].trim_start().chars().next();
+    return state != Some('Z');
+}
+
+/// What:
+///  A tool whose future is dropped mid-run leaves no process of its group running.
+/// Why:
+///  The slow lane ends a look that outlasts `LANE_LOOK_CEILING` by dropping its future (`service_work_slow_lane.rs`),
+///  and the package tools run in a process group of their own with `process_group(0)`: the normal ceiling path ends that
+///  group (`stop_group`), and a dropped future reaches only the value that owns the child. Its drop killed the leader
+///  alone, so a compiler or installer helper the tool had started kept running beside the next look, against the same
+///  staging and build paths (the review of `fc620ef950`, F2). The tool's own ceiling is eighteen minutes and the lane's
+///  two, so the lane is the deadline that abandons it.
+///  The descendant here is a real process the tool starts in its own group, and the control reads that it is gone.
+///  A control that catches the defect kills the descendant itself before it ends, so a failing run leaves no process
+///  behind.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tool = spawnTool(() => sh('sleep 300 & echo $! > descendant; wait')); await readFile('descendant');
+/// tool.abort(); expect(await runs(descendantPid)).toBe(false)
+/// ```
+#[test]
+fn a_tool_future_dropped_mid_run_leaves_no_process_of_its_group_running() {
+    let root: PathBuf = fixture("runs-dropped-future");
+    let program: PathBuf = root.join("tool");
+    let reported: PathBuf = root.join("descendant");
+    // The shell starts its own descendant in the tool's group, writes its number where the control reads it, and waits:
+    //  the descendant is a real process of the tool's group and not a stand-in.
+    executable(program.as_path(), format!("#!/bin/sh\nsleep {THE_DESCENDANTS_OWN_SLEEP_SECONDS} &\necho $! > '{}'\nwait\n", reported.display()).as_bytes());
+    let command: ToolCommand = ToolCommand { arguments: Vec::new(), directory: root.clone(), set: Vec::new() };
+    let descendant: u32 = run_on_runtime(async move {
+        let running = tokio::spawn(async move {
+            return run_tool_reaping_started_within(program.as_path(), &command, ToolLimits { window: ROOMY, ceiling: ROOMY }, GENEROUS, &reap_within_stop_grace).await;
+        });
+        let began: std::time::Instant = std::time::Instant::now();
+        while !reported.exists() && began.elapsed() < THE_DESCENDANT_REPORTS_WITHIN {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let written: String = std::fs::read_to_string(reported.as_path()).expect("the tool's descendant reported its own number");
+        let number: u32 = written.trim().parse().expect("the number the shell wrote is a process id");
+        // The drop the lane's deadline makes: nothing of the run is awaited, so the values it owns end their work.
+        running.abort();
+        let _ended = running.await;
+        return number;
+    })
+    .expect("the runtime runs the tool");
+    let began: std::time::Instant = std::time::Instant::now();
+    while runs(descendant) && began.elapsed() < THE_GROUP_ENDS_WITHIN {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let survived: bool = runs(descendant);
+    if survived {
+        // SAFETY: `kill` takes a process id and a signal number and touches no memory; this control started that process.
+        let _ended = unsafe { libc::kill(i32::try_from(descendant).unwrap_or(i32::MAX), libc::SIGKILL) };
+    }
+    assert!(
+        !survived,
+        "the process the tool started (pid {descendant}) was still running after the future that owned the tool was dropped: the lane's deadline ended the leader alone"
+    );
+    remove(&root);
+}

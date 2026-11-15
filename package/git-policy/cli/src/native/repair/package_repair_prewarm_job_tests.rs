@@ -943,3 +943,41 @@ fn a_stopped_clean_names_the_lock_command_only_when_cargo_named_the_lock() {
     assert!(elsewhere.contains("the next add fills the copy"), "a failure that names no lock still says the copy is filled next time: {elsewhere}");
     remove(root.as_path());
 }
+
+/// What:
+///  A second filling of one workspace leaves the first one's staging copy alone.
+/// Why:
+///  Two fillings of one workspace run at once when a worktree is removed and added again at the same path while its
+///  first record is still queued (`package_repair_prewarm_job.rs`, `names_for`). The second one found the first one's
+///  marker and read it as proof the usual names were its own, so it removed the first one's staging copy and target
+///  before both filled under the same names; the first one then failed at the first file the second had already made,
+///  and its own error arm removed the shared staging folder again (the review of `fc620ef950`, F1).
+///  The control puts the program in that state with the code's own seam, `names_for`, and reads what the second filling
+///  did to the first one's work: a filling that is alive keeps its names, and the second one takes names of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const first = namesFor(destination); write(first.staging, 'copied'); const second = namesFor(destination);
+/// expect(second.staging).not.toBe(first.staging); expect(read(first.staging)).toBe('copied')
+/// ```
+#[test]
+fn a_second_filling_of_one_workspace_leaves_the_first_ones_staging_alone() {
+    let root: PathBuf = fixture("prewarm-two-fillings-of-one-workspace");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    // The directory the usual names live in, which `fill_one` makes before it takes them.
+    std::fs::create_dir_all(entry.to.parent().expect("the build directory's own directory")).expect("the build directory's own directory");
+    let first: TheNames = names_for(entry.to.as_path()).expect("the first filling takes the usual names");
+    std::fs::create_dir_all(first.staging.as_path()).expect("the first filling's staging copy");
+    let copied: PathBuf = first.staging.join("the-first-fillings-copy");
+    std::fs::write(copied.as_path(), b"what the first filling cloned").expect("a file only the first filling made");
+    let second: TheNames = names_for(entry.to.as_path()).expect("the second filling takes names it can prove are its own");
+    assert_ne!(second.staging, first.staging, "the second filling staged in the first one's directory, which is still being filled");
+    assert_eq!(
+        std::fs::read(copied.as_path()).expect("the first filling's file is still there"),
+        b"what the first filling cloned",
+        "a second filling removed the staging copy of the first, which is still running"
+    );
+    drop(second);
+    drop(first);
+    remove(root.as_path());
+}

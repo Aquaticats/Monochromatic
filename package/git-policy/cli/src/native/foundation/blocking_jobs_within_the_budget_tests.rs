@@ -745,3 +745,120 @@ fn note_that_a_slow_job_started(started: Arc<std::sync::atomic::AtomicBool>) -> 
     started.store(true, Ordering::SeqCst);
     return 8;
 }
+
+/// What:
+///  A place that never came is answered as "no place", never as a cancelled job.
+/// Why:
+///  A caller tells work that never began from work that started: the first is looked at again later, the second may have
+///  done its work (`worktree_trash_dispose.rs` makes the first a later look and the second a failure that uses up a try).
+///  The wait for a place in the fallback matched the elapsed timer with the arm for a closed semaphore, so a place that
+///  nobody freed became `Cancelled`, and a record moved towards `failed` because other work held every place (the review
+///  of `fc620ef950`, F3).
+///  The control takes every place the process has and asks for a job where no thread can start, which is the state the
+///  fallback exists for.
+/// The body runs in a child that is refused every thread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdEveryPlace(); const answer = await runAJob(); expect(answer).toBe('noPlace'); expect(ran).toBe(false)
+/// ```
+#[test]
+fn a_place_that_never_came_is_no_place_and_never_a_cancelled_job() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_place_that_never_came_is_no_place_and_never_a_cancelled_job") {
+        return;
+    }
+    hold_blocking_jobs_to(ONE_PLACE);
+    let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    // Every place of the process's bound, taken by the control itself: no thread can start here, so no job of the pool
+    //  could hold one instead.
+    let held: Vec<tokio::sync::OwnedSemaphorePermit> = runtime.block_on(async {
+        let mut taken: Vec<tokio::sync::OwnedSemaphorePermit> = Vec::new();
+        while budget().places.available_permits() > 0 {
+            taken.push(Arc::clone(&budget().places).acquire_owned().await.expect("the bound lives as long as the process"));
+        }
+        return taken;
+    });
+    assert!(!held.is_empty(), "the control holds every place of the process's bound");
+    let ran: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&ran);
+    let answer: Result<u8, BlockingJobError> = runtime.block_on(async move {
+        return run_a_job_or_in_turn(flag, |flag: Arc<std::sync::atomic::AtomicBool>| {
+            flag.store(true, Ordering::SeqCst);
+            return 3_u8;
+        })
+        .await;
+    });
+    drop(held);
+    assert!(!ran.load(Ordering::SeqCst), "the work ran although no place came and no thread could start");
+    assert_eq!(
+        answer,
+        Err(BlockingJobError::NoPlaceWithinTheCeiling),
+        "a place no one freed within the ceiling is a place that never came, and not a job that was cancelled"
+    );
+}
+
+/// The share of the deadline the control of the fallback watches:
+/// a tenth of a second, which is far longer than an answer that does not run the work takes and far shorter than the
+/// blocking work the control's own step stands in for.
+const A_DEADLINE_INSIDE_THE_WORK: Duration = Duration::from_millis(100);
+
+/// The longest the control's own step stands in for a storage call that stopped answering:
+/// several times the deadline above, so the deadline is what is under test and not the work.
+const THE_STORAGE_CALL_THAT_STOPPED_ANSWERING: Duration = Duration::from_millis(300);
+
+/// The control's step in place of a storage call that does not return:
+/// it says it ran, then holds the thread it runs on, as a directory read or a removal that stopped on the disk does.
+/// Why:
+///  Whether that hold is on a task of the runtime is the whole question, and a step that returned at once could not ask it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aStorageCallThatStopped = (ran) => { ran.value = true; sleepSync(300); return true }
+/// ```
+fn a_storage_call_that_stopped_answering(ran: Arc<std::sync::atomic::AtomicBool>) -> bool {
+    ran.store(true, Ordering::SeqCst);
+    std::thread::sleep(THE_STORAGE_CALL_THAT_STOPPED_ANSWERING);
+    return true;
+}
+
+/// What:
+///  Where no thread can start, the storage call of the fallback runs nowhere, so a deadline around it can end it.
+/// Why:
+///  A call into storage must never be on a task a timer has to interrupt: a synchronous call cannot be polled through, so
+///  the timer around the task cannot fire until the call returns, and the slow lane's `LANE_LOOK_CEILING` could never end
+///  the look it abandoned (the review of `fc620ef950`, F4).
+///  The answer the callers already understand where a thread truly cannot be had is "no place now, look later", which is
+///  `NoPlaceWithinTheCeiling`, so the work does not run here at all.
+///  The control gives the process one place, which the fallback finds at once, so what it measures is only where the work
+///  runs; and it stands a hold of three times the deadline in for the storage call.
+/// The body runs in a child that is refused every thread.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const answer = await within(100, runAJob(storageCallThatStops)); expect(answer).toBe('noPlace'); expect(ran).toBe(false)
+/// ```
+#[test]
+fn a_deadline_around_a_refused_thread_can_end_it_because_the_work_never_runs_on_the_task() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_deadline_around_a_refused_thread_can_end_it_because_the_work_never_runs_on_the_task") {
+        return;
+    }
+    hold_blocking_jobs_to(ONE_PLACE);
+    let runtime: tokio::runtime::Runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a current-thread runtime");
+    let ran: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag: Arc<std::sync::atomic::AtomicBool> = Arc::clone(&ran);
+    let began: std::time::Instant = std::time::Instant::now();
+    let answer: Option<Result<bool, BlockingJobError>> = runtime.block_on(async move {
+        return tokio::time::timeout(A_DEADLINE_INSIDE_THE_WORK, run_a_job_or_in_turn(flag, a_storage_call_that_stopped_answering)).await.ok();
+    });
+    let waited: Duration = began.elapsed();
+    assert!(!ran.load(Ordering::SeqCst), "the storage call ran on the task the deadline was watching, so no deadline can ever end it");
+    assert_eq!(
+        answer,
+        Some(Err(BlockingJobError::NoPlaceWithinTheCeiling)),
+        "a thread the system refused is no place now, and the caller looks again later"
+    );
+    assert!(
+        waited < A_DEADLINE_INSIDE_THE_WORK,
+        "the call took {waited:?}, which is the deadline's whole width or more: something held the task the deadline is on"
+    );
+}
