@@ -259,12 +259,7 @@ fn queue_the_leaving_found(common_dir: &Path, work: &Path, path: &Path, id: u64,
     let leaving = match record_a_leaving_found_by_a_scan(common_dir, &item) {
         Ok(found) => found,
         Err(reason) => {
-            say_unproved(
-                common_dir,
-                path,
-                format!("it is the subvolume {id} this program renamed aside, and the record of its delete cannot be written ({reason})"),
-                answer,
-            );
+            say_not_queued(common_dir, path, id, format!("the record of its delete cannot be written ({reason})"), answer);
             return;
         }
     };
@@ -278,13 +273,31 @@ fn queue_the_leaving_found(common_dir: &Path, work: &Path, path: &Path, id: u64,
             forget_the_report(common_dir, path);
             answer.queued = true;
         }
-        Err(reason) => say_unproved(
-            common_dir,
-            path,
-            format!("it is the subvolume {id} this program renamed aside, and the delete that would remove it cannot be queued ({reason})"),
-            answer,
-        ),
+        Err(reason) => say_not_queued(common_dir, path, id, format!("the delete that would remove it cannot be queued ({reason})"), answer),
     }
+}
+
+/// What:
+///  Say that one place is this program's own leftover and its delete could not be queued,
+///  once,
+///  with the command that removes it.
+/// Why:
+///   A proof that something is this program's own still leaves the person with the space until a round can take the
+///  subvolume,
+///  so the line names the directory,
+///  what stood in the way of the queueing,
+///  and the command that removes it by hand.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// reportOnce(commonDir, path, `${SAID} ... is the subvolume ${id} this program renamed aside ... `btrfs subvolume delete ${path}` ...`, answer.said);
+/// ```
+fn say_not_queued(common_dir: &Path, path: &Path, id: u64, why: String, answer: &mut Leavings) {
+    let line: String = format!(
+        "{SAID} the subvolume {id} this program renamed aside stands at {named}, and {why}, so no round will delete it; `btrfs subvolume delete {named}` removes it by hand and frees the space it holds.",
+        named = path.display()
+    );
+    report_once(common_dir, path, line, &mut answer.said);
 }
 
 /// What:
