@@ -406,10 +406,10 @@ fn note(folder: &Path, kind: &str, pid: u32) -> std::io::Result<()> {
         true => birth_identity_of_a_process_that_may_have_ended(i64::from(pid)).ok().flatten(),
         false => process_birth_identity(i64::from(pid)).ok().flatten(),
     };
-    let Some(birth) = birth else {
+    let Some(found_birth) = birth else {
         return Err(std::io::Error::other("the identity of that process is unavailable"));
     };
-    let identity: String = identity_of_birth(birth.as_str());
+    let identity: String = identity_of_birth(found_birth.as_str());
     let mut made_again: bool = false;
     loop {
         match write_a_record_line_once(folder, path.as_path(), kind, pid, identity.as_str(), writer.as_str()) {
