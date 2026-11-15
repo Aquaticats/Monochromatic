@@ -210,10 +210,10 @@ fn the_sweep_ends_a_service_that_takes_connections_and_greets_nothing() {
     // What a note that proves nothing leaves the sweep saying: it says so, and never that the instance was stopped.
     let second: PathBuf = machine("sweep-silent-unproven");
     let second_socket: PathBuf = socket_path(second.as_path(), instance);
-    let service = std::os::unix::net::UnixListener::bind(second_socket.as_path()).expect("the service's address");
-    let folders: UnitFolders<'_> = UnitFolders { runtime_dir: second.as_path(), state_dir: None };
-    let refused: Result<(), String> = stop_units(&folders, instance);
-    drop(service);
+    let second_service = std::os::unix::net::UnixListener::bind(second_socket.as_path()).expect("the second service's address");
+    let second_folders: UnitFolders<'_> = UnitFolders { runtime_dir: second.as_path(), state_dir: None };
+    let refused: Result<(), String> = stop_units(&second_folders, instance);
+    drop(second_service);
     assert!(refused.is_err(), "a service nothing proves is not reported as stopped: {refused:?}");
 }
 

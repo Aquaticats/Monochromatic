@@ -62,3 +62,19 @@ fn what_is_remembered_is_read_and_a_file_that_is_not_a_record_names_nothing() {
     assert_eq!(read_recorded_git(long.as_path()), None);
     remove(root.as_path());
 }
+
+/// What:
+///  A Git whose path is not text is remembered and read back as itself.
+/// Why:
+///  What the record held was written as text (`Path::display`), which loses every byte that is not UTF-8, so the fallback
+///  named a place that does not exist (the review of `b896c60d97`, finding 6).
+#[test]
+fn a_git_whose_path_is_not_text_is_remembered_as_itself() {
+    let root: PathBuf = fixture("record-bytes");
+    let git: PathBuf = root.join(std::ffi::OsStr::from_bytes(b"bin\xff/git"));
+    std::fs::create_dir_all(git.parent().expect("the folder of the program")).expect("bin");
+    std::fs::write(&git, "# a program").expect("a program");
+    super::remember(root.as_path(), git.as_path()).expect("the note is written");
+    assert_eq!(read_recorded_git(record_file(root.as_path()).as_path()), Some(git.clone()), "the path is read back as the bytes it has");
+    remove(root.as_path());
+}

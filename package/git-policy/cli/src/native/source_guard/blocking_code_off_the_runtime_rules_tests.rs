@@ -440,11 +440,6 @@ pub(super) const ALLOWED: &[Allowed] = &[
               the job holds 250 ms. The entry goes with the control that sets that hold",
     },
     Allowed {
-        file: "service/service_is_gone_after_a_stop.rs",
-        rule: "blocking-sleep",
-        why: "the pause between looks at a stopped service's end, on the synchronous sweep and removal commands, which build no runtime",
-    },
-    Allowed {
         file: "service/service_client.rs",
         rule: "blocking-sleep",
         why: "the client's pause between connects, on the synchronous commit command",
