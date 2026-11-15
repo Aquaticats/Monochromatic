@@ -7,21 +7,29 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **20** agents run on this machine at once since 2026-11-15T00:32:16-05:00.
+At most **18** agents run on this machine at once since 2026-11-15T00:50:55-05:00.
 Level twenty-four failed its criterion at 00:31:09
 (the home drive's write-and-sync took 14,892 ms and then 7,722 ms,
 with 23 agents going and `snapper-cleanup.service` running since 00:00:11),
-and the rule under "What counts as the ceiling" gives twenty.
+and the rule under "What counts as the ceiling" gave twenty;
+level twenty failed at 00:44:03
+(6,277 ms and then 21,599 ms,
+20 agents going,
+the cleanup still running),
+and the same rule gives eighteen.
 No run that was going is stopped;
-nothing new starts until fewer than twenty are going.
-The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-20-20261115T003216`
+nothing new starts until fewer than eighteen are going.
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-18-20261115T005055`
 (eight hours)
-and the probe `disk-ceiling-probe-level-20-20261115T003216`.
-Should twenty fail,
-the same rule gives eighteen.
+and the probe `disk-ceiling-probe-level-18-20261115T004453`.
+Should eighteen fail,
+the same rule gives seventeen and then sixteen,
+the last level that held,
+and the cap goes no lower than sixteen without the owner.
 Not final and not approved;
 the readings are under
-"Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00".
+"Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00" and
+"Level 20 fails twelve minutes after it began, the cleanup still running, 2026-11-15T00:32:17-05:00 to 00:50:55-05:00".
 What stood before:
 at most 24 agents ran at once from 2026-11-14T08:54:33-05:00,
 by the owner's answer of that morning
@@ -1088,3 +1096,42 @@ of `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/`.
   whether the cap returns to twenty-four once the cleanup has ended is the owner's to say
   and is kept in `doc/handover/cli-git-rust-implementation.md`,
   "Questions kept for the owner's return".
+
+#### Level 20 fails twelve minutes after it began, the cleanup still running, 2026-11-15T00:32:17-05:00 to 00:50:55-05:00
+
+Not final and not approved:
+the twelve readings of level twenty,
+taken by the coordinating session from the same file.
+
+- **Level twenty fails at 00:44:03**:
+  the home drive took 2,198 ms at 00:41:54,
+  6,277 ms at 00:42:57
+  and 21,599 ms at 00:44:03,
+  with 20 agents going at all three.
+  Earlier in the same twelve minutes it took 8,480 ms at 00:33:17 and 21,214 ms at 00:35:25,
+  with 22 going,
+  each followed by a reading of one millisecond.
+  The build drive took 6 to 13 ms throughout.
+  `snapper-cleanup.service` was still running at 00:44:34.
+- **The stalls came with low I/O pressure, not high**:
+  the kernel's `some` pressure over ten seconds read 0.27 to 0.45 percent at the three last readings
+  and 2 to 3 percent at the two earlier slow ones,
+  against 5 to 12 percent at the fast readings between.
+  So little was waiting on the drive when a write-and-sync took its longest,
+  which fits a drive or a filesystem that stops answering for a stretch
+  better than agents queueing writes behind each other.
+  That is a reading of twelve lines,
+  not a cause shown.
+- **What was done**:
+  the probe was started at level eighteen at 00:44:53.
+  The filling unit was restarted at eighteen at 00:50:55,
+  six minutes later than the probe:
+  the restart script looks for the moment between two of the unit's rounds by the age of its last journal line,
+  and a unit with no free place to fill writes none,
+  so its first try gave up after six minutes with nothing stopped.
+  The script now reads the unit's control group when the journal is silent
+  (one process there is the unit asleep).
+  In those six minutes the unit at level twenty started nothing,
+  since twenty were going.
+  20 agents were going at 00:45:45;
+  none was stopped.

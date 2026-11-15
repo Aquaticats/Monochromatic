@@ -738,15 +738,27 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
-- Added 2026-11-15T00:34:22-05:00,
+- Added 2026-11-15T00:51:24-05:00,
+  from the eighth review of the guard on discarding commands,
   not blocking work:
-  the cap on agents went from 24 to 20 at 00:32:16,
+  a file or a nested repository that another process makes after the guard's last look and before Git starts is not seen
+  (two findings,
+  read and not run).
+  The coordinating session dismissed both as a limit to state in the SPEC,
+  since the rule is about what the typed command would destroy when it is asked.
+  Is a stated limit right there,
+  or is that window to be closed?
+- Added 2026-11-15T00:34:22-05:00 and amended 00:51:24,
+  not blocking work:
+  the cap on agents went from 24 to 20 at 00:32:16 and from 20 to 18 at 00:50:55,
   by the rule,
-  when the home drive stalled twice in a row forty minutes into the nightly snapshot cleanup
+  when the home drive stalled twice in a row during the nightly snapshot cleanup,
+  at each level
   (`doc/handover/agents-at-once-on-this-machine.md`).
   Does the cap go back to 24 once the cleanup has ended,
-  or stay at 20 until the new drive is in?
-  Until an answer it stays at 20.
+  or stay where the rule left it until the new drive is in?
+  Until an answer it stays where the rule left it,
+  and never under 16.
 - Added 2026-11-14T23:58:21-05:00,
   from two authors' reports of that hour,
   none blocking work:
@@ -1404,6 +1416,103 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The cap steps down again, to 18; the discarding guard's eighth review goes to a fresh run, and the brief writer for every kind of code file back to its author (2026-11-15T00:51:24-05:00)
+
+Not final and not approved:
+what the probe and two reviews report,
+how the coordinating session weighed them,
+and what it did.
+
+- **The cap is 18 since 00:50:55.**
+  The probe ended level 20 at 00:44:03 on two home-drive readings in a row over five seconds
+  (6,277 ms and 21,599 ms,
+  20 agents going,
+  the snapshot cleanup still running).
+  The probe runs at 18 since 00:44:53,
+  the filling unit as `fill-free-places-and-put-ended-reviews-back-at-level-18-20261115T005055`
+  (ends about 08:50).
+  The restart script's first try stopped nothing and gave up,
+  because it reads the age of the unit's last journal line and an idle unit writes none;
+  it is corrected to read the unit's control group then.
+  No going run was stopped.
+  The stalls came at the readings with the lowest I/O pressure;
+  readings and limits are in `doc/handover/agents-at-once-on-this-machine.md`.
+- **The guard on discarding commands** (`0b67e7ccae`),
+  its eighth review,
+  ended 00:38:24,
+  34 of 34 files,
+  fourteen things,
+  ten of them by a script beside a control run of real Git:
+  - five where the guard reads a word as an option and Git reads it as the value of the option before
+    (`restore -s -h`;
+    pathspec files named `--no-force`,
+    `--no-sparse` and `--staged`;
+    the clean's dry run counting `-f` across a `--no-force`,
+    which moves aside a repository Git would keep);
+  - two where a path written with `./` misses the listing it is compared with
+    (`mv -f`,
+    `checkout-index --prefix`);
+  - two where an edit under `skip-worktree` is not asked about
+    (the pathspec-file forms,
+    the destination of a forced `mv`);
+  - a bare repository with a dangling `HEAD` that the clean does not see;
+  - a pathspec file that is a FIFO,
+    read by the guard and then waited on by Git for good;
+  - a rollback that takes any `ENOENT` for a source that is gone
+    (read,
+    its probe build did not finish);
+  - two windows between the guard's last look and Git's start
+    (read).
+- **Weighed**:
+  twelve are worth their fix.
+  The two windows are dismissed as a limit the SPEC is to state,
+  since the project's rule is to refuse a command by what it would destroy when asked
+  (`package/git-policy/cli/SPEC.md`,
+  "What never discarding a person's data means");
+  that dismissal is kept as a question for the owner.
+  Most of the twelve are one cause at many places,
+  and the review before found the same kind at other options,
+  so the answer asked for is one reading of a command line from Git's own option tables,
+  one spelling of a path,
+  one question about what a written path would lose,
+  and a pathspec file read once;
+  these are this session's suggestion in the brief and are labelled so.
+- **Adopted, open to veto**:
+  the author,
+  after nine runs,
+  is not resumed;
+  a fresh run takes the branch over from its tip
+  (`~/temp/agent/pi-runs/discarding-guard-reads-a-command-line-and-a-path-as-git-does-finished-in-a-fresh-run-prompt.md`,
+  queued eighth,
+  base `0b67e7ccae`).
+  The brief also asks which record decides that a clean moves a nested repository aside,
+  where the rule's words are that the wrapper moves nothing aside;
+  this session did not find that record tonight and did not search for it.
+- **The review-brief writer for every kind of code file** (`e759dd56fc`),
+  its second review,
+  ended 00:38:05,
+  six of six files,
+  three things reproduced:
+  a Markdown note beside a changed test makes the writer return nothing to review,
+  so the test gets no review;
+  a fixture of a kind no list holds takes the code path and the changed test is left out of the brief;
+  a path Git quotes
+  (`core.quotePath`,
+  a non-ASCII name)
+  is listed with its quotes and escapes and names no file.
+  All weighed as worth their fix;
+  no record decides that a note beside a test refuses the review.
+  The author is resumed
+  (`~/temp/agent/pi-runs/review-brief-writer-for-every-kind-of-code-file-answers-its-second-review-of-2026-11-15-prompt.md`,
+  queued seventh).
+- Read at 00:42:25:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 75 entries at 00:45:37.
 
 ##### The cap steps down to 20 after two stalls in a row on the home drive; the drawn tree and mpm-shadow's install go back to their authors (2026-11-15T00:34:22-05:00)
 
