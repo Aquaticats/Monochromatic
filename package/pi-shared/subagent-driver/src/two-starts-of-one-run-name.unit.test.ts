@@ -39,7 +39,9 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   BASE_OF_A_RUN_NAMING_NONE,
+  type CommandOutput,
   type GitRunner,
+  WorktreeTakenError,
   makeWorktree,
 } from '../dist/final/node/index.mjs';
 
@@ -72,6 +74,11 @@ const SUMMARY_FILE_NAME = 'summary.json';
  Seconds a launcher may take before the test calls it a launch that never ended.
  */
 const PATIENCE_SECONDS = 60;
+
+/**
+ The code the operating system gives a path that is not there.
+ */
+const MISSING_PATH_CODE = 'ENOENT';
 
 /**
  `execFile` with a promise result, typed through Node's own adapter contract.
@@ -374,17 +381,20 @@ function runFolderNamedIn(output: string,): string {
    */
   const after = output.slice(label + RUN_FOLDER_LABEL.length,);
   /**
-   That line, without whatever the launcher prints after the folder.
+   That line.
    */
   const line = after.split(
     '\n',
     1,
   )[0] ?? '';
-  return line.replace(
-    /;.*$/,
-    '',
-  )
-    .trim();
+  /**
+   Where the line stops naming the folder, which is the semicolon before the worktree it also names.
+   */
+  const end = line.indexOf(';',);
+  return ((end === (-1)) ? line : line.slice(
+    0,
+    end,
+  )).trim();
 }
 
 /**
@@ -415,8 +425,12 @@ async function summaryIn({
       SUMMARY_FILE_NAME,
     ), 'utf8',);
   }
-  catch {
-    return '';
+  catch (error) {
+    // A folder whose run wrote no summary answers with empty text, which no summary of a run that wrote one can be.
+    if ((error as NodeJS.ErrnoException).code === MISSING_PATH_CODE) {
+      return '';
+    }
+    throw error;
   }
 }
 
@@ -454,23 +468,33 @@ await describe({
           .filter(function isARunFolder(entry,) {
             return entry.startsWith(`${RUN_NAME}-`,);
           },)
-          .sort();
+          .toSorted();
         expect(runFolders,).toEqual([
           `${RUN_NAME}-1`,
           `${RUN_NAME}-2`,
         ],);
-        for (const one of started) {
+        /**
+         The folder each start's own line named, and what that folder's summary says.
+         */
+        const namedAndWritten = await Promise.all(started.map(async function namedByItsLine(one,) {
           /**
            The folder this start's own line named.
            */
           const named = basename(runFolderNamedIn(one.output,),);
+          return {
+            startId: one.startId,
+            named,
+            summary: await summaryIn({
+              runsFolder: fixture.runs,
+              folder: named,
+            },),
+          };
+        },),);
+        for (const one of namedAndWritten) {
           // A start writes into the folder its own line names, which is one of the two folders of this name.
-          expect(runFolders,).toContain(named,);
+          expect(runFolders,).toContain(one.named,);
           // The summary in that folder is this start's own: a folder both starts wrote into would hold one of the two at most.
-          expect(await summaryIn({
-            runsFolder: fixture.runs,
-            folder: named,
-          },),).toContain(`"startId":"${one.startId}"`,);
+          expect(one.summary,).toContain(`"startId":"${one.startId}"`,);
         }
         expect(runFolderNamedIn(started[0]?.output ?? '',),).not.toBe(runFolderNamedIn(started[1]?.output ?? '',),);
         /**
@@ -485,7 +509,7 @@ await describe({
       },
     },),
     it({
-      name: 'leaves a worktree another start made in place when its own first attempt at making one ended, and uses it as it is',
+      name: 'leaves a worktree another start made exactly as it is when that worktree holds work this start did not make, and fails saying so',
       fn: async () => {
         await using folder = await makeFolder();
         /**
@@ -514,8 +538,12 @@ await describe({
         const seen: { firstAdd: boolean } = { firstAdd: false, };
         /**
          A git whose first add ends without making a worktree, and which answers the branch as a branch a killed attempt made.
+
+         @param request - the question git is asked
+
+         @returns what git answers it
          */
-        const git: GitRunner = async function gitIn({ words, },) {
+        async function gitIn({ words, }: Parameters<GitRunner>[0],): Promise<CommandOutput> {
           asked.push([...words,],);
           const isAdd = (words[0] === 'worktree') && (words[1] === 'add');
           if (isAdd && (!seen.firstAdd)) {
@@ -559,6 +587,16 @@ await describe({
             };
           }
           /**
+           What the worktree holds, which is the other start's uncommitted file and nothing else.
+           */
+          if ((words[0] === 'status') && (words[1] === '--porcelain')) {
+            return {
+              status: 0,
+              stdout: `?? ${basename(otherStartsWork,)}\n`,
+              stderr: '',
+            };
+          }
+          /**
            A pruning of the registration a killed add may have left, and every later add, which makes the worktree.
            */
           return {
@@ -566,23 +604,93 @@ await describe({
             stdout: '',
             stderr: '',
           };
-        };
+        }
         /**
-         The line the launcher prints for this step.
+         What making the worktree answered, which is a refusal because the worktree holds work this start did not make.
          */
-        const note = await makeWorktree({
-          git,
-          checkoutFolder: folder.path,
-          worktree,
-          branch: 'feat/shared',
-          base: BASE_OF_A_RUN_NAMING_NONE,
-        },);
+        const refused: { caught?: unknown } = {};
+        try {
+          await makeWorktree({
+            git: gitIn,
+            checkoutFolder: folder.path,
+            worktree,
+            branch: 'feat/shared',
+            base: BASE_OF_A_RUN_NAMING_NONE,
+          },);
+        }
+        catch (error) {
+          refused.caught = error;
+        }
         // Nothing this start asks git for is a removal: the path holds the worktree another start of this name made.
         expect(asked.filter(function isARemoval(words,) {
           return words.includes('remove',);
         },),).toEqual([],);
         expect(await readFile(otherStartsWork, 'utf8',),).toContain('has not committed',);
-        expect(note,).toContain('already there',);
+        expect(refused.caught,).toBeInstanceOf(WorktreeTakenError,);
+        expect(String(refused.caught,),).toContain('left exactly as it is',);
+        expect(String(refused.caught,),).toContain('nothing was removed',);
+      },
+    },),
+    it({
+      name: 'uses a worktree that holds nothing uncommitted as it is, which is what its own killed attempt leaves',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The worktree path both starts of this name would use.
+         */
+        const worktree = join(
+          folder.path,
+          '.claude',
+          'worktrees',
+          `pi-${RUN_NAME}`,
+        );
+        /**
+         What git was asked, each question as it was asked.
+         */
+        const asked: string[][] = [];
+        /**
+         Whether the attempt that ended has been seen yet.
+         */
+        const seen: { firstAdd: boolean } = { firstAdd: false, };
+        /**
+         A git whose first add ends without making a worktree while a worktree with nothing uncommitted stands there.
+
+         @param request - the question git is asked
+
+         @returns what git answers it
+         */
+        async function gitIn({ words, }: Parameters<GitRunner>[0],): Promise<CommandOutput> {
+          asked.push([...words,],);
+          if ((words[0] === 'worktree') && (words[1] === 'add') && (!seen.firstAdd)) {
+            seen.firstAdd = true;
+            await mkdir(join(
+              worktree,
+              '.git',
+            ), { recursive: true, },);
+            return {
+              status: 1,
+              stdout: '',
+              stderr: 'this attempt ended before it made a worktree',
+            };
+          }
+          return {
+            status: 0,
+            stdout: '',
+            stderr: '',
+          };
+        }
+        expect(await makeWorktree({
+          git: gitIn,
+          checkoutFolder: folder.path,
+          worktree,
+          branch: 'feat/shared',
+          base: BASE_OF_A_RUN_NAMING_NONE,
+        },),).toContain('already there and holding nothing uncommitted',);
+        // Nothing is removed and nothing else is asked for: the worktree is there and holds nothing anybody wrote.
+        expect(asked.filter(function isARemoval(words,) {
+          return words.includes('remove',);
+        },),).toEqual([],);
+        expect(asked.at(-1),).toEqual(['status', '--porcelain',],);
       },
     },),
   ],

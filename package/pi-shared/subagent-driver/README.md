@@ -284,8 +284,11 @@ or start a run it would refuse.
   a review names the commit it reviews.
 - `--run`:
   the run folder's number.
-  Without it the next number no folder of that name holds is taken,
-  so a restart never writes over an earlier run's summary.
+  A run folder is claimed by making it,
+  so one number belongs to one start:
+  without `--run` the next free number is taken,
+  and a number named here that another start already holds refuses the launch
+  rather than writing over that run's summary.
 - `--turn-cap`:
   how many model turns the run may start.
   Without it the cap is a quarter above the longest finished run of the same kind,
@@ -303,8 +306,16 @@ and a branch that already exists is added as it is,
 keeping its own commits,
 because moving it would rewrite work someone else may be reading;
 the line the launcher prints says which of the two it did.
-A `git worktree add` killed by its own bound is cleared and tried once more,
-and when both attempts fail the branch the first one made is removed too:
+A `git worktree add` killed by its own bound is tried once more:
+the retry prunes the registration the killed attempt may have left,
+and a path that already holds a worktree is used only when that worktree holds nothing uncommitted,
+which is what its own killed attempt leaves and what the next start of the name would do with it.
+A worktree holding work this start did not make is left exactly as it is and the start fails saying so,
+because a start of the same name makes that path on that branch too:
+working in it would work in another start's uncommitted work,
+and removing it would delete that work.
+Nothing on this path removes a folder.
+When both attempts fail the branch the first one made is removed too:
 whoever makes a thing cleans it up,
 and `git branch --delete`, never the forced form, is what decides,
 so a branch holding anything unmerged stays and the line that says the start failed names it.
@@ -381,8 +392,9 @@ Now the launcher waits for that work,
 at most the run's own wall clock,
 then resumes the agent's session with a short note naming what it left running,
 at most five wakes per run name.
-A resumed run gets a folder number of its own,
-so it never writes over the summary the first run wrote.
+A resumed run claims a folder number of its own,
+so it never writes over the summary the first run wrote:
+the number is dropped from the resumed words whether the first launch wrote `--run=<number>` or `--run <number>`.
 
 A process counts as the run's own work only when its working folder is the run's worktree or run folder,
 or when one whole path component of that folder is the run's own name.

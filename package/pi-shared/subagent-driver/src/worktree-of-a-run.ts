@@ -5,7 +5,9 @@
  The owner, 2026-11-10: "You're the coordinator and you're supposed to remove finished worktrees automatically." A worktree
  added on btrfs is a snapshot of `main`, so it keeps every file `main` held when it was taken, build folders included: finished
  worktrees left in place filled the disk. The wrapper's `git worktree remove` refuses a worktree holding uncommitted work unless
- it is forced, and this never forces.
+ it is forced, and this never forces. Nothing here removes a folder at all: a retry after a killed `git worktree add` prunes the
+ registration that attempt may have left and asks git again, so the only thing that ever goes is a registration whose worktree is
+ not there.
 
  @module
  */
@@ -58,8 +60,9 @@ const MILLISECONDS_PER_MINUTE = 60_000;
 export const WORKTREE_ADD_TIMEOUT_MILLISECONDS: number = WORKTREE_ADD_MINUTES * MILLISECONDS_PER_MINUTE;
 
 /**
- How many times one start tries to make its worktree. A first attempt killed by its own bound leaves a partly made worktree and
- a registered path behind, so the next attempt starts by clearing what this start made, and one kill does not lose the run.
+ How many times one start tries to make its worktree. A first attempt killed by its own bound can leave the path registered before
+ it ended, so the next attempt starts by asking git to prune a registration whose worktree is not there, and one kill does not
+ lose the run. A path that holds a worktree is used as it is instead, so nothing another start may have made is removed.
  */
 const WORKTREE_ADD_ATTEMPTS = 2;
 
@@ -79,6 +82,20 @@ export class WorktreeFolderOccupiedError extends Error {
    The name printed with the message.
    */
   override readonly name = 'WorktreeFolderOccupiedError';
+}
+
+/**
+ The path a run's worktree belongs at holds a worktree with work nobody here made, so this start leaves it exactly as it is.
+
+ This is the second start of one run name meeting the worktree the first one made, or a killed attempt of this start leaving a
+ partly made worktree behind. Neither is this start's to use or to remove: a worktree one start works in holds work that start has
+ not committed, and a removal would take it.
+ */
+export class WorktreeTakenError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'WorktreeTakenError';
 }
 
 /**
@@ -152,6 +169,28 @@ export type WorktreeOutcome =
      Nothing is done and nothing is said: the run works in the checkout itself.
      */
       readonly action: 'keep-quietly';
+    };
+
+/**
+ What asking git for a run's worktree came to.
+ */
+type WorktreeAttempt =
+  | {
+    /**
+     What git answered to the attempt that ended the loop.
+     */
+    readonly kind: 'an-attempt-answered';
+
+    /**
+     The answer that attempt gave.
+     */
+    readonly answered: CommandOutput;
+  }
+    | {
+    /**
+     A worktree stood at the path holding nothing uncommitted, so it is used as it is instead of an attempt being made.
+     */
+      readonly kind: 'a-worktree-stood-there';
     };
 
 /**
@@ -267,20 +306,24 @@ export async function makeWorktree({
   },);
 
   /**
-   Makes the worktree, and clears what a killed attempt left before the next one.
+   Makes the worktree, and asks git again after an attempt that ended without making one.
 
-   @returns what git answered to the attempt that ended the loop
+   Nothing here removes anything. An attempt killed by its own bound leaves either no folder, an empty folder, or a registration
+   behind, and `git worktree prune` clears a registration whose worktree is not there, which is git's own housekeeping and takes no
+   folder with it. A path that holds a worktree is a worktree this run works in as it is: another start of this name makes the same
+   path on the same branch, so removing it would delete whatever that start has not committed yet.
 
-   @throws GitCommandFailedError when every attempt failed, which cannot happen because the last one returns its answer
+   @returns what came of the attempts: git's own answer to the attempt that ended the loop, or the word that a worktree stood
+   there in place of an attempt
 
    @example
    ```ts
-   const added = await addTheWorktree();
+   const made = await addTheWorktree();
    ```
    */
-  async function addTheWorktree(): Promise<CommandOutput> {
-    /* oxlint-disable eslint/no-await-in-loop -- one attempt, then the clearing of what it left, then the next attempt: the
-       second attempt depends on the first having ended. See doc/lint/sequential-awaits.md. */
+  async function addTheWorktree(): Promise<WorktreeAttempt> {
+    /* oxlint-disable eslint/no-await-in-loop -- one attempt, then what it left cleared, then the next attempt: the second attempt
+       depends on the first having ended. See doc/lint/sequential-awaits.md. */
     for (let attempt = 1; attempt <= WORKTREE_ADD_ATTEMPTS; attempt += 1) {
       // Asked again on each attempt: an attempt killed after `-b` made the branch leaves it there, and the next attempt must
       // take that branch rather than fail on a name that already exists.
@@ -317,19 +360,51 @@ export async function makeWorktree({
         timeoutMilliseconds: WORKTREE_ADD_TIMEOUT_MILLISECONDS,
       },);
       if ((attempted.status === 0) || (attempt === WORKTREE_ADD_ATTEMPTS)) {
-        return attempted;
+        return {
+          kind: 'an-attempt-answered',
+          answered: attempted,
+        };
       }
-      // A failed add may have made the folder and registered the path before its bound killed it. Both are this start's own,
-      // because the folder held no worktree when this began, so they are cleared and the attempt is made again.
+      // A path that holds a worktree may hold another start's: a start of this name makes this path on this branch too, and the
+      // attempt that just ended left the window open for one to take it. A worktree holding nothing uncommitted is used as it is,
+      // which is what the next start of this name would do with it; one holding work somebody wrote is left exactly as it is,
+      // because using it would work in another start's uncommitted work and removing it would delete that work.
+      if (await isThere(join(
+        worktree,
+        '.git',
+      ),)) {
+        /**
+         What git answered about what the worktree holds.
+         */
+        const held = await git({
+          folder: worktree,
+          words: [
+            'status',
+            '--porcelain',
+          ],
+        },);
+        /**
+         What the worktree holds, as git listed it, which is empty for a worktree nobody has written in yet.
+         */
+        const heldText = held.stdout
+          .trim();
+        if ((held.status !== 0) || (heldText !== '')) {
+          throw new WorktreeTakenError(
+            `${worktree} holds a worktree that cannot be shown to hold nothing uncommitted (git status ${String(held.status,)}: ${heldText}), after this start's attempt at making one ended without it, so it was left exactly as it is and nothing was removed. Another start of this run's name may have made it, or this start's own killed attempt may have left it partly made. Look at what it holds, and start this run again once it holds nothing uncommitted.`,
+          );
+        }
+        return { kind: 'a-worktree-stood-there', };
+      }
+      // A killed add may have registered the path before it ended. Pruning clears such a registration, and it takes no folder and
+      // no file with it: what is left in the folder is still there for the attempt that follows to answer about.
       await git({
         folder: checkoutFolder,
         words: [
           'worktree',
-          'remove',
-          '--force',
-          worktree,
+          'prune',
+          '--expire=now',
         ],
-        // Removing what a killed add left is the same copy the add was making, so it gets the same bound.
+        // Pruning reads every worktree of the repository, so it gets the same bound as the add it follows.
         timeoutMilliseconds: WORKTREE_ADD_TIMEOUT_MILLISECONDS,
       },);
     }
@@ -338,9 +413,16 @@ export async function makeWorktree({
     throw new GitCommandFailedError(`git worktree add was attempted ${String(WORKTREE_ADD_ATTEMPTS,)} times for ${worktree}, which is no number of attempts`,);
   }
   /**
+   What git answered about making the worktree, which is nothing when a worktree stood there instead.
+   */
+  const made = await addTheWorktree();
+  if (made.kind === 'a-worktree-stood-there') {
+    return 'worktree: already there and holding nothing uncommitted, so it is used as it is (the attempt before this one ended without making a worktree, and a worktree stood at that path, which another start of this name may have made)';
+  }
+  /**
    What git answered about making the worktree.
    */
-  const added = await addTheWorktree();
+  const added = made.answered;
   if (added.status !== 0) {
     /**
      What became of the branch this start made, which a killed attempt left behind.

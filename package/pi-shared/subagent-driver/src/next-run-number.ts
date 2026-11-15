@@ -1,6 +1,9 @@
 /**
- The number of a run's folder. A run that reuses one writes over the summary of the run before it, so the folder is always a
- number nothing in the runs folder holds.
+ The number a run's folder starts being looked for at: one after the highest number any folder of that name holds.
+
+ A number read from a listing is no reservation of its own, so the folder is claimed by making it, which `claim-a-run-folder.ts`
+ does and which answers the number this start actually holds. A run that reused another's number would write over that run's
+ summary, and 16 reports of 2026-08-11 were written over before they were recovered from their sessions.
 
  @module
  */

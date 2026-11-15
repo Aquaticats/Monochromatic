@@ -36,6 +36,20 @@ and the tests use one per wait inside a polling loop.
   One command has to stay up while the runs work,
   and each look reads the whole finished corpus,
   so a promise per look would read that corpus many times at once and separate the waits from the deadline that bounds them.
+- Claiming a run folder (`src/claim-a-run-folder.ts`):
+  one `mkdir`,
+  then the number after it,
+  then the next `mkdir`.
+  Which number is free is what that claim's own answer says,
+  and two claims taken at once would be two owners of one folder.
+  Each turn asks for a number one higher than the last,
+  so the loop reads nothing it has not just tried.
+- Making a worktree (`src/worktree-of-a-run.ts`):
+  one `worktree add`,
+  then the pruning of the registration a killed add may have left,
+  then the add after it.
+  Whether the second add is needed turns on how the first ended,
+  which is known only after it has ended.
 - The test polling helpers (`src/drive-pi-subagent.unit.test.ts`,
   `src/connection-to-pi.unit.test.ts`,
   `src/record-of-pi-run.unit.test.ts`):

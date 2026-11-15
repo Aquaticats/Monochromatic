@@ -338,6 +338,30 @@ await describe({
             ],);
           },
         },),
+        it({
+          name: 'drops the prompt, the session and the run number written with their values in the words after them, which the parser reads as one option either way',
+          fn: async () => {
+            expect(wakeResumeWordsOf({
+              commandLine: [
+                '--name=a',
+                '--prompt',
+                '/runs/a-prompt.md',
+                '--run',
+                '5',
+                '--session',
+                '/sessions/old.jsonl',
+                '--runs-folder=/runs',
+              ],
+              wakePrompt: '/runs/a-2/wake-prompt.md',
+              sessionFile: '/sessions/new.jsonl',
+            },),).toEqual([
+              '--name=a',
+              '--runs-folder=/runs',
+              '--prompt=/runs/a-2/wake-prompt.md',
+              '--session=/sessions/new.jsonl',
+            ],);
+          },
+        },),
       ],
     },),
     describe({

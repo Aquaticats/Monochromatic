@@ -12,11 +12,6 @@
 
 import { spawn, } from 'node:child_process';
 import {
-  mkdir,
-  readdir,
-} from 'node:fs/promises';
-import { join, } from 'node:path';
-import {
   argv,
   env,
 } from 'node:process';
@@ -26,10 +21,10 @@ import {
   StartRefusedError,
   startRefusalsIn,
 } from './checks-before-a-start.ts';
+import { claimRunFolder, } from './claim-a-run-folder.ts';
 import { finishTheRun, } from './finish-a-run.ts';
 import { gitRunnerOf, } from './git-command.ts';
 import { refuseUnlessTheWrapperAnswersGit, } from './git-wrapper-preflight.ts';
-import { nextRunNumber, } from './next-run-number.ts';
 import {
   NO_WORKTREE_BRANCH,
   WORKTREE_LAUNCHER_USAGE,
@@ -105,22 +100,6 @@ const worktree = readOnlyInMain
     checkoutFolder: options.checkoutFolder,
     runName: options.name,
   },);
-
-/**
- The number the run's folder takes: the one the caller named, or the next number no folder of this name holds.
- */
-const runNumber = options.runNumber ?? nextRunNumber({
-  runName: options.name,
-  entries: await readdir(options.runsFolder,),
-},);
-
-/**
- Where the driver writes this run.
- */
-const runFolder = join(
-  options.runsFolder,
-  `${options.name}-${String(runNumber,)}`,
-);
 
 /**
  Waits between two looks at the unit's state, which is what keeps this command up while the run works.
@@ -262,10 +241,14 @@ if (!readOnlyInMain) {
   console.log(`dependencies: status ${String(linked.status,)}`,);
 }
 
-await mkdir(
-  runFolder,
-  { recursive: true, },
-);
+/**
+ Where the driver writes this run, claimed by making it: a folder another start of this name holds is never written into.
+ */
+const { runFolder, } = await claimRunFolder({
+  runsFolder: options.runsFolder,
+  runName: options.name,
+  ...(options.runNumber === undefined ? {} : { wantedNumber: options.runNumber, }),
+},);
 
 /**
  How many model turns the run may start.

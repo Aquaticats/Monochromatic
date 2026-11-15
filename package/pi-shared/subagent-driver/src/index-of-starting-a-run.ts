@@ -108,6 +108,11 @@ export {
 } from './session-file-of-a-run.ts';
 export { nextRunNumber, } from './next-run-number.ts';
 export {
+  type ClaimedRunFolder,
+  RunFolderTakenError,
+  claimRunFolder,
+} from './claim-a-run-folder.ts';
+export {
   launcherEndedLineOf,
   unitStateNow,
 } from './the-line-a-launcher-ends-with.ts';
@@ -171,6 +176,7 @@ export {
   GitCommandFailedError,
   type WorktreeOutcome,
   WorktreeFolderOccupiedError,
+  WorktreeTakenError,
   branchExists,
   WORKTREE_ADD_TIMEOUT_MILLISECONDS,
   makeWorktree,

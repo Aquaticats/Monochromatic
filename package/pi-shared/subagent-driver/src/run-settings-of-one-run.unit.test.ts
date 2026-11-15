@@ -8,6 +8,7 @@
 import {
   mkdir,
   mkdtemp,
+  readdir,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -36,6 +37,8 @@ import {
   finishedTurnsIn,
   kindOfRun,
   WORKTREE_ADD_TIMEOUT_MILLISECONDS,
+  RunFolderTakenError,
+  claimRunFolder,
   makeWorktree,
   nextRunNumber,
   parseWorktreeLauncherOptions,
@@ -156,6 +159,116 @@ await describe({
               runName: 'copy',
               entries: ['copy-route-4',],
             },),).toBe(1,);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: claimRunFolder.name,
+      children: [
+        it({
+          name: 'makes the runs folder when it is not there, and claims the first free number of the run',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The runs folder, which no run has written into yet.
+             */
+            const runsFolder = join(
+              folder.path,
+              'runs',
+            );
+            expect(await claimRunFolder({
+              runsFolder,
+              runName: 'copy-route',
+            },),).toEqual({
+              runNumber: 1,
+              runFolder: join(
+                runsFolder,
+                'copy-route-1',
+              ),
+            },);
+            expect((await readdir(runsFolder,)).toSorted(),).toEqual(['copy-route-1',],);
+          },
+        },),
+        it({
+          name: 'gives two starts of one name that read the runs folder at the same instant a folder each, the one that loses taking the number after it',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The runs folder both starts list before either makes its folder.
+             */
+            const runsFolder = join(
+              folder.path,
+              'runs',
+            );
+            /**
+             What both starts claimed, each its own call.
+             */
+            const claimed = await Promise.all([
+              claimRunFolder({
+                runsFolder,
+                runName: 'copy-route',
+              },),
+              claimRunFolder({
+                runsFolder,
+                runName: 'copy-route',
+              },),
+            ],);
+            /**
+             The numbers both starts claimed, smallest first.
+             */
+            const numbers = claimed.map(function number(one,) {
+              return one.runNumber;
+            },)
+              .toSorted(function lowerFirst(left, right,) {
+                return left - right;
+              },);
+            expect(numbers,).toEqual([
+              1,
+              2,
+            ],);
+            expect(new Set(claimed.map(function folderOf(one,) {
+              return one.runFolder;
+            },)).size,).toBe(2,);
+            expect((await readdir(runsFolder,)).toSorted(),).toEqual(['copy-route-1', 'copy-route-2',],);
+          },
+        },),
+        it({
+          name: 'refuses a number the caller named that another start holds, and claims one the caller named that is free',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The runs folder the starts write into.
+             */
+            const runsFolder = join(
+              folder.path,
+              'runs',
+            );
+            expect((await claimRunFolder({
+              runsFolder,
+              runName: 'copy-route',
+              wantedNumber: 4,
+            },)).runNumber,).toBe(4,);
+            try {
+              await claimRunFolder({
+                runsFolder,
+                runName: 'copy-route',
+                wantedNumber: 4,
+              },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(RunFolderTakenError,);
+              expect(String(error,),).toContain('copy-route-4',);
+              // The message says how to start the run instead, because a run folder one run holds is never written into again.
+              expect(String(error,),).toContain('without --run=4',);
+              expect((await claimRunFolder({
+                runsFolder,
+                runName: 'copy-route',
+                wantedNumber: 9,
+              },)).runNumber,).toBe(9,);
+              return;
+            }
+            throw new Error('a number the caller named was claimed twice',);
           },
         },),
       ],
@@ -462,7 +575,7 @@ await describe({
           },
         },),
         it({
-          name: 'tries a worktree add again after a killed attempt, clearing what that attempt left, and asks for a bound of its own',
+          name: 'tries a worktree add again after a killed attempt, pruning the registration that attempt may have left, and asks for a bound of its own',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -495,13 +608,14 @@ await describe({
               base: 'main',
             },);
             expect(line,).toContain('new branch feat/a at main',);
-            // The killed add is followed by the removal of what it left, and then by the add that worked.
+            // The killed add is followed by the pruning of the registration it may have left, and then by the add that worked.
+            // Nothing is removed: the path holds no worktree, and a worktree standing there would be left as it is.
             expect(git.asked.map(function question(ask,) {
               return ask.words.join(' ',);
             },),).toEqual([
               'rev-parse --verify --quiet refs/heads/feat/a',
               `worktree add -b feat/a ${worktree} main`,
-              `worktree remove --force ${worktree}`,
+              'worktree prune --expire=now',
               // The killed attempt made the branch, so the second attempt takes it rather than asking for a new one.
               'rev-parse --verify --quiet refs/heads/feat/a',
               `worktree add ${worktree} feat/a`,
@@ -515,7 +629,7 @@ await describe({
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             A git whose every add is killed, whose removals answer, and whose branch is there because a killed add made it.
+             A git whose every add is killed, whose prunes answer, and whose branch is there because a killed add made it.
              */
             const git = standInGit([
               answered(1, ''),
