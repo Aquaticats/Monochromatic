@@ -142,50 +142,39 @@ fn release_sources() -> Vec<String> {
 }
 
 /// What:
-///  The lines of `text` that hold `word` in code:
-/// not a line whose first word starts a comment,
-/// and not a match after a `//` on the same line.
+///  The lines of `text` that hold `word` in code,
+///  read with Rust's own grammar:
+///  comments are blanked everywhere,
+///  and strings too unless the word being looked for is what a string says.
 /// Why:
-///   These rules are about what a control does,
-///  and the files they read explain themselves in prose that may name the same words.
-/// The reading is coarse and says so:
-/// it does not parse raw strings,
-/// so a `//` inside one hides the rest of that line.
-fn lines_holding(text: &str, word: &str) -> Vec<(usize, String)> {
-    let mut found: Vec<(usize, String)> = Vec::new();
-    for (index, line) in text.lines().enumerate() {
-        let code: &str = line.trim_start();
-        if code.starts_with("//") {
-            continue;
-        }
-        let Some(at) = line.find(word) else { continue };
-        if line[..at].contains("//") {
-            continue;
-        }
-        found.push((index + 1, line.trim().to_owned()));
-    }
-    return found;
-}
-
-/// What:
-///  The lines that hold `word` in code with strings masked first,
-///  so a token inside a format text or a constant is no finding.
-/// Why:
-///  The guard's own files hold the words it looks for in their controls and their tables;
-/// this reading is what keeps a control from finding itself.
+///   A `//` inside `https://` is no comment's start,
+/// and a `Stdio::inherit` written inside a string is no call:
+/// a guard that read raw lines missed a forbidden token behind a URL
+/// (a review of 2026-11-15, finding 3),
+/// and the same reading would have called a quoted token a finding.
+///  Masking keeps every line's length and every line's number,
+/// so a finding still names the line it is on,
+/// and the line a finding quotes is the raw source's.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const maskedLinesHolding = (text, word) => mask(text).split(NEWLINE).flatMap((line, at) => line.includes(word) ? [at + 1] : []);
+/// const linesHolding = (text, word) => maskedFor(word, text).split(NEWLINE).flatMap((line, at) => line.includes(word) ? [[at + 1, rawLine(at)]] : []);
 /// ```
-fn masked_lines_holding(text: &str, word: &str) -> Vec<(usize, String)> {
-    let masked: String = starts_reader::mask(text);
+fn lines_holding(text: &str, word: &str) -> Vec<(usize, String)> {
+    // A word that is what a string says (a quoted name, a path) is read in the text with its strings kept; any other is code.
+    let says_a_string: bool = word.starts_with('"') || word.starts_with('/');
+    let masked: String = if says_a_string {
+        starts_reader::mask_comments(text)
+    } else {
+        starts_reader::mask(text)
+    };
     let mut found: Vec<(usize, String)> = Vec::new();
     for (index, line) in masked.lines().enumerate() {
-        let Some(at) = line.find(word) else { continue };
+        if !line.contains(word) {
+            continue;
+        }
         let raw: &str = text.lines().nth(index).unwrap_or(line);
         found.push((index + 1, raw.trim().to_owned()));
-        let _ = at;
     }
     return found;
 }
@@ -671,8 +660,8 @@ fn the_scan_its_own_files_start_no_process() {
     let spawning: String = [".spa", "wn("].concat();
     for relative in [THIS_SCAN, THE_READER, THE_INVENTORIES] {
         let text: String = source_text(relative);
-        assert_eq!(masked_lines_holding(text.as_str(), starting.as_str()), Vec::<(usize, String)>::new(), "{relative}");
-        assert_eq!(masked_lines_holding(text.as_str(), spawning.as_str()), Vec::<(usize, String)>::new(), "{relative}");
+        assert_eq!(lines_holding(text.as_str(), starting.as_str()), Vec::<(usize, String)>::new(), "{relative}");
+        assert_eq!(lines_holding(text.as_str(), spawning.as_str()), Vec::<(usize, String)>::new(), "{relative}");
     }
 }
 
@@ -794,4 +783,66 @@ fn a_start_that_retries_is_still_a_start() {
     let findings: Vec<String> = start_findings(listing.as_slice());
     assert_eq!(findings.len(), 1, "the rule refuses it: {findings:?}");
     assert!(findings[0].contains("runs this wrapper's service"), "{findings:?}");
+}
+
+/// What:
+///  Both new guards read Rust's tokens, not raw lines:
+///  a `//` or a `/*` inside a string opens nothing,
+///  a quote inside a comment opens nothing,
+///  an escaped quote ends no string early,
+///  a raw string is a value,
+///  a setter split over lines is one chain,
+///  and a setter is judged by what it is given.
+/// Why:
+///   A review of 2026-11-15 reproduced both false negatives with one legal line,
+/// `c.args(SERVICE_WORDS).arg("https://example.invalid").stderr(Stdio::inherit()).spawn();`:
+/// the `//` of the URL was taken for a comment's start,
+/// and every `.stderr(...)` was taken for a stream given.
+///  The cases below are what a reader of another syntax needs:
+/// a quote,
+/// an escape,
+/// a raw string,
+/// a block comment,
+/// and a chain broken over lines.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(linesHolding(reviewLine, 'Stdio::inherit')).toHaveLength(1); expect(judged(reviewLine)).toHaveLength(1);
+/// ```
+#[test]
+fn the_guards_read_rust_s_tokens_and_judge_a_setter_by_what_it_is_given() {
+    let review_line: &str = "fn f() { let mut c = Command::new(SERVICE_PROGRAM); c.args(SERVICE_WORDS).arg(\"https://example.invalid\").stderr(Stdio::inherit()).spawn(); }\n";
+    assert_eq!(lines_holding(review_line, INHERITED_STREAMS).len(), 1, "the token behind a URL is found");
+    let names: starts_reader::Names = starts_reader::read_names(&[String::from(review_line)]);
+    let found: Vec<Start> = starts_reader::starts_following(review_line, &names);
+    assert_eq!(found.len(), 1, "the start is read: {found:?}");
+    assert_eq!(found[0].standard_error, StandardError::Inherited, "a setter given the parent's stream is no isolation: {found:?}");
+    assert!(found[0].runs_the_service, "its words name the service mode");
+    let findings: Vec<String> = start_findings(&[(String::from("probe.rs"), String::from(review_line))]);
+    assert_eq!(findings.len(), 1, "the rule refuses it: {findings:?}");
+
+    // A `//` and a `/*` inside a string are no comment's start: what follows them on the line is still read.
+    let in_a_string: &str = "fn f() { let note = \"a // b /* c */ d\"; let after = Needle; }\n";
+    assert_eq!(lines_holding(in_a_string, "Needle").len(), 1, "a comment's start inside a string hides nothing after it");
+    // A quote inside a comment opens no string, so a token after the comment is still comment text.
+    let quote_in_a_comment: &str = "fn f() { /* it's \"quoted\" */ let after = Needle; }\n";
+    assert_eq!(lines_holding(quote_in_a_comment, "quoted").len(), 0, "a quoted word inside a comment is no code");
+    // An escaped quote ends no string early.
+    let escaped: &str = "fn f() { let s = \"a \\\" b\"; let c = Command::new(\"x\").stderr(Stdio::inherit()).spawn(); }\n";
+    assert_eq!(lines_holding(escaped, INHERITED_STREAMS).len(), 1, "an escaped quote ends no string early");
+    // A raw string is a value: its `//` is no comment and its contents are no call.
+    let raw: &str = "fn f() { let s = r#\"a // Stdio::inherit b\"#; let c = Command::new(\"x\").stderr(Stdio::null()).spawn(); }\n";
+    assert_eq!(lines_holding(raw, INHERITED_STREAMS).len(), 0, "nothing inside a raw string is a call");
+    let after_raw: &str = "fn f() { let s = r#\"a // b\"#; let c = Command::new(\"x\").arg(\"y\").stderr(Stdio::inherit()).spawn(); }\n";
+    assert_eq!(lines_holding(after_raw, INHERITED_STREAMS).len(), 1, "a raw string's `//` hides nothing after it");
+    // A setter split over lines is one chain, and a stream given is no isolation.
+    let split: &str = "fn f() { let mut c = Command::new(SERVICE_PROGRAM);\n    c.args(SERVICE_WORDS)\n        .stderr(Stdio::inherit())\n        .spawn();\n}\n";
+    let names: starts_reader::Names = starts_reader::read_names(&[String::from(split)]);
+    let found: Vec<Start> = starts_reader::starts_following(split, &names);
+    assert_eq!(found.len(), 1, "the split chain is one start: {found:?}");
+    assert_eq!(found[0].standard_error, StandardError::Inherited, "a setter given the parent's stream is no isolation: {found:?}");
+    // A setter given a stream of the fixture's own is isolation, and the same line with it is no finding.
+    let configured: &str = "fn f() { let mut c = Command::new(\"x\"); c.arg(\"https://example.invalid\").stderr(Stdio::null()).spawn(); }\n";
+    let names: starts_reader::Names = starts_reader::read_names(&[String::from(configured)]);
+    assert_eq!(starts_reader::starts_following(configured, &names)[0].standard_error, StandardError::Given);
 }

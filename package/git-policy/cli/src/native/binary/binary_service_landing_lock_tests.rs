@@ -16,7 +16,7 @@
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::runtime_for;
 use super::service_landing_selection::base_repository;
-use super::support::{Fixture, direct_held, executable, fixture, git, kept_stderr_pipe, observe, spawn_owned, while_test_lives};
+use super::support::{Fixture, direct_held, executable, fixture, git, kept_stderr_pipe_only, observe, spawn_owned, while_test_lives};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -61,7 +61,7 @@ pub(super) fn service_with_arguments(fixture: &Fixture, name: &str, notice_secon
         .env("CLI_GIT_WAIT_NOTICE_SECONDS", notice_seconds)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")))
+        .stderr(Stdio::from(kept_stderr_pipe_only(fixture.root.as_path()).expect("a pipe for the service's log")))
         .spawn()
         .expect("the service starts");
     let began: Instant = Instant::now();

@@ -19,7 +19,7 @@
 //! ```
 
 use super::support::{
-    Fixture, fixture, hermetic, kept_stderr_pipe, remove, repository, service_command, service_executable, service_log, short_runtime_directory, spawn_owned, wrapped,
+    Fixture, fixture, hermetic, kept_stderr_pipe_only, remove, repository, service_command, service_executable, service_log, short_runtime_directory, spawn_owned, wrapped,
 };
 use std::path::{Path, PathBuf};
 use std::process::{Child, Output, Stdio};
@@ -181,7 +181,7 @@ fn the_same_start_with_the_real_git_listens() {
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             // The service says why it ended only on its own error stream, which a panic would lose with the fixture.
-            .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log"))),
+            .stderr(Stdio::from(kept_stderr_pipe_only(fixture.root.as_path()).expect("a pipe for the service's log"))),
     )
     .expect("the service mode starts");
     let began: Instant = Instant::now();

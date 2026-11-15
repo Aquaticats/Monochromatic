@@ -15,7 +15,7 @@
 //!  so what is checked is the program a person runs and the address it really reaches.
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
-use super::support::{Fixture, fixture, git, kept_stderr_pipe, repository, start_fixture_service, start_fixture_service_in};
+use super::support::{Fixture, fixture, git, kept_stderr_pipe_only, repository, start_fixture_service, start_fixture_service_in};
 use git_policy_cli::service_address_of_a_worktree::socket_address_of;
 use git_policy_cli::service_instance::{instance_of, longest_runtime_directory, socket_path};
 use git_policy_cli::service_server::Bind;
@@ -221,7 +221,7 @@ fn a_first_commit_is_made_where_the_long_runtime_directory_has_a_relative_part_a
                 .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
                 .stdin(Stdio::null())
                 .stdout(Stdio::null())
-                .stderr(Stdio::from(kept_stderr_pipe(log_root.as_path()).expect("a pipe for the service's log")));
+                .stderr(Stdio::from(kept_stderr_pipe_only(log_root.as_path()).expect("a pipe for the service's log")));
             let child: Child = command.spawn().expect("the service the stand-in manager starts");
             started.lock().expect("the started services").push(child);
         })

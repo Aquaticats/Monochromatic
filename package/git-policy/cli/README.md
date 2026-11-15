@@ -8151,6 +8151,21 @@ The userinfo of any URL in a line,
 every path segment that is not a plain label,
 and every query and fragment value are replaced by `<credentials>`.
 
+A control's fixture starts services of its own,
+and those never reach this machine's journal:
+the fixture removes the manager's trigger (`JOURNAL_STREAM`) and names an address nothing listens at
+(`CLI_GIT_TEST_ONLY_JOURNAL_SOCKET`),
+so a service's entries go to the fixture's own log,
+and a service's entries recorded by code that runs inside the service go through the service's own sink as well.
+A failing control quotes what its fixture's service said,
+which is the one place those words leave the fixture:
+they travel on the stream the test runner writes its own report to,
+under the runner's identifier and never under the service's,
+and every line of the quotation begins with `[fixture service log] `.
+No line a service writes can begin with that marker
+(a service's line on standard error begins with its own name),
+so a reader of the journal can tell a quotation from a line a service wrote.
+
 The lines,
 each prefixed `monochromatic-git-policy-cli-service:` on standard error and identified as `monochromatic-git-policy-cli-service` in the journal:
 

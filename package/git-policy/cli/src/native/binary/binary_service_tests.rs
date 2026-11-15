@@ -28,7 +28,7 @@
 //! ```
 
 use super::commit::{git_text, remove_settled};
-use super::support::{Fixture, ServiceLaunch, fixture, git, kept_stderr_pipe, repository};
+use super::support::{Fixture, ServiceLaunch, fixture, git, kept_stderr_pipe_only, repository};
 use git_policy_cli::service_client::{Activation, ClientConfig, Submitted, submit};
 use git_policy_cli::service_fault::{FAULT_POINTS, FAULT_VARIABLE, FIRST_BATCH_VARIABLE, PRESTAGE_FLUSHED, PRESTAGE_STAGED, PRESTAGE_START};
 use git_policy_cli::service_instance::{instance_of, socket_path};
@@ -103,7 +103,7 @@ fn start_service(fixture: &Fixture, name: &str, fault: Option<&str>) -> Service 
         .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
+        .stderr(Stdio::from(kept_stderr_pipe_only(fixture.root.as_path()).expect("a pipe for the service's log")));
     if let Some(point) = fault {
         command.env(FAULT_VARIABLE, point);
     }
@@ -333,7 +333,7 @@ fn an_instance_removes_the_old_finished_batches_of_the_earlier_shared_journal() 
         .args(["--journal", journal.to_str().expect("UTF-8"), "--abstract", name.as_str(), "--instance", instance.as_str()])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
+        .stderr(Stdio::from(kept_stderr_pipe_only(fixture.root.as_path()).expect("a pipe for the service's log")));
     let service: Service = Service { child: command.spawn().expect("the service starts") };
     wait_until_reachable(name.as_str());
     // The first answer comes after the service has started serving, so the pruning at its start has been done.
@@ -374,7 +374,7 @@ fn a_service_whose_worktree_is_gone_serves_nothing() {
         .env("XDG_RUNTIME_DIR", runtime.as_path())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
+        .stderr(Stdio::from(kept_stderr_pipe_only(fixture.root.as_path()).expect("a pipe for the service's log")));
     let mut service: Service = Service { child: command.spawn().expect("the service starts") };
     let status: std::process::ExitStatus = ended_at_fault(&mut service, "a service of a gone worktree");
     assert!(status.success(), "serving nothing is not a failure, or `Restart=on-failure` starts the unit again: {status}");
@@ -473,7 +473,7 @@ fn start_instance_service(root: &Path, name: &str, journal: &Path, instance: &st
         .args(further)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::from(kept_stderr_pipe(root).expect("a pipe for the service's log")));
+        .stderr(Stdio::from(kept_stderr_pipe_only(root).expect("a pipe for the service's log")));
     return Service { child: command.spawn().expect("the service starts") };
 }
 
@@ -1503,7 +1503,7 @@ fn two_services_of_one_journal_never_number_their_batches_alike() {
             .env(FIRST_BATCH_VARIABLE, pinned.as_str())
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
+            .stderr(Stdio::from(kept_stderr_pipe_only(fixture.root.as_path()).expect("a pipe for the service's log")));
         services.push(Service { child: command.spawn().expect("the service starts") });
         names.push(name);
     }

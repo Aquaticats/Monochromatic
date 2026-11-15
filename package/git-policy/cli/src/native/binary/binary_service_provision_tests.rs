@@ -19,7 +19,7 @@
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::service_commit::{Running, start_in, start_in_release};
-use super::support::{Fixture, fixture, git, kept_stderr_pipe, repository};
+use super::support::{Fixture, fixture, git, kept_stderr_pipe_only, repository};
 use git_policy_cli::service_journal::DONE_EXTENSION;
 use git_policy_cli::service_messages::{LINGER_COMMAND, UPDATING_NOTICE};
 use git_policy_cli::service_provision::{
@@ -769,7 +769,7 @@ fn an_idle_service_exits_with_success() {
         .args(["--journal", fixture.root.join("journal").to_str().expect("UTF-8"), "--path", socket.to_str().expect("UTF-8")])
         .args(["--idle-seconds", idle.as_secs().to_string().as_str()])
         .env_clear()
-        .stderr(std::process::Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")))
+        .stderr(std::process::Stdio::from(kept_stderr_pipe_only(fixture.root.as_path()).expect("a pipe for the service's log")))
         .spawn()
         .expect("the service starts");
     let began: Instant = Instant::now();
@@ -811,7 +811,7 @@ fn start_per_user_service(fixture: &Fixture, runtime: &Path) -> std::process::Ch
             .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::from(kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log"))),
+            .stderr(std::process::Stdio::from(kept_stderr_pipe_only(fixture.root.as_path()).expect("a pipe for the service's log"))),
     )
     .expect("the per-user service starts");
     let began: Instant = Instant::now();

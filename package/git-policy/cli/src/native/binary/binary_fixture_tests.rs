@@ -3,9 +3,10 @@
 //! (issue 1809).
 
 use super::support::{
-    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, SERVICE_LOG_FILE, ServiceLaunch, NOBODY_JOURNAL_ADDRESS, fixture, kept_stderr_pipe, log_file_failure_note,
+    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, NOBODY_JOURNAL_ADDRESS, QUOTED_MARK, SERVICE_LOG_END_BOUND, SERVICE_LOG_FILE, ServiceLaunch, fixture, kept_stderr_pipe,
+    log_file_failure_note,
     missing_fixture_root_report, give_service_environment, names_the_stream, remove, remove_patiently, repository, service_command, service_log, service_runtime, service_is_serving,
-    settle_fixture, spawn_owned, start_fixture_service,
+    CopySeam, hold_the_copy, quoted, settle_fixture, spawn_owned, start_fixture_service, wait_for_the_copies,
 };
 use git_policy_cli::service_server::Bind;
 use std::path::{Path, PathBuf};
@@ -627,9 +628,14 @@ fn every_service_of_a_fixture_root_keeps_its_words_when_the_log_file_cannot_be_m
     // A root this process may not write into: every open of `service.log` fails with EACCES, and no file is ever there.
     std::fs::set_permissions(created.root.as_path(), std::os::unix::fs::PermissionsExt::from_mode(0o500)).expect("a root the log cannot be written into");
     let write = |marker: &str| {
-        let writer = kept_stderr_pipe(created.root.as_path()).expect("a pipe for a service's words");
+        let (writer, when_the_copy_ends) = kept_stderr_pipe(created.root.as_path()).expect("a pipe for a service's words");
         let mut file = std::fs::File::from(writer);
         std::io::Write::write_all(&mut file, format!("{marker}\n").as_bytes()).expect("the words enter the pipe");
+        drop(file);
+        // The words are kept only once the copy of the closed pipe has ended: the event, not a guess.
+        let mut copies: Vec<std::sync::mpsc::Receiver<()>> = vec![when_the_copy_ends];
+        assert!(wait_for_the_copies(&mut copies, created.root.as_path(), SERVICE_LOG_END_BOUND), "the copy of the fixture's log ended within its bound");
+        assert!(copies.is_empty(), "the copy that ended is waited for no longer");
     };
     let wait = |marker: &str| {
         let began = Instant::now();
@@ -681,5 +687,117 @@ fn a_service_that_ends_before_it_listens_shows_what_it_wrote() {
         Err(payload) => payload.downcast_ref::<String>().cloned().or_else(|| { return payload.downcast_ref::<&str>().map(ToString::to_string); }).unwrap_or_default(),
     };
     assert!(said.contains("the-start-said-why"), "the failure quotes what the service wrote: {said}");
+    let quoted_lines: Vec<&str> = said.lines().filter(|line| { return line.starts_with(QUOTED_MARK); }).collect();
+    assert!(!quoted_lines.is_empty(), "the quotation's lines are marked: {said}");
+    assert!(quoted_lines.iter().any(|line| { return line.contains("the-start-said-why"); }), "the service's own line is inside the marked block: {said}");
+    remove(&created);
+}
+
+/// What:
+///  The fixture's answer about its services' words waits for the copy of their stream to end, within its bound,
+///  and says the bound's end when it does not.
+/// Why:
+///   The copy runs on its own thread, so a read taken as soon as the child is gone can see nothing
+/// (a review of 2026-11-15 reproduced it on a one-CPU schedule: the writer had closed with its marker written and
+/// `service_log` answered `0 bytes kept`).
+///  Both outcomes are held here, at the code's own seam: a writer that is still open is a copy that has not ended,
+/// and the wait says so instead of showing an empty log.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(waitForTheCopies([heldOpen], root, 100ms)).toBe(false); expect(serviceLog(root)).toContain('had not finished within')
+/// ```
+#[test]
+fn a_copy_that_has_not_ended_says_so_and_is_waited_for_again() {
+    let created: Fixture = fixture("service-log-copy-held-open");
+    let root: PathBuf = created.root.clone();
+    let (held_writer, held_end) = kept_stderr_pipe(root.as_path()).expect("a pipe for a service's words");
+    let mut held_file = std::fs::File::from(held_writer);
+    std::io::Write::write_all(&mut held_file, b"held-open-words\n").expect("the words enter the pipe");
+    let mut copies: Vec<std::sync::mpsc::Receiver<()>> = vec![held_end];
+    // Held open: the copy has not ended, the wait says so, and it keeps the copy it did not see end.
+    let bound: Duration = Duration::from_millis(100);
+    assert!(!wait_for_the_copies(&mut copies, root.as_path(), bound), "a copy whose pipe is still open does not end within the bound");
+    assert_eq!(copies.len(), 1, "the copy it did not see end is still to be waited for");
+    let said: String = service_log(root.as_path());
+    assert!(said.contains("had not finished within"), "the answer says the copy had not finished: {said}");
+    // Closed: the same copy ends, and the second wait says so instead of answering at once for a copy that still ran.
+    drop(held_file);
+    assert!(wait_for_the_copies(&mut copies, root.as_path(), SERVICE_LOG_END_BOUND), "the copy of the closed pipe ends within its bound");
+    assert!(copies.is_empty(), "nothing is left to wait for");
+    let kept: String = service_log(root.as_path());
+    assert!(kept.contains("held-open-words"), "the words of the closed pipe are kept: {kept}");
+    remove(&created);
+}
+
+/// What:
+///  A failure quotes its fixture's service words as a quotation: every line begins with the marker,
+///  and the marker is one no line a service writes can begin with.
+/// Why:
+///   A failing control's text is printed by the test runner on its own stream,
+/// which may be this machine's journal;
+/// a quotation a reader there can tell from a service's own line is the edge this support keeps
+/// (`README.md`, the section on the service's journal).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(quoted('a\nb').split('\n').every((line) => line.startsWith(QUOTED_MARK))).toBe(true)
+/// ```
+#[test]
+fn a_failure_quotes_a_service_s_words_as_a_quotation() {
+    let said: String = quoted("started release=\"x\"\nthe second line\n");
+    for line in said.lines() {
+        assert!(line.starts_with(QUOTED_MARK), "every quoted line is marked: {said}");
+    }
+    assert!(said.contains("the second line"), "the words are kept: {said}");
+    assert!(said.contains("started release="), "and so is the line a service wrote: {said}");
+    // The marker is no prefix of anything a service writes: on standard error a service's line begins with its own name.
+    assert!(!QUOTED_MARK.starts_with("monochromatic-git-policy-cli-service:"), "the marker is no service's stamp");
+    assert!(!said.contains("monochromatic-git-policy-cli-service: [fixture service log]"), "no service's own line is marked");
+}
+
+/// What:
+///  A read taken while the copy of a service's stream is still at its seam waits for the copy, says the bound's end,
+///  and reads the service's words once the seam is released.
+/// Why:
+///   The child's end and the last bytes of its stream are two events, and the copy is a thread of its own:
+/// a read that takes the first for the second answers `0 bytes kept` on a legal schedule
+/// (a review of 2026-11-15 reproduced it on a one-CPU run).
+///  The seam is the code's own place in front of the copy, so the control meets that schedule without a sleep.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seam = holdTheCopy(); const services = startFixtureService(fixture); services.serve(fixture, gitDir);
+/// expect(settleTheServiceLog(fixture, 100ms)).toBe(false); expect(serviceLog(root)).toContain('had not finished within');
+/// seam.release(); expect(settleTheServiceLog(fixture, 10s)).toBe(true); expect(serviceLog(root)).toContain('the-seam-said-why')
+/// ```
+#[test]
+fn a_read_that_races_the_copy_waits_for_it_and_says_the_bound() {
+    let created: Fixture = fixture("service-log-held-at-the-seam");
+    std::fs::create_dir_all(created.root.join("repo").join(".git")).expect("a Git directory to serve");
+    *created.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix: vec![
+            std::ffi::OsString::from("/usr/bin/sh"),
+            std::ffi::OsString::from("-c"),
+            std::ffi::OsString::from("printf 'the-seam-said-why\\n' >&2; exit 3"),
+        ],
+        may_fail_to_start: true,
+        ..ServiceLaunch::default()
+    };
+    let seam: CopySeam = hold_the_copy(created.root.as_path());
+    let services: FixtureService = start_fixture_service(&created);
+    services.serve(&created, created.root.join("repo").join(".git").as_path());
+    // The service ended at once and its copy is held: the read that decides waits, and the bound's end is said.
+    let brief: Duration = Duration::from_millis(100);
+    assert!(!services.settle_the_service_log(created.root.as_path(), brief), "a copy held at the seam does not end within the bound");
+    let said: String = service_log(created.root.as_path());
+    assert!(said.contains("had not finished within"), "the answer says the copy had not finished: {said}");
+    assert!(!said.contains("the-seam-said-why"), "nothing of the held copy is kept yet: {said}");
+    // Released: the copy runs to its end, the second wait says so, and the words are there.
+    seam.release();
+    assert!(services.settle_the_service_log(created.root.as_path(), SERVICE_LOG_END_BOUND), "the copy ended within its bound once released");
+    let kept: String = service_log(created.root.as_path());
+    assert!(kept.contains("the-seam-said-why"), "the service's words are kept once the copy ended: {kept}");
+    drop(services);
     remove(&created);
 }

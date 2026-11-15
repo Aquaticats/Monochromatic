@@ -206,6 +206,87 @@ pub fn mask(text: &str) -> String {
     return String::from_utf8(out).expect("masking keeps the text's bytes");
 }
 
+/// What:
+///  The source with every comment masked to spaces and every string kept as written,
+///  keeping every line's length.
+/// Why:
+///   A guard that looks for what a string *says* (a path,
+/// a quoted variable name)
+///  must read the string,
+///  and must not read a `//` inside one as the start of a comment:
+/// the tokens of Rust are the grammar both scans need.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const masked = source.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (m) => m.replace(/[^\n]/g, ' '));
+/// ```
+pub fn mask_comments(text: &str) -> String {
+    let bytes: &[u8] = text.as_bytes();
+    let mut out: Vec<u8> = bytes.to_vec();
+    let mut at: usize = 0;
+    let mut in_string: bool = false;
+    while at < bytes.len() {
+        if in_string {
+            match bytes[at] {
+                b'\\' => at += 2,
+                b'"' => {
+                    in_string = false;
+                    at += 1;
+                }
+                _ => at += 1,
+            }
+            continue;
+        }
+        match bytes[at] {
+            b'"' => {
+                in_string = true;
+                at += 1;
+            }
+            // A raw string's `//` is no comment's start either: what it holds is a value, not source.
+            b'r' if matches!(bytes.get(at + 1), Some(b'#' | b'"')) => {
+                let mut cursor: usize = at + 1;
+                let mut hashes: usize = 0;
+                while bytes.get(cursor) == Some(&b'#') {
+                    hashes += 1;
+                    cursor += 1;
+                }
+                if bytes.get(cursor) != Some(&b'"') {
+                    at += 1;
+                    continue;
+                }
+                let mut closing: Vec<u8> = vec![b'"'];
+                closing.extend(std::iter::repeat_n(b'#', hashes));
+                let end: usize = find(bytes, cursor + 1, closing.as_slice()).unwrap_or(bytes.len());
+                at = (end + closing.len()).min(bytes.len());
+            }
+            b'/' if bytes.get(at + 1) == Some(&b'/') => {
+                while at < bytes.len() && bytes[at] != b'\n' {
+                    out[at] = b' ';
+                    at += 1;
+                }
+            }
+            b'/' if bytes.get(at + 1) == Some(&b'*') => {
+                out[at] = b' ';
+                out[at + 1] = b' ';
+                at += 2;
+                while at + 1 < bytes.len() && !(bytes[at] == b'*' && bytes[at + 1] == b'/') {
+                    if bytes[at] != b'\n' {
+                        out[at] = b' ';
+                    }
+                    at += 1;
+                }
+                if at + 1 < bytes.len() {
+                    out[at] = b' ';
+                    out[at + 1] = b' ';
+                    at += 2;
+                }
+            }
+            _ => at += 1,
+        }
+    }
+    return String::from_utf8(out).expect("masking keeps the text's bytes");
+}
+
 /// The first offset of `needle` in `bytes` from `from`.
 fn find(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || from >= bytes.len() {
@@ -680,7 +761,12 @@ pub fn starts_following(raw: &str, names: &Names) -> Vec<Start> {
         for terminal in terminals(clause, chain_for_the_walk.0.as_str(), names) {
             let (chain_masked, chain_raw): (String, String) = chain_of(found.as_slice(), index, clause, Some(&terminal));
             let helper: Shape = terminal.name.as_deref().and_then(|name| { return names.starts.get(name).copied(); }).unwrap_or(Shape { captures: false, sets_error: false, sets_all: false });
-            let standard_error: StandardError = if terminal.kind == Terminal::Output || chain_masked.contains(".stderr(") || helper.captures || helper.sets_error {
+            // A setter is judged by what it is given: `.stderr(Stdio::inherit())` hands the child the run's own stream, and a
+            //  chain that does that at any of the three is no isolation whatever else it sets.
+            let hands_over_the_run_s_stream: bool = chain_masked.contains("Stdio::inherit");
+            let standard_error: StandardError = if hands_over_the_run_s_stream {
+                StandardError::Inherited
+            } else if terminal.kind == Terminal::Output || chain_masked.contains(".stderr(") || helper.captures || helper.sets_error {
                 StandardError::Given
             } else {
                 StandardError::Inherited

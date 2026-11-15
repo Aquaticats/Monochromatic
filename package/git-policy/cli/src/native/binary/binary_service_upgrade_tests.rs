@@ -21,7 +21,7 @@
 use super::commit::git_text;
 use super::service_commit::Running;
 use super::service_provision::{PATIENCE, activation, commit, fake_bus_many, finish, finished_batches, prepared, subject};
-use super::support::{git, keep_the_journal_off, kept_stderr_pipe};
+use super::support::{git, keep_the_journal_off, kept_stderr_pipe_only};
 use git_policy_cli::service_instance::LEGACY_SOCKET_RELATIVE;
 use git_policy_cli::service_provision::{LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME};
 use std::path::{Path, PathBuf};
@@ -50,7 +50,7 @@ fn start_old_service(program: &Path, root: &Path, runtime: &Path) -> Child {
         .env("GIT_CONFIG_GLOBAL", "/nonexistent-global-config")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::from(kept_stderr_pipe(root).expect("a pipe for the service's log")));
+        .stderr(Stdio::from(kept_stderr_pipe_only(root).expect("a pipe for the service's log")));
     // An earlier release reads the journal's two settings as this one does, and its service is a service too.
     keep_the_journal_off(&mut started);
     let child: Child = super::support::spawn_owned(&mut started).expect("the 0.5.4 service starts");

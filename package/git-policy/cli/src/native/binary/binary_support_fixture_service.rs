@@ -234,6 +234,9 @@ pub struct FixtureService {
     /// The running service of each worktree,
     /// by the worktree's own Git directory.
     children: std::sync::Mutex<std::collections::HashMap<PathBuf, Child>>,
+    /// The ends of the copies of the services' streams this fixture started,
+    /// so a read of the log can wait for the copy instead of the clock.
+    log_copies: std::sync::Mutex<Vec<std::sync::mpsc::Receiver<()>>>,
     /// The runtime directory the wrapper finds the services' sockets in.
     pub runtime: PathBuf,
 }
@@ -396,7 +399,7 @@ pub fn start_fixture_service(fixture: &Fixture) -> FixtureService {
 pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
     // The socket file stands in a folder of its own, which a socket unit's `DirectoryMode=` makes in production.
     std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("the folder of the sockets");
-    return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), runtime };
+    return FixtureService { children: std::sync::Mutex::new(std::collections::HashMap::new()), log_copies: std::sync::Mutex::new(Vec::new()), runtime };
 }
 
 /// What:
@@ -501,6 +504,10 @@ impl FixtureService {
                 plain
             }
         };
+        // A copy whose end is kept: whatever decides from this service's log after it ends waits for the copy, not for a guess.
+        let (kept_log, when_the_copy_ends): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
+            crate::support_fixture_service_log::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log");
+        self.log_copies.lock().expect("the fixture's log copies").push(when_the_copy_ends);
         command
             .args(["--journal"])
             .arg(fixture.root.join("journal"));
@@ -528,7 +535,7 @@ impl FixtureService {
             .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::from(crate::support_fixture_service_log::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe for the service's log")));
+            .stderr(Stdio::from(kept_log));
         // Its own `env_clear` above is why this comes here and not with the arguments: a launcher that starts from an empty
         // environment must put the journal's two settings back, and this is the one place that does it.
         keep_the_journal_off(&mut command);
@@ -573,12 +580,17 @@ impl FixtureService {
                 }
             } else if let Some(status) = ended {
                 children.remove(&key);
-                // The words are quoted here and not pointed at: the fixture's cleanup removes the file this failure names, and
-                //  the copier no longer copies them to the test's own standard error (a review of 2026-11-14, finding 3).
+                // The copy of the service's stream is an event, not a race: the child ended, the pipe closes with the last
+                //  process holding it, and only then does the log hold what it wrote. The wait is bounded: a descendant that
+                //  inherited the pipe cannot hold this failure past it, and the bound's end is said in the words below.
+
+                // The words are quoted, and each line says so: the runner prints this failure on its own stream, which may be
+                //  this machine's journal, and a reader there must be able to tell a quoted service line from a line a
+                //  service wrote (`doc/troubleshooting/git-policy-cli-test-services-write-into-the-user-journal.md`).
                 panic!(
-                    "the fixture's commit service ended ({status}) before it listened at {}; what it wrote was: {}",
+                    "the fixture's commit service ended ({status}) before it listened at {}; what it wrote was:\n{}",
                     git_policy_cli::service_server::address_text(&address),
-                    crate::support_fixture_service_log::service_log(fixture.root.as_path())
+                    crate::support_fixture_service_log::quoted(crate::support_fixture_service_log::service_log(fixture.root.as_path()).as_str())
                 );
             }
             // A service that is starting on a loaded host is working: it reads its configuration, opens its log and binds
@@ -598,11 +610,30 @@ impl FixtureService {
         }
     }
 
-    /// The process IDs of the running services,
+/// The process IDs of the running services,
     /// for a control that changes a limit in place or signals one.
     pub fn process_ids(&self) -> Vec<u32> {
         let children = self.children.lock().expect("the fixture's services");
         return children.values().map(Child::id).collect();
+    }
+
+    /// What:
+    ///  Waits, bounded, for every copy of a service's stream this fixture started to end,
+    ///  and answers whether they all did.
+    /// Why:
+    ///  The copies are the fixture's, because the fixture started them;
+    ///  the event they say is what a read of the log needs, and the bound keeps a descendant that holds the pipe open from
+    /// holding the read.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const settled = services.settleTheServiceLog(10_000);
+    /// ```
+    pub fn settle_the_service_log(&self, root: &Path, bound: std::time::Duration) -> bool {
+        // The copies stay the fixture's: a wait that gives up leaves the ones it did not see end here, so the next read
+        //  waits for them again instead of answering at once for a copy that still runs.
+        let mut held = self.log_copies.lock().expect("the fixture's log copies");
+        return crate::support_fixture_service_log::wait_for_the_copies(&mut held, root, bound);
     }
 
     /// Ends every running service,
@@ -647,6 +678,31 @@ impl FixtureService {
             self.serve(fixture, git_dir.as_path());
         }
     }
+}
+
+/// How long a copy of a service's stream may take to end once the services holding it have ended:
+/// the pipe closes with the last of them,
+/// so a copy that has not ended by this bound means something still holds the stream,
+/// and the read that waited says the log it sees may be incomplete.
+pub(crate) const SERVICE_LOG_END_BOUND: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// What:
+///  Waits, bounded, for every copy of a service's stream this fixture started to end,
+///  and answers whether they all did.
+/// Why:
+///  A copy runs on a thread of its own, so `SERVICE_LOG_FILE` holds what a service wrote only once that thread has written it;
+/// a read that decides anything calls this first,
+/// which is the event and not a sleep of a guessed length.
+/// The services whose streams are waited for must have ended:
+/// the copy of a running service's stream ends only when it does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const settled = settleTheServiceLog(fixture, 10_000);
+/// ```
+pub fn settle_the_service_log(fixture: &Fixture, bound: std::time::Duration) -> bool {
+    let service = fixture.service.lock().expect("the fixture's service lock");
+    return service.as_ref().is_none_or(|services| { return services.settle_the_service_log(fixture.root.as_path(), bound); });
 }
 
 /// The own Git directories of the worktrees under `directory`,
