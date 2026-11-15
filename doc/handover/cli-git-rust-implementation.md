@@ -783,8 +783,13 @@ Questions kept for the owner's return:
     read the locks again at each deletion,
     at hundreds of milliseconds for a pass that removes,
     to close the window of a lock written after the pass read them,
-    or accept a reinstall;
-    and is putting a partly deleted marker back under its name better than leaving it a marker?
+    or accept a reinstall?
+    (Its second question,
+    whether a partly deleted copy is put back under its name,
+    was answered by its sixth review on 2026-11-14T19:10-05:00:
+    put back,
+    it is taken for a whole version,
+    so the author is told a deletion that has begun is finished and never undone.)
   - The queue of runs filled from the package, its third answer (tip `a634fbf060`, added 2026-11-14T17:41-05:00):
     a lock that now holds the queue and its set-aside records,
     or the folder of one file for each entry,
@@ -1300,6 +1305,45 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### mpm-shadow's removal of old versions goes back a sixth time: a half-deleted version shown as whole, and a copy a live process uses deleted (2026-11-14T19:15:37-05:00)
+
+Not final and not approved:
+what one review reports,
+and how the coordinating session weighed it.
+
+- **mpm-shadow's removal of old versions** (`86a6489874`),
+  sixth review,
+  on Kimi,
+  ended 19:10:37,
+  five things,
+  four reproduced against the real `trim_after_install` and `apply_trim`:
+  a deletion killed half way is renamed back to the version's name and answers as finished;
+  recovery deletes a tombstone after finding that a live process works in it,
+  when another install has put a finished copy at the original path
+  (reproduced with a real child whose working folder read as deleted);
+  a file written into a nested folder after the inventory changes neither the root's inode nor its modification time and is deleted;
+  two passes settling markers at once leave a tombstone that an install with nothing to do never recovers;
+  and,
+  by reading,
+  the work limit is looked at between operations and bounds neither a scan nor a recursive deletion.
+  The review read the whole change and wrote a test for each reproduced finding.
+  This session weighs all five as worth their fix.
+  It is the sixth round that finds one more state in which something is deleted or a broken thing shown as whole,
+  so the author is asked first for the one written account the code lacks:
+  every name a version's files can stand under and what is true there,
+  every step and what it proves when it acts,
+  and what a kill between any two leaves
+  (`~/temp/agent/pi-runs/mpm-shadow-removal-of-old-versions-answers-its-sixth-review-of-2026-11-14-prompt.md`).
+  The first finding answers one of the author's two questions kept for the owner:
+  a partly deleted copy put back under its name is taken for whole,
+  so it is not put back;
+  the kept list is corrected.
+- Read at 19:14:52:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run.
+  The resumed session is not named by the credential scan.
+  The queue held 66 entries at 19:15:37.
 
 ##### Pass 45 is in `main` with one control known red at its tree, and `0.6.1-alpha.35` is dispatched; the journal change's review finds two things (2026-11-14T19:12:18-05:00)
 
