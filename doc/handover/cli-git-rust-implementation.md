@@ -745,46 +745,6 @@ Questions kept for the owner's return:
   Does the push queue set an upstream for such a branch,
   or is a new branch pushed once by hand?
 
-- Added 2026-11-15T09:46:57-05:00,
-  from the author of the landed removal
-  (branch tip `5ca2149aea`,
-  in review),
-  not blocking work:
-  a shell alias (`!…`) can build a `git worktree remove` in ways no reader of its text can follow,
-  and the rule against self-invocation rules out making the alias's Git the wrapper.
-  The branch therefore refuses every `!` alias that is not one plain Git command line,
-  with the opt-out,
-  a harmless `!echo hello` among them.
-  This machine's Git configuration holds no alias today,
-  so nothing is stopped here.
-  Does that refusal stand,
-  or is a shell alias forwarded as it is
-  (which leaves the removal a shell alias builds unguarded)?
-
-- A proposal for `AGENTS.md`,
-  added 2026-11-15T09:46:57-05:00,
-  after a brief's suggestion collided with a record under `doc/planning/`:
-  the rule that says to grep `doc/decision/` before briefing work on a component names `doc/planning/` as well,
-  since accepted rules of the owner's live in both.
-  Not applied;
-  the file is the owner's.
-
-- Added 2026-11-15T08:06:19-05:00,
-  about the removal of a worktree,
-  not blocking work:
-  "Delete ignored, spare busy" of 2026-11-12 was asked about files Git ignores.
-  A review deleted,
-  by an unforced `git worktree remove`,
-  an independent repository inside an ignored folder,
-  with the only name of its commit.
-  Adopted meanwhile:
-  the removal refuses where it would delete a Git directory holding a commit no other repository names,
-  with the opt-out;
-  a plain ignored folder is deleted and logged as decided.
-  Does the owner's pick reach such a repository
-  (delete it as real Git does),
-  or does the adopted reading stand?
-
 - Added 2026-11-15T07:55:03-05:00,
   about the credentials shown to model providers,
   not blocking work:
@@ -794,14 +754,14 @@ Questions kept for the owner's return:
   Masking finds a value after it is already inside the run and has to close every road out;
   the reviews keep finding roads.
   The owner's answer of 2026-11-14 was one rotation after the masking is merged and shown to hold,
-  and that is still the plan here.
-  Two things the owner may want to change in it:
-  rotate now and again later,
-  since every run until the merge still shows values;
-  and whether a run should be started without the values in its reach at all
+  and the owner confirmed it on 2026-11-15 at about 10:48
+  ("Keep waiting for masking"),
+  told of the three reviews.
+  Still open:
+  whether a run should be started without the values in its reach at all
   (an environment and a home that do not hold them),
   with masking as the second line.
-  The second is a new piece of work nobody has been given.
+  That is a new piece of work nobody has been given.
 
 - Added 2026-11-15T07:17:57-05:00,
   from the author of the stop of a stopped push
@@ -848,17 +808,6 @@ Questions kept for the owner's return:
   have the pass leave out processes that provably cannot use a tool's version
   (by which proof);
   or give the pass a way to read them?
-
-- Added 2026-11-15T04:25:14-05:00,
-  from the third review of the Git-version branch
-  (`253b4238cc`),
-  not blocking work:
-  a branch goes to an integration pass only after a review with no finding.
-  This branch's change to the program has stood through three reviews with nothing found,
-  while each review found something in its tests,
-  so seven gate failures still wait.
-  Keep the rule as it is,
-  or let a branch whose only open findings are in test code go to a pass while its author answers them on the same branch?
 
 - Added 2026-11-15T04:21:09-05:00,
   from the third review of the journal branch
@@ -991,27 +940,6 @@ Questions kept for the owner's return:
   refuse with the opt-out,
   or delete and log?
   The branch keeps its save until an answer.
-- Added 2026-11-15T00:34:22-05:00 and amended 00:51:24 and 01:02:30,
-  not blocking work:
-  the cap on agents went from 24 to 20 at 00:32:16,
-  from 20 to 18 at 00:50:55 and from 18 to 17 at 01:00:44,
-  by the rule,
-  when the home drive stalled twice in a row during the nightly snapshot cleanup,
-  at each level
-  (`doc/handover/agents-at-once-on-this-machine.md`).
-  None of those levels was tested at its own number:
-  19 to 23 agents were going at every failing reading,
-  since no run is stopped.
-  The longest stall was 109 seconds.
-  Beside it,
-  read once each:
-  the cleanup deleted twenty snapshots of root at 00:23:27 and the stalls began four minutes later;
-  quota groups are on for the home filesystem and off for the repository's;
-  the kernel logged no drive error.
-  Does the cap go back to 24 once the cleanup has ended,
-  or stay where the rule left it until the new drive is in?
-  Until an answer it stays where the rule left it,
-  and never under 16.
 - Added 2026-11-14T23:58:21-05:00,
   from two authors' reports of that hour,
   none blocking work:
@@ -1669,6 +1597,209 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Three more answers of the owner are acted on; the commit that does not wait behind the service's writes answers its review and has the slow start reproduced (2026-11-15T11:00:48-05:00)
+
+Not final and not approved:
+what the owner answered,
+what one author reports,
+and what the coordinating session queued.
+
+- **The owner's three answers of 10:59** are under "Owner decisions in force",
+  "Answers on waking, second round".
+  A shell alias is forwarded unguarded and an ignored repository is deleted as ignored:
+  both go the other way from the landed removal's tip `5ca2149aea`.
+  Its author's fifteenth run is queued second,
+  to take the refusals and the look out and to state the hole in `SPEC.md`
+  (`~/temp/agent/pi-runs/landed-removal-two-decisions-of-2026-11-15-shell-aliases-forwarded-and-ignored-repositories-deleted-prompt.md`).
+  A review of `5ca2149aea` had started before the answers and goes on;
+  what it finds in the parts that come out falls away with them.
+  The briefing rule in `AGENTS.md` names both folders since `73ee82f26d`.
+- **The commit that does not wait behind the service's writes**,
+  its author's second run,
+  ended 10:54:00 at `c024c12583`:
+  the review's three claims shown and answered
+  (a commit held 6,156 ms against a bound of 5,000 at the old tip and 46 ms at the new;
+  a taken request told it was not taken;
+  a wait's words naming the landing's own write).
+  **The slow start of `0.6.1-alpha.41` is reproduced and has its cause**:
+  with the removal of old finished batches' records held where the service's loop stands,
+  the first commit took 6,081 ms;
+  moved beside the loop,
+  226 ms.
+  The start's steps that must stay now name themselves in the journal and to the client when they pass one second.
+  Two arms interleaved:
+  a median ratio of 1.011.
+  Its review is queued fifth
+  (`main...c024c12583`,
+  11 code files that are not tests).
+- **Queued since the section before this one**:
+  the reviews of what the file holder and the address-space controls added after their reviewed commits,
+  each written by hand and told to run the controls
+  (fourth and fifth at 10:57);
+  the sighting of the gate's first-time failure is in the brief of the fresh run for the controls that fail only inside a suite.
+- Read at 10:57:32:
+  the main checkout shows its six changed files;
+  no failed start and no brief refused since the cap went to 20;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  18 runs going,
+  none silent for twenty minutes;
+  Tctl 75.1 degrees.
+
+##### The owner is back: the limits are lifted, the cap is 20, pass 54 is queued under the new rule; the gate on `0.6.1-alpha.42` failed 16; the masking's third review finds eight more (2026-11-15T10:53:13-05:00)
+
+Not final and not approved:
+what the owner said,
+what the gate,
+three reviews and seven authors report,
+and what the coordinating session did.
+
+- **The owner's word and four answers** are under "Owner decisions in force",
+  "Answers on waking":
+  the temperature limits are lifted and stay lifted;
+  the cap steps to 20 under the probe;
+  the rotation keeps waiting for the masking;
+  a wrapper branch goes into a pass while its only open findings are in doc comments or test code.
+- **The container gate on `522e865c9d`** (`0.6.1-alpha.42`) ended 10:47:27:
+  16 of 9,128 failed.
+  `a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown` **passes in the gate's image**,
+  which is what pass 53 could not show.
+  Against the four gates before it
+  (`~/temp/agent/gate/keep/failing-tests-of-the-gate-on-522e865c9d-against-the-four-gates-before-it.txt`,
+  panics beside it):
+  - one fails for the first time,
+    `package_repair::quiet_runs_the_repair_and_says_nothing_about_success`
+    (`left: 0`, `right: 1` at `binary_package_repair_tests.rs:311`);
+    the fresh run queued for the package-repair controls that fail only in a suite owns it,
+    and this sighting goes into its brief;
+  - three of `service_provision_refusals_before_the_wait` are back
+    (they failed in three of the four gates before and not in the last):
+    "the tag … does not fit 7 bytes, and a digest of it needs eight",
+    which depends on how long the gate run's own folder name is;
+    the long runtime directory's author answers them on its branch;
+  - `owed_push` did not fail this time;
+  - the rest are the standing ones:
+    seven of the Git version,
+    two of the long runtime directory,
+    the file holder,
+    and three the lock-holders folder and the no-manager branch answer.
+- **Integration pass 54** is queued first,
+  under the owner's answer,
+  with three branches at fixed commits:
+  the wrapper under the gate container's Git at `7ff40e4876`
+  (open: three doc sentences in the tests' helper),
+  the process that holds a file open at `5c004e8d95`
+  (open: the review of what was added after `3c43b9142a`),
+  and the address-space controls at `d2ff69077b`
+  (open: the review of one assertion's message).
+  Brief:
+  `~/temp/agent/pi-runs/integration-pass-54-with-the-wrapper-under-the-gates-git-the-file-holder-and-the-address-space-controls-prompt.md`.
+  Eight of the gate's sixteen failures are the subject of two of its branches
+  (seven of the Git version and the file holder);
+  whether they pass in the gate's image is for the gate after the release to show.
+  Queued after it at 10:58:
+  the masking author's fourth run
+  (second in the queue)
+  and the Git-version author's run for the three sentences.
+  Measured for the masking's `\uXXXX` finding,
+  counts only:
+  of the 41 string tokens in Pi's two credential files none is written otherwise than `JSON.stringify` writes it,
+  so it meets nothing on this machine today.
+- **The review of the Git-version branch's two rewritten sentences**
+  (ended 10:48:15,
+  by reading)
+  finds three more sentences:
+  `Itself` is also answered after the bound ran out,
+  when the query ended by its own doing between the bound and the helper's signal;
+  so the overview's "answers whether that bound ran out" is more than the answer holds;
+  and `QueryAnswer::output` holds what the pipes gave up to the end of the grace after the ending,
+  not "before it went".
+  They go back to the author as wording,
+  after the pass has taken the branch.
+- **The address-space author**,
+  sixth run,
+  ended 10:47:59 at `d2ff69077b`:
+  the message now names the wrapper's ending and its standard error.
+  With the room planted below the boundary the wrapper ended on **signal 11** (`SIGSEGV`) at 44 MiB after the service had landed the commit,
+  and the repository recovered.
+  How a wrapper ends when its address space runs out is what the control is about;
+  a segmentation fault there has no owner and no record yet.
+- **The file-holder author**,
+  third run,
+  ended 10:50:27 at `5c004e8d95`:
+  one doc line and three assertion messages,
+  no assertion changed;
+  839 of 839 `worktree::` tests.
+- **The lock-holders author**,
+  fifth run,
+  ended 10:46:08 at `58cd4d9f7c`:
+  the three findings answered;
+  the Git a wrapper starts now writes a line naming itself between `fork` and `exec`,
+  so a wrapper killed between starting a Git and naming it leaves that Git named;
+  a start whose child cannot write its line fails.
+  The cost is inside the machine's spread
+  (medians 58.5 and 60.5 ms,
+  the same binary twice agreeing to the millisecond).
+  Its review is queued third,
+  with a paragraph that holds the change against `doc/planning/cli-git-no-self-invocation.md`
+  (the child's step and one allowed use of `current_exe`)
+  and asks what the step between `fork` and `exec` may wait on.
+- **The add that never skips the cargo repair**,
+  tenth run,
+  ended 10:40:34 at `edaabb664f`:
+  the ninth review's four findings answered;
+  it reports its own probe that wrote into the main checkout and `/tmp` at about 09:25,
+  and that it removed what was left.
+  Review queued seventh
+  (13 code files).
+- **The long runtime directory's controls**,
+  third run,
+  ended 10:43:13 at `394ae7444a`:
+  the controls ask a chooser for a folder with room;
+  five gate controls pass in the gate's newest image with its sources.
+  Review queued eighth
+  (6 code files that are not tests).
+  **It counted what tests have left at the top of `~/temp/agent`**:
+  5,530 entries,
+  of which 1,675 are `<prefix><digits>` folders and 3,255 `rt-` or `rn-` folders of the tests' helpers,
+  none removed.
+  Its branch makes such folders inside an owned folder from now on;
+  the ones that are there have no owner yet.
+- **The journal branch**,
+  fifth run,
+  ended 10:37:16 at `ce1b113d79`:
+  three findings answered;
+  it reports that one of its commands measured `~/temp/agent` as a whole,
+  which its brief forbids.
+  Review queued fifth
+  (8 code files).
+- **The credential masking's third review**
+  (ended 10:39:52,
+  31 of 31 files,
+  made-up values only):
+  **eight more**,
+  seven reproduced and one part by reading:
+  an append between the last check and the rename is lost
+  (the second time this is found);
+  a `;` after an exported value arms the wrong text;
+  a `\uXXXX` spelling in a credential file is not masked;
+  an unreadable store and an unreadable age identity are taken for absent and the run starts;
+  a session named through a free-form Pi argument is not masked before the start;
+  missing session statistics skip the last masking and the run ends `idle`;
+  an error of the kept standard error's file is unhandled.
+  Five of the eight are classes the author's last report had as closed.
+  **Not merged;
+  the rotation waits,
+  by the owner's answer.**
+  The author's fourth run is being written with the advisor's shape:
+  no flat list,
+  one function that tells absent from could-not with a walk of every source through absent,
+  unreadable and readable,
+  and the question whether values can come from the interpreter that produces them.
+- Read at 10:53:13:
+  17 Pi units going;
+  Tctl 71.6 degrees with no gate running.
 
 ##### The landing that never waits and the lock a killed Git left both answer their third reviews; both reviews are queued (2026-11-15T10:33:06-05:00)
 
@@ -36405,6 +36536,73 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### Answers on waking (2026-11-15, written here at 10:53:13-05:00)
+
+The owner wrote "I've finished sleeping now and you can lift the CPU temp limits.",
+and then answered four questions through the question tool,
+between 10:46:27 and 10:48.
+
+- **The CPU temperature**:
+  "Leave lifted".
+  Nothing holds it.
+  It read 95.2 degrees a minute after the lift with a container gate going,
+  and 71.6 at 10:53:13 after the gate.
+  The night's record is in `doc/handover/claude-cpu-cap-and-thermal-watch.md`.
+- **The cap on agents**:
+  "Step to 20 with the probe (Recommended)".
+  Raised from 17 to 20 at 10:50:46,
+  with the eight-hour drive probe at that level;
+  two slow readings in a row drop it back by the recorded rule
+  (`doc/handover/agents-at-once-on-this-machine.md`).
+- **The rotation of the credentials shown to model providers**:
+  "Keep waiting for masking".
+  The answer of 2026-11-14 stands:
+  one rotation,
+  after the masking is merged and shown to hold.
+  The owner was told that three reviews reproduced 12,
+  then 10,
+  then 8 ways a value still gets through.
+- **A branch with findings still open**:
+  "Yes, tests too".
+  A branch of the wrapper goes into an integration pass while the only findings its reviews left open are in doc comments or in test code;
+  those are finished and reviewed afterwards,
+  in commits of their own.
+  Read narrowly by the coordinating session:
+  the code that is not a test has had a review that found no defect in it,
+  and new code that is not a test still has its review before a pass.
+  Asked about the wrapper only;
+  the driver,
+  mpm and cargo keep the earlier rule.
+
+### Answers on waking, second round (2026-11-15, written here at 11:00:01-05:00)
+
+Three more questions through the question tool,
+answered between 10:57:32 and 10:59.
+Two of them reverse what the coordinating session had adopted meanwhile and what the landed removal's branch builds at `5ca2149aea`.
+
+- **A shell alias and the guard on a worktree's removal**:
+  "Forward them unguarded".
+  Every `!` alias is passed to real Git as it is;
+  all aliases keep working with no opt-out;
+  a `git <alias>` that ends in a worktree removal is not guarded,
+  and the SPEC states that hole.
+  The option not taken was the branch's refusal of every `!` alias the wrapper cannot read.
+- **An ignored folder that is itself a repository with commits of its own**:
+  "Delete as ignored".
+  The decision of 2026-11-12
+  ("Delete ignored, spare busy")
+  stays literal:
+  the nested repository goes with the worktree and the deletion is logged.
+  The owner was told that a review had deleted the only copy of a commit this way.
+  The reading adopted at 08:06:19
+  (refuse with the opt-out)
+  is withdrawn.
+- **The briefing rule in `AGENTS.md`**:
+  "Name both folders (Recommended)".
+  Applied in `73ee82f26d`:
+  the rule now says to grep `doc/decision/` and `doc/planning/`,
+  and `CLAUDE.md` is regenerated by file-enforcer.
 
 ### Answers after the restart (2026-11-04)
 
