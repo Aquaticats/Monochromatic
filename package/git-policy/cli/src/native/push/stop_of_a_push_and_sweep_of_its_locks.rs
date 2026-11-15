@@ -38,8 +38,8 @@
 //!  - the wait for what the push started: `escalation_deadline` again;
 //!  - the wait for the rest of the tree in `settle_locks`: what is left of `escalation_deadline`;
 //!  - the sweep of the locks, when the tree has gone: what is left of `STOP_CEILING`,
-//!    which is at least
-//!  `SWEEP_AFTER_THE_STOP`,
+//!    which covers
+//!  `SWEEP_AFTER_THE_STOP` less the one `POLL_PAUSE` a wait may overrun by,
 //!    and a sweep that does not run or does not answer inside it is kept as owed (below);
 //!  - the task `settle_locks` and `sweep_after_exit` may start:
 //!    its own waits are `STOP_CEILING` each,
