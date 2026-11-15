@@ -103,7 +103,11 @@ pub struct ClaimTime {
 
 /// Whether `text` is 32 hexadecimal digits,
 /// which is what a boot ID without dashes and a machine ID are.
-fn is_compact_hex_id(text: &str) -> bool {
+/// The boot ID is read in with its dashes removed and is accepted on the same test,
+/// so a reader of an identity asks the same question of a boot part
+/// (`service_index_identity.rs`,
+/// `holder_state_in`).
+pub(crate) fn is_compact_hex_id(text: &str) -> bool {
     return text.len() == BOOT_ID_LENGTH && text.as_bytes().iter().all(u8::is_ascii_hexdigit);
 }
 
