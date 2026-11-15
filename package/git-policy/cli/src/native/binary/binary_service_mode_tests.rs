@@ -51,13 +51,17 @@ fn finished(mut child: Child) -> Output {
     }
 }
 
-/// A person types `git monochromatic-git-policy-cli service run`:
-/// the manager passed no socket and no address is named,
-/// so the start is refused with
-///  the reason and the way forward,
-/// exits without listening,
-/// and creates nothing,
-/// not even the journal directory.
+/// What:
+///  A person types `git monochromatic-git-policy-cli service run`:
+///  no address is named,
+///  so the start is refused with the reason and the way forward,
+///  exits without listening,
+///  and creates nothing,
+///  not even the journal directory.
+/// Why:
+///  This branch starts the service itself with its address in the service's words (`--path` or `--abstract`),
+///  and no manager passes a socket to it: the refusal names those words, never a manager that passed nothing
+///  (the review of `896c60d97`, and `service_main.rs`'s own sentence).
 #[test]
 fn a_start_with_no_socket_and_no_address_is_refused_and_creates_nothing() {
     let fixture: Fixture = fixture("service-mode-no-socket");
@@ -71,12 +75,12 @@ fn a_start_with_no_socket_and_no_address_is_refused_and_creates_nothing() {
         let output: Output = finished(command.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the wrapper starts"));
         let stderr: String = String::from_utf8_lossy(&output.stderr).into_owned();
         assert_eq!(output.status.code(), Some(git_policy_cli::service_main::EXIT_NOT_LISTENING), "{label}: {stderr}");
-        assert!(stderr.contains("started by the service manager") && stderr.contains("--path <socket>"), "{label}: {stderr}");
+        assert!(stderr.contains("needs the address of the commit service it serves") && stderr.contains("--path <sock>") && stderr.contains("--abstract <name>"), "{label}: {stderr}");
         assert!(!journal.exists(), "{label}: a refused start left a directory");
     }
     // Also without any option: the refusal names the manager, not a missing option.
     let bare: Output = finished(wrapped(&fixture).args(["monochromatic-git-policy-cli", "service", "run"]).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("the wrapper starts"));
-    assert!(String::from_utf8_lossy(&bare.stderr).contains("started by the service manager"), "{}", String::from_utf8_lossy(&bare.stderr));
+    assert!(String::from_utf8_lossy(&bare.stderr).contains("needs the address of the commit service it serves"), "{}", String::from_utf8_lossy(&bare.stderr));
     remove(&fixture);
 }
 

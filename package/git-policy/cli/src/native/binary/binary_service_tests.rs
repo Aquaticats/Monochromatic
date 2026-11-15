@@ -1111,13 +1111,16 @@ fn an_older_service_is_replaced_without_the_user_seeing_it() {
         }
     });
     let (stream, _) = old.accept().expect("the client connects to the old service");
-    let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: PROTOCOL_VERSION - 1, release: None });
+    // What: the service announces the oldest protocol this build still serves, and a release older than this one.
+    // Why:  A greeting of an older *protocol* with no release is this build's own service here, and is served rather than
+    //       retired (`service_client_reach_service.rs`): what the retire is for is a service of another release.
+    let mut greeting: String = encode_service(&ServiceMessage::Welcome { version: git_policy_cli::service_protocol::MIN_SERVED_PROTOCOL, release: Some(String::from("0.0.1-earlier")) });
     greeting.push('\n');
     (&stream).write_all(greeting.as_bytes()).expect("greet");
     let mut asked = String::new();
     BufReader::new(&stream).read_line(&mut asked).expect("the client asks it to retire");
     // Written in the version the old service announced, the only one it reads.
-    assert_eq!(asked.trim_end(), encode_retire(PROTOCOL_VERSION - 1));
+    assert_eq!(asked.trim_end(), encode_retire(git_policy_cli::service_protocol::MIN_SERVED_PROTOCOL));
     drop(stream);
     drop(old);
     let service: Service = start_service(&fixture, name.as_str(), None);
