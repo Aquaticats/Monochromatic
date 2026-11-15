@@ -38,6 +38,7 @@ import {
   aSilenceInTheRun,
   aSilentCommandIsDueToEnd,
   declaredBoundOf,
+  type CommandAnswer,
   type CommandRequest,
   type ConnectionToPi,
   type DriverOptions,
@@ -53,6 +54,7 @@ import {
   SILENT_NOTICE_SECONDS,
   startRecordOfPiRun,
   type WatchRequest,
+  watchUntilEnded,
 } from '../dist/final/node/index.mjs';
 import {
   failureCodeOf,
@@ -69,6 +71,12 @@ const MILLISECONDS_PER_SECOND = 1_000;
  The code the operating system gives a path that is not there.
  */
 const MISSING_PATH_CODE = 'ENOENT';
+
+/**
+ Seconds a control states for both times when it reads the machine's clock and wants the first look to be past them: any look
+ is 300 ms away, so a millisecond of silence is past both and the control does not wait for a bound it did not state.
+ */
+const PAST_BOTH_TIMES_SECONDS = 0.001;
 
 /**
  The code the operating system gives a process that is not there.
@@ -240,6 +248,7 @@ async function startRunAtAClock(): Promise<RunAtAClock> {
    The folder the run's feed goes in.
    */
   const folder = await makeFolder();
+  await mkdir(join(folder.path, 'inbox',),);
   /**
    Where the record reads the time, which starts at zero so every figure in a test is the run's own.
    */
@@ -257,6 +266,33 @@ async function startRunAtAClock(): Promise<RunAtAClock> {
     record,
     folder: folder.path,
     clock,
+    async [Symbol.asyncDispose]() {
+      await record.close();
+      await folder[Symbol.asyncDispose]();
+    },
+  };
+}
+
+/**
+ Starts a run's record on the machine's own clock, which is what a test that reaches the idle path needs: that path asks how long
+ the run has been quiet, and a clock a test moves reaches it only if the test moves it too.
+
+ @returns the record, its folder, and a clock that stays where the machine has it
+ */
+async function startRunAtTheRealClock(): Promise<RunAtAClock> {
+  /**
+   The folder the run's feed goes in.
+   */
+  const folder = await makeFolder();
+  await mkdir(join(folder.path, 'inbox',),);
+  /**
+   The record of the run.
+   */
+  const record = startRecordOfPiRun({ feedFile: join(folder.path, 'feed.jsonl',), },);
+  return {
+    record,
+    folder: folder.path,
+    clock: { at: Date.now(), },
     async [Symbol.asyncDispose]() {
       await record.close();
       await folder[Symbol.asyncDispose]();
@@ -373,10 +409,14 @@ function optionsOf({
   runFolder,
   silentSeconds,
   silentEndSeconds,
+  idleSeconds = 0,
+  milliseconds = RUN_MILLISECONDS,
 }: {
   readonly runFolder: string;
   readonly silentSeconds: number;
-  readonly silentEndSeconds: number
+  readonly silentEndSeconds: number;
+  readonly idleSeconds?: number;
+  readonly milliseconds?: number
 },): DriverOptions {
   return {
     runFolder,
@@ -385,8 +425,8 @@ function optionsOf({
     provider: 'stand-in',
     model: 'stand-in-model',
     piArguments: [],
-    wallSeconds: RUN_MILLISECONDS / MILLISECONDS_PER_SECOND,
-    idleSeconds: 0,
+    wallSeconds: milliseconds / MILLISECONDS_PER_SECOND,
+    idleSeconds,
     silentSeconds,
     silentEndSeconds,
     turnCap: Number.MAX_SAFE_INTEGER,
@@ -1351,6 +1391,514 @@ await describe({
         expect(String(kept.args,),).toContain('...[',);
         expect(kept.boundSeconds,).toBe(DECLARED_BOUND_SECONDS,);
         expect(kept.milliseconds,).toBe(5,);
+      },
+    },),
+  ],
+},);
+
+/**
+ What one step of ending a silent command got: an answer that did it, a refusal, or no answer at all.
+ */
+type StepAnswer = 'done' | 'refused' | 'unanswered';
+
+/**
+ The answer a step of ending a silent command gets, in the shape a wait on Pi carries.
+
+ @param answer - what that step got
+
+ @returns Pi's answer, as the connection reports it
+
+ @example
+ ```ts
+ const answer = answerOf('refused',);
+ ```
+ */
+function answerOf(answer: StepAnswer,): CommandAnswer {
+  if (answer === 'unanswered') {
+    return {
+      ending: 'silence',
+      problem: 'Pi answered nothing',
+    };
+  }
+  return (answer === 'refused')
+    ? {
+      ending: 'answered',
+      record: {
+        success: false,
+        error: 'refused',
+      },
+    }
+    : {
+      ending: 'answered',
+      record: { success: true, },
+    };
+}
+
+/**
+ A connection whose two steps of ending a silent command answer as a test states, and which lets each answer carry the events a
+ real Pi writes before it, so the settle the driver reads is the one Pi made.
+
+ @param sent - where the commands the watch sends are recorded
+
+ @param abort - what the abort gets
+
+ @param message - what the recovery message gets
+
+ @param before - what Pi writes before it answers a command, by the command's type
+
+ @returns the connection a watch reads
+ */
+function endingConnection({
+  sent,
+  abort,
+  message,
+  before = {},
+}: {
+  readonly sent: Record<string, unknown>[];
+  readonly abort: StepAnswer;
+  readonly message: StepAnswer;
+  readonly before?: Readonly<Record<string, () => void>>
+},): ConnectionToPi {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send({ command, }: CommandRequest,) {
+      sent.push(command,);
+      before[String(command.type,)]?.();
+      return answerOf(((command.type === 'abort') ? abort : message),);
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
+}
+
+/**
+ Writes the records a real Pi writes when an abort ends the operation in flight: the tool's end and the settle after it.
+
+ @param run - the run at its clock
+
+ @param toolCallId - the call the abort ended
+ */
+function observeAbortedCall(run: RunAtAClock, toolCallId: string,): void {
+  observe(run, {
+    type: 'tool_execution_end',
+    toolCallId,
+    toolName: 'bash',
+    isError: true,
+    result: { content: [], },
+  },);
+  observe(run, { type: 'agent_settled', aborted: true, },);
+}
+
+/**
+ Starts a run that is sitting in one silent command, which is the state every control of ending one begins in.
+
+ @returns the run at its clock
+ */
+async function startRunInASilentCommand(): Promise<RunAtAClock> {
+  /**
+   The run.
+   */
+  const run = await startRunAtAClock();
+  observe(run, { type: 'agent_start', },);
+  observe(run, {
+    type: 'tool_execution_start',
+    toolCallId: 'call-silent',
+    toolName: 'bash',
+    args: COMMAND_ARGS,
+  },);
+  run.clock.at = (SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND) + 1;
+  return run;
+}
+
+await describe({
+  name: 'ending a silent command',
+  children: [
+    it({
+      name: 'answers three things of the abort: done, refused, and no answer at all',
+      fn: async () => {
+        /**
+         Each run, its commands, and what the watch answered, one per answer the abort can give.
+         */
+        const outcomes: Record<string, unknown>[] = [];
+        for (const abort of ['done', 'refused', 'unanswered'] as const) {
+          await using run = await startRunInASilentCommand();
+          /**
+           Every command the watch sent Pi.
+           */
+          const sent: Record<string, unknown>[] = [];
+          const watch = watchOf({
+            run,
+            connection: endingConnection({
+              sent,
+              abort,
+              message: 'done',
+              before: {
+                abort: function settle() {
+                  observeAbortedCall(run, 'call-silent',);
+                },
+              },
+            },),
+            silentSeconds: SILENT_NOTICE_SECONDS,
+            silentEndSeconds: SILENT_ENDING_SECONDS,
+          },);
+          /**
+           Why the run cannot go on, or that it goes on.
+           */
+          const progress = await aSilenceInTheRun({
+            watch,
+            waited: {},
+          },);
+          /**
+           What the summary keeps of the attempt.
+           */
+          const kept = summaryOf(run.record,).silences?.at(-1,);
+          outcomes.push({
+            abort,
+            progress,
+            keptAbort: kept?.abort,
+            commandTypes: sent.map((command,) => command.type,),
+          });
+        }
+        expect(outcomes,).toEqual([
+          {
+            abort: 'done',
+            progress: 'still-running',
+            keptAbort: 'done',
+            commandTypes: ['abort', 'prompt'],
+          },
+          {
+            abort: 'refused',
+            progress: 'prompt-rejected',
+            keptAbort: 'refused',
+            commandTypes: ['abort'],
+          },
+          {
+            abort: 'unanswered',
+            progress: 'silent-command-unanswered',
+            keptAbort: 'unanswered',
+            commandTypes: ['abort'],
+          },
+        ],);
+      },
+    },),
+    it({
+      name: 'answers three things of the recovery message: done, refused, and no answer at all',
+      fn: async () => {
+        /**
+         What the watch answered for each answer the message can give.
+         */
+        const outcomes: Record<string, unknown>[] = [];
+        for (const message of ['done', 'refused', 'unanswered'] as const) {
+          await using run = await startRunInASilentCommand();
+          /**
+           Every command the watch sent Pi.
+           */
+          const sent: Record<string, unknown>[] = [];
+          const watch = watchOf({
+            run,
+            connection: endingConnection({
+              sent,
+              abort: 'done',
+              message,
+              before: {
+                abort: function settle() {
+                  observeAbortedCall(run, 'call-silent',);
+                },
+              },
+            },),
+            silentSeconds: SILENT_NOTICE_SECONDS,
+            silentEndSeconds: SILENT_ENDING_SECONDS,
+          },);
+          outcomes.push({
+            message,
+            progress: await aSilenceInTheRun({
+              watch,
+              waited: {},
+            },),
+            keptMessage: summaryOf(run.record,).silences?.at(-1,)?.message,
+          },);
+        }
+        expect(outcomes,).toEqual([
+          {
+            message: 'done',
+            progress: 'still-running',
+            keptMessage: 'done',
+          },
+          {
+            message: 'refused',
+            progress: 'prompt-rejected',
+            keptMessage: 'refused',
+          },
+          {
+            message: 'unanswered',
+            progress: 'silent-command-unanswered',
+            keptMessage: 'unanswered',
+          },
+        ],);
+      },
+    },),
+    it({
+      name: 'sends no recovery message to a session that did not settle, and says the settle was what it waited for',
+      fn: async () => {
+        await using run = await startRunInASilentCommand();
+        /**
+         Every command the watch sent Pi.
+         */
+        const sent: Record<string, unknown>[] = [];
+        // Pi answers the abort but writes no settle, which is a session still at work whatever its answer said.
+        const watch = watchOf({
+          run,
+          connection: endingConnection({
+            sent,
+            abort: 'done',
+            message: 'done',
+          },),
+          silentSeconds: SILENT_NOTICE_SECONDS,
+          silentEndSeconds: SILENT_ENDING_SECONDS,
+        },);
+        expect(await aSilenceInTheRun({
+          watch,
+          waited: {},
+        },),).toBe('silent-command-unanswered',);
+        expect(sent.map((command,) => command.type,),).toEqual(['abort',],);
+        expect(summaryOf(run.record,).silences?.at(-1,)?.settled,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'keeps the silence going when the abort ended nothing, so the next look is not an hour away',
+      fn: async () => {
+        await using run = await startRunInASilentCommand();
+        /**
+         How long the run had said nothing when the abort was asked.
+         */
+        const silenceBefore = run.record.silentMilliseconds();
+        const watch = watchOf({
+          run,
+          connection: endingConnection({
+            sent: [],
+            abort: 'unanswered',
+            message: 'unanswered',
+          },),
+          silentSeconds: SILENT_NOTICE_SECONDS,
+          silentEndSeconds: SILENT_ENDING_SECONDS,
+        },);
+        await aSilenceInTheRun({
+          watch,
+          waited: {},
+        },);
+        expect(run.record.silentMilliseconds(),).toBeGreaterThanOrEqual(silenceBefore,);
+        expect(summaryOf(run.record,).silences?.at(-1,)?.abort,).toBe('unanswered',);
+      },
+    },),
+    it({
+      name: 'does not end the run as idle when the recovery message was never answered',
+      fn: async () => {
+        // The machine's clock, as the review's own reproduction had it: the idle path is a run that has settled and stayed quiet,
+        // and a clock a test moves reaches it only by being moved past the idle wait as well.
+        await using run = await startRunAtTheRealClock();
+        observe(run, { type: 'agent_start', },);
+        observe(run, {
+          type: 'tool_execution_start',
+          toolCallId: 'call-silent',
+          toolName: 'bash',
+          args: COMMAND_ARGS,
+        },);
+        /**
+         Every command the watch sent Pi.
+         */
+        const sent: Record<string, unknown>[] = [];
+        const endReason = await watchUntilEnded({
+          connection: endingConnection({
+            sent,
+            abort: 'done',
+            message: 'unanswered',
+            before: {
+              abort: function settle() {
+                observeAbortedCall(run, 'call-silent',);
+              },
+            },
+          },),
+          record: run.record,
+          options: optionsOf({
+            runFolder: run.folder,
+            silentSeconds: PAST_BOTH_TIMES_SECONDS,
+            silentEndSeconds: PAST_BOTH_TIMES_SECONDS,
+            milliseconds: RUN_MILLISECONDS,
+          },),
+          inbox: join(run.folder, 'inbox',),
+          deadline: Date.now() + RUN_MILLISECONDS,
+        },);
+        expect(sent.map((command,) => command.type,),).toEqual(['abort', 'prompt',],);
+        expect(endReason,).toBe('silent-command-unanswered',);
+      },
+    },),
+    it({
+      name: 'takes a call that ended for that call alone, not for the one started after it',
+      fn: async () => {
+        await using run = await startRunAtAClock();
+        /**
+         Every command the watch sent Pi.
+         */
+        const sent: Record<string, unknown>[] = [];
+        observe(run, { type: 'agent_start', },);
+        observe(run, {
+          type: 'tool_execution_start',
+          toolCallId: 'call-A',
+          toolName: 'bash',
+          args: { command: 'command-A', },
+        },);
+        run.clock.at = SILENT_NOTICE_SECONDS * MILLISECONDS_PER_SECOND;
+        observe(run, {
+          type: 'tool_execution_start',
+          toolCallId: 'call-B',
+          toolName: 'bash',
+          args: {
+            command: 'command-B',
+            timeout: DECLARED_BOUND_SECONDS,
+          },
+        },);
+        run.clock.at = 2 * SILENT_NOTICE_SECONDS * MILLISECONDS_PER_SECOND;
+        observe(run, {
+          type: 'tool_execution_end',
+          toolCallId: 'call-A',
+          toolName: 'bash',
+          isError: false,
+          result: { content: [], },
+        },);
+        /**
+         The calls the run is still sitting in.
+         */
+        const tracked = run.record.commandsInFlight().map(function named(command,) {
+          return fieldsOf(command.args,).command;
+        },);
+        expect(tracked,).toEqual(['command-B',],);
+        const watch = watchOf({
+          run,
+          connection: endingConnection({
+            sent,
+            abort: 'done',
+            message: 'done',
+          },),
+          silentSeconds: SILENT_NOTICE_SECONDS,
+          silentEndSeconds: SILENT_ENDING_SECONDS,
+        },);
+        // The call still running declared a bound of its own that has not run out, so nothing is ended yet.
+        run.clock.at = SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND;
+        await aSilenceInTheRun({
+          watch,
+          waited: {},
+        },);
+        expect(sent,).toHaveLength(0,);
+      },
+    },),
+    it({
+      name: 'ends nothing while a call in flight has not outlived its own bound, and names every call when it is due',
+      fn: async () => {
+        await using run = await startRunAtAClock();
+        /**
+         Every command the watch sent Pi.
+         */
+        const sent: Record<string, unknown>[] = [];
+        observe(run, { type: 'agent_start', },);
+        observe(run, {
+          type: 'tool_execution_start',
+          toolCallId: 'long-bound-call',
+          toolName: 'bash',
+          args: {
+            command: 'long-bound-command',
+            timeout: DECLARED_BOUND_SECONDS,
+          },
+        },);
+        run.clock.at = 1_000;
+        observe(run, {
+          type: 'tool_execution_start',
+          toolCallId: 'unbounded-call',
+          toolName: 'bash',
+          args: { command: 'unbounded-command', },
+        },);
+        const watch = watchOf({
+          run,
+          connection: endingConnection({
+            sent,
+            abort: 'done',
+            message: 'done',
+            before: {
+              abort: function endBoth() {
+                observe(run, {
+                  type: 'tool_execution_end',
+                  toolCallId: 'unbounded-call',
+                  toolName: 'bash',
+                  isError: true,
+                  result: { content: [], },
+                },);
+                observe(run, {
+                  type: 'tool_execution_end',
+                  toolCallId: 'long-bound-call',
+                  toolName: 'bash',
+                  isError: true,
+                  result: { content: [], },
+                },);
+                observe(run, { type: 'agent_settled', aborted: true, },);
+              },
+            },
+          },),
+          silentSeconds: SILENT_NOTICE_SECONDS,
+          silentEndSeconds: SILENT_ENDING_SECONDS,
+        },);
+        // The command without a bound has outlived the stated end, and its peer has not outlived the bound it declared.
+        run.clock.at = (SILENT_ENDING_SECONDS * MILLISECONDS_PER_SECOND) + 1_000;
+        expect(await aSilenceInTheRun({
+          watch,
+          waited: {},
+        },),).toBe('still-running',);
+        expect(sent,).toHaveLength(0,);
+        // Past that bound by the grace, both calls have outlived what each declared, so the operation is due.
+        run.clock.at = (DECLARED_BOUND_SECONDS + SILENT_BOUND_GRACE_SECONDS) * MILLISECONDS_PER_SECOND;
+        expect(await aSilenceInTheRun({
+          watch,
+          waited: {},
+        },),).toBe('still-running',);
+        expect(sent.map((command,) => command.type,),).toEqual(['abort', 'prompt',],);
+        /**
+         What the agent was told, which names every command that was in flight.
+         */
+        const told = String(sent[1]?.message,);
+        expect(told,).toContain('long-bound-command',);
+        expect(told,).toContain('unbounded-command',);
+      },
+    },),
+    it({
+      name: 'tells a call by its own identifier, and by the tool\'s name only when Pi sends none',
+      fn: async () => {
+        await using run = await startRunAtAClock();
+        observe(run, { type: 'agent_start', },);
+        observe(run, {
+          type: 'tool_execution_start',
+          toolCallId: 'first',
+          toolName: 'bash',
+          args: { command: 'first-command', },
+        },);
+        observe(run, {
+          type: 'tool_execution_start',
+          toolCallId: 'second',
+          toolName: 'bash',
+          args: { command: 'second-command', },
+        },);
+        // Pi reports no identifier at all, which is the only case the fallback is for.
+        observe(run, {
+          type: 'tool_execution_end',
+          toolName: 'bash',
+          isError: false,
+          result: { content: [], },
+        },);
+              expect(run.record
+          .commandsInFlight()
+          .map(function named(command,) {
+            return fieldsOf(command.args,).command;
+          },),).toEqual(['first-command',],);
       },
     },),
   ],
