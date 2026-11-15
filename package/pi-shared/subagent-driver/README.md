@@ -555,11 +555,15 @@ the commit,
 the ranges and the source folder.
 A start that finds the change's name taken does not judge the start that took it:
 it takes the next free name beside it,
-`<change>-2`, `<change>-3` and so on,
+`<change>-2`,
+`<change>-3`,
+and so on,
 so a second start never writes over the first,
 and a folder a killed start left is left as a leftover with its record.
 The generation is part of the review's name,
-so its run, its branch, its unit and its worktree all carry it.
+so its run,
+its branch,
+its unit and its worktree all carry it.
 It then writes the diff of the ranges under the source folder,
 the brief that names the files the reviewer reads,
 an empty `reproductions/` folder,
