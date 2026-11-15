@@ -867,3 +867,184 @@ fn a_commit_only_the_head_reflog_names_is_refused_and_survives_a_collection() {
     assert!(!scene.task.exists(), "and the worktree is gone");
     remove(&scene.fixture);
 }
+
+/// What:
+///  A commit a worktree's own reference names through an annotated tag is refused,
+///  a tag of a tag reaches the same commit,
+///  a tag of a tree is kept as it stands,
+///  and `git gc --prune=now` leaves each object readable after the refusal.
+/// Why:
+///  The reference query asked for the object a reference names,
+///  which for an annotated tag is the tag object:
+///  the commit was dropped as no commit, the removal ended 0, and the collection took the commit
+///  (a review of `5a2bd4bb6c`, finding 1).
+///  The tag of a tree is the shape that is no commit at all,
+///  and the collection is run on purpose in each of the three.
+#[test]
+fn a_commit_only_an_annotated_tag_names_is_refused_and_survives_a_collection() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-annotated-tag");
+    let task: String = scene.task.display().to_string();
+    run_direct(&scene.fixture, scene.task.as_path(), &["checkout", "--quiet", "--detach"]);
+    std::fs::write(scene.task.join("only-in-this-commit.txt"), "made here\n").expect("a file in the worktree");
+    run_direct(&scene.fixture, scene.task.as_path(), &["add", "only-in-this-commit.txt"]);
+    run_direct(&scene.fixture, scene.task.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+    let named: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", "HEAD"]);
+    let commit: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
+    let tree_object: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", &format!("{commit}^{{tree}}")]);
+    let tree: String = String::from_utf8_lossy(tree_object.stdout.as_slice()).trim().to_owned();
+    run_direct(&scene.fixture, scene.task.as_path(), &["reset", "--hard", "main"]);
+    // The reflog and the reset's own record go, so the worktree's reference is the last name the object has.
+    run_direct(&scene.fixture, scene.task.as_path(), &["reflog", "expire", "--expire=now", "--all"]);
+    let admin: PathBuf = admin_of(&scene.fixture, BRANCH);
+    std::fs::remove_file(admin.join("logs/HEAD").as_path()).expect("the reflog goes");
+    std::fs::remove_file(admin.join("ORIG_HEAD").as_path()).expect("the reset's record goes");
+
+    for (reference, of, reached, kind) in [
+        ("plain-tag", commit.as_str(), commit.as_str(), "commit"),
+        ("nested-tag", commit.as_str(), commit.as_str(), "commit"),
+        ("tag-of-tree", tree.as_str(), tree.as_str(), "tree"),
+    ] {
+        // The annotated tag a person made, and for the nested shape the tag of that tag.
+        run_direct(&scene.fixture, scene.task.as_path(), &["tag", "--annotate", "--message=inner", "construction-inner", of]);
+        let inner_object: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", "refs/tags/construction-inner"]);
+        let inner: String = String::from_utf8_lossy(inner_object.stdout.as_slice()).trim().to_owned();
+        let pointed: String = match reference {
+            "nested-tag" => {
+                run_direct(&scene.fixture, scene.task.as_path(), &["tag", "--annotate", "--message=outer", "construction-outer", inner.as_str()]);
+                let outer: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", "refs/tags/construction-outer"]);
+                String::from_utf8_lossy(outer.stdout.as_slice()).trim().to_owned()
+            }
+            _ => inner,
+        };
+        run_direct(&scene.fixture, scene.task.as_path(), &["update-ref", "--no-deref", &format!("refs/worktree/{reference}"), pointed.as_str()]);
+        for name in ["construction-inner", "construction-outer"] {
+            run_direct(&scene.fixture, scene.task.as_path(), &["update-ref", "-d", &format!("refs/tags/{name}")]);
+        }
+        let refused: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{reference}: the removal is refused: {said}");
+        assert!(said.contains(&format!("refs/worktree/{reference}")), "{reference}: the refusal names it: {said}");
+        assert!(said.contains(&reached[..12]), "{reference}: and the {kind} it reaches: {said}");
+        assert!(said.contains(&format!("names the {kind}")), "{reference}: as a {kind}: {said}");
+        assert!(scene.task.exists(), "{reference}: and the worktree stays");
+        // The collection runs in the worktree that holds the name: a reference of one worktree is invisible to a
+        // collection started in another, which is Git's own reading of a per-worktree reference
+        // (`keep/measurement-what-a-collection-keeps.log` of this run).
+        run_direct(&scene.fixture, scene.task.as_path(), &["gc", "--prune=now"]);
+        let readable: Observed = run_direct(&scene.fixture, scene.task.as_path(), &["cat-file", "-e", reached]);
+        assert_eq!(readable.code, Some(0), "{reference}: the {kind} is still readable after a collection: {}", stderr_of(&readable));
+        run_direct(&scene.fixture, scene.task.as_path(), &["update-ref", "-d", &format!("refs/worktree/{reference}")]);
+    }
+    remove(&scene.fixture);
+}
+
+/// What:
+///  A record of an operation that is there and cannot be read is refused,
+///  the worktree stays, and the commit it holds survives a collection.
+/// Why:
+///  The two record loops read a record they could not open as no record,
+///  and `ORIG_HEAD` was then the only name of a commit nobody asked about:
+///  the removal ended 0, the record went with the worktree, and the collection took the commit
+///  (a review of `5a2bd4bb6c`, finding 2).
+///  The record of an operation that stopped is the same read, so it is the second half of this control.
+#[test]
+fn a_record_this_program_cannot_read_is_refused_and_its_commit_survives_a_collection() {
+    use std::os::unix::fs::PermissionsExt as _;
+    for (where_it_stands, holder, clear_orig_head) in
+        [("ORIG_HEAD", "the record `ORIG_HEAD`", false), ("rebase-merge/onto", "the record `rebase-merge/onto`", true)]
+    {
+        let scene: Scene = a_repository_with_a_recorded_worktree("removal-unreadable-record");
+        let task: String = scene.task.display().to_string();
+        run_direct(&scene.fixture, scene.task.as_path(), &["checkout", "--quiet", "--detach"]);
+        std::fs::write(scene.task.join("only-in-this-commit.txt"), "made here\n").expect("a file in the worktree");
+        run_direct(&scene.fixture, scene.task.as_path(), &["add", "only-in-this-commit.txt"]);
+        run_direct(&scene.fixture, scene.task.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+        let named: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", "HEAD"]);
+        let commit: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
+        run_direct(&scene.fixture, scene.task.as_path(), &["reset", "--hard", "main"]);
+        run_direct(&scene.fixture, scene.task.as_path(), &["reflog", "expire", "--expire=now", "--all"]);
+        let admin: PathBuf = admin_of(&scene.fixture, BRANCH);
+        std::fs::remove_file(admin.join("logs/HEAD").as_path()).expect("the reflog goes");
+        if clear_orig_head {
+            // Only the record of the operation that stopped names the commit, so the refusal can only be about that one.
+            std::fs::remove_file(admin.join("ORIG_HEAD").as_path()).ok();
+        }
+        let record: PathBuf = admin.join(where_it_stands);
+        std::fs::create_dir_all(record.parent().expect("a parent")).expect("the record's directory");
+        std::fs::write(record.as_path(), format!("{commit}\n")).expect("the record");
+        std::fs::set_permissions(record.as_path(), std::fs::Permissions::from_mode(0o000)).expect("a record nothing may read");
+        let refused: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{holder}: the removal is refused: {said}");
+        assert!(said.contains(holder), "{holder}: the refusal names the record: {said}");
+        // The commit itself cannot be named: it is the record that says which one it is, and the record is what could not
+        // be read. The refusal says so, which is what lets a person fix the record and ask again.
+        assert!(said.contains("cannot be read"), "{holder}: and says the record could not be read: {said}");
+        assert!(scene.task.exists(), "{holder}: and the worktree stays");
+        // The record the removal would have deleted is still there, holding the commit's name.
+        std::fs::set_permissions(record.as_path(), std::fs::Permissions::from_mode(0o644)).expect("readable again");
+        let kept: String = std::fs::read_to_string(record.as_path()).expect("the record is still there");
+        assert_eq!(kept.trim(), commit, "{holder}: and still names the commit");
+        let readable: Observed = run_direct(&scene.fixture, scene.task.as_path(), &["cat-file", "-e", commit.as_str()]);
+        assert_eq!(readable.code, Some(0), "{holder}: the commit is there, with the record the removal did not delete: {}", stderr_of(&readable));
+        // A record is no root of a collection, so the sentence's remedy is what keeps the commit: name it, then collect.
+        run_direct(&scene.fixture, scene.task.as_path(), &["branch", "keep-the-commit", commit.as_str()]);
+        run_direct(&scene.fixture, scene.task.as_path(), &["gc", "--prune=now"]);
+        let survived: Observed = run_direct(&scene.fixture, scene.task.as_path(), &["cat-file", "-e", commit.as_str()]);
+        assert_eq!(survived.code, Some(0), "{holder}: naming it as the refusal says keeps it through a collection: {}", stderr_of(&survived));
+        remove(&scene.fixture);
+    }
+}
+
+/// What:
+///  A registration inside the worktree that cannot be read is refused,
+///  and the nested worktree's commit and uncommitted bytes stay.
+/// Why:
+///  The list of registrations the removal takes skipped a `gitdir` it could not read,
+///  so the nested worktree was never asked about:
+///  the same removal that was refused a moment before then ended 0 and deleted the nested checkout,
+///  and pruning and collecting took its commit
+///  (a review of `5a2bd4bb6c`, finding 3).
+///  The readable registration is the control: the refusal there is the nested detached `HEAD`.
+#[test]
+fn a_registration_this_program_cannot_read_is_refused_and_the_nested_worktree_stays() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-unreadable-registration");
+    let outer: String = scene.task.display().to_string();
+    // The nested checkout is ignored by the repository, as the review's own fixture is, so the outer worktree is clean.
+    let ignored: PathBuf = scene.repo.join(".gitignore");
+    std::fs::write(ignored.as_path(), "/inner/\n").expect("the ignore file");
+    run_direct(&scene.fixture, scene.repo.as_path(), &["add", ".gitignore"]);
+    run_direct(&scene.fixture, scene.repo.as_path(), &["commit", "--quiet", "--message=ignore the nested checkout"]);
+    let nested: PathBuf = scene.task.join("inner");
+    let named: &str = nested.to_str().expect("a UTF-8 fixture path");
+    run_direct(&scene.fixture, scene.repo.as_path(), &["worktree", "add", "--quiet", "--detach", named, "main"]);
+    std::fs::write(nested.join("committed-only-here.txt"), "committed work\n").expect("a file in the nested worktree");
+    run_direct(&scene.fixture, nested.as_path(), &["add", "committed-only-here.txt"]);
+    run_direct(&scene.fixture, nested.as_path(), &["commit", "--quiet", "--message=nested work"]);
+    let nested_commit_object: std::process::Output = git(&scene.fixture, nested.as_path(), &["rev-parse", "HEAD"]);
+    let commit: String = String::from_utf8_lossy(nested_commit_object.stdout.as_slice()).trim().to_owned();
+    std::fs::write(nested.join(TRACKED), "uncommitted bytes that exist nowhere else\n").expect("uncommitted bytes");
+    let registration: PathBuf = admin_of(&scene.fixture, "inner").join("gitdir");
+    // The control: with the registration readable, the nested worktree keeps the outer one.
+    let control: Observed = scene.remove_with(&["worktree", "remove", outer.as_str()]);
+    let said: String = stderr_of(&control);
+    assert_eq!(control.code, Some(1), "a readable registration keeps the outer worktree: {said}");
+    assert!(said.contains("detached HEAD"), "and names what holds the nested commit: {said}");
+    assert!(nested.join(TRACKED).is_file(), "and the nested bytes stay");
+    // The same removal, with that one record unreadable.
+    std::fs::set_permissions(registration.as_path(), std::fs::Permissions::from_mode(0o000)).expect("a registration nothing may read");
+    let refused_unreadable: Observed = scene.remove_with(&["worktree", "remove", outer.as_str()]);
+    let unreadable_words: String = stderr_of(&refused_unreadable);
+    assert_eq!(refused_unreadable.code, Some(1), "an unreadable registration is refused: {unreadable_words}");
+    assert!(unreadable_words.contains("the registration in"), "the refusal names it: {unreadable_words}");
+    assert!(unreadable_words.contains("may name a worktree inside the one being removed"), "and why it stops the removal: {unreadable_words}");
+    assert!(nested.join(TRACKED).is_file(), "and the nested bytes stay");
+    assert!(nested.join("committed-only-here.txt").is_file(), "and the nested checkout stays");
+    std::fs::set_permissions(registration.as_path(), std::fs::Permissions::from_mode(0o644)).expect("readable again");
+    // The collection runs in the nested worktree, whose own `HEAD` names the commit.
+    run_direct(&scene.fixture, nested.as_path(), &["gc", "--prune=now"]);
+    let readable: Observed = run_direct(&scene.fixture, nested.as_path(), &["cat-file", "-e", commit.as_str()]);
+    assert_eq!(readable.code, Some(0), "the nested commit is still readable after a collection: {}", stderr_of(&readable));
+    remove(&scene.fixture);
+}

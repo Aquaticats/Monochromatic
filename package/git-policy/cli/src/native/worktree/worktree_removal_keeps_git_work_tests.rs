@@ -336,3 +336,122 @@ fn a_log_line_this_program_cannot_read_is_the_reason_nothing_is_removed() {
     assert!(reason.contains("its HEAD reflog"), "the reason names the log: {reason}");
     assert!(reason.contains("a line a killed writer left behind"), "and quotes the line: {reason}");
 }
+
+/// What:
+///  A reference of the worktree that names an annotated tag names the commit the tag reaches,
+///  a tag of a tag reaches the same commit,
+///  and a tag of a tree is kept as it stands.
+/// Why:
+///  The query that lists this worktree's references asked for the object a reference names,
+///  which for an annotated tag is the tag object:
+///  the commit its tag was made for was dropped as no commit,
+///  the removal went ahead, and `git gc --prune=now` took the commit
+///  (a review of `5a2bd4bb6c`, finding 1).
+///  A tag of a tree names no commit at all,
+///  and nothing here proves such an object outlives the removal, so it is kept as well.
+#[test]
+fn a_reference_that_names_a_tag_names_what_the_tag_reaches() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-tag");
+    let head: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
+    let commit: String = git_text(
+        fixture.worktree.as_path(),
+        &["commit-tree", format!("{head}^{{tree}}").as_str(), "-p", head.as_str(), "-m", "a commit only a tag names"],
+    );
+    let tree: String = git_text(fixture.worktree.as_path(), &["rev-parse", &format!("{head}^{{tree}}")]);
+    for (reference, kind, reached) in [("plain-tag", "commit", commit.clone()), ("nested-tag", "commit", commit.clone()), ("tag-of-tree", "tree", tree.clone())] {
+        // The tag a person made, and for the nested case the tag of that tag.
+        let inner: String = match reference {
+            "tag-of-tree" => {
+                git(fixture.worktree.as_path(), &["tag", "--annotate", "--message=of a tree", "construction-inner", tree.as_str()]);
+                git_text(fixture.worktree.as_path(), &["rev-parse", "refs/tags/construction-inner"])
+            }
+            _ => {
+                git(fixture.worktree.as_path(), &["tag", "--annotate", "--message=inner", "construction-inner", commit.as_str()]);
+                git_text(fixture.worktree.as_path(), &["rev-parse", "refs/tags/construction-inner"])
+            }
+        };
+        let pointed: String = match reference {
+            "nested-tag" => {
+                git(fixture.worktree.as_path(), &["tag", "--annotate", "--message=outer", "construction-outer", inner.as_str()]);
+                git_text(fixture.worktree.as_path(), &["rev-parse", "refs/tags/construction-outer"])
+            }
+            _ => inner,
+        };
+        git(fixture.worktree.as_path(), &["update-ref", "--no-deref", &format!("refs/worktree/{reference}"), pointed.as_str()]);
+        // The shared tag names go, as a person's do once the worktree's own reference is the last name.
+        for name in ["construction-inner", "construction-outer"] {
+            git(fixture.worktree.as_path(), &["update-ref", "-d", &format!("refs/tags/{name}")]);
+        }
+        let said: Vec<String> = fixture.stranded().expect("the references can be read");
+        assert_eq!(said.len(), 1, "{reference} names one object: {said:?}");
+        assert!(said[0].contains(&format!("the reference `refs/worktree/{reference}`")), "{reference}: {}", said[0]);
+        assert!(said[0].contains(&reached[..12]), "{reference} reaches {reached}: {}", said[0]);
+        assert!(said[0].contains(&format!("names the {kind}")), "{reference} is kept as a {kind}: {}", said[0]);
+        git(fixture.worktree.as_path(), &["update-ref", "-d", &format!("refs/worktree/{reference}")]);
+    }
+}
+
+/// What:
+///  A record of an operation that is there and cannot be read is the reason nothing is removed,
+///  in the worktree's own Git directory and in the directory of an operation that stopped.
+/// Why:
+///  Such a record may hold the only surviving name of a commit,
+///  and reading it as no record deleted that name with the worktree
+///  (a review of `5a2bd4bb6c`, finding 2).
+#[test]
+fn a_record_this_program_cannot_read_is_the_reason_nothing_is_removed() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-unreadable-record");
+    let head: String = git_text(fixture.worktree.as_path(), &["rev-parse", "HEAD"]);
+    let commit: String = git_text(
+        fixture.worktree.as_path(),
+        &["commit-tree", format!("{head}^{{tree}}").as_str(), "-p", head.as_str(), "-m", "a commit only a record names"],
+    );
+    for (where_it_stands, holder) in [("ORIG_HEAD", "the record `ORIG_HEAD`"), ("rebase-merge/onto", "the record `rebase-merge/onto`")] {
+        let path: PathBuf = fixture.admin.join(where_it_stands);
+        std::fs::create_dir_all(path.parent().expect("a parent")).expect("the record's directory");
+        std::fs::write(path.as_path(), format!("{commit}\n")).expect("the record");
+        let said: Vec<String> = fixture.stranded().expect("a readable record can be read");
+        assert!(
+            said.iter().any(|one| return one.contains(holder) && one.contains(&commit[..12])),
+            "a readable record names its commit: {said:?}"
+        );
+        // The same record, there and unreadable.
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o000)).expect("a record nothing may read");
+        let refused: Result<Vec<String>, String> = fixture.stranded();
+        let reason: String = refused.expect_err("a record this program cannot read is the reason nothing is removed");
+        assert!(reason.contains(holder), "the reason names the record: {reason}");
+        assert!(reason.contains("cannot be read"), "and says it could not be read: {reason}");
+        std::fs::set_permissions(path.as_path(), std::fs::Permissions::from_mode(0o644)).expect("the record is readable again");
+        std::fs::remove_file(path.as_path()).expect("the record goes");
+    }
+}
+
+
+/// What:
+///  A registration this program cannot read is the reason nothing is removed,
+///  because it may name a worktree inside the one being removed.
+/// Why:
+///  A removal deletes the registrations inside it with their checkouts and their own Git directories,
+///  and the list it asks was built by skipping every `gitdir` that could not be read:
+///  the nested worktree's commit and its uncommitted bytes went with the outer one
+///  (a review of `5a2bd4bb6c`, finding 3).
+#[test]
+fn an_unreadable_registration_is_the_reason_nothing_is_removed() {
+    let fixture: Fixture = a_repository_with_a_worktree("keeps-git-work-unreadable-registration");
+    let nested: PathBuf = fixture.worktree.join("inner");
+    let named: &str = nested.to_str().expect("a UTF-8 fixture path");
+    git(fixture.worktree.as_path(), &["worktree", "add", "--quiet", "--detach", named, "HEAD"]);
+    let nested_admin: PathBuf = fixture.common.join("worktrees").join("inner");
+    let registration: PathBuf = nested_admin.join("gitdir");
+    // The control: a registration this program can read asks the nested worktree, which holds nothing of its own beyond
+    // the commit it is checked out at, and that commit survives the removal.
+    assert_eq!(fixture.stranded(), Ok(Vec::new()), "a readable registration of a nested worktree with nothing of its own");
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(registration.as_path(), std::fs::Permissions::from_mode(0o000)).expect("a registration nothing may read");
+    let refused: Result<Vec<String>, String> = fixture.stranded();
+    let reason: String = refused.expect_err("a registration this program cannot read is the reason nothing is removed");
+    assert!(reason.contains("the registration in"), "the reason names the registration: {reason}");
+    assert!(reason.contains("may name a worktree inside the one being removed"), "and why it stops the removal: {reason}");
+    std::fs::set_permissions(registration.as_path(), std::fs::Permissions::from_mode(0o644)).expect("the registration is readable again");
+}
