@@ -1639,6 +1639,57 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The driver's brief writer for tests: nothing found in what it does with a change to tests; two findings about who owns a review's folder (2026-11-15T08:36:37-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The brief writer that takes a change to tests alone** (`b51b230eb2`),
+  its seventh review,
+  ended 08:31:20,
+  16 of 16 files,
+  two things,
+  both in the claim of a review's folder:
+  - reproduced:
+    two starts each take over a dead owner's folder,
+    because the taker removes the owner's path after its look and without asking whether it is still the record it read;
+    both return as owner and both write the folder's files;
+  - by reading:
+    the owner recorded is the command that writes the brief,
+    and the review's unit outlives that command;
+    with the command killed after the unit started,
+    the next start of that branch takes the folder and starts a second review beside the first.
+- **Weighed**:
+  both go back.
+  The first is the lock-free rule not yet met
+  (one atomic step that only one taker wins).
+  The second is a claim,
+  to be shown by a control with a stand-in unit first;
+  if it holds,
+  the folder's owner is the review's unit and a taker must see that unit gone by the manager's own answer.
+  The author's eighth run is queued ninth
+  (`~/temp/agent/pi-runs/review-brief-writer-for-tests-answers-its-seventh-review-of-2026-11-15-prompt.md`).
+  Until this branch is in `main`,
+  a review of a change to tests alone is still written by hand.
+- **The temperature**,
+  read at 08:35:34:
+  61.5 degrees,
+  budget 32.0 threads,
+  24.6 in use
+  (pass 53 and five other starts in their first minutes),
+  no event at or over the limit since 05:06:20.
+- Read at 08:35:37:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:29;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+  The queue held 86 entries at 08:36:37.
+
 ##### The record of another boot is clean and goes to pass 53; the push stop and the killed-Git lock go back; two gate controls have their cause; the launcher goes to review (2026-11-15T08:32:03-05:00)
 
 Not final and not approved:
