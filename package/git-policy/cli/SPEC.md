@@ -19284,6 +19284,12 @@ The shape of each repository is decided inside that same look and carried out wi
 the `.git` entry and the bare markers are metadata reads,
 so a second look at the shape after the walk would be a read with no ceiling,
 which is what the sixth review found (`a_bare_repository_is` outside the walk).
+A `HEAD` is read the way Git reads it (`validate_headref`, `setup.c:350-368`):
+the entry itself, never through a link,
+and a link whose target begins `refs/` is a repository's `HEAD` although no such ref exists,
+which is why a bare clone whose `HEAD` points at a missing branch is saved and not deleted with its
+directory
+(`a_head_git_reads`, the seventh review, 2026-11-15).
 The dry run is read at the force count typed,
 and it names what Git deletes at that count:
 at one force the directory walk skips a repository with a `.git` entry (`DIR_SKIP_NESTED_GIT`,
@@ -19305,6 +19311,13 @@ the clean then runs as typed,
 the person is told where each one is before Git starts,
 and the audit line carries `outcome` `saved-nested-repository` with one `copies` entry per repository,
 written `<path> => <place>`.
+A rename back that the system refused because a path was missing says only that:
+`ENOENT` names one of the two paths and not which,
+so the reading asks the copy itself under the same ceiling,
+and only a copy that is not there is a move that never happened
+(`the_saved_copy_is_gone` in `src/native/conflict/discarded_nested_repository.rs`;
+the seventh review found that every `ENOENT` was read as a source that is gone, and a repository still
+below the saved copies was dropped from the record of a stopped save).
 A move that was given up on at its ceiling is not known to have failed.
 The save keeps that move, so the rollback tries to return it and finds a rename that went through late,
 and a rejection after such a move names the repository as possibly at its own place or below the saved
@@ -19375,6 +19388,21 @@ whose lookups are a parameter so a control stalls one instead of a mount).
 The forms are `Clean`,
 `CleanIgnored` and `CleanIgnoredOnly`,
 so a rejection says which files that spelling deletes.
+
+Two windows stay open, and no number of looks closes either,
+because the rule is about what the command a person typed would destroy at the moment it is asked:
+the guard looks, and Git starts after that last look.
+A file made between the guard's last look and Git's start is one the command writes over or deletes with
+no refusal and no saved copy,
+and a nested repository made in that interval is one a `clean` deletes with its directory
+(`policy/policy_linked_worktree_nested_repositories.rs`, the second look after every save, and the
+single written-path check of `policy/policy_linked_worktree.rs`).
+Closing either would mean the wrapper deleting or writing the paths itself instead of forwarding the
+command, which is a different design and not this branch's;
+this section says so here, where a reader meets the refusal,
+rather than leaving the window to be discovered as a loss.
+The same reading is why a repository made in the last instant meets Git itself
+(the paragraph above on the clean's three looks says the same for the save).
 
 Two places where this guard and Git still differ, written here as limits with their reason:
 `git checkout-index --stdin` reads its paths from standard input,
@@ -19541,6 +19569,33 @@ and the wrapper's rule is that nothing waits forever,
 so the bytes are read on a thread the command stops waiting for at the ceiling.
 A read that reaches it is a refusal naming the file and the seconds,
 and the opt-out runs the command, which then waits as Git waits.
+The file is read once, and the bytes read here are the bytes Git is given.
+Git would otherwise open it a second time,
+and a named pipe has one writer:
+a wrapped `git restore --source=HEAD --pathspec-from-file=<fifo>` with one writer was killed at its
+eight-second bound while direct Git answered with the same writer,
+because the guard consumed the bytes and forwarded the name
+(the seventh review, 2026-11-15).
+The same second reading let a file changed in between make Git act on names the guard never judged.
+So the bytes are written into the wrapper's private repository scratch directory
+(`prepare_repository_scratch` in `src/native/foundation/scratch_location.rs`,
+whose own rules sweep it)
+under one name,
+`pathspec-from-file-<pid>-<the instant this invocation began>-<hash of the file's name>`,
+and the transform stage puts that name where Git reads it
+(`hand_the_pathspec_file_to_git` in `src/native/policy/policy_transforms.rs`,
+found through the command's own table by `pathspec_file_occurrence`).
+The name carries this process and its start,
+so a command run with the opt-out read nothing,
+finds no copy,
+and is forwarded exactly as typed.
+A copy that cannot be written is a refusal naming the file and the opt-out,
+because Git would read the file again.
+A `!` shell alias whose own words read a pathspec file is refused before anything is read:
+the wrapper forwards an alias's value unchanged,
+so it cannot put the bytes it read in the file's place,
+and the shell would read the file a second time
+(`pathspec_under_a_shell_alias_message`).
 `--pathspec-from-file=-` reads standard input in Git,
 which a guard cannot read without consuming it,
 so that spelling is refused with the reason and the opt-out,
@@ -19590,11 +19645,48 @@ unless `checkout.defaultRemote` names one,
 and a remote whose own name holds a slash is guessed from, which is why the remotes are read from
 Git rather than split out of the refname.
 An option written twice is the last spelling, negation included, and the reading follows that rule
-for every option it consults (`command_discard::long_option_state`):
+for every option it consults (`last_occurrence` and `is_enabled` in
+`src/native/command/command_options_query.rs`, over the one reading of the region):
 `git checkout --no-guess --guess --force topic` guesses and checks out the guessed branch,
 so the reading must read that tree, and a scan that stopped at the first `--no-guess` read no tree at
 all and let the checkout write over the person's untracked file
 (the seventh review, measured on this host with native Git 2.56.0, 2026-11-15).
+Each guarded subcommand is read from its own complete option table of Git 2.56.0,
+through one tokenizer (`src/native/command/command_options.rs`),
+and every question the guard asks of a region comes from that one reading:
+whether it is a usage request,
+whether a force is on,
+whether a `skip-worktree` edit is reached,
+which words are paths,
+and which file holds its pathspecs.
+The tables are `command_checkout_table.rs` (`builtin/checkout.c:2118-2179`),
+`command_restore_table.rs` (`builtin/checkout.c:2209-2232` with the two shared groups),
+`command_rm_table.rs` (`builtin/rm.c:251-263`),
+`command_mv_table.rs` (`builtin/mv.c:222-230`),
+`command_checkout_index_table.rs` (`builtin/checkout-index.c:227-250`),
+`command_worktree_remove_table.rs` (`builtin/worktree.c:1429-1434`),
+`CLEAN_TABLE` (`builtin/clean.c`), `RESET_TABLE`, the stash tables and `READ_TREE_TABLE`.
+An option no table of its subcommand holds is a refusal that names the word
+(`LinkedWorktreeDecision::UnreadableOption`,
+`unread_option_message`):
+a newer Git's option may discard,
+so reading it as harmless is the guess that let a pathspec file named `--no-force` delete an edit.
+A region Git refuses itself (an abbreviation two of its options share,
+a value where an option takes none,
+a value a required option never got,
+a long option behind one dash) is left to Git, which refuses it and discards nothing.
+A control generates a line from each table and compares it with the binary:
+`every_guarded_table_is_the_list_git_prints` against
+`git <subcommand> --git-completion-helper-all`,
+and `every_row_consumes_a_value_exactly_when_git_does`,
+which runs `git <subcommand> <row's spelling> --guard-probe` in a disposable repository and reads
+whether Git took that word as the row's value or refused it as an unknown option.
+The abort and skip readings are the one exception, and the reason is theirs:
+they ask only whether a word is there,
+consume no value on purpose,
+and so cannot miss the option they guard;
+a word that is another option's value (`git rebase --onto --abort`) costs a refusal of a command Git
+runs, never a loss.
 The options the written-path reading consults, each with Git's rule and the reading's:
 `--guess`/`--no-guess` (last wins; last wins),
 `-f`/`--force` and `--no-force` for `rm`, `mv` and `checkout-index` (last wins, `OPTION_COUNTUP`
@@ -19705,7 +19797,19 @@ which `command_run_directory` answers once and `paths_in_the_way` hands to every
 form's words,
 and each answer is written as the worktree root spells it:
 `run_directory_prefix` puts that directory's own prefix before a name the command read from there
-(`policy/command_run_directory.rs`).
+(`policy/command_run_directory.rs`),
+and `as_the_worktree_listing_spells_it` in `repo_read/repository_facts_written_paths.rs` gives the
+one spelling the entries in the way are compared with:
+relative to the worktree root,
+no `.` or `..` component,
+no doubled or trailing separator,
+and nothing at all for a path that leaves the worktree.
+That is the only spelling Git's own listings print,
+and a join that wrote another one missed the file it stood for:
+`git mv -f a.txt ./b.txt` named `./b.txt` and `git checkout-index -f --prefix=./out/ -a` named
+`./out/a.txt`,
+while Git wrote `b.txt` and `out/a.txt` over an untracked file each
+(the seventh review, 2026-11-15).
 The places, each with the directory its own query starts Git in:
 the `ls-tree` of a whole tree asks with `--full-tree` and needs no directory;
 the `ls-tree` of a path form starts in the run directory, so its pathspecs mean what they mean to

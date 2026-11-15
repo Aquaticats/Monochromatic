@@ -197,6 +197,16 @@ const UNDER_A_CEILING: &[UnderACeiling] = &[
     },
     UnderACeiling {
         file: "repo_read/repository_facts_written_paths.rs",
+        call: "return std::fs::write(written_path.as_path(), handed);",
+        why: "the job of `work_within` in `hand_the_bytes_to_git`, bounded by `WORKTREE_LOOKUP_CEILING`: the copy Git reads instead of the file the guard read",
+    },
+    UnderACeiling {
+        file: "repo_read/repository_facts_written_paths.rs",
+        call: "return std::fs::symlink_metadata(named.as_path());",
+        why: "the job of `work_within` in `the_pathspec_copy_that_is_there`, bounded by `WORKTREE_LOOKUP_CEILING`: whether this invocation handed Git a copy at all",
+    },
+    UnderACeiling {
+        file: "repo_read/repository_facts_written_paths.rs",
         call: "return read_at_most(opened.as_path(), PATHSPEC_FILE_READ_LIMIT);",
         why: "the job of `work_within` in `pathspecs_in_the_file`, bounded by `PATHSPEC_FILE_READ_CEILING`",
     },
