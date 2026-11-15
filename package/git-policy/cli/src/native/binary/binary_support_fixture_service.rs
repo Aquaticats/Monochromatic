@@ -599,6 +599,22 @@ impl FixtureService {
     /// ```ts
     /// const settled = service.awaitCopies(10_000); // every copyEnded arrived
     /// ```
+    /// What:
+    ///  Records the end of a copy of a service's stream that a control started itself,
+    ///  so that one wait sees every copy of this fixture's words.
+    /// Why:
+    ///   A control that judges this wait holds a copy open on purpose,
+    /// so it starts the pipe itself,
+    /// and a wait that saw only the copies the fixture started would not be waiting for the one the control made.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// service.recordACopy(copyEnded); // the wait now sees the copy the control holds open
+    /// ```
+    pub fn record_a_log_copy(&self, when_the_copy_ends: std::sync::mpsc::Receiver<()>) {
+        self.log_copies.lock().expect("the fixture's log copies").push(when_the_copy_ends);
+    }
+
     pub fn settle_the_service_log(&self, bound: std::time::Duration) -> bool {
         let copies: Vec<std::sync::mpsc::Receiver<()>> = {
             let mut held = self.log_copies.lock().expect("the fixture's log copies");

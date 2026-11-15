@@ -40,7 +40,7 @@
 use super::commit::remove_settled;
 use super::fault::{COMMIT_ARGUMENTS, staged_repository, verify_recovery, verify_recovery_with};
 use super::fault_run::{SWEEP_WIDTH, end_the_pressure, run_unsettled, run_watched, unbounded_wrapper};
-use super::support::{Fixture, LimitKind, ServiceEnd, ServiceLaunch, fixture};
+use super::support::{Fixture, FixtureService, LimitKind, ServiceEnd, ServiceLaunch, fixture};
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::{Path, PathBuf};
@@ -654,6 +654,99 @@ fn a_failure_carries_what_the_fixture_service_logged() {
     assert!(message.contains("ready"), "the log of the service that started is carried: {message}");
     remove_settled(&fixture);
     drop(repo);
+}
+
+/// How long one wait for the log's copies is let run in the controls that hold a copy open:
+/// short, because the copy they hold cannot end in it,
+/// and a wait is judged by what it answers and not by how long it waited.
+const A_WAIT_GIVES_UP_AFTER: std::time::Duration = std::time::Duration::from_millis(150);
+
+/// How many callers the control of two waits puts on one fixture.
+const TWO_WAITS: usize = 2;
+
+/// What:
+///  A wait for the copies of a service's stream that gives up leaves the copy it did not see end where a later wait finds
+///  it,
+///  and a copy whose copier died without a word is never answered as ended.
+/// Why:
+///  The whole meaning of this wait is its answer:
+/// `true` says every copy of the service's words has ended,
+/// so a read that decides anything may trust the file.
+///  A wait that empties the list and gives up would make every later answer `true` for a copy still running,
+/// which is the read of a channel taken for an event again, one level up.
+///  The test holds the writing end of one copy here, so the copy can end only when the test closes it,
+/// and it closes it halfway through.
+#[test]
+fn a_wait_that_gives_up_leaves_the_copy_it_did_not_see_end_to_be_waited_for() {
+    let fixture: Fixture = fixture("log-copies-held-open");
+    let service: FixtureService = super::support::start_fixture_service(&fixture);
+    // The test keeps the writing end: nothing but this test can close it.
+    let (kept_open, when_the_copy_ends): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
+        super::support::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe whose copy the test holds open");
+    service.record_a_log_copy(when_the_copy_ends);
+    let first: bool = service.settle_the_service_log(A_WAIT_GIVES_UP_AFTER);
+    assert!(!first, "a wait that gave up answered that every copy of the service's words had ended while the test still held one open");
+    let second: bool = service.settle_the_service_log(A_WAIT_GIVES_UP_AFTER);
+    assert!(!second, "the second wait answered that every copy had ended, for the copy the first wait timed out on: a give-up must leave what it did not see end to be waited for");
+    // The test closes its end, so the copy ends now, and the wait must say so.
+    drop(kept_open);
+    assert!(
+        service.settle_the_service_log(super::support::SERVICE_LOG_END_BOUND),
+        "a copy whose writer is closed ends, and a wait made after that must answer that every copy ended"
+    );
+    assert!(service.settle_the_service_log(super::support::SERVICE_LOG_END_BOUND), "with no copy left to wait for the answer is that every copy ended");
+    // A copier that died before it said anything is not an end either: nothing will ever prove that copy wrote its words.
+    let (never_says_it_ended, gone_without_a_word): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
+    drop(never_says_it_ended);
+    service.record_a_log_copy(gone_without_a_word);
+    assert!(!service.settle_the_service_log(A_WAIT_GIVES_UP_AFTER), "a copy whose copier died without a word is not an end");
+    assert!(
+        !service.settle_the_service_log(super::support::SERVICE_LOG_END_BOUND),
+        "and no later wait may answer that it ended, because nothing proves that copy wrote what the service said"
+    );
+    remove_settled(&fixture);
+}
+
+/// What:
+///  Two waits on one fixture, standing at the seam together, never answer that a copy the test holds open ended.
+/// Why:
+///  A wait that takes every copy out of the fixture and gives up leaves nothing for the other,
+/// so the second answers `true` for a copy still running.
+///  The two callers are released together by a barrier and not by a sleep,
+/// so whichever reaches the wait first, the answer of the other is the one this control judges.
+#[test]
+fn two_waits_on_one_fixture_never_answer_that_a_running_copy_ended() {
+    let fixture: Fixture = fixture("log-copies-two-waits");
+    let service: FixtureService = super::support::start_fixture_service(&fixture);
+    let (kept_open, when_the_copy_ends): (std::os::fd::OwnedFd, std::sync::mpsc::Receiver<()>) =
+        super::support::kept_stderr_pipe(fixture.root.as_path()).expect("a pipe whose copy the test holds open");
+    service.record_a_log_copy(when_the_copy_ends);
+    let together: std::sync::Barrier = std::sync::Barrier::new(TWO_WAITS);
+    let answers: Mutex<Vec<bool>> = Mutex::new(Vec::new());
+    let waited_on: &FixtureService = &service;
+    std::thread::scope(|scope| {
+        for _ in 0..TWO_WAITS {
+            let (at_the_seam, collected, service): (&std::sync::Barrier, &Mutex<Vec<bool>>, &FixtureService) = (&together, &answers, waited_on);
+            scope.spawn(move || {
+                let _released: std::sync::BarrierWaitResult = at_the_seam.wait();
+                let answered: bool = service.settle_the_service_log(A_WAIT_GIVES_UP_AFTER);
+                collected.lock().expect("the answers").push(answered);
+            });
+        }
+    });
+    let mut found: Vec<bool> = answers.into_inner().expect("the answers");
+    found.sort_unstable();
+    assert_eq!(
+        found,
+        vec![false, false],
+        "two waits on one fixture: neither may answer that a copy the test held open had ended, and one did"
+    );
+    drop(kept_open);
+    assert!(
+        service.settle_the_service_log(super::support::SERVICE_LOG_END_BOUND),
+        "once the test closes its end both copies end, and a wait made after that must answer that every copy ended"
+    );
+    remove_settled(&fixture);
 }
 
 /// A process limit that is exhausted for the wrapper,
