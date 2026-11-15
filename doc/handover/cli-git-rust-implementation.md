@@ -1310,6 +1310,49 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The gate on `0.6.1-alpha.35` fails 28: one of the standing ones passes, one test of the process scan fails for the first time, and the two controls being watched both pass (2026-11-14T19:41:14-05:00)
+
+Not final and not approved:
+what the coordinating session ran,
+read and sent.
+
+- **The gate on `b3b91b28b9`** (`0.6.1-alpha.35`),
+  started 19:22:13,
+  log written until 19:40:20:
+  `9102 tests run: 9074 passed (6 slow), 28 failed, 27 skipped`,
+  `gate-exit-status=1`.
+  Twenty-seven of the 28 failed in all three gates before it.
+  The comparison and the panics are kept:
+  `~/temp/agent/gate/keep/failing-tests-of-the-gate-on-b3b91b28b9-against-the-three-gates-before-it.txt`,
+  `…/panics-of-the-failing-tests-of-the-gate-on-b3b91b28b9-2026-11-14T192213.txt`.
+- **One standing failure passed**:
+  `landing::service_land::owed_push_tests::a_landed_commit_holds_its_push_where_no_round_runs_it`,
+  which pass 44 said fails on a fixture's teardown and not on its assertion.
+  It stays with the run that has it.
+- **One test failed for the first time**:
+  `worktree::worktree_process_inside::tests::a_real_process_holding_a_file_open_is_found_in_the_hosts_own_table`,
+  at `worktree_process_inside_tests.rs:365`,
+  the scan finding no process where a helper held a file open.
+  Its `PASS` line is in four of the gate logs kept and its `FAIL` line in this one.
+  A scan that misses a process holding a file open is the loss the busy-worktree refusal exists to prevent,
+  so it went as a note to that branch's author,
+  going,
+  to say by a run whether the control or the scan raced.
+- **The two controls being watched both passed in this gate**:
+  `worktree_copy_concurrent::an_add_finishes_while_another_adds…` (0.266 s),
+  whose `FAIL` line is now in one gate log of 96;
+  and `fault_limits::a_service_that_ends_before_it_listens…` (10.4 s),
+  which fails on this machine at the same tree.
+  The run going on the first was told;
+  the brief of the queued run for the second now says that it fails here and passes in the container.
+- **`0.6.1-alpha.35`**,
+  the user journal from 19:21:55 to 19:27:55:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  two starts saying `0.6.1-alpha.35`,
+  each the installed program in its own unit.
+
 ##### A second review read the last commit alone; the cause is the brief, which never names the range or its diff; every review going is told, and the starter says it from now on (2026-11-14T19:35:22-05:00)
 
 Not final and not approved:
