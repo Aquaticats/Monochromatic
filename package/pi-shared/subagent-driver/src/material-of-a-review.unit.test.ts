@@ -6,21 +6,31 @@
  */
 
 import {
+  mkdtemp,
+  readFile,
+  rm,
+} from 'node:fs/promises';
+import { join, } from 'node:path';
+import {
   describe,
   expect,
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
+import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   type CommandOutput,
   CODE_FILE_EXTENSIONS,
+  FOCUS_OF_A_CHANGE_REVIEW,
   LEFT_OUT_FILE_EXTENSIONS,
   type ReviewMaterial,
   ReviewGitError,
+  briefFileOfAReview,
   codeFilesAmong,
   materialOfAReview,
   pathsInAListing,
   rangeOfABranch,
   testsAndFixturesAmong,
+  writeReviewBrief,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -298,6 +308,153 @@ function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
     // Git prints a listing it cannot quote with `-z`, so one NUL byte ends each name.
     const listed = (paths.length === 0) ? '' : `${paths.join('\0',)}\0`;
     return answered((words[0] === 'ls-tree') ? listed : ((words[1] === '--name-only') ? listed : 'a diff of them'),);
+  };
+}
+
+/**
+ The path that is a file of each kind the table names, which each row's range is built from.
+
+ @returns one path per kind, by the table's letter
+
+ @example
+ ```ts
+ const paths = aPathOfEachKind();
+ ```
+ */
+function aPathOfEachKind(): Readonly<Record<string, string>> {
+  return {
+    T: `${aSourceFolder()}/gate.unit.test.ts`,
+    F: `${aSourceFolder()}/fixture/answer.json`,
+    C: `${aSourceFolder()}/gate.rs`,
+    U: `${aSourceFolder()}/recordings/answer.zig`,
+    M: `${aSourceFolder()}/catalog.json`,
+    P: `${aSourceFolder()}/notes.md`,
+  };
+}
+
+/**
+ One file of the table's kind T, which a change to tests holds.
+
+ @returns the path, from the top of the checkout
+
+ @example
+ ```ts
+ const test = aTestFileOfTheTable();
+ ```
+ */
+function aTestFileOfTheTable(): string {
+  return aPathOfEachKind().T ?? '';
+}
+
+/**
+ The letter the table names a path by.
+
+ @param path - one of the paths of `aPathOfEachKind`
+
+ @returns the letter, or a question mark for a path the table does not know
+
+ @example
+ ```ts
+ const letter = letterOf(anUnlistedPath);
+ ```
+ */
+function letterOf(path: string,): string {
+  /**
+   The path of each kind, by its letter.
+   */
+  const paths = aPathOfEachKind();
+  return Object.keys(paths,)
+    .find(function isThePath(letter,) {
+      return paths[letter] === path;
+    },) ?? '?';
+}
+
+/**
+ The rules file a brief names first.
+
+ @returns the file's path
+
+ @example
+ ```ts
+ const rules = aRulesFile();
+ ```
+ */
+function aRulesFile(): string {
+  return '/repo/package/pi-shared/subagent-driver/doc/rules-every-pi-brief-carries.md';
+}
+
+/**
+ A folder a test throws away.
+
+ @returns the folder, and how to remove it
+
+ @example
+ ```ts
+ await using folder = await makeAFolder();
+ ```
+ */
+async function makeAFolder(): Promise<{
+  readonly path: string;
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  /**
+   The folder.
+   */
+  const path = await mkdtemp(join(scratchRoot(), 'pi-review-table-',),);
+  return {
+    path,
+    async [Symbol.asyncDispose]() {
+      await rm(path, { recursive: true, force: true, },);
+    },
+  };
+}
+
+/**
+ Writes the brief of one change and reads it back, for a test that asks what a reviewer reads.
+
+ @param folder - the folder the review's own files go in
+
+ @param paths - the paths the change touched, each from the top of the checkout
+
+ @returns the brief, and the line the writer answered with
+
+ @example
+ ```ts
+ const { brief, line } = await aBriefAndItsLine({ folder, paths: [aTestFileOfTheTable()], },);
+ ```
+ */
+async function aBriefAndItsLine({ folder, paths }: {
+  readonly folder: string;
+  readonly paths: readonly string[];
+},): Promise<{ readonly brief: string; readonly line: string }> {
+  /**
+   The review this change is read as.
+   */
+  const review = `row-${paths.length}`;
+  /**
+   What the writer answered.
+   */
+  const briefed = await writeReviewBrief({
+    git: gitTouching({ paths, },),
+    checkoutFolder: '/repo',
+    review,
+    commit: aCommit(),
+    ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+    source: aSourceFolder(),
+    focus: FOCUS_OF_A_CHANGE_REVIEW,
+    reviewsFolder: join(folder, 'reviews',),
+    runsFolder: join(folder, 'runs',),
+    rulesFile: aRulesFile(),
+  },);
+  return {
+    brief: await readFile(
+      briefFileOfAReview({
+        reviewsFolder: join(folder, 'reviews',),
+        review,
+      },),
+      'utf8',
+    ),
+    line: briefed.line,
   };
 }
 
@@ -891,18 +1048,19 @@ await describe({
           },
         },),
 
+
         describe({
           name: 'the table of a change',
           children: [
             it({
-              name: 'reads and leaves out exactly what the table in this module\'s doc says, for every one of the sixty-four combinations, so a changed test is never dropped and a file a review cannot judge never decides for the files beside it',
+              name: 'reads and leaves out exactly what the table in `plan-of-a-review` says, for every one of the sixty-four combinations, so a changed test is never dropped and a file a review cannot judge never decides for the files beside it',
               fn: async () => {
             /**
              The table, one row per combination: the kinds the range holds, the kind of change, the kinds a review reads, and the
-             kinds its brief names as left out. It is the table in this module's doc, letter for letter.
+             kinds its brief names as left out. It is the table in `plan-of-a-review`'s doc, letter for letter.
              */
                 const table: readonly (readonly [string, string, string, string])[] = [
-                  ['no file', 'nothing-a-review-reads', '', ''],
+                  ['', 'nothing-a-review-reads', '', ''],
                   ['T', 'tests-and-fixtures', 'T', ''],
                   ['F', 'tests-and-fixtures', 'F', ''],
                   ['TF', 'tests-and-fixtures', 'TF', ''],
@@ -919,21 +1077,21 @@ await describe({
                   ['FCU', 'tests-and-fixtures', 'FCU', ''],
                   ['TFCU', 'tests-and-fixtures', 'TFCU', ''],
                   ['M', 'nothing-a-review-reads', '', ''],
-                  ['TM', 'tests-and-fixtures', 'TM', 'M'],
-                  ['FM', 'tests-and-fixtures', 'FM', 'M'],
-                  ['TFM', 'tests-and-fixtures', 'TFM', 'M'],
+                  ['TM', 'tests-and-fixtures', 'TM', ''],
+                  ['FM', 'tests-and-fixtures', 'FM', ''],
+                  ['TFM', 'tests-and-fixtures', 'TFM', ''],
                   ['CM', 'code-and-build-decisions', 'C', 'M'],
-                  ['TCM', 'tests-and-fixtures', 'TCM', 'M'],
-                  ['FCM', 'tests-and-fixtures', 'FCM', 'M'],
-                  ['TFCM', 'tests-and-fixtures', 'TFCM', 'M'],
+                  ['TCM', 'tests-and-fixtures', 'TCM', ''],
+                  ['FCM', 'tests-and-fixtures', 'FCM', ''],
+                  ['TFCM', 'tests-and-fixtures', 'TFCM', ''],
                   ['UM', 'code-and-build-decisions', 'U', 'M'],
-                  ['TUM', 'tests-and-fixtures', 'TUM', 'M'],
-                  ['FUM', 'tests-and-fixtures', 'FUM', 'M'],
-                  ['TFUM', 'tests-and-fixtures', 'TFUM', 'M'],
+                  ['TUM', 'tests-and-fixtures', 'TUM', ''],
+                  ['FUM', 'tests-and-fixtures', 'FUM', ''],
+                  ['TFUM', 'tests-and-fixtures', 'TFUM', ''],
                   ['CUM', 'code-and-build-decisions', 'CU', 'M'],
-                  ['TCUM', 'tests-and-fixtures', 'TCUM', 'M'],
-                  ['FCUM', 'tests-and-fixtures', 'FCUM', 'M'],
-                  ['TFCUM', 'tests-and-fixtures', 'TFCUM', 'M'],
+                  ['TCUM', 'tests-and-fixtures', 'TCUM', ''],
+                  ['FCUM', 'tests-and-fixtures', 'FCUM', ''],
+                  ['TFCUM', 'tests-and-fixtures', 'TFCUM', ''],
                   ['P', 'nothing-a-review-reads', '', ''],
                   ['TP', 'tests-and-fixtures', 'T', 'P'],
                   ['FP', 'tests-and-fixtures', 'F', 'P'],
@@ -951,60 +1109,50 @@ await describe({
                   ['FCUP', 'tests-and-fixtures', 'FCU', 'P'],
                   ['TFCUP', 'tests-and-fixtures', 'TFCU', 'P'],
                   ['MP', 'nothing-a-review-reads', '', ''],
-                  ['TMP', 'tests-and-fixtures', 'TM', 'MP'],
-                  ['FMP', 'tests-and-fixtures', 'FM', 'MP'],
-                  ['TFMP', 'tests-and-fixtures', 'TFM', 'MP'],
+                  ['TMP', 'tests-and-fixtures', 'TM', 'P'],
+                  ['FMP', 'tests-and-fixtures', 'FM', 'P'],
+                  ['TFMP', 'tests-and-fixtures', 'TFM', 'P'],
                   ['CMP', 'code-and-build-decisions', 'C', 'MP'],
-                  ['TCMP', 'tests-and-fixtures', 'TCM', 'MP'],
-                  ['FCMP', 'tests-and-fixtures', 'FCM', 'MP'],
-                  ['TFCMP', 'tests-and-fixtures', 'TFCM', 'MP'],
+                  ['TCMP', 'tests-and-fixtures', 'TCM', 'P'],
+                  ['FCMP', 'tests-and-fixtures', 'FCM', 'P'],
+                  ['TFCMP', 'tests-and-fixtures', 'TFCM', 'P'],
                   ['UMP', 'code-and-build-decisions', 'U', 'MP'],
-                  ['TUMP', 'tests-and-fixtures', 'TUM', 'MP'],
-                  ['FUMP', 'tests-and-fixtures', 'FUM', 'MP'],
-                  ['TFUMP', 'tests-and-fixtures', 'TFUM', 'MP'],
+                  ['TUMP', 'tests-and-fixtures', 'TUM', 'P'],
+                  ['FUMP', 'tests-and-fixtures', 'FUM', 'P'],
+                  ['TFUMP', 'tests-and-fixtures', 'TFUM', 'P'],
                   ['CUMP', 'code-and-build-decisions', 'CU', 'MP'],
-                  ['TCUMP', 'tests-and-fixtures', 'TCUM', 'MP'],
-                  ['FCUMP', 'tests-and-fixtures', 'FCUM', 'MP'],
-                  ['TFCUMP', 'tests-and-fixtures', 'TFCUM', 'MP'],
+                  ['TCUMP', 'tests-and-fixtures', 'TCUM', 'P'],
+                  ['FCUMP', 'tests-and-fixtures', 'FCUM', 'P'],
+                  ['TFCUMP', 'tests-and-fixtures', 'TFCUM', 'P'],
                 ];
-            /**
-             The path that is a file of each kind, which each row's range is built from.
-             */
-                const aPathOfEachKind: Readonly<Record<string, string>> = {
-                  T: `${aSourceFolder()}/gate.unit.test.ts`,
-                  F: `${aSourceFolder()}/fixture/answer.json`,
-                  C: `${aSourceFolder()}/gate.rs`,
-                  U: `${aSourceFolder()}/recordings/answer.zig`,
-                  M: `${aSourceFolder()}/catalog.json`,
-                  P: `${aSourceFolder()}/notes.md`,
-                };
-            /**
-             The letter the table names a path by.
-
-             @param path - one of the paths above
-
-             @returns the letter, or a question mark for a path the table does not know
-             */
-                function letterOf(path: string,): string {
-                  return Object.keys(aPathOfEachKind,)
-                    .find(function isThePath(letter,) {
-                      return aPathOfEachKind[letter] === path;
-                    },) ?? '?';
-                }
                 expect(table.length,).toBe(64,);
-                /* oxlint-disable eslint/no-await-in-loop -- one row's reading after another, because each assertion names the
-                   row it failed on and the readings share no state. See doc/lint/sequential-awaits.md. */
+            /**
+             The contents of the one folder this test writes briefs into.
+             */
+                await using folder = await makeAFolder();
+            /* oxlint-disable eslint/no-await-in-loop -- one row's reading and brief after another, because each assertion names
+               the row it failed on and the rows share no state. See doc/lint/sequential-awaits.md. */
                 for (const [present, kind, reads, leftOut,] of table) {
-                  /**
-                   The paths of the kinds the row holds.
-                   */
+              /**
+               What the row says about the brief's requirements and the line's notice, which follow from the kinds it reads.
+               */
+                  const row = {
+                    reads,
+                    leftOut,
+                    kind,
+                    asksTheCode: (reads.includes('C',) || reads.includes('U',)),
+                    namesAnUnlistedKind: reads.includes('U',),
+                  };
+              /**
+               The paths of the kinds the row holds.
+               */
                   const paths = Array.from(present,)
                     .map(function pathOf(letter,) {
-                      return aPathOfEachKind[letter] ?? '';
+                      return aPathOfEachKind()[letter] ?? '';
                     },);
-                  /**
-                   What the reading answered for them.
-                   */
+              /**
+               What the reading answered for them.
+               */
                   const material = await materialOfAReview({
                     git: gitTouching({ paths, },),
                     checkoutFolder: '/repo',
@@ -1012,23 +1160,147 @@ await describe({
                     source: aSourceFolder(),
                     commit: aCommit(),
                   },);
+                  expect([present, material.kind,],).toEqual([present, kind,],);
                   if (material.kind === 'nothing-a-review-reads') {
-                    expect([present, material.kind,],).toEqual([present, kind,],);
                     expect([present, reads, leftOut,],).toEqual([present, '', '',],);
                     continue;
                   }
-                  expect([present, material.kind,],).toEqual([present, kind,],);
                   expect([present, material.files.map(letterOf,).join('',),],).toEqual([present, reads,],);
                   expect([present, material.filesLeftOut.map(function letterOfLeftOut(file,) {
                     return letterOf(file.path,);
                   },).join('',),],).toEqual([present, leftOut,],);
+              // A path is in exactly one of the two, so a brief cannot list a file and then say it is left out.
+                  expect(
+                    material.files.filter(function isAlsoLeftOut(path,) {
+                      return material.filesLeftOut.some(function isTheSameFile(file,) {
+                        return file.path === path;
+                      },);
+                    },),
+                  ).toEqual([],);
+              /**
+               The brief this row writes, and the line it answers with.
+               */
+                  const briefed = await writeReviewBrief({
+                    git: gitTouching({ paths, },),
+                    checkoutFolder: '/repo',
+                    review: `row-${present}`,
+                    commit: aCommit(),
+                    ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+                    source: aSourceFolder(),
+                    focus: FOCUS_OF_A_CHANGE_REVIEW,
+                    reviewsFolder: join(folder.path, 'reviews',),
+                    runsFolder: join(folder.path, 'runs',),
+                    rulesFile: aRulesFile(),
+                  },);
+              /**
+               The brief, read back as a reviewer reads it.
+               */
+                  const brief = await readFile(
+                    briefFileOfAReview({
+                      reviewsFolder: join(folder.path, 'reviews',),
+                      review: `row-${present}`,
+                    },),
+                    'utf8',
+                  );
+                  expect([present, briefed.written,],).toEqual([present, true,],);
+              /**
+               Where the files to read end and the files left out begin.
+               */
+                  const headingAt = brief.indexOf('Read each of these files in full before you answer:',);
+              /**
+               Where the left-out paragraph begins, or minus one when every file is read.
+               */
+                  const leftOutAt = brief.indexOf('These files are left out, with the reason:',);
+              // Every file the row reads is under the files to read, once, and never in the left-out paragraph.
+                  for (const file of material.files) {
+                    expect([present, file, brief.split(file,).length - 1,],).toEqual([present, file, 1,],);
+                    expect([present, brief.indexOf(file,) > headingAt,],).toEqual([present, true,],);
+                    expect([present, (leftOutAt === (-1)) || (brief.indexOf(file,) < leftOutAt),],).toEqual([present, true,],);
+                  }
+              // Every file the row leaves out is named once, with its reason, and never among the files to read.
+                  for (const left of material.filesLeftOut) {
+                    expect([present, brief.includes(`- \`${left.path}\` is left out: ${left.why}.`,),],).toEqual([present, true,],);
+                    expect([present, left.path, brief.split(left.path,).length - 1,],).toEqual([present, left.path, 1,],);
+                    expect([present, brief.indexOf(left.path,) > leftOutAt,],).toEqual([present, true,],);
+                  }
+                  expect([present, brief.includes('Every file the change touched is read above.',),],)
+                    .toEqual([present, material.filesLeftOut.length === 0,],);
+              // The requirements are the kind of change the row is, and the code's are asked whenever the row reads code.
+                  if (row.kind === 'code-and-build-decisions') {
+                    expect([present, brief.includes('It must meet these requirements:',),],).toEqual([present, true,],);
+                  }
+                  else if (row.asksTheCode) {
+                    expect([present, brief.includes('The code must meet these requirements:',),],).toEqual([present, true,],);
+                    expect([present, brief.includes('the change is to them alone',),],).toEqual([present, false,],);
+                  }
+                  else {
+                    expect([present, brief.includes('the change is to them alone',),],).toEqual([present, true,],);
+                    expect([present, brief.includes('The code must meet these requirements:',),],).toEqual([present, false,],);
+                  }
+              // The breaks are asked for exactly when the row is a change to tests.
+                  expect([present, brief.includes('For each changed test above, plant a break under it',),],)
+                    .toEqual([present, (row.kind === 'tests-and-fixtures'),],);
+              // The line names an unlisted kind wherever the review reads one, and says nothing of it otherwise.
+                  expect([present, briefed.line.includes('no list of this writer names are read as code',),],)
+                    .toEqual([present, row.namesAnUnlistedKind,],);
+                  if (row.namesAnUnlistedKind) {
+                    expect([present, briefed.line.includes(aPathOfEachKind().U ?? '',),],).toEqual([present, true,],);
+                  }
                 }
-                /* oxlint-enable eslint/no-await-in-loop */
+            /* oxlint-enable eslint/no-await-in-loop */
+              },
+            },),
+            it({
+              name: 'lists a recorded answer beside its test once, under the files to read, and never says it is left out',
+              fn: async () => {
+            /**
+             The contents of the one folder this test writes its brief into.
+             */
+                await using folder = await makeAFolder();
+            /**
+             The recorded answer beside the changed test.
+             */
+                const recordedAnswer = `${aSourceFolder()}/recordings/answer.json`;
+            /**
+             The brief this change writes, and the line it answers with.
+             */
+                const { brief, line, } = await aBriefAndItsLine({
+                  folder: folder.path,
+                  paths: [aTestFileOfTheTable(), recordedAnswer,],
+                },);
+                expect([brief.split(recordedAnswer,).length - 1,],).toEqual([1,],);
+                expect([brief.includes(`- \`${recordedAnswer}\``,),],).toEqual([true,],);
+                expect([brief.includes(`\`${recordedAnswer}\` is left out`,),],).toEqual([false,],);
+                expect([line.includes('2 files to read',),],).toEqual([true,],);
+              },
+            },),
+            it({
+              name: 'reads a file of a kind no list names beside a test as code: the brief asks the code requirements and the line names the unlisted kind',
+              fn: async () => {
+            /**
+             The contents of the one folder this test writes its brief into.
+             */
+                await using folder = await makeAFolder();
+            /**
+             The changed test, and the file of a kind no list names beside it.
+             */
+                const unlistedCode = `${aSourceFolder()}/thing.zig`;
+            /**
+             The brief this change writes, and the line it answers with.
+             */
+                const { brief, line, } = await aBriefAndItsLine({
+                  folder: folder.path,
+                  paths: [aTestFileOfTheTable(), unlistedCode,],
+                },);
+                expect([brief.includes(`- \`${unlistedCode}\``,),],).toEqual([true,],);
+                expect([brief.includes('The code must meet these requirements:',),],).toEqual([true,],);
+                expect([brief.includes('the change is to them alone',),],).toEqual([false,],);
+                expect([line.includes('no list of this writer names are read as code',),],).toEqual([true,],);
+                expect([line.includes(unlistedCode,),],).toEqual([true,],);
               },
             },),
           ],
         },),
-
         describe({
           name: pathsInAListing.name,
           children: [
