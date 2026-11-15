@@ -30,33 +30,65 @@ The commands before those results:
 - `cat ~/.pi/agent/models.json`:
   Pi's own provider file, which holds keys in clear.
 
-## Every place a value could be written or sent, and the point before it that masks
+## Every road from an armed value to a provider or a kept file
 
-A list of Pi's hooks is what this package started with, and it was short by one twice: a tool result's `details` and every
-message Pi keeps. So the write-down starts from the places a value could be written or sent, not from the hooks.
+Two reviews found twenty-two roads between them, and the second found none of the first's again: each fix held and the list was
+still not complete either time. So the table is written from the places a value could be written or sent, and every road is a row of
+it, with the one point that covers the road and the control that shows it.
 
-| Place | Where it happens, in Pi 1.5.2 as installed | The one point before it that masks |
+Where a row says "no hook", that is Pi's own limit, and the row also says what the run does about it.
+
+| Road | The one point that covers it | The control |
 | --- | --- | --- |
-| A tool result message: `content`, `details`, `structuredContent` | `dist/core/agent-session.js:403` (`_afterToolCall`), then `finalizeExecutedToolCall` and `createToolResultMessage` in `dist/bundle/chunks/chunk-VEJDBY3O.js` | the `tool_result` handler, which returns every field masked (`secret-value-masking-extension.ts`) |
-| Any message Pi keeps, of every role and every field: the first prompt, a steer, an inbox prompt, an assistant message with its tool-call arguments, a tool result, a custom message | `dist/core/agent-session.js:994` (`emitMessageEnd`), the replacement applied at `:1000-1013`, then the append at `:814` and the write at `dist/core/session-manager.js:813` | the `message_end` handler, which returns the masked message before Pi keeps it |
-| An ordinary model request, with the whole transcript | `dist/core/extensions/runner.js:1011` (`emitContext`), wired at `dist/core/sdk.js:277` | the `context_with_system` handler |
-| Pi's compaction request | `dist/core/agent-session.js:2338` (`getBranch`), `:2302` (`_runDefaultCompaction`), `dist/core/compaction/compaction.js:494` and `:524` | no hook runs before it; it is built from the session's own messages, which the `message_end` handler has already masked, so it can hold no value |
-| Pi's branch-summary request | `dist/core/compaction/branch-summarization.js:208` | the same: it reads the session, which is masked at `message_end` |
-| The file Pi keeps a truncated tool's whole output in | `dist/utils/output-files.js`, `dist/core/tools/output-accumulator.js:81` | the `tool_result` handler, which masks it and puts the masked text in place through a file of its own renamed over it |
-| The driver's `feed.jsonl`, every record: tool arguments, tool results, an inbox preview, Pi's event detail, a problem | `src/record-of-pi-run.ts` (`note`) | one boundary there: every entry is masked whole before the line is written |
-| The driver's `summary.json`: the last reply, a tool error, what Pi printed when a start failed | `src/write-summary.ts` | the same masking, applied to the whole summary before it is written |
-| The driver's `stderr.log`, which holds Pi's own diagnostics and an extension's | `src/keep-standard-error.ts` | the masking on the way into the file, holding back the longest form's length between two writes so a value split across them is still matched |
-| The session file at rest: compaction and branch-summary entries, context edits, and a custom entry an extension wrote | `dist/core/session-manager.js:816` (`_appendEntry`) for every kind | no hook runs before `appendCompaction`, `appendContextEdit` or `appendCustomEntry`, and Pi's interface gives an extension no way to intercept them; the file is masked whole once the run is over (`src/session-file-at-rest.ts`), which is before any later request and before any reader of the run's folder |
+| A tool result's `content` | the `tool_result` hook, masked as data (`secret-value-masking-extension.ts`) | "masks a value a command printed inside a longer line" |
+| A tool result's `details` | the same hook, as data, and returned in the patch | "masks a tool result details through Pi own tool loop, the driver feed and the session file" |
+| A tool result's `structuredContent` | the same hook; a field that did not change is returned as it came, so Pi keeps it | "keeps the structured content a tool declared when only its text was masked" |
+| Error text of a tool that threw | the same hook, which sees the error result | the review's positive control, and "keeps … the reply whole" |
+| A key of an object a tool returned | the same hook: the mask is applied to the data, so keys are masked with values | "has its keys masked, because the mask is applied to the data the object serialises to" |
+| A `toJSON`, a getter or a cycle in an object | the same hook: the round trip hands back plain data, which carries no method and no cycle | "cannot reintroduce a value through a toJSON method" and "is withheld whole when its details cannot be masked" |
+| A result the mask cannot write | the same hook withholds the whole result, with explicit details, so Pi keeps no field of it | "is withheld whole when its details cannot be masked, and Pi keeps no field of it" |
+| The first prompt, a steer, an inbox note | the `message_end` hook, before Pi keeps the message | "masks the message Pi keeps, which is what its compaction request is built from" |
+| An assistant message with its tool calls | the same hook | the same control, and "masks the arguments of a tool call on the feed" |
+| Any other message Pi keeps, custom messages included | the same hook | "masks the message Pi keeps…" |
+| The ordinary model request | `context_with_system` | the review's positive control, and "masks a value a session already held, which is what a resumed run sends again" |
+| Pi's compaction request | no hook; its input is the session's messages, which `message_end` has masked, and a session a run resumes is masked before Pi starts | "masks the session a run resumes before Pi can read a value out of it" |
+| Pi's branch-summary request | the same: the session is the only input | the same control, by reading Pi's `branch-summarization.js:208` |
+| The driver's feed: tool arguments, results, an inbox preview, an event's detail | one boundary in `record-of-pi-run.ts`, which no caller can leave out | "masks the arguments of a tool call on the feed" and "keeps a value a tool printed out of every file the run writes" |
+| The driver's summary: the last reply, a tool error, what Pi printed when a start failed | one boundary in `write-summary.ts` | "keeps a value a tool printed out of every file the run writes" |
+| Pi's standard error, in which an extension may print a value | one stream matcher in `masking-a-stream.ts`, through `keep-standard-error.ts` | "holds back the beginning of a value that a cut would split, so the two writes mask it together" |
+| Pi's file of a truncated tool output | the `tool_result` hook, and only a file whose whole name is Pi's own pattern | "rewrites the file Pi saved a truncated output in" and "leaves Pi own output whole when a tool result names a file whose name is only its prefix" |
+| The session file at rest: compaction entries, branch summaries, context edits, an extension's custom entry | no hook before `appendCustomEntry`, `appendCompaction` or `appendContextEdit`; the file is masked whole once the run is over, and only while it is still the file that was read | "masks the session a run leaves behind, whatever wrote an entry of it" and "keeps what another command appended while the masked text was being prepared" |
+| A session that still holds a value when the run is over | nothing, and that is the answer: the run ends `session-unmasked` and the summary says where the value is | "does not end clean when the session a run leaves still holds a value" |
+| The age identity, the key that opens every store | an identity the machine declares and this code cannot read stops the run before Pi starts | "stops the run when an age identity the machine declares cannot be read" |
+| A shell start-up file's literal, quoted or hash-leading | the shell's own quoting and comment rules, and a value the reader cannot give stops the run | "arms the literal a shell start-up file exports with a hash at its start, and stops the run on a value it cannot give" |
+| A key whose value begins with `/` | the mask believes the source that says a field is a credential, not the shape of the value | "arms an OAuth credential Pi own schema names, a shell value with a comment after it, and a key that begins with a slash" |
+| OAuth `access` and `refresh` | Pi's own credential schema for `auth.json` | the same control |
+| A source that is there and cannot be read: a pipe, a folder, a file that is not JSON | the ordinary-file read, and the stop before Pi starts | "stops the run when Pi own credential file is there and cannot be read" and "refuses a named pipe at a source path instead of waiting on it" |
+| A named pipe where Pi's output file is named | the same ordinary-file read, refusing it | "does not wait on a named pipe a tool result calls Pi own output" |
+| A masked file whose write fails | the replacement is a file of its own, renamed over the original only when whole | "leaves Pi own output whole when the masked text cannot be put in its place" |
+| A marker that names a value, or a second pass that changes the text | a marker names the variable only when its name holds no armed form, or says `#N` instead; a pass that leaves a form is refused | "never puts an armed value, or a form of one, inside a marker it writes" and "changes nothing when it runs over its own answer a second time" |
+| A tool result that masks nothing, on a result of ordinary data | the same hook, which hands back the same data | "answers the result as data when no value stands in it" |
 
-Two of those are not "before the sink" and are named as such: the compaction and branch-summary requests, which are covered
-by the session being masked rather than by a hook of their own, and the session file at rest, which is masked after the run
-because Pi offers no point before those three entry kinds.
+### How the rows were looked for
 
-What the run does about a place it cannot cover: it does not start. A store, Pi's credential file, a shell start-up file or
-the age identity that is there and cannot be read stops the run before Pi is started, and a Pi that does not answer a command
-list saying the masking is armed is sent no prompt. An entry an extension writes during the run is the one place no hook
-reaches: it never reaches a model request (compaction reads messages, not custom entries), and it does not survive the run,
-because the file is masked at rest.
+The list was made from Pi's installed source, not from the hooks this package knows about. Two searches, each over Pi's own
+`dist/`:
+
+- **Every place Pi builds a request.** `grep -rn 'streamFn(\|serializeConversation('` over `core/`, `core/compaction/` and
+  `modes/rpc/` found the ordinary request (`core/sdk.js:271` through the model runtime), the two compaction paths
+  (`core/compaction/compaction.js:486` and its conversation text at `:524`, `:731`) and branch summarization
+  (`core/compaction/branch-summarization.js:208`). Those are the only request builders: every other module passes messages to one
+  of them.
+- **Every place Pi writes.** `grep -rn 'appendFileSync(\|writeFileSync('` found the session's JSONL (`core/session-manager.js:368`
+  and `:813`), Pi's own credential store and package manifests (`core/auth-storage.js`, `core/package-manager.js`, which write Pi's
+  configuration and never a run's text), Pi's crash log (`core/crash-log.js:26`, which records error messages and is named under
+  the limits below) and the output files (`dist/utils/output-files.js`). The entry kinds that reach the session were then listed
+  from `appendMessage`, `appendCustomEntry`, `appendCompaction`, `appendContextEdit` and the bash-execution appends at
+  `core/agent-session.js:3304` and `:3332`.
+
+Two rows come out of that second search and are named rather than covered: Pi's **crash log** (a crash record holds Pi's own error
+text, and the driver stops Pi rather than crashing it) and the **bash-execution messages** of a `!` command, which RPC mode never
+makes.
 
 ## What the masking does not cover
 
