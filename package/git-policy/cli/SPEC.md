@@ -4871,17 +4871,19 @@ of which the two that rewrite link layouts in place are the service's work whene
   a link to the real entry for every other,
   and copies of the workspace's manifest and its lock
   (`package_repair_workspace_mirror.rs`).
-  Measured on this host on 2026-11-14,
+  Measured on this host on 2026-11-14:
   a clean run in such a mirror removes exactly the artifacts the workspace's own clean removes,
-  build script included (a two-member workspace: 29 files, 4.4 MiB),
+  build script included,
   and the workspace rebuilds what it needs afterwards.
-  The prewarm's clean runs in the worktree only with `--locked`, which cannot write the lock,
+  The prewarm's clean runs in the worktree only with `--locked`,
+  which cannot write the lock,
   and a lock it refuses sends that workspace to a mirror of it
-  (`package_repair_cargo_clean_in_mirror.rs`);
-  the add's own clean takes its resolution and its clean from a mirror too,
+  (`package_repair_cargo_clean_in_mirror.rs`).
+  The add's own clean takes its resolution and its clean from a mirror too,
   with the worktree's own build and target directories named,
   so neither rewrites the tracked lock.
-  The person's `Cargo.lock` is therefore read, if a step must read it,
+  The person's `Cargo.lock` is therefore read,
+  if a step must read it,
   and never renamed,
   exchanged or written by this program:
   nothing of theirs is displaced,
@@ -4890,7 +4892,9 @@ of which the two that rewrite link layouts in place are the service's work whene
   A mirror a killed job left is that job's own and is rebuilt rather than trusted,
   and a mirror that cannot be made gives that workspace up rather than run Cargo in the worktree.
   The lock is read the way the wrapper reads any regular file:
-  a pipe, a link, a directory or a file past the byte limit that step names is refused at once,
+  a pipe,
+  a link,
+  a directory or a file past the byte limit that step names is refused at once,
   and a lock that is not a regular file is the person's,
   so the workspace gives way with the reason and nothing of theirs is touched.
   A clean that stops anyway names the lock,
@@ -4938,17 +4942,21 @@ of which the two that rewrite link layouts in place are the service's work whene
     Cargo cannot write the lock with `--locked`,
     so a person's write there is theirs and Cargo refuses rather than replacing it
     (`a_filling_with_a_stale_lock_leaves_the_persons_lock_exactly_as_it_is`).
-  - The clean refuses the lock, then the mirror is made.
+  - The clean refuses the lock,
+    then the mirror is made.
     A kill while the mirror is being made or Cargo runs in it leaves only the mirror below the Git
-    directory, which the next job of that workspace rebuilds rather than trusts,
+    directory,
+    which the next job of that workspace rebuilds rather than trusts,
     and the person's file exactly as they wrote it.
   - Cargo resolves and cleans in the mirror.
-    A person's write in the worktree is in their own file, which no step of the repair opens for
-    writing;
+    A person's write in the worktree is in their own file,
+    which no step of the repair opens for writing;
     the artifacts the clean deletes are the ones the workspace's own clean would delete,
-    measured on this host on 2026-11-14, and the worktree rebuilds what it needs
+    measured on this host on 2026-11-14,
+    and the worktree rebuilds what it needs
     (`a_clean_in_a_mirror_removes_the_artifacts_and_leaves_the_persons_lock_alone`).
-  - The mirror's clean ends, then the copy is published.
+  - The mirror's clean ends,
+    then the copy is published.
     A build that made the destination keeps it and the staging copy is given back;
     a second filling's publish answers `AlreadyExists` and reports `Kept`
     (`publishing_a_staging_copy_never_replaces_a_directory`).
