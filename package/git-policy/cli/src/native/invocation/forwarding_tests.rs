@@ -718,8 +718,8 @@ fn a_record_that_cannot_name_a_git_that_already_became_it_does_not_fail_the_comm
     executable(program.as_path(), script.as_bytes());
     crate::lock_holder_records::hold_before_reading_a_childs_identity_test_support::fail_the_next_child_naming();
     let ended: std::io::Result<ChildOutcome> = run_real_git_until(program.as_path(), &[], &[], std::time::Duration::from_secs(20), StartOwner::Wrapper);
-    assert!(marker.exists(), "the Git ran and did its work");
     assert!(matches!(ended, Ok(ChildOutcome::Exited(0))), "the command ends with Git's own status, not the wrapper's error: {ended:?}");
+    assert!(marker.exists(), "and the Git the wrapper started ran to its end");
     remove(root.as_path());
 }
 
