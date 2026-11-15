@@ -1691,6 +1691,35 @@ and one check of the queue this machine runs on.
   The five were appended as sightings to the brief of the queued fresh run that builds the claim before a start
   (it had not begun),
   with the review folder to read.
+- **Corrected 2026-11-15T12:49:19-05:00, after a second reader of this session's work asked what had been measured**.
+  Two things in this section were written from an ancestry check and a guessed name,
+  and one of them was wrong:
+  - "The queue filling's branch adds them too" held for two of the three files.
+    Measured:
+    `a634fbf060` holds `filling-free-places-from-a-queue.ts` and `queue-of-runs.ts`,
+    and neither `settling-the-starts-a-filling-watches.ts` nor `start-of-a-queue-entry-the-filling-watches.ts`,
+    which stand on the launcher's branch alone.
+    The two branches part at `df2ef53f69`,
+    where neither queue file exists,
+    so each added the two on its own side.
+  - So the split is **four and four**,
+    not three and five.
+    The recovery that drops an active batch's record is in a file of the launcher's own and is its author's,
+    and the launcher's brief as first written told its author to build nothing in a file its own second finding has to change.
+    Both briefs were corrected before either run began
+    (no run folder of the launcher's third run;
+    one queue entry still carries the claims brief,
+    which is what "it had not begun" should have rested on).
+  - Looked at on `main`:
+    its `going-runs.ts` has none of the words `runEnded`,
+    `summary.json` or `stillGoing`,
+    and its `run-command.ts` passes `killSignal: 'SIGKILL'` with its timeout.
+    By those words the old-summary and the timeout findings are this range's own
+    and the driver that runs every Pi unit today does not carry them;
+    the author is asked to say so for each of its four.
+  - The look at the scratch queue now covers both halves:
+    no entry of the eight was lost,
+    and no name stands twice in the queue file.
 - **The queue this machine runs on is written the same way**:
   the scratch put script renames a whole copy over the queue file and takes no lock,
   and the filling unit writes the same file.
