@@ -39,7 +39,9 @@ use std::process::{Child, Command, Stdio};
 /// and the sleeps of its own waits.
 use std::time::{Duration, Instant};
 
-/// The program whose form a bound takes in this harness (`binary_support.rs`, `bounded_for`).
+/// The program whose form a bound takes in this harness:
+///  `/usr/bin/timeout`,
+///  from `binary_support.rs`'s `bounded_for`.
 const TIMEOUT: &str = "/usr/bin/timeout";
 
 /// The shell every scripted command of these controls is.

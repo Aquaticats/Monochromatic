@@ -82,7 +82,8 @@ pub enum Ending {
     /// a code of 124 or 137,
     /// or a signal's death.
     Itself,
-    /// The bound ended it, at the bound its own line states:
+    /// The bound ended it,
+    /// at the bound its own line states:
     ///  by this wait's kill of the process group the command led,
     ///  or by the command's own `timeout`,
     ///  which keeps the same value and starts no earlier than the command.
@@ -278,7 +279,8 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, bound: std
 }
 
 /// What:
-///  How much of `bound` is left, counted from the command's own start.
+///  How much of `bound` is left,
+///  counted from the command's own start.
 /// Why:
 ///  A control's bound is a bound on the command,
 ///  so it counts from the instant the command began,
@@ -302,7 +304,8 @@ fn remaining_of(started: u64, bound: std::time::Duration) -> std::time::Duration
     return std::time::Duration::from_nanos(u64::try_from(left_ns).unwrap_or(u64::MAX));
 }
 
-/// The boot clock now, in nanoseconds:
+/// The boot clock now,
+///  in nanoseconds:
 ///  the clock a process's start is recorded in.
 fn boot_now_ns() -> u128 {
     let mut now: libc::timespec = libc::timespec { tv_sec: 0, tv_nsec: 0 };
