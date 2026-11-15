@@ -47,7 +47,7 @@ use std::path::{Path, PathBuf};
 ///  and a person cannot choose it there.
 ///  A reference namespace of the same name is below `refs/`,
 ///  where no name is read as anything but a person's own.
-const LINKED_WORKTREES_FOLDER: &str = "worktrees";
+pub const LINKED_WORKTREES_FOLDER: &str = "worktrees";
 
 /// The folder of a Git directory that holds each submodule's Git directory.
 /// Why:

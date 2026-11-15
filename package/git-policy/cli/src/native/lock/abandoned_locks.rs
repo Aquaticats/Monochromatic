@@ -71,8 +71,10 @@ const MOST_ENTRIES: usize = 8192;
 ///  and every other folder is walked.
 const SKIPPED_FOLDERS: [&str; 2] = ["objects", "logs"];
 
-/// The folder of the common Git directory that holds each linked worktree's own administrative directory.
-const LINKED_WORKTREES_FOLDER: &str = "worktrees";
+/// The folder of the common Git directory that holds each linked worktree's own administrative directory,
+/// which is Git's own layout there and the same name the list of Git directories reads
+/// (`git_directories_of_the_repository.rs`).
+use crate::git_directories_of_the_repository::LINKED_WORKTREES_FOLDER;
 
 /// What:
 ///  What one pass removed.
