@@ -635,7 +635,8 @@ await describe({
         const unit = asked.find(function isTheUnit(line,) {
           return line.startsWith('systemd-run --user --wait',);
         },);
-        expect(unit,).toContain('--unit=pi-copy-route.service',);
+        // The unit is named by the run and the number of the folder that start claimed, so two starts of one name are two units.
+        expect(unit,).toContain('--unit=pi-copy-route@2.service',);
         expect(unit,).toContain(`--run-folder=${join(folder.runs, 'copy-route-2',)}`,);
         expect(unit,).toContain(`--provider=${chosen.provider}`,);
         expect(unit,).toContain(`--model=${chosen.model}`,);

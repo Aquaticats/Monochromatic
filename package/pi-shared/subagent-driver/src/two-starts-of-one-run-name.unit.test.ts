@@ -299,9 +299,9 @@ async function fixtureIn(folder: string, withARealRepository: boolean, holdsUnit
     body: [
       'for word in "$@"; do',
       '  case "$word" in',
-      '    --unit=*) unit="${word#--unit=}" ;;',
-      '    --run-folder=*) runFolder="${word#--run-folder=}" ;;',
-      '    --working-folder=*) workingFolder="${word#--working-folder=}" ;;',
+      `    --unit=*) unit="\${word#--unit=}" ;;`,
+      `    --run-folder=*) runFolder="\${word#--run-folder=}" ;;`,
+      `    --working-folder=*) workingFolder="\${word#--working-folder=}" ;;`,
       '  esac',
       'done',
       `printf '%s\\t%s\\t%s\\n' "$PI_START_ID" "$unit" "$runFolder" >> '${fixture.units}'`,

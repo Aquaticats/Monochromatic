@@ -16,6 +16,22 @@ import { isDigitsOnly, } from './text-of-an-option.ts';
 const FIRST_RUN_NUMBER = 1;
 
 /**
+ The largest number a run can be counted to exactly, which is one folder number below it: adding one to the largest is the same
+ number again, so a start that kept trying would ask for one taken folder forever.
+ */
+const LARGEST_RUN_NUMBER = Number.MAX_SAFE_INTEGER;
+
+/**
+ A run's folder numbers have reached the largest number a run can be counted to, so no number can follow them.
+ */
+export class RunNumbersExhaustedError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'RunNumbersExhaustedError';
+}
+
+/**
  Reads the number a run's folder carries, when its name says it carries one.
 
  @param entry - one entry of the runs folder
@@ -95,5 +111,10 @@ export function nextRunNumber({
     },
     FIRST_RUN_NUMBER - 1,
   );
+  if (highest >= LARGEST_RUN_NUMBER) {
+    throw new RunNumbersExhaustedError(
+      `the highest folder of ${runName} is ${runName}-${String(highest,)}, which is the largest number a run can be counted to, so no number can follow it: no run of this name can be given a folder. A person removes the folders of this name that are not wanted, or starts the run under another name.`,
+    );
+  }
   return highest + FIRST_RUN_NUMBER;
 }

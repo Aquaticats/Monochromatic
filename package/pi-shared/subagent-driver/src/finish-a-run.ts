@@ -25,11 +25,11 @@ import {
   SessionFileUnreadableError,
   sessionFileOfRun,
 } from './session-file-of-a-run.ts';
+import type { GitRunner, } from './worktree-git.ts';
 import {
-  type GitRunner,
   removeWorktree,
   worktreeOutcomeOf,
-} from './worktree-of-a-run.ts';
+} from './worktree-removal.ts';
 import {
   OWN_WORK_NAMED_IN_A_NOTE,
   type WakeOutcome,

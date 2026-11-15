@@ -38,6 +38,11 @@ export type UnitCommandRequest = {
   readonly runName: string;
 
   /**
+   The number of the run folder this start claimed, which names the unit with the run, so two starts of one name ask for two units.
+   */
+  readonly runNumber: number;
+
+  /**
    The processor share the unit gets, in percent.
    */
   readonly cpuPercent: number;
@@ -143,7 +148,7 @@ export function runtimeMaxSecondsOf({ wallSeconds, }: { readonly wallSeconds: nu
 
  @example
  ```ts
- const command = unitCommandOf({ runName: 'copy-route', cpuPercent: 800, memory: '12G', taskCount: 3_000, wallSeconds: 7_200, pathOfMiseEnvironment: '/bin', home: '/home/a', node: '/bin/node', driverEntry: '/pkg/src/drive-pi-subagent.ts', runFolder: '/runs/copy-route-4', workingFolder: '/repo/.claude/worktrees/pi-copy-route', promptFile: '/runs/copy-route-prompt.md', provider: 'neuralwatt', model: 'deepseek-v4.1-flash', idleSeconds: 120, turnCap: 400, },);
+ const command = unitCommandOf({ runName: 'copy-route', runNumber: 4, cpuPercent: 800, memory: '12G', taskCount: 3_000, wallSeconds: 7_200, pathOfMiseEnvironment: '/bin', home: '/home/a', node: '/bin/node', driverEntry: '/pkg/src/drive-pi-subagent.ts', runFolder: '/runs/copy-route-4', workingFolder: '/repo/.claude/worktrees/pi-copy-route', promptFile: '/runs/copy-route-prompt.md', provider: 'neuralwatt', model: 'deepseek-v4.1-flash', idleSeconds: 120, turnCap: 400, },);
  ```
  */
 export function unitCommandOf(request: UnitCommandRequest,): {
@@ -155,7 +160,10 @@ export function unitCommandOf(request: UnitCommandRequest,): {
     words: [
       '--user',
       '--wait',
-      `--unit=${unitNameOfGiven({ name: request.runName, },)}`,
+      `--unit=${unitNameOfGiven({
+        name: request.runName,
+        runNumber: request.runNumber,
+      },)}`,
       '--collect',
       `--property=RuntimeMaxSec=${String(runtimeMaxSecondsOf({ wallSeconds: request.wallSeconds, },),)}`,
       `--property=MemoryMax=${request.memory}`,

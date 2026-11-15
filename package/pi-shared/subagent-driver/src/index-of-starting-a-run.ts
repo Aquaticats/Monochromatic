@@ -106,7 +106,14 @@ export {
   sessionFileInSummary,
   sessionFileOfRun,
 } from './session-file-of-a-run.ts';
-export { nextRunNumber, } from './next-run-number.ts';
+export {
+  RunNumbersExhaustedError,
+  nextRunNumber,
+} from './next-run-number.ts';
+export {
+  type WorktreeProof,
+  worktreeProofFileOf,
+} from './worktree-proof.ts';
 export {
   type ClaimedRunFolder,
   RunFolderTakenError,
@@ -139,7 +146,7 @@ export {
   baseProblemIn,
   piProblemIn,
   piStartCheckFileIn,
-  nameProblemIn,
+  runGoingProblemIn,
   promptProblemIn,
   startRefusalsIn,
 } from './checks-before-a-start.ts';
@@ -171,18 +178,22 @@ export {
   unitCommandOf,
 } from './unit-command-of-a-run.ts';
 export {
-  BASE_OF_A_RUN_NAMING_NONE,
   type GitRunner,
   GitCommandFailedError,
-  type WorktreeOutcome,
+  WORKTREE_ADD_TIMEOUT_MILLISECONDS,
   WorktreeFolderOccupiedError,
   WorktreeTakenError,
   branchExists,
-  WORKTREE_ADD_TIMEOUT_MILLISECONDS,
+} from './worktree-git.ts';
+export {
+  BASE_OF_A_RUN_NAMING_NONE,
   makeWorktree,
+} from './worktree-of-a-run.ts';
+export {
+  type WorktreeOutcome,
   removeWorktree,
   worktreeOutcomeOf,
-} from './worktree-of-a-run.ts';
+} from './worktree-removal.ts';
 export {
   GATE_OUTPUT_TAIL_CHARACTERS,
   type RetriedStart,

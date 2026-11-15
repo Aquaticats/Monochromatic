@@ -43,10 +43,11 @@ and the tests use one per wait inside a polling loop.
   Which number is free is what that claim's own answer says,
   and two claims taken at once would be two owners of one folder.
   Each turn asks for a number one higher than the last,
-  so the loop reads nothing it has not just tried.
-- Making a worktree (`src/worktree-of-a-run.ts`):
+  and the loop ends with an error once the number reaches the largest one a run can be counted to,
+  so it reads nothing it has not just tried and nothing keeps it asking forever.
+- Making a worktree (`src/worktree-making.ts`):
   one `worktree add`,
-  then the pruning of the registration a killed add may have left,
+  then the clearing of what this start own making left,
   then the add after it.
   Whether the second add is needed turns on how the first ended,
   which is known only after it has ended.

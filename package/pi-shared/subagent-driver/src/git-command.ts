@@ -8,7 +8,7 @@
  */
 
 import type { RunCommand, } from './run-command.ts';
-import type { GitRunner, } from './worktree-of-a-run.ts';
+import type { GitRunner, } from './worktree-git.ts';
 import { MILLISECONDS_PER_SECOND, } from './driver-constants.ts';
 
 /**

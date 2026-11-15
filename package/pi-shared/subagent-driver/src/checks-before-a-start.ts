@@ -1,6 +1,6 @@
 /**
- What a start checks before it makes anything: that the prompt file can be read, that the base names a commit, that the run's
- unit name is free, and that Pi starts in this session and loads its extensions.
+ What a start checks before it makes anything: that the prompt file can be read, that the base names a commit, that no run of this
+ name is going, and that Pi starts in this session and loads its extensions.
 
  A start that fails one of these made nothing, so nothing has to be undone, and no provider slot is spent on a run that could not
  have worked. Before this, a launcher took a slot, made a worktree and linked its dependencies, and only then did the driver find
@@ -15,7 +15,7 @@ import {
 } from 'node:fs/promises';
 import { constants, } from 'node:fs';
 import { join, } from 'node:path';
-import type { GitRunner, } from './worktree-of-a-run.ts';
+import type { GitRunner, } from './worktree-git.ts';
 import type { RunCommand, } from './run-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
 import {
@@ -23,7 +23,7 @@ import {
   piProblemIn,
   rememberPiStartCheck,
 } from './pi-start-check.ts';
-import { unitNameOfGiven, } from './running-pi-units.ts';
+import { unitNamesOfARunName, } from './running-pi-units.ts';
 
 export {
   PI_LOAD_FAILURE_TEXT,
@@ -51,11 +51,6 @@ const PROMPT_READABLE_MODE: number = constants.R_OK;
  The code the operating system gives a path whose permission bits refuse the caller.
  */
 const PERMISSION_CODE = 'EACCES';
-
-/**
- The state systemd answers for a unit it does not hold at all.
- */
-const UNIT_NOT_FOUND_STATE = 'not-found';
 
 
 /**
@@ -148,20 +143,24 @@ export async function baseProblemIn({
 }
 
 /**
- Says what stops a run's own unit name from being free, if anything does.
+ Says whether a run of this name is going now, which is what stops a second run of one name from being started into the same work.
+
+ A run's unit carries the number of the folder its start claimed, so this asks for every unit of that name rather than for one unit
+ name. Two starts that arrive at the same instant both pass it, and each claims a folder and a unit of its own; a start that arrives
+ once a unit of the name is there is refused, because one name is one run at a time and its worktree and session are the run's.
 
  @param run - how a command is run
 
- @param runName - the run's name, which names its unit
+ @param runName - the run's name
 
- @returns the problem in words, or nothing when no unit holds the name
+ @returns the problem in words, or nothing when no unit of that name is there
 
  @example
  ```ts
- const problem = await nameProblemIn({ run, runName: 'copy-route', },);
+ const problem = await runGoingProblemIn({ run, runName: 'copy-route', },);
  ```
  */
-export async function nameProblemIn({
+export async function runGoingProblemIn({
   run,
   runName,
 }: {
@@ -169,31 +168,18 @@ export async function nameProblemIn({
   readonly runName: string;
 },): Promise<{ readonly problem?: string }> {
   /**
-   The unit the run would be started as.
+   Every unit the manager holds for that run's name.
    */
-  const unitName = unitNameOfGiven({ name: runName, },);
-  /**
-   What the manager answered about that unit's state.
-   */
-  const answered = await run({
-    command: 'systemctl',
-    words: [
-      '--user',
-      'show',
-      unitName,
-      '--property=LoadState',
-      '--value',
-    ],
+  const units = await unitNamesOfARunName({
+    run,
+    runName,
   },);
-  /**
-   The state the manager named, empty when it answered nothing.
-   */
-  const state = (answered.status === 0) ? answered.stdout
-    .trim() : '';
-  if ((state === '') || (state === UNIT_NOT_FOUND_STATE)) {
+  if (units.length === 0) {
     return {};
   }
-  return { problem: `${unitName} is already there (LoadState ${state}), so a run named ${runName} cannot take that name`, };
+  return {
+    problem: `${units.join(', ',)} ${(units.length === 1) ? 'is' : 'are'} already there, so a run named ${runName} is going and this start would be a second run of it: wait for that run to end, or start this one under another name`,
+  };
 }
 
 /**
@@ -305,7 +291,7 @@ export async function startRefusalsIn({
       checkoutFolder,
       base,
     },),
-    nameProblemIn({
+    runGoingProblemIn({
       run,
       runName,
     },),

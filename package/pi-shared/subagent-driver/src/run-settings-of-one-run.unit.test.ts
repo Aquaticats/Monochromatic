@@ -8,6 +8,7 @@
 import {
   mkdir,
   mkdtemp,
+  readFile,
   readdir,
   rm,
   writeFile,
@@ -38,9 +39,12 @@ import {
   kindOfRun,
   WORKTREE_ADD_TIMEOUT_MILLISECONDS,
   RunFolderTakenError,
+  RunNumbersExhaustedError,
+  WorktreeTakenError,
   claimRunFolder,
   makeWorktree,
   nextRunNumber,
+  worktreeProofFileOf,
   parseWorktreeLauncherOptions,
   removeWorktree,
   runtimeMaxSecondsOf,
@@ -149,6 +153,31 @@ await describe({
           },
         },),
         it({
+          name: 'refuses to name a number after the largest a run can be counted to, which adding one would leave unchanged',
+          fn: async () => {
+            expect(nextRunNumber({
+              runName: 'copy-route',
+              entries: [`copy-route-${String(Number.MAX_SAFE_INTEGER - 1,)}`,],
+            },),).toBe(Number.MAX_SAFE_INTEGER,);
+            expect(() => nextRunNumber({
+              runName: 'copy-route',
+              entries: [`copy-route-${String(Number.MAX_SAFE_INTEGER,)}`,],
+            },),).toThrow(RunNumbersExhaustedError,);
+            try {
+              nextRunNumber({
+                runName: 'copy-route',
+                entries: [`copy-route-${String(Number.MAX_SAFE_INTEGER,)}`,],
+              },);
+            }
+            catch (error) {
+              // The error names the folder that has nowhere to go, and what a person does about it.
+              expect(String(error,),).toContain(`copy-route-${String(Number.MAX_SAFE_INTEGER,)}`,);
+              return;
+            }
+            throw new Error('a number that cannot rise was named',);
+          },
+        },),
+        it({
           name: 'takes the first number when no folder of that name is there, and reads a name inside another name as that other run',
           fn: async () => {
             expect(nextRunNumber({
@@ -231,6 +260,36 @@ await describe({
               return one.runFolder;
             },)).size,).toBe(2,);
             expect((await readdir(runsFolder,)).toSorted(),).toEqual(['copy-route-1', 'copy-route-2',],);
+          },
+        },),
+        it({
+          name: 'refuses to claim a number at the largest a run can be counted to, where no number follows',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The runs folder, whose highest number has nowhere left to go.
+             */
+            const runsFolder = join(
+              folder.path,
+              'runs',
+            );
+            await mkdir(runsFolder, { recursive: true, },);
+            await mkdir(join(
+              runsFolder,
+              `copy-route-${String(Number.MAX_SAFE_INTEGER - 1,)}`,
+            ),);
+            /**
+             A number claimed from a folder whose next number is the largest a run can be counted to, which is still a number.
+             */
+            const claimed = await claimRunFolder({
+              runsFolder,
+              runName: 'copy-route',
+            },);
+            expect(claimed.runNumber,).toBe(Number.MAX_SAFE_INTEGER,);
+            await expect(claimRunFolder({
+              runsFolder,
+              runName: 'copy-route',
+            },),).rejects.toThrow(RunNumbersExhaustedError,);
           },
         },),
         it({
@@ -443,6 +502,7 @@ await describe({
              */
             const command = unitCommandOf({
               runName: 'copy-route',
+              runNumber: 4,
               cpuPercent: 800,
               memory: '12G',
               taskCount: 3_000,
@@ -463,7 +523,7 @@ await describe({
             expect(command.words,).toEqual([
               '--user',
               '--wait',
-              '--unit=pi-copy-route.service',
+              '--unit=pi-copy-route@4.service',
               '--collect',
               `--property=RuntimeMaxSec=${String(7_200 + UNIT_GRACE_SECONDS,)}`,
               '--property=MemoryMax=12G',
@@ -490,6 +550,7 @@ await describe({
           fn: async () => {
             expect(unitCommandOf({
               runName: 'a',
+              runNumber: 2,
               cpuPercent: 1,
               memory: '1G',
               taskCount: 1,
@@ -543,17 +604,33 @@ await describe({
              */
             const base = 'fix/a-reviewed-branch';
             /**
+             The proof every making writes.
+             */
+            const claim = {
+              runName: 'a',
+              runFolder: join(
+                folder.path,
+                'runs',
+                'a-1',
+              ),
+            };
+            /**
              A git that says the branch exists, then makes the worktree.
              */
-            const existing = standInGit([answered(0, 'refs/heads/feat/a\n'), answered(0, ''),],);
+            const existing = standInGit([
+              answered(0, 'refs/heads/feat/a\n'),
+              answered(0, ''),
+              answered(0, ''),
+            ],);
             expect(await makeWorktree({
               git: existing.git,
               checkoutFolder: folder.path,
               worktree: join(folder.path, '.claude', 'worktrees', 'pi-a',),
               branch: 'feat/a',
               base,
+              claim,
             },),).toContain('existing branch feat/a',);
-            expect(existing.asked[1]?.words,).toEqual([
+            expect(existing.asked[2]?.words,).toEqual([
               'worktree',
               'add',
               join(folder.path, '.claude', 'worktrees', 'pi-a',),
@@ -562,20 +639,72 @@ await describe({
             /**
              A git that says the branch is new, then makes the worktree.
              */
-            const fresh = standInGit([answered(1, ''), answered(0, ''),],);
+            const fresh = standInGit([
+              answered(1, ''),
+              answered(0, ''),
+              answered(0, ''),
+            ],);
             expect(await makeWorktree({
               git: fresh.git,
               checkoutFolder: folder.path,
               worktree: join(folder.path, '.claude', 'worktrees', 'pi-b',),
               branch: 'feat/b',
               base,
+              claim,
             },),).toContain(`new branch feat/b at ${base}`,);
-            expect(fresh.asked[1]?.words,).toContain('-b',);
-            expect(fresh.asked[1]?.words.at(-1),).toBe(base,);
+            expect(fresh.asked[2]?.words,).toContain('-b',);
+            expect(fresh.asked[2]?.words.at(-1),).toBe(base,);
           },
         },),
         it({
-          name: 'tries a worktree add again after a killed attempt, pruning the registration that attempt may have left, and asks for a bound of its own',
+          name: 'writes the proof of this making before it asks git, and again once the making finished, naming the run folder and the branch',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The worktree this making makes.
+             */
+            const worktree = join(folder.path, '.claude', 'worktrees', 'pi-a',);
+            /**
+             The proof file beside it.
+             */
+            const proofFile = worktreeProofFileOf({ worktree, },);
+            /**
+             What the proof said while git was asked to make the worktree, which is what a reader finds if this start is killed.
+             */
+            const duringTheAdd: string[] = [];
+            /**
+             A git that says the branch is new and reports the proof's state as it is asked for the worktree.
+             */
+            async function gitIn(request: Parameters<GitRunner>[0],): Promise<CommandOutput> {
+              if ((request.words[0] === 'worktree') && (request.words[1] === 'add')) {
+                duringTheAdd.push(await readFile(proofFile, 'utf8',),);
+              }
+              return ((request.words[0] === 'rev-parse') ? answered(1, '') : answered(0, ''));
+            }
+            await makeWorktree({
+              git: gitIn,
+              checkoutFolder: folder.path,
+              worktree,
+              branch: 'feat/a',
+              base: BASE_OF_A_RUN_NAMING_NONE,
+              claim: {
+                runName: 'a',
+                runFolder: join(folder.path, 'runs', 'a-1',),
+              },
+            },);
+            expect(duringTheAdd.length,).toBe(1,);
+            expect(duringTheAdd[0],).toContain('"state": "making"',);
+            expect(duringTheAdd[0],).toContain('"runFolder": "a-1"',);
+            expect(duringTheAdd[0],).toContain('"branch": "feat/a"',);
+            /**
+             What the proof says once the making finished.
+             */
+            const finished = JSON.parse(await readFile(proofFile, 'utf8',),) as { readonly state?: unknown };
+            expect(finished.state,).toBe('made',);
+          },
+        },),
+        it({
+          name: 'tries a worktree add again after a killed attempt, clearing only what this start own making left, and asks for a bound of its own',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -583,6 +712,7 @@ await describe({
              */
             const git = standInGit([
               answered(1, ''),
+              answered(0, ''),
               {
                 status: (-1),
                 stdout: '',
@@ -591,6 +721,7 @@ await describe({
               },
               answered(0, ''),
               answered(0, 'refs/heads/feat/a\n'),
+              answered(0, ''),
               answered(0, ''),
             ],);
             /**
@@ -606,21 +737,26 @@ await describe({
               worktree,
               branch: 'feat/a',
               base: 'main',
+              claim: {
+                runName: 'a',
+                runFolder: join(folder.path, 'runs', 'a-1',),
+              },
             },);
             expect(line,).toContain('new branch feat/a at main',);
-            // The killed add is followed by the pruning of the registration it may have left, and then by the add that worked.
-            // Nothing is removed: the path holds no worktree, and a worktree standing there would be left as it is.
+            // Each attempt writes the proof of this making and prunes the registration a killed add may have left, and the killed
+            // attempt's leftover is cleared only because its proof is this start's own.
             expect(git.asked.map(function question(ask,) {
               return ask.words.join(' ',);
             },),).toEqual([
               'rev-parse --verify --quiet refs/heads/feat/a',
+              'worktree prune --expire=now',
               `worktree add -b feat/a ${worktree} main`,
               'worktree prune --expire=now',
               // The killed attempt made the branch, so the second attempt takes it rather than asking for a new one.
               'rev-parse --verify --quiet refs/heads/feat/a',
+              'worktree prune --expire=now',
               `worktree add ${worktree} feat/a`,
             ],);
-            expect(git.asked[1]?.timeoutMilliseconds,).toBe(WORKTREE_ADD_TIMEOUT_MILLISECONDS,);
             expect(git.asked[2]?.timeoutMilliseconds,).toBe(WORKTREE_ADD_TIMEOUT_MILLISECONDS,);
           },
         },),
@@ -633,6 +769,7 @@ await describe({
              */
             const git = standInGit([
               answered(1, ''),
+              answered(0, ''),
               {
                 status: (-1),
                 stdout: '',
@@ -641,6 +778,7 @@ await describe({
               },
               answered(0, ''),
               answered(0, 'refs/heads/feat/a\n'),
+              answered(0, ''),
               {
                 status: (-1),
                 stdout: '',
@@ -656,6 +794,10 @@ await describe({
               worktree: join(folder.path, '.claude', 'worktrees', 'pi-a',),
               branch: 'feat/a',
               base: 'main',
+              claim: {
+                runName: 'a',
+                runFolder: join(folder.path, 'runs', 'a-1',),
+              },
             },),).rejects.toThrow('did not answer within 900000 milliseconds',);
             // The branch no worktree holds is deleted the way git refuses when it holds anything unmerged, never by force.
             expect(git.asked.at(-1)?.words,).toEqual([
@@ -678,6 +820,7 @@ await describe({
              */
             const git = standInGit([
               answered(1, ''),
+              answered(0, ''),
               {
                 status: (-1),
                 stdout: '',
@@ -686,6 +829,7 @@ await describe({
               },
               answered(0, ''),
               answered(0, 'refs/heads/feat/a\n'),
+              answered(0, ''),
               {
                 status: (-1),
                 stdout: '',
@@ -706,6 +850,10 @@ await describe({
                 worktree: join(folder.path, '.claude', 'worktrees', 'pi-a',),
                 branch: 'feat/a',
                 base: 'main',
+                claim: {
+                  runName: 'a',
+                  runFolder: join(folder.path, 'runs', 'a-1',),
+                },
               },);
             }
             catch (error) {
@@ -717,14 +865,61 @@ await describe({
           },
         },),
         it({
-          name: 'leaves a worktree that is already there alone, asking git nothing',
+          name: 'leaves a worktree that no proof says this run made exactly as it is, asking git nothing',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             A folder that is already a worktree.
+             A folder that is already a worktree, which nothing here made.
              */
             const worktree = join(folder.path, 'pi-a',);
             await mkdir(join(worktree, '.git',), { recursive: true, },);
+            /**
+             A git nobody should reach.
+             */
+            const git = standInGit([answered(0, ''),],);
+            try {
+              await makeWorktree({
+                git: git.git,
+                checkoutFolder: folder.path,
+                worktree,
+                branch: 'feat/a',
+                base: BASE_OF_A_RUN_NAMING_NONE,
+                claim: {
+                  runName: 'a',
+                  runFolder: join(folder.path, 'runs', 'a-1',),
+                },
+              },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(WorktreeTakenError,);
+              expect(String(error,),).toContain(worktree,);
+              expect(String(error,),).toContain('no proof',);
+              expect(git.asked,).toEqual([],);
+              await expect(
+                readFile(join(worktree, '.git', 'HEAD',),),
+              ).rejects.toThrow('ENOENT',);
+              return;
+            }
+            throw new Error('a worktree with no proof was taken for this start\'s',);
+          },
+        },),
+        it({
+          name: 'takes up a worktree whose proof says another run folder made it on the branch this start asks for',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The worktree that stands there.
+             */
+            const worktree = join(folder.path, 'pi-a',);
+            await mkdir(join(worktree, '.git',), { recursive: true, },);
+            await writeFile(worktreeProofFileOf({ worktree, },), JSON.stringify({
+              path: worktree,
+              runName: 'a',
+              runFolder: 'a-1',
+              branch: 'feat/a',
+              state: 'made',
+              writtenAt: new Date(0,).toISOString(),
+            },),);
             /**
              A git nobody should reach.
              */
@@ -735,8 +930,128 @@ await describe({
               worktree,
               branch: 'feat/a',
               base: BASE_OF_A_RUN_NAMING_NONE,
-            },),).toBe('worktree: already there',);
+              claim: {
+                runName: 'a',
+                runFolder: join(folder.path, 'runs', 'a-2',),
+              },
+            },),).toContain('made by run folder a-1 on branch feat/a',);
             expect(git.asked,).toEqual([],);
+          },
+        },),
+        it({
+          name: 'leaves a worktree whose proof names another branch, so a start asked for one branch is never handed a worktree on another',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The worktree another start made on another branch.
+             */
+            const worktree = join(folder.path, 'pi-a',);
+            await mkdir(join(worktree, '.git',), { recursive: true, },);
+            await writeFile(worktreeProofFileOf({ worktree, },), JSON.stringify({
+              path: worktree,
+              runName: 'a',
+              runFolder: 'a-1',
+              branch: 'feat/first',
+              state: 'made',
+              writtenAt: new Date(0,).toISOString(),
+            },),);
+            try {
+              await makeWorktree({
+                git: standInGit([answered(0, ''),],).git,
+                checkoutFolder: folder.path,
+                worktree,
+                branch: 'feat/second',
+                base: BASE_OF_A_RUN_NAMING_NONE,
+                claim: {
+                  runName: 'a',
+                  runFolder: join(folder.path, 'runs', 'a-2',),
+                },
+              },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(WorktreeTakenError,);
+              expect(String(error,),).toContain('feat/first',);
+              expect(String(error,),).toContain('feat/second',);
+              return;
+            }
+            throw new Error('a worktree on another branch was taken for this start\'s',);
+          },
+        },),
+        it({
+          name: 'leaves a worktree whose making has not finished while its maker may still be making it, and clears one whose making was killed at its own bound',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             When this test reads the time.
+             */
+            const nowMilliseconds = 1_700_000_000_000;
+            /**
+             The worktree a making left.
+             */
+            const worktree = join(folder.path, '.claude', 'worktrees', 'pi-a',);
+            await mkdir(join(worktree, '.git',), { recursive: true, },);
+            await writeFile(join(worktree, 'half.txt',), 'half a copy',);
+            /**
+             What that making wrote beside it.
+             */
+            function proofOfTheMaking(when: number,): string {
+              return JSON.stringify({
+                path: worktree,
+                runName: 'a',
+                runFolder: 'a-1',
+                branch: 'feat/a',
+                state: 'making',
+                writtenAt: new Date(when,).toISOString(),
+              },);
+            }
+            await writeFile(worktreeProofFileOf({ worktree, },), proofOfTheMaking(nowMilliseconds,),);
+            try {
+              await makeWorktree({
+                git: standInGit([answered(0, ''),],).git,
+                checkoutFolder: folder.path,
+                worktree,
+                branch: 'feat/a',
+                base: BASE_OF_A_RUN_NAMING_NONE,
+                claim: {
+                  runName: 'a',
+                  runFolder: join(folder.path, 'runs', 'a-1',),
+                },
+                now: function now() {
+                  return nowMilliseconds;
+                },
+              },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(WorktreeTakenError,);
+              expect(String(error,),).toContain('making has not finished',);
+            }
+            // The same proof, older than a making\'s own bound, names an add killed at that bound: its partial checkout is cleared,
+            // and the worktree is made again.
+            await writeFile(worktreeProofFileOf({ worktree, },), proofOfTheMaking((nowMilliseconds - WORKTREE_ADD_TIMEOUT_MILLISECONDS) - 120_000,),);
+            /**
+             A git that answers the clearing's prune, says the branch is new, and makes the worktree.
+             */
+            const git = standInGit([
+              answered(0, ''),
+              answered(1, ''),
+              answered(0, ''),
+              answered(0, ''),
+            ],);
+            expect(await makeWorktree({
+              git: git.git,
+              checkoutFolder: folder.path,
+              worktree,
+              branch: 'feat/a',
+              base: BASE_OF_A_RUN_NAMING_NONE,
+              claim: {
+                runName: 'a',
+                runFolder: join(folder.path, 'runs', 'a-1',),
+              },
+              now: function now() {
+                return nowMilliseconds;
+              },
+            },),).toContain('new branch feat/a',);
+            await expect(readFile(join(worktree, 'half.txt',), 'utf8',),).rejects.toThrow('ENOENT',);
           },
         },),
         it({
@@ -749,11 +1064,19 @@ await describe({
             const empty = join(folder.path, 'pi-a',);
             await mkdir(empty,);
             await makeWorktree({
-              git: standInGit([answered(1, ''), answered(0, ''),],).git,
+              git: standInGit([
+                answered(1, ''),
+                answered(0, ''),
+                answered(0, ''),
+              ],).git,
               checkoutFolder: folder.path,
               worktree: empty,
               branch: 'feat/a',
               base: BASE_OF_A_RUN_NAMING_NONE,
+              claim: {
+                runName: 'a',
+                runFolder: join(folder.path, 'runs', 'a-1',),
+              },
             },);
             /**
              A folder holding a file a person wrote.
@@ -768,6 +1091,10 @@ await describe({
                 worktree: held,
                 branch: 'feat/b',
                 base: BASE_OF_A_RUN_NAMING_NONE,
+                claim: {
+                  runName: 'b',
+                  runFolder: join(folder.path, 'runs', 'b-1',),
+                },
               },);
             }
             catch (error) {
@@ -784,15 +1111,29 @@ await describe({
             await using folder = await makeFolder();
             try {
               await makeWorktree({
-                git: standInGit([answered(1, ''), {
-                  status: 128,
-                  stdout: '',
-                  stderr: 'fatal: a branch named feat/a already exists',
-                },],).git,
+                git: standInGit([
+                  answered(1, ''),
+                  answered(0, ''),
+                  {
+                    status: 128,
+                    stdout: '',
+                    stderr: 'fatal: a branch named feat/a already exists',
+                  },
+                  answered(0, ''),
+                  {
+                    status: 128,
+                    stdout: '',
+                    stderr: 'fatal: a branch named feat/a already exists',
+                  },
+                ],).git,
                 checkoutFolder: folder.path,
                 worktree: join(folder.path, 'pi-a',),
                 branch: 'feat/a',
                 base: BASE_OF_A_RUN_NAMING_NONE,
+                claim: {
+                  runName: 'a',
+                  runFolder: join(folder.path, 'runs', 'a-1',),
+                },
               },);
             }
             catch (error) {
@@ -1010,6 +1351,40 @@ await describe({
               runsFolder: '/runs',
               checkoutFolder: '/elsewhere',
             },);
+          },
+        },),
+        it({
+          name: 'refuses a name that carries the character telling a run name from its folder number, and a run number past what a run can count to',
+          fn: async () => {
+            /**
+             A command line every option of which is usable.
+             */
+            const usable = [
+              '--name=a',
+              '--branch=feat/a',
+              '--prompt=p.md',
+              '--cpu=8',
+              '--memory=1G',
+              '--tasks=10',
+              '--wall=60',
+            ];
+            expect(() => parseWorktreeLauncherOptions({
+              commandLine: [...usable, '--name=copy@route',],
+              checkoutFolder: '/repo',
+            },),).toThrow('may not carry "@"',);
+            // The largest number a run can be counted to is one a folder can carry; the number after it cannot be reached.
+            expect(parseWorktreeLauncherOptions({
+              commandLine: [...usable, `--run=${String(Number.MAX_SAFE_INTEGER,)}`,],
+              checkoutFolder: '/repo',
+            },).runNumber,).toBe(Number.MAX_SAFE_INTEGER,);
+            expect(() => parseWorktreeLauncherOptions({
+              commandLine: [...usable, '--run=9007199254740992',],
+              checkoutFolder: '/repo',
+            },),).toThrow('whole number a run can count to',);
+            expect(() => parseWorktreeLauncherOptions({
+              commandLine: [...usable, '--run=1.5',],
+              checkoutFolder: '/repo',
+            },),).toThrow('whole number a run can count to',);
           },
         },),
         it({

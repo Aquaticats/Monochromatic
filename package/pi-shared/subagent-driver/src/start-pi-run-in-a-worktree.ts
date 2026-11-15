@@ -212,6 +212,28 @@ for (const warning of warnings) {
   console.error(`${options.name}: ${warning}`,);
 }
 
+/**
+ Where the driver writes this run, claimed by making it: a folder another start of this name holds is never written into, and the
+ number it carries names this run's unit and the worktree proof it writes.
+ */
+const {
+  runFolder,
+  runNumber,
+} = await claimRunFolder({
+  runsFolder: options.runsFolder,
+  runName: options.name,
+  ...(options.runNumber === undefined ? {} : { wantedNumber: options.runNumber, }),
+},);
+console.log(`run folder: ${runFolder} (claimed by making it, so no other start of this name writes there)`,);
+
+/**
+ The unit this start's run is, which carries the number of the folder this start claimed.
+ */
+const unitName = unitNameOfGiven({
+  name: options.name,
+  runNumber,
+},);
+
 if (!readOnlyInMain) {
   console.log(await makeWorktree({
     git,
@@ -219,6 +241,10 @@ if (!readOnlyInMain) {
     worktree,
     branch: options.branch,
     base: options.base,
+    claim: {
+      runName: options.name,
+      runFolder,
+    },
   },),);
 }
 
@@ -242,15 +268,6 @@ if (!readOnlyInMain) {
 }
 
 /**
- Where the driver writes this run, claimed by making it: a folder another start of this name holds is never written into.
- */
-const { runFolder, } = await claimRunFolder({
-  runsFolder: options.runsFolder,
-  runName: options.name,
-  ...(options.runNumber === undefined ? {} : { wantedNumber: options.runNumber, }),
-},);
-
-/**
  How many model turns the run may start.
  */
 const turnCap = options.turnCap ?? await sizedTurnCap();
@@ -260,6 +277,7 @@ const turnCap = options.turnCap ?? await sizedTurnCap();
  */
 const unit = unitCommandOf({
   runName: options.name,
+  runNumber,
   cpuPercent: options.cpuPercent,
   memory: options.memory,
   taskCount: options.taskCount,
@@ -311,7 +329,7 @@ const waiter = spawn(
  */
 const waited = await waitForUnitToEnd({
   run: runCommandWithChildProcess,
-  unitName: unitNameOfGiven({ name: options.name, },),
+  unitName,
   deadline: Date.now() + ((options.wallSeconds + UNIT_WAIT_GRACE_SECONDS) * MILLISECONDS_PER_SECOND),
   wait: waitBetweenLooks,
   now: Date.now,
@@ -331,10 +349,10 @@ const status = (waited.ended === 'the-unit-ended')
   : 1;
 console.log(launcherEndedLineOf({
   runName: options.name,
-  unitName: unitNameOfGiven({ name: options.name, },),
+  unitName,
   unitState: await unitStateNow({
     run: runCommandWithChildProcess,
-    unitName: unitNameOfGiven({ name: options.name, },),
+    unitName,
   },),
   ended: waited.ended,
   status,

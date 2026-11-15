@@ -113,6 +113,50 @@ export function requiredPositiveNumber({
 }
 
 /**
+ Reads an option that must be a whole number above zero that a run can count to exactly.
+
+ A number above what JavaScript counts exactly is no number a folder or an attempt can be named with: adding one to it changes
+ nothing, so a folder claimed at such a number could never be followed by another.
+
+ @param value - the option's value as the command line parser read it
+
+ @param name - the option's name, without the leading dashes, for the message
+
+ @param usage - the command's usage, for the message
+
+ @param errorOf - builds the error this command answers a refused option with
+
+ @returns the option's number
+
+ @throws the error the caller builds, when the option is missing, not a whole number, or larger than a number a run can count to
+
+ @example
+ ```ts
+ const runNumber = requiredWholeNumber({ value: '4', name: 'run', usage, errorOf, },);
+ ```
+ */
+export function requiredWholeNumber({
+  value,
+  name,
+  usage,
+  errorOf,
+}: RequiredOption,): number {
+  /**
+   The option's number, which a fraction already fails.
+   */
+  const parsed = requiredPositiveNumber({
+    value,
+    name,
+    usage,
+    errorOf,
+  },);
+  if ((!Number.isSafeInteger(parsed,)) || (parsed > Number.MAX_SAFE_INTEGER)) {
+    throw errorOf(`--${name} must be a whole number a run can count to, no larger than ${String(Number.MAX_SAFE_INTEGER,)}; it was "${String(value,)}".\nUsage: ${usage}`,);
+  }
+  return parsed;
+}
+
+/**
  Reads an option that must be a duration above zero whose milliseconds, and whose deadline from now, stay finite. A limit that
  becomes infinite is no limit at all.
 

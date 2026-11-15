@@ -16,7 +16,10 @@ import {
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
-import { nextRunNumber, } from './next-run-number.ts';
+import {
+  RunNumbersExhaustedError,
+  nextRunNumber,
+} from './next-run-number.ts';
 
 /**
  The code the operating system gives a folder that is already there.
@@ -175,6 +178,13 @@ export async function claimRunFolder({
     },);
     if (claimed.claimed !== undefined) {
       return claimed.claimed;
+    }
+    if (trying.number >= Number.MAX_SAFE_INTEGER) {
+      // Nothing follows this number: a run folder number cannot rise past the largest number a run can be counted to, so this
+      // loop ends here rather than asking for one taken folder forever.
+      throw new RunNumbersExhaustedError(
+        `every number this claim tried, the last of them ${runName}-${String(trying.number,)}, is taken, and ${String(trying.number,)} is the largest number a run can be counted to, so no number can follow it: no run of this name can be given a folder. A person removes the folders of this name that are not wanted, or starts the run under another name.`,
+      );
     }
     trying.number += 1;
   }

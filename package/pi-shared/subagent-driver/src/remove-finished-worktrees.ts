@@ -45,7 +45,7 @@ import {
   runCommandWithChildProcess,
 } from './run-command.ts';
 import { usageWasAsked, } from './usage-of-a-command.ts';
-import { unitStateOf, } from './wait-for-a-unit-to-end.ts';
+import { startRunningPiUnits, } from './running-pi-units.ts';
 import { processesAtTheirFolders, } from './wake-a-run-whose-work-outlives-its-turn.ts';
 
 /**
@@ -245,6 +245,15 @@ if (listed.status !== 0) {
 }
 
 /**
+ The names of the runs going now, which is every active Pi unit's run name, read once: a run's unit carries the number of the
+ folder its start claimed, so a question about one name is a question about a family of unit names.
+ */
+const going = new Set<string>((await startRunningPiUnits({ run: runCommandWithChildProcess, },)())
+  .map(function nameOf(unit,) {
+    return unit.name;
+  },));
+
+/**
  The folder every process of the machine works in, read once.
  */
 const workingFolders = (await processesAtTheirFolders({ processFolder: options.processFolder, },))
@@ -373,10 +382,7 @@ for (const worktree of runWorktreesIn({
     ),),
     paused: paused.has(name,),
     briefQueued,
-    unitState: await unitStateOf({
-      run: runCommandWithChildProcess,
-      unitName: `pi-${name}.service`,
-    },),
+    unitState: going.has(name,) ? 'active' : 'inactive',
     inUseFolder: inUse.folder ?? '',
     status: status.status,
     statusText: status.stdout,

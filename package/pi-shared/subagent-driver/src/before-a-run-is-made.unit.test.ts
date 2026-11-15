@@ -1,6 +1,6 @@
 /**
  What a launcher settles before it makes anything: which checkout it works in, that the prompt can be read, that the base names a
- commit, and that the run's unit name is free.
+ commit, and that no run of that name is going.
 
  @module
  */
@@ -29,13 +29,12 @@ import {
   PI_START_CHECK_MEMORY_SECONDS,
   baseProblemIn,
   checkoutFolderOf,
-  nameProblemIn,
   piProblemIn,
   piStartCheckFileIn,
   promptProblemIn,
   reasonInFailedStart,
+  runGoingProblemIn,
   startRefusalsIn,
-  unitNameOfGiven,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -336,26 +335,26 @@ await describe({
       ],
     },),
     describe({
-      name: nameProblemIn.name,
+      name: runGoingProblemIn.name,
       children: [
         it({
-          name: 'says nothing when the manager holds no unit of that name, which it answers with not-found or with nothing',
+          name: 'says nothing when the manager holds no unit of that name, which it answers with no line or with a question it could not answer',
           fn: async () => {
             /**
              The run a batch list names.
              */
             const runName = 'copy-route';
-            expect(await nameProblemIn({
+            expect(await runGoingProblemIn({
               run: async function answered() {
                 return {
                   status: 0,
-                  stdout: 'not-found\n',
+                  stdout: '',
                   stderr: '',
                 };
               },
               runName,
             },),).toEqual({},);
-            expect(await nameProblemIn({
+            expect(await runGoingProblemIn({
               run: async function answered() {
                 return {
                   status: 1,
@@ -368,27 +367,42 @@ await describe({
           },
         },),
         it({
-          name: 'names the unit a run of that name would collide with',
+          name: 'names the unit a run of that name already has, and says a run of that name is going',
           fn: async () => {
             /**
              The run a batch list names.
              */
             const runName = 'copy-route';
             /**
-             What the manager says about a unit it holds.
+             What the manager answered for a run of that name that is going.
              */
-            const { problem, } = await nameProblemIn({
+            const { problem, } = await runGoingProblemIn({
               run: async function answered() {
                 return {
                   status: 0,
-                  stdout: 'loaded\n',
+                  stdout: '  pi-copy-route@3.service loaded active running a run\n',
                   stderr: '',
                 };
               },
               runName,
             },);
-            expect(problem,).toContain(unitNameOfGiven({ name: runName, },),);
+            expect(problem,).toContain('pi-copy-route@3.service',);
             expect(problem,).toContain(runName,);
+          },
+        },),
+        it({
+          name: 'leaves a unit of a longer name alone, which the manager answers when it is asked for this run name family',
+          fn: async () => {
+            expect(await runGoingProblemIn({
+              run: async function answered() {
+                return {
+                  status: 0,
+                  stdout: '  pi-copy-route-extra@1.service loaded active running another run\n',
+                  stderr: '',
+                };
+              },
+              runName: 'copy-route',
+            },),).toEqual({},);
           },
         },),
       ],
@@ -421,7 +435,7 @@ await describe({
                   }
                   : {
                     status: 0,
-                    stdout: 'active\n',
+                    stdout: '  pi-copy-route@1.service loaded active running a run\n',
                     stderr: '',
                   };
               },

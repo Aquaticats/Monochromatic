@@ -165,15 +165,22 @@ export {
   type RunCommand,
   runCommandWithChildProcess,
 } from './run-command.ts';
-export { latestRunFolderOf, } from './run-folder-of-a-unit.ts';
 export {
+  NO_RUN_FOLDER,
+  latestRunFolderOf,
+  runFolderOfAUnit,
+} from './run-folder-of-a-unit.ts';
+export {
+  PI_UNIT_NUMBER_SEPARATOR,
   monotonicMicrosecondsNow,
   parseRunningPiUnits,
   PiUnitsUnreadableError,
   type RunningPiUnit,
   runNameOfUnit,
+  runNumberOfUnit,
   startRunningPiUnits,
   unitNameOfGiven,
+  unitNamesOfARunName,
 } from './running-pi-units.ts';
 export {
   type OpenToolCall,

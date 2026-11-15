@@ -86,6 +86,48 @@ function attemptNumberIn({
 }
 
 /**
+ Reads the folder a running unit writes into, from the number its own name carries.
+
+ A unit's name carries the number of the run folder its start claimed, so the folder is one answer and no guess: two starts of one
+ run name write into two folders, and the highest number of that name may well be a start that is not the one this unit runs.
+
+ @param runsFolder - folder the driver writes one run folder per run into
+
+ @param unit - the running unit, whose name carries the number of the folder its start claimed
+
+ @returns the folder, or {@link NO_RUN_FOLDER} when the unit's name carries no number
+
+ @example
+ ```ts
+ const folder = runFolderOfAUnit({ runsFolder: '/runs', unit, },);
+ ```
+ */
+export function runFolderOfAUnit({
+  runsFolder,
+  unit,
+}: {
+  readonly runsFolder: string;
+  readonly unit: {
+    /**
+     The run's name.
+     */
+    readonly name: string;
+
+    /**
+     The number of the run folder its start claimed, when its name carries one.
+     */
+    readonly runNumber?: number;
+  };
+},): string | typeof NO_RUN_FOLDER {
+  return (unit.runNumber === undefined)
+    ? NO_RUN_FOLDER
+    : join(
+      runsFolder,
+      `${unit.name}${ATTEMPT_SEPARATOR}${String(unit.runNumber,)}`,
+    );
+}
+
+/**
  Reads the run folder of the attempt going now.
 
  @param runsFolder - folder the driver writes one run folder per run into

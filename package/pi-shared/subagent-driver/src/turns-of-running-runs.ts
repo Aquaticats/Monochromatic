@@ -19,6 +19,7 @@ import { isRecord, } from './read-pi-fields.ts';
 import {
   NO_RUN_FOLDER,
   latestRunFolderOf,
+  runFolderOfAUnit,
 } from './run-folder-of-a-unit.ts';
 import type { RunningPiUnit, } from './running-pi-units.ts';
 import { wholeLinesOf, } from './whole-lines-of-a-feed.ts';
@@ -225,12 +226,22 @@ export async function runningRunLinesOf({
      belongs to. See doc/lint/sequential-awaits.md. */
   for (const unit of units) {
     /**
-     The folder the run going now writes into.
+     The folder that run writes into, named by the number the unit's own name carries, or guessed from the runs folder for a unit
+     whose name carries none.
      */
-    const runFolder = await latestRunFolderOf({
+    const byItsNumber = runFolderOfAUnit({
       runsFolder,
-      runName: unit.name,
+      unit,
     },);
+    /**
+     The folder this run writes into.
+     */
+    const runFolder = ((typeof byItsNumber) === 'symbol')
+      ? await latestRunFolderOf({
+        runsFolder,
+        runName: unit.name,
+      },)
+      : byItsNumber;
     if (runFolder === NO_RUN_FOLDER) {
       lines.push(`${unit.name}: up ${ageTextOf(unit.elapsedMilliseconds,)}, no run folder yet; ${unit.unitName}`,);
       continue;

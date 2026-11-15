@@ -289,6 +289,10 @@ or start a run it would refuse.
   without `--run` the next free number is taken,
   and a number named here that another start already holds refuses the launch
   rather than writing over that run's summary.
+  A number past the largest a run can be counted to
+  (9007199254740991)
+  is refused where it is read,
+  because adding one to a larger number changes nothing and no folder could follow it.
 - `--turn-cap`:
   how many model turns the run may start.
   Without it the cap is a quarter above the longest finished run of the same kind,
@@ -300,21 +304,40 @@ or start a run it would refuse.
   `--runs-folder`,
   and `--checkout-folder`.
 
-The worktree is `<checkout-folder>/.claude/worktrees/pi-<name>`.
+**The names one start takes, and what each derives from.**
+The run folder `<name>-<number>` is claimed by making it,
+so the number belongs to one start,
+and it is the root of the others:
+the unit is `pi-<name>@<number>.service`,
+which systemd refuses to make twice,
+and the worktree's proof names the run folder that made the worktree.
+The worktree is `<checkout-folder>/.claude/worktrees/pi-<name>`,
+named for the run rather than for one attempt of it,
+because a wake, a second try or a retry of one name must find the work it left;
+the proof beside it, not the path, says whose work that is.
+The branch is the caller's name for the work,
+recorded in the proof and checked whenever a worktree is taken up,
+because a start asked for one branch is never handed a worktree on another.
+
+**The proof.**
+Making a worktree writes `.pi-<name>.worktree.json` beside it,
+naming the path, the run's name, the run folder whose claim made it, the branch,
+whether the making finished, and when.
+It is written before `git worktree add` is asked and again once git has finished,
+so a launcher killed at any instruction leaves a proof that says its making did not finish.
+A worktree already at the path is taken up only when its proof says its making finished on the branch this start asks for;
+one with no proof, with a proof for another branch, or with a proof whose making may still be under way is left exactly as it is
+and the start refuses with a line that names the path, the run folder and the branch.
+A proof whose making did not finish but whose making is older than the making's own bound names an add killed at that bound:
+its partial checkout is cleared, because no run ever worked in it, and the worktree is made again.
 A branch this launcher creates starts at `--base`,
 and a branch that already exists is added as it is,
 keeping its own commits,
 because moving it would rewrite work someone else may be reading;
 the line the launcher prints says which of the two it did.
-A `git worktree add` killed by its own bound is tried once more:
-the retry prunes the registration the killed attempt may have left,
-and a path that already holds a worktree is used only when that worktree holds nothing uncommitted,
-which is what its own killed attempt leaves and what the next start of the name would do with it.
-A worktree holding work this start did not make is left exactly as it is and the start fails saying so,
-because a start of the same name makes that path on that branch too:
-working in it would work in another start's uncommitted work,
-and removing it would delete that work.
-Nothing on this path removes a folder.
+A `git worktree add` killed inside one launcher is tried once more,
+clearing only what that launcher's own making left.
+Nothing on this path removes a worktree a proof does not show to be this run's own unfinished making.
 When both attempts fail the branch the first one made is removed too:
 whoever makes a thing cleans it up,
 and `git branch --delete`, never the forced form, is what decides,
@@ -1678,11 +1701,15 @@ It reads each process's command line and never its environment.
 The age of a unit is the difference between now and the start systemd stamped on the monotonic clock,
 so no wall clock can move it.
 
-A unit is `pi-<task>.service` and each attempt of that task writes `<task>-<number>`,
-so the run going now is the highest number of that name in the runs folder.
-A name the driver records itself would say this more directly;
-until a run writes its own folder into its summary,
-the two names are all there is to go on.
+A unit is `pi-<task>@<number>.service`,
+where the number is the run folder its start claimed,
+and that folder is `<task>-<number>`.
+A unit named without a number, `pi-<task>.service`,
+is one a launcher of an earlier version made,
+and the run going now is then the highest number of that name in the runs folder.
+The number in a unit's name says which folder that run writes into,
+so two starts of one name no longer make this line guess;
+see `check-in-on-pi-runs` below.
 
 ### What the watch cannot bound
 

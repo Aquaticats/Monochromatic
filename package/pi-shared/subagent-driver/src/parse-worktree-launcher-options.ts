@@ -16,7 +16,9 @@ import {
   requiredPositiveNumber,
   requiredSeconds,
   requiredText,
+  requiredWholeNumber,
 } from './required-option-values.ts';
+import { PI_UNIT_NUMBER_SEPARATOR, } from './running-pi-units.ts';
 
 import {
   BASE_OF_A_RUN_NAMING_NONE,
@@ -230,11 +232,20 @@ export function parseWorktreeLauncherOptions({
    The options as written.
    */
   const parsed = writtenValuesIn(commandLine,);
+  /**
+   The run's name, which a unit's name carries whole.
+   */
+  const name = requiredText(optionOf({
+    value: parsed.name,
+    name: 'name',
+  },),);
+  if (name.includes(PI_UNIT_NUMBER_SEPARATOR,)) {
+    // A run's unit name is the run's name and the number of its folder, told apart by this character: a name that carried one would
+    // make another run's unit name out of its own.
+    throw worktreeLauncherOptionsErrorOf(`--name may not carry "${PI_UNIT_NUMBER_SEPARATOR}", which tells a run's name from the number of its run folder in a unit's name; it was "${name}".\nUsage: ${WORKTREE_LAUNCHER_USAGE}`,);
+  }
   return {
-    name: requiredText(optionOf({
-      value: parsed.name,
-      name: 'name',
-    },),),
+    name,
     branch: requiredText(optionOf({
       value: parsed.branch,
       name: 'branch',
@@ -260,7 +271,7 @@ export function parseWorktreeLauncherOptions({
       value: parsed.wall,
       name: 'wall',
     },),),
-    ...(parsed.run === undefined ? {} : { runNumber: requiredPositiveNumber(optionOf({
+    ...(parsed.run === undefined ? {} : { runNumber: requiredWholeNumber(optionOf({
       value: parsed.run,
       name: 'run',
     },),), }),

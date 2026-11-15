@@ -27,6 +27,7 @@ import {
 import {
   type NO_RUN_FOLDER,
   latestRunFolderOf,
+  runFolderOfAUnit,
 } from './run-folder-of-a-unit.ts';
 import type { RunningPiUnit, } from './running-pi-units.ts';
 import {
@@ -405,12 +406,25 @@ async function lookAtOneUnit({
   readonly evidence: FinishedRunEvidence;
 },): Promise<UnitLook> {
   /**
-   The folder this run writes to.
+   The folder this run writes to, named by the number the unit's own name carries, or guessed from the runs folder for a unit whose
+   name carries none.
    */
-  const folder = await latestRunFolderOf({
+  /**
+   The folder this run writes into by the number its unit's name carries, when it carries one.
+   */
+  const byItsNumber = runFolderOfAUnit({
     runsFolder: request.runsFolder,
-    runName: unit.name,
+    unit,
   },);
+  /**
+   The folder this run writes into.
+   */
+  const folder = ((typeof byItsNumber) === 'symbol')
+    ? await latestRunFolderOf({
+      runsFolder: request.runsFolder,
+      runName: unit.name,
+    },)
+    : byItsNumber;
   /**
    What the run's feed says, and nothing about a call for a run that has written none.
    */

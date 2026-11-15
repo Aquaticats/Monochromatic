@@ -22,7 +22,10 @@ import {
   startProcessTable,
 } from './processes-under-a-pi-run.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
-import { latestRunFolderOf, } from './run-folder-of-a-unit.ts';
+import {
+  latestRunFolderOf,
+  runFolderOfAUnit,
+} from './run-folder-of-a-unit.ts';
 import {
   type RunningPiUnit,
   startRunningPiUnits,
@@ -231,12 +234,25 @@ async function reportOf(unitName: string,): Promise<readonly string[]> {
     ];
   }
   /**
-   The folder this run writes to.
+   The folder this run writes to, named by the number the unit's own name carries, or guessed from the runs folder for a unit whose
+   name carries none.
    */
-  const folder = await latestRunFolderOf({
+  /**
+   The folder this run writes into by the number its unit's name carries, when it carries one.
+   */
+  const byItsNumber = runFolderOfAUnit({
     runsFolder: options.runsFolder,
-    runName: unit.name,
+    unit,
   },);
+  /**
+   The folder this run writes into.
+   */
+  const folder = ((typeof byItsNumber) === 'symbol')
+    ? await latestRunFolderOf({
+      runsFolder: options.runsFolder,
+      runName: unit.name,
+    },)
+    : byItsNumber;
   if ((typeof folder) === 'symbol') {
     return [
       `=== ${unitName}`,

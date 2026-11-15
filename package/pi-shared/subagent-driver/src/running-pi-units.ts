@@ -1,12 +1,21 @@
 /**
  The Pi runs that are going now, as systemd reports them: each unit's name, how long it has been up, and the process it leads.
 
+ A run's unit is named by the run's name and the number of the run folder its start claimed: `pi-<name>@<number>.service`. Two
+ starts of one run name claim different folders, so they are two units and neither can be refused for asking for the other's name.
+ The part before `@` is the run's name, which is what a reader that looks a run up by name needs, and the part after it is the
+ number of the folder that run writes into.
+
  The question to systemd is the seam: a test hands over the text a question would have printed and never needs a real unit.
 
  @module
  */
 
 import { hrtime, } from 'node:process';
+import {
+  firstWordOf,
+  isDigitsOnly,
+} from './text-of-an-option.ts';
 import type { RunCommand, } from './run-command.ts';
 
 /**
@@ -33,6 +42,13 @@ const UNIT_PROPERTIES = 'Id,ActiveState,ActiveEnterTimestampMonotonic,MainPID';
 const PI_UNIT_PREFIX = 'pi-';
 
 /**
+ The character between a run's name and the number of the folder its start claimed, which no run's name may carry, so a reader can
+ always tell the two apart. Systemd accepts it in a transient unit's name and refuses a second unit of the same name, which is what
+ makes the unit name a name one start holds alone.
+ */
+export const PI_UNIT_NUMBER_SEPARATOR = '@';
+
+/**
  The end of every systemd unit name.
  */
 const UNIT_SUFFIX = '.service';
@@ -50,6 +66,11 @@ export type RunningPiUnit = {
    The unit's name as systemd prints it.
    */
   readonly unitName: string;
+
+  /**
+   The number of the run folder the start that made this unit claimed, when its name carries one.
+   */
+  readonly runNumber?: number;
 
   /**
    How long the unit has been up.
@@ -95,33 +116,45 @@ export function monotonicMicrosecondsNow(): number {
 }
 
 /**
- Reads the unit name a person or a log line named.
+ Reads the unit name of one start of a run.
 
- @param name - a systemd unit name, or a run's name
+ @param name - a run's name, or the unit name of a start that claimed no folder number
 
- @returns the unit name, with the prefix and suffix the recipe uses
+ @param runNumber - the number of the run folder that start claimed, which names its unit and no other start's
+
+ @returns the unit name, with the prefix, the number and the suffix the recipe uses
 
  @example
  ```ts
- const unitName = unitNameOfGiven({ name: 'foo', },);
+ const unitName = unitNameOfGiven({ name: 'foo', runNumber: 3, },);
  ```
  */
 export function unitNameOfGiven({
   name,
+  runNumber,
 }: {
   readonly name: string;
+  readonly runNumber?: number;
 },): string {
   /**
-   The name without the unit suffix systemd adds.
+   The name without the unit suffix systemd adds, and without a number an earlier start wrote into it.
    */
   const withoutSuffix = name.trim()
     .replace(
     UNIT_SUFFIX,
     '',
     );
-  return (withoutSuffix.startsWith(
+  /**
+   The run's own name, which is what a unit name is built from.
+   */
+  const bareName = (withoutSuffix.startsWith(
     PI_UNIT_PREFIX,
-  ) ? withoutSuffix : `${PI_UNIT_PREFIX}${withoutSuffix}`) + UNIT_SUFFIX;
+  ) ? withoutSuffix.slice(PI_UNIT_PREFIX.length,) : withoutSuffix)
+    .split(
+    PI_UNIT_NUMBER_SEPARATOR,
+    1,
+    )[0] ?? '';
+  return `${PI_UNIT_PREFIX}${bareName}${(runNumber === undefined) ? '' : `${PI_UNIT_NUMBER_SEPARATOR}${String(runNumber,)}`}${UNIT_SUFFIX}`;
 }
 
 /**
@@ -150,9 +183,56 @@ export function runNameOfUnit({
       -UNIT_SUFFIX.length,
     )
     : unitName;
-  return bare.startsWith(PI_UNIT_PREFIX,)
+  /**
+   The name without the prefix, and without the number of the folder its start claimed.
+   */
+  const named = bare.startsWith(PI_UNIT_PREFIX,)
     ? bare.slice(PI_UNIT_PREFIX.length,)
     : bare;
+  return named.split(
+    PI_UNIT_NUMBER_SEPARATOR,
+    1,
+  )[0] ?? '';
+}
+
+/**
+ Reads the number of the run folder the start that made a unit claimed.
+
+ @param unitName - the unit's name as systemd prints it
+
+ @returns the number, or nothing when the unit's name carries none
+
+ @example
+ ```ts
+ const number = runNumberOfUnit({ unitName: 'pi-foo@3.service', },);
+ ```
+ */
+export function runNumberOfUnit({
+  unitName,
+}: {
+  readonly unitName: string;
+},): { readonly number?: number } {
+  /**
+   The name without its prefix and suffix, when it has both.
+   */
+  const bare = unitName.endsWith(UNIT_SUFFIX,)
+    ? unitName.slice(
+      0,
+      -UNIT_SUFFIX.length,
+    )
+    : unitName;
+  /**
+   Where the separator stands, or minus one when the unit's name carries no number.
+   */
+  const separator = bare.indexOf(PI_UNIT_NUMBER_SEPARATOR,);
+  if (separator === (-1)) {
+    return {};
+  }
+  /**
+   The text after the separator, which is the number when it is whole.
+   */
+  const written = bare.slice(separator + PI_UNIT_NUMBER_SEPARATOR.length,);
+  return isDigitsOnly(written,) ? { number: Number(written,), } : {};
 }
 
 /**
@@ -214,11 +294,16 @@ function runningUnitOfBlock({
   ) {
     return NOT_RUNNING;
   }
+  /**
+   The number of the run folder that unit's start claimed, when its name carries one.
+   */
+  const { number: runNumber, } = runNumberOfUnit({ unitName, },);
   return {
     name: runNameOfUnit({ unitName, },),
     unitName,
     elapsedMilliseconds: (nowMicroseconds - Number(started,)) / MICROSECONDS_PER_MILLISECOND,
     mainPid: Number(fields.get('MainPID',) ?? 0,),
+    ...((runNumber === undefined) ? {} : { runNumber, }),
   };
 }
 
@@ -330,4 +415,62 @@ export function startRunningPiUnits({
       nowMicroseconds: nowMicroseconds(),
     },);
   };
+}
+
+/**
+ Reads every unit the manager still holds for one run's name, whatever run folder number each start claimed.
+
+ A run's unit name carries the number of the folder its start claimed, so a question about one run's name is a question about a
+ family of unit names. The manager is asked for that family and each answer is checked against the run's name and the shape of a
+ number, so a unit of a longer run name that begins with this one is never taken for this run's.
+
+ @param run - how a command is run, which a test replaces
+
+ @param runName - the run's name
+
+ @returns the unit names the manager holds for that name, in the order it printed them
+
+ @example
+ ```ts
+ const units = await unitNamesOfARunName({ run: runCommandWithChildProcess, runName: 'copy-route', },);
+ ```
+ */
+export async function unitNamesOfARunName({
+  run,
+  runName,
+}: {
+  readonly run: RunCommand;
+  readonly runName: string;
+}): Promise<readonly string[]> {
+  /**
+   What the manager printed for that family of unit names.
+   */
+  const shown = await run({
+    command: 'systemctl',
+    words: [
+      '--user',
+      'list-units',
+      '--all',
+      '--no-legend',
+      '--plain',
+      `${PI_UNIT_PREFIX}${runName}${PI_UNIT_NUMBER_SEPARATOR}*${UNIT_SUFFIX}`,
+    ],
+  },);
+  // A manager that could not answer names no unit, which is what an empty answer gives as well: refusing a run because a question
+  // failed would end work that could have gone ahead.
+  if (shown.status !== 0) {
+    return [];
+  }
+  return shown.stdout
+    .split('\n',)
+    .map(function unitNameOf(line,) {
+      return firstWordOf(line,);
+    },)
+    .filter(function isThisRunsUnit(unitName,) {
+      return (unitName !== '')
+        && (runNameOfUnit({ unitName, },) === runName)
+        && (runNumberOfUnit({ unitName, },)
+          .number
+          !== undefined);
+    },);
 }
