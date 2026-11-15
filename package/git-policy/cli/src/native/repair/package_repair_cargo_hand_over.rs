@@ -14,7 +14,7 @@
 
 use crate::add_timing::{begin_work, end_work};
 use crate::blocking_job::BlockingJobError;
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_no_place;
 use crate::package_repair_prewarm::{PrewarmEntry, hand_over_in_a_job};
 use crate::package_repair_report::{Finding, Outcome, Tool};
 use crate::package_repair_request::RepairRequest;
@@ -67,7 +67,7 @@ pub(super) async fn hand_the_filling_over(request: &RepairRequest<'_>, entries: 
         Some(common) => {
             let state: (crate::transaction_git::GitContext, PathBuf, PathBuf, Vec<PrewarmEntry>) =
                 (request.git.clone(), common.to_path_buf(), request.destination.to_path_buf(), entries.to_vec());
-            run_a_job_or_in_turn(state, hand_over_in_a_job).await
+            run_a_job_or_no_place(state, hand_over_in_a_job).await
         }
         None => Ok(Err(String::from("git could not name the repository's common directory"))),
     };

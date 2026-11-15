@@ -7,14 +7,16 @@ use crate::test_support::{fixture, remove};
 use super::remove_tree_split;
 use std::path::PathBuf;
 
-/// What a later writer put at the stage path survives the walk that was queued before its start was refused.
+/// What a later writer put at the stage path survives the walk that was queued before its start was refused,
+/// and the removal that was refused its thread says that it did not run.
 /// Why:
 ///  The pool queues a blocking closure before it asks the system for a thread
 ///  (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
 ///  `spawn_task`),
 ///  so a refused start leaves that closure queued and it runs when a thread becomes free.
-///  A removal that walked in turn has already returned by then,
-///  and an entry a later writer put at that path is not that walk's to delete.
+///  The removal answers `NoPlaceWithinTheCeiling` and removes nothing, while the queued walk must do nothing when its
+///  thread comes: the claim on the job's work is what promises that, and an entry a later writer put at that path is not
+///  that walk's to delete.
 #[test]
 fn a_walk_queued_before_its_start_was_refused_never_deletes_data_written_after_the_fallback() {
     if ran_in_child(
@@ -34,8 +36,9 @@ fn a_walk_queued_before_its_start_was_refused_never_deletes_data_written_after_t
     std::fs::write(stage.join("old"), b"old").expect("old stage entry");
 
     refuse_threads_again().expect("refuse the walk its thread");
-    remove_tree_split(stage.as_path()).expect("the removal walks in turn where no thread can start");
-    assert!(!stage.exists(), "the walk in turn removes the stage");
+    let refused: std::io::Result<()> = remove_tree_split(stage.as_path());
+    assert!(refused.is_err(), "a removal with no thread to walk on says it did not run: {refused:?}");
+    assert!(stage.exists(), "nothing ran, so nothing of the stage was removed");
 
     std::fs::create_dir_all(stage.as_path()).expect("a later writer's directory");
     let later: PathBuf = stage.join("written-after-the-removal-returned");
@@ -46,7 +49,7 @@ fn a_walk_queued_before_its_start_was_refused_never_deletes_data_written_after_t
     assert!(matches!(drained, Ok(Ok(()))), "one blocking job ran after the refusal, so the queue was drained: {drained:?}");
     assert!(
         later.exists(),
-        "the walk queued before the removal walked in turn deleted data a later writer put there"
+        "the walk the pool queued before the refusal deleted data a later writer put there"
     );
     remove(root.as_path());
 }

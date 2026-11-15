@@ -37,7 +37,7 @@
 //! ```
 
 use crate::blocking_job::BlockingJobError;
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_no_place;
 use crate::diagnostic_log::debug;
 use crate::package_repair_request::RepairEnvironment;
 use crate::package_repair_command::{ToolCommand, ToolLimits, ToolRun, find_program, run_refused, run_tool_awaiting};
@@ -818,7 +818,7 @@ fn prepare_install_in_a_job((destination, environment): (PathBuf, RepairEnvironm
 /// ```
 async fn prepare_install_within_the_budget(destination: &Path, environment: &RepairEnvironment) -> Result<ToolchainRepair, BlockingJobError> {
     let state: (PathBuf, RepairEnvironment) = (destination.to_path_buf(), environment.clone());
-    return run_a_job_or_in_turn(state, prepare_install_in_a_job).await;
+    return run_a_job_or_no_place(state, prepare_install_in_a_job).await;
 }
 
 /// What:
@@ -851,7 +851,7 @@ fn count_stale_in_a_job(destination: PathBuf) -> usize {
 /// const left = await countStaleWithinTheBudget(destination);
 /// ```
 async fn count_stale_within_the_budget(destination: &Path) -> Result<usize, BlockingJobError> {
-    return run_a_job_or_in_turn(destination.to_path_buf(), count_stale_in_a_job).await;
+    return run_a_job_or_no_place(destination.to_path_buf(), count_stale_in_a_job).await;
 }
 
 /// What:

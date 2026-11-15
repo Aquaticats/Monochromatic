@@ -17,9 +17,11 @@
 //! and every job takes a place of the process's one bound on blocking jobs
 //! (`blocking_jobs_within_the_budget.rs`),
 //! so a fan-out of many items cannot run more work at once than the process allows.
-//! A thread the system refuses is not a failure of the item:
-//! `run_a_job_or_in_turn` runs that work on the awaiting task instead,
-//! as `start_or_run_with` runs it on a scoped thread.
+//! A thread the system refuses is that item's answer that no place came,
+//! and never that work done on the awaiting task:
+//! a call into storage on a task cannot be ended by a deadline (`blocking_jobs_within_the_budget.rs`,
+//! `run_a_job_or_no_place`),
+//! so an item refused a thread is answered `NoPlaceWithinTheCeiling` and the caller looks again.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -28,7 +30,7 @@
 //! ```
 
 use crate::blocking_job::BlockingJobError;
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_no_place;
 
 /// No answer yet:
 /// what a slot of the run holds until its item has answered.
@@ -54,7 +56,7 @@ fn no_answer_yet<T>() -> Option<Result<T, BlockingJobError>> {
 /// a removal and a final check are independent,
 /// so they run side by side and the person waits
 ///  for the slowest of them.
-/// A refused thread is that item's work done in turn,
+/// A refused thread is that item's answer that no place came,
 /// and a panic of one item is an error in its place,
 ///  as a panicked scoped thread was:
 /// what to make of it is the caller's.
@@ -71,7 +73,7 @@ where
     let count: usize = states.len();
     let mut started: tokio::task::JoinSet<(usize, Result<T, BlockingJobError>)> = tokio::task::JoinSet::new();
     for (index, state) in states.into_iter().enumerate() {
-        started.spawn(async move { return (index, run_a_job_or_in_turn(state, job).await); });
+        started.spawn(async move { return (index, run_a_job_or_no_place(state, job).await); });
     }
     let mut answers: Vec<Option<Result<T, BlockingJobError>>> = std::iter::repeat_with(no_answer_yet).take(count).collect();
     while let Some(joined) = started.join_next().await {
@@ -109,9 +111,9 @@ pub type AJob<S, T> = (S, fn(S) -> T);
 ///   Two independent reads (the source's manifest walk beside the stage's) take as long as the slower
 ///  one.
 /// The calling task's function runs after the job has started,
-/// so a thread the system refuses leaves that job's work
-///  done in turn before the caller's begins,
-/// as the scoped form does.
+/// and a thread the system refuses leaves that job answered `NoPlaceWithinTheCeiling`
+///  before the caller's work begins,
+/// as the scoped form's own refusal does.
 /// The caller's function is not `Send`,
 /// which is why the two are joined here and never spawned:
 /// the runtime drives this one future,
@@ -129,7 +131,7 @@ where
     let (state, work): AJob<S, T> = job;
     let (caller_state, caller_work): AJob<C, U> = caller;
     let (answer, here): (Result<T, BlockingJobError>, U) = tokio::join!(
-        run_a_job_or_in_turn(state, work),
+        run_a_job_or_no_place(state, work),
         async move { return caller_work(caller_state); },
     );
     return (answer, here);

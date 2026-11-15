@@ -11,7 +11,7 @@
 //! await removePendingJournal(pending); // removes the stage, then the journal and its unfinished writes
 //! ```
 
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_no_place;
 use crate::parallel_budget::{HostResources, sliced_workers};
 use crate::side_by_side_on_the_runtime::run_all_side_by_side_on_the_runtime;
 use crate::worktree_copy_error::{WorktreeCopyError, raw_failure, raw_failure_of};
@@ -288,36 +288,33 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
 
 /// What:
 ///  `walk_to_the_split_depth` as a job of the blocking pool,
-/// run on this task where the system refuses a thread.
+///  or the answer that no place came.
 /// Why:
 ///   A walk of a stage can read an unbounded number of directories,
 /// and a disk,
 /// a lock or a mount holds it,
 ///  so it belongs off the worker that carries the call.
-/// A thread is only a way to work sooner (`foundation/scoped_start.rs`):
-/// where the system refuses one,
-///  the walk runs in turn,
-/// as the removal it serves did before the pool was asked,
-/// and the control that runs it with no
-///  thread to start still removes the tree.
+/// Where the system refuses a thread the walk does not run on this task:
+/// a directory walk on a task cannot be ended by any deadline around that task (`blocking_jobs_within_the_budget.rs`,
+/// `run_a_job_or_no_place`),
+/// so the removal answers that no place came and the journal is looked at again.
 /// The pool queues a job's closure before it asks the system for a thread
 /// (`tokio-1.54.1/src/runtime/blocking/pool.rs`,
 /// `spawn_task`),
-/// so only a refusal that took the claim on the job's work
-/// (`run_a_job_or_in_turn`,
-/// and `a_refused_thread_start`)
-/// proves the queued closure will do nothing and the same walk may run here:
-/// walking in turn beside a queued walk that runs later deletes an entry a later writer put at that path.
+/// so a refusal must be one that took the claim on the job's work
+/// (`a_refused_thread_start`)
+/// before this call may conclude the queued closure will do nothing:
+/// a walk that ran beside a queued walk that runs later would delete an entry a later writer put at that path.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// async function walkToTheSplitDepthOnThePool(path: string): [string[], string[]]
 /// ```
 async fn walk_to_the_split_depth_on_the_pool(path: &Path) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
-    return match run_a_job_or_in_turn(path.to_path_buf(), walk_to_the_split_depth_of).await {
+    return match run_a_job_or_no_place(path.to_path_buf(), walk_to_the_split_depth_of).await {
         Ok(lists) => lists,
         // Another answer leaves the walk on another thread, outlasting its ceiling, or ended with the runtime, so no
-        //  result of it can be read here and nothing is walked in turn.
+        //  result of it can be read here and nothing is walked on this task.
         Err(other) => Err(std::io::Error::other(format!(
             "the walk to the split depth below {} has no result this call can read ({other})",
             path.display()
@@ -329,7 +326,7 @@ async fn walk_to_the_split_depth_on_the_pool(path: &Path) -> std::io::Result<(Ve
 ///  `walk_to_the_split_depth` as the work a place of the process's bound covers,
 /// for the runners that take a function and its state.
 /// Why:
-///   `run_a_job_or_in_turn` hands the state to a function of its own on both paths,
+///   `run_a_job_or_no_place` hands the state to a function of its own on both paths,
 /// so the walk reads the path it was given either way.
 ///
 /// In TS you'd write (pseudocode):

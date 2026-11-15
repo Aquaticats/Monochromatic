@@ -33,7 +33,7 @@
 //! emptyTrash(item); // the service's handler, and the reason a trash stays
 //! ```
 
-use crate::blocking_jobs_within_the_budget::run_a_slow_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::run_a_slow_job_or_no_place;
 use crate::blocking_job::BlockingJobError;
 use crate::diagnostic_log::debug;
 use crate::fs_beneath::{device_of, handle_path, identity_of, open_directory_at, open_file_at, open_root, plain_components, remove_at};
@@ -259,7 +259,7 @@ fn verify_association(root: &File, repository: &Path, git_dir: &Path) -> Result<
 #[derive(Clone)]
 struct HeldTrash {
     /// The worktree's root and every directory below it on the way to the trash parent,
-    /// shared so a job the system refused a thread for can be done in turn with the same handles.
+    /// shared so every step that takes the trash holds the same handles.
     holders: Vec<Arc<File>>,
     /// The trash directory,
     /// held open.
@@ -585,7 +585,7 @@ pub enum EmptiedTrash {
 /// ```
 pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: &TrashManifest, ceiling: Duration) -> EmptiedTrash {
     let opened: ATrashToOpen = ATrashToOpen { repository: repository.to_path_buf(), git_dir: git_dir.to_path_buf(), manifest: manifest.clone() };
-    let opened_trash: Option<HeldTrash> = match run_a_slow_job_or_in_turn(opened, prepare_trash_removal).await {
+    let opened_trash: Option<HeldTrash> = match run_a_slow_job_or_no_place(opened, prepare_trash_removal).await {
         Ok(Ok(held)) => held,
         // A directory that is not the recorded one is left alone with its reason, and nothing was removed.
         Ok(Err(reason)) => return EmptiedTrash::Kept(TrashLeft::kept(reason)),
@@ -722,7 +722,7 @@ pub async fn delete_trash_awaiting(repository: &Path, git_dir: &Path, manifest: 
             return EmptiedTrash::Kept(TrashLeft::kept(left_behind.join("; ")));
         }
     }
-    return match run_a_slow_job_or_in_turn(held, settle_trash_removal).await {
+    return match run_a_slow_job_or_no_place(held, settle_trash_removal).await {
         Ok(Ok(())) => EmptiedTrash::Emptied,
         Ok(Err(left)) => EmptiedTrash::Kept(left),
         // No place of slow work came within the ceiling, so the directory was not settled: the entries are gone and the item

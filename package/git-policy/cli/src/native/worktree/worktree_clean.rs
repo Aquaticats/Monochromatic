@@ -36,7 +36,7 @@
 
 use crate::add_timing::{begin_step, end_step};
 use crate::blocking_job::BlockingJobError;
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_no_place;
 use crate::lazy_runtime::run_on_runtime;
 use crate::repo_read_index::{IndexEntry, parse_index};
 use crate::repo_read_layout::ObjectFormat;
@@ -560,10 +560,10 @@ fn a_refused_job_is_a_refusal(error: BlockingJobError) -> CleanRefusal {
 ///  this child through the synchronous face,
 /// so the scan is the awaited one.
 /// Where the pool refuses a thread,
-/// the proof runs in turn under a place of the
-///  process's bound (`blocking_jobs_within_the_budget.rs`,
-/// `run_a_job_or_in_turn`),
-/// so the answer is the same and only the overlap is lost.
+/// the proof answers that no place came (`blocking_jobs_within_the_budget.rs`,
+/// `run_a_job_or_no_place`):
+/// a call into storage never runs on the task that awaits it, so a clean that finds no thread says it could not check
+/// and looks again, and the overlap with the scan is what the bound would have bought.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -572,7 +572,7 @@ fn a_refused_job_is_a_refusal(error: BlockingJobError) -> CleanRefusal {
 pub async fn check_clean_awaiting(context: &GitContext, root: &Path, git_dir: &Path, common_dir: &Path) -> Result<CleanSource, CleanRefusal> {
     let (untracked, tracked): (Result<Option<String>, CleanRefusal>, Result<Result<CleanSource, CleanRefusal>, BlockingJobError>) = tokio::join!(
         scan_for_untracked_file_awaiting((context, root)),
-        run_a_job_or_in_turn((root.to_path_buf(), git_dir.to_path_buf(), common_dir.to_path_buf()), check_tracked_files_in_a_job),
+        run_a_job_or_no_place((root.to_path_buf(), git_dir.to_path_buf(), common_dir.to_path_buf()), check_tracked_files_in_a_job),
     );
     let proof: Result<CleanSource, CleanRefusal> = match tracked {
         Ok(verdict) => verdict,

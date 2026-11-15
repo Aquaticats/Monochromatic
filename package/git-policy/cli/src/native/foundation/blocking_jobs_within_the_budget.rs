@@ -436,68 +436,57 @@ where
 
 /// What:
 ///  Run `work(state)` as a job of the blocking pool with a place for slow work held,
-/// or run it in turn here where the system refused a thread.
+/// or answer that no place came.
 /// Why:
-///   The slow kinds' steps are the same two cases `run_a_job_or_in_turn` covers,
-/// and the reserve is what the places of both take.
-/// The work in turn is this frame's,
-/// so the place for slow work stays held for as long as it runs.
+///   The slow kinds' steps take a place of slow work and then the job of the process's bound,
+/// and the reserve is what the places of both take,
+/// so this is `run_a_job_or_no_place` with the place of slow work held around it.
+/// A thread the system refuses is no place now, as it is for every other job of this function's kind.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// try { return await runASlowJobWithinTheBudget(() => work(state)); } catch (refused) { if (!refused.noThreadToStart) raise(refused); return work(state); }
+/// const slow = await slowPlaces.acquire(PLACE_WAIT_CEILING); try { return await runAJobOrNoPlace(state, work); } finally { slow.release(); }
 /// ```
-pub async fn run_a_slow_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
+pub async fn run_a_slow_job_or_no_place<S: Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
     let slow: tokio::sync::OwnedSemaphorePermit = match tokio::time::timeout(crate::wait_ceilings::PLACE_WAIT_CEILING, Arc::clone(slow_places()).acquire_owned()).await {
         Ok(Ok(taken)) => taken,
         Ok(Err(_closed)) => return Err(BlockingJobError::Cancelled),
         // No place of slow work came within the ceiling, so nothing ran.
         Err(_no_place) => return Err(BlockingJobError::NoPlaceWithinTheCeiling),
     };
-    // The place for slow work is held on this frame, so the work done in turn below it is covered too.
-    let answer: Result<T, BlockingJobError> = run_a_job_or_in_turn(state, work).await;
+    let answer: Result<T, BlockingJobError> = run_a_job_or_no_place(state, work).await;
     drop(slow);
     return answer;
 }
 
 /// What:
-///  Run `work(state)` as a job of the blocking pool,
-/// or run it in turn here where the system refused a thread,
-/// with a place of the process's bound held for as long as that work runs.
+///  Run `work(state)` as a job of the blocking pool with a place of the process's bound held,
+/// or answer that no place came.
 /// Why:
-///   The owner's rule is that a thread is only a way to do the work sooner
-/// (`scoped_start.rs`),
-/// so the work is done on this
-///  task where no thread can start and the command loses nothing.
-/// Only a refusal falls back:
-/// `NoThreadToStart` is the one answer
-///  that promises the step will not run and changed nothing
-/// (`a_refused_thread_start`),
-/// while a busy pool queues the job and the wait for it
-///  is the caller's.
-/// The work is the same blocking work the job would have done,
-/// so it takes a place again before it starts:
-/// the job gave its place back before this call learned it would never run,
-/// and a fallback without a place would let a second job take the free one and run beside it,
-/// so the process
-///  would run more blocking work at once than its bound allows.
+///   A call into storage must never run on the task that awaits it:
+/// a timer around a task cannot end a synchronous call,
+/// so a deadline that gives up on the work
+///  could not fire until the call returned, and a lane that abandons a look at its ceiling would keep
+///  waiting in the call it meant to leave behind (the review of `fc620ef950`, F4).
+/// A thread the system refuses is therefore no place now:
+/// `NoThreadToStart` is the one answer that
+///  promises the step will not run and changed nothing (`a_refused_thread_start`),
+/// and it is answered here as
+///  `NoPlaceWithinTheCeiling`, which is what a caller already understands from a bound whose places are all taken
+///  (`worktree_trash_dispose.rs` makes it a later look).
+/// The work does not run here at all, so nothing of it can outlive this call unseen.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// try { return await runBlockingJobWithinTheBudget(() => work(state)); } catch (refused) { if (!refused.noThreadToStart) raise(refused); const place = await budget.places.acquire(); try { return work(state); } finally { place.release(); } }
+/// return await runBlockingJobWithinTheBudget(() => work(state)); // a refused thread is 'no place', never work done here
 /// ```
-pub async fn run_a_job_or_in_turn<S: Clone + Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
-    let theirs: S = state.clone();
-    let outcome: Result<T, BlockingJobError> = run_blocking_job_within_the_budget(move || { return work(theirs); }).await;
-    return match outcome {
+pub async fn run_a_job_or_no_place<S: Send + 'static, T: Send + 'static>(state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
+    return match run_blocking_job_within_the_budget(move || { return work(state); }).await {
         Ok(value) => Ok(value),
-        // The job will not run and changed nothing, so the same work runs here, and its place is held until it ends.
-        Err(BlockingJobError::NoThreadToStart) => match tokio::time::timeout(crate::wait_ceilings::PLACE_WAIT_CEILING, Arc::clone(&budget().places).acquire_owned()).await {
-            // The place is this frame's and it is dropped after the work, never before it.
-            Ok(_place) => Ok(work(state)),
-            // The semaphore lives as long as the process, so a closed one is a defect: nothing is run.
-            Err(_closed) => Err(BlockingJobError::Cancelled),
-        },
+        // The system gave no thread, which is the one answer that promises the step did not run and changed nothing
+        //  (`a_refused_thread_start`): the caller is told that no place came, which is what it looks again on.
+        Err(BlockingJobError::NoThreadToStart) => Err(BlockingJobError::NoPlaceWithinTheCeiling),
+        // A job the pool queued anyway may have run, and an answer this caller cannot read is that answer's own.
         Err(another) => Err(another),
     };
 }

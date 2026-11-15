@@ -22,7 +22,7 @@
 //! ```
 
 use crate::blocking_job::BlockingJobError;
-use crate::blocking_jobs_within_the_budget::{run_a_job_or_in_turn, run_a_slow_job_or_in_turn};
+use crate::blocking_jobs_within_the_budget::{run_a_job_or_no_place, run_a_slow_job_or_no_place};
 use crate::lazy_runtime::run_on_runtime;
 use crate::worktree_copy_stage::copy_file_exclusive;
 use std::fs::{FileTimes, Metadata, Permissions};
@@ -68,12 +68,12 @@ pub(crate) enum PlacesOfAClone {
 /// ```
 async fn run_a_clone_step<S: Clone + Send + 'static, T: Send + 'static>(places: PlacesOfAClone, state: S, work: fn(S) -> T) -> Result<T, BlockingJobError> {
     return match places {
-        PlacesOfAClone::EveryJob => run_a_job_or_in_turn(state, work).await,
+        PlacesOfAClone::EveryJob => run_a_job_or_no_place(state, work).await,
         // A control holds one step of a slow clone here, which is the step of a prewarm that holds a place of the pool; it is
         //  inert unless the fixture's service was started naming it, and a clone a person waits for never asks for it.
         PlacesOfAClone::SlowWork => {
             crate::service_hold_a_step_for_a_control::hold_blocking(crate::service_hold_a_step_for_a_control::INSIDE_A_CLONE_STEP);
-            run_a_slow_job_or_in_turn(state, work).await
+            run_a_slow_job_or_no_place(state, work).await
         }
     };
 }

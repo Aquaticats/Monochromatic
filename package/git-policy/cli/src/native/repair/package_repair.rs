@@ -35,7 +35,7 @@
 
 use crate::add_timing::{begin_work, end_work};
 use crate::blocking_job::BlockingJobError;
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_no_place;
 use crate::call_catching_panics_awaiting::call_catching_panics_awaiting;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
@@ -246,7 +246,7 @@ async fn hand_over_the_record(request: &RepairRequest<'_>, entry: &RelinkEntry) 
         Ok(common) => {
             let state: crate::package_repair_relink::TheHandOver =
                 (request.git.clone(), common, request.destination.to_path_buf(), entry.clone());
-            run_a_job_or_in_turn(state, hand_over_in_a_job).await
+            run_a_job_or_no_place(state, hand_over_in_a_job).await
         }
         Err(reason) => Ok(Err(NotTaken { reason, queued: None })),
     };

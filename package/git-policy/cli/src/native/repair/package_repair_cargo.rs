@@ -40,7 +40,7 @@
 //! ```
 
 use crate::add_timing::{begin_work, end_work};
-use crate::blocking_jobs_within_the_budget::run_a_job_or_in_turn;
+use crate::blocking_jobs_within_the_budget::run_a_job_or_no_place;
 use crate::diagnostic_log::debug;
 use crate::lazy_runtime::run_on_runtime;
 use crate::package_repair_request::RepairRequest;
@@ -510,7 +510,7 @@ pub async fn repair_cargo_awaiting(request: &RepairRequest<'_>) -> Vec<Finding> 
         return Vec::new();
     }
     let search_path: Option<OsString> = request.environment.search_path.clone();
-    let looked = run_a_job_or_in_turn((search_path, request.destination.to_path_buf()), look_for_the_program).await;
+    let looked = run_a_job_or_no_place((search_path, request.destination.to_path_buf()), look_for_the_program).await;
     let (found_program, real_destination): (Option<PathBuf>, Result<PathBuf, std::io::Error>) = match looked {
         Ok(found) => found,
         // Which workspaces need what was not learnt, so the repair says what it could not do and names the command.
