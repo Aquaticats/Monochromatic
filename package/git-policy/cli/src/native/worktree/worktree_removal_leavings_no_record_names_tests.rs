@@ -707,17 +707,17 @@ fn commands_at_once_ask_for_no_more_wakes_than_the_attempts_a_record_may_cost() 
     let woke: usize = std::thread::scope(|_scope| {
         let mut handles: Vec<std::thread::JoinHandle<bool>> = Vec::new();
         for _command in 0..commands {
-            let barrier: Arc<Barrier> = Arc::clone(&barrier);
-            let common: PathBuf = place.common.clone();
-            let record: PathBuf = record.clone();
-            let hidden: PathBuf = hidden.clone();
+            let shared: Arc<Barrier> = Arc::clone(&barrier);
+            let their_common: PathBuf = place.common.clone();
+            let their_record: PathBuf = record.clone();
+            let their_target: PathBuf = hidden.clone();
             handles.push(std::thread::spawn(move || {
-                let bytes: Vec<u8> = std::fs::read(record.as_path()).expect("the leaving record");
+                let bytes: Vec<u8> = std::fs::read(their_record.as_path()).expect("the leaving record");
                 let leaving: crate::worktree_removal_leaving_that_outlives_its_record::Leaving = read_the_leaving(bytes.as_slice()).expect("a record a command reads");
                 // The barrier is what makes every command decide on the same count, which is the state a real overlap is in.
-                let _together: std::sync::BarrierWaitResult = barrier.wait();
+                let _together: std::sync::BarrierWaitResult = shared.wait();
                 let mut answer: Leavings = Leavings { queued: false, said: Vec::new() };
-                crate::worktree_removal_leavings_a_command_queues_again::wake_a_pending_delete(common.as_path(), &leaving, hidden.as_path(), &mut answer);
+                crate::worktree_removal_leavings_a_command_queues_again::wake_a_pending_delete(their_common.as_path(), &leaving, their_target.as_path(), &mut answer);
                 return answer.queued;
             }));
         }
