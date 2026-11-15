@@ -738,6 +738,15 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T00:34:22-05:00,
+  not blocking work:
+  the cap on agents went from 24 to 20 at 00:32:16,
+  by the rule,
+  when the home drive stalled twice in a row forty minutes into the nightly snapshot cleanup
+  (`doc/handover/agents-at-once-on-this-machine.md`).
+  Does the cap go back to 24 once the cleanup has ended,
+  or stay at 20 until the new drive is in?
+  Until an answer it stays at 20.
 - Added 2026-11-14T23:58:21-05:00,
   from two authors' reports of that hour,
   none blocking work:
@@ -1395,6 +1404,71 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The cap steps down to 20 after two stalls in a row on the home drive; the drawn tree and mpm-shadow's install go back to their authors (2026-11-15T00:34:22-05:00)
+
+Not final and not approved:
+what the probe and two reviews report,
+how the coordinating session weighed them,
+and what it did.
+
+- **The cap is 20 since 00:32:16.**
+  The probe ended level 24 at 00:31:09 on two home-drive readings in a row over five seconds
+  (14,892 ms and 7,722 ms,
+  23 agents going,
+  the nightly snapshot cleanup running since 00:00:11).
+  The recorded rule gives 20.
+  The filling unit was restarted between two rounds as `fill-free-places-and-put-ended-reviews-back-at-level-20-20261115T003216`
+  (ends about 08:32),
+  the probe as `disk-ceiling-probe-level-20-20261115T003216`.
+  No going run was stopped;
+  22 were going at 00:32:29.
+  Readings and limits:
+  `doc/handover/agents-at-once-on-this-machine.md`.
+  A first summary this session made of those readings counted no slow one,
+  because it matched the wrong field names;
+  the count in that record,
+  47 of 450,
+  is from the corrected read.
+- **The drawn shadow tree** (`49d93515cf`),
+  its fifth review,
+  ended 00:28:02,
+  thirteen of thirteen files,
+  two things reproduced against a build of the tip:
+  a handed tree whose `HEAD` is gone and whose root still stands makes the commit exit 128 with no second build,
+  since the recovery asks only whether the root is a directory;
+  and a client lost after the hand-out leaves its tree and its lock for as long as the service runs.
+  Both weighed as worth their fix:
+  the first is a commit that fails after a kill,
+  the second a wait with no end.
+  The author is resumed
+  (`~/temp/agent/pi-runs/drawn-shadow-tree-answers-its-fifth-review-of-2026-11-15-prompt.md`,
+  queued fifth).
+- **mpm-shadow's install that removes no version in use** (`392540cb45`),
+  its fourth review,
+  ended 00:31:31,
+  25 of 25 files,
+  seven things,
+  six by a run and one by reading:
+  a recovery gives a version back and deletes its downloads;
+  a flat download replaced after planning is deleted;
+  an emptied root with no `current` gets no forwarding link;
+  a killed remover's claim blocks every later install of that version;
+  a sync that cannot read the locks deletes the marker of unfinished recovery;
+  a marker that cannot be written is ignored before the destructive steps;
+  the runner can call a child stopped that still runs
+  (read only).
+  All weighed as worth their fix.
+  Six share one shape,
+  a thing judged at one instant and acted on at a later one,
+  so the author is asked for a table of everything a removal creates,
+  moves or deletes,
+  with its owner and its proof at each step,
+  before the code
+  (`~/temp/agent/pi-runs/mpm-shadow-install-removes-no-version-answers-its-fourth-review-of-2026-11-15-prompt.md`,
+  queued sixth).
+- Neither resumed session is named by the credential scan.
+  The queue held 73 entries at 00:34:22.
 
 ##### Five more of the gate's standing failures have their cause and a fix in review: fixtures that leave a runtime directory too little room, and an image without `SPEC.md` (2026-11-15T00:26:57-05:00)
 

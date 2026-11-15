@@ -7,7 +7,23 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **24** agents run on this machine at once since 2026-11-14T08:54:33-05:00,
+At most **20** agents run on this machine at once since 2026-11-15T00:32:16-05:00.
+Level twenty-four failed its criterion at 00:31:09
+(the home drive's write-and-sync took 14,892 ms and then 7,722 ms,
+with 23 agents going and `snapper-cleanup.service` running since 00:00:11),
+and the rule under "What counts as the ceiling" gives twenty.
+No run that was going is stopped;
+nothing new starts until fewer than twenty are going.
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-20-20261115T003216`
+(eight hours)
+and the probe `disk-ceiling-probe-level-20-20261115T003216`.
+Should twenty fail,
+the same rule gives eighteen.
+Not final and not approved;
+the readings are under
+"Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00".
+What stood before:
+at most 24 agents ran at once from 2026-11-14T08:54:33-05:00,
 by the owner's answer of that morning
 ("Resume at 24":
 halve the gap between 16, which held, and 32 again,
@@ -1016,3 +1032,50 @@ measured by the coordinating session.
   So the cleanup is not the only thing that stalls this drive.
   In the minutes before it this session installed a wrapper release and made several commits in the main checkout;
   nothing was measured that ties the reading to either.
+
+#### Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00
+
+Not final and not approved:
+readings of the probe's second eight hours at twenty-four,
+taken by the coordinating session from `keep/probe-readings.jsonl`
+of `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/`.
+
+- **Level twenty-four fails at 00:31:09**:
+  the home drive's write-and-sync took 14,892 ms at 00:29:54 and 7,722 ms at 00:31:09,
+  with 23 agents going at both,
+  load average 25 over one minute,
+  the kernel's `some` I/O pressure 5 percent over a minute.
+  The reading before the pair,
+  at 00:27:39,
+  took 1,563 ms.
+  `snapper-cleanup.service` had been running since 00:00:11
+  (`systemctl show`,
+  read at 00:31)
+  and had last ended at 05:15:35 the morning before.
+- **The seven and a half hours before it held, with single long stalls**:
+  450 readings at this level from 16:54:54,
+  47 of them a second or more on either drive,
+  eight of those after the cleanup began.
+  The three slowest were all on the home drive and all before the cleanup:
+  24,101 ms at 17:42:07 with 22 agents,
+  16,289 ms at 22:37:11 with 23,
+  15,519 ms at 19:33:43 with 24.
+  None was followed by a second slow reading,
+  so none ended the level.
+- **What this does and does not show**:
+  the one failing pair of this level's sixteen hours came with the cleanup running,
+  as the failing pairs of the night before did;
+  single stalls of fifteen to twenty-four seconds came without it.
+  One night's pair does not separate the cleanup from the count:
+  the count was 22 to 24 for the whole of the evening.
+- **What was done**:
+  the filling unit was stopped between two of its rounds and started at level twenty at 00:32:16,
+  the probe with it.
+  22 agents were going at 00:32:29;
+  none was stopped.
+  The owner's rule of 2026-11-14 covers this step
+  ("Resume at 24",
+  with the probe ending the level on two slow readings in a row);
+  whether the cap returns to twenty-four once the cleanup has ended is the owner's to say
+  and is kept in `doc/handover/cli-git-rust-implementation.md`,
+  "Questions kept for the owner's return".
