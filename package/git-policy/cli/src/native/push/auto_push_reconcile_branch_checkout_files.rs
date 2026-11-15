@@ -131,29 +131,49 @@ pub(crate) async fn the_paths_still_holding_the_old_tip_awaiting(
 
 /// What:
 ///  Write the branch's own entry over the paths whose content is the old tip's,
-/// one `git checkout` that leaves every other path of the checkout alone.
+/// path by path, by applying the patch between the two trees to the file alone.
 /// Why:
 ///   Those bytes are the move's own, by the record's old tip, so writing the branch's entry there
 /// overwrites nothing a person made;
-///  and `git checkout <branch> -- <paths>` writes the index and the file together, which is what a
-///  reset of the index has separated.
-///  A refusal is Git's own words, and it is one a later command may try again.
+///  and this write is an act that refuses: `git apply` compares each path's own content with the patch
+/// it carries before it writes that path,
+/// so a person's edit or a staged change made after the paths were looked at is refused rather than
+///  replaced, which `git checkout <branch> -- <paths>` did
+///  (a review of commit `4ca7aebcdb`, its finding 1).
+///  It writes no index entry, because the index already holds the branch's own entries on these paths:
+/// that is what made this the case of a checkout whose index agrees and whose files do not.
+///  A refusal is Git's own words, and it names the path it refused.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const written = await git(['checkout','--quiet','HEAD','--',...paths]); // written.stderr when it refused
+/// for (const path of paths) await git(['apply','--whitespace=nowarn'], { input: await git(['diff','--binary',old,merge,'--',path]) });
 /// ```
 pub(crate) async fn the_branchs_own_entries_written_awaiting(
     git: &PushGit,
+    old_oid: &str,
+    merge_oid: &str,
     paths: &[Vec<u8>],
-) -> Result<Option<String>, SingleFlightError> {
-    let arguments: Vec<OsString> = naming(paths, argv(&["checkout", "--quiet", "HEAD", "--"]));
-    let written = run_query_awaiting(git, &arguments).await?;
-    if written.code != Some(0) {
-        return Ok(Some(crate::auto_push_reconcile_branch_advance::refusal_of(&written.stderr)));
+) -> Result<Vec<String>, SingleFlightError> {
+    let mut refusals: Vec<String> = Vec::new();
+    for path in paths {
+        let arguments: Vec<OsString> = naming(std::slice::from_ref(path), argv(&["--no-optional-locks", "diff", "--binary", old_oid, merge_oid, "--"]));
+        let patch = run_query_awaiting(git, &arguments).await?;
+        if patch.code != Some(0) {
+            refusals.push(format!("the patch between the two tips could not be read: {}", crate::auto_push_reconcile_branch_advance::refusal_of(&patch.stderr)));
+            continue;
+        }
+        if patch.stdout.is_empty() {
+            // The path holds the same content in both tips, so there is nothing this move wrote there.
+            continue;
+        }
+        let applied = crate::auto_push_single_flight::run_query_with_input_awaiting(git, &argv(&["apply", "--whitespace=nowarn"]), patch.stdout.clone()).await?;
+        if applied.code != Some(0) {
+            refusals.push(crate::auto_push_reconcile_branch_advance::refusal_of(&applied.stderr));
+            continue;
+        }
+        crate::inner_git_words::record_streams(&["apply"], &applied.stdout, &applied.stderr);
     }
-    crate::inner_git_words::record_streams(&["checkout", "HEAD"], &written.stdout, &written.stderr);
-    return Ok(None);
+    return Ok(refusals);
 }
 
 /// What:

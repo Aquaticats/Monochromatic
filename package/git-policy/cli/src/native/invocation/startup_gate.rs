@@ -231,8 +231,53 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &
             environment: context.overlay.clone(),
             lfs: false,
         };
-        if let Err(error) = finish_branch_moves(&git, common_dir, out) {
-            return Err(RecoveryError(error));
+        // What: a command is cleared only when no path of a move this checkout would commit over still holds
+        // what the branch moved from, or when this command is what made it stop.
+        // Why: the sweep's success used to mean only that it had run, and a commit admitted over a stale
+        // checkout records the tree the record exists to prevent
+        //  (a review of commit `4ca7aebcdb`, its finding 2).
+        // A command that finds another command repairing this checkout waits for it, bounded by
+        // `REPAIR_WAIT`, and then clears and keeps the record, so the person is never failed for the wrapper's
+        // own reason: the two states that remain (another program's index lock, a write still going) stop that
+        // commit through Git's own lock.
+        let mut waited: std::time::Duration = std::time::Duration::ZERO;
+        loop {
+            match finish_branch_moves(&git, common_dir, out) {
+                Ok(crate::auto_push_branch_move_record::Settled::Yes) => break,
+                Ok(crate::auto_push_branch_move_record::Settled::OldTipLeft { branch, paths }) => {
+                    let _said = writeln!(
+                        out,
+                        "monochromatic-git-policy-cli: this checkout still holds {branch}'s files from before its move on {paths}, and the \
+                         write of its own files was refused; a commit here would record them. The record of that move is kept, and a later \
+                         command finishes it once nothing is in the way.",
+                        paths = crate::auto_push_dirty_paths::listed(&paths)
+                    );
+                    break;
+                }
+                Ok(crate::auto_push_branch_move_record::Settled::Unknown { why }) => {
+                    let _said = writeln!(
+                        out,
+                        "monochromatic-git-policy-cli: the checkout this command runs in could not be checked against a branch move ({why}); \
+                         the record of that move is kept."
+                    );
+                    break;
+                }
+                Ok(crate::auto_push_branch_move_record::Settled::AnotherCommandAtWork)
+                    if waited >= crate::auto_push_branch_move_record::REPAIR_WAIT =>
+                {
+                    let _said = writeln!(
+                        out,
+                        "monochromatic-git-policy-cli: another command is finishing this checkout, and this command goes on after waiting {waited:?}; \
+                         the record of that move is kept."
+                    );
+                    break;
+                }
+                Ok(crate::auto_push_branch_move_record::Settled::AnotherCommandAtWork) => {
+                    std::thread::sleep(crate::auto_push_branch_move_record::REPAIR_PAUSE);
+                    waited += crate::auto_push_branch_move_record::REPAIR_PAUSE;
+                }
+                Err(error) => return Err(RecoveryError(error)),
+            }
         }
     }
     let place: RecoveryPlace = RecoveryPlace {

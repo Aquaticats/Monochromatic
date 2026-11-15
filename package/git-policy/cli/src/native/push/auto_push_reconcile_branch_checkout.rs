@@ -181,20 +181,24 @@ async fn the_files_of_the_move_brought_awaiting(
     if !holding_the_old_tip.is_empty() {
         #[cfg(test)]
         play_in_the_window(Window::WhileTheCheckoutIsRepaired);
-        if let Some(reason) = the_branchs_own_entries_written_awaiting(git, holding_the_old_tip.as_slice()).await? {
-            return Ok(Brought::Left {
-                paths: holding_the_old_tip,
-                reason,
-                write_refused: true,
-            });
-        }
+        // What: the patch between the two tips, applied path by path, which refuses a path whose bytes are
+        // no longer the old tip's.
+        // Why: a person's edit or staged change made since the paths were read must keep its bytes, and the
+        // write that only compares before it writes replaced them
+        // (a review of commit `4ca7aebcdb`, its finding 1).
+        let refusals: Vec<String> = the_branchs_own_entries_written_awaiting(git, local, merge_oid, holding_the_old_tip.as_slice()).await?;
         let still: Vec<Vec<u8>> = the_paths_the_checkout_disagrees_with_its_branch_awaiting(git, paths).await?;
         if still.is_empty() {
             return Ok(Brought::Right);
         }
+        let reason: String = if refusals.is_empty() {
+            String::from("the worktree holds neither the old tip's content nor the merge's on those paths, so they are a change of your own")
+        } else {
+            format!("the write refused the path, because it no longer holds what the branch moved from: {}", refusals.join("; "))
+        };
         return Ok(Brought::Left {
             paths: still,
-            reason: String::from("the worktree holds neither the old tip's content nor the merge's on those paths, so they are a change of your own"),
+            reason,
             write_refused: false,
         });
     }

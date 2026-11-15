@@ -9455,6 +9455,80 @@ in-process reader can) gives every value of the multi-valued keys.
   A record is finished when every worktree that has its branch checked out shows the tip the branch was
   moved to, in its index and in its files, or holds changes that are a person's own, which are left to
   them and named.
+  A record's writer is the move and not the process that hosts moves:
+  every exit after the record is written hands it on,
+  by a type whose value is the record and whose end publishes it as left
+  (`AMoveInHand`),
+  so an exit that forgot, an error return and a killed instruction all leave a record any later command may
+  finish,
+  and the sweep never asks whether the writing process lives
+  (a review of commit `4ca7aebcdb`,
+  findings 2 and 3).
+  A record is deleted only on a proof that holds at the moment it is deleted:
+  the tip it names is no longer the branch's tip, which makes its move void;
+  or this command brought the checkout that shows that branch to it, and the checkout now agrees with it.
+  A listing that names no holder is not a proof, because a checkout that read the old tip may finish
+  publishing its `HEAD` after that listing,
+  so the record is kept and a command in the worktree that later shows the branch brings it to the tip and
+  removes it
+  (a review of commit `4ca7aebcdb`,
+  finding 4).
+  That costs one record file per branch whose move no worktree has to finish, and one read of this
+  worktree's `HEAD` per command: a record whose branch is not the branch this worktree shows is skipped
+  without starting a Git,
+  and it is removed when the branch moves again or when a command in the worktree that shows it agrees with
+  it.
+
+  Every place in this path that looks at something and then acts on it, and which of these it is:
+  one step that looks and acts under one owner,
+  an act that refuses when what was looked at has changed,
+  or an act that is safe whatever happened in between.
+  A row that is none of these is open, and says so.
+
+  - The first holder listing, which routes a move to the worktree that holds the branch, the one this
+    command is in, or a raw ref (`advance_pushed_branch_awaiting`): safe whatever happened in between,
+    because each route reads its own state before acting (the worktree's `HEAD` and tip, the tip's
+    compare-and-swap).
+  - The worktree's `symbolic-ref HEAD`, `HEAD` and `status` before a move of a checked-out branch
+    (`advance_local_branch_awaiting`, `advance_in_another_worktree`): the act is the two-tree
+    `read-tree -u -m`, which refuses a path whose index or file changed since, so a change made after the
+    look is refused rather than written. The status is only a refusal's reason; the write is what decides.
+  - The look at the branch and tip after that write, before `update-ref` (`still_on_the_branch`): the act is
+    the compare-and-swap, which refuses a branch that moved.
+  - The look at the checkout after the compare-and-swap (`the_checkout_after_the_move_awaiting`): the act
+    writes only the paths whose stored entry is the old tip's or the merge's, and the write itself refuses
+    the rest, path by path, by applying the patch between those two trees with `git apply`, which fails when
+    the file no longer holds the old tip's content
+    (a review of commit `4ca7aebcdb`,
+    finding 1).
+  - The intent record written before a move of a checked-out branch, and settled after it
+    (`fast_forward_recorded`): safe whatever happened in between, because the record is what a later command
+    settles.
+  - The tip and common-directory read before the record of a ref-only move, the record, and the
+    compare-and-swap (`move_the_ref_only_awaiting`): the act refuses a branch that moved, and the record
+    makes a stop after it readable.
+  - The listing after that compare-and-swap, and the removal of the record: open until the proof above;
+    the act is now the repair, and the removal happens only when the checkout this command brought agrees,
+    or when the branch's tip is no longer the record's.
+  - The repair's own questions (`bring_the_checkout_to_its_branch_awaiting`): the two-tree
+    `read-tree -u -m` refuses where the index disagrees with what was read, and the per-path apply refuses
+    where the file does. Nothing these write can discard a change made after the look.
+  - The record's owner and its liveness in the sweep (`finish_branch_moves_awaiting`): the look is now only
+    about the move; the repair is safe whatever the writing process is doing, and the removal rests on the
+    proof above, so no live process can hold a record for its own life.
+  - The startup gate's own clear of a command (`settle_merges` in `src/native/invocation/startup_gate.rs`):
+    the clear is the act, and it is allowed only when the checkout this command is about to run in agrees
+    with its `HEAD` on the paths of the record whose branch it shows, or when this command is what made it
+    agree.
+    One command repairs one checkout at a time, taken the lock-free way by one record for this worktree's
+    checkout (`REPAIR_OWNER_SUFFIX` in `src/native/push/auto_push_branch_move_record.rs`): a command that
+    finds a live repair owner waits for it in named pauses until `REPAIR_WAIT`, and one that finds a dead
+    owner removes its record and takes it.
+    A wait that runs out clears the command all the same, keeps the record, and says which paths still hold
+    the old tip and that a commit there would record them:
+    the person is never failed for the wrapper's own reason, and both remaining states of the checkout (a
+    lock another program holds, a repair that is still writing) stop that commit through Git's own index
+    lock rather than through a wrapper failure.
   No single comparison answers that:
   the branch tip alone is not the answer, because the tip moves before any checkout does;
   the index alone is not, because a `git reset` moves the index without the files;

@@ -324,6 +324,37 @@ pub async fn run_query_awaiting(git: &PushGit, arguments: &[OsString]) -> Result
     .await;
 }
 
+/// What:
+///  Run one Git command to its end with `input` given on its standard input,
+///  or until it has shown no sign of work for the quiet window.
+/// Why:
+///   A patch is given to `git apply` through its standard input,
+/// and that write must not block a command that answers while it still reads:
+///  the write runs on a thread of its own with the query's own bounds,
+/// which is what every other command reading a request here gets.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// await runBoundedGitAwaiting({ command, arguments, windowMs, graceMs, environment, input });
+/// ```
+pub async fn run_query_with_input_awaiting(
+    git: &PushGit,
+    arguments: &[OsString],
+    input: Vec<u8>,
+) -> Result<QueryOutput, SingleFlightError> {
+    return crate::bounded_query::run_bounded_git_awaiting(
+        git_command(git, arguments),
+        describe_arguments(arguments).as_str(),
+        query_window(&git.environment),
+        None,
+        STOP_GRACE,
+        git.environment.as_slice(),
+        Some(input),
+        crate::bounded_push::MAX_PUSH_OUTPUT,
+    )
+    .await;
+}
+
 /// Query behavior is controlled in the test module.
 #[cfg(test)]
 #[path = "auto_push_single_flight_tests.rs"]
