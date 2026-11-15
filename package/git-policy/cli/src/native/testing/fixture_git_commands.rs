@@ -209,7 +209,7 @@ fn draining<R: Read + Send + 'static>(mut reader: R) -> (std::sync::Arc<std::syn
 /// a query killed by the same signal from elsewhere in that instant reads the same,
 /// because a wait says which signal ended a child and never who sent it.
 /// A query that ended by itself comes back with its own status and output.
-///  The answer is what this helper bounds, and no answer the query gave becomes a panic:
+///  The answer is what this helper bounds, and a pipe or an input a descendant holds turns no answer into a panic:
 /// the write of the input runs on a thread of its own,
 /// so a query that keeps its standard input open and reads none of it fills the pipe and is ended at the bound
 /// like any other,
