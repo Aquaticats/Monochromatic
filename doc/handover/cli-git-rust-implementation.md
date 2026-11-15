@@ -1530,6 +1530,66 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The journal branch goes back for a race in the fixture's log copier and a guard that a URL blinds; its third finding is weighed down to a line of documentation (2026-11-15T04:19:50-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **A service a test starts writes no line into the machine's user journal** (`2d001c892e`),
+  its third review,
+  ended 04:13:41,
+  eight of eight files.
+  It ran the 21 guard tests and the four new fixture tests,
+  all passing,
+  and two scripts of its own.
+  - Reproduced:
+    the read of a failed service's log races the thread that copies it;
+    on one CPU,
+    first try,
+    the writer had closed with its marker written and the log read as empty.
+  - Reproduced:
+    a URL earlier on a line hides `Stdio::inherit()` from both guards,
+    since `//` inside `https://` is taken for a comment and every `.stderr(...)` call counts as a stream that was given.
+  - Read:
+    a control that fails panics with the service's words in the message,
+    and where the test runner's output is the journal,
+    those words reach the journal.
+- **Weighed**:
+  the two reproduced findings are worth their fix.
+  The third is taken differently,
+  as this session's reading and open to veto:
+  the requirement is that a service a test starts never writes into the journal by itself;
+  what a failing test prints is the test's report and goes where its runner's output was sent,
+  and the review before this one asked that a failure show what the service wrote.
+  So the panic keeps the words;
+  the author is asked to write the edge down and to make the quoted block recognisable as a quotation,
+  and to say so if it finds the reading wrong.
+- **The same race was found from another side** two hours earlier,
+  by the review of the controls under an address-space limit,
+  and that author had been asked to make such a read wait for the copier.
+  Two branches would each have built that wait.
+  The copier's file is the journal branch's
+  (271 lines of it changed there),
+  so the wait is given to the journal branch's author,
+  and the going run on the address-space controls got a note at 04:19 to leave the copier alone,
+  observe the exit itself,
+  and list the reads that would still need the wait.
+- The author is resumed,
+  its fourth run
+  (`~/temp/agent/pi-runs/service-a-test-starts-writes-no-line-into-the-journal-answers-its-third-review-of-2026-11-15-prompt.md`,
+  queued fifth).
+- Read at 04:18:23:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 04:11;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The resumed session is not named by the credential scan.
+  The queue held 81 entries at 04:19:50.
+
 ##### The killed-Git lock refuses to write a record it cannot check, and the review brief's coverage answers from one table; both go to review (2026-11-15T04:12:00-05:00)
 
 Not final and not approved:
