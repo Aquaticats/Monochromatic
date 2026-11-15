@@ -88,20 +88,20 @@ fn a_put_back_sentence_quotes_a_path_a_shell_would_split() {
 }
 
 #[test]
-fn a_directory_that_took_the_judged_entrys_name_is_put_back_too() {
+fn a_directory_that_took_the_judged_entrys_name_is_left_and_said() {
     let directory = scratch();
     let entry: PathBuf = directory.path().join("entry");
-    fs::create_dir(&entry).expect("make the judged directory");
-    let judged = judged_of(&entry).expect("the directory is inspected");
-    // A person's own directory takes the name. It is made under another name first, so it can never be the entry whose
-    // numbers were judged (a directory number can be reused as soon as its directory is gone).
-    let theirs: PathBuf = directory.path().join("their-own");
-    fs::create_dir(&theirs).expect("make the person's directory");
-    fs::remove_dir(&entry).expect("the judged directory goes");
-    fs::rename(&theirs, &entry).expect("the person's directory takes the name");
+    fs::write(&entry, "the launcher mpm-shadow placed\n").expect("write the judged entry");
+    let judged = judged_of(&entry).expect("the entry is inspected");
+    // A person's directory takes the name. It is not an entry this tool removes, and it cannot be hard-linked, so the
+    // removal refuses and leaves it exactly as it is.
+    fs::remove_file(&entry).expect("the judged entry goes");
+    fs::create_dir(&entry).expect("the person's directory takes the name");
 
-    assert_eq!(remove_if_still(&entry, judged, &|| return true).expect("the removal runs"), Removal::Replaced);
-    assert!(fs::symlink_metadata(&entry).expect("still there").is_dir());
+    let outcome = super::removal::remove_if_still(&entry, judged, &|| return true);
+
+    assert!(outcome.is_err(), "a directory is not taken aside: {outcome:?}");
+    assert!(fs::symlink_metadata(&entry).expect("still there").is_dir(), "and it is left where it is");
 }
 
 #[test]
@@ -144,3 +144,52 @@ fn a_put_back_never_writes_over_something_that_took_the_path() {
     assert!(sentence.contains(&moved.display().to_string()), "the sentence names where it is kept: {sentence}");
     assert!(sentence.contains("nothing removes it"), "the sentence says who removes it: {sentence}");
 }
+
+//region The fifth review: the three steps of the removal, and what a kill after each leaves
+// A second actor is placed by the code's own seam (`removal::seam`, compiled only in tests), never by a sleep, and a kill
+// is the state the code leaves after a step (a hidden name whose maker is gone).
+
+#[test]
+fn a_file_that_takes_the_hidden_name_between_the_choice_and_the_link_is_not_replaced() {
+    let directory = scratch();
+    let (path, _target) = a_link(directory.path());
+    let judged = judged_of(&path).expect("the link is inspected");
+    let hidden: PathBuf = directory.path().join(format!(".link.{}.0.retired", std::process::id()));
+    let persons_text = "a person's file at the hidden name\n";
+    let taken: PathBuf = hidden.clone();
+    super::removal::seam::set_before_the_link(Some(Box::new(move || {
+        fs::write(&taken, persons_text).expect("the second actor's write at the hidden name");
+    })));
+
+    let outcome = super::removal::remove_if_still(&path, judged, &|| return true);
+
+    super::removal::seam::set_before_the_link(None);
+    assert_eq!(
+        fs::read_to_string(&hidden).expect("the person's file is still there"),
+        persons_text,
+        "the link step replaced a person's file at the hidden name: {outcome:?}"
+    );
+}
+
+#[test]
+fn a_file_rewritten_in_place_after_the_judgement_is_not_removed() {
+    let directory = scratch();
+    let path: PathBuf = directory.path().join("launcher");
+    fs::write(&path, "the launcher mpm-shadow placed\n").expect("write the launcher");
+    let judged = judged_of(&path).expect("the launcher is inspected");
+    let persons_text = "a person's own content, written in place\n";
+    // An edit in place: the same path, the same inode, other bytes.
+    /// Imports `MetadataExt` from `std::os::unix::fs`.
+    use std::os::unix::fs::MetadataExt;
+    let inode_before = fs::symlink_metadata(&path).expect("inspect").ino();
+    fs::write(&path, persons_text).expect("the person rewrites the file in place");
+    let inode_after = fs::symlink_metadata(&path).expect("inspect").ino();
+    assert_eq!(inode_before, inode_after, "the in-place edit keeps the inode, which is the point");
+
+    let outcome = super::removal::remove_if_still(&path, judged, &|| return true);
+
+    assert_eq!(outcome.expect("the removal runs"), super::removal::Removal::Replaced);
+    assert_eq!(fs::read_to_string(&path).expect("the person's content is still there"), persons_text);
+}
+
+//endregion

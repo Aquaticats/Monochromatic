@@ -117,7 +117,7 @@ fn two_trees_with_different_third_party_locks_keep_separate_versions_and_link_th
     assert_eq!(again_a.unchanged, vec![THIRD_PARTY.to_string()]);
     assert_eq!(again_b.unchanged, vec![THIRD_PARTY.to_string()]);
     assert_eq!(binstall_lines(&rig).len(), 2, "one install per version");
-    assert!(again_a.warnings.is_empty() && again_b.warnings.is_empty(), "nothing shared is replaced");
+    assert!(again_a.warnings.is_empty() && again_b.warnings.is_empty(), "nothing shared is replaced: {again_a:?} {again_b:?}");
 }
 
 #[test]

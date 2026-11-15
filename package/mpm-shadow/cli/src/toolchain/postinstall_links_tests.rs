@@ -312,3 +312,45 @@ fn a_link_the_lock_on_disk_declares_is_kept_when_this_run_loaded_an_older_lock()
     assert!(exists_at(&path), "the lock on disk declares this link, so this run leaves it: {notices:?}");
     assert!(notices.retired.is_empty(), "{notices:?}");
 }
+
+#[test]
+fn a_second_writer_of_the_record_waits_for_the_first_and_keeps_both_additions() {
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::sync::mpsc::{Sender, channel};
+
+    let rig = rig_with_program();
+    let file: PathBuf = super::postinstall_links::record_file(&rig.context());
+    // The first writer's addition is in the record, and the first writer is inside the critical section (the guard it takes
+    // for the read-merge-write), which the test stands in for.
+    fs::create_dir_all(file.parent().expect("a parent")).expect("make the record's folder");
+    fs::write(&file, "{\"links\": {\"/links/a\": \"/launchers/a\"}}").expect("write the first writer's record");
+    let lock_path: PathBuf = file.with_file_name(".postinstall-links.lock");
+    let guard: fs::File = fs::OpenOptions::new().create(true).truncate(false).write(true).open(&lock_path).expect("open the record lock");
+    guard.lock().expect("hold the record lock");
+
+    let (ready, told): (Sender<()>, std::sync::mpsc::Receiver<()>) = channel();
+    let scope = rig.scope.clone();
+    let env = rig.env.clone();
+    let in_thread: PathBuf = file.clone();
+    let waiting = std::thread::spawn(move || {
+        let runner = super::fakes::FakeRunner::new();
+        let http = super::fakes::FakeHttp::new();
+        let host = super::context::Host { platform: "linux-x64".to_string(), family: Some(super::model::OsFamily::Linux) };
+        let tools: Vec<LockedTool> = Vec::new();
+        let context = super::context::Context { scope: &scope, env: &env, runner: &runner, http: &http, host: &host, tools: &tools };
+        let second: BTreeMap<PathBuf, PathBuf> = [("b".to_string(), "lb".to_string())].into_iter().map(|(path, target)| return (PathBuf::from(path), PathBuf::from(target))).collect();
+        let empty: BTreeSet<PathBuf> = BTreeSet::new();
+        ready.send(()).expect("tell the test it is about to write");
+        super::postinstall_links::publish_record(&context, &in_thread, &second, &empty).expect("the second write");
+    });
+    // The writer has said it is about to write; with the section held it cannot have written yet. Releasing it now lets
+    // the writer read what the first one recorded and merge its own addition into it.
+    told.recv().expect("the writer says it is about to write");
+    let during: String = fs::read_to_string(&file).unwrap_or_default();
+    assert!(!during.contains("lb"), "a second writer wrote while the first held the record: {during}");
+    drop(guard);
+    waiting.join().expect("the second writer ends");
+
+    let after: String = fs::read_to_string(&file).expect("the record");
+    assert!(after.contains("/links/a") && after.contains("lb"), "both additions survive: {after}");
+}

@@ -102,7 +102,7 @@ pub struct LinkNotices {
 }
 
 /// The record file of a scope.
-fn record_file(ctx: &Context) -> PathBuf {
+pub(super) fn record_file(ctx: &Context) -> PathBuf {
     return ctx.scope.launcher_dir.join(RECORD_FILE_NAME);
 }
 
@@ -361,7 +361,7 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
         }
     }
     let additions: BTreeMap<PathBuf, PathBuf> = made.iter().map(|link| return (link.path.clone(), link.target.clone())).collect();
-    match publish_record(&file, &additions, &leaving) {
+    match publish_record(ctx, &file, &additions, &leaving) {
         Ok(RecordWrite::Settled) => {}
         Ok(RecordWrite::Given) | Err(_) => notices.warnings.push(format!(
             "could not record the postinstall links this run made in {} because another install kept changing it; the links stay where they \
@@ -373,7 +373,7 @@ fn reconcile(ctx: &Context, made: &[MadeLink]) -> Result<LinkNotices, ToolchainE
 }
 
 /// What a write of the record settled to.
-enum RecordWrite {
+pub(super) enum RecordWrite {
     /// The file holds this run's changes.
     Settled,
     /// The file kept changing under the write; this run's changes may be missing and the next install records them.
@@ -392,7 +392,21 @@ enum RecordWrite {
 /// and the check that the additions are still there catches a write that landed between the merge and the check.
 /// No lock is taken: the check and the retry are the whole mechanism,
 /// and what a lost write costs is one pass's bookkeeping, because the links themselves are what the retirement proves by.
-fn publish_record(file: &Path, additions: &BTreeMap<PathBuf, PathBuf>, leaving: &BTreeSet<PathBuf>) -> Result<RecordWrite, ToolchainError> {
+pub(super) fn publish_record(_ctx: &Context, file: &Path, additions: &BTreeMap<PathBuf, PathBuf>, leaving: &BTreeSet<PathBuf>) -> Result<RecordWrite, ToolchainError> {
+    // What:
+    // The record is one shared map read, merged and written, so the three are one critical section:
+    // two installs merging at once would each write a snapshot without the other's addition and both call it settled.
+    // The lock is the record's own, next to it, so it covers that one file and never the launcher or link passes;
+    // its wait is bounded, and a run that cannot take it says so and leaves the recording to the next install,
+    // which costs bookkeeping and never a link.
+    if let Some(parent) = file.parent()
+        && let Err(error) = fs::create_dir_all(parent)
+    {
+        return Err(ToolchainError::failure(format!("cannot create {}: {error}", parent.display())));
+    }
+    let Some(_lock) = acquire_record_lock(file)? else {
+        return Ok(RecordWrite::Given);
+    };
     for _attempt in 0..RECORD_WRITE_ATTEMPTS {
         let (current, unreadable) = read_record(file);
         if unreadable.is_some() {
@@ -410,7 +424,8 @@ fn publish_record(file: &Path, additions: &BTreeMap<PathBuf, PathBuf>, leaving: 
         {
             return Err(ToolchainError::failure(format!("cannot create {}: {error}", parent.display())));
         }
-        write_atomically(file, &render_record(&merged)?)?;
+        let rendered: String = render_record(&merged)?;
+        write_atomically(file, &rendered)?;
         let (after, _) = read_record(file);
         let mine: bool = additions.iter().all(|(path, target)| return after.get(path) == Some(target))
             && leaving.iter().all(|path| return !after.contains_key(path));
@@ -419,6 +434,43 @@ fn publish_record(file: &Path, additions: &BTreeMap<PathBuf, PathBuf>, leaving: 
         }
     }
     return Ok(RecordWrite::Given);
+}
+
+/// The file name of the lock that makes the record's read-merge-write one critical section.
+const RECORD_LOCK_NAME: &str = ".postinstall-links.lock";
+
+/// How long a writer waits for the record's lock before it leaves the recording to the next install.
+/// The section is a read, a merge and a write of a few hundred bytes, so this bound has a hundredfold slack;
+/// giving up costs one pass's bookkeeping, never a link.
+const RECORD_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// What:
+/// The record's own lock, taken with a bound,
+/// or `None` when another writer holds it for longer than that.
+/// Why:
+/// The record is the one shared map this tool writes from two installs, and a lock of its own covers exactly that file:
+/// the launcher and link passes take no lock, so an install beside this one is never made to wait for them.
+fn acquire_record_lock(file: &Path) -> Result<Option<fs::File>, ToolchainError> {
+    let lock_path: PathBuf = file.with_file_name(RECORD_LOCK_NAME);
+    let handle: fs::File = match fs::OpenOptions::new().create(true).truncate(false).write(true).open(&lock_path) {
+        Ok(handle) => handle,
+        Err(error) => return Err(ToolchainError::failure(format!("cannot open {}: {error}", lock_path.display()))),
+    };
+    let deadline: std::time::Instant = std::time::Instant::now() + RECORD_LOCK_WAIT;
+    loop {
+        match handle.try_lock() {
+            Ok(()) => return Ok(Some(handle)),
+            Err(std::fs::TryLockError::WouldBlock) => {
+                if std::time::Instant::now() >= deadline {
+                    return Ok(None);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(std::fs::TryLockError::Error(error)) => {
+                return Err(ToolchainError::failure(format!("cannot test {}: {error}", lock_path.display())));
+            }
+        }
+    }
 }
 
 /// What:

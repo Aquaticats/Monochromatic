@@ -563,3 +563,53 @@ fn the_removal_asks_the_lock_on_disk_at_that_instant() {
     assert!(super::stale_launchers::may_remove(&without, &[], RENAMED_BIN, None));
     assert_eq!(super::stale_launchers::still_undeclared(&without, &[], RENAMED_BIN, None), Some(true));
 }
+
+#[test]
+fn what_a_killed_run_left_under_a_hidden_name_is_put_back_and_said() {
+    let rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    // The state of a run killed right after the move-aside: the entry is only under a hidden name, and the run that made
+    // it is gone (4294967 is a number no process can have).
+    let hidden: PathBuf = launcher.with_file_name(format!(".{RENAMED_BIN}.4294967.0.retired"));
+    fs::rename(&launcher, &hidden).expect("the killed run's move-aside");
+    // The lock on disk declares the name, so the pass this repair runs in front of keeps it once it is back.
+    let mut newer = rig.lock.clone();
+    newer
+        .tools
+        .iter_mut()
+        .find(|tool| return tool.declaration.id == SHADOW_TOOL)
+        .expect("the sample lock holds the tool")
+        .declaration
+        .bins
+        .push(RENAMED_BIN.to_string());
+    fs::write(&rig.scope.lock_file, render_lock(&newer)).expect("publish the lock that declares the name");
+
+    let notices = retire(&rig);
+
+    assert!(exists_at(&launcher), "the next pass puts it back at its own name: {notices:?}");
+    assert!(!exists_at(&hidden));
+    assert!(notices.warnings.iter().any(|line| return line.contains("put back")), "{notices:?}");
+}
+
+#[test]
+fn a_link_that_names_the_launcher_without_resolving_keeps_the_launcher_and_its_record() {
+    let rig = rig_with_installed_shadow();
+    let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
+    let record: PathBuf = record_path(&launcher);
+    // A copied checkout's link: it names that checkout's launcher, and that checkout is gone.
+    let gone: PathBuf = rig.scope.root.join("gone-checkout").join(".cache").join("toolchain-launchers").join(RENAMED_BIN);
+    let link: PathBuf = make_link(&rig, RENAMED_BIN, &gone);
+    // The farm cannot be written, so the link cannot be removed in this pass.
+    fs::set_permissions(&rig.scope.exposure_dir, fs::Permissions::from_mode(0o555)).expect("make the farm unwritable");
+
+    let first = retire(&rig);
+
+    fs::set_permissions(&rig.scope.exposure_dir, fs::Permissions::from_mode(0o755)).expect("make the farm writable again");
+    assert!(exists_at(&link), "the link could not be removed: {first:?}");
+    assert!(exists_at(&launcher) && exists_at(&record), "and the launcher the link names stays, with the record that proves it: {first:?}");
+
+    // The next pass can still show the link was this tool's, and finishes the cleanup.
+    let second = retire(&rig);
+    assert!(!exists_at(&link), "the link is retired once the farm is writable: {second:?}");
+    assert!(!exists_at(&launcher) && !exists_at(&record));
+}

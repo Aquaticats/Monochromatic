@@ -77,7 +77,7 @@ use super::util::process_is_gone;
 /// Imports what this module uses from `super::scope`.
 use super::scope::{EnvMap, Scope, global_scope};
 /// Imports what this module uses from `super::removal`.
-use super::removal::{Judged, Removal, judged_of_metadata, remove_if_still};
+use super::removal::{Judged, Removal, judged_of_metadata, maker_of_retired, put_back, remove_if_still, retired_from};
 
 //region The crate mpm-shadow places, the folders it links into, and how much of a file is read at a time
 
@@ -586,18 +586,43 @@ fn managed_link_paths(ctx: &Context) -> Vec<PathBuf> {
 /// A launcher is removed only once nothing points at it,
 /// and the postinstall link of a dropped name can outlive the lock that declared it.
 fn links_reaching(ctx: &Context, launcher: &Path) -> Vec<PathBuf> {
-    let Ok(target) = fs::canonicalize(launcher) else {
-        return Vec::new();
-    };
     let mut reaching: Vec<PathBuf> = Vec::new();
     for link in managed_link_paths(ctx) {
-        if let Ok(resolved) = fs::canonicalize(&link)
-            && resolved == target
-        {
+        if names_the_launcher(&link, launcher) {
             reaching.push(link);
         }
     }
     return reaching;
+}
+
+/// What:
+/// Whether the link at `link` names the launcher at `launcher`,
+/// whether or not it resolves.
+/// Why:
+/// A copied checkout's link names another checkout's launcher, and that checkout may be gone;
+/// canonicalizing then fails, and the link would stop counting as reaching its launcher.
+/// Its own stated target still proves it names that launcher,
+/// which is what keeps the launcher, and the record the next pass needs to prove the link, in place.
+fn names_the_launcher(link: &Path, launcher: &Path) -> bool {
+    if let (Ok(resolved), Ok(target)) = (fs::canonicalize(link), fs::canonicalize(launcher))
+        && resolved == target
+    {
+        return true;
+    }
+    let Ok(stated) = fs::read_link(link) else {
+        return false;
+    };
+    if stated == launcher {
+        return true;
+    }
+    // The same file name inside a launcher folder: this checkout's, another checkout's (which may be gone, so it is known
+    // by its last two names), or the machine-global one.
+    return match (stated.parent(), launcher.parent(), stated.file_name(), launcher.file_name()) {
+        (Some(given_dir), Some(own_dir), Some(given_name), Some(own_name)) => {
+            given_name == own_name && (same_folder(given_dir, own_dir) || names_the_launcher_folder_of(given_dir, own_dir))
+        }
+        _ => false,
+    };
 }
 
 //endregion
@@ -1131,6 +1156,51 @@ pub struct LauncherNotices {
 }
 
 /// What:
+/// Puts back what a run killed between taking an entry aside and removing it left under a hidden name.
+/// Why:
+/// The removal's step 4 leaves the entry only under `.⟨name⟩.⟨pid⟩.⟨attempt⟩.retired` (see `super::removal`'s steps),
+/// and no diagnostic can be printed by the killed process.
+/// A later pass finds it, puts it back at its own name when that name is free (never over something newer),
+/// and says so; a name that is taken keeps the hidden entry where it is, with the sentence that names it.
+pub(super) fn repair_what_a_kill_left(ctx: &Context, notices: &mut LauncherNotices) {
+    let mut folders: Vec<PathBuf> = link_folders(ctx);
+    folders.push(ctx.scope.launcher_dir.clone());
+    let mut seen: BTreeSet<PathBuf> = BTreeSet::new();
+    for folder in folders {
+        if !seen.insert(folder.clone()) {
+            continue;
+        }
+        for entry in sorted_entries(&folder, notices) {
+            let name: String = entry.file_name().to_string_lossy().to_string();
+            let Some(from) = retired_from(&name) else {
+                continue;
+            };
+            let Some(maker) = maker_of_retired(&name) else {
+                continue;
+            };
+            if !process_is_gone(maker) {
+                // A live install's own move-aside: not a leftover.
+                continue;
+            }
+            let hidden: PathBuf = entry.path();
+            let target: PathBuf = hidden.with_file_name(&from);
+            match put_back(&target, &hidden) {
+                Ok(()) => notices.warnings.push(format!(
+                    "put back {}, which a run killed between moving it aside and removing it had left at {}",
+                    target.display(),
+                    hidden.display()
+                )),
+                Err(reason) => notices.warnings.push(format!(
+                    "left {} alone: it holds what a killed run moved aside from {}, and {reason}",
+                    hidden.display(),
+                    target.display()
+                )),
+            }
+        }
+    }
+}
+
+/// What:
 /// Retires the launchers, records and links of names this lock declares nowhere.
 /// `link_set_known` says whether the record of postinstall links could be read before this run made any:
 /// a launcher is kept while it could not be, because a killed run may have made a link in a folder nothing can find.
@@ -1148,6 +1218,9 @@ pub struct LauncherNotices {
 /// ```
 pub fn retire_undeclared_launchers(ctx: &Context, made_links: &[String], link_set_known: bool) -> LauncherNotices {
     let mut notices: LauncherNotices = LauncherNotices::default();
+    // Before anything is judged: what a killed run left under a hidden name goes back where it came from, so the pass
+    // below sees the old state and judges it again.
+    repair_what_a_kill_left(ctx, &mut notices);
     // One listing per folder: an install with nothing to do compares names against the lock and reads no file.
     let launchers: Vec<fs::DirEntry> = sorted_entries(&ctx.scope.launcher_dir, &mut notices);
     let farm: Vec<fs::DirEntry> = sorted_entries(&ctx.scope.exposure_dir, &mut notices);
