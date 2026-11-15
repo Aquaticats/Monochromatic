@@ -738,6 +738,26 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T02:12:39-05:00,
+  from two authors' reports of that hour,
+  not blocking work:
+  - The wrapper's log to a stream that refuses lines
+    (branch tip `8784e0a823`,
+    in review):
+    when the process gives up on a line it had begun,
+    the fragment stays as it is,
+    so a later process's first line can follow it on the same line.
+    Should the fragment be closed with a newline that no line asked for?
+    And is 5 ms,
+    a fiftieth of the bound,
+    the rate at which a refused line is offered again?
+  - The review brief's template
+    (branch tip `1bcee2933e`,
+    in review):
+    a review that states "4 of 9 listed files read in full" is counted as covering its change,
+    since its statement does not contradict the brief.
+    Should a review count only when it states that it read every listed file?
+
 - Added 2026-11-15T01:30:55-05:00,
   from integration pass 49,
   not blocking work:
@@ -1454,6 +1474,83 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Three branches answer and go to review: the driver's empty last answer, the controls of a refused service start, and the review brief's template; Clippy is clean on `main` after the daily update (2026-11-15T02:12:39-05:00)
+
+Not final and not approved:
+what three runs report,
+by the part of each report read here,
+and what the coordinating session queued.
+
+- **Clippy on `main` at `7edb782568`**,
+  after the daily update:
+  exit 0 for the wrapper at 02:02:24
+  (its output shows `Checking zbus v6.3.0`),
+  for mpm-shadow at 02:02:52 and for cargo-shadow at 02:02:53.
+  The container gate on that commit was still running.
+- **The driver's run whose last answer is empty**,
+  its author's sixth run,
+  ended 02:07:51 at `dced95c897`.
+  The three findings answered:
+  a claim is made in a folder of its own,
+  created before the one atomic rename,
+  so a second message of one name never lands on a claim an earlier failed keep left;
+  the keep's fallback copies exclusively and only an ordinary file
+  (it measured that Node's `copyFile` turns a directory into an empty file and does not fail);
+  a message is named as not taken only while it is still in the inbox.
+  Both review scripts reproduced before and do not after;
+  the controls fail with the fix out;
+  190 unit tests pass.
+  Its review is queued third
+  (`main...dced95c897`,
+  22 code files that are not tests).
+- **The controls of a service start that is refused**,
+  their author's second run,
+  ended 02:09:33 at `8784e0a823`.
+  The finding answered in the wrapper:
+  a line leaves the log thread only when the stream holds every byte of it;
+  four controls say a refused write is not a written line and fail before the fix;
+  the three gate controls and the four new ones pass one by one.
+  It disagrees with one statement of the review,
+  with both runs given:
+  the review's script drains the pipe after the call returns,
+  so outside the bound it says it is inside.
+  The suite was not run.
+  Two questions are kept for the owner.
+  Its review is queued second
+  (`main...8784e0a823`,
+  two code files that are not tests).
+- **The review brief says what the change is and where its diff stands**,
+  the fresh run,
+  ended 02:12:03 at `1bcee2933e`.
+  The four sightings answered in the template and the writer:
+  the range,
+  the diff's file,
+  what the listed files are,
+  and a command that builds under a disposable home
+  (`MISE_SOPS_STRICT=false mise --yes run --skip-tools <task>`;
+  it measured that `mise exec` under a disposable `HOME` fails to decrypt and that `--no-env` does not help `run`),
+  with a troubleshooting section for it.
+  It also removed a contradiction
+  ("change no file" beside "you may build")
+  and gave the review's statement a format.
+  Left and reported:
+  carrying the decision records into a review brief,
+  which it names a suggestion outside its list.
+  195 unit tests pass;
+  one whole run failed a wall-clock case of `drive-pi-subagent.unit.test.ts` that passed alone and in the last whole run.
+  Its review is queued fourth
+  (`main...1bcee2933e`,
+  nine code files that are not tests).
+  When it is in `main`,
+  the stopgap in this session's starter that appends the scope to each brief goes.
+- Read at 02:12:15:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  15 runs going,
+  two under the cap of 17.
+  The queue held 83 entries at 02:12:39.
 
 ##### The daily update moved the compiler and the wrapper's D-Bus library on `main`, and `main` is being checked; mpm-shadow's removal of old versions goes back to its author (2026-11-15T02:02:40-05:00)
 
