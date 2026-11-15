@@ -175,6 +175,12 @@ const FORMAT_PREFIX: &str = "claim-watch-1 ";
 #[cfg(test)]
 pub(crate) const IN_THE_NEXT_SERVICE_NOTE: &str = "in-the-next-service-note";
 
+/// The point at which any caller of this store writes one note down,
+/// for a control that holds that write:
+/// the landing's own note for the next service and the after-commit work's note of its worktree both reach it.
+#[cfg(test)]
+pub(crate) const IN_THE_WATCH_NOTE_WRITE: &str = "in-the-watch-note-write";
+
 /// The most bytes a path of this system may have,
 /// which bounds every note this store writes.
 const LONGEST_PATH_BYTES: u64 = 4096;
@@ -757,6 +763,10 @@ pub fn note_for_the_next_service(store: &Path, instance: Option<&str>, git_dir: 
 /// reads a link through,
 /// or costs memory for nothing.
 fn write_down(directory: &Path, git_dir: &Path) -> Result<(), String> {
+    // A control holds this write where a stalled drive would; nothing but its own hook arms it
+    // (`service_server_greets_before_the_journal_is_restored_tests.rs`, `IN_THE_WATCH_NOTE_WRITE`).
+    #[cfg(test)]
+    crate::service_fault::hooks::run_on_any_thread(IN_THE_WATCH_NOTE_WRITE);
     if let Err(error) = create_private_directory_all(directory) {
         return Err(format!("creating the note directory failed: {error}"));
     }

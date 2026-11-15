@@ -37,6 +37,7 @@ const SHORT_CEILING: Duration = Duration::from_millis(2_500);
 /// The commit the client asks for.
 const MESSAGE: &str = "waited";
 
+
 /// What:
 ///  One disposable world:
 /// a repository,
@@ -217,4 +218,65 @@ fn join_within(thread: std::thread::JoinHandle<()>) -> bool {
     }
     let _joined = thread.join();
     return true;
+}
+
+/// What:
+///  With one runtime worker — which `runtime_plan::plan_runtime` permits — a client is greeted while a step the
+///  after-commit task takes is held,
+///  and the answer says which step was held.
+/// Why:
+///  A synchronous call that waits on a file holds the worker it runs on, and with one worker the acceptor and the
+///  connections need that same worker:
+///  a service whose only worker is inside such a call greets nobody and beats nobody, so a client's five seconds of
+///  silence pass and a working service is taken for a stopped one
+///  (`doc/planning/git-policy-cli-full-tokio.md`, a blocking call runs on the blocking pool, never on a worker).
+fn greeted_while_the_after_commit_task_is_held(label: &str, step: &str, own_git_dir: bool) -> (bool, bool) {
+    crate::lazy_runtime::cap_workers(1);
+    let world: World = world(label);
+    let (reached, let_go) = crate::service_fault::hooks::hold_the_point(step);
+    let listener: UnixListener = UnixListener::bind(world.socket()).expect("bind");
+    let context: LandContext = world.context();
+    let mut settings: ServeSettings = world.settings();
+    if own_git_dir {
+        // A service that serves one worktree is the shipped shape, and the only one that writes that note.
+        settings.own_git_dir = Some(world.repo.join(".git"));
+    }
+    let serving = std::thread::spawn(move || {
+        serve(listener, &context, &settings);
+    });
+    let reached_the_step: Option<bool> = crate::test_support::finished_within_at(PATIENCE, move || { return reached.blocking_recv().is_ok(); });
+    assert_eq!(reached_the_step, Some(true), "the after-commit task reached the step this control holds ({step})");
+    let stream: UnixStream = UnixStream::connect(world.socket()).expect("the listening socket accepts at the kernel");
+    stream.set_read_timeout(Some(Duration::from_millis(500))).expect("a bounded greeting read");
+    let mut reader: BufReader<UnixStream> = BufReader::new(stream.try_clone().expect("a second handle"));
+    let greeted_while_the_step_was_held: bool = greeted(&mut reader);
+    // Always release and stop the service before asserting, so the control leaves no work running.
+    let _released = let_go.send(());
+    retire(world.socket().as_path());
+    let joined: bool = join_within(serving);
+    return (greeted_while_the_step_was_held, joined);
+}
+
+/// What:
+///  A client is greeted while the after-commit task's read of the journal is held, with one worker.
+/// Why:
+///  Before this control existed that read ran on the worker, and the greeting waited for it.
+#[test]
+fn a_client_is_greeted_while_the_journals_read_is_held_with_one_worker() {
+    let (greeted_while_held, joined): (bool, bool) = greeted_while_the_after_commit_task_is_held("one-worker-read", crate::service_journal_restored_at_start::THE_READ_AT_A_START, false);
+    assert!(joined, "the service ended after the read was released");
+    assert!(greeted_while_held, "with one worker, the journal's read held the only worker and no client was greeted");
+}
+
+/// What:
+///  A client is greeted while the after-commit task's write of the note of its worktree is held, with one worker.
+/// Why:
+///  That write creates directories and writes a file with no ceiling of its own, and a journal drive that stops
+///  answering in it must not hold the only worker a service has.
+#[test]
+fn a_client_is_greeted_while_the_watch_note_is_held_with_one_worker() {
+    let (greeted_while_held, joined): (bool, bool) =
+        greeted_while_the_after_commit_task_is_held("one-worker-note", crate::service_claim_watch::IN_THE_WATCH_NOTE_WRITE, true);
+    assert!(joined, "the service ended after the note's write was released");
+    assert!(greeted_while_held, "with one worker, the write of the watch note held the only worker and no client was greeted");
 }

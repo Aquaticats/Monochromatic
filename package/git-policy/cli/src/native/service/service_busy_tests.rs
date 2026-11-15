@@ -564,3 +564,41 @@ fn a_wait_over_the_bound_names_the_write_it_was_in_when_the_group_began() {
     assert!(unknown.contains("is not known to the board"), "{unknown}");
     record.end_group(ids(&["another-request"]).as_slice());
 }
+
+/// What:
+///  A withdrawal that reaches a second service of one journal, for a request the first service holds, is never
+///  confirmed by the second.
+/// Why:
+///  A decision kept in one service's memory holds only where one service is the only one:
+///  the journal's batch claims exist because two services over one journal is a case it carries
+///  (`doc/planning/cli-git-resident-service.md`),
+///  and a service that does not hold the request, with another live service over the same journal, cannot promise
+///  that the request will never land.
+///  A `Withdrawn` there would tell a person their commit never lands, and the other service could land it.
+#[test]
+fn a_second_service_of_one_journal_never_confirms_a_withdrawal_it_does_not_hold() {
+    crate::landing_state_carried_by_its_task::in_a_landing(|| {
+        let journal: std::path::PathBuf = crate::test_support::fixture("service-busy-two-services").join("journal");
+        // Both services are alive before either takes the request, as during a service handover or a development run.
+        let landing: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        let withdrawing: Arc<LandingBoard> = LandingBoard::new(journal.clone(), AT_ONCE);
+        use_on_this_thread(Arc::clone(&landing));
+        let _step = enter_step(String::from("git update-ref --stdin in /repo"));
+        std::thread::sleep(A_MOMENT);
+        assert_eq!(landing.begin_group(ids(&["request-in-flight"]).as_slice()), GroupAdmission::default());
+        assert!(landing.is_in_flight("request-in-flight"), "the first service holds the request");
+        let answer: EarlyAnswer = withdrawing.withdraw_early("request-in-flight");
+        assert_eq!(
+            answer,
+            EarlyAnswer::Queued,
+            "the second service cannot promise that a request another live service of this journal holds will never land",
+        );
+        // What: With the other service gone, the same withdrawal is confirmed at once.
+        // Why:  Nothing else can land the request then, so the promise is this service's to keep, and a client is not
+        //       made to wait for the answer it can have.
+        use_on_this_thread(Arc::clone(&withdrawing));
+        drop(landing);
+        let alone: EarlyAnswer = withdrawing.withdraw_early("request-in-flight");
+        assert!(matches!(alone, EarlyAnswer::Withdrawn(_)), "with no other service of this journal, the withdrawal is confirmed: {alone:?}");
+    });
+}
