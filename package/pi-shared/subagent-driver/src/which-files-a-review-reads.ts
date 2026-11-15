@@ -417,19 +417,106 @@ function foldersOf(path: string,): readonly string[] {
  ```
  */
 export function isATestOrAFixture({ path, }: { readonly path: string },): boolean {
+  return isATest({ path, },) || isAFixture({ path, },);
+}
+
+/**
+ Says whether a path is a test: its own name ends with a test's suffix, or a folder above it is a test's folder.
+
+ @param path - a path from the top of the checkout
+
+ @returns whether a test marker names the path
+
+ @example
+ ```ts
+ const isATest = isATest({ path: 'src/gate_tests.rs', },);
+ ```
+ */
+export function isATest({ path, }: { readonly path: string },): boolean {
   return TEST_FILE_NAME_SUFFIXES.some(function isATestName(suffix,) {
     return path.endsWith(suffix,);
   },)
-    || FIXTURE_NAME_SUFFIXES.some(function isAFixtureName(suffix,) {
-      return path.endsWith(suffix,);
-    },)
+    || foldersOf(path,)
+      .some(function sitsInATestFolder(folder,) {
+        return TEST_FOLDER_NAMES.has(folder,);
+      },);
+}
+
+/**
+ Says whether a path is a fixture: a folder, a part of the path or a suffix of the measured fixture lists names it, which marks
+ material only tests read.
+
+ @param path - a path from the top of the checkout
+
+ @returns whether a fixture marker names the path
+
+ @example
+ ```ts
+ const isAFixture = isAFixture({ path: 'src/fixture/run-still-going.json', },);
+ ```
+ */
+export function isAFixture({ path, }: { readonly path: string },): boolean {
+  return FIXTURE_NAME_SUFFIXES.some(function isAFixtureName(suffix,) {
+    return path.endsWith(suffix,);
+  },)
     || FIXTURE_PATH_PARTS.some(function isAFixturePart(part,) {
       return path.includes(part,);
     },)
     || foldersOf(path,)
-      .some(function isATestOrFixtureFolder(folder,) {
-        return TEST_FOLDER_NAMES.has(folder,) || FIXTURE_FOLDER_NAMES.has(folder,);
+      .some(function sitsInAFixtureFolder(folder,) {
+        return FIXTURE_FOLDER_NAMES.has(folder,);
       },);
+}
+
+/**
+ What kind of file a changed path is, which is what decides what a review of the change reads: a test, a fixture, code (a
+ language a reviewer judges or a name that decides a build), a kind no extension list names, a note, or material a test may read.
+ */
+export type KindOfAFileAReviewReads =
+  | 'a-test'
+    | 'a-fixture'
+    | 'code'
+    | 'a-unlisted-kind'
+    | 'a-note'
+    | 'material-a-test-may-read';
+
+/**
+ Says what kind of file a path is to a review, one kind and one only: a test is asked before a fixture, and both before the
+ extension lists, so a `README.md` inside a `tests/` folder is a test's material rather than a note, and a `.json` in a
+ `fixtures/` folder is a fixture rather than data.
+
+ A name that decides a build is not this module's to know: `Cargo.toml` and `package.json` are code by their names, which
+ `material-of-a-review.ts` carries, so it asks this answer and then names those files code.
+
+ @param path - a path from the top of the checkout
+
+ @returns the kind the lists name
+
+ @example
+ ```ts
+ const kind = kindOfAFileAReviewReads({ path: 'package/a/src/gate.unit.test.ts', },);
+ ```
+ */
+export function kindOfAFileAReviewReads({ path, }: { readonly path: string },): KindOfAFileAReviewReads {
+  if (isATest({ path, },)) {
+    return 'a-test';
+  }
+  if (isAFixture({ path, },)) {
+    return 'a-fixture';
+  }
+  /**
+   What the extension lists say about the file.
+   */
+  const whatAReviewDoes = whatAReviewDoesWithAFile({ path, },);
+  if (whatAReviewDoes === 'reads-it-as-code') {
+    return 'code';
+  }
+  if (whatAReviewDoes === 'reads-it-as-code-of-an-unlisted-kind') {
+    return 'a-unlisted-kind';
+  }
+  return PROSE_FILE_EXTENSIONS.has(extensionOfAPath({ path, },),)
+    ? 'a-note'
+    : 'material-a-test-may-read';
 }
 
 /**
@@ -450,8 +537,8 @@ export type WhatAChangeToTestsReads =
  answer left out of the change it belongs to got that whole change answered as nothing to review on 2026-11-14, which is the
  defect this answer exists for.
 
- The third answer is prose a person reads, which no test reads, so a note beside a test leaves the change not a change to tests
- alone. `material-of-a-review.ts` refuses that range, with the words its own answer carries.
+ The third answer is prose a person reads, which no test reads. A review of a change to tests reads the tests, the fixtures and
+ the material beside them, and names a note as left out in its brief, so a line of prose never takes the test's review away.
 
  @param path - a path from the top of the checkout
 
@@ -463,10 +550,12 @@ export type WhatAChangeToTestsReads =
  ```
  */
 export function whatAChangeToTestsReads({ path, }: { readonly path: string },): WhatAChangeToTestsReads {
-  if (isATestOrAFixture({ path, },)) {
+  /**
+   The kind the lists give it.
+   */
+  const kind = kindOfAFileAReviewReads({ path, },);
+  if ((kind === 'a-test') || (kind === 'a-fixture')) {
     return 'a-test-or-a-fixture';
   }
-  return PROSE_FILE_EXTENSIONS.has(extensionOfAPath({ path, },),)
-    ? 'a-note'
-    : 'material-a-test-may-read';
+  return (kind === 'a-note') ? 'a-note' : 'material-a-test-may-read';
 }

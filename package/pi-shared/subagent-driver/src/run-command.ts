@@ -108,6 +108,12 @@ export type RunCommand = (request: {
    How long the command may take, when the caller wants a bound other than the one this module ships.
    */
   readonly timeoutMilliseconds?: number;
+
+  /**
+   How what the command prints is read: as text, or one character per byte, which keeps the bytes of a name Git prints in a
+   listing instead of replacing the ones that are not UTF-8.
+   */
+  readonly readAs?: 'text' | 'one-character-per-byte';
 }) => Promise<CommandOutput>;
 
 /**
@@ -262,6 +268,8 @@ function failureOf(caught: unknown,): CommandOutput {
 
  @param environment - variables to add to the environment it inherits
 
+ @param readAs - how what it prints is read, as text when the caller names nothing
+
  @returns what it printed and how it ended
 
  @example
@@ -275,12 +283,14 @@ export async function runCommandWithChildProcess({
   timeoutMilliseconds = COMMAND_TIMEOUT_MILLISECONDS,
   folder,
   environment,
+  readAs = 'text',
 }: {
   readonly command: string;
   readonly words: readonly string[];
   readonly timeoutMilliseconds?: number;
   readonly folder?: string;
   readonly environment?: Readonly<Record<string, string>>;
+  readonly readAs?: 'text' | 'one-character-per-byte';
 },): Promise<CommandOutput> {
   try {
     /**
@@ -290,7 +300,9 @@ export async function runCommandWithChildProcess({
       command,
       [...words,],
       {
-        encoding: 'utf8',
+        // One character per byte keeps every byte of a name in the string, where UTF-8 would replace a byte it cannot decode and
+        // the name would no longer be the file's name.
+        encoding: (readAs === 'one-character-per-byte') ? 'latin1' : 'utf8',
         maxBuffer: COMMAND_OUTPUT_BYTES,
         timeout: timeoutMilliseconds,
         killSignal: 'SIGKILL',

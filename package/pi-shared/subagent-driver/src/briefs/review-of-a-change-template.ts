@@ -6,7 +6,11 @@
 
  A change of tests and fixtures alone has no code to judge, so its brief asks for the one thing a reviewer can show about a test:
  a break planted under it, and whether the test fails with that break in. A test that still passes with a break under it is what
- that brief exists to find, and a review that ran nothing has shown nothing.
+ that brief exists to find, and a review that ran nothing has shown nothing. A change that holds a test is judged so even when it
+ also holds code: both briefs then ask the project's requirements, because a reviewer reads the code as well.
+
+ Every brief also names the files the change touched that it does not read, with the reason, so a line of prose beside a test is
+ never the reason a test goes unreviewed.
 
  The backticks around code in the prose are escaped, because the text is a template literal; every other character is the brief
  exactly as a reviewer reads it. `review-brief.ts` fills it, and its test reads the placeholders out of this text so a
@@ -40,20 +44,15 @@ Read each of these files in full before you answer:
 @FILES@`;
 
 /**
- The requirements a change of code is judged by, which are the project's own.
+ The paragraph that says what the change also touched and this review does not read, with the reason for each such file.
  */
-const WHAT_A_CHANGE_TO_CODE_MUST_MEET: string =
-  'It must meet these requirements: "never discard user data", "Commits should never fail.", and "nothing should ever wait '
-    + 'forever or indefinitely".';
+const THE_FILES_LEFT_OUT: string = `@LEFT_OUT@`;
 
 /**
- The requirements a change of tests and fixtures alone is judged by: the files themselves are the change, so what a reviewer can
- show about them is that each test still fails when the code it checks does the wrong thing.
+ The requirements the change is judged by, which `review-brief.ts` fills: the project's own for the code, whether the change is
+ judged as code or as tests with code beside them, and, for a change to tests, that each changed test still fails under a break.
  */
-const WHAT_A_CHANGE_TO_TESTS_MUST_PROVE: string =
-  'These files are tests and the fixtures tests use, and the change is to them alone. It must meet this requirement: a test '
-    + 'proves what it proved before, so it still fails when the code it checks does the wrong thing, and still passes only when '
-    + 'that code does what it must.';
+const WHAT_THE_CHANGE_MUST_MEET: string = `@REQUIREMENTS@`;
 
 /**
  The sentences that say how a defect is reported and what is left out, in every brief.
@@ -90,7 +89,8 @@ const THE_REVIEW_FILE: string = `Write your review to \`@REVIEW_FILE@\` as soon 
 export const REVIEW_OF_A_CHANGE_TEMPLATE: string = `${THE_RULES_AND_WHERE_THE_REVIEW_WORKS}
 
 ${THE_CHANGE_AND_THE_FILES_TO_READ}
-${WHAT_A_CHANGE_TO_CODE_MUST_MEET}
+${THE_FILES_LEFT_OUT}
+${WHAT_THE_CHANGE_MUST_MEET}
 ${HOW_A_DEFECT_IS_REPORTED}
 ${WHAT_TO_LOOK_HARDEST_AT}
 
@@ -103,7 +103,8 @@ ${THE_REVIEW_FILE}`;
 export const REVIEW_OF_A_CHANGE_TO_TESTS_TEMPLATE: string = `${THE_RULES_AND_WHERE_THE_REVIEW_WORKS}
 
 ${THE_CHANGE_AND_THE_FILES_TO_READ}
-${WHAT_A_CHANGE_TO_TESTS_MUST_PROVE}
+${THE_FILES_LEFT_OUT}
+${WHAT_THE_CHANGE_MUST_MEET}
 ${HOW_A_DEFECT_IS_REPORTED}
 ${THE_BREAKS_TO_PLANT_UNDER_CHANGED_TESTS}
 ${WHAT_TO_LOOK_HARDEST_AT}

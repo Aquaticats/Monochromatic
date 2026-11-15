@@ -44,6 +44,7 @@ export function gitRunnerOf(run: RunCommand,): GitRunner {
     words,
     folder,
     timeoutMilliseconds = GIT_TIMEOUT_SECONDS * MILLISECONDS_PER_SECOND,
+    readAs = 'text',
   }) {
     return run({
       command: 'git',
@@ -51,6 +52,7 @@ export function gitRunnerOf(run: RunCommand,): GitRunner {
       folder,
       environment: GIT_ENVIRONMENT,
       timeoutMilliseconds,
+      readAs,
     },);
   };
 }

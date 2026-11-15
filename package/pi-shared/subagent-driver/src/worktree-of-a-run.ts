@@ -35,6 +35,12 @@ export type GitRunner = (request: {
    machine stretches far past what any other git question costs.
    */
   readonly timeoutMilliseconds?: number;
+
+  /**
+   How what it prints is read: as text, or one character per byte, which a listing of paths needs so a name Git prints comes back
+   as the bytes it is.
+   */
+  readonly readAs?: 'text' | 'one-character-per-byte';
 }) => Promise<CommandOutput>;
 
 //region Constants

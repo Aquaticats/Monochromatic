@@ -19,6 +19,12 @@ export {
   readingIn,
   testsAndFixturesAmong,
 } from './material-of-a-review.ts';
+export { pathsInAListing, } from './names-a-git-listing-prints.ts';
+export {
+  type LeftOutFile,
+  type ReviewPlan,
+  planOfAChange,
+} from './plan-of-a-review.ts';
 export {
   CODE_FILE_EXTENSIONS,
   FIXTURE_FOLDER_NAMES,
@@ -28,10 +34,14 @@ export {
   PROSE_FILE_EXTENSIONS,
   TEST_FILE_NAME_SUFFIXES,
   TEST_FOLDER_NAMES,
+  type KindOfAFileAReviewReads,
   type WhatAChangeToTestsReads,
   type WhatAReviewDoesWithAFile,
   extensionOfAPath,
+  isAFixture,
+  isATest,
   isATestOrAFixture,
+  kindOfAFileAReviewReads,
   whatAChangeToTestsReads,
   whatAReviewDoesWithAFile,
 } from './which-files-a-review-reads.ts';
@@ -70,8 +80,13 @@ export {
 export {
   FOCUS_OF_A_CHANGE_REVIEW,
   REVIEW_BRIEF_PLACEHOLDERS,
+  WHAT_A_CHANGE_TO_CODE_MUST_MEET,
+  WHAT_A_CHANGE_TO_TESTS_MUST_PROVE,
+  WHAT_TESTS_AND_THEIR_CODE_MUST_MEET,
   briefOfAChangeToTests,
   briefOfAReview,
+  filesToListItems,
+  leftOutParagraphOf,
   placeholdersInTheBriefOfAChangeToTests,
   placeholdersInTheReviewBrief,
   reviewBriefValues,

@@ -18,16 +18,24 @@
  know: a review reads it as code rather than drop it, and the material names it, so the line the writer prints says that a kind
  nobody listed was read.
 
+ What a review of a change reads, and what it leaves out, follows the table in `plan-of-a-review.ts`, which is one row for every
+ combination of the kinds a range can hold: a file a review cannot judge never decides for the files beside it, and a test is read
+ whatever else the range holds.
+
  @module
  */
 
 import { basename, } from 'node:path';
 import { isRecord, } from './read-pi-fields.ts';
+import { pathsInAListing, } from './names-a-git-listing-prints.ts';
+import {
+  type LeftOutFile,
+  planOfAChange,
+} from './plan-of-a-review.ts';
 import type { CommandOutput, } from './run-command.ts';
 import {
-  isATestOrAFixture,
-  whatAChangeToTestsReads,
-  whatAReviewDoesWithAFile,
+  type KindOfAFileAReviewReads,
+  kindOfAFileAReviewReads,
 } from './which-files-a-review-reads.ts';
 
 /**
@@ -36,6 +44,12 @@ import {
 export type GitQuestion = (request: {
   readonly words: readonly string[];
   readonly folder: string;
+
+  /**
+   How what it prints is read: as text, or one character per byte, which a listing of paths needs so a name comes back as the
+   bytes Git printed rather than as text a quote or a UTF-8 replacement changes.
+   */
+  readonly readAs?: 'text' | 'one-character-per-byte';
 }) => Promise<CommandOutput>;
 
 /**
@@ -137,9 +151,13 @@ export class ReviewGitError extends Error {
 /**
  What a review of a change reads.
 
- A change of code or of a build decision is read as `code-and-build-decisions`, and a change of tests and fixtures alone as
- `tests-and-fixtures`, whose reviewer is asked to plant a break under each changed test. A range that changes nothing a review
+ A change that holds a test or a fixture is read as `tests-and-fixtures`, whose reviewer is asked to plant a break under each
+ changed test, whatever else the change holds. A change that holds code or a build decision, and no test, is
+ `code-and-build-decisions`, which a reviewer judges against the project's requirements. A range that changes nothing a review
  reads is `nothing-a-review-reads`, with the words that say why.
+
+ Both of the first two name the files they leave out, with the reason, so a file a review cannot judge never decides for the files
+ beside it.
  */
 export type ReviewMaterial = {
   /**
@@ -149,13 +167,13 @@ export type ReviewMaterial = {
 } & (
   | {
     /**
-     The change holds code or a build decision, which a reviewer judges as the change itself.
+     The change holds code or a build decision, and no test, which a reviewer judges as the change itself.
      */
     readonly kind: 'code-and-build-decisions';
 
     /**
-     The files the reviewer is given, each a path from the top of the checkout, in the order git named them: the code and the
-     build decisions among what the ranges touched, without the tests and fixtures beside them.
+     The files the reviewer is given, each a path from the top of the checkout, in the order git named them: the code, the files
+     of a kind no list names, and the build decisions among what the ranges touched, without the tests and fixtures beside them.
      */
     readonly files: readonly string[];
 
@@ -165,18 +183,36 @@ export type ReviewMaterial = {
      though somebody had.
      */
     readonly filesOfAnUnlistedKind: readonly string[];
+
+    /**
+     The files the change touched that this review does not read, each with the reason its brief gives, in the order git named
+     them.
+     */
+    readonly filesLeftOut: readonly LeftOutFile[];
   }
     | {
       /**
-       The change is tests and fixtures alone, so the tests themselves are what a reviewer can show something about.
+       The change holds a test or a fixture, so the tests themselves are what a reviewer can show something about.
        */
       readonly kind: 'tests-and-fixtures';
 
       /**
-       The tests and fixtures the reviewer is given, each a path from the top of the checkout, in the order git named them: every
-       file the ranges touched under the source folder, which are tests and fixtures and nothing else.
+       The files the reviewer is given, each a path from the top of the checkout, in the order git named them: the tests, the
+       fixtures, the material beside them, and any code the change also holds.
        */
       readonly files: readonly string[];
+
+      /**
+       The code among those files, in the order given. Its presence is what makes the brief ask the project's requirements as
+       well as the breaks under the tests.
+       */
+      readonly filesOfCode: readonly string[];
+
+      /**
+       The files the change touched that this review does not read, each with the reason its brief gives, in the order git named
+       them.
+       */
+      readonly filesLeftOut: readonly LeftOutFile[];
     }
     | {
       /**
@@ -202,6 +238,8 @@ export type ReviewMaterial = {
 
  @param words - the question's words
 
+ @param readAs - how what it prints is read, as text when the caller names nothing
+
  @returns what git printed
 
  @throws ReviewGitError when git did not answer with a success
@@ -215,10 +253,12 @@ export async function outputOfGit({
   git,
   checkoutFolder,
   words,
+  readAs = 'text',
 }: {
   readonly git: GitQuestion;
   readonly checkoutFolder: string;
   readonly words: readonly string[];
+  readonly readAs?: 'text' | 'one-character-per-byte';
 }): Promise<string> {
   /**
    What git answered.
@@ -226,6 +266,7 @@ export async function outputOfGit({
   const answered = await git({
     words,
     folder: checkoutFolder,
+    readAs,
   },);
   if (answered.status !== 0) {
     throw new ReviewGitError(
@@ -396,26 +437,6 @@ export function rangeOfABranch({
 }
 
 /**
- Says whether a path is a file a review reads because of what its extension says it holds.
-
- A file of an extension in neither list of `which-files-a-review-reads.ts` is a kind this writer does not know, and a review reads
- it as code rather than drop it: a change nobody listed is more likely a language nobody added here yet than a file a review has
- no use for, and a wasted review costs less than an unread change.
-
- @param path - a path from the top of the checkout
-
- @returns whether the path is code a reviewer reads
-
- @example
- ```ts
- const isCode = isReadAsCodeOfTheChange({ path: 'src/gate.rs', },);
- ```
- */
-function isReadAsCodeOfTheChange({ path, }: { readonly path: string },): boolean {
-  return whatAReviewDoesWithAFile({ path, },) !== 'leaves-it-out';
-}
-
-/**
  Says whether a path is a manifest or a tool configuration that decides how the code beside it is built, checked or run.
 
  @param path - a path from the top of the checkout
@@ -450,6 +471,33 @@ function isABuildDecisionAReviewerReads(path: string,): boolean {
 }
 
 /**
+ Says what kind of file a changed path is to this review, which is what decides whether the change is read as code or as tests.
+
+ A name that decides a build is code although its extension says data, and that rule lives in this module because the names do. The
+ test and fixture lists are asked first, as they are everywhere: a `Cargo.toml` inside a `fixtures/` folder is that fixture, and no
+ build decision.
+
+ @param path - a path from the top of the checkout
+
+ @returns the kind of file the path is
+
+ @example
+ ```ts
+ const kind = kindOfAChangedPath('package/a/src/gate.unit.test.ts',);
+ ```
+ */
+function kindOfAChangedPath(path: string,): KindOfAFileAReviewReads {
+  /**
+   The kind the lists of `which-files-a-review-reads.ts` give the file.
+   */
+  const kind = kindOfAFileAReviewReads({ path, },);
+  if ((kind === 'a-test') || (kind === 'a-fixture')) {
+    return kind;
+  }
+  return ((kind === 'code') || isABuildDecisionAReviewerReads(path,)) ? 'code' : kind;
+}
+
+/**
  Filters the paths a change touched down to the files a reviewer reads: the code, the files of a kind no list names, and the
  manifests and tool configurations that decide how that code is built, checked or run.
 
@@ -464,8 +512,11 @@ function isABuildDecisionAReviewerReads(path: string,): boolean {
  */
 export function codeFilesAmong({ paths, }: { readonly paths: readonly string[] },): readonly string[] {
   return paths.filter(function isAFileAReviewerReads(path,) {
-    return (isReadAsCodeOfTheChange({ path, },) || isABuildDecisionAReviewerReads(path,))
-      && (!isATestOrAFixture({ path, },));
+    /**
+     The kind of file the path is.
+     */
+    const kind = kindOfAChangedPath(path,);
+    return (kind === 'code') || (kind === 'a-unlisted-kind');
   },);
 }
 
@@ -484,7 +535,7 @@ export function codeFilesAmong({ paths, }: { readonly paths: readonly string[] }
  */
 export function filesOfAnUnlistedKindAmong({ paths, }: { readonly paths: readonly string[] },): readonly string[] {
   return paths.filter(function isOfAnUnlistedKind(path,) {
-    return whatAReviewDoesWithAFile({ path, },) === 'reads-it-as-code-of-an-unlisted-kind';
+    return kindOfAChangedPath(path,) === 'a-unlisted-kind';
   },);
 }
 
@@ -503,7 +554,11 @@ export function filesOfAnUnlistedKindAmong({ paths, }: { readonly paths: readonl
  */
 export function testsAndFixturesAmong({ paths, }: { readonly paths: readonly string[] },): readonly string[] {
   return paths.filter(function isATestOrAFixturePath(path,) {
-    return isATestOrAFixture({ path, },);
+    /**
+     The kind of file the path is.
+     */
+    const kind = kindOfAChangedPath(path,);
+    return (kind === 'a-test') || (kind === 'a-fixture');
   },);
 }
 
@@ -565,19 +620,23 @@ export async function materialOfAReview({
         source,
       ],
     },),);
-    for (const path of (await outputOfGit({
-      git,
-      checkoutFolder,
-      words: [
-        'diff',
-        '--name-only',
-        '--diff-filter=AM',
-        range,
-        '--',
-        source,
-      ],
-    },)).split('\n',)) {
-      if ((path !== '') && (!touched.includes(path,))) {
+    for (const path of pathsInAListing({
+      listing: await outputOfGit({
+        git,
+        checkoutFolder,
+        readAs: 'one-character-per-byte',
+        words: [
+          'diff',
+          '--name-only',
+          '-z',
+          '--diff-filter=AM',
+          range,
+          '--',
+          source,
+        ],
+      },),
+    },)) {
+      if (!touched.includes(path,)) {
         touched.push(path,);
       }
     }
@@ -586,21 +645,22 @@ export async function materialOfAReview({
   /**
    The paths the reviewed commit still holds, so a file a later commit deleted is not given to a reviewer to read.
    */
-  const held = new Set((await outputOfGit({
-    git,
-    checkoutFolder,
-    words: [
-      'ls-tree',
-      '--name-only',
-      '-r',
-      commit,
-      '--',
-      source,
-    ],
-  },)).split('\n',)
-    .filter(function isPath(line,) {
-      return line !== '';
-    },),);
+  const held = new Set(pathsInAListing({
+    listing: await outputOfGit({
+      git,
+      checkoutFolder,
+      readAs: 'one-character-per-byte',
+      words: [
+        'ls-tree',
+        '--name-only',
+        '-r',
+        '-z',
+        commit,
+        '--',
+        source,
+      ],
+    },),
+  },),);
   /**
    The touched paths the reviewed commit holds.
    */
@@ -608,52 +668,44 @@ export async function materialOfAReview({
     return held.has(path,);
   },);
   /**
-   The code, the files of an unlisted kind and the build decisions among them, which a reviewer reads whenever the change leaves
-   any.
-   */
-  const files = codeFilesAmong({ paths: readable, },);
-  /**
    The diff of every range, in the order the ranges were given.
    */
   const diff = diffs.join('\n',);
-  if (files.length > 0) {
+  /**
+   What this review reads and what it leaves out, which is the table of `plan-of-a-review.ts` for the kinds this change holds.
+   */
+  const plan = planOfAChange({
+    paths: readable,
+    kinds: readable.map(function kindOf(path,) {
+      return kindOfAChangedPath(path,);
+    },),
+  },);
+  if (plan.kind === 'code-and-build-decisions') {
     return {
       diff,
       kind: 'code-and-build-decisions',
-      files,
-      filesOfAnUnlistedKind: filesOfAnUnlistedKindAmong({ paths: files, },),
+      files: plan.files,
+      filesOfAnUnlistedKind: plan.filesOfAnUnlistedKind,
+      filesLeftOut: plan.filesLeftOut,
     };
   }
-  /**
-   The tests and fixtures among them, which are what makes the change a change to tests.
-   */
-  const testsAndFixtures = testsAndFixturesAmong({ paths: readable, },);
-  /**
-   The notes among them, which no test reads: a change that holds one is not a change to tests alone, and a review of its tests
-   would say nothing about the note while claiming the change is to them.
-   */
-  const notes = readable.filter(function isANoteAReviewLeavesOut(path,) {
-    return whatAChangeToTestsReads({ path, },) === 'a-note';
-  },);
-  /**
-   Every path the change touched that the reviewed commit holds, which a change to tests reads in full: the tests, the fixtures
-   beside them, and the material a test may read that no list names, so a test and the answer it reads are never answered as
-   nothing to review.
-   */
-  return ((testsAndFixtures.length > 0) && (notes.length === 0))
-    ? {
+  if (plan.kind === 'tests-and-fixtures') {
+    return {
       diff,
       kind: 'tests-and-fixtures',
-      files: readable,
-    }
-    : {
-      diff,
-      kind: 'nothing-a-review-reads',
-      whyNothingIsRead: whyNothingIsRead({
-        source,
-        changed: readable,
-      },),
+      files: plan.files,
+      filesOfCode: plan.filesOfCode,
+      filesLeftOut: plan.filesLeftOut,
     };
+  }
+  return {
+    diff,
+    kind: 'nothing-a-review-reads',
+    whyNothingIsRead: whyNothingIsRead({
+      source,
+      changed: readable,
+    },),
+  };
 }
 
 /**

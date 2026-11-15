@@ -266,7 +266,8 @@ function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
     /**
      The paths as git prints them, one to a line.
      */
-    const listed = (paths.length === 0) ? '' : `${paths.join('\n',)}\n`;
+    // Git prints a listing it cannot quote with `-z`, so one NUL byte ends each name.
+    const listed = (paths.length === 0) ? '' : `${paths.join('\0',)}\0`;
     return {
       status: 0,
       stdout: (words[0] === 'ls-tree') ? listed : ((words[1] === '--name-only') ? listed : 'a diff of them'),
@@ -375,7 +376,7 @@ await describe({
           },
         },),
         it({
-          name: 'writes the brief of a change of code as it always did, naming the code and asking for no break, even when the range changed a test beside it',
+          name: 'writes the brief of a change to tests when the range holds code beside the test, naming both and asking for a break and for the code requirements, because a changed test is read whatever else the change holds',
           fn: async () => {
             await using written = await writeAChangeThrough([aCodeFile(), aTestFile(),],);
             /**
@@ -389,10 +390,11 @@ await describe({
               'utf8',
             );
             expect(written.briefed.written,).toBe(true,);
-            expect(brief,).toContain(`Review a change under \`${aSourceFolder()}\`.`,);
+            expect(brief,).toContain('a change to the tests under',);
             expect(brief,).toContain(`- \`${aCodeFile()}\``,);
-            expect(brief,).not.toContain(`- \`${aTestFile()}\``,);
-            expect(brief,).not.toContain('plant a break',);
+            expect(brief,).toContain(`- \`${aTestFile()}\``,);
+            expect(brief,).toContain('plant a break',);
+            expect(brief,).toContain('The code must meet these requirements:',);
           },
         },),
         it({
@@ -426,19 +428,10 @@ await describe({
           },
         },),
         it({
-          name: 'refuses a change of a note beside a test, naming both, because a review of that test alone would leave the note and its own change unread',
+          name: 'writes the brief of a change to tests when a note changed beside the test, naming the note as left out with the reason, so a line of prose never takes the review away',
           fn: async () => {
             await using written = await writeAChangeThrough([aNoteFile(), aTestFile(),],);
-            expect(written.briefed.line,).toContain(`\`${aNoteFile()}\``,);
-            expect(written.briefed.line,).toContain(`\`${aTestFile()}\``,);
-          },
-        },),
-        it({
-          name: 'writes a brief that names a shim\'s `.cjs` source and its `.d.cts` types beside their test, which a range that changes them was once answered "nothing to review" for',
-          fn: async () => {
-            await using written = await writeAChangeThrough([...shimSourceAndItsTypes(), aTestFile(), aNoteFile(),],);
             expect(written.briefed.written,).toBe(true,);
-            expect(written.briefed.line,).toContain('2 files to read',);
             /**
              The brief the writer wrote.
              */
@@ -449,10 +442,33 @@ await describe({
               },),
               'utf8',
             );
-            for (const file of shimSourceAndItsTypes()) {
+            expect(brief,).toContain(`- \`${aTestFile()}\``,);
+            expect(brief,).toContain(`\`${aNoteFile()}\` is left out: a note, which no test reads.`,);
+            // The note is named once, in the left-out paragraph, and never in the list of files to read.
+            expect(brief.split(aNoteFile(),).length - 1,).toBe(1,);
+            expect(brief,).toContain('plant a break',);
+          },
+        },),
+        it({
+          name: 'writes the brief of a change to tests for the shim\'s `.cjs` source and its `.d.cts` types beside their test, naming the code and the test and leaving the note out by name, which that range was once answered "nothing to review" for',
+          fn: async () => {
+            await using written = await writeAChangeThrough([...shimSourceAndItsTypes(), aTestFile(), aNoteFile(),],);
+            expect(written.briefed.written,).toBe(true,);
+            expect(written.briefed.line,).toContain('3 files to read',);
+            /**
+             The brief the writer wrote.
+             */
+            const brief = await readFile(
+              briefFileOfAReview({
+                reviewsFolder: written.reviewsFolder,
+                review: aReview(),
+              },),
+              'utf8',
+            );
+            for (const file of [...shimSourceAndItsTypes(), aTestFile(),]) {
               expect(brief,).toContain(`- \`${file}\``,);
             }
-            expect(brief,).not.toContain(`- \`${aTestFile()}\``,);
+            expect(brief,).toContain(`\`${aNoteFile()}\` is left out: a note, which no test reads.`,);
             expect(written.briefed.line,).not.toContain('no list of this writer',);
           },
         },),

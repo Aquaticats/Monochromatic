@@ -14,6 +14,7 @@ import {
   REVIEW_OF_A_CHANGE_TEMPLATE,
   REVIEW_OF_A_CHANGE_TO_TESTS_TEMPLATE,
 } from './briefs/review-of-a-change-template.ts';
+import type { LeftOutFile, } from './plan-of-a-review.ts';
 import {
   reproductionsFolderOfAReview,
   reviewFolderOf,
@@ -37,10 +38,38 @@ export const REVIEW_BRIEF_PLACEHOLDERS: readonly string[] = [
   'SCRATCH_FOLDER',
   'SUBJECT',
   'FILES',
+  'LEFT_OUT',
+  'REQUIREMENTS',
   'REPRODUCTIONS_FOLDER',
   'FOCUS',
   'REVIEW_FILE',
 ];
+
+/**
+ The requirements a change of code is judged by, which are the project's own.
+ */
+export const WHAT_A_CHANGE_TO_CODE_MUST_MEET: string =
+  'It must meet these requirements: "never discard user data", "Commits should never fail.", and "nothing should ever wait '
+    + 'forever or indefinitely".';
+
+/**
+ The requirements a change of tests and fixtures alone is judged by: the files themselves are the change, so what a reviewer can
+ show about them is that each test still fails when the code it checks does the wrong thing.
+ */
+export const WHAT_A_CHANGE_TO_TESTS_MUST_PROVE: string =
+  'These files are tests and the fixtures tests use, and the change is to them alone. It must meet this requirement: a test '
+    + 'proves what it proved before, so it still fails when the code it checks does the wrong thing, and still passes only when '
+    + 'that code does what it must.';
+
+/**
+ The requirements a change is judged by when it holds a test and the code that test checks: both, because a reviewer reads the
+ code as well as planting a break under each test.
+ */
+export const WHAT_TESTS_AND_THEIR_CODE_MUST_MEET: string =
+  'These files are the tests and the fixtures tests use, and the code beside them. The code must meet these requirements: '
+    + '"never discard user data", "Commits should never fail.", and "nothing should ever wait forever or indefinitely". Each '
+    + 'test must meet this requirement: a test proves what it proved before, so it still fails when the code it checks does the '
+    + 'wrong thing, and still passes only when that code does what it must.';
 
 /**
  What a reviewer of a change looks hardest at, when its caller names no focus: the defects a person meets while the code runs,
@@ -83,6 +112,66 @@ export function subjectOfAChangeToTests({ source, }: { readonly source: string }
 }
 
 /**
+ Reads the file list a brief gives its reviewer, and says what an escape means when a name needs one.
+
+ Git's names are bytes, and a brief is text: a name whose bytes are not UTF-8, or that holds a newline, a tab, a backslash or a
+ backtick, is shown with `\x` escapes, which are the file's own bytes. A shell takes those bytes as a `$'...'` word, so the
+ reviewer can still reach the file.
+
+ @param files - the files the reviewer reads, as the material shows each name
+
+ @returns the list items, and the sentence that explains an escape when one appears
+
+ @example
+ ```ts
+ const items = filesToListItems({ files: ['package/a/src/gate.rs'], },);
+ ```
+ */
+export function filesToListItems({ files }: { readonly files: readonly string[] },): string {
+  /**
+   The list, one path to a line.
+   */
+  const listed = files.map(function asAListItem(path,) {
+    return `- \`${path}\``;
+  },)
+    .join('\n',);
+  /**
+   Whether any name needed an escape, which is what the sentence is for.
+   */
+  const escaped = files.some(function holdsAnEscape(path,) {
+    return path.includes(String.raw`\x`,);
+  },);
+  return escaped
+    ? `${listed}\nA path shown with \`\\x\` escapes is that file's own bytes, which a shell reads as a \`$'...'\` word.`
+    : listed;
+}
+
+/**
+ Reads the paragraph a brief gives the files its review leaves out, each by name with the reason, so a file a review cannot judge
+ never decides for the files beside it.
+
+ @param filesLeftOut - the files the review leaves out, each with its reason
+
+ @returns the paragraph, or a sentence that says every changed file is read
+
+ @example
+ ```ts
+ const paragraph = leftOutParagraphOf({ filesLeftOut: [{ path: 'package/a/src/notes.md', why: 'a note, which no test reads', }], },);
+ ```
+ */
+export function leftOutParagraphOf({ filesLeftOut }: {
+  readonly filesLeftOut: readonly LeftOutFile[];
+},): string {
+  if (filesLeftOut.length === 0) {
+    return 'Every file the change touched is read above.';
+  }
+  return `These files are left out, with the reason:\n${filesLeftOut.map(function asALeftOutItem(file,) {
+    return `- \`${file.path}\` is left out: ${file.why}.`;
+  },)
+    .join('\n',)}`;
+}
+
+/**
  Builds the value of every placeholder the review brief carries.
 
  @param review - the change the review reads
@@ -92,6 +181,10 @@ export function subjectOfAChangeToTests({ source, }: { readonly source: string }
  @param source - the folder whose changes are reviewed
 
  @param files - the files the reviewer reads, from the top of the checkout
+
+ @param filesLeftOut - the files the review leaves out, each with the reason
+
+ @param requirements - the requirements the change is judged by, as the brief reads them
 
  @param focus - what the reviewer looks hardest at
 
@@ -113,6 +206,8 @@ export function reviewBriefValues({
   commit,
   source,
   files,
+  filesLeftOut,
+  requirements,
   focus,
   reviewsFolder,
   runsFolder,
@@ -122,6 +217,8 @@ export function reviewBriefValues({
   readonly commit: string;
   readonly source: string;
   readonly files: readonly string[];
+  readonly filesLeftOut: readonly LeftOutFile[];
+  readonly requirements: string;
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -137,10 +234,9 @@ export function reviewBriefValues({
       review,
     },),
     SUBJECT: subjectOfAReview({ source, },),
-    FILES: files.map(function asAListItem(path,) {
-      return `- \`${path}\``;
-    },)
-      .join('\n',),
+    FILES: filesToListItems({ files, },),
+    LEFT_OUT: leftOutParagraphOf({ filesLeftOut, },),
+    REQUIREMENTS: requirements,
     REPRODUCTIONS_FOLDER: reproductionsFolderOfAReview({
       reviewsFolder,
       review,
@@ -164,6 +260,8 @@ export function reviewBriefValues({
 
  @param files - the files the reviewer reads
 
+ @param filesLeftOut - the files the review leaves out, each with the reason
+
  @param focus - what the reviewer looks hardest at
 
  @param reviewsFolder - folder that holds one folder per review
@@ -186,6 +284,7 @@ export function briefOfAReview({
   commit,
   source,
   files,
+  filesLeftOut,
   focus,
   reviewsFolder,
   runsFolder,
@@ -195,6 +294,7 @@ export function briefOfAReview({
   readonly commit: string;
   readonly source: string;
   readonly files: readonly string[];
+  readonly filesLeftOut: readonly LeftOutFile[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -207,6 +307,8 @@ export function briefOfAReview({
       commit,
       source,
       files,
+      filesLeftOut,
+      requirements: WHAT_A_CHANGE_TO_CODE_MUST_MEET,
       focus,
       reviewsFolder,
       runsFolder,
@@ -226,7 +328,11 @@ export function briefOfAReview({
 
  @param source - the folder whose changes are reviewed
 
- @param files - the changed tests and fixtures the reviewer reads
+ @param files - the changed tests, fixtures and material beside them the reviewer reads
+
+ @param filesOfCode - the code among those files, which the brief asks the project's requirements for
+
+ @param filesLeftOut - the files the review leaves out, each with the reason
 
  @param focus - what the reviewer looks hardest at
 
@@ -250,6 +356,8 @@ export function briefOfAChangeToTests({
   commit,
   source,
   files,
+  filesOfCode,
+  filesLeftOut,
   focus,
   reviewsFolder,
   runsFolder,
@@ -259,6 +367,8 @@ export function briefOfAChangeToTests({
   readonly commit: string;
   readonly source: string;
   readonly files: readonly string[];
+  readonly filesOfCode: readonly string[];
+  readonly filesLeftOut: readonly LeftOutFile[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -272,6 +382,8 @@ export function briefOfAChangeToTests({
         commit,
         source,
         files,
+        filesLeftOut,
+        requirements: (filesOfCode.length > 0) ? WHAT_TESTS_AND_THEIR_CODE_MUST_MEET : WHAT_A_CHANGE_TO_TESTS_MUST_PROVE,
         focus,
         reviewsFolder,
         runsFolder,

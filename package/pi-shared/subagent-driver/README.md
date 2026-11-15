@@ -562,8 +562,15 @@ review-rewrite-the-gate: 12 files to read, brief at <reviews>/rewrite-the-gate/b
 
 What the reviewer reads depends on what the ranges changed under the source folder.
 
-A range that holds code or a build decision is reviewed as the change itself.
-The files are the code the ranges touched,
+A range that holds a test or a fixture is a change to tests,
+whatever else it holds,
+and one that holds code or a build decision and no test is reviewed as the change itself
+(a manifest or a tool configuration that decides a build is read among the code,
+and a file of an extension no list names is read as code and named in the line).
+Every brief names the files the change touched that it does not read,
+with the reason,
+so a note or a data file never decides for the files beside it.
+The files of a change of code are the code the ranges touched,
 in every language this repository is written in or renders,
 and the manifests and tool configurations that decide how that code is built,
 checked or run,
@@ -590,6 +597,15 @@ That is why a change of a shim's `index.cjs` and `index.d.cts` is reviewed:
 neither extension was a language the writer read,
 and a range that changed them, their test and their note was answered `nothing to review` on 2026-11-14.
 
+Git prints a path it quotes with backslashes and a closing quote,
+so a listing of names is asked for with `-z` and read one character per byte:
+the name is the file's own bytes,
+the extension and the test suffix are checked on those bytes,
+and the brief shows a name that needs an escape
+(a byte that is not UTF-8, a newline, a tab, a backslash or a backtick)
+with `\x` escapes a shell takes as a `$'...'` word.
+A name with a non-ASCII letter, a space or a quote is shown as it is.
+
 An extension in neither list is a kind this writer does not know.
 A review reads such a file as code rather than drop it,
 listing it among the files to read,
@@ -602,7 +618,8 @@ review-a-change: 2 files to read, brief at <reviews>/a-change/brief.md; its work
 A file of an unlisted extension that the test rule below claims is read as a test instead,
 and the brief says the change is to tests.
 
-A range whose change is tests and fixtures alone has no code to judge,
+A range whose change is tests and fixtures, alone or with code beside them,
+is judged as a change to tests,
 so the reviewer reads those files instead.
 Which names and folders mark a test or a fixture were measured the same way as the extensions,
 from `git ls-files` on 2026-11-15:
@@ -621,7 +638,11 @@ a folder rule cannot see whether a test reads a file,
 and reading one a test never opens costs a reviewer a file,
 where leaving out the one it does read costs the whole review.
 A note beside a test is read by no test,
-so a range that holds one is refused and its line names both.
+so the brief names it as left out, with that reason,
+and the test is still read and still broken:
+a line of prose in the same commit never switches a review off.
+A code file beside a test is read too,
+and the brief asks the project's requirements for it as well.
 The brief says in plain words that the change is to tests,
 and asks for the one thing a reviewer can show about a test:
 for each changed test,
@@ -636,6 +657,8 @@ which is a change of notes alone,
 of data or a picture alone,
 of a lockfile,
 or of nothing at all,
+and which holds no test,
+no fixture and no code,
 writes nothing,
 prints one line,
 and exits `1`:

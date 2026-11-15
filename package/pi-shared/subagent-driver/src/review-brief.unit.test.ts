@@ -14,11 +14,15 @@ import {
 } from '@monochromatic-dev/test-harness-core/ts';
 import {
   FOCUS_OF_A_CHANGE_REVIEW,
+  type LeftOutFile,
   NO_SYNTHETIC_HOST_LOAD,
   REVIEW_BRIEF_PLACEHOLDERS,
   TemplatePlaceholderError,
+  WHAT_TESTS_AND_THEIR_CODE_MUST_MEET,
   briefOfAChangeToTests,
   briefOfAReview,
+  filesToListItems,
+  leftOutParagraphOf,
   placeholdersIn,
   placeholdersInTheBriefOfAChangeToTests,
   placeholdersInTheReviewBrief,
@@ -155,6 +159,7 @@ function aBriefRequest(): {
   readonly commit: string;
   readonly source: string;
   readonly files: readonly string[];
+  readonly filesLeftOut: readonly LeftOutFile[];
   readonly focus: string;
   readonly reviewsFolder: string;
   readonly runsFolder: string;
@@ -165,6 +170,7 @@ function aBriefRequest(): {
     commit: aCommit(),
     source: aSourceFolder(),
     files: [aReviewedFile(),],
+    filesLeftOut: [],
     focus: FOCUS_OF_A_CHANGE_REVIEW,
     reviewsFolder: aReviewsFolder(),
     runsFolder: aRunsFolder(),
@@ -200,12 +206,50 @@ function aBriefOfAChangeToTests(): string {
   return briefOfAChangeToTests({
     ...aBriefRequest(),
     files: theChangedTests(),
+    filesOfCode: [],
   },);
 }
 
 await describe({
   name: '',
   children: [
+    describe({
+      name: filesToListItems.name,
+      children: [
+        it({
+          name: 'lists a file a reviewer reads as a path, and says what an escape means only when a name holds one, because Git names are bytes and a brief is text',
+          fn: async () => {
+            expect(filesToListItems({ files: [aReviewedFile(),], },),).toBe(`- \`${aReviewedFile()}\``,);
+            expect(filesToListItems({ files: [aReviewedFile(),], },),).not.toContain('escapes',);
+            /**
+             A name whose bytes are not UTF-8, as the material shows it.
+             */
+            const escaped = `${aSourceFolder()}/\\xe9.unit.test.ts`;
+            expect(filesToListItems({ files: [escaped,], },),).toContain(`- \`${escaped}\``,);
+            expect(filesToListItems({ files: [escaped,], },),).toContain("a shell reads as a `$'...'` word",);
+          },
+        },),
+      ],
+    },),
+    describe({
+      name: leftOutParagraphOf.name,
+      children: [
+        it({
+          name: 'says every changed file is read when none is left out, and names each file it leaves out with the reason, so a note beside a test is named rather than taking the review away',
+          fn: async () => {
+            expect(leftOutParagraphOf({ filesLeftOut: [], },),).toBe('Every file the change touched is read above.',);
+            /**
+             The note beside the changed test.
+             */
+            const note: LeftOutFile = { path: `${aSourceFolder()}/notes.md`, why: 'a note, which no test reads', };
+            expect(leftOutParagraphOf({ filesLeftOut: [note,], },),).toContain(
+              `- \`${note.path}\` is left out: a note, which no test reads.`,
+            );
+            expect(leftOutParagraphOf({ filesLeftOut: [note,], },),).toContain('These files are left out, with the reason:',);
+          },
+        },),
+      ],
+    },),
     describe({
       name: 'the review brief\'s placeholders',
       children: [
@@ -218,7 +262,10 @@ await describe({
              The names the brief's values fill.
              */
             const filledNames = Object.keys(
-              reviewBriefValues(aBriefRequest(),),
+              reviewBriefValues({
+                ...aBriefRequest(),
+                requirements: WHAT_TESTS_AND_THEIR_CODE_MUST_MEET,
+              },),
             );
             expect(filledNames,).toEqual([...REVIEW_BRIEF_PLACEHOLDERS,],);
           },
@@ -344,6 +391,27 @@ await describe({
           },
         },),
         it({
+          name: 'names the files a change of code leaves out, each with the reason, so data beside code is said to be left out rather than dropped',
+          fn: async () => {
+            /**
+             The data file beside the code.
+             */
+            const data: LeftOutFile = {
+              path: `${aSourceFolder()}/catalog.json`,
+              why: 'data, a picture or what a tool wrote, which is no code and which no test in this change reads',
+            };
+            /**
+             The brief, filled with that file left out.
+             */
+            const brief = briefOfAReview({
+              ...aBriefRequest(),
+              filesLeftOut: [data,],
+            },);
+            expect(brief,).toContain(`- \`${data.path}\` is left out: ${data.why}.`,);
+            expect(brief,).not.toContain('Every file the change touched is read above.',);
+          },
+        },),
+        it({
           name: 'leaves the planted-break demand out of a change of code, whose reviewer judges the code as the change itself',
           fn: async () => {
             expect(aBrief(),).not.toContain('plant a break',);
@@ -355,8 +423,45 @@ await describe({
           fn: async () => {
             expect(() => briefOfAChangeToTests({
               ...aBriefRequest(),
+              filesOfCode: [],
               reviewsFolder: `${aReviewsFolder()}/@FOCUS@`,
             },),).toThrow(TemplatePlaceholderError,);
+          },
+        },),
+        it({
+          name: 'asks the code requirements as well when the change holds code beside its tests, because its reviewer reads that code too',
+          fn: async () => {
+            /**
+             The brief of a change whose tests come with the code they check.
+             */
+            const brief = briefOfAChangeToTests({
+              ...aBriefRequest(),
+              files: [...theChangedTests(), aReviewedFile(),],
+              filesOfCode: [aReviewedFile(),],
+            },);
+            expect(brief,).toContain(WHAT_TESTS_AND_THEIR_CODE_MUST_MEET,);
+            expect(brief,).toContain('For each changed test above, plant a break under it',);
+            expect(aBriefOfAChangeToTests(),).not.toContain('The code must meet these requirements',);
+          },
+        },),
+        it({
+          name: 'names a note beside the changed tests as left out, so a line of prose never takes a test review away',
+          fn: async () => {
+            /**
+             The note that changed beside the tests.
+             */
+            const note: LeftOutFile = { path: `${aSourceFolder()}/notes.md`, why: 'a note, which no test reads', };
+            /**
+             The brief of that change.
+             */
+            const brief = briefOfAChangeToTests({
+              ...aBriefRequest(),
+              files: theChangedTests(),
+              filesOfCode: [],
+              filesLeftOut: [note,],
+            },);
+            expect(brief,).toContain(`- \`${note.path}\` is left out: a note, which no test reads.`,);
+            expect(brief,).toContain('For each changed test above, plant a break under it',);
           },
         },),
       ],

@@ -18,6 +18,7 @@ import {
   ReviewGitError,
   codeFilesAmong,
   materialOfAReview,
+  pathsInAListing,
   rangeOfABranch,
   testsAndFixturesAmong,
 } from '../dist/final/node/index.mjs';
@@ -294,7 +295,8 @@ function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
     /**
      The paths as git prints them, one to a line.
      */
-    const listed = `${paths.join('\n',)}\n`;
+    // Git prints a listing it cannot quote with `-z`, so one NUL byte ends each name.
+    const listed = (paths.length === 0) ? '' : `${paths.join('\0',)}\0`;
     return answered((words[0] === 'ls-tree') ? listed : ((words[1] === '--name-only') ? listed : 'a diff of them'),);
   };
 }
@@ -489,7 +491,7 @@ await describe({
       name: materialOfAReview.name,
       children: [
         it({
-          name: 'reads each range\'s diff under the source folder, keeps only the code the reviewed commit still holds, and asks git for each with the words that filter them',
+          name: 'reads each range\'s diff under the source folder, keeps only the code the reviewed commit still holds, and asks git for a listing it cannot quote, one character per byte',
           fn: async () => {
             /**
              The git questions the reading asked, in order.
@@ -511,7 +513,7 @@ await describe({
                 return answered(answers.get('ls-tree') ?? '',);
               }
               return answered((words[1] === '--name-only')
-                ? `${aSourceFolder()}/gate.rs\n${aSourceFolder()}/gate_tests.rs\n${aSourceFolder()}/gone.rs`
+                ? `${aSourceFolder()}/gate.rs\0${aSourceFolder()}/gate_tests.rs\0${aSourceFolder()}/gone.rs\0`
                 : (answers.get('diff') ?? ''),);
             }
             /**
@@ -540,6 +542,7 @@ await describe({
             expect(asked,).toContainEqual([
               'diff',
               '--name-only',
+              '-z',
               '--diff-filter=AM',
               ranges[0],
               '--',
@@ -549,6 +552,7 @@ await describe({
               'ls-tree',
               '--name-only',
               '-r',
+              '-z',
               aCommit(),
               '--',
               aSourceFolder(),
@@ -629,7 +633,7 @@ await describe({
           },
         },),
         it({
-          name: 'reads a change of code and a test as the code alone, so a range that holds code is reviewed as it was',
+          name: 'reads a change that holds code and a test as a change to tests, listing the code beside the test, because a changed test is read whatever else the change holds',
           fn: async () => {
             /**
              What the reading answered.
@@ -641,12 +645,14 @@ await describe({
               source: aSourceFolder(),
               commit: aCommit(),
             },);
-            expect(material.kind,).toBe('code-and-build-decisions',);
-            expect(codeFilesOf(material,),).toEqual([`${aSourceFolder()}/gate.rs`,],);
+            expect(material.kind,).toBe('tests-and-fixtures',);
+            expect(testsFilesOf(material,),).toEqual([`${aSourceFolder()}/gate.rs`, aTestFilePath(),],);
+            expect((material.kind === 'tests-and-fixtures') ? material.filesOfCode : [],)
+              .toEqual([`${aSourceFolder()}/gate.rs`,],);
           },
         },),
         it({
-          name: 'reads a change of a `.cjs` source and its `.d.cts` types beside their test and their note as code, which is the change of `7ec2fd422d` that a range names and that was once answered "nothing to review"',
+          name: 'reads the change of `7ec2fd422d`, a `.cjs` source and its `.d.cts` types beside their test and their note, as a change to tests that lists the code and leaves the note out by name',
           fn: async () => {
             /**
              What the reading answered.
@@ -658,8 +664,16 @@ await describe({
               source: aSourceFolder(),
               commit: aCommit(),
             },);
-            expect(material.kind,).toBe('code-and-build-decisions',);
-            expect(codeFilesOf(material,),).toEqual(shimSourceAndItsTypes(),);
+            expect(material.kind,).toBe('tests-and-fixtures',);
+            expect(testsFilesOf(material,),).toEqual([
+              ...shimSourceAndItsTypes(),
+              `${aSourceFolder()}/index.unit.test.ts`,
+            ],);
+            expect((material.kind === 'tests-and-fixtures') ? material.filesOfCode : [],).toEqual(shimSourceAndItsTypes(),);
+            expect((material.kind === 'tests-and-fixtures') ? material.filesLeftOut : [],).toEqual([{
+              path: aNotePath(),
+              why: 'a note, which no test reads',
+            },],);
           },
         },),
         it({
@@ -750,15 +764,41 @@ await describe({
           },
         },),
         it({
-          name: 'answers nothing for a change of a note beside a test, because the change is not tests and fixtures alone and the note is not something a review reads',
+          name: 'reads a test whose change also holds a note as a change to tests, and names the note as left out with the reason, so a line of prose never takes the review away',
           fn: async () => {
-            expect((await materialOfAReview({
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
               git: gitTouching({ paths: [aNotePath(), `${aSourceFolder()}/gate.unit.test.ts`,], },),
               checkoutFolder: '/repo',
               ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
               source: aSourceFolder(),
               commit: aCommit(),
-            },)).kind,).toBe('nothing-a-review-reads',);
+            },);
+            expect(material.kind,).toBe('tests-and-fixtures',);
+            expect(testsFilesOf(material,),).toEqual([`${aSourceFolder()}/gate.unit.test.ts`,],);
+            expect((material.kind === 'tests-and-fixtures') ? material.filesLeftOut : [],).toEqual([{
+              path: aNotePath(),
+              why: 'a note, which no test reads',
+            },],);
+          },
+        },),
+        it({
+          name: 'reads a test and a recorded answer of a kind no list names as a change to tests, listing both, so the unlisted answer never takes the code path and the test is never dropped',
+          fn: async () => {
+            /**
+             What the reading answered.
+             */
+            const material = await materialOfAReview({
+              git: gitTouching({ paths: [aTestFilePath(), `${aSourceFolder()}/recordings/answer.zig`,], },),
+              checkoutFolder: '/repo',
+              ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+              source: aSourceFolder(),
+              commit: aCommit(),
+            },);
+            expect(material.kind,).toBe('tests-and-fixtures',);
+            expect(testsFilesOf(material,),).toEqual([aTestFilePath(), `${aSourceFolder()}/recordings/answer.zig`,],);
           },
         },),
         it({
@@ -771,7 +811,7 @@ await describe({
               return answered((words[0] === 'ls-tree')
                 ? `${aSourceFolder()}/gate.unit.test.ts`
                 : (words[1] === '--name-only')
-                  ? `${aSourceFolder()}/gate.unit.test.ts\n${aTestFilePath()}`
+                  ? `${aSourceFolder()}/gate.unit.test.ts\0${aTestFilePath()}\0`
                   : 'a diff of two tests');
             }
             /**
@@ -849,6 +889,182 @@ await describe({
               commit: aCommit(),
             },)).kind,).toBe('nothing-a-review-reads',);
           },
+        },),
+
+        describe({
+          name: 'the table of a change',
+          children: [
+            it({
+              name: 'reads and leaves out exactly what the table in this module\'s doc says, for every one of the sixty-four combinations, so a changed test is never dropped and a file a review cannot judge never decides for the files beside it',
+              fn: async () => {
+            /**
+             The table, one row per combination: the kinds the range holds, the kind of change, the kinds a review reads, and the
+             kinds its brief names as left out. It is the table in this module's doc, letter for letter.
+             */
+                const table: readonly (readonly [string, string, string, string])[] = [
+                  ['no file', 'nothing-a-review-reads', '', ''],
+                  ['T', 'tests-and-fixtures', 'T', ''],
+                  ['F', 'tests-and-fixtures', 'F', ''],
+                  ['TF', 'tests-and-fixtures', 'TF', ''],
+                  ['C', 'code-and-build-decisions', 'C', ''],
+                  ['TC', 'tests-and-fixtures', 'TC', ''],
+                  ['FC', 'tests-and-fixtures', 'FC', ''],
+                  ['TFC', 'tests-and-fixtures', 'TFC', ''],
+                  ['U', 'code-and-build-decisions', 'U', ''],
+                  ['TU', 'tests-and-fixtures', 'TU', ''],
+                  ['FU', 'tests-and-fixtures', 'FU', ''],
+                  ['TFU', 'tests-and-fixtures', 'TFU', ''],
+                  ['CU', 'code-and-build-decisions', 'CU', ''],
+                  ['TCU', 'tests-and-fixtures', 'TCU', ''],
+                  ['FCU', 'tests-and-fixtures', 'FCU', ''],
+                  ['TFCU', 'tests-and-fixtures', 'TFCU', ''],
+                  ['M', 'nothing-a-review-reads', '', ''],
+                  ['TM', 'tests-and-fixtures', 'TM', 'M'],
+                  ['FM', 'tests-and-fixtures', 'FM', 'M'],
+                  ['TFM', 'tests-and-fixtures', 'TFM', 'M'],
+                  ['CM', 'code-and-build-decisions', 'C', 'M'],
+                  ['TCM', 'tests-and-fixtures', 'TCM', 'M'],
+                  ['FCM', 'tests-and-fixtures', 'FCM', 'M'],
+                  ['TFCM', 'tests-and-fixtures', 'TFCM', 'M'],
+                  ['UM', 'code-and-build-decisions', 'U', 'M'],
+                  ['TUM', 'tests-and-fixtures', 'TUM', 'M'],
+                  ['FUM', 'tests-and-fixtures', 'FUM', 'M'],
+                  ['TFUM', 'tests-and-fixtures', 'TFUM', 'M'],
+                  ['CUM', 'code-and-build-decisions', 'CU', 'M'],
+                  ['TCUM', 'tests-and-fixtures', 'TCUM', 'M'],
+                  ['FCUM', 'tests-and-fixtures', 'FCUM', 'M'],
+                  ['TFCUM', 'tests-and-fixtures', 'TFCUM', 'M'],
+                  ['P', 'nothing-a-review-reads', '', ''],
+                  ['TP', 'tests-and-fixtures', 'T', 'P'],
+                  ['FP', 'tests-and-fixtures', 'F', 'P'],
+                  ['TFP', 'tests-and-fixtures', 'TF', 'P'],
+                  ['CP', 'code-and-build-decisions', 'C', 'P'],
+                  ['TCP', 'tests-and-fixtures', 'TC', 'P'],
+                  ['FCP', 'tests-and-fixtures', 'FC', 'P'],
+                  ['TFCP', 'tests-and-fixtures', 'TFC', 'P'],
+                  ['UP', 'code-and-build-decisions', 'U', 'P'],
+                  ['TUP', 'tests-and-fixtures', 'TU', 'P'],
+                  ['FUP', 'tests-and-fixtures', 'FU', 'P'],
+                  ['TFUP', 'tests-and-fixtures', 'TFU', 'P'],
+                  ['CUP', 'code-and-build-decisions', 'CU', 'P'],
+                  ['TCUP', 'tests-and-fixtures', 'TCU', 'P'],
+                  ['FCUP', 'tests-and-fixtures', 'FCU', 'P'],
+                  ['TFCUP', 'tests-and-fixtures', 'TFCU', 'P'],
+                  ['MP', 'nothing-a-review-reads', '', ''],
+                  ['TMP', 'tests-and-fixtures', 'TM', 'MP'],
+                  ['FMP', 'tests-and-fixtures', 'FM', 'MP'],
+                  ['TFMP', 'tests-and-fixtures', 'TFM', 'MP'],
+                  ['CMP', 'code-and-build-decisions', 'C', 'MP'],
+                  ['TCMP', 'tests-and-fixtures', 'TCM', 'MP'],
+                  ['FCMP', 'tests-and-fixtures', 'FCM', 'MP'],
+                  ['TFCMP', 'tests-and-fixtures', 'TFCM', 'MP'],
+                  ['UMP', 'code-and-build-decisions', 'U', 'MP'],
+                  ['TUMP', 'tests-and-fixtures', 'TUM', 'MP'],
+                  ['FUMP', 'tests-and-fixtures', 'FUM', 'MP'],
+                  ['TFUMP', 'tests-and-fixtures', 'TFUM', 'MP'],
+                  ['CUMP', 'code-and-build-decisions', 'CU', 'MP'],
+                  ['TCUMP', 'tests-and-fixtures', 'TCUM', 'MP'],
+                  ['FCUMP', 'tests-and-fixtures', 'FCUM', 'MP'],
+                  ['TFCUMP', 'tests-and-fixtures', 'TFCUM', 'MP'],
+                ];
+            /**
+             The path that is a file of each kind, which each row's range is built from.
+             */
+                const aPathOfEachKind: Readonly<Record<string, string>> = {
+                  T: `${aSourceFolder()}/gate.unit.test.ts`,
+                  F: `${aSourceFolder()}/fixture/answer.json`,
+                  C: `${aSourceFolder()}/gate.rs`,
+                  U: `${aSourceFolder()}/recordings/answer.zig`,
+                  M: `${aSourceFolder()}/catalog.json`,
+                  P: `${aSourceFolder()}/notes.md`,
+                };
+            /**
+             The letter the table names a path by.
+
+             @param path - one of the paths above
+
+             @returns the letter, or a question mark for a path the table does not know
+             */
+                function letterOf(path: string,): string {
+                  return Object.keys(aPathOfEachKind,)
+                    .find(function isThePath(letter,) {
+                      return aPathOfEachKind[letter] === path;
+                    },) ?? '?';
+                }
+                expect(table.length,).toBe(64,);
+                /* oxlint-disable eslint/no-await-in-loop -- one row's reading after another, because each assertion names the
+                   row it failed on and the readings share no state. See doc/lint/sequential-awaits.md. */
+                for (const [present, kind, reads, leftOut,] of table) {
+                  /**
+                   The paths of the kinds the row holds.
+                   */
+                  const paths = Array.from(present,)
+                    .map(function pathOf(letter,) {
+                      return aPathOfEachKind[letter] ?? '';
+                    },);
+                  /**
+                   What the reading answered for them.
+                   */
+                  const material = await materialOfAReview({
+                    git: gitTouching({ paths, },),
+                    checkoutFolder: '/repo',
+                    ranges: [`${anIntegrationBranch()}...${aBranch()}`,],
+                    source: aSourceFolder(),
+                    commit: aCommit(),
+                  },);
+                  if (material.kind === 'nothing-a-review-reads') {
+                    expect([present, material.kind,],).toEqual([present, kind,],);
+                    expect([present, reads, leftOut,],).toEqual([present, '', '',],);
+                    continue;
+                  }
+                  expect([present, material.kind,],).toEqual([present, kind,],);
+                  expect([present, material.files.map(letterOf,).join('',),],).toEqual([present, reads,],);
+                  expect([present, material.filesLeftOut.map(function letterOfLeftOut(file,) {
+                    return letterOf(file.path,);
+                  },).join('',),],).toEqual([present, leftOut,],);
+                }
+                /* oxlint-enable eslint/no-await-in-loop */
+              },
+            },),
+          ],
+        },),
+
+        describe({
+          name: pathsInAListing.name,
+          children: [
+            it({
+              name: 'reads a listing Git cannot quote, one name per NUL byte, so a name with a space, a quote or a non-ASCII letter is the file\'s own name and not a quoted rendering of it',
+              fn: async () => {
+                expect(pathsInAListing({ listing: '', },),).toEqual([],);
+                expect(pathsInAListing({ listing: 'package/a/src/gate.rs\0package/a/src/gate.unit.test.ts\0', },),)
+                  .toEqual(['package/a/src/gate.rs', 'package/a/src/gate.unit.test.ts',],);
+            /**
+             A name whose bytes are UTF-8, as Git prints it with `-z`: one character per byte.
+             */
+                const utf8Name = Buffer.from('package/a/src/é.unit.test.ts', 'utf8',)
+                  .toString('latin1',);
+                expect(pathsInAListing({ listing: `${utf8Name}\0`, },),).toEqual(['package/a/src/é.unit.test.ts',],);
+                expect(pathsInAListing({ listing: 'package/a/src/a "quoted" name.rs\0', },),)
+                  .toEqual(['package/a/src/a "quoted" name.rs',],);
+              },
+            },),
+            it({
+              name: 'shows a name whose bytes are not UTF-8, or that holds a newline, a tab, a backslash or a backtick, with a hex escape that is the file\'s bytes, so the brief names a file a shell can still reach',
+              fn: async () => {
+            /**
+             A name holding one byte that is not UTF-8, as a filesystem can.
+             */
+                const notUtf8 = Buffer.from([...Buffer.from('package/a/src/', 'latin1',), 0xE9, ...Buffer.from('.unit.test.ts', 'latin1',)],)
+                  .toString('latin1',);
+                expect(pathsInAListing({ listing: `${notUtf8}\0`, },),)
+                  .toEqual([String.raw`package/a/src/\xe9.unit.test.ts`,],);
+                expect(pathsInAListing({ listing: 'package/a/src/a\\b.rs\0', },),).toEqual([String.raw`package/a/src/a\x5cb.rs`,],);
+                expect(pathsInAListing({ listing: 'package/a/src/a\nb.rs\0', },),).toEqual([String.raw`package/a/src/a\x0ab.rs`,],);
+                expect(pathsInAListing({ listing: 'package/a/src/a\tb.rs\0', },),).toEqual([String.raw`package/a/src/a\x09b.rs`,],);
+                expect(pathsInAListing({ listing: 'package/a/src/a`b.rs\0', },),).toEqual([String.raw`package/a/src/a\x60b.rs`,],);
+              },
+            },),
+          ],
         },),
       ],
     },),
