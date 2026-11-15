@@ -4,7 +4,9 @@
 
 use std::os::unix::fs::{PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 /// The built binary,
 /// which Cargo builds before running these tests.
@@ -376,26 +378,139 @@ fn write_launcher(world: &World) -> (PathBuf, PathBuf) {
     return (directory, count);
 }
 
-/// Runs a command with a deadline,
-/// in its own process group so a runaway tree can be killed whole;
+/// How long a run of the built shadow may take here before the test ends it.
+/// Why:
+/// The bound ends a run that hangs, and must never decide a healthy run's outcome: a test that fails on this machine's speed
+/// measures the machine, not the program (owner rule "nothing should ever wait forever or indefinitely" is what a bound is for).
+/// Its value is the program's own allowance for one cargo call (`cargo_shadow::cargo_run::CARGO_CALL_SECONDS`), and a cargo call
+/// it starts may legally take that long; a bound below that would fail a run the program completes.
+const RUN_BOUND: Duration = Duration::from_secs(cargo_shadow::cargo_run::CARGO_CALL_SECONDS);
+
+/// How often a running command is asked whether it ended.
+const POLL: Duration = Duration::from_millis(50);
+
+/// What a run of a chain that must not nest did.
+enum ChainEnd {
+    /// The command ended by itself, with its complete output.
+    Ended(Output),
+    /// A launcher was entered at a depth other than the first shadow's: the second start led back, and the command was killed.
+    Nested(Vec<String>),
+    /// Neither happened within the bound.
+    Hung,
+}
+
+/// A running command whose two streams are read while it runs.
+/// Why:
+/// A child that prints more than a pipe holds blocks in a write nobody reads, and it then never exits: a correct run looks like a
+/// hang until a clock ends it, which is a machine-speed dependence in the test and not a property of the program (measured
+/// 2026-11-15: a run of this file's launcher test had its child alive in `anon_pipe_write` for seventeen minutes while the helper
+/// waited for it to exit).
+struct Running {
+    /// The command itself, still running or ended and not yet reaped.
+    child:Child,
+    /// Everything it wrote to standard output.
+    printed_out: JoinHandle<Vec<u8>>,
+    /// Everything it wrote to standard error.
+    printed_err: JoinHandle<Vec<u8>>,
+}
+
+/// How a running command is asked.
+impl Running {
+    /// Starts the command in its own process group, so a runaway tree can be killed whole, and reads both of its streams.
+    fn start(command: &mut Command) -> Running {
+        use std::io::Read;
+        use std::os::unix::process::CommandExt;
+        use std::process::Stdio;
+        let mut child: Child = command.process_group(0).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("start the command");
+        let mut out_pipe = child.stdout.take().expect("the standard output pipe");
+        let mut err_pipe = child.stderr.take().expect("the standard error pipe");
+        let printed_out: JoinHandle<Vec<u8>> = std::thread::spawn(move || { let mut found: Vec<u8> = Vec::new(); let _ = out_pipe.read_to_end(&mut found); return found; });
+        let printed_err: JoinHandle<Vec<u8>> = std::thread::spawn(move || { let mut found: Vec<u8> = Vec::new(); let _ = err_pipe.read_to_end(&mut found); return found; });
+        return Running { child, printed_out, printed_err };
+    }
+
+    /// Whether the command ended, without waiting for it.
+    fn ended(&mut self) -> bool {
+        return self.child.try_wait().expect("poll").is_some();
+    }
+
+    /// Kills the command's whole process group and reaps it.
+    fn kill(&mut self) {
+        let _ = Command::new("kill").arg("-KILL").arg(format!("-{}", self.child.id())).status();
+        let _ = self.child.wait();
+    }
+
+    /// The command's status and everything it printed.
+    fn output(mut self) -> Output {
+        let status: std::process::ExitStatus = self.child.wait().expect("reap the command");
+        let stdout: Vec<u8> = self.printed_out.join().expect("the reader of the standard output");
+        let stderr: Vec<u8> = self.printed_err.join().expect("the reader of the standard error");
+        return Output { status, stdout, stderr };
+    }
+}
+
+/// Runs a command with a deadline;
 /// `None` on a timeout.
-fn output_within(command: &mut Command, seconds: u64) -> Option<Output> {
-    use std::os::unix::process::CommandExt;
-    use std::process::Stdio;
-    use std::time::{Duration, Instant};
-    let mut child = command.process_group(0).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("start the command");
+fn output_within(command: &mut Command, bound: Duration) -> Option<Output> {
+    let mut running: Running = Running::start(command);
     let started: Instant = Instant::now();
     loop {
-        if child.try_wait().expect("poll").is_some() {
-            return Some(child.wait_with_output().expect("collect the output"));
+        if running.ended() {
+            return Some(running.output());
         }
-        if started.elapsed() > Duration::from_secs(seconds) {
-            let _ = Command::new("kill").arg("-KILL").arg(format!("-{}", child.id())).status();
-            let _ = child.wait();
+        if started.elapsed() > bound {
+            running.kill();
             return None;
         }
-        std::thread::sleep(Duration::from_millis(50));
+        std::thread::sleep(POLL);
     }
+}
+
+/// The launcher entries whose depth is not the first shadow's.
+/// Why:
+/// The entry trace is append-only and every line is `run <depth> <what started the launcher>`. The first shadow's own starts are all
+/// at depth one; a second start that reaches the launcher again enters it at depth two or more, and it writes that line before it
+/// prints anything. So the line is the loop's own evidence, and it is there the instant the loop happens, whatever the machine's
+/// speed.
+fn entered_below_the_first_shadows_depth(trace: &Path) -> Option<Vec<String>> {
+    let text: String = std::fs::read_to_string(trace).ok()?;
+    // Only the lines whose write has finished: a line still being appended is not an entry yet.
+    let complete: &str = &text[..text.rfind('\n')? + 1];
+    let nested: Vec<String> = complete.lines().filter(|line| { return line.split(' ').nth(1).is_some_and(|depth| { return depth != "1"; }); }).map(str::to_string).collect();
+    return if nested.is_empty() { None } else { Some(nested) };
+}
+
+/// Runs a command whose chain must not nest, watching the entry trace as the event that shows a loop.
+/// Why:
+/// The loop is proven by the trace and not by the clock: a second start that enters the launcher again is reported the instant it
+/// happens, and the bound only ends a run that neither ended nor nested. Nothing here reports a slow machine as a loop, which is
+/// what a deadline alone does.
+fn chain_end_within(command: &mut Command, trace: &Path, bound: Duration) -> ChainEnd {
+    let mut running: Running = Running::start(command);
+    let started: Instant = Instant::now();
+    loop {
+        if running.ended() {
+            return ChainEnd::Ended(running.output());
+        }
+        if let Some(nested) = entered_below_the_first_shadows_depth(trace) {
+            running.kill();
+            return ChainEnd::Nested(nested);
+        }
+        if started.elapsed() > bound {
+            running.kill();
+            return ChainEnd::Hung;
+        }
+        std::thread::sleep(POLL);
+    }
+}
+
+/// The output of a run of such a chain that must have ended by itself.
+fn ended(end: ChainEnd) -> Output {
+    return match end {
+        ChainEnd::Ended(output) => output,
+        ChainEnd::Nested(nested) => panic!("the second start led back into the launcher, which entered it at a depth of its own: {nested:?}"),
+        ChainEnd::Hung => panic!("the run neither ended nor entered the launcher again within {RUN_BOUND:?}, the longest one cargo call the shadow may start; this is a hang and not a slow machine"),
+    };
 }
 
 #[test]
@@ -405,7 +520,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
     let (launcher_directory, count) = write_launcher(&world);
     let launcher: PathBuf = launcher_directory.join("cargo");
     let path: String = path_of(&[&world.shadow_directory, &launcher_directory, &world.fake_directory]);
-    let run = || -> Output {
+    let run = || -> ChainEnd {
         let mut command = shadow_command(&world);
         command
             .args(["check", "-q"])
@@ -413,10 +528,10 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
             .env("PATH", &path)
             .env("CI", "")
             .env("FAKE_CARGO_LOG", &world.log);
-        return output_within(&mut command, 20).expect("the command timed out: the shadow keeps leading back into the launcher");
+        return chain_end_within(&mut command, &count, RUN_BOUND);
     };
 
-    let output = run();
+    let output = ended(run());
 
     // The second start stops before doing any work, with status 2: no lockfile was touched, and no cargo ran.
     let said: String = String::from_utf8_lossy(&output.stderr).into_owned();
@@ -454,7 +569,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
     assert!(fixed_path.starts_with(&world.fake_directory.display().to_string()), "the export line did not put the real cargo's folder first: {fixed_path}");
     let mut fixed = shadow_command(&world);
     fixed.args(["check", "-q"]).current_dir(world.repository.join(CRATE_DIR)).env("PATH", &fixed_path).env("CI", "").env("FAKE_CARGO_LOG", &world.log);
-    let after_a = output_within(&mut fixed, 20).expect("the fixed command timed out");
+    let after_a = output_within(&mut fixed, RUN_BOUND).expect("the fixed command timed out");
     assert_eq!(after_a.status.code(), Some(0), "{}", String::from_utf8_lossy(&after_a.stderr));
     assert_eq!(String::from_utf8_lossy(&after_a.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
 
@@ -467,7 +582,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_at_once_and_its
     // A second run is a fresh chain: the entry trace is cleared so its one starting shadow is what the assertions above mean.
     std::fs::remove_file(&count).ok();
     write_lock(&world, STALE);
-    let after_b = run();
+    let after_b = ended(run());
     assert_eq!(after_b.status.code(), Some(0), "{}", String::from_utf8_lossy(&after_b.stderr));
     assert_eq!(String::from_utf8_lossy(&after_b.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
 }
@@ -494,7 +609,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_sta
     // ```
     write_lock(&world, SATISFIED);
     // Borrow `&world`: lends the value without copying or giving it away.
-    let (launcher_directory, _count) = write_launcher(&world);
+    let (launcher_directory, count) = write_launcher(&world);
     // Borrow `&[`: lends the value without copying or giving it away.
     // What:     `let name: Type = value;` declares a variable with an explicit type, written after a colon, as in TS.
     // Why:      The type is stated so the reader sees what the value is without tracing the right-hand side.
@@ -543,7 +658,7 @@ fn an_unrecorded_launcher_that_leads_back_stops_the_second_start_of_add_with_sta
     // ```ts
     // value ?? fallback
     // ```
-    let output = output_within(&mut command, 20).expect("the command timed out: the shadow keeps leading back into the launcher");
+    let output = ended(chain_end_within(&mut command, &count, RUN_BOUND));
 
     // What:     `Some(value)` is the "present" variant of `Option<T>` and `None` is the "absent" one (siblings: `Result<T, E>`, which carries an error; a TS `T | undefined`).
     // Why:      Absence is a value the caller must check; there is no `null`.
@@ -626,7 +741,7 @@ fn started_through_a_launcher_the_shadow_runs_once_and_never_takes_the_launcher_
     let mut command = Command::new(links.join("cargo"));
     command.args(["check", "-q"]).current_dir(world.repository.join(CRATE_DIR)).env("PATH", path).env("CI", "").env("FAKE_CARGO_LOG", &world.log);
 
-    let output = output_within(&mut command, 20).expect("the command timed out");
+    let output = output_within(&mut command, RUN_BOUND).expect("the command timed out");
 
     assert_eq!(output.status.code(), Some(0), "{}", String::from_utf8_lossy(&output.stderr));
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim_end(), format!("{FAKE_MARKER} check -q"));
