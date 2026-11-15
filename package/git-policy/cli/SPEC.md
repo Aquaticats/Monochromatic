@@ -4860,74 +4860,39 @@ of which the two that rewrite link layouts in place are the service's work whene
   so the new worktree stays as
   checked out.
   That clean runs in a worktree another command may already be working in,
-  and nothing read after it can tell Cargo's own rewrite of that lock from a command's or person's newer write,
-  so the bytes standing there when the clean ends are kept whole before the checked-out ones go back:
-  under the repository's Git directory,
-  in `monochromatic-git-policy-cli-displaced-locks`,
-  under a directory named by the lock's own path in hexadecimal,
-  one file per displacement,
-  written and synced before the write that displaces them.
-  A lock whose bytes cannot be kept,
-  and a repair handed no Git directory to keep them in,
-  is left exactly as the clean found it,
-  because the checked-out bytes are in the branch and those are not;
-  the worktree then shows the difference.
-  The add's Cargo finding names every kept copy.
-  The prewarm job's clean,
-  which runs in the service after the add returned and when the person may be working in the worktree,
-  never writes that lock:
-  it passes `--locked`,
-  and a lock Cargo refuses is resolved in a mirror of the workspace below the Git directory,
-  never in the worktree:
-  the mirror's directories on the way to the workspace are the job's,
-  every other entry is a link to the real one,
-  and the workspace's manifest and lock are copies,
-  so Cargo's resolution writes a `Cargo.lock` that is not the person's file.
-  The resolution's bytes are then placed at the lock with the one step that hands back the file it
-  replaced (`renameat2(RENAME_EXCHANGE)`):
-  whatever stood there at that instant is returned and compared with the bytes the filling read before
-  its clean began,
-  and anything else is a person's write,
-  which is put back and the repair gives way for that workspace.
-  The resolution's bytes are the only ones this step ever deletes:
-  the exchange that puts a person's write back displaces whatever stood at the lock at that instant,
-  and that is read the bounded way and then either recognised as the resolution, which is this step's
-  own, or kept where the exchange left it under a name the answer gives,
-  because a save of theirs may land in that very window.
-  A kill at any step of the placing leaves every byte somewhere:
-  before the exchange the person's lock is untouched and only the resolution lies beside it,
-  and after it their bytes are at the staged name until the rollback puts them back,
-  so the next filling finds what this one left and never deletes it.
+  and Cargo resolves a workspace by writing its `Cargo.lock`,
+  which is the person's file:
+  only `--locked` keeps Cargo from writing it,
+  and a lock a `--locked` clean refuses has to be resolved before the clean can run.
+  So every Cargo run of the repair that may write that file is given a mirror of the workspace:
+  below the Git directory,
+  holding the workspace's place below the worktree root,
+  its own directories on the way,
+  a link to the real entry for every other,
+  and copies of the workspace's manifest and its lock
+  (`package_repair_workspace_mirror.rs`).
+  Measured on this host on 2026-11-14,
+  a clean run in such a mirror removes exactly the artifacts the workspace's own clean removes,
+  build script included (a two-member workspace: 29 files, 4.4 MiB),
+  and the workspace rebuilds what it needs afterwards.
+  The prewarm's clean runs in the worktree only with `--locked`, which cannot write the lock,
+  and a lock it refuses sends that workspace to a mirror of it
+  (`package_repair_cargo_clean_in_mirror.rs`);
+  the add's own clean takes its resolution and its clean from a mirror too,
+  with the worktree's own build and target directories named,
+  so neither rewrites the tracked lock.
+  The person's `Cargo.lock` is therefore read, if a step must read it,
+  and never renamed,
+  exchanged or written by this program:
+  nothing of theirs is displaced,
+  nothing has to be put back,
+  and a kill at any instruction leaves their file exactly as they wrote it.
+  A mirror a killed job left is that job's own and is rebuilt rather than trusted,
+  and a mirror that cannot be made gives that workspace up rather than run Cargo in the worktree.
   The lock is read the way the wrapper reads any regular file:
   a pipe, a link, a directory or a file past the byte limit that step names is refused at once,
-  and a lock that is not a regular file is the person's:
-  nothing is placed over it and nothing of it is removed,
-  the workspace gives way with the reason, and the add's own clean leaves the file as it is found.
-  So no moment exists in which a write a person made to that file is replaced:
-  a write made before the placement is handed back,
-  a write made after it makes the file differ from the resolution and the checked-out bytes never go
-  back over it,
-  and a lock a person creates where the checkout has none is never written over (`create_new`).
-  A filesystem that cannot exchange the two names gives that workspace up rather than write over the
-  lock,
-  and a mirror that cannot be made or a resolution that fails does the same,
-  because the prewarm of one workspace costs only a build and a replaced write costs the person's work.
-  That comparison is a moment of its own,
-  so the write that puts the checked-out bytes back is one step that hands back the file it replaced
-  (`renameat2(RENAME_EXCHANGE)`,
-  `rename_that_never_replaces.rs`):
-  a write that lands after the comparison is put back where the person wrote it,
-  and the checked-out bytes stay in the displaced directory where the line names them.
-  A lock the clean created where the checkout has none is taken away by a move and put back if it was written since,
-  and one the clean removed is written with `create_new`,
-  so no step of the restore replaces a file nobody kept.
-  The write the add's own clean makes is judged the same way.
-  A displaced directory on another filesystem than the worktree
-  (a linked worktree whose Git directory the main checkout holds) cannot exchange a file with the lock,
-  so there the checked-out bytes are written over it as before,
-  and the one window that leaves is the one no step from outside the writer closes.
-  A lock that is not the resolution's and not the checked-out one is left exactly as it is found,
-  and the job's diagnostic log says which file it was.
+  and a lock that is not a regular file is the person's,
+  so the workspace gives way with the reason and nothing of theirs is touched.
   A clean that stops anyway names the lock,
   the workspace,
   `cargo update --offline --workspace` there and the clean the add would have run,
@@ -4969,28 +4934,21 @@ of which the two that rewrite link layouts in place are the service's work whene
     the next filling adopts the names and cleans a fresh clone, and the abandoned one goes with them.
     A build that starts in the worktree in the meantime publishes itself and the copy is given back
     (`a_build_that_got_there_first_keeps_its_own_and_the_staged_state_is_given_back`).
-  - The filling reads the lock, then runs the `--locked` clean.
-    A person's write there is the lock the restore compares against `before`:
-    it is their bytes, so it stays theirs and the checked-out bytes never go back over it
-    (`a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it`).
-  - The clean refuses the lock, then the resolution runs in the mirror.
-    A person's write during it is in the worktree, untouched by Cargo;
-    the placement then hands it back and the repair gives way
-    (`a_write_the_resolution_meets_is_handed_back_and_the_repair_gives_way`).
-    A kill during the mirror's resolution leaves only the mirror below the Git directory, which the
-    next filling rebuilds, and the person's file as it was.
-  - The placement puts the resolution in, then the second clean runs.
-    A person's write after the placement makes the file differ from the resolution, so the restore
-    leaves it and names the copy it kept
-    (`a_lock_the_person_writes_while_a_clean_runs_is_left_exactly_as_they_wrote_it`).
-    A kill after the placement leaves the resolution in the person's file and its predecessor kept
-    under the Git directory;
-    the next filling reads the lock again and puts the checked-out bytes back over a file that holds
-    the resolution only (`the_filling_puts_the_lock_back_as_checked_out`).
-  - The clean ends, then the restore runs.
-    A write in that window is put back by the exchange and the checked-out bytes are kept
-    (`a_lock_another_command_wrote_is_kept_before_the_checked_out_one_comes_back`).
-  - The restore ends, then the copy is published.
+  - The filling runs the `--locked` clean in the worktree.
+    Cargo cannot write the lock with `--locked`,
+    so a person's write there is theirs and Cargo refuses rather than replacing it
+    (`a_filling_with_a_stale_lock_leaves_the_persons_lock_exactly_as_it_is`).
+  - The clean refuses the lock, then the mirror is made.
+    A kill while the mirror is being made or Cargo runs in it leaves only the mirror below the Git
+    directory, which the next job of that workspace rebuilds rather than trusts,
+    and the person's file exactly as they wrote it.
+  - Cargo resolves and cleans in the mirror.
+    A person's write in the worktree is in their own file, which no step of the repair opens for
+    writing;
+    the artifacts the clean deletes are the ones the workspace's own clean would delete,
+    measured on this host on 2026-11-14, and the worktree rebuilds what it needs
+    (`a_clean_in_a_mirror_removes_the_artifacts_and_leaves_the_persons_lock_alone`).
+  - The mirror's clean ends, then the copy is published.
     A build that made the destination keeps it and the staging copy is given back;
     a second filling's publish answers `AlreadyExists` and reports `Kept`
     (`publishing_a_staging_copy_never_replaces_a_directory`).
