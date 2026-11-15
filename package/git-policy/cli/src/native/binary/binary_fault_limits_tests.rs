@@ -798,7 +798,10 @@ fn a_memory_limit_close_to_exhaustion_on_the_service_leaves_a_recoverable_reposi
 #[test]
 fn a_service_that_ends_before_it_listens_leaves_a_recoverable_repository() {
     let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
-    let below: u64 = starts_at.saturating_sub(mebibytes_of_the_search_step_and_one_thread_pair());
+    let room: u64 = mebibytes_of_the_search_step_and_one_thread_pair();
+    let Some(below): Option<u64> = starts_at.checked_sub(room) else {
+        panic!("the search answered {starts_at} MiB, which is not above the {room} MiB this control sets its limit by, so it has no limit at which a service binds and cannot accept");
+    };
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = service_memory(below);
     let case: Case = run_case("as-service-below-start", service.as_slice(), wrapper.as_slice(), true, true);
     assert!(
@@ -867,7 +870,11 @@ const BAND_STARTS: usize = 100;
 #[test]
 fn a_limit_that_lets_the_service_bind_but_not_run_is_never_counted_as_starting() {
     let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
-    let below: u64 = starts_at.saturating_sub(mebibytes_of_the_search_step_and_one_thread_pair()) * MEBIBYTE;
+    let room: u64 = mebibytes_of_the_search_step_and_one_thread_pair();
+    let Some(below): Option<u64> = starts_at.checked_sub(room) else {
+        panic!("the search answered {starts_at} MiB, which is not above the {room} MiB this control sets its limit by, so it has no limit at which a service binds and cannot run");
+    };
+    let below: u64 = below * MEBIBYTE;
     let probes: Fixture = fixture("limit-band");
     let outcomes: Vec<StartOutcome> = std::thread::scope(|scope| {
         return scope
