@@ -8,7 +8,7 @@ use crate::claim_time::current_machine_id;
 use crate::process_identity::ProcessIdentityError;
 use super::claim_tests::{claim_at, gone_marker, index_in, names_in};
 use crate::service_index_marker::own_identity;
-use crate::service_index_marker::{HolderState, LOCK_MARKER, ReaderView, holder_state_in, identity_in_view_on};
+use crate::service_index_marker::{HolderState, LOCK_MARKER, ReaderView, holder_state, holder_state_in, identity_in_view_on};
 use crate::test_support::remove;
 
 /// A machine ID that is no host's here.
@@ -120,6 +120,112 @@ fn a_text_whose_parts_are_not_the_kinds_a_writer_leaves_is_never_gone() {
         }
     }
     assert_eq!(asked.get(), 0, "no process is asked about on a text whose parts cannot be read like for like");
+}
+
+/// A marker of this release naming the process number `pid_field` and the identity `identity`,
+/// in whatever spelling the control gives them.
+/// Why:
+///   A control that respells one field must keep every other byte a writer would write,
+///  or it tests a text no command leaves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// markerNaming('0' + pid, identity) // `cli-git-service v2 0 0<pid> <identity>\n`
+/// ```
+fn marker_naming(pid_field: &str, identity: &str) -> String {
+    return format!("{LOCK_MARKER}{}0 {pid_field} {identity}\n", crate::service_index_marker::MARKER_VERSION);
+}
+
+/// The birth `linux:8423337` with a leading zero on its start tick,
+/// which is the same tick written the way a program that pads numbers writes it.
+/// Why:
+///   A start tick is a number, and one number has one value however many zeros lead it.
+fn birth_with_a_leading_zero(birth: &str) -> String {
+    let Some((prefix, tick)) = birth.split_once(':') else {
+        panic!("the birth {birth} is no start tick this control can pad");
+    };
+    assert!(!tick.starts_with('0'), "the birth {birth} already leads its tick with a zero");
+    return format!("{prefix}:0{tick}");
+}
+
+/// What:
+///  The identity text cut where its parts begin:
+///  the birth,
+///  the boot,
+///  the PID namespace,
+///  and the rest,
+///  which is the machine part with its separator or nothing.
+/// Why:
+///   A control that respells one part must leave every other byte as the writer wrote it,
+///  and the machine is the part a host may not name at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const [birth, boot, scope, ...rest] = identity.split('#'); const tail = rest.length === 0 ? '' : '#' + rest.join('#');
+/// ```
+fn split_birth_parts(identity: &str) -> (&str, &str, &str, &str) {
+    let mut parts = identity.split('#');
+    let (Some(birth), Some(boot), Some(scope)) = (parts.next(), parts.next(), parts.next()) else {
+        panic!("the identity {identity} names no boot and PID namespace to respell");
+    };
+    let head: String = format!("{birth}#{boot}#{scope}");
+    let tail: &str = identity.strip_prefix(head.as_str()).expect("the identity holds its own three parts");
+    return (birth, boot, scope, tail);
+}
+
+/// Refused:
+/// a live holder whose marker spells one part of its identity another way is never judged gone,
+/// and its lock stays.
+/// Why:
+///   Four spellings a person or another program can produce without changing the value:
+///  hexadecimal letters in the boot in capitals,
+///  a leading zero on the start tick of the birth,
+///  a leading zero on the process number,
+///  and a leading zero on the PID namespace.
+///  Two spellings of one boot are no proof of another boot,
+///  and a padded number is the same number,
+///  so a reader that cannot compare them like for like answers unknown or running,
+///  never gone.
+///  Read as another boot or another process, the lock of a Git that runs is removed.
+#[test]
+fn a_live_holders_identity_spelled_another_way_is_never_gone() {
+    let identity: String = own_identity().expect("this process has an identity");
+    let (birth, boot, scope, tail) = split_birth_parts(identity.as_str());
+    let uppercase_boot: String = boot.to_uppercase();
+    assert_ne!(uppercase_boot, boot, "this host's boot ID {boot} has no letter whose case can change");
+    let padded_tick: String = birth_with_a_leading_zero(birth);
+    let pid: i64 = i64::from(std::process::id());
+    let pid_field: String = pid.to_string();
+    let padded_pid: String = format!("0{pid_field}");
+    let padded_scope: String = format!("0{scope}");
+    let respelled_boot: String = format!("{birth}#{uppercase_boot}#{scope}{tail}");
+    let respelled_tick: String = format!("{padded_tick}#{boot}#{scope}{tail}");
+    let respelled_scope: String = format!("{birth}#{boot}#{padded_scope}{tail}");
+    let arms: [(&str, &str, &str, &str, HolderState); 4] = [
+        ("the boot in capitals", "uppercase-boot", pid_field.as_str(), respelled_boot.as_str(), HolderState::Unknown),
+        ("a leading zero on the start tick", "padded-tick", pid_field.as_str(), respelled_tick.as_str(), HolderState::Unknown),
+        ("a leading zero on the process number", "padded-pid", padded_pid.as_str(), identity.as_str(), HolderState::Running),
+        ("a leading zero on the PID namespace", "padded-scope", pid_field.as_str(), respelled_scope.as_str(), HolderState::Unknown),
+    ];
+    // Every arm is asked and every wrong answer is kept, so one run of the control names each spelling that was read
+    //  as another process instead of the first one that was.
+    let mut wrong: Vec<String> = Vec::new();
+    for (what, fixture_name, number, respelled, expected) in arms {
+        let (root, _index, lock) = index_in(fixture_name);
+        let text: String = marker_naming(number, respelled);
+        std::fs::write(&lock, text.as_bytes()).expect("the marker of a live holder, one part respelled");
+        let marked = crate::service_index_marker::marker_of(lock.as_path()).expect("a marker");
+        let state: HolderState = holder_state(marked.holder.as_ref());
+        if state != expected {
+            wrong.push(format!("{what}: the reader answered {state:?} for {respelled}, and {expected:?} is what a live holder's respelling gets"));
+        }
+        let outcome: Reclaimed = reclaim(&SYSTEM, &lock);
+        if outcome != Reclaimed::Kept || !lock.exists() {
+            wrong.push(format!("{what}: the lock of a live holder was {outcome:?}, and it exists afterwards: {}", lock.exists()));
+        }
+        remove(root.as_path());
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }
 
 /// A marker that names no machine keeps its reading for a reader that has none either:
