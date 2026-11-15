@@ -447,7 +447,10 @@ fn a_deadline_notice_names_a_remedy_that_reaches_the_service() {
     wait_until_settled(&setup, commit.as_str());
     let text: String = stderr_text(&run_wrapped(&setup.fixture, &setup.repo, &["status", "--short"]));
     assert!(text.contains("made no progress for 1 seconds and was stopped"), "{text}");
-    assert!(text.contains("systemctl --user set-environment CLI_GIT_PUSH_DEADLINE_SECONDS="), "{text}");
+    // No service manager takes part: the remedy is a variable the shell exports, and the next command starts a service
+    //  that has it, so a sentence naming `systemctl --user set-environment` would reach no service here.
+    assert!(!text.contains("systemctl --user set-environment"), "a remedy naming the service manager reaches no service this branch starts: {text}");
+    assert!(text.contains("export CLI_GIT_PUSH_DEADLINE_SECONDS=120"), "the remedy is a variable the shell exports: {text}");
     assert!(text.contains(git_policy_cli::service_messages::RESTART_COMMAND), "{text}");
     assert!(!text.contains("set CLI_GIT_PUSH_DEADLINE_SECONDS to allow longer"), "a variable of the terminal never reaches the service: {text}");
     remove_settled(&setup.fixture);

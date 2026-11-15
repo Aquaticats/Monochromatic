@@ -133,6 +133,12 @@ pub fn pseudo_terminal_slave_name(descriptor: libc::c_int) -> std::ffi::CString 
 
 
 /// Apply the hermetic environment every wrapped and direct run shares.
+/// How long a wrapped command in a fixture waits for a service that answers nothing,
+/// in milliseconds:
+///  long enough for the recovering paths a control drives through,
+///  and far short of the 120-second bound a fixture gives one commit.
+pub(super) const RECOVERING_FOR_A_FIXTURE_MILLIS: &str = "3000";
+
 pub fn hermetic(command: &mut Command, fixture: &Fixture, path: &OsStr) {
     command
         .env_clear()
@@ -147,6 +153,14 @@ pub fn hermetic(command: &mut Command, fixture: &Fixture, path: &OsStr) {
         // No run reaches the host's journal: the entries the wrapper sends go to an abstract name nobody listens at, unless a
         //  control binds the name it passes itself.
         .env(git_policy_cli::journald_native::TEST_SOCKET_VARIABLE, "@cli-git-test-journal-nobody-hermetic")
+        // A service answers nothing while it recovers, and the shipped ceiling for that wait is `RECOVERING_CEILING`,
+        //  which equals the bound a fixture gives one commit (`COMMIT_BOUND_SECONDS`),
+        //  so a commit that met a recovering service would always be killed by the fixture's own bound instead of by the
+        //  wait this branch ships (measured: `commit_when_the_service_stops` and `commit_timing` names at the 120-second
+        //  bound, 2026-11-15).
+        // The fixture's service is driven by the fixture, so its recovery is a fixture's, not a user's: a control asks the
+        //  wrapper's wait to be this many milliseconds, and one that needs the shipped ceiling passes its own value.
+        .env(git_policy_cli::wait_ceilings::RECOVERING_CEILING_VARIABLE, RECOVERING_FOR_A_FIXTURE_MILLIS)
         .current_dir(&fixture.root);
     // A developer who sets the wrapper's verbose switch for a run gets its debug log in every wrapped command's
     //  output; no run sets it otherwise, so the environment stays hermetic.

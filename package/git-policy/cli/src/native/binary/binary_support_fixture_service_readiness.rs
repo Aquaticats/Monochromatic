@@ -145,13 +145,19 @@ pub const SOCKET_RELEASE_PATIENCE: std::time::Duration = std::time::Duration::fr
 ///
 /// # Panics
 /// When something still answers after `SOCKET_RELEASE_PATIENCE`,
-/// which is a service the fixture did not end.
+/// which is a service that will not end.
 pub fn wait_until_nothing_listens(address: &git_policy_cli::service_server::Bind) {
     let began: std::time::Instant = std::time::Instant::now();
     loop {
         match git_policy_cli::service_client_listen_and_ask_to_retire::reach(address) {
             git_policy_cli::service_client_listen_and_ask_to_retire::Reached::Nothing => return,
-            git_policy_cli::service_client_listen_and_ask_to_retire::Reached::Ours(_) | git_policy_cli::service_client_listen_and_ask_to_retire::Reached::OtherAccount => {}
+            git_policy_cli::service_client_listen_and_ask_to_retire::Reached::Ours(_) => {
+                // The wrapper starts its own service, so a command the fixture ran after it ended its service can have
+                //  started another one here; the fixture wants the address empty, so it asks that service to leave as
+                //  long as it answers.
+                let _asked = git_policy_cli::service_client_listen_and_ask_to_retire::ask_to_retire(address);
+            }
+            git_policy_cli::service_client_listen_and_ask_to_retire::Reached::OtherAccount => {}
         }
         assert!(began.elapsed() < SOCKET_RELEASE_PATIENCE, "something still answers at {} although the fixture ended its service", git_policy_cli::service_server::address_text(address));
         std::thread::sleep(std::time::Duration::from_millis(5));

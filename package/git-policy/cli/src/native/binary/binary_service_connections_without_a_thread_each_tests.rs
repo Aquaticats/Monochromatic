@@ -98,7 +98,11 @@ fn connections_held_open_cost_the_service_no_thread_each() {
     let service: Held = start(&fixture, name.as_str());
     // One connection first, so the threads the service starts for any first connection (a runtime's workers) are counted already.
     let first: UnixStream = connect(name.as_str()).expect("the first connection");
-    assert!(matches!(greeting(&first), ServiceMessage::Welcome { version, .. } if version == PROTOCOL_VERSION));
+    // A service announces the oldest protocol it still serves, so a client of this build and one of the previous release
+    //  both read a welcome they can decode.
+    assert!(
+        matches!(greeting(&first), ServiceMessage::Welcome { version, .. } if (git_policy_cli::service_protocol::MIN_SERVED_PROTOCOL..=PROTOCOL_VERSION).contains(&version))
+    );
     let before: usize = threads_of(service.0.id());
     let mut held: Vec<UnixStream> = Vec::new();
     for _ in 0..CONNECTIONS {

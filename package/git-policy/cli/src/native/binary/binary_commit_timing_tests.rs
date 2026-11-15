@@ -2250,8 +2250,13 @@ fn a_commit_nothing_answers_states_the_bound_that_ran_out() {
     assert_eq!(record["outcome"], "stopped", "{record}");
     assert_eq!(record["sends"], 0, "no request was ever written: {record}");
     assert_eq!(record["stop"]["kind"], "client-failure", "{record}");
-    assert_eq!(record["stop"]["reason"], "nothing-answered", "the record names the bound that ran out: {record}");
-    assert!(number(record, "reachMs") >= 9_000, "the record states the wait the bound covered: {record}");
+    // A service of this branch is running here and answers nothing, so the bound that ran out is the recovering one:
+    //  the wrapper keeps the address's service rather than calling it absent, which is what a person's next command does
+    //  with a service that is rebuilding its runtime (measured at a container run of 2026-11-15).
+    assert_eq!(record["stop"]["reason"], "service-recovering", "the record names the bound that ran out: {record}");
+    // The fixture's own value, because the wait reads the variable in the wrapped program and not in this test.
+    let bound: u64 = super::support::RECOVERING_FOR_A_FIXTURE_MILLIS.parse().expect("the fixture's recovering wait is a number");
+    assert!(number(record, "reachMs") >= bound, "the record states the wait the bound covered: {record}");
     remove_settled(&fixture);
 }
 

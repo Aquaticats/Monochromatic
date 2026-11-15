@@ -119,9 +119,13 @@ fn a_finish_that_cannot_reach_the_commit_service_names_what_changed() {
     let fixture: Fixture = fixture("finish-no-service");
     let repo: PathBuf = prepared(&fixture, Stop::Merge, &[ADJACENT]);
     let head: String = text(&fixture, repo.as_path(), &["rev-parse", "HEAD"]);
-    // No runtime directory and no session bus: this account has no way to start the commit service.
+    // The runtime directory is a file, so no service can bind an address in it and every start of one fails: the wrapper
+    //  starts its own service now, so the refusal has to be one that no start overcomes (measured at a container run of
+    //  2026-11-15, where a missing `XDG_RUNTIME_DIR` alone let the commit land through the fallback directory).
+    let blocked: PathBuf = fixture.root.join("runtime-is-a-file");
+    std::fs::write(&blocked, b"not a directory").expect("the blocked runtime path");
     let observed: Observed = observe(
-        wrapped(&fixture).current_dir(repo.as_path()).env_remove("XDG_RUNTIME_DIR").env_remove("DBUS_SESSION_BUS_ADDRESS").args(arguments_of(Stop::Merge).as_slice()),
+        wrapped(&fixture).current_dir(repo.as_path()).env("XDG_RUNTIME_DIR", blocked.as_os_str()).env_remove("DBUS_SESSION_BUS_ADDRESS").args(arguments_of(Stop::Merge).as_slice()),
         b"",
     );
     let said: String = stderr_of(&observed);
