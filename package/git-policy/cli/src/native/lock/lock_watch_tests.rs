@@ -1421,10 +1421,10 @@ const WALK_FIXTURE_VARIABLE: &str = "CLI_GIT_TEST_WALK_FIXTURE";
 /// ```
 #[test]
 fn a_step_of_a_take_or_a_clearance_is_killed_for_the_walk_control() {
-    let Some(step) = std::env::var_os(WALK_STEP_VARIABLE) else {
+    let Some(named) = std::env::var_os(WALK_STEP_VARIABLE) else {
         return;
     };
-    let step: String = step.to_string_lossy().into_owned();
+    let step: String = named.to_string_lossy().into_owned();
     let fixture: PathBuf = PathBuf::from(std::env::var_os(WALK_FIXTURE_VARIABLE).expect("the walk's fixture"));
     let repository: PathBuf = crate::test_support::repository(fixture.as_path(), "repo");
     let common: PathBuf = repository.join(".git");
