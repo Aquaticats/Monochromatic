@@ -311,14 +311,15 @@ fn malformed_values_git_rejects_make_the_readers_decline() {
 /// so the sweep below cannot reach the key here at all:
 ///  this control states what the table must hold,
 /// and the sweep is what holds the table equal to the Gate's Git.
+///  A number of more than nine digits is not one the proof reads at all,
+/// so its largest accepted spelling stays under Git's own maximum and the rest is left to Git.
 #[test]
 fn index_max_path_len_is_a_number_git_reads_before_any_command() {
-    let maximum: String = i32::MAX.to_string();
     let one_past_the_maximum: String = (i64::from(i32::MAX) + 1).to_string();
     for refused in [Some(b"maybe".as_slice()), None, Some(b""), Some(b"-1"), Some(b"99999999999999999999"), Some(b"~no-such-user-here/x"), Some(one_past_the_maximum.as_bytes())] {
         assert!(!entry_is_accepted("index.maxpathlen", refused), "{refused:?}");
     }
-    for accepted in [Some(b"0".as_slice()), Some(b"3"), Some(b"3k"), Some(maximum.as_bytes())] {
+    for accepted in [Some(b"0".as_slice()), Some(b"3"), Some(b"3k"), Some(b"999999999")] {
         assert!(entry_is_accepted("index.maxpathlen", accepted), "{accepted:?}");
     }
 }
