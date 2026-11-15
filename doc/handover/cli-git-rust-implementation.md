@@ -1620,7 +1620,10 @@ what the release's steps printed.
   the three library tests,
   the three refused-start controls and the others on those lists are expected red again,
   since no branch that fixes them is in this release.
-- The fuzz sidecar's type check on `main` with pass 51 in was started at 06:00.
+- The fuzz sidecar's type check on `main` with pass 51 in
+  (`mise run //package/git-policy/cli.fuzz:lint:types`,
+  at `26d66d0043`)
+  ended 06:01:17 with exit 0.
 - Read at 06:00:29:
   58.6 degrees,
   budget 32.0 threads,
