@@ -2,6 +2,7 @@
 //! what a renewal changes,
 //! what it leaves alone,
 //! what a settlement reaches,
+//! what a settlement that finds the record gone says,
 //! and that
 //! the thread stops.
 
@@ -10,7 +11,7 @@ use super::*;
 use crate::service_claim_renewal_running::{ClaimRenewal, Control, DrivenRenewal, RENEWALS_MADE, RENEWAL_STOP_CEILING, TASKS_ENDED, TASKS_STARTED};
 use crate::service_work::MAX_TRIES;
 use crate::test_support::{fixture, remove};
-use crate::work_item::{CLAIMED, DONE, WorkItem, WorkKind, claim_next_of, enqueue, find_claim, state_directory};
+use crate::work_item::{CLAIMED, DONE, FAILED, PENDING, RECOVERING, WorkItem, WorkKind, claim_next_of, enqueue, find_claim, state_directory};
 use std::path::Path;
 
 /// The bound that ends a control which waits for a renewal thread to run:
@@ -499,5 +500,161 @@ fn a_renewal_takes_far_less_than_its_stop_ceiling() {
     let took: Duration = began.elapsed();
     assert!(renewed.is_some());
     assert!(took * 1000 < RENEWAL_STOP_CEILING, "one renewal took {took:?}, a thousandth of the ceiling is the control's bar");
+    remove(root.as_path());
+}
+
+/// What:
+///  The words a settlement wrote when its move found nothing,
+///  checked against the one fact the control arranged and against the guess the words must never carry.
+/// Why:
+///  Every order that leaves a record somewhere else has its own sentence,
+/// and a sentence that says "probably" says nothing a reader can act on:
+/// the control holds the order,
+/// so the words have to name it.
+fn assert_the_words_say(said: &str, expected: &[&str]) {
+    for fact in expected {
+        assert!(said.contains(fact), "the words do not say {fact:?}: {said}");
+    }
+    assert!(!said.contains("probably"), "the words guess instead of saying what the record's own places show: {said}");
+}
+
+/// A settlement that finds another instance's claim of the same item in `claimed` says which order happened:
+/// the lease ran out and the item was claimed again,
+/// so its work is run again by the instance that holds it now.
+///  The other instance's claim is the only one,
+/// and nothing of this holder's claim was moved,
+/// so the record has one owner at a time.
+#[test]
+fn a_move_that_finds_another_instance_claim_says_who_holds_the_record_now() {
+    let started: ClaimTime = clock();
+    let (root, work_dir, claimed) = claimed_item("move-finds-a-successor", &started);
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    // Another instance finds the lease over and claims the item again; this holder's renewal has not run, which is the holder
+    //  whose renewal is the one that is late.
+    let later: ClaimTime = started.advanced(LEASE * 2);
+    assert_eq!(requeue_expired(work_dir.as_path(), &later, LEASE, MAX_TRIES), 1, "the lease ran out");
+    let successor: Claimed = claim_next_of(work_dir.as_path(), &later, &[WorkKind::Push]).expect("claim").expect("the item is queued again");
+    let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a claim taken over settles nothing");
+    assert_the_words_say(
+        said.as_str(),
+        &["claimed it again", successor.name.as_str(), "run again there", "nothing of it was moved here"],
+    );
+    assert_eq!(claimed_names(work_dir.as_path()), vec![successor.name.clone()], "the other instance's claim is the only one");
+    assert!(!state_directory(work_dir.as_path(), DONE).join(claimed.id.as_str()).exists(), "nothing was settled for either claim");
+    remove(root.as_path());
+}
+
+/// A settlement that finds the item queued again says so:
+/// the claim was taken back when its lease ran out and the item waits in `pending`,
+/// so the next look that claims it runs its work again.
+#[test]
+fn a_move_that_finds_the_record_queued_again_says_its_work_runs_again() {
+    let started: ClaimTime = clock();
+    let (root, work_dir, claimed) = claimed_item("move-finds-the-queue", &started);
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    let later: ClaimTime = started.advanced(LEASE * 2);
+    assert_eq!(requeue_expired(work_dir.as_path(), &later, LEASE, MAX_TRIES), 1, "the lease ran out and the item went back to the queue");
+    let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a claim taken back settles nothing");
+    assert_the_words_say(said.as_str(), &["left it queued as pending", "run again", "nothing of it was moved here"]);
+    assert!(state_directory(work_dir.as_path(), PENDING).join(claimed.id.as_str()).exists(), "the record waits in pending");
+    remove(root.as_path());
+}
+
+/// A settlement that finds the record given up on says so,
+/// and that nothing looks at it again:
+/// the recovery of the claim reached the last try and moved it to `failed`,
+/// where no round reads it.
+#[test]
+fn a_move_that_finds_the_record_given_up_on_says_nothing_runs_its_work() {
+    let started: ClaimTime = clock();
+    let (root, work_dir, claimed) = claimed_item("move-finds-given-up", &started);
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    let later: ClaimTime = started.advanced(LEASE * 2);
+    // One try is the whole allowance this control gives, so the recovery that takes the claim back gives up on it.
+    assert_eq!(requeue_expired(work_dir.as_path(), &later, LEASE, 1), 1, "the claim was taken back and given up on");
+    let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a claim given up on settles nothing");
+    assert_the_words_say(said.as_str(), &["given up on", "no later look runs its work"]);
+    assert!(state_directory(work_dir.as_path(), FAILED).join(claimed.id.as_str()).exists(), "the record is in failed");
+    remove(root.as_path());
+}
+
+/// A settlement that finds a take in flight says so:
+/// another instance is moving the claim out of `claimed` to queue the item again,
+/// which is the state its take leaves when it ends at any instruction between the take and the queueing.
+#[test]
+fn a_move_that_finds_a_take_in_flight_says_the_item_is_queued_again() {
+    let (root, work_dir, claimed) = claimed_item("move-finds-a-take", &clock());
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    let recovering: PathBuf = state_directory(work_dir.as_path(), RECOVERING);
+    // The exact file a take moves: a recovery's first rename leaves the claim's file in `recovering` under its own name.
+    std::fs::rename(state_directory(work_dir.as_path(), CLAIMED).join(claimed.name.as_str()), recovering.join(claimed.name.as_str()))
+        .expect("the claim is in recovering");
+    let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a claim a recovery holds settles nothing");
+    assert_the_words_say(said.as_str(), &["taking", "queue it again", "recovering/", "run again"]);
+    remove(root.as_path());
+}
+
+/// A settlement that finds no work directory says the record went with it,
+/// which is what a repository removed under the service leaves:
+/// no state of the record can be read,
+/// so nothing says the work was done and nothing will read the record again.
+#[test]
+fn a_move_that_finds_no_work_directory_says_the_record_went_with_it() {
+    let (root, work_dir, claimed) = claimed_item("move-finds-no-work", &clock());
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    std::fs::remove_dir_all(work_dir.as_path()).expect("the work directory is gone");
+    let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a record whose directory is gone settles nothing");
+    assert_the_words_say(said.as_str(), &["work directory", "is not there", "went with it", "recorded nowhere"]);
+    remove(root.as_path());
+}
+
+/// A settlement that finds no `claimed` directory says so,
+/// and that the record cannot be read rather than that another instance took it.
+#[test]
+fn a_move_that_finds_no_claimed_directory_says_which_directory_is_missing() {
+    let (root, work_dir, claimed) = claimed_item("move-finds-no-claimed", &clock());
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    std::fs::remove_dir_all(state_directory(work_dir.as_path(), CLAIMED)).expect("the claimed directory is gone");
+    let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a record whose claim directory is gone settles nothing");
+    assert_the_words_say(said.as_str(), &["claimed directory", "is not there", "recorded nowhere"]);
+    remove(root.as_path());
+}
+
+/// A settlement whose move fails while the claim is still `claimed` says nothing moved,
+/// and when its work is run again:
+/// the record's own file is where it was,
+/// only the place it was to move into was missing.
+#[test]
+fn a_move_that_finds_no_done_directory_says_the_record_stays_claimed() {
+    let started: ClaimTime = clock();
+    let (root, work_dir, claimed) = claimed_item("move-finds-no-done", &started);
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    // A work directory whose `done` directory is gone is a move that cannot land, with every other part of the record intact.
+    std::fs::remove_dir(state_directory(work_dir.as_path(), DONE)).expect("the empty done directory");
+    let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a move into a directory that is not there fails");
+    assert_the_words_say(said.as_str(), &["still in claimed/", "nothing of the record moved here", "when its lease runs out"]);
+    let claimed_after: Vec<String> = claimed_names(work_dir.as_path());
+    assert_eq!(claimed_after.len(), 1, "the claim the settlement could not move is kept: {claimed_after:?}");
+    remove(root.as_path());
+}
+
+/// A settlement that finds no file of the record anywhere says something other than the queue moved it,
+/// which is the one way a record leaves every state directory:
+/// a removal nothing of the claim protocol made.
+#[test]
+fn a_move_that_finds_no_file_of_the_record_says_something_else_removed_it() {
+    let (root, work_dir, claimed) = claimed_item("move-finds-no-file", &clock());
+    let (held, _renewer) = held_claims(work_dir.as_path());
+    held.hold(&claimed);
+    std::fs::remove_file(state_directory(work_dir.as_path(), CLAIMED).join(claimed.name.as_str())).expect("the claim's file is removed");
+    let said: String = held.settle(work_dir.as_path(), claimed.id.as_str(), DONE).expect_err("a claim whose file is gone settles nothing");
+    assert_the_words_say(said.as_str(), &["no file of", "something other than the queue", "no claim of it is left"]);
     remove(root.as_path());
 }
