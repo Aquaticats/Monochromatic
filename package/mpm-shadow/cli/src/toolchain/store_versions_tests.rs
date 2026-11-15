@@ -50,6 +50,11 @@ fn make_version(root: &Path, tool: &str, version: &str, bytes: usize) -> PathBuf
 /// Sets the write time of `path` (a file or a directory) to `seconds` before now.
 fn written_ago(path: &Path, seconds: u64) {
     let when: SystemTime = SystemTime::now() - Duration::from_secs(seconds);
+    written_at(path, when);
+}
+
+/// Sets the write time of `path` (a file or a directory) to `when`.
+fn written_at(path: &Path, when: SystemTime) {
     let file = fs::File::open(path).expect("open the fixture for its times");
     file.set_times(FileTimes::new().set_modified(when).set_accessed(when)).expect("set the fixture's times");
 }
@@ -280,11 +285,23 @@ fn tells_a_tree_from_another_of_the_same_size() {
     let directory = scratch();
     let root: PathBuf = directory.path().join("toolchain");
     let first: PathBuf = make_version(&root, "node", "26.13.1", 1000);
+    written_ago(&first.join("program"), 3600);
+    written_ago(&first, 3600);
     let judged: JudgedTree = judged_of_tree(&first, Instant::now() + Duration::from_secs(60)).expect("judge the first tree");
     fs::remove_dir_all(&first).expect("remove the judged tree");
     let second: PathBuf = make_version(&root, "node", "26.13.1", 1000);
+    // The two trees agree on everything a walk reads, so only their identity tells them apart.
+    let program = fs::File::open(second.join("program")).expect("open the second program");
+    program
+        .set_times(FileTimes::new().set_modified(judged.facts.newest).set_accessed(judged.facts.newest))
+        .expect("set the second program's times to the judged newest write");
+    written_at(&second, judged.written);
     let standing: JudgedTree = judged_of_tree(&second, Instant::now() + Duration::from_secs(60)).expect("judge the second tree");
+    assert_eq!(standing.facts.files, judged.facts.files, "the fixture must hold two trees of the same file count");
     assert_eq!(standing.facts.bytes, judged.facts.bytes, "the fixture must hold two trees of the same size");
+    assert_eq!(standing.facts.newest, judged.facts.newest, "the fixture must hold two trees of the same newest write");
+    assert_eq!(standing.written, judged.written, "the fixture must hold two trees of the same root write time");
+    assert_ne!(standing.inode, judged.inode, "the fixture must hold two different trees");
 
     assert!(!judged.matches(&standing), "a judgement of one tree described another one that weighs the same");
 }
