@@ -1670,6 +1670,83 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Three runs on tests end; two of them repaired one helper two ways, which the coordinating session caused, and one fresh run makes them one (2026-11-15T18:31:31-05:00)
+
+Not final and not approved:
+what three authors report and what the coordinating session queued.
+
+- **The package-repair controls** (`7248162765`),
+  fresh run ended 18:25:34.
+  Its account:
+  the wrapper writes the record it hands over before the add answers
+  (shown by a control that reads the queue at the answer);
+  the window was the controls' own,
+  in the shared wait `settle_service_work`,
+  which summed three listings in an order in which a record a claim moves is in none.
+  The wait now reads `claimed` last and settles on two empty readings;
+  the controls wait for pnpm's own record.
+  A side finding it keeps:
+  a record's modification time is no measure of when it was written,
+  since a claim stamps it again.
+- **The two binary controls that fail inside their suite** (`bf47616d2a`),
+  fresh run ended 18:26:31.
+  Its account:
+  `child_bound::a_git_step_past_…` was the control's own
+  (it assumed its own sampler ran inside the window;
+  the margin went from one second to five with the measurement beside it);
+  `package_repair::quiet_runs_the_repair_and_says_nothing_about_success` it did not reproduce in any arm
+  (alone at four,
+  one and a quarter CPU,
+  its module three times,
+  three copies side by side);
+  it found three ways the same `settle_service_work` reads "no record there" with one there
+  (a listing it could not make counted as zero;
+  the queue folder spelled one way where the wrapper reads either;
+  the claim's passage)
+  and repaired those,
+  saying it cannot tell which the failing runs met.
+- **Both changed `settle_service_work` in `binary_support_observation.rs`, each in its own way.**
+  That is the coordinating session's doing:
+  it gave the `quiet_runs_the_repair` sighting to one brief and the package-repair controls to another,
+  so two runs owned one helper.
+  No review of either alone is queued.
+  A fresh run is queued ninth
+  (`settle-wait-of-the-binary-controls-is-one-function-from-the-two-branches-that-each-repaired-it`):
+  merge both,
+  one function with every property either gave it,
+  each still shown by its author's control,
+  then the whole binary suite once.
+  Pass 55's two inputs change the same files
+  (`binary_support_observation.rs`,
+  `binary_package_repair_tests.rs`,
+  `binary_tests.rs`);
+  the brief says so and asks for a merge of `main` once the pass is in.
+- **The gate script's unit test** (`cc7f52e8d7`),
+  fresh run ended 18:27:34:
+  only `native-gate-main-tip.unit.test.ts` built its throwaway checkout through the ambient `PATH`,
+  and so through the installed wrapper;
+  it now uses the fixture helper the other tests use,
+  which has a file of its own.
+  The package's unit tests:
+  109 passed,
+  the two known files failing.
+  Review queued fourteenth.
+  It moved its six misplaced files out of the main checkout as asked at 16:20
+  (copies compared equal first)
+  and reports the main checkout names none of its paths;
+  the count there has read six at every round since 16:32.
+  Kept from its report:
+  36 notes that name deleted `git-policy-gate-main-tip-*` checkouts,
+  with the question whether they are swept;
+  and that the rule "a fixture never runs the wrapper" stands only in the helper's doc,
+  which by the repository's placement rule belongs in that package's docs and needs no decision.
+- Read at 18:30:11:
+  six changed files in the main checkout;
+  no launcher had outlived a run;
+  no process inside a worktree whose run was not going;
+  19 runs going,
+  none silent for twenty minutes.
+
 ##### The commit that does not wait behind the service's writes fails its third review with four things, and the guard against blocking calls on a worker did not see one of them (2026-11-15T18:25:53-05:00)
 
 Not final and not approved:
