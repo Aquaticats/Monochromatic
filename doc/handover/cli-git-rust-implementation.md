@@ -757,13 +757,23 @@ Questions kept for the owner's return:
   refuse with the opt-out,
   or delete and log?
   The branch keeps its save until an answer.
-- Added 2026-11-15T00:34:22-05:00 and amended 00:51:24,
+- Added 2026-11-15T00:34:22-05:00 and amended 00:51:24 and 01:03:30,
   not blocking work:
-  the cap on agents went from 24 to 20 at 00:32:16 and from 20 to 18 at 00:50:55,
+  the cap on agents went from 24 to 20 at 00:32:16,
+  from 20 to 18 at 00:50:55 and from 18 to 17 at 01:00:44,
   by the rule,
   when the home drive stalled twice in a row during the nightly snapshot cleanup,
   at each level
   (`doc/handover/agents-at-once-on-this-machine.md`).
+  None of those levels was tested at its own number:
+  19 to 23 agents were going at every failing reading,
+  since no run is stopped.
+  The longest stall was 109 seconds.
+  Beside it,
+  read once each:
+  the cleanup deleted twenty snapshots of root at 00:23:27 and the stalls began four minutes later;
+  quota groups are on for the home filesystem and off for the repository's;
+  the kernel logged no drive error.
   Does the cap go back to 24 once the cleanup has ended,
   or stay where the rule left it until the new drive is in?
   Until an answer it stays where the rule left it,
@@ -1425,6 +1435,65 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The home drive stalls for 109 seconds and the cap steps to 17; two commits wait on their service across the stall; the lock-holders folder goes to review (2026-11-15T01:03:30-05:00)
+
+Not final and not approved:
+what the probe and one author report,
+what the coordinating session read beside them,
+and what it did.
+
+- **The cap is 17 since 01:00:44.**
+  The probe ended level 18 at 00:57:33:
+  the home drive's write-and-sync begun at 00:54:43 took 109,241 ms and the next took 59,474 ms.
+  The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-17-20261115T010044`
+  (ends about 09:00),
+  the probe `disk-ceiling-probe-level-17-20261115T010046`.
+  Should 17 fail the cap is 16,
+  the probe then only records,
+  and it goes no lower without the owner.
+  No going run was stopped;
+  19 were going.
+  The record of the readings,
+  of what the snapshot cleanup logged,
+  of the quota groups and of the kernel log is
+  `doc/handover/agents-at-once-on-this-machine.md`,
+  "Level 18 fails on stalls of 109 and 59 seconds".
+- **A reading of this session's is withdrawn.**
+  The section of 00:51:24 says the stalls came at the readings with the lowest I/O pressure.
+  The probe samples that figure before it writes,
+  so it says nothing of a stall;
+  the cap record is corrected in place.
+- **Two commits waited on the commit service across the stall**,
+  where the section of 00:51:24 names one and says the cause was not measured.
+  `fd002ed513` landed 00:54:32,
+  eleven seconds before the 109-second reading began,
+  and `5a7c6c0d03` landed 00:57:12;
+  each printed that the service had not answered in ten seconds.
+  The repository's own drive answered in 10 ms and 78 ms at those readings,
+  so what the service waited on was on the home drive.
+  `origin` held `5a7c6c0d03` at 01:00:59.
+  The going run on a commit whose service did not start or stopped answering has both facts by note
+  (the first note cited readings from ten minutes before;
+  a second corrects it).
+- **The lock-holders folder**,
+  its author's second run,
+  ended 00:57:00 at `4e9b9fff1d`.
+  By the part of its report read here:
+  the review's three findings answered,
+  each with a control that fails with its fix out,
+  one placed at the pass's own seam and not by a sleep;
+  sixteen controls pass;
+  both of the gate's controls pass in the gate's image;
+  408 tests of the guards and `lock::` pass;
+  no cost measurable on a commit of one file
+  (one run of sixteen took 10.4 s,
+  which it reports as a disk stall and did not drop).
+  It names the lines of `lock/` it touched for whoever merges second.
+  Its review is queued second
+  (`main...4e9b9fff1d`,
+  twelve code files that are not tests).
+- The queue held 76 entries at 01:01:40.
 
 ##### The cap steps down again, to 18; the discarding guard's eighth review goes to a fresh run, and the brief writer for every kind of code file back to its author (2026-11-15T00:51:24-05:00)
 
