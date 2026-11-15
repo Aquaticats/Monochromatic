@@ -17,44 +17,58 @@
 
 /// The shared wait these controls are of.
 use super::observe;
-/// The disposable fixture directory, the one writer of executable fixture files, and its removal.
+/// The disposable fixture directory,
+/// the one writer of executable fixture files,
+/// and its removal.
 use crate::support::{Fixture, executable, fixture, remove};
 /// `Path`/`PathBuf` are borrowed/owned filesystem paths.
 use std::path::{Path, PathBuf};
 /// The command builder every control runs a script under.
 use std::process::Command;
-/// The clock a control measures its wait with, and the sleeps of its own waits.
+/// The clock a control measures its wait with,
+/// and the sleeps of its own waits.
 use std::time::{Duration, Instant};
 
-/// The program whose form a bound takes in this harness (`binary_support.rs`, `bounded_for`).
+/// The program whose form a bound takes in this harness (`binary_support.rs`,
+/// `bounded_for`).
 const TIMEOUT: &str = "/usr/bin/timeout";
 
 /// The shell every scripted command of these controls is.
 const SHELL: &str = "/bin/sh";
 
-/// The bound these controls give a command this wait must end, in seconds, as `timeout` takes it.
+/// The bound these controls give a command this wait must end,
+/// in seconds,
+/// as `timeout` takes it.
 const ONE_SECOND: &str = "1";
 
-/// The bound these controls give a command that ends by itself, in seconds:
-///  ample for a shell that exits at once, and the bound the command's own line is read for.
+/// The bound these controls give a command that ends by itself,
+/// in seconds:
+///  ample for a shell that exits at once,
+///  and the bound the command's own line is read for.
 const AMPLE_SECONDS: &str = "30";
 
-/// How long a descendant of a control holds the pipe it inherited, in seconds.
+/// How long a descendant of a control holds the pipe it inherited,
+/// in seconds.
 /// Why longer than every bound here and short of the runner's five-minute stop:
-///  a wait that reads a pipe to its end waits for this descendant, so the control shows that wait,
+///  a wait that reads a pipe to its end waits for this descendant,
+///  so the control shows that wait,
 ///  and a wait that keeps its bound answers long before it.
 const HOLDS_SECONDS: u64 = 30;
 
 /// How long a control lets its wait take before it says the wait lost its bound.
 /// Why five seconds:
-///  the one-second bound these controls state, the grace the wait gives a held pipe, and room for the scheduler
+///  the one-second bound these controls state,
+///  the grace the wait gives a held pipe,
+///  and room for the scheduler
 ///  of a loaded host;
-///  the descendant these controls start holds its pipe for `HOLDS_SECONDS`, so a wait that waits for it shows itself
+///  the descendant these controls start holds its pipe for `HOLDS_SECONDS`,
+///  so a wait that waits for it shows itself
 ///  far past this window.
 const PATIENCE: Duration = Duration::from_secs(5);
 
 /// What:
-///  A command in the harness's own bounded form: `timeout --signal=KILL <seconds> <script>`.
+///  A command in the harness's own bounded form:
+///  `timeout --signal=KILL <seconds> <script>`.
 /// Why:
 ///  Every command of the binary controls carries its bound in its own line,
 ///  and the bound this wait keeps is the one that line states.
@@ -110,10 +124,13 @@ fn end(number: libc::pid_t) {
 ///  whatever that ending was.
 /// Why:
 ///  This wait reads nothing back from a status to learn who ended a command:
-///  an `exit 124`, an `exit 137`, a death by `SIGPIPE` and a command's own `SIGKILL` are all its own,
+///  an `exit 124`,
+///  an `exit 137`,
+///  a death by `SIGPIPE` and a command's own `SIGKILL` are all its own,
 ///  and only a command this wait ended may be reported as the bound's doing.
 ///  A command that kills itself with `SIGKILL` was reported as having hit the wall-clock bound before this
-///  control existed, because the signal `timeout` re-raises is the same number.
+///  control existed,
+///  because the signal `timeout` re-raises is the same number.
 #[test]
 fn a_command_that_ends_by_itself_keeps_its_own_status_and_signal() {
     let made: Fixture = fixture("observe-endings");
@@ -138,9 +155,11 @@ fn a_command_that_ends_by_itself_keeps_its_own_status_and_signal() {
 ///  A command that never ends is ended by this wait at the bound its own line states,
 ///  and the answer says this wait ended it.
 /// Why:
-///  Nothing waits without a bound, a test included:
+///  Nothing waits without a bound,
+///  a test included:
 ///  a command that waits for ever reports nothing and a suite that waits in one control reports nothing either.
-///  The sentence must name the bound this wait kept, because no status the command came back with can say it.
+///  The sentence must name the bound this wait kept,
+///  because no status the command came back with can say it.
 #[test]
 fn a_command_that_never_ends_is_ended_at_its_bound() {
     let made: Fixture = fixture("observe-bound");
@@ -163,8 +182,10 @@ fn a_command_that_never_ends_is_ended_at_its_bound() {
 ///  and the sentence says that the pipe is still held.
 /// Why:
 ///  This is the measured defect:
-///  with a child whose descendant held its output pipe, the wait returned after 8,005 ms against a bound of one
-///  second, and a descendant that never ends holds such a wait for ever.
+///  with a child whose descendant held its output pipe,
+///  the wait returned after 8,005 ms against a bound of one
+///  second,
+///  and a descendant that never ends holds such a wait for ever.
 ///  The descendant is ended by this control before it returns.
 #[test]
 fn a_command_whose_descendant_holds_its_output_is_ended_at_its_bound() {
