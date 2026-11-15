@@ -1011,11 +1011,12 @@ fn a_registration_this_program_cannot_read_is_refused_and_the_nested_worktree_st
     use std::os::unix::fs::PermissionsExt as _;
     let scene: Scene = a_repository_with_a_recorded_worktree("removal-unreadable-registration");
     let outer: String = scene.task.display().to_string();
-    // The nested checkout is ignored by the repository, as the review's own fixture is, so the outer worktree is clean.
-    let ignored: PathBuf = scene.repo.join(".gitignore");
+    // The nested checkout is ignored by the branch the outer worktree is on, as the review's own fixture ignores it,
+    // so the outer worktree is clean and the removal is Git's to make once the guard has stood aside.
+    let ignored: PathBuf = scene.task.join(".gitignore");
     std::fs::write(ignored.as_path(), "/inner/\n").expect("the ignore file");
-    run_direct(&scene.fixture, scene.repo.as_path(), &["add", ".gitignore"]);
-    run_direct(&scene.fixture, scene.repo.as_path(), &["commit", "--quiet", "--message=ignore the nested checkout"]);
+    run_direct(&scene.fixture, scene.task.as_path(), &["add", ".gitignore"]);
+    run_direct(&scene.fixture, scene.task.as_path(), &["commit", "--quiet", "--message=ignore the nested checkout"]);
     let nested: PathBuf = scene.task.join("inner");
     let named: &str = nested.to_str().expect("a UTF-8 fixture path");
     run_direct(&scene.fixture, scene.repo.as_path(), &["worktree", "add", "--quiet", "--detach", named, "main"]);
