@@ -1330,6 +1330,34 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The check for lost queue entries printed six reviews as missing that had run; its matching is corrected and no entry is lost (2026-11-14T22:29:38-05:00)
+
+Not final and not approved:
+what the coordinating session ran,
+read and corrected.
+
+- The check that every entry queued today is in the queue or was started,
+  last run at 17:48:53,
+  was run at 22:28:56 and printed seven names as missing.
+- **Six were reviews that had run**:
+  each has a run folder `review-<name>-1`,
+  and five of their reports are already acted on.
+  A review of a range is queued under its bare name and runs as `review-<name>`;
+  the check knew that only for entries whose queue command it could read,
+  and since 20:56 this session queues through one-off scripts whose output carries the name alone.
+  The check now counts both spellings,
+  with the reason written at the line.
+- **The seventh is the entry renamed in the queue at about 18:25**
+  (its name counted one review too many);
+  it ran under its corrected name and ended at 20:26:49.
+- Run again at 22:29:38:
+  138 names queued today,
+  72 entries in the queue,
+  one name printed,
+  that rename;
+  none doubled.
+  The whole output is kept in `~/temp/agent/runs-of-2026-11-12-ended-by-the-full-drive/keep/missing-entry-check-of-2026-11-14T2229.txt`.
+
 ##### The driver's empty last answer is answered, with claims read on every look and taken only on proof, and goes to review (2026-11-14T22:28:33-05:00)
 
 Not final and not approved:
