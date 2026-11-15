@@ -738,6 +738,13 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T10:20:50-05:00,
+  from integration pass 53,
+  not blocking work:
+  the automatic push of a branch that has never been pushed met no upstream.
+  Does the push queue set an upstream for such a branch,
+  or is a new branch pushed once by hand?
+
 - Added 2026-11-15T09:46:57-05:00,
   from the author of the landed removal
   (branch tip `5ca2149aea`,
@@ -1662,6 +1669,98 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Integration pass 53 is in `main` and `0.6.1-alpha.42` is dispatched; the brief writer for every kind of code file goes back with two findings (2026-11-15T10:20:50-05:00)
+
+Not final and not approved:
+what one pass,
+one review and one author report,
+and what the coordinating session did.
+
+- **Integration pass 53** ended 10:14:53 at `d76695df29`,
+  which holds `main` as it stood,
+  and reports fit:
+  build,
+  both test compiles,
+  Clippy with warnings denied,
+  both guard modules
+  (26 of 26),
+  the review's four controls
+  (4 of 4);
+  in both whole suites only four failures,
+  each known at `main` on this machine
+  (three on the gate's list;
+  the checkout migration's control,
+  whose fix is in review);
+  the two known TypeScript failures and no other.
+  What it could not show and says so:
+  that `a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown` passes in the gate's image,
+  which the release's gate answers.
+  **Merged** as `9e3862b4f8` (10:19:45),
+  after checking that `main` held nothing in the wrapper that the tip lacked.
+  **Release `0.6.1-alpha.42` dispatched** at 10:19:55
+  (run 43729271505);
+  the install,
+  the sample commit,
+  the gate and the fuzz sidecar's type check follow.
+- **What the pass left as questions**:
+  whether the push queue sets an upstream for a branch it has never pushed
+  (kept for the owner);
+  who owns the two gate-list failures on the lock-holders folder and the migration control
+  (the lock-holders branch,
+  with its author,
+  and the migration branch,
+  in review);
+  and that `held_push_holder_and_verdict` still compares a boot and a birth as text
+  (the fresh run queued at 07:17 owns it).
+  The pass's agent ran `printenv CARGO_TARGET_DIR`
+  (one name,
+  empty);
+  the next pass's brief says where to read a build folder from.
+- **The driver's brief writer for every kind of code file** (`89c1554737`),
+  its review,
+  ended 10:14:58,
+  11 of 11 files,
+  two things,
+  both reproduced by driving `writeReviewBrief`:
+  material a test may read is listed to be read in full and,
+  lines later,
+  said to be left out;
+  and code of an unlisted kind beside a test is reviewed as a change to tests alone,
+  with no requirements for code and no notice.
+  **Weighed**:
+  both go back.
+  The author is asked for one function that answers everything a brief and a status line say for a row of its table,
+  and for the walk of all 64 rows to check the brief's own text.
+  Its fourth run is queued ninth.
+- **The process that holds a file open in a worktree**,
+  its author's second run,
+  ended 10:16:18 at `2bfd8be2b2`:
+  the rule's doc now says what it is and what it misses,
+  49 lines added and 29 removed in one file,
+  comment lines only.
+  The author found the same "cannot" in three lines of the tests' file
+  (a control's doc and two assertion messages)
+  and left them,
+  because its brief forbade a change to a test.
+  Its third run is queued first,
+  for those three lines alone;
+  one review then reads everything added after `3c43b9142a`.
+- **The temperature**,
+  read at 10:19:19:
+  56.1 degrees,
+  budget 32.0 threads,
+  10.9 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:19:22:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 10:12;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  Neither resumed session is named by the credential scan.
 
 ##### The wrapper under the gate container's Git: the review of the words finds two sentences left that still say who ended a query (2026-11-15T10:13:11-05:00)
 
