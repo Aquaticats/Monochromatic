@@ -27,36 +27,57 @@ use crate::subvolume_sync_pass_state_and_checks::*;
 
 impl Pass<'_> {
     /// Copy a symbolic link.
-    pub(crate) fn copy_symlink(&mut self, directory: &Directory, relative: &Path, metadata: &Metadata, existing: Option<Metadata>) -> Result<(), MigrateError> {
+    pub(crate) fn copy_symlink(&mut self, directory: &Directory, relative: &Path, metadata: &Metadata, existing: Option<Metadata>) -> Result<Copied, MigrateError> {
         let source: PathBuf = self.source.join(relative);
         let destination: PathBuf = directory.child(relative.file_name().unwrap_or_default());
-        let target: PathBuf = MigrateError::from_io_result(std::fs::read_link(&source), "read the link", source.as_path())?;
+        let shown: PathBuf = self.shown(relative);
+        let target: PathBuf = match std::fs::read_link(&source) {
+            Ok(read) => read,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.stats.vanished += 1;
+                return Ok(Copied::Vanished);
+            }
+            // The name holds another kind of entry now: nothing is written here and the walk reports it.
+            Err(error) if error.raw_os_error() == Some(libc::EINVAL) => return Ok(Copied::ChangedKind),
+            Err(error) => return Err(MigrateError::io("read the link", source.as_path(), &error)),
+        };
         if let Some(found) = &existing {
             if found.file_type().is_symlink() && std::fs::read_link(&destination).ok().as_ref() == Some(&target) {
                 if (found.mtime(), found.mtime_nsec()) != (metadata.mtime(), metadata.mtime_nsec()) && !self.options.update_only {
-                    attribute_result(preserve_on_link(source.as_path(), destination.as_path(), metadata, &mut self.stats.losses)
-                        , self.shown(relative).as_path())?;
+                    attribute_result(preserve_on_link(source.as_path(), destination.as_path(), metadata, &mut self.stats.losses), shown.as_path())?;
                 }
                 self.stats.unchanged += 1;
-                return Ok(());
+                return Ok(Copied::LeftAsItIs);
             }
             if !self.replace_allowed(relative, found, metadata) {
-                return Ok(());
+                return Ok(Copied::LeftAsItIs);
             }
         }
         let partial: PathBuf = directory.partial();
-        MigrateError::from_io_result(std::os::unix::fs::symlink(&target, &partial), "create the link", self.shown(relative).as_path())?;
-        attribute_result(preserve_on_link(source.as_path(), partial.as_path(), metadata, &mut self.stats.losses)
-            , self.shown(relative).as_path())?;
-        self.publish(directory, relative, existing.as_ref())?;
+        MigrateError::from_io_result(std::os::unix::fs::symlink(&target, &partial), "create the link", shown.as_path())?;
+        attribute_result(preserve_on_link(source.as_path(), partial.as_path(), metadata, &mut self.stats.losses), shown.as_path())?;
+        if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
+            return Ok(Copied::KeptTheDestinationEntry);
+        }
         self.stats.symlinks += 1;
-        return Ok(());
+        return Ok(Copied::Placed);
     }
 
     /// Copy a named pipe.
-    pub(crate) fn copy_fifo(&mut self, directory: &Directory, relative: &Path, metadata: &Metadata, existing: Option<Metadata>) -> Result<(), MigrateError> {
+    pub(crate) fn copy_fifo(&mut self, directory: &Directory, relative: &Path, metadata: &Metadata, existing: Option<Metadata>) -> Result<Copied, MigrateError> {
         let source: PathBuf = self.source.join(relative);
         let destination: PathBuf = directory.child(relative.file_name().unwrap_or_default());
+        // A named pipe is made from the listing's kind, so the name has to hold that kind still: another kind is no
+        //  entry this pass can make here, and the walk reports it rather than writing its own entry.
+        match std::fs::symlink_metadata(&source) {
+            Ok(now) if !now.file_type().is_fifo() => return Ok(Copied::ChangedKind),
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.stats.vanished += 1;
+                return Ok(Copied::Vanished);
+            }
+            Err(error) => return Err(MigrateError::io("examine", source.as_path(), &error)),
+        }
         if let Some(found) = &existing {
             if found.file_type().is_fifo() {
                 let same: bool = found.mode() & 0o7777 == metadata.mode() & 0o7777 && (found.mtime(), found.mtime_nsec()) == (metadata.mtime(), metadata.mtime_nsec());
@@ -66,20 +87,22 @@ impl Pass<'_> {
                         , self.shown(relative).as_path())?;
                 }
                 self.stats.unchanged += 1;
-                return Ok(());
+                return Ok(Copied::LeftAsItIs);
             }
             if !self.replace_allowed(relative, found, metadata) {
-                return Ok(());
+                return Ok(Copied::LeftAsItIs);
             }
         }
         let partial: PathBuf = directory.partial();
-        MigrateError::from_io_result(make_fifo(partial.as_path(), metadata.mode()), "create the named pipe", self.shown(relative).as_path())?;
-        let handle: File = MigrateError::from_io_result(open_fifo(partial.as_path()), "open the named pipe", self.shown(relative).as_path())?;
-        attribute_result(preserve_on_descriptor(source.as_path(), &handle, metadata, true, &mut self.stats.losses)
-            , self.shown(relative).as_path())?;
-        self.publish(directory, relative, existing.as_ref())?;
+        let shown: PathBuf = self.shown(relative);
+        MigrateError::from_io_result(make_fifo(partial.as_path(), metadata.mode()), "create the named pipe", shown.as_path())?;
+        let handle: File = MigrateError::from_io_result(open_fifo(partial.as_path()), "open the named pipe", shown.as_path())?;
+        attribute_result(preserve_on_descriptor(source.as_path(), &handle, metadata, true, &mut self.stats.losses), shown.as_path())?;
+        if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
+            return Ok(Copied::KeptTheDestinationEntry);
+        }
         self.stats.fifos += 1;
-        return Ok(());
+        return Ok(Copied::Placed);
     }
 
     /// Whether the destination file is one of the recorded copies of this source file,
@@ -112,8 +135,9 @@ impl Pass<'_> {
     }
 
     /// Try to make the destination another name of an earlier copy.
-    /// True when it was done.
-    pub(crate) fn link_to_earlier_copy(&mut self, directory: &Directory, relative: &Path, key: (u64, u64), existing: Option<&Metadata>) -> Result<bool, MigrateError> {
+    ///  `Ok(None)` means no earlier copy could be linked,
+    /// and `Ok(Some(_))` is what placing the link came to.
+    pub(crate) fn link_to_earlier_copy(&mut self, directory: &Directory, relative: &Path, key: (u64, u64), existing: Option<&Metadata>) -> Result<Option<Copied>, MigrateError> {
         for copy in self.links.get(&key).cloned().unwrap_or_default() {
             let Ok(earlier) = Anchor::open_below(self.destination, copy.parent().unwrap_or(Path::new(""))) else { continue };
             let first: PathBuf = earlier.child(copy.file_name().unwrap_or_default());
@@ -121,15 +145,17 @@ impl Pass<'_> {
             if self.platform.hard_link(first.as_path(), directory.partial().as_path()).is_err() {
                 continue;
             }
-            self.publish(directory, relative, existing)?;
+            if self.publish(directory, relative, existing)? == Published::KeptTheDestinationEntry {
+                return Ok(Some(Copied::KeptTheDestinationEntry));
+            }
             self.stats.hard_linked += 1;
-            return Ok(true);
+            return Ok(Some(Copied::Placed));
         }
-        return Ok(false);
+        return Ok(None);
     }
 
     /// Copy a regular file.
-    pub(crate) fn copy_file(&mut self, directory: &Directory, relative: &Path, listing: &Metadata, existing: Option<Metadata>) -> Result<(), MigrateError> {
+    pub(crate) fn copy_file(&mut self, directory: &Directory, relative: &Path, listing: &Metadata, existing: Option<Metadata>) -> Result<Copied, MigrateError> {
         let source: PathBuf = self.source.join(relative);
         let destination: PathBuf = directory.child(relative.file_name().unwrap_or_default());
         let shown: PathBuf = self.shown(relative);
@@ -137,12 +163,12 @@ impl Pass<'_> {
         if let Some(found) = &existing {
             if !found.is_file() {
                 if !self.replace_allowed(relative, found, listing) {
-                    return Ok(());
+                    return Ok(Copied::LeftAsItIs);
                 }
             } else if self.options.update_only && is_newer(found, listing) {
                 // The destination holds newer work. It is not a faithful copy, so no other name may be linked to it.
                 self.stats.unchanged += 1;
-                return Ok(());
+                return Ok(Copied::LeftAsItIs);
             } else if file_is_equal(found, listing) && (listing.nlink() <= 1 || self.is_linked_as_recorded(listed_key, found)) {
                 if !self.options.update_only && !carried_attributes_equal(source.as_path(), destination.as_path()) {
                     self.refresh_attributes(&source, &destination, listing, shown.as_path())?;
@@ -151,21 +177,23 @@ impl Pass<'_> {
                 if listing.nlink() > 1 {
                     self.record_link(listed_key, relative);
                 }
-                return Ok(());
+                return Ok(Copied::LeftAsItIs);
             }
         }
-        if listing.nlink() > 1 && self.link_to_earlier_copy(directory, relative, listed_key, existing.as_ref())? {
-            return Ok(());
+        if listing.nlink() > 1
+            && let Some(outcome) = self.link_to_earlier_copy(directory, relative, listed_key, existing.as_ref())?
+        {
+            return Ok(outcome);
         }
         let mut input: File = match File::open(&source) {
             Ok(opened) => opened,
             Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
                 self.stats.unreadable.push(relative.to_path_buf());
-                return Ok(());
+                return Ok(Copied::Unreadable);
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 self.stats.vanished += 1;
-                return Ok(());
+                return Ok(Copied::Vanished);
             }
             Err(error) => return Err(MigrateError::io("open", source.as_path(), &error)),
         };
@@ -173,9 +201,10 @@ impl Pass<'_> {
         loop {
             attempt += 1;
             let before: Metadata = MigrateError::from_io_result(input.metadata(), "examine", source.as_path())?;
+            // The name holds another kind of entry now: nothing is written here, and the walk reports it, so the old
+            //  tree is not deleted with an entry this pass never carried.
             if !before.is_file() {
-                self.stats.vanished += 1;
-                return Ok(());
+                return Ok(Copied::ChangedKind);
             }
             remove_if_present(directory.partial().as_path(), shown.as_path())?;
             let mut output: File = MigrateError::from_io_result(std::fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(directory.partial())
@@ -203,7 +232,9 @@ impl Pass<'_> {
             attribute_result(preserve_on_descriptor(source.as_path(), &output, &before, !self.options.update_only, &mut self.stats.losses)
                 , shown.as_path())?;
             drop(output);
-            self.publish(directory, relative, existing.as_ref())?;
+            if self.publish(directory, relative, existing.as_ref())? == Published::KeptTheDestinationEntry {
+                return Ok(Copied::KeptTheDestinationEntry);
+            }
             if cloned.is_ok() {
                 self.stats.cloned += 1;
             }
@@ -214,7 +245,8 @@ impl Pass<'_> {
             if before.nlink() > 1 {
                 self.record_link((before.dev(), before.ino()), relative);
             }
-            return self.interrupt.check("copy-entry");
+            self.interrupt.check("copy-entry")?;
+            return Ok(Copied::Placed);
         }
     }
 

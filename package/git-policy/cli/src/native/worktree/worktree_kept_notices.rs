@@ -152,6 +152,34 @@ pub fn record_kept_worktree(common_dir: &Path, worktree: &Path, branch: &str, wh
 }
 
 /// What:
+///  Every first line this module's reader accepts.
+/// Why:
+///   The reader and every other judge of a notice file take the same list from here,
+///  so no second list of spellings can accept less than this reader does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const accepted = [MAGIC];
+/// ```
+pub fn accepted_notice_first_lines() -> Vec<&'static str> {
+    return vec![MAGIC];
+}
+
+/// What:
+///  Whether `line` is the first line of a record this module's reader accepts.
+/// Why:
+///   A file whose first line is another line is another program's,
+///  and it is neither shown nor moved.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mine = (line) => line === MAGIC;
+/// ```
+pub fn is_a_notice_first_line(line: &str) -> bool {
+    return line == MAGIC;
+}
+
+/// What:
 ///  The record's parts,
 ///  or nothing when the file is not one this release wrote.
 /// Why:
@@ -164,7 +192,7 @@ pub fn record_kept_worktree(common_dir: &Path, worktree: &Path, branch: &str, wh
 /// ```
 fn parse_record(text: &str) -> Option<(PathBuf, String, String)> {
     let mut lines = text.splitn(5, '\n');
-    if lines.next()? != MAGIC {
+    if !is_a_notice_first_line(lines.next()?) {
         return None;
     }
     let worktree: &str = lines.next()?.strip_prefix(WORKTREE_FIELD)?;

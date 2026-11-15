@@ -315,6 +315,21 @@ pub(crate) fn uncarried_cause(run: &Run<'_>) -> String {
             shown_left_out(run.conflicts.iter())
         ));
     }
+    if !run.kept_at_the_destination.is_empty() {
+        parts.push(format!(
+            "{} entr(ies) this carry did not place because {} came to hold another entry at their path while it ran, and that entry stays ({})",
+            run.kept_at_the_destination.len(),
+            run.layout.root.display(),
+            shown_left_out(run.kept_at_the_destination.iter())
+        ));
+    }
+    if !run.changed_while_passing.is_empty() {
+        parts.push(format!(
+            "{} entr(ies) this carry did not place because they were another kind of entry when it reached them ({})",
+            run.changed_while_passing.len(),
+            shown_left_out(run.changed_while_passing.iter())
+        ));
+    }
     return format!("{} did not reach {}: {} (the whole list is in {})", run.layout.old_path.display(), run.layout.root.display(), parts.join("; "), run.layout.left_out_path.display());
 }
 

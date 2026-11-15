@@ -112,6 +112,13 @@ pub struct Run<'a> {
     /// which the carry kept as the newer one,
     /// so nothing from the old tree reached the checkout at that path.
     pub conflicts: BTreeSet<PathBuf>,
+    /// Relative paths of entries the carry did not place because the checkout came to hold an entry it had not seen,
+    /// which stays,
+    /// so nothing from the old tree reached the checkout at that path.
+    pub kept_at_the_destination: BTreeSet<PathBuf>,
+    /// Relative paths of entries that were another kind of entry when the carry reached them,
+    /// so nothing was written at their path.
+    pub changed_while_passing: BTreeSet<PathBuf>,
 }
 
 impl Run<'_> {
@@ -137,7 +144,18 @@ impl Run<'_> {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => BTreeSet::new(),
             Err(error) => return Err(MigrateError::io("read the list of unreadable files", layout.unreadable_path.as_path(), &error)),
         };
-        return Ok(Run { platform, layout, journal, interrupt, say, unreadable, left_out: BTreeSet::new(), conflicts: BTreeSet::new() });
+        return Ok(Run {
+            platform,
+            layout,
+            journal,
+            interrupt,
+            say,
+            unreadable,
+            left_out: BTreeSet::new(),
+            conflicts: BTreeSet::new(),
+            kept_at_the_destination: BTreeSet::new(),
+            changed_while_passing: BTreeSet::new(),
+        });
     }
 
     /// Send one line to the progress sink.
@@ -247,8 +265,10 @@ impl Run<'_> {
     /// What:
     ///  Record the entries the pass did not carry:
     /// those it left out because they are older than the catch-up,
-    /// and those whose path
+    /// those whose path
     ///  in the destination holds another kind of entry,
+    /// those the destination came to hold something else at while the pass ran,
+    /// and those that were another kind of entry when the pass reached them,
     /// and write the list beside the checkout.
     /// Why:
     ///   A left-out entry is either a file deleted from the checkout on purpose or a file restored into the old tree
@@ -282,7 +302,17 @@ impl Run<'_> {
                 self.left_out.insert(path.clone());
             }
         }
-        if self.left_out.is_empty() && self.conflicts.is_empty() {
+        for path in &stats.kept_at_the_destination {
+            if !self.unreadable.contains(path) {
+                self.kept_at_the_destination.insert(path.clone());
+            }
+        }
+        for path in &stats.changed_while_passing {
+            if !self.unreadable.contains(path) {
+                self.changed_while_passing.insert(path.clone());
+            }
+        }
+        if self.left_out.is_empty() && self.conflicts.is_empty() && self.kept_at_the_destination.is_empty() && self.changed_while_passing.is_empty() {
             return Ok(());
         }
         return self.write_left_out();
@@ -299,6 +329,10 @@ impl Run<'_> {
             text.push('\n');
         }
         for path in &self.conflicts {
+            text.push_str(path.to_string_lossy().as_ref());
+            text.push('\n');
+        }
+        for path in self.kept_at_the_destination.iter().chain(self.changed_while_passing.iter()) {
             text.push_str(path.to_string_lossy().as_ref());
             text.push('\n');
         }

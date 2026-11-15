@@ -129,6 +129,16 @@ pub struct SyncStats {
     /// so what they say is not lost with the old tree;
     /// relative paths.
     pub notices_carried: Vec<PathBuf>,
+    /// Source entries this pass did not place because the destination came to hold an entry it did not see when it
+    ///  looked.
+    /// That entry stays and this one is reported, so the deletion of the old tree waits for the person:
+    /// relative paths.
+    pub kept_at_the_destination: Vec<PathBuf>,
+    /// Source entries that were another kind of entry when the copy reached them,
+    /// so nothing was written at their name.
+    /// They are reported for the same reason as `kept_at_the_destination`;
+    /// relative paths.
+    pub changed_while_passing: Vec<PathBuf>,
     /// The first few files whose content was copied,
     /// relative paths,
     /// for the report.
@@ -318,15 +328,135 @@ impl Pass<'_> {
         return true;
     }
 
-    /// Put the finished temporary entry in place of the destination name.
-    pub(crate) fn publish(&self, directory: &Directory, relative: &Path, existing: Option<&Metadata>) -> Result<(), MigrateError> {
+    /// What:
+    ///  Put the finished temporary entry at the destination name,
+    ///  and never replace an entry this pass did not see.
+    ///  `existing` is what the pass found at that name when it decided to copy.
+    /// Why:
+    ///   The look and the write are two steps,
+    ///  and between them another command can put something at that name.
+    ///  A name the pass found free is therefore created and never replaced,
+    ///  and a name that held an entry is replaced only while it still holds that very entry,
+    ///  so what came to stand there is somebody's and stays.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const published = pass.publish(directory, relative, existing); // 'placed' | 'kept-the-destination-entry'
+    /// ```
+    pub(crate) fn publish(&mut self, directory: &Directory, relative: &Path, existing: Option<&Metadata>) -> Result<Published, MigrateError> {
         let name: &OsStr = relative.file_name().unwrap_or_default();
         let destination: PathBuf = directory.child(name);
-        if let Some(found) = existing && found.is_dir() {
-            remove_entry(destination.as_path(), self.shown(relative).as_path())?;
+        let partial: PathBuf = directory.partial();
+        let shown: PathBuf = self.shown(relative);
+        let Some(found) = existing else {
+            return place_where_nothing_was(partial.as_path(), destination.as_path(), shown.as_path());
+        };
+        // The pass saw this entry and decided the source wins. Only that very entry may be replaced.
+        let now: Option<Metadata> = std::fs::symlink_metadata(&destination).ok();
+        if !same_object(now.as_ref(), found) {
+            remove_if_present(partial.as_path(), shown.as_path())?;
+            return Ok(Published::KeptTheDestinationEntry);
         }
-        return MigrateError::from_io_result(std::fs::rename(directory.partial(), &destination), "put the finished copy in place of", self.shown(relative).as_path());
+        if found.is_dir() {
+            // A directory is in the way of a rename, so it goes first, and only the one the pass saw.
+            remove_entry(destination.as_path(), shown.as_path())?;
+            return place_where_nothing_was(partial.as_path(), destination.as_path(), shown.as_path());
+        }
+        return MigrateError::from_io_result(std::fs::rename(partial.as_path(), &destination), "put the finished copy in place of", shown.as_path()).map(|()| return Published::Placed);
     }
+}
+
+/// What:
+///  What turning the finished temporary entry into the destination's name did.
+/// Why:
+///   The caller counts and reports what happened,
+///  and only a placed entry is a copy the pass can say it carried.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Published = 'placed' | 'kept-the-destination-entry';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Published {
+    /// The destination name now holds the copy.
+    Placed,
+    /// The destination came to hold an entry the pass did not see:
+    /// it stays and the copy was dropped.
+    KeptTheDestinationEntry,
+}
+
+/// What:
+///  What the copying of one source entry came to,
+///  which the walk reports and counts.
+/// Why:
+///   An entry the pass could not place,
+///  or that was another kind of entry when the copy reached it,
+///  is a fact about the old tree the person must hear before it is deleted.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Copied = 'placed' | 'left-as-it-is' | 'vanished' | 'unreadable' | 'changed-kind' | 'kept-the-destination-entry';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Copied {
+    /// The destination name holds the copy.
+    Placed,
+    /// The destination already held what it should,
+    /// so the entry was left as it is.
+    LeftAsItIs,
+    /// The source entry is gone.
+    Vanished,
+    /// This user may not read the source entry.
+    Unreadable,
+    /// The source entry was another kind of entry when the copy reached it,
+    /// so nothing was written at its name.
+    ChangedKind,
+    /// The destination came to hold an entry this pass did not see:
+    /// it stays and the copy was dropped.
+    KeptTheDestinationEntry,
+}
+
+/// What:
+///  Put a finished copy at a name the pass found free,
+///  and leave whatever came to stand there since.
+/// Why:
+///   Creating a name and never replacing one is the only write that cannot lose what another command put there;
+///  a filesystem that cannot do it refuses the migration rather than replacing unseen.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const placed = placeWhereNothingWas(partial, destination); // renameat2(RENAME_NOREPLACE)
+/// ```
+pub(crate) fn place_where_nothing_was(partial: &Path, destination: &Path, shown: &Path) -> Result<Published, MigrateError> {
+    let outcome: std::io::Result<()> = crate::rename_that_never_replaces::rename_noreplace(partial, destination);
+    return match outcome {
+        Ok(()) => Ok(Published::Placed),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            remove_if_present(partial, shown)?;
+            Ok(Published::KeptTheDestinationEntry)
+        }
+        Err(error) if crate::rename_that_never_replaces::rename_unsupported(&error) => Err(MigrateError::Io {
+            action: String::from("put a copy at a free name without replacing what stands there, which this filesystem cannot do"),
+            path: shown.to_path_buf(),
+            reason: error.to_string(),
+        }),
+        Err(error) => Err(MigrateError::io("put the finished copy in place", shown, &error)),
+    };
+}
+
+/// Whether the entry at a name is still the object the pass looked at:
+/// the same device and inode.
+/// Why:
+///   A name says nothing about which object it holds,
+///  and an object that a name held a moment ago may have been replaced by another one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const same = (now, looked) => now?.dev === looked.dev && now?.ino === looked.ino;
+/// ```
+pub(crate) fn same_object(held_now: Option<&Metadata>, looked: &Metadata) -> bool {
+    let Some(held) = held_now else { return false };
+    return held.dev() == looked.dev() && held.ino() == looked.ino();
 }
 
 /// Make an existing destination directory writable for the pass;

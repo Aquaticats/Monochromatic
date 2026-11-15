@@ -11,15 +11,17 @@
 //!  by the names the code that writes it uses,
 //!  so no second list of paths can drift from those writers:
 //!  the records folder comes from `lock_holder_records`,
-//!  the notice folders from the three modules that write notices,
-//!  and the program's own name,
-//!  which every notice begins with,
-//!  from `wrapper_names_old_and_new`.
+//!  the notice folders and the first lines a notice may begin with come from the three modules that
+//!  write and read notices,
+//!  and the data folder from `wrapper_names_old_and_new`.
 //!  A file under one of those names that this program did not write is a person's file and still counts:
 //!  the file itself has to carry the mark its writer puts on it,
-//!  the record header of the lock holders or this program's name as the first word of a notice's first
-//!  line,
+//!  the record header of the lock holders or one of the first lines the notice's own reader accepts,
 //!  and a file without that mark is judged like any other entry.
+//!  The kind an entry is judged by is the kind the walk listed,
+//!  never a second look at the name:
+//!  a name that came to hold something else while the pass ran is counted, not carried,
+//!  so the deletion of the old tree is held back and the person looks at that path.
 //!  A folder under one of those names is never left out,
 //!  because the folder's own name says nothing about the files below it:
 //!  the pass walks into it and judges each file there on its own.
@@ -34,7 +36,7 @@
 //!    a worktree a removal kept or a volume a removal went around,
 //!    and a notice is removed from the checkout once it was shown,
 //!    so the copy the old tree holds is shown once more rather than going silent with that tree.
-//!  - a kind this program writes without a mark of its own on the first line,
+//!  - a kind this program writes without a mark its reader accepts on the first line,
 //!    such as the work records the commit service lands and the logs beside them,
 //!    is counted exactly as a person's entry is:
 //!    nothing there tells this program's file from a person's of the same name,
@@ -44,7 +46,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! const own = ownBookkeepingOf(tree, '.git/cli-git-lock-holders/4242.0f3a'); // 'left-out' | 'carried-over' | undefined
+//! const own = ownBookkeepingOf(tree, '.git/cli-git-lock-holders/4242.0f3a', listed); // 'left-out' | 'carried-over' | undefined
 //! ```
 
 use crate::lock_holder_records::{RECORD_HEADER, folder_below_the_common_git_directory};
@@ -52,7 +54,8 @@ use crate::plain_file::open_plain_file;
 use crate::push_failure_notice::{NOTICE_DIRECTORY, ORPHAN_NOTICE_DIRECTORY};
 use crate::worktree_kept_notices::KEPT_NOTICE_DIRECTORY;
 use crate::worktree_removal_goes_around_a_foreign_volume::LEFT_IN_PLACE_NOTICE_DIRECTORY;
-use crate::wrapper_names_old_and_new::{DATA_FOLDER, PROGRAM};
+use crate::wrapper_names_old_and_new::DATA_FOLDER;
+use std::fs::Metadata;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
@@ -99,33 +102,60 @@ pub(crate) enum OwnBookkeeping {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type Mark = 'record-header' | 'program-name';
+/// type Told = 'record-header' | ((line: string) => boolean);
 /// ```
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Mark {
+#[derive(Clone, Copy)]
+enum Told {
     /// The header a lock holder's record starts with,
     /// from the module that writes the records.
     RecordHeader,
-    /// This program's own name,
-    /// which is the first word of every notice it writes.
-    ProgramName,
+    /// One of the first lines a notice module's reader accepts,
+    /// from the module that writes and reads that notice.
+    NoticeFirstLine(fn(&str) -> bool),
+}
+
+/// What:
+///  One kind of notice this program shows a person:
+///  the folders the module that writes it spells,
+///  and the first line that module's reader accepts.
+/// Why:
+///   A judge of a notice file asks the writer for both,
+///  so neither a folder nor a spelling is written down a second time.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type NoticeKind = { folders: string[]; accepts: (line: string) => boolean };
+/// ```
+pub(crate) struct NoticeKind {
+    /// The folder of each notice of this kind,
+    /// under both spellings the data folder has.
+    pub(crate) folders: Vec<PathBuf>,
+    /// Whether a first line is one this kind's reader accepts.
+    pub(crate) accepts: fn(&str) -> bool,
+    /// Every first line that reader accepts,
+    /// which is what a control walks this kind through.
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) first_lines: Vec<String>,
 }
 
 /// What:
 ///  What this program's own bookkeeping is at `relative`,
 ///  a path relative to `tree`,
 ///  or nothing when the entry there is a person's or Git's.
+///  `listed` is the metadata the walk took when it listed the entry's folder.
 /// Why:
 ///   See the module description.
-/// The answer is read from the entry itself,
+/// The answer is read from the entry's own first line,
 ///  never from the folder's name alone,
-///  so a person's file under a name this program keeps is still a person's.
+///  so a person's file under a name this program keeps is still a person's,
+///  and it is read for the kind the walk listed:
+///  an entry that came to be another kind while the pass ran is counted, and holds the deletion back.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const own = ownBookkeepingOf(oldTree, '.git/monochromatic-git-policy-cli/notices/x+0f3a');
+/// const own = ownBookkeepingOf(oldTree, '.git/monochromatic-git-policy-cli/notices/x+0f3a', listed);
 /// ```
-pub(crate) fn own_bookkeeping_of(tree: &Path, relative: &Path) -> Option<OwnBookkeeping> {
+pub(crate) fn own_bookkeeping_of(tree: &Path, relative: &Path, listed: &Metadata) -> Option<OwnBookkeeping> {
     if !tree.join(GIT_DIRECTORY).is_dir() {
         return None;
     }
@@ -135,11 +165,11 @@ pub(crate) fn own_bookkeeping_of(tree: &Path, relative: &Path) -> Option<OwnBook
     }
     let path: PathBuf = tree.join(relative);
     if below.starts_with(folder_below_the_common_git_directory()) {
-        return decision(path.as_path(), Mark::RecordHeader);
+        return decision(path.as_path(), listed, Told::RecordHeader);
     }
-    for folder in notice_folders() {
-        if below.starts_with(folder.as_path()) {
-            return decision(path.as_path(), Mark::ProgramName);
+    for kind in notice_kinds() {
+        if kind.folders.iter().any(|folder| return below.starts_with(folder)) {
+            return decision(path.as_path(), listed, Told::NoticeFirstLine(kind.accepts));
         }
     }
     // The data folder itself is carried so the walk reaches the notices in it. A folder beside them,
@@ -147,7 +177,7 @@ pub(crate) fn own_bookkeeping_of(tree: &Path, relative: &Path) -> Option<OwnBook
     // nothing here can tell this program's work record there from a person's file of the same name.
     for data_folder in [DATA_FOLDER.current, DATA_FOLDER.earlier] {
         if below == Path::new(data_folder) {
-            return Some(OwnBookkeeping::CarriedOver);
+            return if listed.is_dir() { Some(OwnBookkeeping::CarriedOver) } else { None };
         }
     }
     return None;
@@ -155,33 +185,38 @@ pub(crate) fn own_bookkeeping_of(tree: &Path, relative: &Path) -> Option<OwnBook
 
 /// What:
 ///  The decision for one entry below a folder this program writes into,
-///  by the mark its writer put on it.
+///  judged by the kind the walk listed and the mark its writer puts on the file.
 /// Why:
 ///   A folder is carried over so the pass walks into it:
 ///  leaving a folder out would drop every file below it,
 ///  a person's included,
 ///  on the strength of the folder's name.
+///  An entry the walk listed as a folder or a file that is not one of those when it is read is no entry this
+///  judge knows,
+///  so it is counted: the pass reports it and the deletion of the old tree waits for the person.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const decision = marked(path) ? (mark === 'record-header' ? 'left-out' : 'carried-over') : undefined;
+/// const decision = listed.isFolder ? 'carried-over' : (listed.isFile && marked(path, told) ? told.decision : undefined);
 /// ```
-fn decision(path: &Path, mark: Mark) -> Option<OwnBookkeeping> {
-    let is_a_folder: bool = std::fs::symlink_metadata(path).map(|found| return found.is_dir()).unwrap_or(false);
-    if is_a_folder {
+fn decision(path: &Path, listed: &Metadata, told: Told) -> Option<OwnBookkeeping> {
+    if listed.is_dir() {
         return Some(OwnBookkeeping::CarriedOver);
     }
-    let first_line: String = first_line_of(path)?;
-    let marked: bool = match mark {
-        Mark::RecordHeader => first_line == RECORD_HEADER,
-        Mark::ProgramName => names_the_program(first_line.as_str()),
-    };
-    if !marked {
+    if !listed.is_file() {
         return None;
     }
-    return Some(match mark {
-        Mark::RecordHeader => OwnBookkeeping::LeftOut,
-        Mark::ProgramName => OwnBookkeeping::CarriedOver,
+    let first_line: String = first_line_of(path)?;
+    let mine: bool = match told {
+        Told::RecordHeader => first_line == RECORD_HEADER,
+        Told::NoticeFirstLine(accepts) => accepts(first_line.as_str()),
+    };
+    if !mine {
+        return None;
+    }
+    return Some(match told {
+        Told::RecordHeader => OwnBookkeeping::LeftOut,
+        Told::NoticeFirstLine(_) => OwnBookkeeping::CarriedOver,
     });
 }
 
@@ -192,7 +227,7 @@ fn decision(path: &Path, mark: Mark) -> Option<OwnBookkeeping> {
 ///   The mark is on the first line,
 /// so a bounded read is all the answer needs;
 ///  a named pipe or a device at the name is refused by the open,
-///  and a name that leads nowhere is no mark either.
+///  and a name that leads nowhere or holds a folder now is no mark either.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -208,42 +243,54 @@ fn first_line_of(path: &Path) -> Option<String> {
 }
 
 /// What:
-///  Whether a notice's first line names this program,
-///  in the spelling this release writes or the one an earlier release wrote.
+///  The kinds of notice this program writes,
+///  each with the folders its module spells and the first lines its reader accepts,
+///  under both spellings the data folder has.
 /// Why:
-///   Every notice begins with the program's own name,
-///  and a file whose first line names something else is no notice of this program's,
-///  whatever folder it stands in.
+///   The classifier holds no spelling of its own:
+///  a module that accepts a first line there also names its folder here.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const named = (line) => ['monochromatic-git-policy-cli', 'cli-git-native'].includes(line.split(/[ \t]/)[0]);
+/// const kinds = [{ folders: ['monochromatic-git-policy-cli/notices', 'cli-git/notices', …], accepts: isPushNotice }];
 /// ```
-fn names_the_program(line: &str) -> bool {
-    let name: &str = line.split([' ', '\t']).next().unwrap_or_default();
-    return name == PROGRAM.current || name == PROGRAM.earlier;
+pub(crate) fn notice_kinds() -> Vec<NoticeKind> {
+    let mut kinds: Vec<NoticeKind> = Vec::new();
+    let mut push_folders: Vec<PathBuf> = Vec::new();
+    for spelled in [NOTICE_DIRECTORY, ORPHAN_NOTICE_DIRECTORY] {
+        push_folders.extend(spellings_of_the_data_folder(spelled));
+    }
+    kinds.push(NoticeKind { folders: push_folders, accepts: crate::push_failure_notice::is_a_notice_first_line, first_lines: crate::push_failure_notice::accepted_notice_first_lines() });
+    kinds.push(NoticeKind {
+        folders: spellings_of_the_data_folder(KEPT_NOTICE_DIRECTORY),
+        accepts: crate::worktree_kept_notices::is_a_notice_first_line,
+        first_lines: crate::worktree_kept_notices::accepted_notice_first_lines().iter().map(|line| return (*line).to_string()).collect(),
+    });
+    kinds.push(NoticeKind {
+        folders: spellings_of_the_data_folder(LEFT_IN_PLACE_NOTICE_DIRECTORY),
+        accepts: crate::worktree_removal_goes_around_a_foreign_volume::is_a_notice_first_line,
+        first_lines: crate::worktree_removal_goes_around_a_foreign_volume::accepted_notice_first_lines().iter().map(|line| return (*line).to_string()).collect(),
+    });
+    return kinds;
 }
 
 /// What:
-///  The folders below a checkout's Git directory that hold the notices this program shows a person,
-///  each spelled by the module that writes it,
-///  under both spellings the data folder has.
+///  One folder a writer spells with the current data folder in front,
+///  as a folder under each spelling the data folder has.
 /// Why:
-///   The writers spell the current data folder in front of their own folder,
-///  and a repository renamed since an earlier release still holds notices under the earlier one.
+///   A repository renamed since an earlier release still holds notices under the earlier folder,
+///  and `path_for_reading` reaches them there.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const folders = noticeFolders(); // ['monochromatic-git-policy-cli/notices', 'cli-git/notices', …]
+/// const folders = spellingsOfTheDataFolder('monochromatic-git-policy-cli/notices');
 /// ```
-fn notice_folders() -> Vec<PathBuf> {
+fn spellings_of_the_data_folder(spelled: &str) -> Vec<PathBuf> {
     let mut folders: Vec<PathBuf> = Vec::new();
-    for spelled in [NOTICE_DIRECTORY, ORPHAN_NOTICE_DIRECTORY, KEPT_NOTICE_DIRECTORY, LEFT_IN_PLACE_NOTICE_DIRECTORY] {
-        let Some(inside_the_data_folder) = spelled.strip_prefix(DATA_FOLDER.current) else { continue };
-        let below: &str = inside_the_data_folder.trim_start_matches('/');
-        for data_folder in [DATA_FOLDER.current, DATA_FOLDER.earlier] {
-            folders.push(Path::new(data_folder).join(below));
-        }
+    let Some(inside_the_data_folder) = spelled.strip_prefix(DATA_FOLDER.current) else { return vec![PathBuf::from(spelled)] };
+    let below: &str = inside_the_data_folder.trim_start_matches('/');
+    for data_folder in [DATA_FOLDER.current, DATA_FOLDER.earlier] {
+        folders.push(Path::new(data_folder).join(below));
     }
     return folders;
 }

@@ -56,6 +56,54 @@
 //! and
 //!  `subvolume_wrapper_bookkeeping.rs` holds the rule for it.
 //!
+//! Every place in this pass where something is looked at and acted on later,
+//! and what each does when the tree changed in between.
+//! The rule is one: a look and an act must be of the same thing,
+//! and a write into the destination never replaces what it did not see.
+//! No place here can end in the deletion of the old tree while it reports nothing,
+//! and the two that name an entry are counted where the deletion looks
+//! (`kept_at_the_destination` and `changed_while_passing`),
+//! so they hold it back until the person reads the path.
+//!
+//! - The source folder's listing, then each child's metadata, then the type the child is handled by:
+//! the metadata from the listing is what the pass decides and copies by,
+//! and an entry that is another kind when the copy opens it is counted as `changed_while_passing` rather than as a
+//! file that vanished (the copy of a file, of a link and of a named pipe each check it, and a folder that is no folder
+//! is counted the same way).
+//! This one could delete a person's file before this rule, when a listed file became a directory: it is closed.
+//! - The destination name's absence when the pass decided to copy, then the placement of the finished copy:
+//! the placement creates the name with `renameat2(RENAME_NOREPLACE)` and never replaces,
+//! and a name that came to hold something is kept and counted as `kept_at_the_destination`.
+//! A filesystem without that call refuses the migration with its own words rather than replacing unseen.
+//! This one could delete a person's file before this rule, and it is closed.
+//! - The destination entry the pass saw, then its replacement:
+//! the name is compared with the very object the pass saw (device and inode) and replaced only while it still holds
+//! that object;
+//! another object is kept and counted as `kept_at_the_destination`.
+//! The comparison and the rename are two steps, so an object swapped in between them is still replaced;
+//! the exchange that would close that window hands the object it displaced into this pass's temporary name,
+//! which a later pass deletes,
+//! so it is not used here and the limit is stated rather than hidden.
+//! - A destination folder the pass saw where the source holds a file, then its removal and the placement:
+//! the folder goes only after the same comparison, and the placement then creates the name.
+//! The same window as the line before applies.
+//! - The temporary name in the destination (`.cli-git-migrate-partial`):
+//! the pass removes what stands there before it creates its own copy there.
+//! The name belongs to the pass inside the tree it is building, so what is removed there is the pass's own leftover;
+//! a person's file at that exact name in a tree this pass builds is removed.
+//! No tree this pass builds is the checkout, and nothing of it can reach the old tree's deletion.
+//! - The source file's metadata before and after the copy:
+//! a file that changes while it is copied is copied again, three times at most, and then the run stops with an error
+//! naming the file, so nothing is taken for a faithful copy.
+//! - A file this user may not read:
+//! left in the source and listed, and the deletion of the old tree waits for its own flag.
+//! - The deletion pass, which lists the destination after the source:
+//! it removes what the source does not hold, which is what a deletion pass is for,
+//! and it leaves another command's stage container where it stands.
+//! It runs only into a tree this migration is building, so it cannot reach the old tree's deletion.
+//! - A folder the source held nothing but another command's stage container in, then its removal:
+//! `rmdir` refuses a folder that gained a file in between, so what another command wrote there stays.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! const stats = await syncTree({ platform, source, destination, delete: true, updateOnly: false, excluded: ['.git/index.lock'] });
@@ -277,10 +325,15 @@ impl Pass<'_> {
             Some(since) => metadata.mtime() < since,
             None => false,
         };
+        // Whether this entry is one of this program's notices that the cut-off would otherwise leave out. It is
+        //  counted as carried only once the copy placed it, so a notice the destination turns out to hold something else
+        //  at is reported as what it is.
+        let mut carried_as_notice: bool = false;
         if existing.is_none() && self.options.update_only && older_than_since {
             // What a person or Git put there is what this cut-off holds the pass to; this program's own bookkeeping is
-            //  named once, by its writers, in `subvolume_wrapper_bookkeeping.rs`.
-            match own_bookkeeping_of(self.source, relative.as_path()) {
+            //  named once, by its writers, in `subvolume_wrapper_bookkeeping.rs`, and judged by the kind this walk
+            //  listed rather than by a second look at the name.
+            match own_bookkeeping_of(self.source, relative.as_path(), &metadata) {
                 // A record of one of this program's own processes:
                 // it names that process and nothing a person wrote, and the checkout sweeps such records itself, so it
                 //  is left out and counted apart from a person's entries.
@@ -291,11 +344,7 @@ impl Pass<'_> {
                 // A notice this program wrote for the person: carried over although it is older than the cut-off, so
                 //  what it says reaches the checkout instead of going with the old tree. A folder is carried silently,
                 //  because it holds no words of its own; every file it holds is judged here on its own.
-                Some(OwnBookkeeping::CarriedOver) => {
-                    if !metadata.file_type().is_dir() {
-                        self.stats.notices_carried.push(relative.clone());
-                    }
-                }
+                Some(OwnBookkeeping::CarriedOver) => carried_as_notice = !metadata.file_type().is_dir(),
                 // A person's entry, or one this program cannot prove it wrote: left out, as it always was, so the
                 //  deletion of the old tree does not go without a word about it.
                 None => {
@@ -324,17 +373,44 @@ impl Pass<'_> {
             stack.push(Work::Visit(relative));
             return Ok(());
         }
-        if file_type.is_symlink() {
-            return self.copy_symlink(directory, &relative, &metadata, existing);
-        }
-        if file_type.is_fifo() {
-            return self.copy_fifo(directory, &relative, &metadata, existing);
-        }
-        if file_type.is_file() {
-            return self.copy_file(directory, &relative, &metadata, existing);
-        }
-        self.stats.special_skipped.push(relative);
+        let outcome: Copied = if file_type.is_symlink() {
+            self.copy_symlink(directory, &relative, &metadata, existing)?
+        } else if file_type.is_fifo() {
+            self.copy_fifo(directory, &relative, &metadata, existing)?
+        } else if file_type.is_file() {
+            self.copy_file(directory, &relative, &metadata, existing)?
+        } else {
+            self.stats.special_skipped.push(relative);
+            return Ok(());
+        };
+        self.record_outcome(relative, outcome, carried_as_notice);
         return Ok(());
+    }
+
+    /// What:
+    ///  Record and report what the copying of one source entry came to.
+    /// Why:
+    ///   Only an entry the destination now holds is a notice the pass carried;
+    ///  an entry the destination came to hold something else at,
+    ///  or one that was another kind of entry when the copy reached it,
+    ///  is a fact the person must hear before the old tree is deleted,
+    ///  so it is counted where the deletion looks.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// recordOutcome(relative, outcome, carriedAsNotice);
+    /// ```
+    fn record_outcome(&mut self, relative: PathBuf, outcome: Copied, carried_as_notice: bool) {
+        match outcome {
+            Copied::Placed => {
+                if carried_as_notice {
+                    self.stats.notices_carried.push(relative);
+                }
+            }
+            Copied::KeptTheDestinationEntry => self.stats.kept_at_the_destination.push(relative),
+            Copied::ChangedKind => self.stats.changed_while_passing.push(relative),
+            Copied::LeftAsItIs | Copied::Vanished | Copied::Unreadable => {}
+        }
     }
 
 }
@@ -378,6 +454,8 @@ pub fn sync_tree(
     pass.stats.conflicts.dedup();
     pass.stats.holder_records_left_out.sort();
     pass.stats.notices_carried.sort();
+    pass.stats.kept_at_the_destination.sort();
+    pass.stats.changed_while_passing.sort();
     return Ok(pass.stats);
 }
 

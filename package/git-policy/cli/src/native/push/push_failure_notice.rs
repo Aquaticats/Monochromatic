@@ -402,8 +402,49 @@ fn earlier_spelling(rest: &str) -> String {
 /// ```ts
 /// const currentMagic = (line: string) => MAGICS.find((magic) => line === magic || line === magic.replace(CURRENT, EARLIER))
 /// ```
+/// The first lines of the records this module writes,
+/// in the spelling this release writes.
+const MAGICS: [&str; 6] = [RECORD_MAGIC, UNFINISHED_MAGIC, UNFINISHED_NO_RETRY_MAGIC, SKIPPED_MAGIC, REPORT_MAGIC, LOST_MAGIC];
+
+/// What:
+///  Every first line this module's reader accepts,
+///  each in the spelling this release writes and in the one an earlier release wrote.
+/// Why:
+///   The reader and every other judge of a notice file take the same list from here,
+///  so no second list of spellings can accept less than this reader does.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const accepted = MAGICS.flatMap((magic) => [magic, magic.replace(CURRENT, EARLIER)]);
+/// ```
+pub fn accepted_notice_first_lines() -> Vec<String> {
+    let mut accepted: Vec<String> = Vec::new();
+    for current in MAGICS {
+        accepted.push(current.to_string());
+        if let Some(earlier) = current.strip_prefix(DATA_FOLDER.current).map(earlier_spelling) {
+            accepted.push(earlier);
+        }
+    }
+    return accepted;
+}
+
+/// What:
+///  Whether `line` is the first line of a record this module's reader accepts,
+///  in either spelling.
+/// Why:
+///   A file whose first line is none of them is not a notice of this program's,
+///  whatever folder it stands in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const mine = (line) => currentMagicOf(line) !== undefined;
+/// ```
+pub fn is_a_notice_first_line(line: &str) -> bool {
+    return current_magic_of(line).is_some();
+}
+
 fn current_magic_of(line: &str) -> Option<&'static str> {
-    for current in [RECORD_MAGIC, UNFINISHED_MAGIC, UNFINISHED_NO_RETRY_MAGIC, SKIPPED_MAGIC, REPORT_MAGIC, LOST_MAGIC] {
+    for current in MAGICS {
         let earlier: Option<String> = current.strip_prefix(DATA_FOLDER.current).map(earlier_spelling);
         if line == current || earlier.as_deref() == Some(line) {
             return Some(current);

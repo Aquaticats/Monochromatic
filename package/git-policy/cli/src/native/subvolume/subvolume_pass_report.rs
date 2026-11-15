@@ -76,6 +76,12 @@ pub fn what_a_pass_could_not_carry(label: &str, stats: &SyncStats) -> Vec<String
             joined(&stats.holder_records_left_out)
         ));
     }
+    for path in &stats.kept_at_the_destination {
+        lines.push(format!("{label}: did not place {} because the destination came to hold another entry there, and that entry stays", path.display()));
+    }
+    for path in &stats.changed_while_passing {
+        lines.push(format!("{label}: did not carry {} because it was another kind of entry when the copy reached it", path.display()));
+    }
     if !stats.notices_carried.is_empty() {
         lines.push(format!(
             "{label}: carried {} of this program's own notice(s) although the destination lacks them and they are older than the cut-off: {}",

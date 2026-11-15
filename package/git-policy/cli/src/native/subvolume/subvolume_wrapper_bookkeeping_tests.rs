@@ -16,9 +16,14 @@ use crate::service_instance::digest_of_bytes;
 use crate::subvolume_arguments::{MigrateArguments, MigrateMode};
 use crate::subvolume_error::Interrupt;
 use crate::subvolume_preflight::layout_of;
+use crate::subvolume_anchor::Anchor;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree, watch_entries};
+use crate::subvolume_sync_pass_state_and_checks::{Directory, PARTIAL_NAME, Pass, Published};
+use crate::subvolume_wrapper_bookkeeping::{OwnBookkeeping, notice_kinds, own_bookkeeping_of};
 use crate::subvolume_test_support::{PlainPlatform, checkout_with_worktree, migrate_arguments, run_command};
 use crate::test_support::{fixture, remove};
+use std::collections::{HashMap, HashSet};
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -412,13 +417,218 @@ fn review_notice_copy_does_not_replace_a_concurrently_created_destination_file()
     let concurrent_notice: PathBuf = destination_notice.clone();
     let concurrent_text: &str = "monochromatic-git-policy-cli push notice 1\nbranch: refs/heads/main\ncommit: 2222222222222222222222222222222222222222\n\nconcurrent words\n";
     platform.on_clone = Box::new(move |_calls| {
-        let Some(parent) = concurrent_notice.parent() else { return };
+        let Some(folder) = concurrent_notice.parent() else { return };
         std::fs::write(concurrent_notice.as_path(), concurrent_text.as_bytes()).expect("concurrent destination notice");
-        assert!(parent.is_dir());
+        assert!(folder.is_dir());
     });
     let (code, said) = run_hooked(&platform, &remove_old_arguments(), root.as_path());
     let after: String = std::fs::read_to_string(destination_notice.as_path()).unwrap_or_else(|error| format!("destination notice cannot be read: {error}"));
     assert_eq!(after, concurrent_text, "removal code {code}; the copy replaced the concurrent destination notice: {said}");
+    remove(parent.as_path());
+}
+//endregion
+
+//region What the three fixes of the review's findings are held by
+// The review's controls hold the three states it found; these hold the roads to them, and the list of spellings the
+// writers and readers own.
+
+/// The options a control that drives one step at a time runs with:
+/// copy only,
+/// which is what the first pass of a migration does.
+const COPY: SyncOptions<'static> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
+
+/// A pass over `source` and `destination` that a control drives one step at a time.
+fn pass_over<'a>(platform: &'a PlainPlatform, source: &'a Path, destination: &'a Path, interrupt: &'a Interrupt) -> Pass<'a> {
+    return Pass { platform, source, destination, options: COPY, interrupt, stats: SyncStats::default(), links: HashMap::new(), stage_holders: HashSet::new() };
+}
+
+/// The destination directory of a relative path,
+/// held open with the temporary name a pass uses.
+fn directory_of(destination: &Path) -> Directory {
+    let anchor: Anchor = Anchor::open_below(destination, Path::new("")).expect("open the destination");
+    return Directory { anchor, temporary: OsString::from(PARTIAL_NAME) };
+}
+
+/// What:
+///  A file line and a name no writer of this program uses,
+///  for the controls that need a person's file inside a folder this program keeps.
+/// Why:
+///   The mark decides, not the folder,
+///  so the same folder has to hold a file this program did not write.
+const A_PERSONS_FIRST_LINE: &str = "my own text, not a record of any program\n";
+
+/// Every kind this module knows is told through every first line its own reader accepts,
+/// in every folder its writer spells,
+/// and a file whose first line its reader refuses is a person's.
+#[test]
+fn every_kind_is_told_through_every_spelling_its_reader_accepts() {
+    let parent: PathBuf = fixture("bookkeeping-spellings");
+    let tree: PathBuf = parent.join("tree");
+    std::fs::create_dir_all(tree.join(".git")).expect("Git directory");
+    let records: PathBuf = records_below_the_git_directory();
+    let mut told: Vec<PathBuf> = Vec::new();
+    // The records of the processes this program started: one folder, one header.
+    let record: PathBuf = write_record(tree.join(records.as_path()).as_path(), A_PROCESS_NUMBER_THIS_MACHINE_CANNOT_HAVE);
+    assert_eq!(own_bookkeeping_of(tree.as_path(), record.strip_prefix(tree.as_path()).expect("below the tree"), &std::fs::symlink_metadata(record.as_path()).expect("record")), Some(OwnBookkeeping::LeftOut));
+    told.push(record);
+    for kind in notice_kinds() {
+        assert!(!kind.first_lines.is_empty(), "a kind with no spelling to walk");
+        for folder in &kind.folders {
+            for line in &kind.first_lines {
+                let path: PathBuf = tree.join(".git").join(folder).join(format!("notice-{}", told.len()));
+                std::fs::create_dir_all(path.parent().expect("folder")).expect("notice folder");
+                std::fs::write(path.as_path(), format!("{line}\nbranch: refs/heads/main\n\nwords\n").as_bytes()).expect("notice");
+                let relative: &Path = path.strip_prefix(tree.as_path()).expect("below the tree");
+                let listed: std::fs::Metadata = std::fs::symlink_metadata(path.as_path()).expect("notice");
+                assert_eq!(own_bookkeeping_of(tree.as_path(), relative, &listed), Some(OwnBookkeeping::CarriedOver), "{} in {}", line, folder.display());
+                told.push(path);
+            }
+            let personal: PathBuf = tree.join(".git").join(folder).join(format!("person-{}", told.len()));
+            std::fs::write(personal.as_path(), A_PERSONS_FIRST_LINE.as_bytes()).expect("a person's file");
+            let relative: &Path = personal.strip_prefix(tree.as_path()).expect("below the tree");
+            let listed: std::fs::Metadata = std::fs::symlink_metadata(personal.as_path()).expect("a person's file");
+            assert_eq!(own_bookkeeping_of(tree.as_path(), relative, &listed), None, "a person's file in {}", folder.display());
+            told.push(personal);
+        }
+    }
+    assert!(told.len() > 1, "the walk told nothing");
+    // An entry of a kind that has no mark at all, under a folder this program keeps, is nobody's bookkeeping either.
+    let pipe: PathBuf = tree.join(".git").join(&notice_kinds()[0].folders[0]).join("a-named-pipe");
+    crate::subvolume_sync_attrs::make_fifo(pipe.as_path(), 0o600).expect("a named pipe");
+    let pipe_listed: std::fs::Metadata = std::fs::symlink_metadata(pipe.as_path()).expect("a named pipe");
+    assert_eq!(own_bookkeeping_of(tree.as_path(), pipe.strip_prefix(tree.as_path()).expect("below the tree"), &pipe_listed), None);
+    // A folder is carried, so the walk reaches whatever it holds.
+    let held: PathBuf = tree.join(".git").join(&notice_kinds()[0].folders[0]);
+    let folder_listed: std::fs::Metadata = std::fs::symlink_metadata(held.as_path()).expect("the notice folder");
+    assert_eq!(own_bookkeeping_of(tree.as_path(), held.strip_prefix(tree.as_path()).expect("below the tree"), &folder_listed), Some(OwnBookkeeping::CarriedOver));
+    // A path outside the folders this program keeps is nobody's bookkeeping, whatever its first line says.
+    let outside: PathBuf = tree.join(".git").join("person-notes.txt");
+    std::fs::write(outside.as_path(), format!("{}\n", notice_kinds()[0].first_lines[0]).as_bytes()).expect("note outside");
+    let listed: std::fs::Metadata = std::fs::symlink_metadata(outside.as_path()).expect("note");
+    assert_eq!(own_bookkeeping_of(tree.as_path(), outside.strip_prefix(tree.as_path()).expect("below the tree"), &listed), None);
+    remove(parent.as_path());
+}
+
+/// What:
+///  The walk the controls install to replace one entry after the pass listed its folder.
+/// Why:
+///   The look and the act are two steps,
+///  so a control of what happens between them has to stand in that moment,
+///  which is where the walk hands every listed entry on.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchEntries((examined) => { if (examined === target) replaceAt(target); });
+/// ```
+fn replace_after_the_listing(target: PathBuf, replace: impl Fn(&Path) + 'static) {
+    let replaced: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    watch_entries(Some(Box::new(move |examined: &Path| {
+        if examined != target.as_path() || replaced.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        replace(target.as_path());
+    })));
+}
+
+/// A source file the pass listed as a file and that is a directory with a person's file in it when the copy reaches
+///  it is reported as what it is,
+/// not counted as a vanished file,
+/// and the deletion of the old tree is held back.
+#[test]
+fn a_source_file_that_became_a_directory_holds_the_deletion_back() {
+    let (parent, root) = checkout_with_worktree("changed-kind-removal");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (migration_code, migration_said) = run(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migration_code, DONE, "{migration_said}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    // A file newer than the catch-up, absent from the checkout: the late-write carry tries to copy it.
+    let note: PathBuf = layout.old_path.join("person-notes.txt");
+    std::fs::write(note.as_path(), b"a note I wrote after the migration\n").expect("a person's note");
+    replace_after_the_listing(note.clone(), |path: &Path| {
+        std::fs::remove_file(path).expect("replace the listed file");
+        std::fs::create_dir(path).expect("a directory at the note's name");
+        std::fs::write(path.join("inside.txt"), b"words inside the replacement\n").expect("a person's file inside");
+    });
+    let (removal_code, removal_said) = run(&platform, &remove_old_arguments(), root.as_path());
+    watch_entries(None);
+    assert_eq!(removal_code, REFUSED, "{removal_said}");
+    assert!(removal_said.contains("did not carry person-notes.txt because it was another kind of entry"), "{removal_said}");
+    assert!(note.join("inside.txt").is_file(), "the person's file inside the replacement directory is still in the old tree");
+    assert!(layout.old_path.exists(), "nothing was deleted");
+    remove(parent.as_path());
+}
+
+/// The same state at the pass: a listed file that is a directory when the copy reaches it is counted as the other kind
+///  of entry,
+/// and never as a vanished file.
+#[test]
+fn a_listed_file_that_became_a_directory_is_counted_as_another_kind() {
+    let (parent, source, destination) = trees("changed-kind-pass");
+    let note: PathBuf = source.join("person-notes.txt");
+    std::fs::write(note.as_path(), b"a note\n").expect("a person's note");
+    // Newer than the cut-off, so the pass tries to copy it rather than leaving it out.
+    set_mtime(note.as_path(), A_CUTOFF_AFTER_EVERY_ENTRY + 1);
+    replace_after_the_listing(note.clone(), |path: &Path| {
+        std::fs::remove_file(path).expect("replace the listed file");
+        std::fs::create_dir(path).expect("a directory at the note's name");
+        std::fs::write(path.join("inside.txt"), b"words inside\n").expect("a person's file inside");
+    });
+    let stats: SyncStats = carry(source.as_path(), destination.as_path());
+    watch_entries(None);
+    assert_eq!(stats.changed_while_passing, vec![PathBuf::from("person-notes.txt")], "{stats:#?}");
+    assert_eq!(stats.vanished, 0, "a changed kind is not a vanished entry: {stats:#?}");
+    assert!(note.join("inside.txt").is_file(), "the person's file is still in the source");
+    remove(parent.as_path());
+}
+
+/// A file the pass found absent at the destination and that another command created while the copy ran is kept,
+///  and the source entry is reported:
+/// the same publish serves an ordinary file as serves a notice.
+#[test]
+fn an_ordinary_file_the_destination_gained_during_the_copy_is_kept() {
+    let (parent, source, destination) = trees("kept-ordinary-file");
+    let note: PathBuf = source.join("person-notes.txt");
+    std::fs::write(note.as_path(), b"a note in the source\n").expect("a person's note");
+    let concurrent_text: &[u8] = b"a note another command wrote into the destination\n";
+    let written_into: PathBuf = destination.join("person-notes.txt");
+    let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(move |_calls| {
+        std::fs::write(written_into.as_path(), concurrent_text).expect("the concurrent file");
+    }));
+    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never()).expect("a pass");
+    platform.on_clone = Box::new(|_calls| {});
+    assert_eq!(stats.kept_at_the_destination, vec![PathBuf::from("person-notes.txt")], "{stats:#?}");
+    assert_eq!(std::fs::read(destination.join("person-notes.txt")).expect("the destination file"), concurrent_text, "the concurrent file is not replaced");
+    assert_eq!(std::fs::read(note.as_path()).expect("the source file"), b"a note in the source\n", "the source file is untouched");
+    remove(parent.as_path());
+}
+
+/// The publish's own two roads:
+/// a name the pass found free is created and never replaced,
+/// a name that held an entry is replaced only while it still holds that entry.
+#[test]
+fn a_name_the_pass_found_free_is_created_and_one_it_saw_is_replaced_only_as_the_same_object() {
+    let (parent, source, destination) = trees("publish-roads");
+    let directory: Directory = directory_of(destination.as_path());
+    let file: PathBuf = source.join("file.txt");
+    std::fs::write(file.as_path(), b"the source file\n").expect("the source file");
+    let listing: std::fs::Metadata = std::fs::symlink_metadata(file.as_path()).expect("listing");
+    let (platform, interrupt): (PlainPlatform, Interrupt) = (PlainPlatform::new(), Interrupt::never());
+    let mut pass: Pass<'_> = pass_over(&platform, source.as_path(), destination.as_path(), &interrupt);
+    // The free name, created by somebody else between the look and the write.
+    std::fs::write(directory.partial().as_path(), b"the copy").expect("the finished copy");
+    std::fs::write(destination.join("file.txt"), b"somebody else's file").expect("the concurrent entry");
+    assert_eq!(pass.publish(&directory, Path::new("file.txt"), None).expect("a publish"), Published::KeptTheDestinationEntry);
+    assert_eq!(std::fs::read(destination.join("file.txt")).expect("kept"), b"somebody else's file");
+    assert!(!directory.partial().exists(), "the copy of the entry that was kept is dropped");
+    // The entry the pass saw, replaced.
+    std::fs::write(directory.partial().as_path(), b"the copy").expect("the finished copy");
+    assert_eq!(pass.publish(&directory, Path::new("file.txt"), Some(&listing)).expect("a publish"), Published::KeptTheDestinationEntry);
+    assert_eq!(std::fs::read(destination.join("file.txt")).expect("kept"), b"somebody else's file", "a name that no longer holds the object the pass saw keeps what it holds");
+    let seen: std::fs::Metadata = std::fs::symlink_metadata(destination.join("file.txt")).expect("the entry the pass saw");
+    std::fs::write(directory.partial().as_path(), b"the copy").expect("the finished copy");
+    assert_eq!(pass.publish(&directory, Path::new("file.txt"), Some(&seen)).expect("a publish"), Published::Placed);
+    assert_eq!(std::fs::read(destination.join("file.txt")).expect("replaced"), b"the copy", "the object the pass saw is replaced");
     remove(parent.as_path());
 }
 //endregion
