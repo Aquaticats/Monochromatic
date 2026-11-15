@@ -70,6 +70,22 @@ Each rule is the project's own requirement.
   and every `systemctl --user` and `systemd-run --user` call in that time went to it.
   A guard now kills any process that takes that name,
   and the run that started it ends with it.
+- Send a signal only to a process your run started,
+  named by a process number your own command got back when it started it.
+  A number taken from `$PPID`,
+  from a parent's record or from a file is not that:
+  a script whose parent has ended belongs to the account's service manager,
+  and `$PPID` then names the manager.
+  A probe that stops or kills "its parent" starts that parent itself and signals the number it was given,
+  or runs in a process namespace of its own
+  (`unshare --user --map-root-user --pid --fork --mount-proc`,
+  where it sees its own processes and no others,
+  or a container).
+  On 2026-11-15 a review's stand-in Git ran `kill -STOP "$PPID"`,
+  the number was the account's service manager,
+  and for three minutes and five seconds the manager took no request:
+  no agent on the machine could start a command in a scope or a unit,
+  until the reviewer found the manager stopped and sent it `SIGCONT`.
 - A fixture's own `HOME` and `XDG_RUNTIME_DIR` do not keep a program off this machine's session bus:
   `DBUS_SESSION_BUS_ADDRESS` is inherited from the run's environment and still names it.
   Unset it,
@@ -115,7 +131,14 @@ Each rule is the project's own requirement.
   `printenv`,
   `set`,
   `export -p`,
-  even piped through a filter),
+  `mise env` in any form,
+  `sops --decrypt`,
+  even piped through a filter or `head`),
+  never print a file that holds credentials
+  (`~/.bashrc`,
+  `~/.pi/agent/models.json`,
+  `~/.pi/agent/auth.json`,
+  `.env.local.json` decrypted),
   and never read another process's environment (`/proc/<pid>/environ`,
   `ps e`,
   `ps -E`):

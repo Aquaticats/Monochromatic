@@ -44,6 +44,7 @@ use crate::service_land::LandContext;
 use crate::service_timing::{ExitReason, exit_line, log};
 use crate::service_claim_watch::{ClaimWatch, WATCH_DIRECTORY};
 use crate::push_retry::{PLAN_DIRECTORY, PushRetries};
+use crate::service_server_own_worktree_question::own_worktree_gone_now;
 use crate::service_work::{GitHandlers, Wake};
 use crate::service_busy::{GroupAdmission, LandingBoard};
 use crate::wait_ceilings::{NEVER_ENDED_STEP_SLOW_AFTER, START_CEILING};
@@ -178,6 +179,11 @@ pub struct ServeSettings {
     /// `WAITING_NOTICE_AFTER`);
     /// a control shortens it.
     pub place_after: Duration,
+    /// How long a landing waits for the note that names its repository to the service that starts next
+    /// (`wait_ceilings.rs`,
+    /// `LANDING_WATCH_NOTE_CEILING`);
+    /// a control shortens it.
+    pub note_ceiling: Duration,
     /// The Git directory of the worktree whose units are this service's,
     /// as its note or its journal named it when the service started,
     /// and nothing when it was not there or could not be told.
@@ -208,6 +214,7 @@ impl ServeSettings {
             instance: None,
             stuck_after: NEVER_ENDED_STEP_SLOW_AFTER,
             place_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
+            note_ceiling: crate::wait_ceilings::LANDING_WATCH_NOTE_CEILING,
             own_git_dir: None,
             own_worktree_check: OWN_WORKTREE_CHECK,
             journal_restore_ceiling: START_CEILING,
@@ -244,29 +251,6 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
 ///  remembers (`DONE_RETAINED`),
 /// since a client that withdrew sends nothing more for its request.
 const WITHDRAWN_RETAINED: usize = DONE_RETAINED;
-
-/// What:
-///  Whether this service should stop serving because the worktree whose units are its own is gone.
-/// Why:
-///   Every wake of a service whose worktree is known asks this:
-/// the removal that takes a worktree while its service runs is what leaves a socket listening for a directory that is gone.
-/// The answer is the same rule the sweep and `doctor` use (`worktree_is_gone`),
-/// so an unmounted device and an instance nothing names keep the service serving.
-/// The question is asked before the busy count and before the idle bound:
-/// after-commit work that counts itself busy,
-/// and a service that has served nothing for hours,
-/// both answer it the same way.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// if (ownWorktreeGoneNow(settings, untilIdle)) stopOwnUnitsAndEnd();
-/// ```
-fn own_worktree_gone_now(settings: &ServeSettings, until_idle: Duration) -> bool {
-    if settings.own_git_dir.is_none() || until_idle <= settings.own_worktree_check {
-        return false;
-    }
-    return settings.own_git_dir.as_deref().is_some_and(crate::service_units_of_removed_worktrees::worktree_is_gone);
-}
 
 /// What:
 ///  Runs the service until it is told to retire.
@@ -362,8 +346,15 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
     );
     // The plan and the watch are read here, after the acceptor started and before the task that runs the loop starts, so the
     //  loop's task begins with what a service that stopped last left and neither reading delays a client's greeting.
-    let (started_retries, started_watch): (PushRetries, ClaimWatch) =
+    let (started_retries, mut started_watch): (PushRetries, ClaimWatch) =
         crate::service_journal_restored_at_start::restored_within(settings.journal_restore_ceiling, plan_directory, watch_directory, watch_instance);
+    // What: The worktree this service serves is one of the repositories the loop looks at by itself.
+    // Why:  Every record a client leaves for this instance is written under this worktree's own Git directory, so a record whose
+    //       wake was lost is found by the look even when no landing of this process wrote a note for it and no client ever woke
+    //       it (`service_claim_watch.rs`, `LOOK_AGAIN_AFTER`).
+    if let Some(own) = settings.own_git_dir.as_deref() {
+        started_watch.remember(own);
+    }
     start_the_after_commit_work_or_exit(work_receiver, handlers, worker_busy, started_retries, started_watch);
     let _reports = settle_open_batches(context, settings.instance.as_deref());
     // The memory of landed requests is bounded: a finished record goes only when no client of it may still read it,
@@ -553,7 +544,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 continue;
             }
             let mut handed_back: std::collections::HashSet<String> = std::collections::HashSet::new();
-            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, &mut handed_back, &drawn);
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, settings.note_ceiling, &mut handed_back, &drawn);
             board.end_group(ids.as_slice());
             // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
             //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).

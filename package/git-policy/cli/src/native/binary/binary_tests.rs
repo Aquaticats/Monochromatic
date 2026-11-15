@@ -279,6 +279,12 @@ mod merge_carries_edits_kill;
 #[path = "binary_merge_carries_edits_moved_tests.rs"]
 mod merge_carries_edits_moved;
 
+/// A lock another program takes in the window between a merge's look at the index and its last step:
+/// the merge saved behind a live holder,
+/// and a lock a killed Git left cleared so the merge lands.
+#[path = "binary_merge_lock_after_the_clear_tests.rs"]
+mod merge_lock_after_the_clear;
+
 /// The word-level second merge pass after a merge,
 /// rebase,
 /// cherry-pick or revert that Git stops with a conflict.
@@ -328,6 +334,11 @@ mod merge_notice;
 /// replay and conflict.
 #[path = "binary_commit_tests.rs"]
 mod commit;
+
+/// The commit forms real Git refuses,
+/// each refused with Git's own status and words.
+#[path = "binary_commit_form_refusal_tests.rs"]
+mod commit_form_refusal;
 
 /// The Git version text a commit records in the user's cache directory,
 /// and when it trusts it.
@@ -575,6 +586,11 @@ mod lfs_hang;
 #[path = "binary_service_commit_tests.rs"]
 mod service_commit;
 
+/// A commit made through the service where the runtime directory's path is long,
+/// and the short one it is compared with.
+#[path = "binary_long_runtime_directory_tests.rs"]
+mod long_runtime_directory;
+
 /// A commit whose command line names the repository:
 /// `--git-dir` with `--work-tree`,
 /// `GIT_DIR` with `GIT_WORK_TREE`,
@@ -638,6 +654,13 @@ mod push_failure;
 /// and a service that starts pushes it with no further commit.
 #[path = "binary_push_queued_after_a_killed_wrapper_tests.rs"]
 mod push_queued_after_a_killed_wrapper;
+
+/// A record that waits and nothing announced it:
+/// a running service finds every kind of record by itself,
+/// acts on it once,
+/// and does nothing while there is nothing to do.
+#[path = "binary_a_record_nothing_announced_is_found_tests.rs"]
+mod a_record_nothing_announced_is_found;
 
 /// A held push whose commit a later push of the branch carried to the remote:
 /// the record is settled on Git's proof,

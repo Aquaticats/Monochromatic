@@ -27,9 +27,11 @@ use crate::time_spent_outside_the_phases::MeasuredStandardError;
 use crate::service_commit::{ServiceCommit, service_commit};
 use crate::service_handoff::{ServiceHandoff, forget_the_push, hand_over, promote_the_push};
 use crate::service_messages::render;
+use crate::commit_form_refusal_from_git::{Decision, Unanswered, ask_git, unavailable_words};
 use crate::commit_transaction::{CommitInvocation, TransactionResult, TransactionStop};
 use crate::config_schema::CliGitConfig;
 use crate::command_commit::CommitRegion;
+use crate::rule_commit_region_git_refuses::{GitRefusedForm, form_git_refuses};
 use crate::diagnostics::{EngineFailureCode, render_engine_failure};
 use crate::git_version::check_git_version;
 use crate::policy_checks::ShippedChecks;
@@ -37,6 +39,7 @@ use crate::policy_engine::StageRequest;
 use crate::policy_events::{PolicyEvent, render_policy_events};
 use crate::policy_trigger::Trigger;
 use crate::post_commit::{NO_BLOCKING_CAUSE, POST_COMMIT_BLOCKED_EXIT_CODE, PostCommitRequest, blocked_reason, run_post_commit_gate};
+use crate::diagnostic_log::debug;
 use crate::repository_facts::RepositoryFacts;
 use crate::transaction_git::GitContext;
 use crate::global_arguments::without_directory_changes;
@@ -84,8 +87,21 @@ pub fn effective_directory(start: &Path, global_prefix: &[OsString]) -> PathBuf 
 /// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CommitEnding {
-    /// The process exit status.
+    /// The process exit status,
+    /// which a command that ends by a signal never returns a caller.
     pub code: i32,
+    /// What:
+    ///  The signal this command ends by,
+    ///  when it was stopped by one.
+    /// Why:
+    ///  A stop by a signal is reported to the person before the process ends by that signal,
+    ///  and the record of the commit is written between the two:
+    ///  the command's own end used to raise the signal inside the report,
+    ///  so a commit the person interrupted wrote no record at all,
+    ///  and no record of 1,792 has ever said `client-signal` (`SPEC.md`,
+    /// "The commit protocol").
+    ///  The ending carries the signal so the raise happens after the record is on disk.
+    pub signal: Option<i32>,
 }
 
 /// What:
@@ -145,17 +161,26 @@ fn report_stop(stop: TransactionStop, timing: &mut CommitTiming) -> CommitEnding
     //  did not land names the route that stopped it and not only the status it returned (`commit_stop_reason.rs`).
     timing.stop = Some(reason_of_stop(&stop, crate::git_step_failure::drain_failed_step()));
     match stop {
-        TransactionStop::NativeExit(code) => return CommitEnding { code },
+        TransactionStop::NativeExit(code) => return CommitEnding { code, signal: None },
         TransactionStop::Message(message) => {
             write_stderr(format!("{message}\n").as_str());
-            return CommitEnding { code: 1 };
+            return CommitEnding { code: 1, signal: None };
+        }
+        // A stop the command decided itself: the words the failure renders are what the person reads, and the failure is what
+        //  the record named (`commit_stop_reason.rs`), so both ends of the command carry the same cause.
+        TransactionStop::Client(failure) => {
+            write_stderr(format!("{}\n", render(&failure)).as_str());
+            return CommitEnding { code: 1, signal: None };
         }
         // The person stopped this command with a signal, and the commit it waited for is not made: the words say so, and the
         //  command ends as that signal ends a program, which is what a shell reports for an interrupted native Git (`128 + the
         //  signal`). The returned status is reached only when the signal cannot end this process.
-        TransactionStop::EndedBySignal { signal, message } => {
+        // What: The person is told in one line, and the command ends by that signal once the record is written.
+        // Why:  The record is the only account of a stopped commit that outlives the terminal;
+        //       a raise here ended the process before `run_commit_command` wrote it, so an interrupted commit left none.
+        TransactionStop::EndedBySignal { signal, message, .. } => {
             write_stderr(format!("{message}\n").as_str());
-            return CommitEnding { code: crate::forwarding::end_as_git_ended(signal) };
+            return CommitEnding { code: crate::forwarding::SIGNAL_EXIT_BASE + signal, signal: Some(signal) };
         }
         TransactionStop::Failed { code, message } => {
             let event: PolicyEvent = PolicyEvent::EngineFailure {
@@ -167,7 +192,7 @@ fn report_stop(stop: TransactionStop, timing: &mut CommitTiming) -> CommitEnding
                 path: None,
             };
             write_stderr(render_policy_events(0, std::slice::from_ref(&event)).as_str());
-            return CommitEnding { code: 2 };
+            return CommitEnding { code: 2, signal: None };
         }
     }
 }
@@ -213,11 +238,149 @@ pub struct CommitCommand<'a> {
 /// await runCommitCommand({ ... });
 /// ```
 pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut ShippedChecks<F>) -> CommitEnding {
+    // A command line real Git refuses is refused here, before the transaction reads an index or reaches the service, so the
+    //  mistyped command changes nothing at all: no staged path, no reference, no record of a commit that never existed.
+    if let Some(ending) = refuse_a_form_git_refuses(command) {
+        return ending;
+    }
     let mut timing: CommitTiming = CommitTiming::start();
     let ending: CommitEnding = run_timed(command, checks, &mut timing);
     // One append to the repository's timing file once everything the person sees is written; the terminal never shows it.
     timing.finish(ending.code);
+    // What: A command stopped by a signal ends by it here, after the record, as a shell reports an interrupted native Git.
+    // Why:  The record of an interrupted commit is the one thing that outlives the terminal it was stopped from, and the raise
+    //       used to happen inside the report, before the record was written.
+    if let Some(signal) = ending.signal {
+        let _ended = crate::forwarding::end_as_git_ended(signal);
+    }
     return ending;
+}
+
+/// What:
+///  The real Git context and the directory the commit's own Git runs in,
+///  worked out once for every start this command makes.
+/// Why:
+///  A `-C` moves Git before it runs a command,
+///  so the wrapper starts its own Git in the directory the chain already reached
+///  and drops the `-C` tokens:
+///  forwarding one would move Git a second time,
+///  and a relative `-C sub` would then be read inside `sub` itself.
+///  `--git-dir`,
+///  `--work-tree` and `--bare` stay,
+///  because Git resolves their relative values after its last `-C`,
+///  which is the directory this returns;
+///  a `GIT_DIR` or `GIT_WORK_TREE` in the environment stays for the same reason.
+///  Every start of this commit reads one answer,
+///  so the question asked for a refusal is asked where the commit itself runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const whereTheCommitRuns = (command) => ({
+///   context: { ...command.context, globalPrefix: withoutDirectoryChanges(command.context.globalPrefix) },
+///   cwd: effectiveDirectory(process.cwd(), command.context.globalPrefix),
+/// });
+/// ```
+fn where_the_commit_runs(command: &CommitCommand<'_>) -> (GitContext, PathBuf) {
+    let start: PathBuf = std::env::current_dir().unwrap_or(PathBuf::from("."));
+    let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
+    let context: GitContext = GitContext {
+        global_prefix: without_directory_changes(command.context.global_prefix.as_slice()),
+        ..command.context.clone()
+    };
+    return (context, cwd);
+}
+
+/// What:
+///  Refuse a `git commit` whose options are a form real Git refuses,
+///  with Git's own status and bytes,
+///  or nothing when the command goes on.
+/// Why:
+///   "Refuse as Git does" (owner,
+///  2026-11-12):
+///  the form is decided here
+///  (`rule_commit_region_git_refuses.rs`) and Git is asked for its own answer
+///  (`commit_form_refusal_from_git.rs`),
+///  so a release that rewords a message changes nothing in this program.
+///  Nothing is created first:
+///  the question is a `--dry-run` of the same command line in the directory the
+///  commit runs in,
+///  which rolls its index lock back and never looks for a commit,
+///  so a refused command leaves no staged path,
+/// no reference and no record.
+///  Where Git's own answer is that it would run the command,
+///  the command goes on and the transaction makes the one commit:
+///  the question committed nothing,
+///  so nothing is made twice,
+/// and nothing the person staged is lost.
+///  A command that is fine costs one token comparison here and no process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const form = formGitRefuses(region); if (!form) return;
+/// const { context, cwd } = whereTheCommitRuns(command);
+/// switch (askGit(context, cwd, asked).decide()) { ... }
+/// ```
+fn refuse_a_form_git_refuses(command: &CommitCommand<'_>) -> Option<CommitEnding> {
+    let form: GitRefusedForm = form_git_refuses(command.region)?;
+    let (context, cwd): (GitContext, PathBuf) = where_the_commit_runs(command);
+    let asked: &[OsString] = &command.arguments[command.subcommand_index + 1..];
+    match ask_git(&context, cwd.as_path(), asked).decide() {
+        Decision::EndWithGit { status, stderr } => {
+            debug("commit-form-refusal", format!("real Git answers {} with status {status}", form.name()).as_str());
+            write_stderr_bytes(stderr.as_slice());
+            return Some(CommitEnding { code: status, signal: None });
+        }
+        Decision::Accept => {
+            // Git runs this command line, so the rule's word is not enough to refuse it. The question was a dry run, so
+            //  no commit was made by it, and the transaction that goes on is the only writer of this commit.
+            debug("commit-form-refusal", format!("real Git accepts {} here, so the commit goes on", form.name()).as_str());
+            return None;
+        }
+        Decision::RefuseInOurWords(why) => {
+            debug(
+                "commit-form-refusal",
+                format!("real Git gave no answer about {} ({}), so the wrapper refuses it in its own words", form.name(), reason_name(why)).as_str(),
+            );
+            write_stderr(unavailable_words(form.name(), why).as_str());
+            return Some(CommitEnding { code: 128, signal: None });
+        }
+    }
+}
+
+/// What:
+///  The name of one way the question went unanswered,
+///  for the debug line.
+/// Why:
+///   A person reading the debug log says which of the three happened without reading the sentence's prose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const reasonName = (why: Unanswered) => ({ 'not-started': 'not-started', ... })[why];
+/// ```
+fn reason_name(why: Unanswered) -> &'static str {
+    return match why {
+        Unanswered::NotStarted => "not started",
+        Unanswered::HeldPastItsBound => "held past its bound",
+        Unanswered::EndedWithoutAStatus => "ended without a status",
+    };
+}
+
+/// What:
+///  Write bytes to standard error,
+/// ignoring a closed stream.
+/// Why:
+///   A refusal Git printed is bytes,
+///  and a path or a message the person typed may hold a byte that is not UTF-8;
+///  decoding it would change what they see.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.stderr.write(bytes);
+/// ```
+fn write_stderr_bytes(bytes: &[u8]) {
+    let mut stream: MeasuredStandardError<std::io::Stderr> = MeasuredStandardError::new();
+    let _ = stream.write_all(bytes);
+    let _ = stream.flush();
 }
 
 /// `run_commit_command`,
@@ -225,20 +388,11 @@ pub fn run_commit_command<F: RepositoryFacts>(command: &CommitCommand<'_>, check
 fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut ShippedChecks<F>, timing: &mut CommitTiming) -> CommitEnding {
     if let Err(reason) = check_git_version(command.context) {
         write_stderr(render_engine_failure(0, EngineFailureCode::ContentUnavailable, reason.as_str()).as_str());
-        return CommitEnding { code: 2 };
+        return CommitEnding { code: 2, signal: None };
     }
-    let start: PathBuf = match std::env::current_dir() {
-        Ok(found) => found,
-        Err(_) => PathBuf::from("."),
-    };
-    let cwd: PathBuf = effective_directory(start.as_path(), command.context.global_prefix.as_slice());
-    // Every Git of this commit runs in `cwd`, the directory the caller's `-C` chain already reached, so the options it forwards
-    //  keep everything the caller wrote but that `-C`: forwarding it moved Git a second time and read the repository beside the
-    //  one the command was in.
-    let context: GitContext = GitContext {
-        global_prefix: without_directory_changes(command.context.global_prefix.as_slice()),
-        ..command.context.clone()
-    };
+    // Every Git of this commit runs where the caller's `-C` chain already reached, with those tokens dropped, so one of
+    //  them reaches no start twice (`where_the_commit_runs`).
+    let (context, cwd): (GitContext, PathBuf) = where_the_commit_runs(command);
     let invocation: CommitInvocation<'_> = CommitInvocation {
         context: &context,
         environment: command.environment,
@@ -278,7 +432,7 @@ fn run_timed<F: RepositoryFacts>(command: &CommitCommand<'_>, checks: &mut Shipp
     let (Some(landed), Some(handoff)) = (served.result.landed_oid, served.handoff) else {
         timing.outcome = "ended";
         timing.stop = ended;
-        return CommitEnding { code: served.result.exit_code };
+        return CommitEnding { code: served.result.exit_code, signal: None };
     };
     timing.outcome = "landed";
     let landed_ending: CommitEnding = post_commit(command, &handoff, landed.as_str(), timing);
@@ -337,7 +491,7 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
         if let Some(kept) = unkept {
             write_stderr(format!("{kept}\n").as_str());
         }
-        return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE };
+        return CommitEnding { code: POST_COMMIT_BLOCKED_EXIT_CODE, signal: None };
     }
     // What: The push the gate approved becomes runnable inside the hand-off phase.
     // Why:  Promoting it renames the record the service held and writes the verdict that approved it; those are the hand-over's
@@ -358,7 +512,7 @@ fn post_commit(command: &CommitCommand<'_>, handoff: &ServiceHandoff, landed: &s
     if let Err(failure) = handed {
         write_stderr(format!("{}\n", render(&failure)).as_str());
     }
-    return CommitEnding { code: 0 };
+    return CommitEnding { code: 0, signal: None };
 }
 
 /// Controls for this module stay out of the release executable.

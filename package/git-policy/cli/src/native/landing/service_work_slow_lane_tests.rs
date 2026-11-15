@@ -25,7 +25,7 @@ use crate::service_server_work_loop_awaiting::work_loop_awaiting;
 use crate::service_work::{GitHandlers, Verdict, work_directory};
 use crate::service_work_handlers_replanning_and_acceptance::{PUSH_KINDS, SERVICE_KINDS, WorkHandlers};
 use crate::test_support::{fixture, git, git_context, git_text, remove, repository, wait_until};
-use crate::work_item::{CLAIMED, DONE, FAILED, PENDING, WorkItem, WorkKind, enqueue, state_directory};
+use crate::work_item::{CLAIMED, DONE, FAILED, PENDING, WorkItem, WorkKind, claim_next_of, enqueue, state_directory};
 use crate::worktree_trash_dispose_awaiting::INSIDE_A_SLOW_STEP;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::time::Duration;
@@ -980,4 +980,95 @@ fn a_look_whose_own_work_stopped_is_looked_at_again_and_settles_nothing() {
     assert!(names_in(&world, DONE).is_empty() && names_in(&world, FAILED).is_empty(), "nothing of a look that stopped is settled");
     assert_eq!(names_in(&world, CLAIMED).len(), 2, "the records the look held keep their lease, so the look after it finds them");
     remove(world.root.as_path());
+}
+
+/// The push a round owns in the first repository of the control below:
+/// the claim its look answers with, and the reason the lane waits at all.
+const THE_PUSH_A_ROUND_OWNS: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+/// The trash that look runs, so the control knows the look has taken its wake.
+const THE_TRASH_THE_FIRST_LOOK_RUNS: &str = "cccccccccccccccccccccccccccccccccccccccc";
+
+/// The upkeep the wake behind that wait names,
+/// in a repository of its own.
+const THE_UPKEEP_THE_WAKE_NAMES: &str = "dddddddddddddddddddddddddddddddddddddddd";
+
+/// The lease the control's lane gives the claim it answers:
+/// five seconds,
+/// so a wake that waited for that claim's end cannot be taken for one served while the lane waits.
+const A_LEASE_A_WAKE_MUST_NOT_WAIT_OUT: Duration = Duration::from_secs(5);
+
+/// How long the control waits for the repository the second wake names to be run:
+/// a lane that serves the wake runs it in a few milliseconds,
+/// and the claim's end it would wait for instead is five seconds away.
+const THE_BOUND_A_WAKE_IS_SERVED_WITHIN: Duration = Duration::from_secs(1);
+
+/// How often the control asks whether the state it waits for holds.
+const ASK_AGAIN: Duration = Duration::from_millis(5);
+
+/// What:
+///  Whether `condition` holds within `bound`.
+/// Why:
+///   The wait is the control's own assertion,
+/// not a wait for a run that may be slow:
+/// what it decides is whether an event came when the service promised it,
+/// and a progress-based wait would answer yes for an event that came at the claim's end instead.
+fn holds_within(bound: Duration, condition: impl Fn() -> bool) -> bool {
+    let began: std::time::Instant = std::time::Instant::now();
+    while began.elapsed() < bound {
+        if condition() {
+            return true;
+        }
+        std::thread::sleep(ASK_AGAIN);
+    }
+    return condition();
+}
+
+/// What:
+///  A wake that arrives while the lane is waiting to look at a repository again is served at once,
+///  and not at the moment the lane asked to be looked at.
+/// Why:
+///   A look answers the end of the earliest claim of its directory,
+/// and a claim lives a whole lease (`CLAIM_LEASE`, 120 seconds in the shipped service).
+/// The claim of a push belongs to the round,
+/// which settles it in milliseconds,
+/// so a lane that waited that moment out with a new wake in its queue left a record it was woken for `pending` until the
+///  wait ended:
+/// the commit service of a commit whose push failed held a `maintenance-` record pending for that whole time
+/// (`binary_fault_remote_tests.rs`,
+/// `an_auto_push_to_a_server_that_hangs_up_keeps_the_commit_and_holds_nothing`).
+/// The first repository's look answers the claim the round holds,
+/// and the second wake names another repository,
+/// so nothing of that look can run it:
+/// only a lane that reads its queue while it waits serves it early.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claim(push); wake.send(first); await settled(trash); wake.send(second); expect(within(1s, settled(upkeep)))
+/// ```
+#[test]
+fn a_wake_that_arrives_while_the_lane_waits_for_a_claim_is_served_at_once() {
+    let round_held: World = world("slow-lane-a-wake-during-a-wait", &[(WorkKind::Push, THE_PUSH_A_ROUND_OWNS), (WorkKind::Trash, THE_TRASH_THE_FIRST_LOOK_RUNS)]);
+    let taken: bool = claim_next_of(round_held.work.as_path(), &ClaimTime::read(), &[WorkKind::Push]).expect("the push of the round is claimed").is_some();
+    assert!(taken, "the round holds its push, so the first look answers the end of a claim it does not hold itself");
+    let woken: World = world("slow-lane-a-wake-during-a-wait-second", &[(WorkKind::Maintenance, THE_UPKEEP_THE_WAKE_NAMES)]);
+    let handlers: GitHandlers = GitHandlers::new(git_context());
+    let busy: Arc<AtomicUsize> = Arc::new(AtomicUsize::new(0));
+    let lane: SlowLane = crate::merge_second_pass::tests::await_it(async move {
+        return SlowLane::start_with_slice_and_lease(&handlers, busy, HOUSEKEEPING_OF_ONE_ROUND, A_LEASE_A_WAKE_MUST_NOT_WAIT_OUT);
+    });
+    lane.ask((round_held.common.clone(), None));
+    // The first look has to have taken its own wake before the second one is sent, or both would be looked at in one batch
+    //  and the control would prove nothing: the trash it runs is that reading's evidence.
+    let ran_the_trash = |state: &str| -> bool { return record_of(&round_held, state, WorkKind::Trash, THE_TRASH_THE_FIRST_LOOK_RUNS); };
+    assert!(wait_until(&|| { return ran_the_trash(DONE) || ran_the_trash(FAILED); }), "the first look ran the trash it was woken for");
+    lane.ask((woken.common.clone(), None));
+    let settled = || -> bool { return !record_of(&woken, PENDING, WorkKind::Maintenance, THE_UPKEEP_THE_WAKE_NAMES); };
+    assert!(
+        holds_within(THE_BOUND_A_WAKE_IS_SERVED_WITHIN, settled),
+        "the upkeep the second wake names is run at once, and not when the claim the first look answered runs out in {A_LEASE_A_WAKE_MUST_NOT_WAIT_OUT:?}"
+    );
+    drop(lane);
+    remove(round_held.root.as_path());
+    remove(woken.root.as_path());
 }
