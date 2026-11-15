@@ -1194,9 +1194,7 @@ fn a_cargo_failure_followed_by_a_failed_rollback_stops_the_command_instead_of_fa
 /// and nothing runs after it (the user's command is not started).
 #[test]
 fn a_real_run_that_cannot_show_quiescence_stops_the_install_with_the_lockfile_kept_and_nothing_after_it() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let root = repository(STALE);
     let start = root.path().join(CRATE_DIR);
     let ready = root.path().join("writer-ready");
