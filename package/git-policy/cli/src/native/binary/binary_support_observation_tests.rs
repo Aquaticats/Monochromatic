@@ -128,6 +128,7 @@ fn a_command_that_ends_by_itself_keeps_its_own_status_and_signal() {
         let name: String = format!("ending-{index}");
         let command: PathBuf = script(&made, name.as_str(), format!("#!/bin/sh\n{body}\n").as_str());
         let seen = observe(&mut bounded_script(command.as_path(), AMPLE_SECONDS), b"");
+        println!("{body}: the wait answered code {:?}", seen.code);
         assert_eq!(seen.code, *code, "{body}: the command ended by itself, so its own status is the answer");
     }
     remove(&made);
@@ -151,6 +152,7 @@ fn a_command_that_never_ends_is_ended_at_its_bound() {
     let elapsed: Duration = began.elapsed();
     let payload = outcome.expect_err("a command this wait ended is reported, never answered as one that ended by itself");
     let message: String = message_of(payload);
+    println!("the wait returned after {elapsed:?}, and said: {message}");
     assert!(message.contains("ended the command at its 1s"), "the sentence says what this wait did: {message}");
     assert!(elapsed < PATIENCE, "the wait kept its one-second bound, and returned after {elapsed:?}");
     remove(&made);
@@ -182,6 +184,7 @@ fn a_command_whose_descendant_holds_its_output_is_ended_at_its_bound() {
     end(process_number(recorded.as_path()));
     let payload = outcome.expect_err("a command that never ends is ended by this wait");
     let message: String = message_of(payload);
+    println!("the wait returned after {elapsed:?} against its one-second bound, and said: {message}");
     assert!(message.contains("ended the command at its 1s"), "the sentence says what this wait did: {message}");
     assert!(
         message.contains("still holds its standard output"),
@@ -217,6 +220,7 @@ fn a_command_that_ends_by_itself_says_that_a_descendant_still_holds_its_output()
     end(process_number(recorded.as_path()));
     let payload = outcome.expect_err("an output a descendant may still be writing is never answered as the whole one");
     let message: String = message_of(payload);
+    println!("the wait returned after {elapsed:?} against its bound of {AMPLE_SECONDS} s, and said: {message}");
     assert!(message.contains("ended by itself"), "the sentence says the command ended by itself: {message}");
     assert!(
         message.contains("still holds its standard output"),
