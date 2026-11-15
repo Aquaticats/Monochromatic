@@ -587,6 +587,8 @@ fn a_merge_whose_shadow_loses_merge_head_lands_with_every_parent() {
     git(&case.fixture, case.repo.as_path(), &["commit", "--quiet", "--message=main"]);
     git(&case.fixture, case.repo.as_path(), &["merge", "--no-commit", "--no-ff", "side-control"]);
     assert!(case.repo.join(".git").join("MERGE_HEAD").is_file(), "the merge is in progress");
+    // The build that answers the loss reaches the pause again, and this control holds only the first attempt.
+    std::fs::write(case.markers.join("shadow-built-2.release"), b"").expect("a second attempt may go on");
     let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--message=merge"]);
     let markers: PathBuf = case.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
@@ -644,6 +646,8 @@ fn a_commit_whose_private_index_goes_is_still_the_commit_that_was_asked_for() {
     std::fs::write(case.repo.join("base.txt"), b"base\nmore\n").expect("the edit");
     std::fs::write(case.repo.join("added.txt"), b"added\n").expect("the addition");
     git(&case.fixture, case.repo.as_path(), &["add", "--", "base.txt", "added.txt"]);
+    // The build that answers the loss reaches the pause again, and this control holds only the first attempt.
+    std::fs::write(case.markers.join("shadow-built-2.release"), b"").expect("a second attempt may go on");
     let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--message=two", "--", "base.txt", "added.txt"]);
     let markers: PathBuf = case.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
@@ -687,6 +691,8 @@ fn a_reftable_shadow_that_loses_its_tables_is_built_again() {
     let base: String = super::commit::git_text(&case.fixture, reftable.as_path(), &["rev-parse", "HEAD"]);
     case.service.serve(&case.fixture, reftable.join(".git").as_path());
     let case: Case = Case { repo: reftable, ..case };
+    // The build that answers the loss reaches the pause again, and this control holds only the first attempt.
+    std::fs::write(case.markers.join("shadow-built-2.release"), b"").expect("a second attempt may go on");
     let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--message=two", "--", "a.txt"]);
     let markers: PathBuf = case.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
