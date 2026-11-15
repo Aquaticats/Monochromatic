@@ -7936,14 +7936,19 @@ on the commit path:
   The landing thread's record
   (`src/native/service/service_busy.rs`) lets the thread that reads a connection answer a `withdraw` itself for a request that has
   not begun to land.
-  Admission and cancellation are one decision per request:
-  the file `<id>.decision` in the journal's `busy`
+  Admission and cancellation are one decision per request.
+  The landing thread claims a request in memory before it lands it,
+  and a connection thread that would withdraw a request the landing thread holds leaves it to the landing thread:
+  the claim is one `Mutex` over the identities of the group and touches no storage,
+  because the file the claim used to be was a write of the journal's drive between a commit and its landing
+  (two commits waited 120,560 ms and 78,864 ms in the queue on 2026-11-15,
+  `doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`).
+  A withdrawal of a request the landing thread does not hold publishes the file `<id>.decision` in the journal's `busy`
   directory,
   made with `link(2)` of a whole file,
-  which exactly one side can create (`landing` by the landing thread before it
-  lands the request,
-  `withdrawn:<token>` by a connection thread before it answers,
-  the token being the maker's own).
+  which exactly one withdrawer can create,
+  the content `withdrawn:<token>`, the token being the maker's own,
+  and a request whose record names it is dropped.
   A `withdrawn`
   decision is provisional until its maker has checked the journal once more and created the file `<id>.<token>.cancelled` with the
   token the decision carries;
@@ -7970,10 +7975,8 @@ on the commit path:
   which removes a decision only while it still carries the token of the confirmation it removes;
   the
   memory is cleared when the service starts like the service's own memory of withdrawals);
-  a `landing` decision is removed when its group is
-  done,
-  after the batch is in the journal,
-  and a withdrawal that wins afterwards asks the journal again and answers `landed` for a
+  a request the landing thread has given back at the end of its group is decided by the journal then,
+  so a withdrawal that wins afterwards asks the journal again and answers `landed` for a
   request the journal names.
   A request that a batch still open names is left to the landing thread.
   Whatever cannot be established

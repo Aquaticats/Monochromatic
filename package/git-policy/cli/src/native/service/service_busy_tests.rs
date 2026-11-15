@@ -172,11 +172,14 @@ fn a_new_board_removes_what_an_earlier_service_left() {
 
 /// Fails closed (sol-1,
 /// P1):
-/// when the record cannot be written,
-/// a withdrawal is never answered "withdrawn" and a request is never
-/// taken as admitted on a marker that was not made.
-/// The record's directory is made a plain file,
-/// so every marker operation fails.
+/// when the record of a withdrawal cannot be written,
+/// a withdrawal is never answered "withdrawn".
+/// The record's directory is made a directory no process may write,
+/// so every publication there fails.
+///  Admission is not a write any more,
+/// so the same directory admits the request at once:
+/// the landing thread's claim is memory,
+/// and the read of the record is a read.
 #[test]
 fn a_record_that_cannot_be_written_never_answers_withdrawn() {
     crate::landing_state_carried_by_its_task::in_a_landing(|| {
@@ -192,7 +195,8 @@ fn a_record_that_cannot_be_written_never_answers_withdrawn() {
         let admission: GroupAdmission = record.begin_group(ids(&["later"]).as_slice());
         std::fs::set_permissions(record.directory.as_path(), std::fs::Permissions::from_mode(0o700)).expect("restore");
         assert_eq!(answer, EarlyAnswer::Queued, "no cancellation was established, so none is confirmed");
-        assert!(admission.dropped.is_empty() && admission.unavailable == ids(&["later"]), "a request is not landed on a decision that was not made, and is not dropped either");
+        assert_eq!(admission, GroupAdmission::default(), "a request is admitted on the landing thread's own claim, which needs no file");
+        record.end_group(ids(&["later"]).as_slice());
     });
 }
 
@@ -251,6 +255,10 @@ fn admission_and_early_withdrawal_never_both_succeed() {
         record.end_group(&[id]);
     }
 }
+
+/// One withdrawal's content, as a connection thread writes it:
+/// the word and the token of its maker.
+const A_WITHDRAWAL: &str = "withdrawn:a-token";
 
 /// A journal entry that says request `id` landed as batch `seq`,
 /// written the way the landing writes it.
@@ -394,14 +402,14 @@ fn a_decision_whose_write_fails_leaves_no_temporary_file() {
     let record: Arc<LandingBoard> = LandingBoard::new(directory.join("journal"), AT_ONCE);
     crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = Some(Box::new(|| { return Err(std::io::Error::other("the write failed after the file was made")); })); });
     for round in 0..5 {
-        assert!(record.decide("same", LANDING).is_err(), "round {round}");
+        assert!(record.decide("same", A_WITHDRAWAL).is_err(), "round {round}");
     }
     crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
     let leftovers = |board: &LandingBoard| -> usize { return std::fs::read_dir(board.directory.as_path()).expect("listing").flatten().filter(|entry| { return entry.file_name().to_string_lossy().ends_with(".partial"); }).count(); };
     assert_eq!(leftovers(&record), 0, "a failed write leaves no temporary file");
     assert!(!record.decision_path("same").exists(), "and decided nothing");
     for round in 0..20 {
-        assert!(record.decide("same", LANDING).is_ok(), "round {round}");
+        assert!(record.decide("same", A_WITHDRAWAL).is_ok(), "round {round}");
     }
     assert_eq!(leftovers(&record), 0, "a decision that wins or loses leaves no temporary file");
 }
@@ -602,17 +610,19 @@ const TIME_FOR_THE_OTHER_PUBLISHER: Duration = Duration::from_millis(500);
 const TIME_FOR_A_DECISION_TO_COME: Duration = Duration::from_secs(30);
 
 /// On a filesystem that answers neither an exclusive rename nor a hard link,
-/// the landing thread and a connection thread of one
-///  service race for one decision with the checked rename (a check,
+/// two connection threads of one
+///  service race for the withdrawal of one request with the checked rename (a check,
 /// then a rename).
-/// The landing thread is paused between its
+/// The first is paused between its
 ///  check and its rename;
-/// a connection thread decides the same request meanwhile.
+/// the second decides the same request meanwhile.
 /// Exactly one of them may see itself the winner,
 ///  and the other reads what the winner wrote (the plan,
 /// "Safe file saving:
 /// the publish replaced",
 /// fact 1 and its settlement).
+/// A withdrawal of a request the landing thread holds never reaches this publish:
+/// the claim is one `Mutex` and it is read before the decision is tried.
 #[cfg(unix)]
 #[test]
 fn on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_thread_never_both_win_a_decision() {
@@ -633,21 +643,21 @@ fn on_a_disk_without_exclusive_publish_the_landing_thread_and_a_connection_threa
             let (shared_record, shared_sender) = (Arc::clone(&pause_record), sender.clone());
             std::thread::spawn(move || {
                 THE_FILESYSTEM_ANSWERS_NEITHER_EXCLUSIVE_PUBLISH.with(|flag| { flag.set(true); });
-                let _sent = shared_sender.send(shared_record.decide("request", "withdrawn:token"));
+                let _sent = shared_sender.send(shared_record.decide("request", "withdrawn:another-token"));
             });
             *pause_result.borrow_mut() = pause_receiver.recv_timeout(TIME_FOR_THE_OTHER_PUBLISHER).ok();
         }));
     });
-    let landing: Decision = record.decide("request", LANDING).expect("the landing thread's decision");
+    let landing: Decision = record.decide("request", A_WITHDRAWAL).expect("the first withdrawal's decision");
     BETWEEN_THE_CHECK_AND_THE_RENAME.with(|hook| { *hook.borrow_mut() = None; });
     let withdrawing: Decision = match decided_while_paused.borrow_mut().take() {
         Some(early) => early,
-        None => later_receiver.recv_timeout(TIME_FOR_A_DECISION_TO_COME).expect("the connection thread's decision comes once the landing thread has let go"),
+        None => later_receiver.recv_timeout(TIME_FOR_A_DECISION_TO_COME).expect("the second withdrawal's decision comes once the first has let go"),
     }
-    .expect("the connection thread's decision");
+    .expect("the second withdrawal's decision");
     let content: String = std::fs::read_to_string(record.decision_path("request")).expect("the decision file");
     match (landing, withdrawing) {
-        (Decision::Won, Decision::Lost(read)) => assert_eq!(read, LANDING, "the loser reads what the winner wrote"),
+        (Decision::Won, Decision::Lost(read)) => assert_eq!(read, content, "the loser reads what the winner wrote"),
         (Decision::Lost(read), Decision::Won) => assert_eq!(read, content, "the loser reads what the winner wrote"),
         (Decision::Won, Decision::Won) => panic!("both threads saw themselves the winner; the file says `{content}`"),
         (Decision::Lost(_), Decision::Lost(_)) => panic!("neither thread won; the file says `{content}`"),

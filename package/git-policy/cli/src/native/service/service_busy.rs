@@ -26,30 +26,29 @@
 //! This record lets the thread that reads each connection (a) tell
 //!  the client what the service is stuck in,
 //! and (b) answer the withdrawal of a request that has not begun to land.
-//!  The record holds no lock (the owner:
-//! "Use as few locks as possible.";
-//! the lock inventory guard,
-//!  `source_guard/service_lock_inventory_tests.rs`):
-//! one owner per item and exclusive creation,
-//! in a directory of the journal.
-//!  Admission and cancellation are one decision per request,
-//! made by publishing the file `<id>.decision` without replacing (`private_storage`:
+//!  The requests the landing thread holds are kept in memory, one owner per item
+//! and no storage touched under the lock
+//!  (`source_guard/service_lock_inventory_tests.rs`),
+//! because the file it used to keep them in was a write of the journal's drive between a request and its landing:
+//!  two commits of 2026-11-15 waited 120,560 ms and 78,864 ms in the queue with nothing ahead of them while that
+//!  drive took 109,241 ms for a 4 KiB write-and-sync and the repository's drive answered in 10 ms
+//!  (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`).
+//!  Admission and cancellation are one decision per request:
+//!  the landing thread claims the request in memory before it lands it,
+//! a connection thread that would withdraw a request the landing thread holds is told to leave it to the landing
+//!  thread,
+//! and a withdrawal of a request the landing thread does not hold publishes the file `<id>.decision` without
+//!  replacing it (`private_storage`:
 //!  `renameat2` with `RENAME_NOREPLACE`,
 //! or a hard link,
 //! either of which fails when the name exists and shows the file whole;
 //! on a
 //!  filesystem with neither,
 //! a checked rename,
-//! which is atomic but not exclusive):
-//! the landing thread tries to create it with the content `landing` before it
-//!  lands the request,
-//! a connection thread tries to create it with `withdrawn` before it answers a withdrawal,
-//! and exactly one
-//!  creation succeeds.
-//! The loser reads what the winner wrote.
-//! A request that is `landing` is the landing thread's to answer;
-//! a
-//!  request that is `withdrawn` is dropped whenever a copy of it reaches a group,
+//! which is atomic but not exclusive),
+//!  and exactly one withdrawal succeeds.
+//! A
+//!  request whose withdrawal file exists is dropped whenever a copy of it reaches a group,
 //! as often as it comes,
 //! until the retention forgets it
 //!  (the same bounded memory a normal withdrawal has;
@@ -57,12 +56,6 @@
 //! between two groups).
 //! A `withdrawn` decision
 //!  carries the token of its maker and counts as a cancellation for anyone else only when the file `<id>.<token>.cancelled` exists.
-//! A `landing` file is removed when its group is done,
-//! after the batch is in the
-//!  journal,
-//! so a withdrawal that wins afterwards asks the journal again before it answers,
-//! and answers `landed` for a request the
-//!  journal names.
 //! Anything that cannot be established,
 //! a file that cannot be made or read,
 //! a journal that cannot be read,
@@ -81,7 +74,7 @@
 //! ```
 
 pub use crate::service_busy_answers_and_name_checks::{EarlyAnswer, GroupAdmission};
-use crate::service_busy_answers_and_name_checks::{CANCELLED_EXTENSION, Decision, Naming, WITHDRAWN, is_confirmation, is_plain, modified_and_path, withdrawal_token};
+use crate::service_busy_answers_and_name_checks::{CANCELLED_EXTENSION, Decision, Naming, RecordedWithdrawal, WITHDRAWN, is_confirmation, is_plain, modified_and_path, withdrawal_token};
 #[cfg(test)]
 use std::cell::RefCell;
 use crate::service_journal::{DONE_EXTENSION, DONE_RETAINED, OPEN_EXTENSION, parse_intent};
@@ -100,9 +93,6 @@ pub(crate) const STEP_FILE: &str = "step";
 
 /// The extension of the decision file of a request.
 const DECISION_EXTENSION: &str = "decision";
-
-/// What the decision file says when the landing thread took the request.
-const LANDING: &str = "landing";
 
 /// How many withdrawals the record remembers:
 /// the same as the journal's count of finished records (`DONE_RETAINED`),
@@ -166,6 +156,18 @@ pub struct LandingBoard {
     journal: PathBuf,
     /// The directory of the record.
     pub(crate) directory: PathBuf,
+    /// Lock kept:
+    ///  the requests the landing thread has taken for the group it is landing,
+    ///  as the identities a connection thread must leave to it:
+    /// the landing thread claims each identity as it takes a group and gives it back when the group is over,
+    ///  a connection thread reads the claims while a write that never ends holds the landing,
+    ///  and no storage is touched under the lock.
+    /// It is a lock and not a file because a file was the commit's own wait:
+    ///  creating one per request put a write of the journal's drive between a commit and its landing,
+    ///  which took two commits 120,560 ms and 78,864 ms on 2026-11-15
+    ///  (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`),
+    ///  while the claims of a landing die with the landing and nothing of them outlives the service.
+    held: std::sync::Mutex<Vec<String>>,
 }
 
 /// What:
@@ -208,7 +210,7 @@ impl LandingBoard {
         let directory: PathBuf = journal.join(DIRECTORY);
         let _removed = std::fs::remove_dir_all(directory.as_path());
         let _made = std::fs::create_dir_all(directory.as_path());
-        return Arc::new(Self { slow_after, journal, directory });
+        return Arc::new(Self { slow_after, journal, directory, held: std::sync::Mutex::new(Vec::new()) });
     }
 
     /// The decision file of a request.
@@ -301,7 +303,7 @@ impl LandingBoard {
 
     /// What:
     ///  Take the requests of a group for landing:
-    /// decide each as `landing`,
+    /// claim each in memory before its record is read,
     /// learn which a withdrawal took,
     /// and which could not be
     ///  decided.
@@ -309,11 +311,15 @@ impl LandingBoard {
     ///   A request a withdrawal took is dropped,
     /// however many copies of it come;
     /// one that cannot be decided is not landed on a
-    ///  decision that was not made.
+    ///  decision that was not made;
+    /// and the claim is made first so that a withdrawal arriving after it is told to leave the request to the
+    ///  landing thread, while one that arrived before it is read here and dropped.
+    ///  Neither the claim nor the read is a write,
+    /// so a commit no longer waits for the journal's drive before its group begins.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// for (const id of ids) { const d = decide(id, 'landing'); if (d.error) unavailable.push(id); else if (d.lost === 'withdrawn') dropped.push(id); }
+    /// for (const id of ids) { claim(id); const r = readRecord(id); if (r.unknown) unavailable.push(id); else if (r.withdrawn) dropped.push(id); }
     /// ```
     pub fn begin_group(&self, ids: &[String]) -> GroupAdmission {
         let mut admission: GroupAdmission = GroupAdmission::default();
@@ -321,14 +327,68 @@ impl LandingBoard {
             if !is_plain(id.as_str()) {
                 continue;
             }
-            match self.decide(id.as_str(), LANDING) {
-                Ok(Decision::Won) => {}
-                Ok(Decision::Lost(content)) if content == LANDING => {}
-                Ok(Decision::Lost(content)) if withdrawal_token(content.as_str()).is_some() => admission.dropped.push(id.clone()),
-                Ok(Decision::Lost(_)) | Err(_) => admission.unavailable.push(id.clone()),
+            self.hold(id.as_str());
+            match self.recorded_withdrawal(id.as_str()) {
+                RecordedWithdrawal::None => {}
+                RecordedWithdrawal::Withdrawn => admission.dropped.push(id.clone()),
+                RecordedWithdrawal::Unknown => admission.unavailable.push(id.clone()),
             }
         }
+        // A request this group does not land is not the landing thread's to answer.
+        for id in admission.dropped.iter().chain(admission.unavailable.iter()) {
+            self.give_back(id.as_str());
+        }
         return admission;
+    }
+
+    /// What:
+    ///  The withdrawal another thread published for `id`, when there is one.
+    /// Why:
+    ///   The record is the only thing a connection thread writes about a request,
+    /// so this read is what tells the landing thread that a request it was about to land was withdrawn while it
+    ///  waited.
+    /// A name that is not a regular file,
+    ///  or a record that is neither a withdrawal nor nothing,
+    /// is unknown and never a cancellation:
+    ///  a request is not landed on a decision that was not made.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// const recordedWithdrawal = (id) => { try { return isWithdrawal(read(decision(id))) ? 'withdrawn' : 'unknown' } catch (missing) { return 'none' } catch { return 'unknown' } };
+    /// ```
+    fn recorded_withdrawal(&self, id: &str) -> RecordedWithdrawal {
+        match crate::private_storage::open_regular_file(self.decision_path(id).as_path()) {
+            Err(crate::private_storage::ReadRefusal::Missing) => RecordedWithdrawal::None,
+            Err(_) => RecordedWithdrawal::Unknown,
+            Ok(mut file) => {
+                let mut text: String = String::new();
+                if std::io::Read::read_to_string(&mut file, &mut text).is_err() {
+                    return RecordedWithdrawal::Unknown;
+                }
+                return if withdrawal_token(text.as_str()).is_some() { RecordedWithdrawal::Withdrawn } else { RecordedWithdrawal::Unknown };
+            }
+        }
+    }
+
+    /// Whether this board holds `id` for the group the landing thread is landing.
+    fn holds(&self, id: &str) -> bool {
+        return self.held.lock().expect("the requests the landing thread holds").iter().any(|held| { return held == id; });
+    }
+
+    /// Take `id` for the landing thread,
+    /// once however many copies of it come.
+    fn hold(&self, id: &str) {
+        let mut held = self.held.lock().expect("the requests the landing thread holds");
+        if !held.iter().any(|claimed| { return claimed == id; }) {
+            held.push(String::from(id));
+        }
+    }
+
+    /// Give `id` back,
+    /// so a later withdrawal of it is decided by a connection thread again.
+    fn give_back(&self, id: &str) {
+        let mut held = self.held.lock().expect("the requests the landing thread holds");
+        held.retain(|claimed| { return claimed != id; });
     }
 
     /// The group is landed (or given up):
@@ -341,15 +401,13 @@ impl LandingBoard {
             if !is_plain(id.as_str()) {
                 continue;
             }
-            if matches!(record_text(self.decision_path(id.as_str()).as_path()), Some(content) if content == LANDING) {
-                let _removed = std::fs::remove_file(self.decision_path(id.as_str()));
-            }
+            self.give_back(id.as_str());
         }
     }
 
     /// Whether the request of this identity is in the group the landing thread is landing.
     pub fn is_in_flight(&self, id: &str) -> bool {
-        return is_plain(id) && matches!(record_text(self.decision_path(id).as_path()), Some(content) if content == LANDING);
+        return is_plain(id) && self.holds(id);
     }
 
     /// The write the landing thread is inside,
@@ -451,6 +509,11 @@ impl LandingBoard {
         let Some(words) = self.describe() else {
             return EarlyAnswer::Queued;
         };
+        // The landing thread holds this request, so its answer is the landing thread's:
+        // the claim is memory, so no drive stands between the decision and an answer.
+        if self.holds(id) {
+            return EarlyAnswer::Queued;
+        }
         match self.naming(id) {
             Naming::Landed(commit) => return EarlyAnswer::Landed(commit),
             Naming::Open | Naming::Unknown => return EarlyAnswer::Queued,
@@ -477,6 +540,12 @@ impl LandingBoard {
         }
         #[cfg(test)]
         AFTER_THE_DECISION_IS_WON.with(|hook| { if let Some(pause) = hook.borrow().as_ref() { pause(); } });
+        // The landing thread may have claimed the request between this thread's look at the claims and this decision:
+        // the claim is the authority, so the decision is taken back and the landing thread answers the withdrawal.
+        if self.holds(id) {
+            let _undone = std::fs::remove_file(self.decision_path(id));
+            return EarlyAnswer::Queued;
+        }
         // The decision is ours, so the request cannot be admitted any more; what could have happened is that it was admitted,
         // landed and let go of before the decision was tried.
         match self.naming(id) {

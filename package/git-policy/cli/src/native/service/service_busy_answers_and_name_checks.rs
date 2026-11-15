@@ -102,6 +102,27 @@ pub(crate) enum Decision {
     Lost(String),
 }
 
+/// What the record says about a request a group is about to land:
+/// that a withdrawal took it,
+/// that nothing did,
+/// or that the record cannot be read.
+/// Why:
+///  A request is dropped when a withdrawal took it and landed when nothing did;
+/// an unknown record is neither,
+/// so the request is never landed on a decision that was not made
+/// (`service_busy.rs`, `begin_group`).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum RecordedWithdrawal {
+    /// No withdrawal record exists for the request.
+    None,
+    /// A withdrawal record names the request.
+    Withdrawn,
+    /// The record is not a regular file,
+    /// cannot be read,
+    /// or says something that is no withdrawal.
+    Unknown,
+}
+
 /// Whether `id` can be a file name that is only a name.
 pub(crate) fn is_plain(id: &str) -> bool {
     return !id.is_empty() && id.len() <= LONGEST_ID && id.chars().all(is_plain_character);

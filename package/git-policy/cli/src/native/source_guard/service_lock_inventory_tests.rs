@@ -107,6 +107,13 @@ const INVENTORY: &[&str] = &[
     //  a caller hands a line and goes on while one thread takes lines and waits on the stream,
     //  and under it one line is pushed or popped while the write runs outside it.
     "service/service_log_lines_off_the_calling_thread.rs",
+    // The requests the landing thread has taken for the group it lands:
+    //  the landing thread claims one as it takes a group and gives it back when the group is over,
+    //  and a connection thread reads the claims to leave a held request to the landing thread,
+    //  so two threads reach the list while no storage is touched under it.
+    //  A file kept the same answer until 2026-11-15 and was a write of the journal's drive between a request and
+    //  its landing (`doc/troubleshooting/git-policy-cli-commit-waits-for-the-services-record-write.md`).
+    "service/service_busy.rs",
     "commit/commit_build_part_durations.rs",
     "commit/commit_index_builds.rs",
     "commit/commit_prepare_part_durations.rs",
