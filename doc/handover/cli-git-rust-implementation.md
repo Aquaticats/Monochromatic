@@ -1455,6 +1455,144 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The commit service that did not start has its cause and a fix in review; the three push controls fail without pass 48 too; three defects those reports show get runs of their own (2026-11-15T01:50:07-05:00)
+
+Not final and not approved:
+what two runs report,
+each report read to its end here,
+how the coordinating session weighed them,
+and what it queued.
+
+- **A commit whose service did not start**,
+  the fresh run,
+  ended 01:43:47 at `fc0b529839`.
+  - Cause,
+    by its measurement:
+    systemd unloads a unit that has stopped,
+    and asking the manager for it then answers "no such unit",
+    not `inactive`.
+    The client read that answer as a manager that could not be asked,
+    so it asked for no start,
+    since only `inactive` and `failed` asked for one.
+    A service that retires before it served anything stops its own socket,
+    so nothing else started it again.
+    The four merges of the first sighting each ended with
+    "Your commit is saved. Its backup push and upkeep could not be handed to the commit service: the commit service did not start."
+  - Fixed:
+    the client keeps a unit the manager does not hold apart from a manager it cannot reach,
+    asks for a start in the first case,
+    and the message names the unit,
+    the manager's last answer and whether a start was asked.
+  - A control fails before the fix
+    ("a unit the manager holds no such unit for must be started")
+    and the message at the user's boundary was reproduced byte for byte under a private bus with no manager.
+    Not reproduced:
+    a real manager answering "no such unit" and then starting the unit;
+    that leg stands on the unit-level control and the manager's measured answer.
+  - Ruled out with evidence:
+    a failed start,
+    a start limit,
+    a silent service,
+    an exchange that timed out,
+    a service of another release,
+    an unreachable bus.
+  - Clippy clean,
+    guards 6 of 6 and 20 of 20,
+    changed modules 68 of 68,
+    binary modules 64 of 67
+    (the three are `main`'s standing failures).
+  Its review is queued second
+  (`main...fc0b529839`,
+  nine code files that are not tests).
+  The after-commit author's report names one more sighting of the same message,
+  in its own worktree,
+  at its merge of `main`.
+- **The same run on this session's two slow commits**
+  (`fd002ed513`,
+  `5a7c6c0d03`):
+  another cause.
+  The service was alive;
+  both waits were time in its queue,
+  120,560 ms and 78,864 ms;
+  on the home drive in a commit's path are the service's own state
+  (its state directory under `~/.local/state`,
+  whose "background sync of 6 records" took 57.9 s and 11.7 s in those minutes)
+  and the package repair a landing can run.
+  Which write held the 120 seconds is not measured:
+  the journal has no line between 00:52:47 and 00:56:32.
+- **The three `push_minimum_rate::` controls**,
+  pass 48's author,
+  its second run,
+  ended 01:44:29 with no change made.
+  - In the gate's own image,
+    the three run together by name,
+    four CPUs,
+    alternating:
+    with pass 48's change 18 of 18 passed
+    (six runs),
+    the stopped push taking 7.10 to 7.22 s;
+    at its parent 12 of 18 failed
+    (four runs of six),
+    the stopped push taking 30.4,
+    40.7,
+    44.5 and 65.0 s.
+    So they fail without the change,
+    with the same words as in the gate.
+  - One alone passed at the parent;
+    one CPU with the change passed three of three.
+  - Where the time is,
+    by its reading of numbers and code and not by a measurement of a blocked process:
+    inside the stop of the push's process group,
+    a signal,
+    a wait that is extended while a member cannot be interrupted,
+    a kill,
+    the same wait again,
+    then the lock sweep.
+    The controls wait 30 s.
+  - Both of this session's readings in its brief were wrong and are withdrawn:
+    no push was tried twice
+    (every plan says the next try is in 600 s);
+    and the line about a work item taken over by another instance is older than the change,
+    appears in none of its runs,
+    and in the gate came after the control had failed.
+  - The six controls the change was for pass in the image,
+    nine tests of nine.
+- **Weighed**:
+  pass 48 is not the cause of the three,
+  and the gate that failed them carried it.
+  What stands is three defects neither run was for,
+  each now with a fresh run from `main`:
+  - a push ended at its window whose stop takes 23 to 58 s when three are stopped at once
+    (`~/temp/agent/pi-runs/push-stopped-at-its-window-ends-within-its-bound-when-three-are-stopped-at-once-prompt.md`,
+    queued fifth);
+  - a commit queued behind the service's writes to a drive that is not the repository's
+    (`~/temp/agent/pi-runs/commit-does-not-wait-behind-the-services-writes-to-a-drive-that-is-not-the-repositorys-prompt.md`,
+    queued sixth);
+    it is over the rule of five seconds or twice real Git;
+  - the work record whose move finds nothing and guesses that another instance took it,
+    106 lines in the gate's log by this session's count and 45 by the author's,
+    not reconciled
+    (`~/temp/agent/pi-runs/work-record-the-service-settles-is-moved-by-one-owner-and-a-move-that-finds-nothing-says-why-prompt.md`,
+    queued twenty-first).
+- **`0.6.1-alpha.38`**,
+  the user journal from 01:40:10 to 01:46:10,
+  577 lines:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  three starts saying `0.6.1-alpha.38`,
+  each the installed program.
+  Its gate was still running.
+- Read at 01:48:11:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap
+  (18 worktrees with a process inside,
+  the gate's among them).
+  The queue held 80 entries at 01:50:07.
+
 ##### `0.6.1-alpha.38` is published and installed; its gate is running (2026-11-15T01:40:51-05:00)
 
 Not final and not approved:
