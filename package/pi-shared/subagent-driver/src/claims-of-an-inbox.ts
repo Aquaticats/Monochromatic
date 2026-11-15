@@ -14,7 +14,7 @@
  */
 
 import {
-  link,
+  link as linkOnDisk,
   lstat,
   mkdir,
   readdir,
@@ -487,14 +487,18 @@ export async function claimMessage({
 
  @param target - the name this attempt would keep it under
 
+ @param link - the hard link a filesystem gives, which a test replaces to make one fail
+
  @returns what this attempt achieved, so the caller knows whether to try another name
  */
 async function publishKept({
   claim,
   target,
+  link,
 }: {
   readonly claim: string;
-  readonly target: string
+  readonly target: string;
+  readonly link: (existing: string, created: string,) => Promise<void>
 },): Promise<'published' | 'name-taken' | 'kept-by-rename'> {
   try {
     await link(
@@ -538,18 +542,22 @@ async function publishKept({
 
  @param keptAs - the word the kept name carries, which says why the message was not taken
 
+ @param link - the hard link a filesystem gives, which a test replaces to make one fail
+
  @returns the name the message was kept under
  */
-async function keepMessage({
+export async function keepMessage({
   watch,
   name,
   claim,
   keptAs,
+  link = linkOnDisk,
 }: {
   readonly watch: WatchRequest;
   readonly name: string;
   readonly claim: string;
-  readonly keptAs: 'failed' | 'orphaned'
+  readonly keptAs: 'failed' | 'orphaned';
+  readonly link?: (existing: string, created: string,) => Promise<void>
 },): Promise<string> {
   /**
    The most numbered names to try before giving up: there are always fewer kept messages than names in the inbox.
@@ -570,6 +578,7 @@ async function keepMessage({
     const outcome = await publishKept({
       claim,
       target,
+      link,
     },);
     if ((outcome === 'published') || (outcome === 'kept-by-rename')) {
       return target;

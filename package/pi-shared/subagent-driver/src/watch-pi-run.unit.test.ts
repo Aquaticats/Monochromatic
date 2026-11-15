@@ -32,6 +32,7 @@ import {
   answerModelError,
   type CommandAnswer,
   type CommandRequest,
+  deliverReadyMessage,
   type ConnectionToPi,
   COMMAND_ANSWER_MILLISECONDS,
   type DriverOptions,
@@ -1005,6 +1006,51 @@ async function killChildAtItsSeam({
     child,
     exited,
   },);
+}
+
+/**
+ Waits, bounded, until the feed shows a problem whose words hold a text.
+
+ @param runFolder - the run folder whose feed is read
+
+ @param text - the words to wait for
+
+ @returns nothing, once the feed shows them
+ */
+async function waitForFeedProblem({
+  runFolder,
+  text,
+}: {
+  readonly runFolder: string;
+  readonly text: string
+},): Promise<void> {
+  /**
+   When the test gives up on the line.
+   */
+  const deadline = Date.now() + MARKER_WAIT_MILLISECONDS;
+  for (;;) {
+    /**
+     What the feed holds, or nothing while the run has not written it yet.
+     */
+    let feed: readonly PiRecord[] = [];
+    try {
+      // oxlint-disable-next-line eslint/no-await-in-loop -- the run writes as it goes, so the file is read again after waiting; see doc/lint/sequential-awaits.md
+      feed = await feedOf(runFolder,);
+    }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+    }
+    if (feed.some((entry,) => String(entry.problem,).includes(text,))) {
+      return;
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(`the feed showed no problem with ${text} within ${String(MARKER_WAIT_MILLISECONDS,)} ms`,);
+    }
+    // oxlint-disable-next-line eslint/no-await-in-loop -- the same look, again, after the wait between looks; see doc/lint/sequential-awaits.md
+    await wait(MARKER_LOOK_MILLISECONDS,);
+  }
 }
 
 await describe({
@@ -2376,6 +2422,93 @@ await describe({
           sessionStats: null,
         },).inboxNotTaken,).toEqual([CHILD_MESSAGE_NAME,],);
         await record.close();
+      },
+    },),
+    it({
+      name: 'a message another driver took is not named as not taken by the run that could not claim it',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The run folder whose inbox holds the message.
+         */
+        const runFolder = folder.path;
+        /**
+         The inbox the message is in.
+         */
+        const inbox = join(runFolder, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        await writeFile(join(inbox, MESSAGE_NAME,), MESSAGE_TEXT, { encoding: 'utf8', },);
+        /**
+         The process folder of a driver whose own start cannot be read.
+         */
+        const processFolder = join(runFolder, 'proc-with-no-self',);
+        await mkdir(processFolder,);
+        /**
+         The first run's record.
+         */
+        const record = startRecordOfPiRun({ feedFile: join(
+          runFolder,
+          'feed.jsonl',
+        ), },);
+        /**
+         The first run, which cannot claim the message and runs on to its deadline.
+         */
+        const firstRun = watchUntilEnded({
+          connection: answeringConnection({ sent: [], },),
+          record,
+          options: optionsOf({ runFolder, },),
+          inbox,
+          deadline: Date.now() + HOLD_MILLISECONDS,
+          processFolder,
+          workLeftRunning: async () => [],
+        },);
+        // A failure here must not leave the run's own rejection unhandled; the test reads it again below.
+        void firstRun.catch(function handled() {},);
+        await waitForFeedProblem({
+          runFolder,
+          text: 'cannot read the start time of its own process',
+        },);
+        /**
+         The messages the second driver sent.
+         */
+        const sentBySecond: string[] = [];
+        /**
+         The second driver's own record.
+         */
+        const secondRecord = startRecordOfPiRun({ feedFile: join(
+          runFolder,
+          'second-feed.jsonl',
+        ), },);
+        /**
+         What the second driver made of the message, which its own process start lets it claim.
+         */
+        const second = await deliverReadyMessage({
+          watch: {
+            connection: answeringConnection({ sent: sentBySecond, },),
+            record: secondRecord,
+            options: optionsOf({ runFolder, },),
+            inbox,
+            deadline: Date.now() + HOLD_MILLISECONDS,
+            processFolder: '/proc',
+          },
+          name: MESSAGE_NAME,
+        },);
+        expect(second,).toEqual({ ending: 'taken', },);
+        expect(sentBySecond,).toEqual([MESSAGE_TEXT,],);
+        const endReason = await firstRun;
+        expect(endReason,).toBe('wall-clock',);
+        /**
+         What the first run says about the message another driver took.
+         */
+        const summary = record.summarize({
+          endReason: 'wall-clock',
+          piExit: {},
+          piHasExited: true,
+          sessionStats: null,
+        },);
+        expect(summary.inboxNotTaken,).toBeUndefined();
+        await record.close();
+        await secondRecord.close();
       },
     },),
   ],

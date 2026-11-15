@@ -11,7 +11,7 @@ import {
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import { dirname, join, } from 'node:path';
 import {
   describe,
   expect,
@@ -20,8 +20,10 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   type CommandAnswer,
+  deliverReadyMessage,
   type DriverOptions,
   INBOX_CLAIMS_FOLDER,
+  keepMessage,
   type RecordOfPiRun,
   recoverClaimsOfGoneDrivers,
   type RunSummary,
@@ -287,6 +289,56 @@ async function writeProcess({
  */
 async function entriesOf(folder: string,): Promise<readonly string[]> {
   return (await readdir(folder,)).toSorted();
+}
+
+/**
+ The texts of every file under a folder, so a test can say that a message survived somewhere rather than at one path.
+
+ @param folder - the folder to read
+
+ @returns the text of each file, in no particular order
+ */
+async function textsUnder(folder: string,): Promise<readonly string[]> {
+  /**
+   What is directly in the folder.
+   */
+  const entries = await readdir(folder, { withFileTypes: true, },);
+  /**
+   The texts of each entry: a folder is read through, a file is read.
+   */
+  const texts = await Promise.all(entries.map(async function read(entry,) {
+    /**
+     The entry's path.
+     */
+    const path = join(folder, entry.name,);
+    return entry.isDirectory() ? await textsUnder(path,) : [await readFile(path, 'utf8',)];
+  },),);
+  return texts.flat();
+}
+
+/**
+ A connection that refuses every message while Pi rests.
+
+ @returns the connection a watch reads
+ */
+function refusingWhileResting(): WatchRequest['connection'] {
+  return {
+    hasExited: () => false,
+    exitDetails: () => ({}),
+    write: function write() {
+      throw new Error('the watch was not expected to write without waiting for an answer',);
+    },
+    send: async function send(): Promise<CommandAnswer> {
+      return {
+        ending: 'answered',
+        record: {
+          success: false,
+          error: 'refused while resting',
+        },
+      };
+    },
+    shutDown: async () => ({ stopped: true, }),
+  };
 }
 
 await describe({
@@ -606,6 +658,151 @@ await describe({
          */
         const summary = await summaryOf(record,);
         expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+      },
+    },),
+    it({
+      name: 'a second claim of one name does not overwrite the claim that could not be kept',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox both publications are written into.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        /**
+         A name with no room for a kept prefix, so a refused first message stays under its claim.
+         */
+        const name = 'n'.repeat(255,);
+        /**
+         What each publication holds.
+         */
+        const firstText = 'the first message, which must survive';
+        const secondText = 'the second message, published under the same name';
+        await writeFile(join(inbox, name,), firstText, { encoding: 'utf8', },);
+        /**
+         The run's own record.
+         */
+        const record = startRecordOfPiRun({ feedFile: join(
+          folder.path,
+          'feed.jsonl',
+        ), },);
+        /**
+         The watch both deliveries use.
+         */
+        const watch: WatchRequest = {
+          connection: refusingWhileResting(),
+          record,
+          options: optionsOf(folder.path,),
+          inbox,
+          deadline: Date.now() + 5_000,
+          processFolder: '/proc',
+        };
+        /**
+         What the first publication came to.
+         */
+        const first = await deliverReadyMessage({
+          watch,
+          name,
+        },);
+        expect(first,).toEqual({ ending: 'not-taken', },);
+        await writeFile(join(inbox, name,), secondText, { encoding: 'utf8', },);
+        /**
+         What the second publication came to.
+         */
+        const second = await deliverReadyMessage({
+          watch,
+          name,
+        },);
+        expect(second,).toEqual({ ending: 'not-taken', },);
+        /**
+         What the claims still hold, which must be both messages.
+         */
+        const texts = await textsUnder(join(inbox, INBOX_CLAIMS_FOLDER,),);
+        expect(texts,).toContain(firstText,);
+        expect(texts,).toContain(secondText,);
+        await record.close();
+      },
+    },),
+    it({
+      name: 'two keeps of one name on a filesystem without hard links both survive',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox both kept messages live in.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        /**
+         The name both messages were published under.
+         */
+        const name = MESSAGE_NAME;
+        /**
+         What each claim holds.
+         */
+        const firstText = 'the first kept message';
+        const secondText = 'the second kept message';
+        /**
+         Where each claim is.
+         */
+        const firstClaim = join(inbox, '.claims', 'a-1', 'one', name,);
+        const secondClaim = join(inbox, '.claims', 'b-2', 'two', name,);
+        await mkdir(dirname(firstClaim,), { recursive: true, },);
+        await mkdir(dirname(secondClaim,), { recursive: true, },);
+        await writeFile(firstClaim, firstText, { encoding: 'utf8', },);
+        await writeFile(secondClaim, secondText, { encoding: 'utf8', },);
+        /**
+         The run's own record.
+         */
+        const record = startRecordOfPiRun({ feedFile: join(
+          folder.path,
+          'feed.jsonl',
+        ), },);
+        /**
+         The watch both keeps use.
+         */
+        const watch: WatchRequest = {
+          connection: quietConnection(),
+          record,
+          options: optionsOf(folder.path,),
+          inbox,
+          deadline: Date.now() + 5_000,
+          processFolder: '/proc',
+        };
+        /**
+         The hard link a filesystem without them refuses, which this test's filesystem gives.
+         */
+        const refusesLinks = async function refusesLinks(): Promise<void> {
+          /**
+           What the filesystem would say.
+           */
+          const failure = new Error('EPERM: operation not permitted',);
+          Object.assign(failure, { code: 'EPERM', },);
+          throw failure;
+        };
+        /**
+         Where the first keep went.
+         */
+        const firstKept = await keepMessage({
+          watch,
+          name,
+          claim: firstClaim,
+          keptAs: 'failed',
+          link: refusesLinks,
+        },);
+        /**
+         Where the second keep went.
+         */
+        const secondKept = await keepMessage({
+          watch,
+          name,
+          claim: secondClaim,
+          keptAs: 'failed',
+          link: refusesLinks,
+        },);
+        expect(firstKept,).not.toBe(secondKept,);
+        expect(await readFile(firstKept, 'utf8',),).toBe(firstText,);
+        expect(await readFile(secondKept, 'utf8',),).toBe(secondText,);
+        await record.close();
       },
     },),
   ],
