@@ -78,7 +78,7 @@ A recovery pass removes the empty folder of an owner it proves gone, and says no
 The driver links the claim to the next free kept name,
 or, on a filesystem that refuses hard links, makes a copy created exclusively under that name.
 
-A kill between the link and the removal below leaves both names, one file.
+A kill between the link and the removal below leaves both names: one file, or a copy where hard links are refused.
 
 The next recovery pass reads the claim and the kept name and finds them one file, so it knows the publication is already
 made: it removes the claim and makes no second copy. Where hard links are refused, the kept name is a copy and cannot be told
