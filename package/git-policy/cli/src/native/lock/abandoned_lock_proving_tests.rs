@@ -141,24 +141,79 @@ fn live_holder() -> (i64, String, Helper) {
     return (pid, identity, Helper(child));
 }
 
+/// The position of each part of an identity text:
+/// the birth,
+/// the boot,
+/// the PID namespace,
+/// and the machine.
+const BIRTH_PART: usize = 0;
+const BOOT_PART: usize = 1;
+const PID_SCOPE_PART: usize = 2;
+const MACHINE_PART: usize = 3;
+
+/// A boot ID that is no boot of this host's.
+const ANOTHER_BOOT: &str = "0123456789abcdef0123456789abcdef";
+
+/// A machine ID that is no host's here.
+const ANOTHER_MACHINE: &str = "fedcba9876543210fedcba9876543210";
+
 /// What:
-///  The identity text with one of its parts replaced,
-///  so a record of another boot,
-///  another PID namespace or another machine can be planted.
+///  The identity text with the part at `index` replaced by `value`.
 /// Why:
-///  `birth#boot#scope#machine` is the whole identity,
-///  and each part is what a judgement compares.
+///   A control that plants a record of another boot,
+///  another PID namespace or another machine replaces one part of the text a writer of this host produced,
+///  and every other part must stay that writer's.
+///  A part the writer did not write makes a text no command of this repository ever leaves,
+///  so the proof would be asked about a record that cannot exist:
+///  the gate's container has no machine ID,
+///  so its identity there ends at the PID namespace,
+///  and the padding this function used to add made a fourth part with nothing in it,
+///  which the reader answers unknown for
+///  (the control below passed in a container for a reason it does not test).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// withPart(identity, 1, 'a-different-boot')
+/// withPart(identity, 1, 'a-different-boot') // fails when the text has no part 1
 /// ```
 fn with_part(identity: &str, index: usize, value: &str) -> String {
     let mut parts: Vec<String> = identity.split('#').map(String::from).collect();
-    while parts.len() < 4 {
-        parts.push(String::new());
-    }
-    parts[index] = String::from(value);
+    // What:     `parts.get_mut(index)` is the one part to replace, or nothing when the text is shorter than the index;
+    //           the `else` ends the control naming the text instead of planting a record nothing wrote.
+    // Why:      A replacement may only stand where the writer wrote a part.
+    //
+    // In TS you'd write (pseudocode):
+    // ```ts
+    // if (index >= parts.length) throw new Error(`the identity ${identity} has no part ${index}`);
+    // ```
+    let Some(part) = parts.get_mut(index) else {
+        panic!("the identity {identity} has no part {index}, so this control cannot name it");
+    };
+    *part = String::from(value);
+    return parts.join("#");
+}
+
+/// What:
+///  The identity text of a writer that could read a machine ID:
+///  the birth,
+///  the boot,
+///  the PID namespace and `machine`.
+/// Why:
+///   The machine is the one part a writer leaves out on a host that has none,
+///  which is every container whose image carries no `/etc/machine-id`,
+///  so a control that plants another machine's record must write that part itself
+///  rather than rely on this host having one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// withMachine(identity, 'fedcba98…') // birth#boot#scope#machine
+/// ```
+fn with_machine(identity: &str, machine: &str) -> String {
+    let mut parts: Vec<String> = identity.split('#').map(String::from).collect();
+    // The machine stands after the birth, the boot and the PID namespace, which every Linux writer names, so those three
+    //  parts are there whatever this host could read.
+    assert!(parts.len() >= MACHINE_PART, "the identity {identity} names no boot and PID namespace to put a machine after");
+    parts.truncate(MACHINE_PART);
+    parts.push(String::from(machine));
     return parts.join("#");
 }
 
@@ -329,28 +384,67 @@ fn two_records_for_one_number_clear_only_when_every_one_is_gone() {
 
 /// What:
 ///  A record of an earlier boot is gone,
-/// and a record of another machine or another namespace is unknown.
+/// and a record of another machine or another namespace is unknown,
+/// in a container as on a host that names a machine.
 /// Why:
 ///   A boot that ended ends every process in it,
 ///  so a record of it cannot name a live writer;
 ///  another machine's or namespace's record can,
 ///  and keeps the lock.
+///  Each record is planted by replacing one part of the identity this host's writer would leave,
+///  never by adding a part it did not write:
+///  a container's image carries no machine ID,
+///  so the identity there has three parts,
+///  and a fourth one with nothing in it names no machine and keeps every lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// expect(cleared(withPart(identity, 1, otherBoot))).toBe(true); expect(kept(withPart(identity, 3, otherMachine))).toBe(true);
+/// expect(cleared(withPart(identity, 1, otherBoot))).toBe(true); expect(kept(withMachine(identity, otherMachine))).toBe(true);
 /// ```
 #[test]
 fn a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown() {
     let (pid, identity) = dead_holder();
     let earlier_boot: PathBuf = a_git_directory("another-boot");
-    plant(earlier_boot.as_path(), "index.lock", pid, &[with_part(identity.as_str(), 1, "0123456789abcdef0123456789abcdef")]);
+    plant(earlier_boot.as_path(), "index.lock", pid, &[with_part(identity.as_str(), BOOT_PART, ANOTHER_BOOT)]);
     assert!(matches!(looked(earlier_boot.as_path(), "index.lock"), Ended::Cleared(_)), "a boot that ended ends every process in it");
     remove(earlier_boot.as_path());
     let other_machine: PathBuf = a_git_directory("another-machine");
-    plant(other_machine.as_path(), "index.lock", pid, &[with_part(identity.as_str(), 3, "fedcba9876543210fedcba9876543210")]);
+    plant(other_machine.as_path(), "index.lock", pid, &[with_machine(identity.as_str(), ANOTHER_MACHINE)]);
     assert!(matches!(looked(other_machine.as_path(), "index.lock"), Ended::Kept), "another machine's record proves nothing here");
     remove(other_machine.as_path());
+}
+
+/// What:
+///  A record whose text is not the shape a writer of this release writes,
+///  because its boot part is no boot,
+///  keeps the lock.
+/// Why:
+///   Every part after the birth stands in its own place,
+///  and a writer that cannot read the boot ID of its host leaves that part out,
+///  so the number of its PID namespace stands where the boot belongs.
+///  Read as a boot it is another boot,
+///  which proves every process of it ended,
+///  and the proof would remove the lock of a holder that runs:
+///  the one verdict a lock's reader must never give wrongly.
+///  The control is asked in the gate's container as on a host:
+///  a host that names a machine answers unknown for a text with no machine part already,
+///  so only a container shows the text being read as a boot that ended.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// plant({ pid, identities: [`linux:1234#${scope}`] }); expect(looked()).toEqual('kept')
+/// ```
+#[test]
+fn a_record_whose_boot_part_is_no_boot_keeps_the_lock() {
+    let common_dir: PathBuf = a_git_directory("no-boot-part");
+    let (pid, identity) = dead_holder();
+    let parts: Vec<&str> = identity.split('#').collect();
+    // The birth and the PID namespace are the two parts a writer names when it cannot read the boot ID of its host.
+    assert!(parts.len() > PID_SCOPE_PART, "the identity {identity} names no PID namespace, so this control cannot drop its boot");
+    let without_boot: String = format!("{}#{}", parts[BIRTH_PART], parts[PID_SCOPE_PART]);
+    plant(common_dir.as_path(), "index.lock", pid, &[without_boot]);
+    assert!(matches!(looked(common_dir.as_path(), "index.lock"), Ended::Kept), "a text whose boot part is no boot proves nothing about its writer");
+    remove(common_dir.as_path());
 }
 
 /// What:
