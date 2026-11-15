@@ -1132,12 +1132,12 @@ fn a_reference_lock_of_a_killed_merge_is_cleared_by_the_record_of_it() {
     // What: The record the wrapper wrote while its Git ran.
     // Why:  Without it nothing can tell this lock from a live Git's once the holder is killed.
     let recorded: Option<git_policy_cli::lock_bindings::Binding> = git_policy_cli::lock_bindings::of(common.as_path(), stalled.lock.as_path());
-    let Some(recorded) = recorded else {
+    let Some(the_record) = recorded else {
         kill_the_merge_and_put_the_reflog_back(stalled);
         panic!("a record must exist for the reference lock the merge's Git holds, and its PID file names {named}");
     };
-    assert_eq!(recorded.pid, named, "the record names the Git whose PID file stands beside the lock");
-    assert!(recorded.pin.exists(), "the record's pin holds the very file the lock was");
+    assert_eq!(the_record.pid, named, "the record names the Git whose PID file stands beside the lock");
+    assert!(the_record.pin.exists(), "the record's pin holds the very file the lock was");
     kill_the_merge_and_put_the_reflog_back(stalled);
     // A file system of one-second ticks, which this control states rather than waits for: the birth order proves nothing here,
     //  so only the record can clear the lock.

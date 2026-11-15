@@ -222,6 +222,14 @@ pub(super) const ALLOWED: &[Allowed] = &[
         why: "one thread trims the log generations; a job of the blocking pool replaces it",
     },
     Allowed {
+        file: "lock/lock_watch.rs",
+        rule: "thread-start",
+        why: "the watch of a step of the wrapper's own ladder, read on a thread of its own while that step waits for its \
+              Git through pipes, the child's descriptor and a progress watch on the runtime; the events of that watch \
+              are a place of the step's own task, and the entry goes when that task reads them between its marks \
+              instead of a thread reading them beside it",
+    },
+    Allowed {
         file: "foundation/notice_stream_that_does_not_hold_its_writer.rs",
         rule: "thread-start",
         why: "the writer of the notice stream, which a reader must never hold",
