@@ -278,6 +278,10 @@ pub fn tree_size(path: &Path) -> u64 {
 /// so no install needs a file it has not touched for an hour.
 /// An install whose process was stopped for longer than this can lose its download to it,
 /// and it reports that download as failed and installs again.
+/// The check and the removal are two steps,
+/// so an install that writes its first byte in the instant between them can still meet a removal;
+/// closing that needs the writer to declare itself before it writes,
+/// which is a lock this package does not take.
 pub const DOWNLOAD_IN_USE_FLOOR: Duration = Duration::from_secs(60 * 60);
 
 /// What:

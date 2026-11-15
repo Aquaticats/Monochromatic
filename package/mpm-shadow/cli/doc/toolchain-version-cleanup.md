@@ -124,6 +124,9 @@ A version is kept when any of these holds,
   the client gives up on a download whose bytes stop for 60 s,
   and unpacking takes seconds to a minute,
   so an install needs no file it has not touched for an hour.
+  The check and the removal are two steps,
+  so an install that writes its first byte in the instant between them can still meet a removal;
+  closing that would need the writer to declare itself before it writes.
   Those paths carry every symbolic link resolved,
   so a store root spelled through `$HOME` is compared by both spellings as well;
   before this a root under a linked home (`/home` to `/var/home` on this machine) matched no holder at all.
