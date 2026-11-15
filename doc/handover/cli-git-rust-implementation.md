@@ -1718,9 +1718,18 @@ and what it queued.
   `round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone` passes alone and failed in five of six whole-suite runs
   (the freed namespace number was not reused in eight attempts,
   the suite's other tests taking numbers from the same allocator).
-  The author writes that repairing it changes what a certification row's evidence is;
-  it gets a run of its own once that sentence is read against the package's docs,
-  next round.
+  The author writes that repairing it changes what a certification row's evidence is.
+  Read against the contract at 18:16
+  (`doc/planning/cargo-shadow-guarantees.md`,
+  the status paragraph and guarantee A1):
+  no namespace number decides anything about a start time,
+  and the reuse of the freed number is the control's asserted prerequisite,
+  the thing that makes it fail if a rule comparing a recorded namespace number returns.
+  A fresh run is queued fifteenth
+  (`cargo-shadow-control-of-a-recycled-time-namespace-number-makes-its-schedule-inside-the-whole-suite`):
+  measure how this kernel hands out the numbers and who takes them,
+  make the schedule inside the whole suite with the assertions as they are,
+  and describe without building anything that would move the control out of the ordinary test task or change a prerequisite.
   A sighting for the driver's silent-command subject from the same report:
   a tool call ended at its 900 s bound while its `systemd-run --scope` payload lived ten minutes more,
   the bound standing on the caller and not on the payload.
