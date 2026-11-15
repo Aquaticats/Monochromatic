@@ -23,7 +23,7 @@ use super::support::{Fixture, Observed, executable, fixture, git, hermetic, own_
 use std::os::unix::process::CommandExt as _;
 use git_policy_cli::lock_holder_records::{folder_of, identity_of_process, record_text};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 /// How long a command that must go on is given,
@@ -972,5 +972,186 @@ fn the_message_about_a_lock_that_cannot_be_proven_gone_says_what_is_known() {
     assert!(said.contains(format!("{pid}").as_str()), "the message names the number the PID file holds: {said}");
     assert!(said.contains("no record"), "the message says no record of the wrapper's commands names that number: {said}");
     assert!(!said.contains("no process here will release it"), "the message must not claim a proof it does not have: {said}");
+    super::commit::remove_settled(&fixture);
+}
+
+/// What:
+///  A fixture whose `main` and `other` diverge in different files,
+///  so a merge of `other` into `main` makes a merge commit rather than a fast-forward.
+/// Why:
+///  The reference lock is taken by the step that moves the branch,
+///  and only a merge that creates a commit runs it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const repo = divergedFixture('reference-lock'); // main: from-main.txt, other: from-other.txt
+/// ```
+fn a_diverged_fixture(name: &str) -> (Fixture, PathBuf) {
+    let fixture: Fixture = fixture(name);
+    let repo: PathBuf = super::support::repository(&fixture, std::ffi::OsStr::new("repo"));
+    std::fs::write(repo.join("from-main.txt"), "from main\n").expect("the main branch's file");
+    git(&fixture, repo.as_path(), &["add", "from-main.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message", "main"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "-b", "other"]);
+    std::fs::write(repo.join("from-other.txt"), "from other\n").expect("the other branch's file");
+    git(&fixture, repo.as_path(), &["add", "from-other.txt"]);
+    git(&fixture, repo.as_path(), &["commit", "--quiet", "--message", "other"]);
+    git(&fixture, repo.as_path(), &["checkout", "--quiet", "main"]);
+    std::fs::write(repo.join("from-main.txt"), "from main, changed\n").expect("the main branch's second file");
+    git(&fixture, repo.as_path(), &["commit", "--all", "--quiet", "--message", "main again"]);
+    return (fixture, repo);
+}
+
+/// What:
+///  Something that holds the merge's process group,
+///  the reference lock it holds,
+///  the reflog the pipe stands for,
+///  and the reflog's own bytes before the pipe took its place.
+/// Why:
+///  The kill and the putting back of the reflog file are the control's second half,
+///  and the lock is what the first half judges.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const stalled = startAMergeBlockedInItsReflogAppend(); // { child, lock, reflog, before }
+/// ```
+struct StalledMerge {
+    /// The merge's own process group.
+    child: Child,
+    /// `.git/refs/heads/main.lock`, which the merge's Git holds.
+    lock: PathBuf,
+    /// The reflog file the pipe stood in for.
+    reflog: PathBuf,
+    /// What the reflog held before the pipe took its place.
+    before: Vec<u8>,
+}
+
+/// What:
+///  Start a wrapped merge that stands holding `refs/heads/main.lock`,
+///  with its Git blocked in the append of the branch's own reflog.
+/// Why:
+///  This is the state the change exists for,
+///  made without a sleep deciding where the stall falls:
+///  Git creates `refs/heads/main.lock`,
+///  writes its PID file beside it,
+///  and then appends the reflog entry for the branch,
+///  which blocks for as long as that name is a pipe nobody reads.
+///  So the merge stands inside its reference update,
+///  exactly where a kill takes it,
+///  and the wrapper's own record has to exist by then.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifoSync(`${gitDir}/logs/refs/heads/main`); spawnWrapped(['merge', '--no-edit', 'other']);
+/// await until(() => existsSync(`${gitDir}/refs/heads/main.lock`));
+/// ```
+fn start_a_merge_that_stands_in_its_reflog_append(fixture: &Fixture, repo: &Path) -> StalledMerge {
+    let reflog: PathBuf = repo.join(".git/logs/refs/heads/main");
+    let before: Vec<u8> = std::fs::read(reflog.as_path()).expect("the reflog Git wrote for the branch");
+    std::fs::remove_file(reflog.as_path()).expect("the reflog makes room for the pipe");
+    let name: std::ffi::CString = std::ffi::CString::new(reflog.as_os_str().as_encoded_bytes()).expect("a path without a NUL byte");
+    // SAFETY: `mkfifo` takes a NUL-terminated name and a mode and touches no memory of this process.
+    let made: i32 = unsafe { libc::mkfifo(name.as_ptr(), 0o600) };
+    assert_eq!(made, 0, "the pipe Git's reflog append blocks on is made: {}", std::io::Error::last_os_error());
+    let mut command: Command = Command::new(fixture.root.join("bin/git"));
+    hermetic(&mut command, fixture, wrapper_first_path(fixture).as_os_str());
+    if let Some(runtime) = super::support::service_runtime(fixture) {
+        command.env("XDG_RUNTIME_DIR", runtime);
+    }
+    command.current_dir(repo).args(["merge", "--no-edit", "other"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    let child: Child = spawn_owned(&mut command).expect("the merge starts");
+    let lock: PathBuf = repo.join(".git/refs/heads/main.lock");
+    let began: Instant = Instant::now();
+    while !lock.exists() {
+        assert!(began.elapsed() < HOLD_PATIENCE, "the merge never reached its reference lock");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    return StalledMerge { child, lock, reflog, before };
+}
+
+/// What:
+///  Kill the merge's whole process group,
+///  and put the reflog file back where the pipe stood.
+/// Why:
+///  The kill is the state under test:
+///  the wrapper and its Git die together with the lock standing.
+///  The pipe only made the stall deterministic,
+///  and a killed Git leaves a reflog file rather than a pipe,
+///  so the next command meets the repository a kill really leaves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// killpg(child.pid, SIGKILL); child.wait(); rmSync(reflog); writeFileSync(reflog, before);
+/// ```
+fn kill_the_merge_and_put_the_reflog_back(mut stalled: StalledMerge) {
+    // SAFETY: `killpg` takes a group number and a signal and touches no memory; the group is the one this control started.
+    unsafe { libc::killpg(stalled.child.id() as libc::pid_t, libc::SIGKILL) };
+    let _waited = stalled.child.wait();
+    assert!(stalled.lock.exists(), "the kill leaves the reference lock the merge's Git held");
+    std::fs::remove_file(stalled.reflog.as_path()).expect("the pipe goes");
+    std::fs::write(stalled.reflog.as_path(), stalled.before.as_slice()).expect("the reflog Git wrote is back");
+}
+
+/// What:
+///  A reference lock a killed merge held is recorded while that merge runs,
+///  and the next command clears it by that record and goes through,
+///  though the lock and its PID file carry one birth stamp.
+/// Why:
+///  This is the whole promise of the change in one run of real Git and the built executable:
+///  the Git that moves the branch is a step of the wrapper's own ladder,
+///  not the command's forwarded child,
+///  and before this control passed that Git was started without a watch,
+///  so a merge killed at its reference update left `.git/refs/heads/main.lock` with no record at all,
+///  and every later command kept it and real Git refused with "File exists"
+///  (the fifth review's finding 1,
+///  reproduced for a year of rounds with a planted lock and never end to end).
+///  The tick is forced rather than waited for,
+///  so the control states the hard state and not the machine's luck:
+///  with the two births one stamp, only the record can clear this lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const merge = startAMergeThatStandsInItsReflogAppend(); expect(recordOf(lock)?.pid).toBe(pidFileOf(lock));
+/// killTheMerge(); const next = runWrapped(['merge', '--no-edit', 'other'], { BIRTH_TIME: '1000' });
+/// expect(next.code).toBe(0); expect(next.stderr).toContain('cleared'); expect(lock).not.toExist();
+/// expect(parentsOf('HEAD').length).toBe(3);
+/// ```
+#[test]
+fn a_reference_lock_of_a_killed_merge_is_cleared_by_the_record_of_it() {
+    let (fixture, repo): (Fixture, PathBuf) = a_diverged_fixture("killed-merge-reference-lock");
+    let common: PathBuf = repo.join(".git");
+    let stalled: StalledMerge = start_a_merge_that_stands_in_its_reflog_append(&fixture, repo.as_path());
+    let pid_file: PathBuf = pid_file_of(stalled.lock.as_path());
+    let named: i64 = std::fs::read_to_string(pid_file.as_path())
+        .expect("the PID file Git writes beside its lock under core.lockfilePid")
+        .trim()
+        .strip_prefix("pid ")
+        .expect("the PID file's own words")
+        .parse()
+        .expect("the number the PID file holds");
+    // What: The record the wrapper wrote while its Git ran.
+    // Why:  Without it nothing can tell this lock from a live Git's once the holder is killed.
+    let recorded: Option<git_policy_cli::lock_bindings::Binding> = git_policy_cli::lock_bindings::of(common.as_path(), stalled.lock.as_path());
+    let Some(recorded) = recorded else {
+        kill_the_merge_and_put_the_reflog_back(stalled);
+        panic!("a record must exist for the reference lock the merge's Git holds, and its PID file names {named}");
+    };
+    assert_eq!(recorded.pid, named, "the record names the Git whose PID file stands beside the lock");
+    assert!(recorded.pin.exists(), "the record's pin holds the very file the lock was");
+    kill_the_merge_and_put_the_reflog_back(stalled);
+    // A file system of one-second ticks, which this control states rather than waits for: the birth order proves nothing here,
+    //  so only the record can clear the lock.
+    let (after, elapsed) = after_running_with(&fixture, repo.as_path(), &["merge", "--no-edit", "other"], "refs/heads/main.lock", &[("CLI_GIT_TEST_ONLY_BIRTH_TIME", "1000")]);
+    assert_eq!(after.code, Some(0), "the merge goes through once the record clears the lock it left: {}", after.said);
+    assert!(!after.lock_stands, "the record pins the very file, so the lock is cleared: {}", after.said);
+    assert!(after.said.contains("cleared"), "one line must say what was cleared: {}", after.said);
+    assert!(after.said.contains("refs/heads/main.lock"), "the line names the reference lock: {}", after.said);
+    assert!(after.said.contains("pinned the very file"), "the line says which proof acted: {}", after.said);
+    assert!(!pid_file.exists(), "the PID file of a cleared lock goes with it");
+    assert!(elapsed < GOES_ON_WITHIN, "the next command goes on at once: {elapsed:?}");
+    // The merge landed: the branch names a commit with the two parents of the merge.
+    let named_by_head: Output = git(&fixture, repo.as_path(), &["rev-list", "--parents", "--max-count=1", "HEAD"]);
+    let line: String = String::from_utf8_lossy(named_by_head.stdout.as_slice()).trim().to_owned();
+    assert_eq!(line.split_whitespace().count(), 3, "the branch must name the merge commit, whose two parents are the branches: {line}");
     super::commit::remove_settled(&fixture);
 }
