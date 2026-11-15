@@ -927,28 +927,31 @@ await describe({
       },
     },),
     it({
-      name: 'a run that settled and whose Pi exited 0 ends idle when the read of its work fails, and the failure sits beside that ending',
+      name: 'a run whose read of its work keeps failing waits out its own wall clock, and the summary says what could not be read',
       fn: async () => {
-        // The process folder is a file, so the driver's read of it fails as a damaged process table would. That read is the last
-        // thing between a settled run and its end, and it fails after the agent did its work and Pi exited 0: the run must still
-        // end as the run it was, and the failure is what a reader finds beside that ending.
+        // The process folder is a file, so the driver's read of it fails as a damaged process table would. What could not be read
+        // was not proved empty: work the agent started may still run, so the run waits as it waits for work, and its own wall
+        // clock is the bound that waiting has. The failure is what a reader finds beside that ending, never a driver failure.
         const run = await runDriver({
           scenario: 'normal',
+          wallSeconds: WORK_OUTLASTED_WALL_SECONDS,
           environment: { PI_RUNS_PROCESS_FOLDER: '/dev/null', },
         },);
-        expect(run.summary.endReason,).toBe('idle',);
-        expect(run.status,).toBe(CLEAN_STATUS,);
+        expect(run.summary.endReason,).toBe('wall-clock',);
+        expect(run.status,).toBe(FAILED_STATUS,);
         expect(run.summary.piExit?.code,).toBe(0,);
         expect(run.summary.settled,).toBe(1,);
         // The summary says what could not be read, and never that the driver failed.
         expect(String(run.summary.workProblem,),).toContain('ENOTDIR',);
         expect(run.summary.driverError,).toBeUndefined();
         /**
-         The feed's own line for that failure, under a name of its own.
+         The feed's lines for that failure, under a name of its own, which one look for each idle window wrote.
          */
         const unreadable = run.feed.filter((entry,) => entry.kind === 'work-unreadable',);
-        expect(unreadable.length,).toBe(1,);
+        expect(unreadable.length,).toBeGreaterThan(0,);
         expect(String(unreadable[0]?.failure,),).toContain('ENOTDIR',);
+        // The agent was never told to go on while work it started may still run.
+        expect(run.feed.some((entry,) => entry.kind === 'asked-to-go-on'),).toBe(false,);
       },
     },),
     it({

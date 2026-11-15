@@ -66,6 +66,21 @@ async function keepOrphanedMessage({
 }
 
 /**
+ A place in the recovery at which a test may let another recovery run, so a control can put two passes across one read, one keep or
+ one removal. Production passes none.
+
+ - `before-listing-its-claims`: the owner is proved gone and its folder is about to be listed.
+ - `before-reading-a-claim-folder`: a claim folder was listed and is about to be read.
+ - `before-keeping-a-message`: a message in a claim folder is about to be kept.
+ - `before-removing-a-folder`: a folder that held claims is about to be taken away.
+ */
+export type WhereARecoveryPauses =
+  | 'before-listing-its-claims'
+    | 'before-reading-a-claim-folder'
+    | 'before-keeping-a-message'
+    | 'before-removing-a-folder';
+
+/**
  Keeps and names every message a driver that is gone had claimed, so a message is either still to be delivered, delivered, or kept
  under a name a person reads with the reason it was not.
 
@@ -75,6 +90,8 @@ async function keepOrphanedMessage({
 
  @param watch - watch request
 
+ @param pause - where a test waits with another recovery running, which production leaves out
+
  @example
  ```ts
  await recoverClaimsOfGoneDrivers({ watch, },);
@@ -82,8 +99,13 @@ async function keepOrphanedMessage({
  */
 export async function recoverClaimsOfGoneDrivers({
   watch,
+  pause,
 }: {
-  readonly watch: WatchRequest
+  readonly watch: WatchRequest;
+  readonly pause?: (
+    where: WhereARecoveryPauses,
+    path: string,
+  ) => Promise<void>
 },): Promise<void> {
   /**
    Every claim's owner folder.
@@ -127,6 +149,10 @@ export async function recoverClaimsOfGoneDrivers({
     },))) {
       continue;
     }
+    await pause?.(
+      'before-listing-its-claims',
+      ownerFolder,
+    );
     /**
      The claims that owner left, each in a folder of its own, or a message the code claimed before it used claim folders.
      */
@@ -155,22 +181,42 @@ export async function recoverClaimsOfGoneDrivers({
         },);
         continue;
       }
+      await pause?.(
+        'before-reading-a-claim-folder',
+        path,
+      );
       /**
        The messages that claim folder holds, which is one unless a claim took a message that was itself a folder.
        */
       const inside = await readdir(path,);
       for (const name of inside) {
+        /**
+         Where that message is.
+         */
+        const claim = join(
+          path,
+          name,
+        );
+        await pause?.(
+          'before-keeping-a-message',
+          claim,
+        );
         await keepOrphanedMessage({
           watch,
           name,
-          claim: join(
-            path,
-            name,
-          ),
+          claim,
         },);
       }
+      await pause?.(
+        'before-removing-a-folder',
+        path,
+      );
       await removeFolderIfEmpty(path,);
     }
+    await pause?.(
+      'before-removing-a-folder',
+      ownerFolder,
+    );
     await removeClaimOwnerFolder(ownerFolder,);
   }
   /* oxlint-enable eslint/no-await-in-loop */

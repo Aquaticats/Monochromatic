@@ -4,6 +4,7 @@
  */
 
 import {
+  link,
   mkdir,
   mkdtemp,
   readdir,
@@ -216,6 +217,48 @@ async function writeClaim({
 }
 
 /**
+ Writes a claim in the layout the driver writes: the owner's folder, a folder for this one claim, and the message under its own
+ name inside it.
+
+ @param folder - the test's folder
+
+ @param owner - the claim owner's folder name
+
+ @param claimFolder - the identifier folder this one claim lives in
+
+ @param name - the message's name
+
+ @param text - the message's text
+ */
+async function writeClaimInItsOwnFolder({
+  folder,
+  owner,
+  claimFolder = 'claim-0',
+  name = MESSAGE_NAME,
+  text = MESSAGE_TEXT,
+}: {
+  readonly folder: string;
+  readonly owner: string;
+  readonly claimFolder?: string;
+  readonly name?: string;
+  readonly text?: string
+},): Promise<void> {
+  /**
+   The message's own path inside the claim's folder.
+   */
+  const claim = join(
+    folder,
+    'inbox',
+    INBOX_CLAIMS_FOLDER,
+    owner,
+    claimFolder,
+    name,
+  );
+  await mkdir(dirname(claim,), { recursive: true, },);
+  await writeFile(claim, text, { encoding: 'utf8', },);
+}
+
+/**
  Writes one process's record, as the process folder holds it.
 
  @param processFolder - the folder that holds one entry per process
@@ -224,17 +267,21 @@ async function writeClaim({
 
  @param start - the clock ticks the process began at
 
+ @param state - the state the kernel reports for it, which `Z` names for a dead process not yet reaped
+
  @param asFolder - whether to make the record a folder instead of a file, which cannot be read
  */
 async function writeProcess({
   processFolder,
   pid,
   start,
+  state = 'S',
   asFolder = false,
 }: {
   readonly processFolder: string;
   readonly pid: string;
   readonly start: string;
+  readonly state?: string;
   readonly asFolder?: boolean
 },): Promise<void> {
   /**
@@ -255,7 +302,7 @@ async function writeProcess({
     { length: FIELDS_BEFORE_START, },
     function field(_unused, at,) {
       if (at === 0) {
-        return 'S';
+        return state;
       }
       return (at === (FIELDS_BEFORE_START - 1)) ? start : '0';
     },
@@ -314,6 +361,25 @@ async function textsUnder(folder: string,): Promise<readonly string[]> {
     return entry.isDirectory() ? await textsUnder(path,) : [await readFile(path, 'utf8',)];
   },),);
   return texts.flat();
+}
+
+/**
+ The problem lines a run's feed holds, in the order it wrote them.
+
+ @param folder - the run's folder
+
+ @returns the text of each problem line
+ */
+async function problemsOf(folder: string,): Promise<readonly string[]> {
+  /**
+   The feed as it was written.
+   */
+  const feed = await readFile(join(folder, 'feed.jsonl',), 'utf8',);
+  return feed.split('\n',)
+    .filter((line,) => line !== '')
+    .map((line,) => JSON.parse(line,) as { readonly kind?: string; readonly problem?: string },)
+    .filter((entry,) => entry.kind === 'problem',)
+    .map((entry,) => String(entry.problem,));
 }
 
 /**
@@ -803,6 +869,434 @@ await describe({
         expect(await readFile(firstKept, 'utf8',),).toBe(firstText,);
         expect(await readFile(secondKept, 'utf8',),).toBe(secondText,);
         await record.close();
+      },
+    },),
+
+    it({
+      name: 'takes an empty claim folder a driver that is gone left, and names nothing',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The process folder of a machine that holds no such process.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await mkdir(processFolder,);
+        // The state a kill leaves after the claim's folder is made and before the message is renamed into it.
+        await mkdir(
+          join(
+            folder.path,
+            'inbox',
+            INBOX_CLAIMS_FOLDER,
+            `${OWNER_PID}-${OWNER_START}`,
+            'claim-0',
+          ),
+          { recursive: true, },
+        );
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({ watch, },);
+        // The empty folder goes, the claims folder with it, and no message was ever there to name.
+        /**
+         The inbox as it stands after the recovery.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        expect(await entriesOf(inbox,),).toEqual([],);
+        expect((await summaryOf(record,)).inboxNotTaken,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'keeps a message whose driver the kernel reports dead and has not reaped',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The process folder that still holds the dead process under the start time its claim names.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await writeProcess({
+          processFolder,
+          pid: OWNER_PID,
+          start: OWNER_START,
+          state: 'Z',
+        },);
+        await writeClaim({
+          folder: folder.path,
+          owner: `${OWNER_PID}-${OWNER_START}`,
+        },);
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({ watch, },);
+        // A process the kernel reports dead can never finish a delivery, whatever start time its unreaped record keeps.
+        const inbox = join(folder.path, 'inbox',);
+        expect(await entriesOf(inbox,),).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        expect(await readFile(join(inbox, `.orphaned-${MESSAGE_NAME}`,), 'utf8',),).toBe(MESSAGE_TEXT,);
+        expect((await summaryOf(record,)).inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+      },
+    },),
+    it({
+      name: 'one recovery that lists an owner another recovery took away leaves the same result as one',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The process folder of a machine that holds no such process.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await mkdir(processFolder,);
+        // The state a kill leaves after the claim's folder is made and before the message is renamed into it.
+        await mkdir(
+          join(
+            folder.path,
+            'inbox',
+            INBOX_CLAIMS_FOLDER,
+            `${OWNER_PID}-${OWNER_START}`,
+            'claim-0',
+          ),
+          { recursive: true, },
+        );
+        const first = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        const second = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        /**
+         Whether the other pass finished its whole recovery while this one waited.
+         */
+        let finishedFirst = false;
+        await recoverClaimsOfGoneDrivers({
+          watch: first.watch,
+          pause: async function letTheOtherPassFinish(where,) {
+            if (where !== 'before-listing-its-claims') {
+              return;
+            }
+            await recoverClaimsOfGoneDrivers({ watch: second.watch, },);
+            finishedFirst = true;
+          },
+        },);
+        // The other pass took the empty folder away; this one read it as gone and finished without failing.
+        expect(finishedFirst,).toBe(true,);
+        /**
+         The inbox as it stands after both passes.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        expect(await entriesOf(inbox,),).toEqual([],);
+        /**
+         What each pass's summary says about the message.
+         */
+        const firstSummary = await summaryOf(first.record,);
+        const secondSummary = await summaryOf(second.record,);
+        expect(firstSummary.inboxNotTaken,).toBeUndefined();
+        expect(secondSummary.inboxNotTaken,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'one recovery that reads a claim folder another recovery took away leaves the same result as one',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The process folder of a machine that holds no such process.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await mkdir(processFolder,);
+        await writeClaimInItsOwnFolder({
+          folder: folder.path,
+          owner: `${OWNER_PID}-${OWNER_START}`,
+        },);
+        const first = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        const second = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({
+          watch: first.watch,
+          pause: async function letTheOtherPassFinish(where,) {
+            if (where !== 'before-reading-a-claim-folder') {
+              return;
+            }
+            await recoverClaimsOfGoneDrivers({ watch: second.watch, },);
+          },
+        },);
+        // The other pass kept the message and took the folders away; this one read a folder that had gone and finished without
+        // failing, and made no second copy.
+        const inbox = join(folder.path, 'inbox',);
+        expect(await entriesOf(inbox,),).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        /**
+         What each pass's summary says about the message.
+         */
+        const firstSummary = await summaryOf(first.record,);
+        const secondSummary = await summaryOf(second.record,);
+        expect(firstSummary.inboxNotTaken,).toBeUndefined();
+        expect(secondSummary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+      },
+    },),
+    it({
+      name: 'a kill between publishing a kept message and removing its claim publishes it once',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox whose claim was published and not yet removed.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        /**
+         Where the message was claimed, in the layout a claim folder gives it.
+         */
+        const claim = join(inbox, INBOX_CLAIMS_FOLDER, `${OWNER_PID}-${OWNER_START}`, 'claim-0', MESSAGE_NAME,);
+        await mkdir(dirname(claim,), { recursive: true, },);
+        await writeFile(claim, MESSAGE_TEXT, { encoding: 'utf8', },);
+        // The exact state a kill between the link and the unlink leaves: both names, one file.
+        await link(claim, join(inbox, `.orphaned-${MESSAGE_NAME}`,),);
+        /**
+         The process folder of a machine that holds no such process.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await mkdir(processFolder,);
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({ watch, },);
+        // The kept name is recognised as this message's own publication: the claim is removed and no second copy is made.
+        const keptNames = (await entriesOf(inbox,)).filter((name,) => name.startsWith('.orphaned-',));
+        expect(keptNames,).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        expect(await readFile(join(inbox, `.orphaned-${MESSAGE_NAME}`,), 'utf8',),).toBe(MESSAGE_TEXT,);
+        /**
+         What the summary says about the message.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+      },
+    },),
+    it({
+      name: 'a keep whose claim another pass finished says so, and publishes nothing twice',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The process folder of a machine that holds no such process.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await mkdir(processFolder,);
+        await writeClaimInItsOwnFolder({
+          folder: folder.path,
+          owner: `${OWNER_PID}-${OWNER_START}`,
+        },);
+        const first = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        const second = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({
+          watch: first.watch,
+          pause: async function letTheOtherPassFinish(where,) {
+            if (where !== 'before-keeping-a-message') {
+              return;
+            }
+            await recoverClaimsOfGoneDrivers({ watch: second.watch, },);
+          },
+        },);
+        // One kept copy, and the pass that found the claim gone says so rather than reading as one that could not keep it.
+        const inbox = join(folder.path, 'inbox',);
+        expect(await entriesOf(inbox,),).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        /**
+         What the feed says this pass made of the claim, and what each summary names.
+         */
+        const problems = await problemsOf(folder.path,);
+        expect(problems.some((problem,) => problem.includes('finished by another pass')),).toBe(true,);
+        const firstSummary = await summaryOf(first.record,);
+        const secondSummary = await summaryOf(second.record,);
+        expect(firstSummary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+        expect(secondSummary.inboxNotTaken,).toEqual([MESSAGE_NAME,],);
+      },
+    },),
+    it({
+      name: 'two keeps across the link leave one file, and both fulfil',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox both keeps publish into.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        await mkdir(inbox, { recursive: true, },);
+        /**
+         Where the message was claimed.
+         */
+        const claim = join(inbox, INBOX_CLAIMS_FOLDER, `${OWNER_PID}-${OWNER_START}`, 'claim-0', MESSAGE_NAME,);
+        await mkdir(dirname(claim,), { recursive: true, },);
+        await writeFile(claim, MESSAGE_TEXT, { encoding: 'utf8', },);
+        const first = await watchOver({
+          folder: folder.path,
+          processFolder: '/proc',
+        },);
+        const second = await watchOver({
+          folder: folder.path,
+          processFolder: '/proc',
+        },);
+        /**
+         Told when the first keep has linked and not yet removed the claim.
+         */
+        const linked = Promise.withResolvers<void>();
+        /**
+         Told when the second keep may run.
+         */
+        const mayGoOn = Promise.withResolvers<void>();
+        /**
+         Where the first keep went, once the second one has run across its link.
+         */
+        const firstKeep = keepMessage({
+          watch: first.watch,
+          name: MESSAGE_NAME,
+          claim,
+          keptAs: 'orphaned',
+          link: async function holdsAfterLinking(existing, created,) {
+            await link(existing, created,);
+            linked.resolve();
+            await mayGoOn.promise;
+          },
+        },);
+        await linked.promise;
+        /**
+         Where the second keep went, which must be the same name.
+         */
+        const secondKept = await keepMessage({
+          watch: second.watch,
+          name: MESSAGE_NAME,
+          claim,
+          keptAs: 'orphaned',
+        },);
+        mayGoOn.resolve();
+        /**
+         What the first keep came to.
+         */
+        const [firstOutcome,] = await Promise.allSettled([firstKeep,],);
+        expect(firstOutcome.status,).toBe('fulfilled',);
+        expect(secondKept,).toBe(join(inbox, `.orphaned-${MESSAGE_NAME}`,),);
+        const keptNames = (await entriesOf(inbox,)).filter((name,) => name.startsWith('.orphaned-',));
+        expect(keptNames,).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        expect(await readFile(join(inbox, `.orphaned-${MESSAGE_NAME}`,), 'utf8',),).toBe(MESSAGE_TEXT,);
+      },
+    },),
+    it({
+      name: 'takes the empty folders a keep left and keeps the kept message, naming nothing',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox the kept message was left in.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        /**
+         Where the claim's folders still stand, empty.
+         */
+        const claimFolder = join(inbox, INBOX_CLAIMS_FOLDER, `${OWNER_PID}-${OWNER_START}`, 'claim-0',);
+        await mkdir(claimFolder, { recursive: true, },);
+        await writeFile(join(inbox, `.orphaned-${MESSAGE_NAME}`,), MESSAGE_TEXT, { encoding: 'utf8', },);
+        /**
+         The process folder of a machine that holds no such process.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await mkdir(processFolder,);
+        const { watch, record, } = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({ watch, },);
+        // The kept message stays, the empty folders go, and nothing is named that was not found.
+        expect(await entriesOf(inbox,),).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        /**
+         What the summary says about the message.
+         */
+        const summary = await summaryOf(record,);
+        expect(summary.inboxNotTaken,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'names nothing when every message of the inbox was delivered before the driver ended',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The process folder of a machine that holds no such process.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await mkdir(processFolder,);
+        const first = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        const second = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({ watch: first.watch, },);
+        await recoverClaimsOfGoneDrivers({ watch: second.watch, },);
+        // A message Pi took into a turn needs no claim, and no pass invents one.
+        /**
+         The inbox as it stands after both passes.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        expect(await entriesOf(inbox,),).toEqual([],);
+        /**
+         What each pass's summary says about the message.
+         */
+        const firstSummary = await summaryOf(first.record,);
+        const secondSummary = await summaryOf(second.record,);
+        expect(firstSummary.inboxNotTaken,).toBeUndefined();
+        expect(secondSummary.inboxNotTaken,).toBeUndefined();
+      },
+    },),
+    it({
+      name: 'one recovery that removes folders another recovery took away leaves the same result as one',
+      fn: async () => {
+        await using folder = await makeFolder();
+        /**
+         The inbox the kept message was left in, with the folders a keep had not yet taken away.
+         */
+        const inbox = join(folder.path, 'inbox',);
+        /**
+         Where the claim's folders still stand, empty.
+         */
+        const claimFolder = join(inbox, INBOX_CLAIMS_FOLDER, `${OWNER_PID}-${OWNER_START}`, 'claim-0',);
+        await mkdir(claimFolder, { recursive: true, },);
+        await writeFile(join(inbox, `.orphaned-${MESSAGE_NAME}`,), MESSAGE_TEXT, { encoding: 'utf8', },);
+        /**
+         The process folder of a machine that holds no such process.
+         */
+        const processFolder = join(folder.path, 'proc',);
+        await mkdir(processFolder,);
+        const first = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        const second = await watchOver({
+          folder: folder.path,
+          processFolder,
+        },);
+        await recoverClaimsOfGoneDrivers({
+          watch: first.watch,
+          pause: async function letTheOtherPassFinish(where,) {
+            if (where !== 'before-removing-a-folder') {
+              return;
+            }
+            await recoverClaimsOfGoneDrivers({ watch: second.watch, },);
+          },
+        },);
+        // The other pass took every empty folder away; this one removed what had gone and finished without failing.
+        expect(await entriesOf(inbox,),).toEqual([`.orphaned-${MESSAGE_NAME}`,],);
+        /**
+         What each pass's summary says about the message.
+         */
+        const firstSummary = await summaryOf(first.record,);
+        const secondSummary = await summaryOf(second.record,);
+        expect(firstSummary.inboxNotTaken,).toBeUndefined();
+        expect(secondSummary.inboxNotTaken,).toBeUndefined();
       },
     },),
   ],

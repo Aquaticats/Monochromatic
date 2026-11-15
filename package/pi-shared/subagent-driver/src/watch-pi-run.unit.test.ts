@@ -1454,6 +1454,45 @@ await describe({
       },
     },),
     it({
+      name: 'keeps a run whose work cannot be read while the work it left may still run, instead of asking it to go on',
+      fn: async () => {
+        await using run = await startRunThatAnsweredNothing();
+        /**
+         The messages the watch sent, which an unreadable work scan must not turn into an ask.
+         */
+        const sent: string[] = [];
+        /**
+         How many times the work was asked about: the first look proves the work runs, and the rest cannot be read.
+         */
+        let looks = 0;
+        const endReason = await watchUntilEnded({
+          // Pi would answer an ask, so any ask the watch sends is in `sent`.
+          connection: connectionWhosePiReplies({ sent, record: run.record, },),
+          record: run.record,
+          options: optionsOf({ runFolder: run.runFolder, },),
+          inbox: run.inbox,
+          deadline: Date.now() + (2 * HOLD_MILLISECONDS),
+          workLeftRunning: async function workLeftRunning() {
+            looks += 1;
+            if (looks === 1) {
+              return ['proc_7adb (native-build-2) 486667 systemd-run --user --scope',];
+            }
+            throw new Error('the process scan failed while native-build was still running',);
+          },
+        },);
+        // What could not be read was not proved empty: the run waits on the work it saw, and its own wall clock ends it.
+        expect(endReason,).toBe('wall-clock',);
+        expect(sent,).toEqual([],);
+        /**
+         What the run's feed holds.
+         */
+        const feed = await feedOf(run.runFolder,);
+        expect(feed.some((entry,) => entry.kind === 'waiting'),).toBe(true,);
+        // The failure is said on the feed rather than read as nothing running.
+        expect(feed.filter((entry,) => entry.kind === 'work-unreadable').length,).toBeGreaterThan(0,);
+      },
+    },),
+    it({
       name: 'ends on its wall clock while its work still runs, and its feed says what it waited for',
       fn: async () => {
         await using run = await startRunThatSettled();
