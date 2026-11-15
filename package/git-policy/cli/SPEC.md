@@ -19139,6 +19139,11 @@ because moving that one takes everything inside it.
 The look inside those paths runs on an awaited thread for no longer than the read ceiling a Git query has,
 because a directory read or a metadata lookup on a mount whose server stopped answering never returns;
 a look that gives no answer in that time stops the command and names the directory.
+The shape of each repository is decided inside that same look and carried out with it
+(`a_repository_shape`, `Vec<(names, bare)>`):
+the `.git` entry and the bare markers are metadata reads,
+so a second look at the shape after the walk would be a read with no ceiling,
+which is what the sixth review found (`a_bare_repository_is` outside the walk).
 The dry run is read at the force count typed,
 and it names what Git deletes at that count:
 at one force the directory walk skips a repository with a `.git` entry (`DIR_SKIP_NESTED_GIT`,
@@ -19160,6 +19165,10 @@ the clean then runs as typed,
 the person is told where each one is before Git starts,
 and the audit line carries `outcome` `saved-nested-repository` with one `copies` entry per repository,
 written `<path> => <place>`.
+The folder of saved copies and the directory each copy goes in are made on threads the save waits for only
+until the same ceiling,
+and a creation that gives no answer stops the save naming the place and the repository,
+as the renames and the directory syncs already did.
 A rename keeps every byte and the repository's own `.git` without copying anything,
 the place is the folder the age and size limits already prune,
 and a generation whose line names a copy still on disk outlives those limits like a saved conflicted file's.
@@ -19208,6 +19217,16 @@ The one clean Git refuses itself is the one that writes `-x` together with `-X`,
 which `cmd_clean` refuses before it reads anything;
 that region says so before any reading,
 so that clean runs and Git's own refusal answers the person.
+A `checkout` or a `switch` that only moves `HEAD` asks first whether the Git directory has an `index`
+file at all,
+Git's own initial checkout (`is_index_unborn`):
+both metadata reads of that question run on a thread the pass waits for only until
+`WORKTREE_LOOKUP_CEILING`,
+and a lookup that gives no answer refuses the command,
+naming `<git dir>/index`, the ceiling, and that nothing was changed
+(`RepositoryFacts::the_index_file_is_absent`,
+`rule_worktree_dirty::index_file_is_absent_read_with`,
+whose lookups are a parameter so a control stalls one instead of a mount).
 The forms are `Clean`,
 `CleanIgnored` and `CleanIgnoredOnly`,
 so a rejection says which files that spelling deletes.
@@ -19473,6 +19492,14 @@ and the tree reading asks `ls-tree` with `--full-tree` for the same reason,
 while a path form's answers are written below the directory Git runs in,
 which is the worktree root's own view of them.
 The guard therefore does not rest on `require-root` staying enabled to see the whole worktree.
+Every storage step of the guard's own files is named in
+`source_guard/a_storage_step_of_the_guard_is_bounded_tests.rs` with the ceiling that holds it,
+and a call that is not named fails the suite:
+the package's `blocking_code_off_the_runtime` scan reads the bodies of `async fn`s, which is the code a
+runtime worker polls,
+and this pass is synchronous on the thread that forwarded the command,
+so the guard's own scan reads the same calls (`std::fs::*`, `File::open`, and the guard's helpers that
+reach them) in the guard's files and refuses an unnamed one.
 Each listing is asked once per command,
 with each answer intersected against the written paths in the wrapper's own process
 (`repo_read/repository_facts_paths_in_the_way.rs`).

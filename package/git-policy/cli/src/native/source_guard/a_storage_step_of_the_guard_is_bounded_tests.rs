@@ -203,7 +203,7 @@ const UNDER_A_CEILING: &[UnderACeiling] = &[
     UnderACeiling {
         file: "command/rule_worktree_dirty.rs",
         call: "through_a_link: std::sync::Arc::new(|path: &Path| return std::fs::metadata(path)),",
-        why: "the same job: the reading `is_dir` makes of the Git directory",
+        why: "the same `work_within` job: the reading `is_dir` makes of the Git directory",
     },
     UnderACeiling {
         file: "conflict/discarded_nested_repository.rs",
@@ -243,7 +243,7 @@ const UNDER_A_CEILING: &[UnderACeiling] = &[
     UnderACeiling {
         file: "repo_read/repository_facts_paths_in_the_way.rs",
         call: "return std::fs::symlink_metadata(full.as_path()).is_ok_and(|metadata| return metadata.file_type().is_dir());",
-        why: "the same naming job: a collapsed directory's own entry",
+        why: "the same `work_within` naming job: a collapsed directory's own entry",
     },
     UnderACeiling {
         file: "repo_read/repository_facts_written_paths.rs",
@@ -343,7 +343,7 @@ fn stale(calls: &[(&'static str, String)], entries: &[UnderACeiling]) -> Vec<Str
     let mut gone: Vec<String> = Vec::<String>::new();
     for entry in entries {
         if !calls.iter().any(|(file, line)| return *file == entry.file && line.as_str() == entry.call) {
-            gone.push(format!("{}: {}", entry.file, entry.call));
+            gone.push(format!("{}: {} ({})", entry.file, entry.call, entry.why));
         }
     }
     return gone;
@@ -424,5 +424,26 @@ fn the_scan_reads_every_guard_file() {
             sources.iter().any(|path| return path == file),
             "{file} is not a release source of this crate, so the list names a file the compiler never reads"
         );
+    }
+}
+
+/// What:
+///  Every entry says which ceiling holds its call.
+/// Why:
+///  The entry is the claim a reader checks against the code,
+///  and a reason that names no ceiling is no claim at all:
+///  it would excuse a call nobody had shown to be bounded.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(UNDER_A_CEILING.every((entry) => /CEILING|work_within|walk job/.test(entry.why))).toBe(true);
+/// ```
+#[test]
+fn every_entry_states_the_ceiling_that_holds_it() {
+    for entry in UNDER_A_CEILING {
+        let states_a_ceiling: bool = entry.why.contains("CEILING")
+            || entry.why.contains("work_within")
+            || entry.why.contains("walk job");
+        assert!(states_a_ceiling, "{}: {} ({})", entry.file, entry.call, entry.why);
     }
 }

@@ -2729,6 +2729,11 @@ The rule is:
   a `GIT_INDEX_FILE` that names another index is not read as absent,
    and `git checkout -f`,
   `git reset --hard` and the other forms that overwrite stay rejected.
+  Both lookups of that question are bounded by the same ceiling as every other worktree lookup,
+  and a lookup that gives no answer refuses the command with the file it could not read,
+  rather than letting it run unlooked or holding it for as long as the mount takes.
+  So are the folder the wrapper makes for a saved nested repository and each directory a copy goes in,
+  and the shape it decides for each nested repository is decided inside the walk's own ceiling.
 - A status Git cannot read stops the command instead of reading as clean,
   and so does a listing of the paths a form would write over.
 - `git stash drop` and `git stash clear` delete entries of `refs/stash`,
