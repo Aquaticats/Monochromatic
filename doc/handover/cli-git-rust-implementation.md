@@ -1358,6 +1358,53 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The wrapper's wait for its last log line counts a failed write as written; the author is resumed (2026-11-14T23:17:23-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The wrapper writes its last log line before it ends** (`2df2853ed6`),
+  its review,
+  ended 23:12:44,
+  both code files and the diff.
+  It ran the two logger tests and the changed binary control,
+  which pass,
+  and saw the built program print its refusal in full to an ordinary standard error.
+  One thing,
+  reproduced by a test added to a copy of the commit and run through the package's own task:
+  with standard error a full pipe opened without blocking,
+  the write answers `WouldBlock`,
+  its result is discarded,
+  the line is not put back,
+  and `write_what_waits` answers `true`;
+  a reader that empties the pipe 50 ms later gets nothing
+  (`reported_written=true, captured_refusal=false`).
+- **Weighed**:
+  worth its fix,
+  and small.
+  The wait is right and what it waits for is wrong:
+  for the thread to have tried,
+  where the function's own contract says the line arrived.
+  The author is resumed
+  (`~/temp/agent/pi-runs/controls-of-a-service-start-that-is-refused-answers-its-review-of-2026-11-14-prompt.md`,
+  queued fifth),
+  asked what the thread does for each way a write ends short
+  (`WouldBlock`,
+  a partial write,
+  an interrupt,
+  a closed pipe)
+  and that the process still ends within its bound.
+- **Three of the gate's standing failures therefore stay** until this branch is clean.
+- Read at 23:16:53:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  22 runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 71 entries at 23:17:23.
+
 ##### The renamed subvolume's second review reads and does not run: four claims, the weightiest that removing a directory's last worktree hides its leftover from the scan; the author builds a control for each first (2026-11-14T23:12:51-05:00)
 
 Not final and not approved:
