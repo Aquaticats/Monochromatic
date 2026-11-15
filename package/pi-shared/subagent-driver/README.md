@@ -529,6 +529,50 @@ are written before the step ends.
 Two commands at once therefore cannot both read before either writes and drop one another's entry,
 and no command can decide on one of the two files while another is writing the other.
 
+### The states of an entry, and the one step between each two
+
+An entry is known by an identity of its own and by the claim a filling takes on it.
+The identity is `queueId`, written by the first write that claims the entry:
+a name is not an identity, because a name may be queued again once its earlier entry has gone.
+The claim is `queueClaim`, holding a token that names one start attempt, the process number that took it and the time.
+The batch list of an attempt, the unit it starts in and the unit's output file are all named from that token,
+so a claim names its own evidence without naming a path.
+
+- **queued**: in the queue file, holding no `queueClaim`. A put makes an entry queued, and a give-back returns one here.
+- **claimed**: in the queue file holding `queueClaim`. The step in from queued is one write of the queue under its lock,
+  matched on the entry's identity and on its holding no claim; that write mints the identity when the entry has none and
+  writes a fresh token. No other filling starts a claimed entry. A kill before the write leaves the entry queued; a kill
+  after it leaves the entry claimed by a process that is gone.
+- **started**: out of the queue, because the write that completes a claim removes the entry it names, matched on identity
+  and token. The step in from claimed is the start itself, outside the lock, then that write. A kill between the two
+  leaves the entry claimed, and the next filling's recovery reads from the attempt's evidence whether it started.
+- **set aside**: out of the queue, with `<runs>/<name>-set-aside.json` holding the entry whole, its identity, the reason
+  its start failed and the time. The step in from claimed is one held step that writes the record first and then removes
+  the entry matched on identity and token. A kill between the two leaves both, and the record holds the entry.
+- **given back**: the entry stands where it is in the queue and its claim is gone, in one write matched on identity and
+  token. This is what a failure of the machine leaves. A kill before that write leaves the claim, which the recovery reads
+  like any other.
+
+A filling's first held step does what a kill anywhere in the states above left to do, for every claim whose process is gone:
+
+- the attempt's output file is there, so its unit started: the entry leaves the queue, and a start after a kill is never
+  started again;
+- it is not there, so the start never took effect: the claim is given back and the entry stands for the next pass.
+
+The same held step settles each set-aside record whose name the queue holds, comparing identities rather than names:
+
+- the queued entry has the record's identity **and a claim**: the set-aside was interrupted, so the step finishes it by
+  removing the entry, and the record stays;
+- the queued entry has the record's identity **and no claim**: a put-back was killed after writing the entry, so the record
+  is stale and goes;
+- the queued entry has another identity, or the record holds none: the record is another entry's only copy, so it stands and
+  the filling says so. A record written before identities existed holds none, so it is never deleted on a guess.
+
+What a filling does with an entry it may not claim: it passes over it and asks about the entry behind it,
+so one entry another filling is starting never stops the queue behind it.
+Every one of these steps waits at most the queue's lock wait and refuses naming the holder, which is what the section below
+says of the lock. Nothing waits on a claim: a claim is taken or answered, never waited for.
+
 ### One writer at a time
 
 The lock is one file beside the queue, `<queue>.lock`,
@@ -544,13 +588,25 @@ The bounds, each read against the measured cost of a change to a 51-entry queue
   Ten seconds is about five thousand times the worst measured change, so a waiter that reaches it is waiting on a holder
   that is not doing the work;
 - it tries again every ten milliseconds;
-- a lock file older than ten minutes cannot belong to a live critical section,
-  so it is broken, which is the last resort for a lock whose holder's process number now belongs to another process,
-  or whose holder was stopped and never resumed.
+- a lock file is broken when the process it names is gone, and never while that process is there, however old the lock is.
+
+Age breaks nothing, because age says nothing about whether a holder is alive:
+a live holder whose change took longer than any age still holds the queue,
+and taking the lock from it lets it write the list it read over the change that replaced it.
+Instead the lock records the start time of the holder's process, read from `/proc/<pid>/stat`,
+and a lock whose process number now belongs to a different process is broken:
+the number was reused after its holder died, and its start time is not the recorded one.
 
 A holder that was killed leaves its lock file and no live process,
 and the next caller breaks it at once: a process that is gone cannot hold a queue.
 A lock file that names no process could only have been damaged, and is broken too.
+A lock that names a live process this caller cannot read the start time of is treated as live: it is refused and named,
+never taken, and a person removes it once they know its holder is not coming back.
+
+The lock file carries a random token as well.
+A write of the queue under the lock first reads the lock and refuses if the token is not this caller's,
+and a caller gives the lock back only while it still carries that token,
+so a caller whose lock was broken and taken cannot write over the taker's change, and cannot remove the taker's lock.
 A caller that cannot take the lock changes nothing and says why,
 which is what every command answers with a failing status.
 
@@ -584,20 +640,27 @@ Each operation below reads, decides and writes inside one held step:
 
 - putting, taking or moving an entry: reads the queue, decides the duplicate, the position or which entries bear the name,
   writes the queue;
-- setting an entry aside: writes the record **first**, then takes the entry out of the queue, both in the step,
-  so a kill between them leaves the entry queued with its record, which the filling's sweep recovers;
-- a filling pass's sweep: reads the queue **inside** the step and drops the record of a name the queue still holds,
-  which is exactly the state a kill between a record and its entry leaving the queue leaves.
-  A sweep that decided on a snapshot read before the step is how a second filling once deleted a record a first had just written;
+- claiming an entry, completing its claim, giving the claim back, and recovering the claims of fillings that are gone:
+  each reads the queue, matches on the entry's identity and its token, and writes the queue, as the states above say;
+- setting an entry aside: writes the record **first**, then removes the entry matched on identity and token, both in the step,
+  so a kill between them leaves the entry claimed with its record, which the filling's recovery finishes;
+- a filling pass's recovery and settlement: reads the queue **and** the records **inside** the step, decides on identities,
+  and finishes an interrupted set-aside, drops a stale record or gives back a dead claim.
+  A decision on a snapshot read before the step is how a second filling once deleted a record a first had just written, and
+  how a sweep once deleted the only copy of an entry whose name had been queued again;
 - putting a set-aside entry back: reads the record **and** the queue in the step, and writes the queue before it removes the record.
   An entry the queue still holds is left alone and the command says so:
   its record is from an interrupted set-aside, and deleting it there is how an entry in flight was lost.
-  The sweep finishes or drops that record inside its own held step;
+  The recovery finishes or drops that record inside its own held step;
 - putting the rate-limited reviews back: decides where each goes from the queue **as it is at the instant of the insert**,
-  after every leading `integration-pass-*` entry, so a pass queued at the head meanwhile stays ahead.
+  after every leading `integration-pass-*` entry, so a pass queued at the head meanwhile stays ahead, and reads the runs
+  going again **inside** the step, so a review started while the candidates were read is not queued a second time.
 
-A queue file, and a set-aside record, in the shape they had before the lock are the shapes they still have,
-so nothing is carried over: the first command that changes them takes the lock and changes them as they are.
+A queue file, and a set-aside record, in the shapes they had before this protocol are the shapes they still have,
+so nothing is carried over by hand:
+reading a queue of today's shape answers its entries as they are,
+a claimed entry gains its `queueId` in the write that claims it,
+and a record holding no identity is never matched to a queued entry, so it is never deleted on a guess.
 The only new name in the queue's folder is the lock's own, which no change leaves behind.
 If a queue ever seems stuck, `<queue>.lock` names the process and the time it took the queue;
 the next command breaks it when that process is gone, and removing it by hand is the remedy for a live but wedged holder.
@@ -625,6 +688,12 @@ A review of a range is the entry
 Its brief is written by this package's own writer of review briefs,
 and the review runs on the provider and model `reviewer-of-a-change.ts` names once,
 so no queue file carries a model's name.
+
+A queue file carries two fields a reader of an entry ignores:
+`queueId`, the entry's own identity, and
+`queueClaim`, the claim a filling holds on it.
+Every other field it names is the shape it names, and a field that is neither a bookkeeping field nor one of the shape's own
+is refused rather than dropped.
 
 An entry naming a field its shape does not read,
 or one holding a value of the wrong type,
@@ -688,8 +757,7 @@ and the two are told apart by the step that refused:
 A record is written **before** its entry leaves the queue, both inside one held step of the queue's lock.
 A kill between the two therefore leaves the entry in both places,
 which loses nothing:
-the next round reads a record whose name the queue still holds as an unfinished set-aside,
-drops the record inside its own held step and tries the entry again.
+the record holds the entry whole, and the next pass's recovery finishes the set-aside by removing the entry it names.
 
 ### `list-the-entries-a-queue-set-aside` and `put-a-set-aside-entry-back-into-a-queue`
 
@@ -699,7 +767,9 @@ the reason its start failed, the record that holds it whole and where the whole 
 `put-a-set-aside-entry-back-into-a-queue` takes `--queue`, `--name`, `--runs-folder` and `--position`
 and puts the entry back into the queue from that record, at the head unless a position is named.
 The entry goes into the queue before its record goes away,
-so a kill between the two leaves it queued and the next round starts it.
+so a kill between the two leaves it queued with its record, which the next pass's settlement drops, and the round after starts it.
+The entry goes back with the identity its record holds, so the settlement can tell it from an entry queued later under the
+same name.
 
 ### `put-an-entry-into-a-queue`, `take-an-entry-out-of-a-queue` and `move-an-entry-of-a-queue`
 
@@ -708,17 +778,24 @@ and refuses an entry of a name the queue already holds,
 because two runs of one name collide in every folder, unit and worktree that name gives them.
 `take-an-entry-out-of-a-queue` takes `--queue` and `--name` and prints the entry it took out,
 changing nothing when no entry has that name.
+It takes the entry of that name, whichever entry now bears it, which is what a person asking for that name wants;
+the filling never takes an entry out by name, because what it started is named by identity and token.
 `move-an-entry-of-a-queue` takes `--queue`, `--name` and `--position`.
 
 ### `put-ended-reviews-back-at-the-head-of-a-queue`
 
 `--queue`, `--runs-folder`, `--reviews-folder` and `--since` (eight hours before now by default).
 
-A review run is put back as an entry that goes on from its own session when it is the newest attempt of its name,
+A review run is put back as an entry that goes on from its own session when it is the newest attempt of its name that wrote a
+summary,
 its summary says `model-error` and names the provider's quota answer,
 no unit of that name is going,
 the queue does not hold it already,
 and its review file is not marked final.
+The attempt put back is the newest attempt of the name that wrote a summary.
+An attempt with no summary is one that has not stopped yet, so it is skipped while its run is going;
+when nothing of that name is going it wrote none because it was killed, and the attempt to go on from is the newest one that
+did write one. Treating that silence as work still going left a review unresumed for as long as its folders stood.
 The prompt it goes on with is written beside the runs, so no queue file needs one a person wrote.
 An integration pass waiting at the head keeps its place:
 a review goes in after the leading `integration-pass-*` entries.
