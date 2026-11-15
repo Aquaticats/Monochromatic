@@ -96,14 +96,29 @@ fn every_state_runs_once_and_answers_keep_their_order() {
     assert_eq!(counter.load(Ordering::SeqCst), 1 + 2 + 3 + 4, "each state added its amount once");
 }
 
+/// The room this control gives the process:
+/// one place for each item it runs at once, and the place the process keeps for the answers a client waits for.
+/// Why:
+///   The room a control states is the whole bound of the process (`parallel_test_support::room_for`), and this branch
+///   keeps one of its places out of the jobs such a control's items take (`PLACES_KEPT_TO_ANSWER_A_CLIENT`).
+///  A control that stated only its items would have one place fewer than the items it puts in flight, and a run of it
+///  would wait for a place for ever instead of proving the overlap (measured at the merge of `0.6.1-alpha.38`: the
+///  process took four places, kept one, and the fourth item never arrived).
+const THE_ROOM_OF_THE_OVERLAP: usize = ITEMS + crate::blocking_jobs_within_the_budget::PLACES_KEPT_TO_ANSWER_A_CLIENT;
+
 /// The jobs really overlap:
 /// they reach one point together,
 /// which a run that did them one after another could never pass.
 #[test]
 fn the_items_run_at_the_same_time() {
-    let room: usize = crate::parallel_test_support::room_for("the items run at the same time", ITEMS);
-    let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ITEMS.min(room)));
-    let states: Vec<Arc<Rendezvous>> = (0..ITEMS.min(room)).map(|_index| { return Arc::clone(&point); }).collect();
+    let room: usize = crate::parallel_test_support::room_for("the items run at the same time", THE_ROOM_OF_THE_OVERLAP);
+    assert!(
+        crate::blocking_jobs_within_the_budget::places_for_the_services_own_work() >= ITEMS,
+        "this control needs a place for each of its {ITEMS} items beside the one kept for the answers a client waits for, and the room of {room} leaves {}",
+        crate::blocking_jobs_within_the_budget::places_for_the_services_own_work()
+    );
+    let point: Arc<Rendezvous> = Arc::new(Rendezvous::new(ITEMS));
+    let states: Vec<Arc<Rendezvous>> = (0..ITEMS).map(|_index| { return Arc::clone(&point); }).collect();
     let results: Vec<Result<bool, BlockingJobError>> = on_the_runtime(run_all_side_by_side_on_the_runtime(states, arrive_at_the_point));
     for each in results {
         assert!(each.expect("the job ran"), "an item's job did not arrive at the point while the others were there, so the items ran one after another");
@@ -134,18 +149,42 @@ fn a_panicking_item_is_an_error_in_its_place() {
     assert_eq!(results[2].as_ref().ok(), Some(&3));
 }
 
-/// Where the system starts no thread,
-/// every item's work is done in turn on the awaiting task and still answers.
+/// What:
+///  Where the system starts no thread, every item answers that no place came, and no item's work runs where nothing can
+///  interrupt it.
+/// Why:
+///   A call into storage must never run on the task that awaits it (`blocking_jobs_within_the_budget.rs`,
+///   `run_a_job_or_no_place`): a deadline around that task cannot end it, so a fan-out where no thread can start answers
+///   that no place came and the caller looks again.
 /// The body runs in a child that is refused every thread.
 #[test]
-fn where_no_thread_can_start_every_item_runs_in_turn() {
-    if ran_in_child(module_path!(), "where_no_thread_can_start_every_item_runs_in_turn") {
+fn where_no_thread_can_start_every_item_answers_that_no_place_came() {
+    if ran_in_child(module_path!(), "where_no_thread_can_start_every_item_answers_that_no_place_came") {
         return;
     }
-    let here: std::thread::ThreadId = std::thread::current().id();
-    let results: Vec<Result<(std::thread::ThreadId, bool), BlockingJobError>> = on_the_runtime(run_all_side_by_side_on_the_runtime(vec![(), (), ()], where_the_job_ran));
+    let ran: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let states: Vec<std::sync::Arc<std::sync::atomic::AtomicBool>> = (0..3).map(|_at| { return std::sync::Arc::clone(&ran); }).collect();
+    let results: Vec<Result<(std::thread::ThreadId, bool), BlockingJobError>> = on_the_runtime(run_all_side_by_side_on_the_runtime(states, where_the_job_ran_wherever));
     for each in results {
-        let (ran_on, _inside): (std::thread::ThreadId, bool) = each.expect("the work of an item the system refused a thread for is done in turn");
-        assert_eq!(ran_on, here, "an item's work ran somewhere other than the task that waited for it, where no thread can start");
+        assert_eq!(
+            each,
+            Err(BlockingJobError::NoPlaceWithinTheCeiling),
+            "an item the system refused a thread for answered something other than that no place came"
+        );
     }
+    assert!(!ran.load(std::sync::atomic::Ordering::SeqCst), "an item's work ran where no thread could start and no deadline can end it");
+}
+
+/// One item's work as the control of a refused thread reads it:
+/// it records that it ran, on whichever thread that is.
+/// Why:
+///   An answer that no place came must mean the work did not run at all, and only the work itself can say so.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const whereTheJobRan = (ran) => { ran.value = true; return [threadId(), true] }
+/// ```
+fn where_the_job_ran_wherever(ran: std::sync::Arc<std::sync::atomic::AtomicBool>) -> (std::thread::ThreadId, bool) {
+    ran.store(true, std::sync::atomic::Ordering::SeqCst);
+    return (std::thread::current().id(), true);
 }

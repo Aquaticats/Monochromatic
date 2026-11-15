@@ -201,6 +201,9 @@ impl Rendezvous {
 /// and one that does not run proves nothing.
 /// Call it first:
 /// a runtime and a bound already made keep their sizes.
+/// The number is the whole bound and not the count of a control's items: a control that needs `n` jobs in flight at once
+/// states `n` plus the places the process keeps out of them (`blocking_jobs_within_the_budget::PLACES_KEPT_TO_ANSWER_A_CLIENT`,
+/// and `SLOW_WORK_RESERVE` where its work is slow work).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

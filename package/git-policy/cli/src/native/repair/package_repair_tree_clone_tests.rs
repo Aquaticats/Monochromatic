@@ -226,15 +226,28 @@ fn the_clone_threshold_is_the_measured_break_even() {
     assert_eq!(PARALLEL_MIN_ENTRIES, crate::parallel_budget::PARALLEL_BREAK_EVEN_ENTRIES);
 }
 
-/// Where the system starts no thread the clone is made by the calling thread and equals the serial one.
-/// The body runs in a child that
-/// is refused every thread.
+/// What:
+///  Where the system starts no thread, the clone answers that no place came and makes nothing.
+/// Why:
+///  The clone's steps are jobs of the blocking pool, and a call into storage must never run on the task that awaits it
+///  (`blocking_jobs_within_the_budget.rs`, `run_a_job_or_no_place`): a copy that ran there could not be ended by any
+///  deadline, so a refused thread is answered as no place and the prewarm is looked at again.
+///  Nothing of the source may be in the destination of a clone that did not run.
+/// The body runs in a child that is refused every thread.
 #[test]
-fn a_parallel_clone_where_no_thread_can_start_is_made_in_turn() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_parallel_clone_where_no_thread_can_start_is_made_in_turn") {
+fn a_clone_where_no_thread_can_start_answers_that_no_place_came() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_clone_where_no_thread_can_start_answers_that_no_place_came") {
         return;
     }
-    parallel_and_serial_clones_agree();
+    let root: PathBuf = fixture("tree-clone-no-thread");
+    let source: PathBuf = build_source(&root);
+    let destination: PathBuf = root.join("destination");
+    let refused: Result<Cloned, String> = clone_tree(&source, &destination, 1);
+    let said: String = refused.expect_err("a clone whose steps found no place says so");
+    assert!(said.contains("no place"), "the refusal names the place that never came: {said}");
+    assert!(!destination.exists(), "a clone that did not run made nothing");
+    std::fs::set_permissions(source.join("tool"), std::fs::Permissions::from_mode(0o750)).expect("the source is as it was");
+    remove(&root);
 }
 
 /// How long the control holds the places slow work may take,

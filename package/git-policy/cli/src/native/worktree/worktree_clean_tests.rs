@@ -456,17 +456,20 @@ fn the_tracked_files_are_proven_as_a_job_of_the_processs_blocking_pool() {
 
 /// What:
 ///  Where the system refuses every thread,
-/// the tracked files are still proven,
-/// and the words of the refusal are the proof's own.
+/// the tracked files are not proven,
+/// and the answer is a refusal that says the proof could not run
+/// rather than a worktree called clean.
 /// Why:
-///   The owner's rule is "Commits should never fail.",
-/// so a pool that cannot start a thread costs the check its overlap and never its answer.
-///  The staged change is the tracked proof's refusal,
-/// and a check that gave up on the pool would name the pool instead.
+///   A call into storage never runs on the task that awaits it (`blocking_jobs_within_the_budget.rs`,
+///   `run_a_job_or_no_place`),
+/// so a clean whose proof finds no place says exactly that and the person runs the command again.
+///  The staged change is still the proof's subject,
+/// and a check that gave up on the pool must name the pool instead of claiming a verdict:
+/// a worktree reported clean when nothing proved it would let a clean delete what Git tracks.
 /// The body runs in a child process that is refused every thread it asks for.
 #[test]
-fn a_worktree_that_is_not_clean_is_still_refused_where_no_thread_can_start() {
-    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_worktree_that_is_not_clean_is_still_refused_where_no_thread_can_start") {
+fn a_worktree_whose_proof_finds_no_thread_is_refused_and_never_called_clean() {
+    if crate::no_threads_child_test_support::ran_in_child(module_path!(), "a_worktree_whose_proof_finds_no_thread_is_refused_and_never_called_clean") {
         return;
     }
     // The fixture's Git runs are processes of their own, so the limit is lifted while the repository is made and put back
@@ -479,8 +482,13 @@ fn a_worktree_that_is_not_clean_is_still_refused_where_no_thread_can_start() {
     crate::no_threads_child_test_support::refuse_threads_again().expect("the process limit falls");
     let refused: Result<CleanSource, CleanRefusal> = check(repo.as_path());
     crate::no_threads_child_test_support::let_threads_start_again().expect("the process limit rises again");
-    let why: CleanRefusal = refused.expect_err("a staged change is not clean");
-    assert!(why.reason.contains("a.txt is staged with a change"), "{}", why.reason);
+    let why: CleanRefusal = refused.expect_err("a proof that could not run never proves a worktree clean");
+    assert!(
+        why.reason.contains("the tracked files could not be proven"),
+        "the refusal says which proof could not run: {}",
+        why.reason
+    );
+    assert!(!why.reason.contains("is clean"), "a proof that did not run never says the worktree is clean: {}", why.reason);
     remove(root.as_path());
 }
 

@@ -881,39 +881,30 @@ fn a_named_pipe_at_the_marker_name_never_holds_the_filling() {
 }
 
 /// What:
-///  A file that another command writes at the marker name,
-///  after this filling has looked at the name and before it publishes its own marker there,
-///  is never removed,
+///  A file another command has at the marker name is never removed,
 ///  and the worktree is filled under names of this run's own.
 /// Why:
-///   The filling looks at the three usual names once and then claims the marker by an exclusive
-/// write,
-/// and another command can create that name in between.
-/// An exclusive write that answers "it is there already" proves only that somebody's file is there,
-/// never that this run's is,
-/// so removing it would delete a file this job never wrote
-/// ("never discard user data").
+///   The marker is how a filling proves the usual names are its own, so a file there that does not hold this job's own
+/// text is somebody's:
+/// this run reads it, removes nothing, and stages under a name it chose for itself.
+///  The file is read through the claim (`names_for`), which is the only place that decides whether the usual names are free:
+///  a name this job did not make is never its to remove ("never discard user data").
 #[test]
-fn a_file_that_wins_the_race_to_the_marker_name_is_never_removed() {
-    /// What the other command writes at the marker name.
+fn a_file_that_holds_the_marker_name_is_never_removed() {
+    /// What the other command wrote at the marker name.
     const ANOTHER_COMMANDS_FILE: &[u8] = b"a person's own note";
-    let root: PathBuf = fixture("prewarm-marker-race");
+    let root: PathBuf = fixture("prewarm-marker-held-by-another");
     let entry: PrewarmEntry = an_entry_with_a_source_build(root.as_path());
     let staged: PathBuf = staging_of(entry.to.as_path());
     let marker: PathBuf = super::marker_of(staged.as_path());
-    let planted: PathBuf = marker.clone();
-    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| {
-        *hook.borrow_mut() = Some(Box::new(move || {
-            std::fs::write(planted.as_path(), ANOTHER_COMMANDS_FILE)?;
-            return Ok(());
-        }));
-    });
+    // The directory the usual names live in, which the filling makes before it asks for them.
+    std::fs::create_dir_all(entry.to.parent().expect("the build directory's own directory")).expect("the build directory's own directory");
+    std::fs::write(marker.as_path(), ANOTHER_COMMANDS_FILE).expect("the other command's file");
     let covered: PathBuf = root.clone();
     let fill: Fill = Fill { cargo: cargo_that_succeeds(root.as_path()), limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE }, kept_in: None };
     let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill, &entry);
-    crate::private_storage::AFTER_THE_STAGING_FILE_IS_WRITTEN.with(|hook| { *hook.borrow_mut() = None; });
     assert_eq!(filled, Ok(Filled::Published), "the worktree is filled under names of this run's own");
-    assert_eq!(std::fs::read(marker.as_path()).expect("the other command's file"), ANOTHER_COMMANDS_FILE, "a file this filling did not write is never removed");
+    assert_eq!(std::fs::read(marker.as_path()).expect("the other command's file is still there"), ANOTHER_COMMANDS_FILE, "a file this filling did not write is never removed");
     remove(covered.as_path());
 }
 
