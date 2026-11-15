@@ -738,17 +738,6 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
-- Added 2026-11-15T13:45:24-05:00,
-  from the discarding guard's author
-  (branch tip `a669f1723c`),
-  not blocking work:
-  with a forced clean no longer saving a nested repository aside,
-  nothing sweeps the folder of copies saved by earlier releases
-  (`<common git dir>/monochromatic-git-policy-cli/discarded/`),
-  because the sweep's only trigger was a completed save.
-  `doctor` names the folder and its copies.
-  Keep them until a person removes them,
-  or give the sweep another trigger?
 
 - Added 2026-11-15T12:39:01-05:00,
   from the author of mpm-shadow's install that removes no version in use
@@ -1651,6 +1640,108 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Two hours with a question open: the owner's two answers, pass 54 reported fit and its repair in review, a run ended inside a named pipe, and another run's edits found in the main checkout (2026-11-15T16:22:30-05:00)
+
+Not final and not approved:
+what happened while a question stood with the owner,
+what the coordinating session did on the answers,
+and what it still owes.
+
+- **A gap of this session's, said plainly.**
+  The question tool was called at about 14:01 and answered at about 16:15.
+  In between the session did nothing:
+  no run that ended was read,
+  no review routed,
+  no round check run.
+  27 runs ended in that time
+  (10 reviews,
+  16 authors and the pass);
+  the queue went from 85 entries to 58 as the filling unit started what stood in it.
+  Each of the 27 is read and routed in the sections that follow this one.
+- **The owner's two answers** are under "Owner decisions in force",
+  "Answers of the afternoon":
+  the shared wait of the binary controls goes into a pass at `e12b36fd81` with its fix following
+  ("Merge now, fix after");
+  the folder of earlier saved copies keeps being swept,
+  on another trigger
+  ("Sweep on another trigger").
+  The first withdraws this session's hold of 14:00:27.
+  Its author's second run,
+  queued then with a brief that says the branch waits,
+  had begun before the answer came;
+  its report is read against the answer and not against the brief's framing.
+  The second goes to the discarding guard's author after the run it is in or has ended,
+  as a thing of its own.
+- **Integration pass 54, second round**,
+  ended 15:15:26 at `fd4cdfa059`,
+  which holds `main` at `2bb2c9b8ae` and which `origin` holds:
+  **fit to be released, by its own account.**
+  - The repair is one commit,
+    `e80ef39149`,
+    six files,
+    20 lines in and 19 out:
+    `EXIT_NO_WORKER` stands in `service/service_runtime_build_report.rs`,
+    beside the words a task that cannot get a worker ends the service with;
+    the three servers import it from there;
+    the guard control is not edited and passes alone and in the suite.
+  - The long runtime directory's controls are merged at `394ae7444a`.
+    The two modules of the runtime directory's length pass with a home of 10,
+    22 and 61 bytes,
+    25 of 25 each:
+    the knife edge is gone.
+  - The whole library suite once:
+    7,929 of 7,929.
+    The whole binary suite once:
+    1,214 of 1,218.
+    The four:
+    the two `cli-git-lock-holders` controls of the gate's list,
+    which fail alone too;
+    `subvolume::the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree`,
+    suite only,
+    as in round one;
+    and `package_repair::pnpm_runs_after_the_snapshot_rung`,
+    new this round,
+    which passes alone and with its module and reads the service's work without waiting for it
+    (the same family as the gate's `quiet_runs_the_repair…`).
+  - **Before the merge**:
+    the repair is code that is not a test,
+    so its commit has a review of its own,
+    queued first at 16:21:35
+    (the commit's diff of 121 lines,
+    six files to read,
+    the control run unchanged and with a reach into `service_main` planted).
+    The coordinating session read the diff as well and found a constant moved with its value and nothing else;
+    that is a second pass by the same vendor and not the review.
+    `main` holds nothing in the wrapper that the tip lacks
+    (measured 16:21).
+- **A run sat for 157 minutes in the open of a named pipe.**
+  `wrapper-write-to-a-pipe-its-caller-does-not-drain-never-holds-up-another-command-1`:
+  its tool command's inner shell,
+  process 2151762,
+  stood in the kernel's `wait_for_partner` with `/dev/null` as its input and no child.
+  The session sent it `SIGTERM` at 16:20:53
+  (a first try at 16:20:44 with the shell's own `kill` and a long option failed and sent nothing),
+  and put a note into the run's inbox.
+  The note was delivered nine seconds before the signal went out and says the signal was sent;
+  it is true as of 16:20:53.
+- **A going run's edits stand in the main checkout.**
+  `gate-script-unit-test-builds-its-throwaway-checkout-without-the-installed-wrapper-1` wrote five changed files and one new file under `package/git-policy/cli/bin/` there between 16:04 and 16:18,
+  so the main checkout shows twelve changed files where six are usual.
+  They are the run's work and were not touched;
+  a note in its inbox asks it to take them into its worktree and put those six paths back,
+  and to say how its paths came to point there.
+  Every Pi unit runs the driver from the main checkout;
+  these six files are tests and test support of the wrapper's `bin/` and no unit loads them.
+- Read at 16:19:31:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 13:58;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  19 runs going,
+  one silent for twenty minutes or more
+  (the one named);
+  the probe's last three readings at level 20 are in its file with no slow pair.
 
 ##### A test harness that could signal a number no longer its own is held back although it is test code; the driver's silent command has one finding; mpm-shadow's removal answers all five (2026-11-15T14:00:27-05:00)
 
@@ -38214,6 +38305,34 @@ Timestamps are the commit times at which the decision was first written into the
 the owner's own time of speaking is recorded only where the entry gave a date.
 A decision already recorded in a canonical doc is a pointer,
 not a copy.
+
+### Answers of the afternoon (2026-11-15, asked 14:01, answered about 16:15, written here at 16:22:30-05:00)
+
+Two answers through the question tool,
+each quoted as chosen.
+
+- **A finding in test support that can signal a process the harness no longer holds**:
+  "Merge now, fix after".
+  Asked of the shared wait of the binary controls (`e12b36fd81`),
+  whose review read that the kill at a test's deadline can go to a number after its process was reaped.
+  The coordinating session had held the branch back and recommended that;
+  the owner chose the other way.
+  So the rule of the morning stands without that exception:
+  a wrapper branch whose only open findings are in test code or test support goes into a pass,
+  this one at `e12b36fd81`,
+  and the author's fix follows in commits of its own.
+  The session's adoption recorded at 14:00:27 is withdrawn.
+- **The folder of copies that earlier releases saved aside from a forced clean**
+  (`<common git dir>/monochromatic-git-policy-cli/discarded/`):
+  "Sweep on another trigger".
+  The sweep that removes copies past their retention keeps running,
+  on a trigger other than a completed save
+  (the question named a commit or the `doctor` command as examples;
+  which trigger is not decided and is the author's to propose with its reason).
+  Not chosen:
+  keep the copies until a person removes them
+  (the session's recommendation),
+  and delete the folder at upgrade.
 
 ### Answers on waking (2026-11-15, written here at 10:53:13-05:00)
 
