@@ -394,7 +394,10 @@ pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>, dead
             }
             let mut bytes: u64 = facts.bytes;
             if let Some(downloads_path) = &downloads {
-                bytes = bytes.saturating_add(tree_size(downloads_path));
+                // What: the archives are weighed by the same deadline-bounded walk as the version.
+                // Why: the work limit bounds the work itself, and a walk that ignores the deadline holds the install
+                // for however long the filesystem takes.
+                bytes = bytes.saturating_add(tree_facts(downloads_path, deadline).bytes);
             }
             measured.insert(
                 key,
