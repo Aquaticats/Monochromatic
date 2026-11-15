@@ -1594,6 +1594,39 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.39` is published and installed on this machine; its container gate is running (2026-11-15T06:00:29-05:00)
+
+Not final and not approved:
+what the release's steps printed.
+
+- Published 05:59:21
+  (`cargo-publish.yml` run 43706187294,
+  both Linux binaries;
+  the alpha label is not published to crates.io).
+- Installed on this machine at 05:59:50 through the package's install task,
+  which committed the lock as `f82fc29fc3`.
+  `git --version` prints `monochromatic-git-policy-cli 0.6.1-alpha.39, shadowing git at /usr/bin/git`.
+  The sample commit took 1,652 ms;
+  the service's journal held no line for it.
+  The install's whole output is
+  `~/temp/agent/install-of-0-6-1-alpha-20-on-this-machine-2026-11-13/keep/install-of-0.6.1-alpha.39-output.txt`.
+- The container gate on `f82fc29fc3` started 06:00:18
+  (unit `gpc-gate-wrapper-next-alpha-on-f82fc29fc3-20261115T060018-0500`,
+  ten CPUs and 20 GiB by its own unit,
+  log `~/temp/agent/gate/gpc-gate-wrapper-next-alpha-on-f82fc29fc3-20261115T060018-0500.log`).
+  It runs under the CPU budget and the power-saver profile,
+  so its time is not comparable with earlier gates'.
+  Its verdict is read when it ends and compared with the gates on `d7a2f6a013` and `7edb782568`;
+  the three library tests,
+  the three refused-start controls and the others on those lists are expected red again,
+  since no branch that fixes them is in this release.
+- The fuzz sidecar's type check on `main` with pass 51 in was started at 06:00.
+- Read at 06:00:29:
+  58.6 degrees,
+  budget 32.0 threads,
+  20.0 in use.
+- The next release of the wrapper is `0.6.1-alpha.40`.
+
 ##### Integration pass 50 reports fit at a tip that lacks pass 51 and goes back to take `main`; a second test file of the masking author hung (2026-11-15T05:58:04-05:00)
 
 Not final and not approved:
