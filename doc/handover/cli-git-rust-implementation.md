@@ -1594,6 +1594,128 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Integration pass 50 is in `main` at a tip that holds pass 51, and `0.6.1-alpha.40` is dispatched; the masking answer goes to review with made-up values; the review brief's check goes back for four things (2026-11-15T06:52:18-05:00)
+
+Not final and not approved:
+what one pass,
+one review and one author report,
+how the coordinating session weighed them,
+and what it did.
+
+- **Integration pass 50**,
+  its second run,
+  ended 06:48:30 at `21db3a5a0a`,
+  which holds `main` as it stood
+  (`e1438a2946`)
+  with pass 51 in it.
+  The merge of `main` met none of the branch's four files,
+  by text and by meaning
+  (the words pass 51 adds are written by the calling process itself and never pass the log queue).
+  Build,
+  both test compiles and Clippy as `0.6.1-alpha.39`;
+  both guards,
+  the branch's module and pass 51's modules by name at four CPUs;
+  the three gate controls in the gate image the brief named and in the newer one.
+  Whole suites,
+  under the CPU budget:
+  library 7,905 of 7,908 in 412 s
+  (220 s before the budget),
+  binary 1,211 of 1,215 in 408 s
+  (315 s).
+  Five failures are on both gate lists.
+  Two are on neither:
+  `package_repair::quiet_runs_the_repair_and_says_nothing_about_success`
+  failed in the suite and passed alone;
+  `subvolume::the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree`
+  failed four of seven single runs,
+  each time on a lock-holder record a child of its fixture wrote late.
+  The second has a run that owns it;
+  the first has none.
+  The pass says where it broke a rule:
+  three probes ran `cargo nextest` past the package's task and left a second build cache at
+  `/var/mnt/encrypted/cargo-build/1d/65427926f9bdac`.
+  **Merged** as `3d22736568` (06:50:28),
+  after checking that `main` held nothing the tip lacked.
+  **Release `0.6.1-alpha.40` dispatched** at 06:50:37
+  (run 43710867907);
+  the install,
+  the sample commit,
+  the gate and the fuzz sidecar's type check follow.
+- **The credential masking**,
+  its author's second run,
+  ended 06:45:32 at `0f8b0387a9`.
+  All twelve findings and the warning reproduced at its old tip.
+  The report lists every sink with the one point before it:
+  a tool's result,
+  every message Pi keeps
+  (a `message_end` hook,
+  which is what makes compaction clean),
+  the ordinary request,
+  the feed,
+  the summary,
+  kept standard error,
+  and the session file at rest,
+  which is masked whole after the run because no hook stands before some of its entries.
+  A place the run cannot cover makes it not start.
+  37 values are armed on this machine,
+  the shortest ten characters,
+  before and after.
+  Cost:
+  0.002 ms for a 20,000-character result with nothing to mask.
+  The wait this session found at 05:31 and 05:57 was a read of a pipe with the fix out;
+  each control now fails inside a bound of its own.
+  Its review is queued sixth,
+  with a brief the package wrote and two paragraphs added by hand:
+  the range,
+  and that every value used as a secret is made up in a disposable home,
+  with no real credential file read,
+  no real Pi started and nothing sent to a provider
+  (`~/temp/agent/change-reviews/pi-shared-subagent-driver-value-of-the-secret-environment-answers-after-its-review/brief.md`).
+  Still owed after a clean review,
+  in this order:
+  one real canary start with its armed count read,
+  the merge,
+  a names-only scan of a real run,
+  then the question tool to the owner with the three limits.
+  The rotation waits for that.
+- **The review brief's coverage check** (`0e676c38da`),
+  its third review,
+  ended 06:45:14,
+  sixteen of sixteen files,
+  five things,
+  four reproduced:
+  saving the last message overwrites a review written in between;
+  a killed save leaves a partial review no retry repairs
+  (by reading);
+  a reviewer killed after its early write is never started again;
+  a branch that moves between two reads gives a diff and a commit that disagree;
+  a range ending in a no-break space is refused.
+  **Weighed**:
+  four are worth their fix.
+  The third is the question kept for the owner at 05:45:58
+  (does the starter start such a review again by itself),
+  so it is not the author's to change;
+  the author checks that the command says plainly which review is unfinished.
+  The author is resumed,
+  its fourth run
+  (`~/temp/agent/pi-runs/review-brief-coverage-answers-its-third-review-of-2026-11-15-prompt.md`,
+  queued ninth).
+- **The temperature**,
+  read at 06:49:56:
+  53.1 degrees,
+  budget 32.0 threads,
+  5.1 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 06:50:00:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 06:39;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  No resumed session is named by the credential scan.
+  The queue held 82 entries at 06:52:18.
+
 ##### The removal guard answers its three findings and waits, unreviewed on purpose, for the landed removal (2026-11-15T06:39:53-05:00)
 
 Not final and not approved:
