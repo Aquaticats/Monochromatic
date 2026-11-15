@@ -928,6 +928,26 @@ struct PropertyRow {
     branch_moved: bool,
 }
 
+/// Arms the second and third arrival at every pause of a build,
+/// so a command that takes its capture again or builds again goes on without a control holding it.
+/// Why:
+///  A capture taken again and a build made again reach their pauses again,
+///  numbered by occurrence,
+///  and a control that held only the first arrival would stand at a pause nothing releases.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const phase of PAD) for (const n of [2, 3]) writeFileSync(join(markers, `${phase}-${n}.release`), '')
+/// ```
+fn arm_the_later_arrivals(markers: &Path, phase: &str) {
+    for later in ["2", "3"] {
+        let _armed: std::io::Result<()> = std::fs::write(markers.join(format!("{phase}-{later}.release")), b"");
+        for other in ["commit-capture-taken", "commit-captured", "shadow-built", "shadow-readable"] {
+            let _also: std::io::Result<()> = std::fs::write(markers.join(format!("{other}-{later}.release")), b"");
+        }
+    }
+}
+
 /// Where the release file of `phase`'s first pause is written.
 ///
 /// In TS you'd write (pseudocode):
@@ -969,7 +989,7 @@ fn staged_case(name: &str) -> (Case, String) {
 /// ```
 fn entries_at(phase: &str) -> Vec<String> {
     let (case, _base): (Case, String) = staged_case(&format!("property-entries-{phase}"));
-    std::fs::write(case.markers.join(format!("{phase}-2.release")), b"").expect("a second attempt may go on");
+    arm_the_later_arrivals(case.markers.as_path(), phase);
     let mut command: Command = a_commit_built_by_git_paused_at(&case, phase, &["commit", "--quiet", "--message=two", "--", "a.txt", "added.txt"]);
     let markers: PathBuf = case.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
@@ -1014,7 +1034,7 @@ fn entries_at(phase: &str) -> Vec<String> {
 /// ```
 fn one_lost_at(name: &str, phase: &str, entry: &str) -> PropertyRow {
     let (case, base): (Case, String) = staged_case(name);
-    std::fs::write(case.markers.join(format!("{phase}-2.release")), b"").expect("a second attempt may go on");
+    arm_the_later_arrivals(case.markers.as_path(), phase);
     let mut command: Command = a_commit_built_by_git_paused_at(&case, phase, &["commit", "--quiet", "--message=two", "--", "a.txt", "added.txt"]);
     let markers: PathBuf = case.markers.clone();
     let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });

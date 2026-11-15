@@ -248,29 +248,68 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
     //       The index is kept as a copy because Git reads the private one and updates it; the copy is the tree this command
     //       asked to commit, whoever removes the private one afterwards.
     let captured_index: PathBuf = input.scratch.join(CAPTURED_INDEX);
-    if std::fs::copy(input.commit_index, captured_index.as_path()).is_err() {
-        return Err(TransactionStop::Message(format!(
-            "the private index {} this commit reads went before Git was asked to build in it, so nothing was committed and nothing landed",
-            input.commit_index.display()
-        )));
+    // What: The capture is taken again when it cannot be taken, a bounded number of times, and the build starts only when it
+    //       was taken.
+    // Why:  A kept copy that went, or a private index that went, leaves this attempt unable to say what the person staged;
+    //       the capture reads the private index again on the next try, and a copy that was merely taken away by a cleaner is
+    //       restored by that read. A capture that still cannot be taken after the tries stops the build: a commit whose tree
+    //       nobody can name is a commit the person did not write, and building it is the loss this guard exists to prevent
+    //       (`SPEC.md`, "Merges and commits never fail";
+    //       the bound's reason is `THE_CAPTURE_IS_TAKEN_AGAIN_AT_MOST`).
+    let mut asked_for: AskedForCommit;
+    let mut kept_index: Vec<u8> = Vec::new();
+    let mut capture_taken: usize = 0;
+    loop {
+        capture_taken += 1;
+        // What: The private index is read into memory and the copy is written from those bytes.
+        // Why:  `git write-tree` given an index file that is not there answers with the empty tree and no error,
+        //       so a copy that a cleaner took between the writing and the reading would be a guard that says the commit
+        //       asked for nothing (the seventh review's first finding). The bytes in hand are what the copy was made of,
+        //       and the read after the tree confirms the copy is still those bytes.
+        //       The bytes stay in memory for a rebuild, so a copy that goes later cannot stop the commit being built again.
+        let kept: std::io::Result<Vec<u8>> = std::fs::read(input.commit_index).and_then(|bytes: Vec<u8>| {
+            return std::fs::write(captured_index.as_path(), bytes.as_slice()).map(|()| { return bytes; });
+        });
+        // What: A control may hold the commit at this instant, with the copy of the index kept and its tree not yet read
+        //       (`transaction_phase.rs`, `Phase::CommitCaptureTaken`).
+        // Why:  A copy that goes between the keeping and the read is a commit that cannot say what the person staged,
+        //       and no other instant of a build lets a control place that loss.
+        //       Nothing arms this marker in a run.
+        crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::CommitCaptureTaken).map_err(|error| {
+            return TransactionStop::Message(format!("the capture's test-only phase marker could not be reached: {error}"));
+        })?;
+        asked_for = the_commit_that_was_asked_for(input, kept.as_deref());
+        // What: A control may hold the commit at this instant, with what it asked for known and no shadow yet taken
+        //       (`transaction_phase.rs`, `Phase::CommitCaptured`).
+        // Why:  A scratch that goes here has not been read by any Git start of the build, and no other instant of a build
+        //       lets a control place that loss.
+        //       Nothing arms this marker in a run.
+        crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::CommitCaptured).map_err(|error| {
+            return TransactionStop::Message(format!("the capture's test-only phase marker could not be reached: {error}"));
+        })?;
+        let Some(reason) = asked_for.could_not_tell() else {
+            kept_index = match kept {
+                Ok(bytes) => bytes,
+                // A capture that was taken has its bytes; nothing else reaches this branch.
+                Err(error) => {
+                    return Err(TransactionStop::Message(format!(
+                        "the private index {} this commit reads was read and then lost ({error}), so nothing was committed and nothing landed",
+                        input.commit_index.display()
+                    )));
+                }
+            };
+            break;
+        };
+        if capture_taken >= THE_CAPTURE_IS_TAKEN_AGAIN_AT_MOST {
+            return Err(TransactionStop::Message(format!(
+                "what this commit was asked for cannot be told after {capture_taken} tries ({reason}), so nothing was committed and nothing landed"
+            )));
+        }
+        crate::diagnostic_log::debug(
+            "serviceNative",
+            format!("the capture of this commit's tree could not be taken on try {capture_taken} ({reason}), so it is taken again").as_str(),
+        );
     }
-    // What: A control may hold the commit at this instant, with the copy of the index kept and its tree not yet read
-    //       (`transaction_phase.rs`, `Phase::CommitCaptureTaken`).
-    // Why:  A copy that goes between the keeping and the read is a commit that cannot say what the person staged,
-    //       and no other instant of a build lets a control place that loss.
-    //       Nothing arms this marker in a run.
-    crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::CommitCaptureTaken).map_err(|error| {
-        return TransactionStop::Message(format!("the capture's test-only phase marker could not be reached: {error}"));
-    })?;
-    let asked_for: AskedForCommit = the_commit_that_was_asked_for(input, &expected_parents_of(input)?)?;
-    // What: A control may hold the commit at this instant, with what it asked for known and no shadow yet taken
-    //       (`transaction_phase.rs`, `Phase::CommitCaptured`).
-    // Why:  A scratch that goes here has not been read by any Git start of the build, and no other instant of a build
-    //       lets a control place that loss.
-    //       Nothing arms this marker in a run.
-    crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::CommitCaptured).map_err(|error| {
-        return TransactionStop::Message(format!("the capture's test-only phase marker could not be reached: {error}"));
-    })?;
     let mut attempt: usize = 0;
     loop {
         attempt += 1;
@@ -285,14 +324,14 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
             //  command's captures leave as it was.
             let copies: PathBuf = input.scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
             let _cleared: crate::scratch_entry_removal::Removal = crate::scratch_entry_removal::remove_within(copies.as_path(), crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING);
-            // What: The index this command was given is put back exactly as the captures hold it.
+            // What: The index this command was given is put back exactly as it was read.
             // Why:  Git rewrites the private index as it prepares a commit, and the tree this command asked for is the one the
-            //       kept copy names; a copy that went with the first attempt's tree cannot say what the person staged, so the
-            //       commit is not built again rather than built on what Git left (`SPEC.md`, "Merges and commits never fail").
-            if std::fs::copy(captured_index.as_path(), input.commit_index).is_err() {
+            //       bytes this command read name; writing them again says what the person staged even when the copy on the
+            //       volume went with the first attempt's tree (`SPEC.md`, "Merges and commits never fail").
+            if let Err(error) = std::fs::write(input.commit_index, kept_index.as_slice()) {
                 return Err(TransactionStop::Message(format!(
-                    "the copy of the private index {} went before the commit could be built again, so nothing was committed and nothing landed",
-                    captured_index.display()
+                    "the private index {} cannot be put back as it was read ({error}), so nothing was committed and nothing landed",
+                    input.commit_index.display()
                 )));
             }
         }
@@ -423,33 +462,123 @@ pub const CAPTURED_INDEX: &str = "captured.captured-index";
 pub const THE_COMMIT_DIFFERED_PART: &str = "commit differed";
 
 /// What:
+///  What a value this command asked for came to when it was taken from the captures.
+/// Why:
+///  Three answers, and two of them are not each other:
+///  a value the captures name is one Git's commit must hold,
+///  a value the command's own form leaves out is one nothing is held against,
+///  and a value the captures could not take is a question that has not been answered at all.
+///  A two-answer type (`Option`, say) lets the third be read as the second by any caller that asked "is it there",
+///  and a guard that could not be computed would then count as a guard that passed:
+///  that is the finding this type exists to make unwritable
+///  (`landing/service_native.rs`,
+///  `build_with_git`;
+///  the review of 2026-11-15).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Asked<T> = { known: T } | { leftOut: string } | { couldNotTell: string };
+/// ```
+#[derive(Debug)]
+pub enum Asked<T> {
+    /// The captures name it,
+    ///  and Git's commit must hold exactly it.
+    Known(T),
+    /// The command's own form leaves it out,
+    ///  and the form is named,
+    ///  so a reader knows which silence this is.
+    LeftOut(&'static str),
+    /// The captures could not say,
+    ///  and the words of why.
+    CouldNotTell(String),
+}
+
+/// What:
+///  Which of the three answers a value came to,
+///  each reader naming the one it can meet.
+/// Why:
+///  Only `build_with_git` may meet `CouldNotTell`,
+///  and it meets it before anything is built:
+///  every other reader of an `Asked` is a reader of a value that was taken,
+///  and `holds` answers `CouldNotTell` with a difference rather than with a pass,
+///  so no path exists on which a question nobody answered counts as answered.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// value.known(); value.leftOutBecause(); value.couldNotTell()
+/// ```
+impl<T> Asked<T> {
+    /// The value the captures name,
+    /// or nothing when they name none.
+    fn known(&self) -> Option<&T> {
+        return match self {
+            Asked::Known(found) => Some(found),
+            Asked::LeftOut(_) | Asked::CouldNotTell(_) => None,
+        };
+    }
+
+    /// The form that leaves this value out,
+    /// or nothing when some answer was taken.
+    fn left_out_because(&self) -> Option<&'static str> {
+        return match self {
+            Asked::LeftOut(form) => Some(form),
+            Asked::Known(_) | Asked::CouldNotTell(_) => None,
+        };
+    }
+
+    /// Why the captures could not say,
+    /// or nothing when they did.
+    fn could_not_tell(&self) -> Option<&str> {
+        return match self {
+            Asked::CouldNotTell(reason) => Some(reason.as_str()),
+            Asked::Known(_) | Asked::LeftOut(_) => None,
+        };
+    }
+}
+
+/// What:
 ///  The commit this command asked for:
 ///  the parents it must have, and the tree it must hold, taken before Git runs.
 /// Why:
 ///  It is the whole of the question a landable commit answers,
 ///  and it is answered from the captures and not from the scratch tree,
 ///  so no file that goes under the scratch tree can change the answer after the captures were taken.
-///  A parent list that cannot be told (an amend's,
-///  whose parents are the amended commit's)
-///  is left out of the question and the tree still stands for it.
+///  Each of the two is one `Asked`,
+///  because an amend's parents and a reword fixup's tree are left out by the command's own form,
+///  while a capture that could not be taken is a different thing entirely.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AskedForCommit = { parents?: string[]; tree?: string };
+/// type AskedForCommit = { parents: Asked<string[]>; tree: Asked<string> };
 /// ```
 #[derive(Debug)]
 pub struct AskedForCommit {
     /// The parents Git's commit must name,
-    /// in order,
-    /// or nothing when the command's form does not settle them.
-    parents: Option<Vec<String>>,
-    /// The tree Git's commit must hold,
-    /// or nothing when the command's form settles no tree of its own,
-    /// or when Git could not name the one the index held.
-    tree: Option<String>,
+    /// in order:
+    ///  known, or left out by an amend, or not to be had.
+    parents: Asked<Vec<String>>,
+    /// The tree Git's commit must hold:
+    ///  known, or left out by a reword fixup, or not to be had.
+    tree: Asked<String>,
 }
 
 impl AskedForCommit {
+    /// What:
+    ///  Why the captures could not say what this command asked for,
+    ///  or nothing when they could.
+    /// Why:
+    ///  It is the one question `build_with_git` asks before it builds,
+    ///  and either value can answer it:
+    ///  a commit is held against a parent list and a tree, and one of them missing is the whole of what a build cannot do.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// asked.couldNotTell() // the words, or undefined
+    /// ```
+    fn could_not_tell(&self) -> Option<&str> {
+        return self.parents.could_not_tell().or_else(|| { return self.tree.could_not_tell(); });
+    }
+
     /// What:
     ///  Whether the commit Git made is the one this command asked for,
     ///  or what differs.
@@ -457,22 +586,40 @@ impl AskedForCommit {
     ///  The two differences a person would meet are named in the words a person reads:
     ///  a parent that is not the one the command began with (a conclusion that lost its other side),
     ///  and a tree that is not the one the index held (a commit that would delete what the person kept).
+    ///  A value the captures could not take is a difference too:
+    ///  no commit can be held against a question nobody answered,
+    ///  so it is refused here rather than skipped,
+    ///  even though `build_with_git` never builds when its captures say so.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
     /// asked.holds(prepared) // ok, or the words of what differs
     /// ```
     fn holds(&self, prepared: &PreparedCommit) -> Result<(), String> {
-        if let Some(asked) = self.parents.as_ref() {
-            let made: Vec<String> = parents_of(prepared.raw.as_slice());
-            if &made != asked {
-                return Err(format!("its parents are {} where the command began with {}", made.join(", "), asked.join(", ")));
+        match &self.parents {
+            Asked::Known(asked) => {
+                let made: Vec<String> = parents_of(prepared.raw.as_slice());
+                if &made != asked {
+                    return Err(format!("its parents are {} where the command began with {}", made.join(", "), asked.join(", ")));
+                }
+            }
+            // The command's form settles no parents of its own, and this is the one silence that is a pass.
+            Asked::LeftOut(_form) => {}
+            Asked::CouldNotTell(reason) => {
+                return Err(format!("the parents this command asked for could not be told ({reason})"));
             }
         }
-        if let Some(asked) = self.tree.as_ref()
-            && &prepared.tree_oid != asked
-        {
-            return Err(format!("its tree is {} where the index this command was given holds {asked}", prepared.tree_oid));
+        match &self.tree {
+            Asked::Known(asked) => {
+                if &prepared.tree_oid != asked {
+                    return Err(format!("its tree is {} where the index this command was given holds {asked}", prepared.tree_oid));
+                }
+            }
+            // A reword fixup's commit holds the tree of the branch it rewords, so no tree of its own was asked.
+            Asked::LeftOut(_form) => {}
+            Asked::CouldNotTell(reason) => {
+                return Err(format!("the tree this command asked for could not be told ({reason})"));
+            }
         }
         return Ok(());
     }
@@ -493,25 +640,35 @@ impl AskedForCommit {
 /// ```ts
 /// const parents = amends ? undefined : [base, ...mergeHeadLines(gitDir)];
 /// ```
-fn expected_parents_of(input: &BuildInput<'_>) -> Result<Option<Vec<String>>, TransactionStop> {
+fn expected_parents_of(input: &BuildInput<'_>) -> Asked<Vec<String>> {
     let amends: bool = input.arguments.iter().any(|argument| { return argument == "--amend"; });
     if amends {
-        return Ok(None);
+        return Asked::LeftOut("an amend's parents are the amended commit's, and this command has not read it");
     }
     let mut parents: Vec<String> = Vec::new();
     if let crate::transaction_journal::Base::Commit(base) = &input.capture.base {
         parents.push(base.clone());
     }
     let merge_head: PathBuf = input.capture.layout.git_dir.join("MERGE_HEAD");
-    if let Ok(text) = std::fs::read_to_string(merge_head.as_path()) {
-        for line in text.lines() {
-            let name: &str = line.trim();
-            if !name.is_empty() {
-                parents.push(String::from(name));
+    // What: A `MERGE_HEAD` that cannot be read is a parent list nobody can name, and never a merge's absence.
+    // Why:  A merge whose real `MERGE_HEAD` went unread would be expected as a one-parent commit and accepted as one,
+    //       which is the commit the sixth review found a merge's shadow could become (`conclusion_cleanup.rs`).
+    match std::fs::read_to_string(merge_head.as_path()) {
+        Ok(text) => {
+            for line in text.lines() {
+                let name: &str = line.trim();
+                if !name.is_empty() {
+                    parents.push(String::from(name));
+                }
             }
+            return Asked::Known(parents);
+        }
+        // No merge state is the ordinary commit: the base is the whole of its parents.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Asked::Known(parents),
+        Err(error) => {
+            return Asked::CouldNotTell(format!("the merge state at {} cannot be read ({error})", merge_head.display()));
         }
     }
-    return Ok(Some(parents));
 }
 
 /// What:
@@ -526,7 +683,8 @@ fn expected_parents_of(input: &BuildInput<'_>) -> Result<Option<Vec<String>>, Tr
 /// ```ts
 /// const asked = { parents, tree: writeTree(capturedIndex) };
 /// ```
-fn the_commit_that_was_asked_for(input: &BuildInput<'_>, parents: &Option<Vec<String>>) -> Result<AskedForCommit, TransactionStop> {
+fn the_commit_that_was_asked_for(input: &BuildInput<'_>, kept: Result<&[u8], &std::io::Error>) -> AskedForCommit {
+    let parents: Asked<Vec<String>> = expected_parents_of(input);
     // What: A command whose commit carries the tree it started from asks no tree of its own.
     // Why:  A reword fixup's commit holds the tree of the branch it rewords, whatever the index stages, so holding the
     //       index's tree against it would refuse the commit the person asked for; its parents still stand.
@@ -535,23 +693,115 @@ fn the_commit_that_was_asked_for(input: &BuildInput<'_>, parents: &Option<Vec<St
         return text.starts_with("--fixup=reword:") || text.starts_with("--fixup=amend:");
     });
     if carries_its_base_tree {
-        return Ok(AskedForCommit { parents: parents.clone(), tree: None });
+        return AskedForCommit {
+            parents,
+            tree: Asked::LeftOut("a reword fixup's commit holds the tree of the branch it rewords"),
+        };
     }
-    let captured: PathBuf = input.scratch.join(CAPTURED_INDEX);
-    let mut request: GitRequest = GitRequest::new(input.cwd, &["write-tree"]);
-    request.without_prefix = true;
-    // The index this command was given, and the store its trees are written to, exactly as the build reads them.
-    request.index = Some(captured.clone());
-    request.object_directory = Some(input.capture.layout.object_directory.clone());
-    let tree: Option<String> = match run_git_checked(input.context, &request) {
-        Ok(output) => Some(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string()),
+    // What: A private index that could not be kept is a tree nobody can name, and never an empty one.
+    // Why:  Git reads the private index as an empty index when it is gone, so a commit built without this answer is the empty
+    //       tree and deletes every tracked file from history while the worktree keeps them.
+    let bytes: &[u8] = match kept {
+        Ok(bytes) => bytes,
         Err(error) => {
-            crate::diagnostic_log::debug("serviceNative", format!("the tree this commit asked for cannot be read from {}: {error}", captured.display()).as_str());
-            None
+            return AskedForCommit {
+                parents,
+                tree: Asked::CouldNotTell(format!(
+                    "the private index {} this commit reads cannot be kept ({error})",
+                    input.commit_index.display()
+                )),
+            };
         }
     };
-    return Ok(AskedForCommit { parents: parents.clone(), tree });
+    return AskedForCommit { parents, tree: the_tree_the_captured_index_names(input, bytes) };
 }
+
+/// What:
+///  The tree the kept copy of the index names,
+///  or the words of why it cannot be read.
+/// Why:
+///  The tree is one `git write-tree` on the copy,
+///  which writes no new object when the commit is the one asked for (Git has just written that tree),
+///  and names exactly what the person staged when it is not.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const tree = writeTree(capturedIndex) // known | couldNotTell
+/// ```
+fn the_tree_the_captured_index_names(input: &BuildInput<'_>, kept: &[u8]) -> Asked<String> {
+    let captured: PathBuf = input.scratch.join(CAPTURED_INDEX);
+    // What: The tree is read by the one function that reads a private index's tree, out of the kept copy.
+    // Why:  It gives Git the index and the store the build itself gives it, so the tree this command is held against is the
+    //       tree the build would write.
+    let tree: String = match crate::commit_index::write_private_tree(input.context, input.cwd, captured.as_path(), input.capture.layout.object_directory.as_path()) {
+        Ok(tree) => tree,
+        Err(error) => {
+            return Asked::CouldNotTell(format!(
+                "the tree the kept copy of the index {} names cannot be read ({error})",
+                captured.display()
+            ));
+        }
+    };
+    // What: An empty tree is an answer only when the kept index holds no entry.
+    // Why:  Git answers a question about an index that is not there with the empty tree and no error at all,
+    //       so a copy a cleaner took before this question would be read as "the command asked for nothing":
+    //       the commit would delete every tracked file from history while the worktree kept them
+    //       (the seventh review's first finding). The count of entries is in the index's own header,
+    //       which needs no Git to read, and an index that holds one entry can never name the empty tree.
+    if the_empty_tree_of(input) == Some(tree.as_str()) && !the_index_holds_no_entry(kept) {
+        return Asked::CouldNotTell(format!(
+            "the kept copy of the index {} answered with the empty tree where the index this command read holds entries",
+            captured.display()
+        ));
+    }
+    return Asked::Known(tree);
+}
+
+/// The empty tree's name for the repository's object format,
+/// or nothing when this build has no name for it.
+/// Why:
+///   A name this table does not know is no reason to guess:
+///  an empty tree that cannot be recognised is accepted as any other tree,
+///  and the caller's other answer (the index's byte count) still stands.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const emptyTreeOf = (input) => emptyTreeName(input.capture.objectFormat)
+/// ```
+fn the_empty_tree_of(input: &BuildInput<'_>) -> Option<&'static str> {
+    return crate::shadow::empty_tree::empty_tree_name(input.capture.layout.object_format.as_str());
+}
+
+/// What:
+///  Whether an index file's own header says it holds no entry.
+/// Why:
+///   Git's index begins with `DIRC`, a version and the number of entries,
+///  and every version writes that count in the eight bytes after the signature;
+///  a file too short to hold them is no index Git wrote,
+///  so it is treated as one whose entries cannot be counted.
+///  Nothing here parses an entry:
+///  the question is only whether there is one at all.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const holdsNoEntry = (bytes) => bytes.length < 12 || readUInt32BE(bytes, 8) === 0
+/// ```
+fn the_index_holds_no_entry(bytes: &[u8]) -> bool {
+    const SIGNATURE_AND_COUNT: usize = 12;
+    if bytes.len() < SIGNATURE_AND_COUNT {
+        return true;
+    }
+    let count: [u8; 4] = [bytes[8], bytes[9], bytes[10], bytes[11]];
+    return u32::from_be_bytes(count) == 0;
+}
+
+/// How many times one command takes the capture of what it was asked for, and why.
+/// Why this figure:
+///  A capture is taken again only when the copy of the private index or the tree it names could not be read,
+///  which is one cleaner or one sweep meeting the same attempt:
+///  three tries are three such meetings, and a fourth would mean the scratch tree is being emptied as fast as this command
+///  fills it, where the honest answer is to say what could not be told and land nothing.
+pub const THE_CAPTURE_IS_TAKEN_AGAIN_AT_MOST: usize = 3;
 
 /// The name a commit's own timing record carries when the shadow it built in went and it built again:
 ///  a fixed name and never a path,

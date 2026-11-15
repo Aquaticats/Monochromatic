@@ -330,25 +330,27 @@ fn sweep_drawn_folder(folder: &Path, now: SystemTime) -> Vec<PathBuf> {
         // Why:  A forward step of the wall clock, as time synchronisation makes after a suspend and a resume, makes the age
         //       of a tree a commit is building in pass the bound; and a question asked and released before the removal would
         //       let a commit claim and write into the tree in between and lose it under its build. Holding the claim makes the
-        //       question and the removal one step, and the claim a commit finds taken is one it gives up on.
-        let claim: Option<crate::tree_held_by_a_live_process::HeldTree> = match crate::tree_held_by_a_live_process::take_to_remove(drawn.as_path()) {
-            // A live process holds it, so it is no tree of this sweep's to remove.
-            crate::tree_held_by_a_live_process::ClaimTaken::BeingTaken => continue,
-            crate::tree_held_by_a_live_process::ClaimTaken::Yes(claim) => Some(claim),
-            // A volume that cannot say who holds a tree leaves the age to decide, as it did before the claim existed.
-            crate::tree_held_by_a_live_process::ClaimTaken::CannotBeAsked => None,
-        };
-        match remove_tree(drawn.as_path()) {
-            Ok(()) => {
+        //       question and the removal one step, and the claim a commit finds taken is one it gives up on
+        //       (`tree_held_by_a_live_process.rs`, `remove_as_a_sweep`).
+        match crate::tree_held_by_a_live_process::remove_as_a_sweep(drawn.as_path(), |path: &Path| {
+            return match remove_tree(path) {
+                Ok(()) => crate::scratch_entry_removal::Removal::Finished,
+                Err(error) => crate::scratch_entry_removal::Removal::Failed(error),
+            };
+        }) {
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Finished) => {
                 crate::diagnostic_log::debug("shadowDrawn", format!("removed the drawn shadow nothing renewed: {}", drawn.display()).as_str());
                 removed.push(drawn);
             }
-            Err(error) => {
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Unfinished) => {
+                crate::diagnostic_log::warn("shadowDrawn", format!("the drawn shadow {} was still being removed, and stays for the next sweep", drawn.display()).as_str());
+            }
+            crate::tree_held_by_a_live_process::SweptRemoval::Removed(crate::scratch_entry_removal::Removal::Failed(error)) => {
                 crate::diagnostic_log::warn("shadowDrawn", format!("the drawn shadow {} was not removed: {error}", drawn.display()).as_str());
             }
+            // A live process holds it, so it is no tree of this sweep's to remove.
+            crate::tree_held_by_a_live_process::SweptRemoval::HeldByALiveProcess => {}
         }
-        // The claim goes with the removal: the tree is gone, and a tree that outlived its removal keeps it to the next sweep.
-        drop(claim);
     }
     return removed;
 }
@@ -468,14 +470,20 @@ impl HandedShadow {
     /// HandedShadow.holdRenewedEvery(tree, 20)
     /// ```
     pub fn hold_renewed_every(path: PathBuf, every: Duration) -> Option<Self> {
-        let claim: Option<crate::tree_held_by_a_live_process::HeldTree> = match crate::tree_held_by_a_live_process::hold(path.as_path()) {
-            crate::tree_held_by_a_live_process::ClaimTaken::Yes(claim) => Some(claim),
+        let claim: crate::tree_held_by_a_live_process::ClaimOnAMadeTree = match crate::tree_held_by_a_live_process::claim_a_made_tree(path) {
             // A sweep holds the claim to remove this tree, so the commit must give it up rather than build in a tree that is going.
-            crate::tree_held_by_a_live_process::ClaimTaken::BeingTaken => return None,
-            // A volume that cannot say whether the tree is held leaves it to its mark, as every holder did before the claim.
-            crate::tree_held_by_a_live_process::ClaimTaken::CannotBeAsked => None,
+            Err(crate::tree_held_by_a_live_process::TreeIsGoing) => return None,
+            Ok(claimed) => claimed,
         };
-        let renewal: ScratchRenewal = ScratchRenewal::start_holding(path.as_path(), every, claim);
+        let (path, held): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = match claim {
+            // A volume that cannot say whether the tree is held leaves it to its mark, as every holder did before the claim.
+            crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(tree) => (tree, None),
+            crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed) => {
+                let (tree, claim) = claimed.into_parts();
+                (tree, Some(claim))
+            }
+        };
+        let renewal: ScratchRenewal = ScratchRenewal::start_holding(path.as_path(), every, held);
         return Some(Self { path, _renewal: renewal, the_service_removes_it: false });
     }
 

@@ -86,6 +86,161 @@ pub enum WhetherHeld {
 }
 
 /// What:
+///  A tree whose path is in hand only with the claim that keeps a sweep off it.
+/// Why:
+///  A maker that is told its tree is being removed has one thing it can do,
+///  which is to leave the tree and make another:
+///  a path that came back without a claim is a path a command would build in while a sweep removed it,
+///  and `ClaimOnAMadeTree` gives no path back on that answer,
+///  so using one afterwards is not something a caller can write.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class AClaimedTree { #tree; #claim; path(); intoParts() }
+/// ```
+#[derive(Debug)]
+pub struct AClaimedTree {
+    /// Where the tree is.
+    tree: std::path::PathBuf,
+    /// The claim that keeps every sweep off it while this value lives.
+    claim: HeldTree,
+}
+
+impl AClaimedTree {
+    /// Where the tree is.
+    pub fn path(&self) -> &Path {
+        return self.tree.as_path();
+    }
+
+    /// The tree and the claim that keeps it,
+    /// for a value that renews the one and keeps the other.
+    pub fn into_parts(self) -> (std::path::PathBuf, HeldTree) {
+        return (self.tree, self.claim);
+    }
+}
+
+/// What:
+///  What a claim on a tree made a moment ago came to.
+/// Why:
+///  Three answers and three things to do:
+///  a claimed tree is one this command may build in,
+///  a tree a sweep took is one it must leave and make another instead,
+///  and a volume that cannot answer whether a tree is held leaves it to its modification time,
+///  which is how every tree was kept before the claim existed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ClaimOnAMadeTree = { claimed: AClaimedTree } | { theVolumeCannotSay: Path }
+/// ```
+#[derive(Debug)]
+pub enum ClaimOnAMadeTree {
+    /// The tree is this holder's until the claim goes,
+    ///  and a sweep that arrives meanwhile is refused.
+    Claimed(AClaimedTree),
+    /// The volume cannot say who holds it,
+    ///  so the tree is kept by its modification time alone,
+    ///  as every tree was before the claim existed.
+    TheVolumeCannotSay(std::path::PathBuf),
+}
+
+/// What:
+///  A tree a sweep had already taken to remove,
+///  so nothing of it is a maker's to use.
+/// Why:
+///  It carries no path:
+///  the whole of this answer is that the tree is going,
+///  and a caller that could still name it would be able to build in a tree a removal is emptying.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// class TreeIsGoing {} // no path, by construction
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TreeIsGoing;
+
+/// What:
+///  Takes this maker's claim on a tree it has just made,
+///  or says the tree is being removed and hands back nothing.
+/// Why:
+///  A tree is a maker's from the instant it takes the claim,
+///  and a sweep that took the claim first is emptying it:
+///  the maker must leave that tree and make another, which is why the path is consumed here
+///  and only given back with a claim (`AClaimedTree`) or as a tree the volume cannot answer about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// claimAMadeTree(tree) // claimed | the volume cannot say | throws TreeIsGoing
+/// ```
+pub fn claim_a_made_tree(tree: std::path::PathBuf) -> Result<ClaimOnAMadeTree, TreeIsGoing> {
+    return match hold(tree.as_path()) {
+        ClaimTaken::Yes(claim) => Ok(ClaimOnAMadeTree::Claimed(AClaimedTree { tree, claim })),
+        ClaimTaken::BeingTaken => Err(TreeIsGoing),
+        ClaimTaken::CannotBeAsked => Ok(ClaimOnAMadeTree::TheVolumeCannotSay(tree)),
+    };
+}
+
+/// What came of a sweep's attempt to remove one tree.
+/// Why:
+///  A sweep has three answers to give its caller:
+///  the removal ran (and the removal says whether it finished),
+///  a live holder had the tree,
+///  and nothing was removed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type SweptRemoval = { removed: Removal } | { heldByALiveProcess: true }
+/// ```
+#[derive(Debug)]
+pub enum SweptRemoval {
+    /// The claim was taken and the removal ran;
+    ///  the removal says whether the tree is gone.
+    Removed(crate::scratch_entry_removal::Removal),
+    /// A live holder has the tree,
+    ///  so nothing was removed and the next sweep asks again.
+    HeldByALiveProcess,
+}
+
+/// What:
+///  Removes one tree under the removal claim,
+///  which is held from before the removal starts until it is over.
+/// Why:
+///  A sweep that looked and let go would let a holder begin in the tree between its question and its removal,
+///  and the removal would take a tree a command had claimed and written into
+///  (`shadow_pool.rs`,
+///  `sweep_abandoned`;
+///  `shadow_drawn.rs`,
+///  `sweep_drawn_folder`;
+///  `scratch_location.rs`,
+///  `sweep_stale`).
+///  Every sweep removes through this one function, so a sweep cannot be written that looks and lets go:
+///  the claim is taken here, no caller holds `take_to_remove` at all,
+///  and a holder that arrives while the claim is taken is refused and gives its tree up
+///  (`claim_a_made_tree`).
+///  A volume that cannot answer whether the tree is held leaves the removal to the age that decided it,
+///  as before the claim existed, and the log names it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeAsASweep(tree, (path) => removeWithin(path, ceiling)) // removed | heldByALiveProcess
+/// ```
+pub fn remove_as_a_sweep<F>(tree: &Path, remove: F) -> SweptRemoval
+where
+    F: FnOnce(&Path) -> crate::scratch_entry_removal::Removal,
+{
+    let claim: Option<HeldTree> = match take_to_remove(tree) {
+        ClaimTaken::Yes(claim) => Some(claim),
+        ClaimTaken::BeingTaken => return SweptRemoval::HeldByALiveProcess,
+        ClaimTaken::CannotBeAsked => {
+            debug_claim(tree, "the volume cannot say who holds it, so the removal goes by its age");
+            None
+        }
+    };
+    let outcome: crate::scratch_entry_removal::Removal = remove(tree);
+    drop(claim);
+    return SweptRemoval::Removed(outcome);
+}
+
+/// What:
 ///  What an attempt to take a holder's share of the claim came to.
 /// Why:
 ///  A caller has three things to do with the three answers and cannot do them with two:
@@ -125,7 +280,7 @@ pub enum ClaimTaken {
 /// ```ts
 /// const held = hold(tree); // 'yes' | 'being-taken' | 'cannot-be-asked'
 /// ```
-pub fn hold(tree: &Path) -> ClaimTaken {
+fn hold(tree: &Path) -> ClaimTaken {
     return match lock_without_waiting(tree, Share::OfAHolder) {
         Ok(opened) => ClaimTaken::Yes(HeldTree { _opened: opened }),
         Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
@@ -155,7 +310,7 @@ pub fn hold(tree: &Path) -> ClaimTaken {
 /// ```ts
 /// const claim = takeToRemove(tree); // 'yes' | 'being-taken' | 'cannot-be-asked'
 /// ```
-pub fn take_to_remove(tree: &Path) -> ClaimTaken {
+fn take_to_remove(tree: &Path) -> ClaimTaken {
     return match lock_without_waiting(tree, Share::Alone) {
         Ok(opened) => ClaimTaken::Yes(HeldTree { _opened: opened }),
         Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => ClaimTaken::BeingTaken,
@@ -169,13 +324,13 @@ pub fn take_to_remove(tree: &Path) -> ClaimTaken {
 /// What:
 ///  Whether a live process holds `tree` now.
 /// Why:
-///  A sweep asks this of a tree its age would remove, and nothing else:
-///  a tree the age keeps needs no second witness,
-///  so the question costs nothing on the ordinary sweep.
-///  The question takes the claim for the instant it asks and gives it back at once,
-///  so two sweeps at the same moment never both decide against a holder:
-///  the second finds the first's question and leaves the tree,
-///  and the tree goes at the next sweep.
+///  No sweep asks this: every sweep removes through `remove_as_a_sweep`,
+///  which takes the claim and keeps it through the removal,
+///  so a look that let go was the defect a review found in the pool's sweep
+///  and no sweep can make that mistake through this module.
+///  What asks it is a control, which has to observe who holds a tree at an instant it cannot interrupt,
+///  and a reader of the code, which needs the three answers named.
+///  The question takes the claim for the instant it asks and gives it back at once.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts

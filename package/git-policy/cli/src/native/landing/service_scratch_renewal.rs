@@ -90,14 +90,18 @@ impl ScratchRenewal {
     /// ```ts
     /// ScratchRenewal.start(path, REFRESH_EVERY);
     /// ```
-    pub fn start(path: &Path, every: Duration) -> Self {
-        let held: Option<crate::tree_held_by_a_live_process::HeldTree> = match crate::tree_held_by_a_live_process::hold(path) {
-            crate::tree_held_by_a_live_process::ClaimTaken::Yes(claim) => Some(claim),
-            // A tree a sweep is taking is no tree to renew, and a volume that cannot answer leaves the mark alone.
-            crate::tree_held_by_a_live_process::ClaimTaken::BeingTaken
-            | crate::tree_held_by_a_live_process::ClaimTaken::CannotBeAsked => None,
+    pub fn start(tree: PathBuf, every: Duration) -> Option<(PathBuf, Self)> {
+        let (path, held): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = match crate::tree_held_by_a_live_process::claim_a_made_tree(tree) {
+            // A tree a sweep is taking is no tree to renew: nothing can keep one alive that is on its way out.
+            Err(crate::tree_held_by_a_live_process::TreeIsGoing) => return None,
+            // A volume that cannot answer leaves the mark alone, as every holder did before the claim existed.
+            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(tree)) => (tree, None),
+            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed)) => {
+                let (tree, claim) = claimed.into_parts();
+                (tree, Some(claim))
+            }
         };
-        return Self::start_holding(path, every, held);
+        return Some((path.clone(), Self::start_holding(path.as_path(), every, held)));
     }
 
     /// What:
@@ -163,7 +167,16 @@ impl ScratchRenewal {
     /// const every = SCRATCH_REFRESH_EVERY;
     /// ```
     pub fn of_a_commit(path: &Path) -> Self {
-        return Self::start(path, SCRATCH_REFRESH_EVERY);
+        let held: Option<crate::tree_held_by_a_live_process::HeldTree> = match crate::tree_held_by_a_live_process::claim_a_made_tree(path.to_path_buf()) {
+            // A tree a sweep is emptying cannot be kept alive, so this renewal carries no claim and the tree goes.
+            Err(crate::tree_held_by_a_live_process::TreeIsGoing) => None,
+            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(_tree)) => None,
+            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed)) => {
+                let (_tree, claim) = claimed.into_parts();
+                Some(claim)
+            }
+        };
+        return Self::start_holding(path, SCRATCH_REFRESH_EVERY, held);
     }
 }
 

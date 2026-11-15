@@ -339,7 +339,7 @@ fn a_clock_step_forward_never_removes_a_half_made_member_a_live_fill_writes() {
     let making: PathBuf = pool.join(format!("{FILLING_PREFIX}a-fill-that-is-writing"));
     std::fs::create_dir(making.as_path()).expect("half a member");
     let _writing: crate::service_scratch_renewal::ScratchRenewal =
-        crate::service_scratch_renewal::ScratchRenewal::start(making.as_path(), crate::scratch_location::SCRATCH_REFRESH_EVERY);
+        crate::service_scratch_renewal::ScratchRenewal::of_a_commit(making.as_path());
     let killed: PathBuf = pool.join(format!("{FILLING_PREFIX}a-fill-that-was-killed"));
     std::fs::create_dir(killed.as_path()).expect("half a member nothing claims");
     sweep_abandoned(pool.as_path(), SystemTime::now() + Duration::from_secs(3600));
@@ -886,10 +886,13 @@ fn a_fill_that_claims_its_staging_tree_before_the_removal_keeps_it() {
     let keeping: &'static std::cell::RefCell<Option<crate::tree_held_by_a_live_process::HeldTree>> = Box::leak(Box::new(held));
     test_removal::set_before_the_removal(move |path: &Path| {
         // The fill claims its staging tree in this instant, as a fill does after making it.
-        match crate::tree_held_by_a_live_process::hold(path) {
-            crate::tree_held_by_a_live_process::ClaimTaken::Yes(claim) => *keeping.borrow_mut() = Some(claim),
-            crate::tree_held_by_a_live_process::ClaimTaken::CannotBeAsked => {}
-            crate::tree_held_by_a_live_process::ClaimTaken::BeingTaken => panic!("the fill's own tree is not being removed yet"),
+        match crate::tree_held_by_a_live_process::claim_a_made_tree(path.to_path_buf()) {
+            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed)) => {
+                let (_tree, claim) = claimed.into_parts();
+                *keeping.borrow_mut() = Some(claim);
+            }
+            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(_tree)) => {}
+            Err(crate::tree_held_by_a_live_process::TreeIsGoing) => panic!("the fill's own tree is not being removed yet"),
         }
     });
     sweep_abandoned(pool.as_path(), SystemTime::now() + Duration::from_secs(3600));

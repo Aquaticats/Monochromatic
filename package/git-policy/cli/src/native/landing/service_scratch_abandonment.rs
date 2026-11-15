@@ -94,14 +94,13 @@ pub fn may_go(path: &Path, metadata: &std::fs::Metadata, now: SystemTime, max_ag
     if found <= allowed {
         return false;
     }
-    // What: The age says the tree may go, and a tree a live process is building in is not abandoned: the command that
-    //       builds in it holds a claim no wall-clock step can take away.
-    // Why:  A forward step of the clock, as time synchronisation makes after a suspend and a resume, otherwise makes the tree
-    //       of a commit that is running look hours old and this collection deletes it under that commit.
-    //       The claim is asked only here, where the age would already have removed the entry, so the ordinary sweep pays nothing.
-    if tree && crate::tree_held_by_a_live_process::whether_held(path) == crate::tree_held_by_a_live_process::WhetherHeld::ByALiveProcess {
-        return false;
-    }
+    // What: The age is the whole of the question this function answers; who holds the tree is the removal's to ask.
+    // Why:  A forward step of the clock, as time synchronisation makes after a suspend and a resume, makes the tree of a
+    //       commit that is running look hours old, and a look that let go here would let the removal take that tree under its
+    //       commit: every sweep removes through `remove_as_a_sweep`, which takes the claim and keeps it through the removal
+    //       (`tree_held_by_a_live_process.rs`).
+    //       Asking the claim here as well would be a second question whose answer nobody uses, and a reader would take it for
+    //       the guard.
     return true;
 }
 

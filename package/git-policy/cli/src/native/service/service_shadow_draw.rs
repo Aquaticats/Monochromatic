@@ -219,10 +219,19 @@ impl DrawnShadows {
     /// stock.note(tree)
     /// ```
     pub fn note_ready(&self, tree: PathBuf) {
-        // The renewal is started before the entry is listed, so no answer can name a tree that nothing marks.
-        let renewal: ScratchRenewal = ScratchRenewal::start(tree.as_path(), SCRATCH_REFRESH_EVERY);
+        // What: The renewal is started before the entry is listed, so no answer can name a tree that nothing marks.
+        // Why:  A tree a sweep had already taken is one this stock cannot hand out: nothing can keep a tree alive that a removal
+        //       is emptying, so the stock leaves it to the sweep and the next fill draws another
+        //       (`tree_held_by_a_live_process.rs`, `claim_a_made_tree`).
+        let (path, renewal): (PathBuf, ScratchRenewal) = match ScratchRenewal::start(tree, SCRATCH_REFRESH_EVERY) {
+            Some(started) => started,
+            None => {
+                crate::diagnostic_log::debug("shadowDraw", "the drawn tree is being removed by a sweep, so the stock leaves it to the sweep");
+                return;
+            }
+        };
         let mut ready = self.ready.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        ready.push(Waiting { path: tree, since: Instant::now(), _renewal: renewal });
+        ready.push(Waiting { path, since: Instant::now(), _renewal: renewal });
     }
 
     /// What:

@@ -21,6 +21,8 @@ fn phases_are_named_in_transaction_order() {
             "merge-carry-file",
             "merge-carried-back",
             "service-staged",
+            "commit-capture-taken",
+            "commit-captured",
             "shadow-handed",
             "shadow-built",
             "shadow-readable",

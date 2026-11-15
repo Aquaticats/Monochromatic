@@ -879,6 +879,10 @@ fn a_tree_a_sweep_is_taking_is_never_handed_out_for_use() {
     let claimed: std::cell::RefCell<Option<crate::tree_held_by_a_live_process::HeldTree>> = std::cell::RefCell::new(None);
     let sweeping: &'static (std::cell::RefCell<Option<PathBuf>>, std::cell::RefCell<Option<crate::tree_held_by_a_live_process::HeldTree>>) = Box::leak(Box::new((taken, claimed)));
     test_targets::set_before_claim(move |path: &Path| {
+        // One sweep meets one tree: the maker's next tree is its own.
+        if sweeping.0.borrow().is_some() {
+            return;
+        }
         let answer: crate::tree_held_by_a_live_process::ClaimTaken = crate::tree_held_by_a_live_process::take_to_remove_for_a_control(path);
         let crate::tree_held_by_a_live_process::ClaimTaken::Yes(held) = answer else {
             panic!("the test sweep takes the tree the maker made: {answer:?}");
