@@ -1330,6 +1330,79 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The add's mirror design stands under review, with one race in an append left; mpm-shadow's stale launchers are answered with their controls not yet shown failing (2026-11-14T22:01:32-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **An add never skips the Cargo repair** (`b6c0a24762`),
+  its eighth review,
+  ended 21:55:45,
+  thirteen of thirteen files.
+  Nothing against the mirror,
+  the lease or the lock.
+  One thing,
+  reproduced for one of two places:
+  an append to `info/exclude` decides from an earlier read whether it needs a leading newline,
+  so a pattern another command appends without a newline in between is joined to the wrapper's
+  (`important-file/.claude/cli-git-trash/`),
+  and the trash folder is then not ignored.
+  Weighed as worth its fix,
+  which is small.
+  The review proposes a leading newline on every append;
+  the author is asked to weigh that
+  (how many blank lines gather,
+  what its own recogniser says of the joined line)
+  and to list every append to a file other programs append to
+  (`~/temp/agent/pi-runs/add-never-skips-the-cargo-repair-answers-its-eighth-review-of-2026-11-14-prompt.md`,
+  queued fifth).
+- **mpm-shadow's install that leaves no launcher of a name its lock no longer declares**,
+  its author's eighth run,
+  ended 21:57:07 at `68bc782526`.
+  By its report all five of the sixth review's findings reproduced at the old tip.
+  The removal is reworked:
+  the hidden name is made with a hard link,
+  which replaces nothing,
+  where it was a rename;
+  what a kill leaves is put back before anything is judged;
+  the record's read,
+  merge and write are one section under a lock of the record's own,
+  bounded at two seconds;
+  a link that names its launcher counts even when it does not resolve.
+  821 tests passing,
+  Clippy clean,
+  `main` merged.
+  Cost against `main` on an install with nothing to do:
+  a ratio of 0.98 with a spread of 18 ms,
+  and 394 system calls more.
+  The gap it names:
+  none of its five new controls was shown failing with its fix out.
+- **Weighed**:
+  the code is ready to be read,
+  and the controls are not yet evidence.
+  Both go on at once,
+  since a review of ten code files is the longer of the two:
+  the review is queued second
+  (`main...68bc782526`),
+  and a fresh run from that tip,
+  on a branch of its own,
+  takes each fix out and shows its control failing,
+  changing tests alone and reporting first if a fix does not hold
+  (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-each-new-control-shown-failing-with-its-fix-taken-out-prompt.md`,
+  queued seventh).
+  A fresh run and not a resume,
+  by the practice adopted at 21:20:31:
+  the author's eighth run says its budget went elsewhere.
+- Read at 22:00:22:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  twenty runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 73 entries at 22:01:32.
+
 ##### The removal guard's review finds six things, one of them the project's own decision; five go back to the author (2026-11-14T21:45:42-05:00)
 
 Not final and not approved:
