@@ -342,14 +342,19 @@ pub fn holders_of(_store_roots: &[PathBuf], _deadline: Instant) -> StoreHolders 
 /// export function heldReason(holders: StoreHolders, versionDirectory: string): string | undefined
 /// ```
 pub fn held_reason(holders: &StoreHolders, version_directory: &Path) -> Option<String> {
-    // What: the directory is compared in the spelling the process table uses.
-    // Why: `starts_with` is a text comparison, and the two sides come from different spellings of one path.
+    // What: both sides are compared in one spelling.
+    // Why: `starts_with` is a text comparison, and a path the process table reports, a path a fixture builds and a
+    // path through a symbolic link are three spellings of one path; comparing only one side missed a real holder.
     let resolved: PathBuf = resolved_for_comparison(version_directory);
     for held in &holders.held {
-        if !held.path.starts_with(&resolved) {
+        if !resolved_for_comparison(&held.path).starts_with(&resolved) {
             continue;
         }
-        let others: usize = holders.held.iter().filter(|other| return other.path.starts_with(&resolved)).count();
+        let others: usize = holders
+            .held
+            .iter()
+            .filter(|other| return resolved_for_comparison(&other.path).starts_with(&resolved))
+            .count();
         let more: String = if others > 1 { format!(" and {} more process(es)", others - 1) } else { String::new() };
         return Some(format!("pid {} {} {}{more}", held.pid, held.kind.words(), held.path.display()));
     }

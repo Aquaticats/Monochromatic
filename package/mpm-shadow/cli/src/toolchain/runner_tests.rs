@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use super::fakes::FakeRunner;
-use super::runner::{ProcessRunner, RunRequest, Runner, toolchain_path_env};
+use super::runner::{ProcessRunner, RunOutcome, RunRequest, Runner, toolchain_path_env};
 use super::scope::{EnvMap, EXPOSURE_DIR_RELATIVE, repo_scope};
 use crate::test_scratch::scratch;
 
@@ -87,4 +87,25 @@ fn the_fake_records_requests_answers_by_prefix_and_defaults_to_success() {
         ]
     );
     assert_eq!(runner.calls()[0].line(), "/some/dir/cargo binstall --no-confirm fd-find");
+}
+
+
+/// What:
+/// A child that would run for a minute is ended at the deadline the request names, and the outcome says so.
+/// Why:
+/// The cleanup starts Git, and a Git that never ends held an install for good; the work limit has to end the child.
+#[test]
+fn ends_a_child_at_the_deadline_it_was_given() {
+    let deadline: std::time::Instant = std::time::Instant::now() + std::time::Duration::from_millis(150);
+    let request = RunRequest::new("sleep", &["60"]).with_deadline(deadline);
+    let started: std::time::Instant = std::time::Instant::now();
+
+    let outcome: RunOutcome = ProcessRunner.run(&request);
+
+    assert!(started.elapsed() < std::time::Duration::from_secs(5), "the child outlived its deadline: {:?}", started.elapsed());
+    assert_eq!(outcome.code, 1, "a child ended at the deadline is reported as failed: {outcome:?}");
+    assert!(
+        outcome.stderr.contains("ended at the cleanup's work limit"),
+        "the outcome does not say the child was ended: {outcome:?}"
+    );
 }
