@@ -1615,6 +1615,65 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The lock-holders folder's sixth review: the step between `fork` and `exec` keeps the rule against self-invocation, and five things are found around it; the author goes back (2026-11-15T11:57:05-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The lock-holders folder** (`58cd4d9f7c`),
+  its sixth review,
+  ended 11:51:44,
+  17 of 17 files and the whole diff,
+  five things,
+  four reproduced with a harness that calls the branch's functions,
+  one by reading.
+- **On the record against self-invocation**,
+  which the review's brief asked it to hold the change against:
+  **both places keep it**.
+  The step between `fork` and `exec` makes a folder,
+  reads `/proc/self/stat`,
+  writes its line and closes descriptors;
+  it starts no executable and writes no shell text,
+  and the command then becomes the real Git.
+  The `current_exe` use is a test's.
+- **The five**:
+  a `refs` that is a link to a folder outside the repository is walked,
+  and a file there with the name and the evidence of an abandoned lock is deleted;
+  a commit can land and then be reported as stopped,
+  when the parent cannot add the child's identity after the child has become Git,
+  and a retry lands a second;
+  a FIFO at the record path holds the forked child before `exec`,
+  and the parent inside `spawn`;
+  the child appends its line through a link into a person's file;
+  and,
+  by reading,
+  the error branches of the step before `exec` allocate,
+  which can wait for good on an allocator lock another thread held at the fork.
+- **Weighed**:
+  all five go back,
+  as four shapes:
+  a walk never leaves the repository through a link,
+  at its root or below;
+  what stands at the wrapper's own record path is a plain file or nothing is written there,
+  by one opener for parent and child;
+  once the child has become Git nothing the wrapper fails to write stops Git or fails the command;
+  the step before `exec` allocates on no path.
+  The author's sixth run is queued fourth,
+  and is asked to run the first case against a wrapper built from `main`:
+  `main`'s pass also lists folders with `read_dir`,
+  and whether one of its roots can be a link is not shown either way.
+- Read at 11:56:11:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:47;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### Three reviews, all with findings: both mpm-shadow branches lose data a lock or a person still names, and the journal branch misreports two entries; all three authors go back (2026-11-15T11:49:08-05:00)
 
 Not final and not approved:
