@@ -1374,6 +1374,32 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.37` is installed, its sample commit 1,708 ms, and its gate is running (2026-11-14T23:48:03-05:00)
+
+Not final and not approved:
+what the coordinating session ran and read.
+
+- **`0.6.1-alpha.37`** (pass 48):
+  published by 23:47:52,
+  installed here by 23:48:01,
+  `--version` answering `0.6.1-alpha.37`.
+  Its sample commit took 1,708 ms,
+  just above the 1,051 to 1,588 ms of the installs of `0.6.1-alpha.30` to `0.6.1-alpha.35` and under the 2,486 ms of `0.6.1-alpha.36`.
+  One reading on a machine with over twenty agents going,
+  and inside the rule's five seconds.
+- Its gate was started at 23:48:02 on `5a012ba094`
+  (unit and log `gpc-gate-wrapper-next-alpha-on-5a012ba094-20261114T234802-0500`).
+  One background command waits,
+  bounded,
+  for the verdict,
+  compares its failing tests with the four gates before it,
+  keeps their panics,
+  and then reads the journal for 23:47:50 to 23:53:50.
+  What it is read for:
+  whether the six controls pass 48 is for
+  (five `fault_remote::` and `package_repair::a_failing_pnpm_never_fails_the_add`)
+  pass in the container.
+
 ##### Pass 48 is in `main` and `0.6.1-alpha.37` is dispatched; the brief writer for tests is answered and goes to review (2026-11-14T23:40:25-05:00)
 
 Not final and not approved:
