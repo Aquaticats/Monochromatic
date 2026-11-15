@@ -68,6 +68,12 @@ fn is_marked(tag: &[u8], skip_worktree_too: bool) -> bool {
 ///  and a safety check never reads a failure as "no marked edit";
 ///  a marked path with no worktree file is no edit of the person's,
 ///  because Git writes that file back.
+///  The bytes of every marked file are compared, not its size, time or mode: a same-length edit with
+///  its modification time put back passed a reading that trusted those, and the bytes are the only
+///  proof (the seventh review's reproduction, measured on this host with native Git 2.56.0,
+///  2026-11-15).
+///  The stat answers only what kind of entry stands there, and the comparison is one Git process per
+///  batch of names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -83,13 +89,93 @@ pub(super) fn edits_the_status_hides(
         return Ok(Vec::<String>::new());
     }
     let mut edited: Vec<String> = Vec::<String>::new();
+    let mut to_compare: Vec<MarkedEntry> = Vec::<MarkedEntry>::new();
     for entry in marked_entries(facts, marked.as_slice())? {
-        if !differs_from_the_index(facts, worktree_root, &entry)? {
-            continue;
+        match what_the_worktree_holds(worktree_root, &entry)? {
+            Held::NotThere => {}
+            Held::NotAFile => edited.push(String::from_utf8_lossy(entry.path.as_slice()).into_owned()),
+            Held::AFile => to_compare.push(entry),
         }
-        edited.push(String::from_utf8_lossy(entry.path.as_slice()).into_owned());
+    }
+    if to_compare.is_empty() {
+        return Ok(edited);
+    }
+    for (entry, object) in to_compare
+        .iter()
+        .zip(worktree_objects(facts, worktree_root, to_compare.as_slice())?.iter())
+    {
+        match object {
+            Some(found) if found == &entry.object => {}
+            // A hash that differs, and a name this process cannot spell, are both an edit.
+            _ => edited.push(String::from_utf8_lossy(entry.path.as_slice()).into_owned()),
+        }
     }
     return Ok(edited);
+}
+
+/// What:
+///  What the worktree holds at one marked entry's path.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///  The comparison needs a regular file to read;
+///  a link is an entry of its own (Git writes the target's bytes, never the link), a directory where
+///  the index holds a file is an edit, and a path that is gone is no edit of the person's because Git
+///  writes that file back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Held = 'not-there' | 'not-a-file' | 'a-file';
+/// ```
+#[derive(Debug)]
+enum Held {
+    /// Nothing stands there.
+    NotThere,
+    /// A link, a directory or another entry no comparison reads.
+    NotAFile,
+    /// A regular file whose bytes are compared with the index's object.
+    AFile,
+}
+
+/// What:
+///  What the worktree holds at one marked entry's path, read under the worktree lookup ceiling.
+///  `Result<Held, String>` is "the answer, or why it could not be read".
+/// Why:
+///  A metadata lookup on a mount whose server stopped answering waits in the kernel with no end,
+///  so it runs on a thread this process waits for only until the ceiling;
+///  no answer refuses the command rather than reading as "no edit", because a form that overwrites
+///  the marked path would lose what the mark hides.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function whatTheWorktreeHolds(facts, root, entry): Held; // throws
+/// ```
+fn what_the_worktree_holds(root: &Path, entry: &MarkedEntry) -> Result<Held, String> {
+    let Some(relative) = relative_path(entry.path.as_slice()) else {
+        // A name this process cannot spell is no name to read bytes from, so it is compared and fails.
+        return Ok(Held::AFile);
+    };
+    let location: PathBuf = root.join(relative.as_path());
+    let Some(read) = crate::metadata_of_a_path_within_a_ceiling::symlink_metadata_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, location.as_path()) else {
+        return Err(format!(
+            "Git could not read `{}` within {} seconds, so the guard cannot tell whether the edit the index marks assume-unchanged is still there",
+            relative.display(),
+            crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
+        ));
+    };
+    let metadata: std::fs::Metadata = match read {
+        Ok(found) => found,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Held::NotThere),
+        Err(error) => {
+            return Err(format!(
+                "Git could not read `{}`, so the guard cannot tell whether the edit the index marks assume-unchanged is still there: {error}",
+                relative.display()
+            ));
+        }
+    };
+    if !metadata.file_type().is_file() {
+        return Ok(Held::NotAFile);
+    }
+    return Ok(Held::AFile);
 }
 
 /// What:
@@ -130,39 +216,31 @@ fn marked_paths(facts: &mut GitFacts, skip_worktree_too: bool) -> Result<Vec<Vec
 
 /// What:
 ///  One marked entry as the index records it:
+///  its mode,
 ///  the object its bytes make,
-///  the mode it has,
-///  and the stat Git kept for it.
+///  and its path.
 /// Why:
-///   The stat says in one query which marked entries are worth comparing byte for byte,
-///  and the object and the mode are what the comparison needs.
+///   The object is what the worktree copy is compared with,
+///  and the mode and stage are read only to know the entry is the index's own record of the path
+///  at stage zero.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type MarkedEntry = { mode: string; object: string; path: Buffer; size: u64; modified: [i64, i64] };
+/// type MarkedEntry = { mode: string; object: string; path: Buffer; };
 /// ```
 struct MarkedEntry {
-    /// The mode the index records.
-    mode: String,
     /// The object the index holds for the path.
     object: String,
     /// The path,
     ///  as the index holds it.
     path: Vec<u8>,
-    /// The size the index recorded.
-    size: u64,
-    /// The modification time the index recorded,
-    ///  in seconds and nanoseconds.
-    modified: (i64, i64),
 }
 
 /// What:
 ///  The index's own record of each marked path,
 ///  asked for those paths alone.
 /// Why:
-///   `--debug` prints the stat Git kept,
-///  so a marked entry nothing touched is recognised without reading its bytes;
-///  a query that failed says nothing about them and is a failure.
+///   A query that failed says nothing about them and is a failure.
 ///  The listing that named these paths was asked from the worktree's top (`:(top)`),
 ///  so they are root-relative,
 ///  while a plain pathspec is matched from the directory Git runs in:
@@ -173,6 +251,10 @@ struct MarkedEntry {
 ///  2026-11-14).
 ///  Each path is therefore given back to Git rooted at the top,
 ///  and matched literally, which is the name the index holds.
+///  The stat Git kept is not asked for: the bytes of every marked entry are compared, because equal
+///  size, modification time and mode do not make equal content
+///  (the seventh review's same-length edit with its time put back was invisible to a reading that
+///  trusted the stat).
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -180,7 +262,7 @@ struct MarkedEntry {
 /// ```
 fn marked_entries(facts: &mut GitFacts, marked: &[Vec<u8>]) -> Result<Vec<MarkedEntry>, String> {
     let mut arguments: Vec<OsString> = facts.global_prefix.clone();
-    for token in ["--no-optional-locks", "ls-files", "-v", "--stage", "--debug", "-z", "--full-name", "--"] {
+    for token in ["--no-optional-locks", "ls-files", "-v", "--stage", "-z", "--full-name", "--"] {
         arguments.push(OsString::from(token));
     }
     for path in marked {
@@ -222,13 +304,11 @@ fn rooted_at_the_top(path: &[u8]) -> Vec<u8> {
 const TOP_LITERAL_MAGIC: &[u8] = b":(top,literal)";
 
 /// What:
-///  The entries one `git ls-files -v --stage --debug -z` answer holds.
+///  The entries one `git ls-files -v --stage -z` answer holds.
 /// Why:
-///   Git writes each entry's header up to a NUL and the five lines of its stat after that NUL,
-///  so a chunk after the first starts with the previous entry's stat and holds this entry's header
-///  after the fifth newline.
-///  Each entry is therefore read from its own header and the stat block in front of the next one,
-///  and a chunk without those five lines stops the reading instead of naming a path nobody checked.
+///   Git writes each entry as `<tag> <mode> <object> <stage>\t<path>` and a NUL after it,
+///  so a NUL is the boundary and a path holding a newline stays whole;
+///  an entry that names no path, or one that is not at stage zero, is not read.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -236,246 +316,143 @@ const TOP_LITERAL_MAGIC: &[u8] = b":(top,literal)";
 /// ```
 fn parse_marked_entries(stdout: &[u8]) -> Vec<MarkedEntry> {
     let mut entries: Vec<MarkedEntry> = Vec::<MarkedEntry>::new();
-    let chunks: Vec<&[u8]> = stdout.split(|byte| return *byte == 0).collect();
-    for (index, chunk) in chunks.iter().enumerate() {
-        // The first chunk is the first entry's header; every later one starts with the stat of the entry before it.
-        let header: &[u8] = if index == 0 {
-            chunk
-        } else {
-            match after_stat_lines(chunk) {
-                Some(found) => found,
-                None => return entries,
-            }
-        };
-        // The stat of this entry is the head of the chunk after it, and the last entry's stat is the last chunk.
-        let Some(stat) = chunks.get(index + 1) else {
+    for chunk in stdout.split(|byte| return *byte == 0) {
+        let Some(entry) = entry_of(chunk) else {
             continue;
         };
-        if let Some(entry) = entry_of(header, stat) {
-            entries.push(entry);
-        }
+        entries.push(entry);
     }
     return entries;
 }
 
 /// What:
-///  The bytes after the five stat lines of one entry,
-///  which is where the next entry's header starts.
-///  `None` when the chunk holds fewer lines than that,
-///  which is an answer this reader cannot trust.
+///  One entry of that answer,
+///  or nothing when the bytes are not one.
+///  `&[u8]` borrows the chunk.
 /// Why:
-///  `--debug` writes exactly those five lines after each header,
-///  so the boundary between two entries is found without splitting a path
-///  that holds a newline of its own.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function afterStatLines(chunk: Buffer): Buffer | undefined;
-/// ```
-fn after_stat_lines(chunk: &[u8]) -> Option<&[u8]> {
-    let mut rest: &[u8] = chunk;
-    for _ in 0..STAT_LINES {
-        let newline: usize = rest.iter().position(|byte| return *byte == b'\n')?;
-        rest = &rest[newline + 1..];
-    }
-    return Some(rest);
-}
-
-/// How many lines `--debug` writes after one entry's header.
-/// Why:
-///   `ctime`,
-///  `mtime`,
-///  `dev`/`ino`,
-///  `uid`/`gid` and `size`/`flags` are one line each,
-///  so the next entry's header always follows the fifth.
-const STAT_LINES: usize = 5;
-
-/// What:
-///  One entry's header and the stat block Git writes after it,
-///  read as the index records them,
-///  or nothing when the bytes are not that.
-///  `&[u8]` borrows both parts of the answer.
-/// Why:
-///   A chunk that names no path or no stat is not an entry,
+///   A chunk that names no path or no stage is not an entry,
 ///  and reading it as one would compare the wrong file.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function entryOf(header: Buffer, stat: Buffer): MarkedEntry | undefined;
+/// function entryOf(chunk: Buffer): MarkedEntry | undefined;
 /// ```
-fn entry_of(header: &[u8], stat: &[u8]) -> Option<MarkedEntry> {
-    let tab: usize = header.iter().position(|byte| return *byte == b'\t')?;
-    let fields: Vec<&[u8]> = header[..tab].split(|byte| return *byte == b' ').collect();
+fn entry_of(chunk: &[u8]) -> Option<MarkedEntry> {
+    let tab: usize = chunk.iter().position(|byte| return *byte == b'\t')?;
+    let fields: Vec<&[u8]> = chunk[..tab].split(|byte| return *byte == b' ').collect();
     let [_tag, mode, object, stage] = fields.as_slice() else {
         return None;
     };
     if *stage != b"0" {
         return None;
     }
+    let _mode: &[u8] = mode;
     return Some(MarkedEntry {
-        mode: String::from_utf8_lossy(mode).into_owned(),
         object: String::from_utf8_lossy(object).into_owned(),
-        path: header[tab + 1..].to_vec(),
-        size: number_after(stat, b"size: ")?,
-        modified: modified_after(stat, b"mtime: ")?,
+        path: chunk[tab + 1..].to_vec(),
     });
 }
 
 /// What:
-///  The decimal number one debug line records after a named label.
-/// Why:
-///  `size: 2\tflags: 8000` carries the size and the flags on one line,
-///  and the number ends at the first byte that is not a digit.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function numberAfter(block: Buffer, label: Buffer): number | undefined;
-/// ```
-fn number_after(block: &[u8], label: &[u8]) -> Option<u64> {
-    let at: usize = find(block, label)? + label.len();
-    let mut end: usize = at;
-    while end < block.len() && block[end].is_ascii_digit() {
-        end += 1;
-    }
-    return std::str::from_utf8(&block[at..end]).ok()?.parse::<u64>().ok();
-}
-
-/// What:
-///  The `mtime` one debug block records as seconds and nanoseconds.
-/// Why:
-///  `mtime: 1794466647:495117187` is the pair Git's own refresh compares,
-///  and a block that carries no pair is no evidence about the entry.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function modifiedAfter(block: Buffer, label: Buffer): [number, number] | undefined;
-/// ```
-fn modified_after(block: &[u8], label: &[u8]) -> Option<(i64, i64)> {
-    let at: usize = find(block, label)? + label.len();
-    let colon: usize = at + block[at..].iter().position(|byte| return *byte == b':')?;
-    let seconds: i64 = std::str::from_utf8(&block[at..colon]).ok()?.trim().parse::<i64>().ok()?;
-    let mut end: usize = colon + 1;
-    while end < block.len() && block[end].is_ascii_digit() {
-        end += 1;
-    }
-    let nanos: i64 = std::str::from_utf8(&block[colon + 1..end]).ok()?.parse::<i64>().ok()?;
-    return Some((seconds, nanos));
-}
-
-/// What:
-///  Where one label starts inside a block,
-///  as an index.
-/// Why:
-///   A debug block is searched by the label Git prints,
-///  and one search keeps every reader of it the same.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function find(block: Buffer, label: Buffer): number | undefined;
-/// ```
-fn find(block: &[u8], label: &[u8]) -> Option<usize> {
-    if label.len() > block.len() {
-        return None;
-    }
-    return block.windows(label.len()).position(|window| return window == label);
-}
-
-/// What:
-///  Whether one marked entry's worktree copy differs from what the index records,
-///  by its stat,
-///  its mode or its bytes.
-/// Why:
-///  The stat answers for every entry nothing touched,
-///  which is the whole of a worktree that marks thousands of files,
-///  and a stat that differs costs one query that reads the bytes through the same filters
-///  the index was written with,
-///  so a `touch` of an unchanged file is no edit and a real one is.
-///  A worktree file that is gone is no edit of the person's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function differsFromTheIndex(facts, root, entry): Promise<boolean>; // throws
-/// ```
-fn differs_from_the_index(facts: &mut GitFacts, root: &Path, entry: &MarkedEntry) -> Result<bool, String> {
-    let Some(relative) = relative_path(entry.path.as_slice()) else {
-        // A name this process cannot spell is no name to read bytes from, so the stat's own answer stands.
-        return Ok(true);
-    };
-    let location: PathBuf = root.join(relative.as_path());
-    let Some(read) = crate::metadata_of_a_path_within_a_ceiling::symlink_metadata_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, location.as_path()) else {
-        // No answer is not "no edit": what the mark hides was not seen, and a form that overwrites it would lose it.
-        return Err(format!(
-            "Git could not read `{}` within {} seconds, so the guard cannot tell whether the edit the index marks assume-unchanged is still there",
-            relative.display(),
-            crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
-        ));
-    };
-    let metadata: std::fs::Metadata = match read {
-        Ok(found) => found,
-        // A file the worktree does not hold is no edit of the person's: Git writes that file back.
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        // Any other refusal says nothing about the bytes, and a guard must not read it as "no edit".
-        Err(error) => {
-            return Err(format!(
-                "Git could not read `{}`, so the guard cannot tell whether the edit the index marks assume-unchanged is still there: {error}",
-                relative.display()
-            ));
-        }
-    };
-    let modified: (i64, i64) = modified_of_metadata(&metadata);
-    let mode: &str = if is_executable(&metadata) { "100755" } else { "100644" };
-    // A symbolic link in the worktree where the index holds a file is an edit whatever its stat says.
-    if metadata.file_type().is_symlink() {
-        return Ok(true);
-    }
-    if !metadata.file_type().is_file() {
-        return Ok(true);
-    }
-    if metadata.len() == entry.size && modified == entry.modified && mode == entry.mode.as_str() {
-        return Ok(false);
-    }
-    return Ok(worktree_object(facts, root, entry)? != entry.object);
-}
-
-/// What:
-///  The object the worktree file's bytes make,
-///  read through the clean filter of the path it is at.
-///  `&Path` borrows the worktree root the file stands below.
+///  The objects the marked worktree files' bytes make,
+///  read through the clean filter of the path each stands at,
+///  in as few Git processes as the arguments allow.
+///  `&Path` borrows the worktree root the files stand below,
+///  `Option<String>` is "the object, or nothing for a name this process cannot spell".
 /// Why:
 ///  Git records the filtered object in the index,
 ///  so an unfiltered hash would differ from it for every file a filter touches.
-///  The file is named by its full path below the worktree root,
-///  because the bytes hashed are read from the filesystem by a process that stands where the
-///  wrapper stands:
-///  a root-relative name read from a subdirectory hashes `sub/a.txt` or nothing,
-///  and a hash of nothing decided whether the marked edit was still there
-///  (measured on this host with native Git 2.56.0,
-///  2026-11-14).
+///  `git hash-object` applies each file's own filter from the name it is given
+///  (measured on this host with native Git 2.56.0, 2026-11-15:
+///  `hash-object -- f.txt` and `hash-object --path=f.txt -- f.txt` print the same object,
+///  and the same file named after another rule prints another),
+///  so a batch of names run from the worktree root hashes exactly what one call per file did.
+///  A batch keeps the command's cost to a few Git processes: one per `HASH_BATCH_BYTES` of names,
+///  where one call per entry costs a start each
+///  (1,000 marked paths: 8.5 ms as one call, 1,787 ms as 1,000 calls, measured on this host,
+///  2026-11-15).
 ///  A query that failed says nothing about the bytes and is a failure.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function worktreeObject(facts, root, entry): Promise<string>; // throws
+/// function worktreeObjects(facts, root, entries): (string | undefined)[]; // throws
 /// ```
-fn worktree_object(facts: &mut GitFacts, root: &Path, entry: &MarkedEntry) -> Result<String, String> {
-    let Ok(shown) = String::from_utf8(entry.path.clone()) else {
-        // A path that is not text has no `--path` spelling, and its stat already said it changed.
-        return Ok(String::new());
-    };
-    let Some(relative) = relative_path(entry.path.as_slice()) else {
-        return Ok(String::new());
-    };
-    let mut arguments: Vec<OsString> = facts.global_prefix.clone();
-    arguments.push(OsString::from("--no-optional-locks"));
-    arguments.push(OsString::from("hash-object"));
-    arguments.push(OsString::from(format!("--path={shown}")));
-    arguments.push(OsString::from("--"));
-    arguments.push(path_argument(root.join(relative.as_path()).as_os_str().as_encoded_bytes()));
-    let output: MetadataOutput = facts.query(arguments, "the object of the worktree copy")?;
-    if !output.success {
-        return Err(failed(&output, "the object of the worktree copy"));
+fn worktree_objects(facts: &mut GitFacts, root: &Path, entries: &[MarkedEntry]) -> Result<Vec<Option<String>>, String> {
+    let mut objects: Vec<Option<String>> = vec![None; entries.len()];
+    let mut batch: Vec<usize> = Vec::<usize>::new();
+    let mut bytes: usize = 0;
+    for (index, entry) in entries.iter().enumerate() {
+        if relative_path(entry.path.as_slice()).is_none() {
+            // A name this process cannot spell has no argument, and stays `None`, which the caller reads as an edit.
+            continue;
+        }
+        bytes += entry.path.len() + 1;
+        batch.push(index);
+        if bytes >= HASH_BATCH_BYTES {
+            read_the_objects(facts, root, entries, batch.as_slice(), &mut objects)?;
+            batch.clear();
+            bytes = 0;
+        }
     }
-    return Ok(String::from_utf8_lossy(output.stdout.as_slice()).trim().to_string());
+    if !batch.is_empty() {
+        read_the_objects(facts, root, entries, batch.as_slice(), &mut objects)?;
+    }
+    return Ok(objects);
+}
+
+/// How many bytes of path names one `hash-object` call takes.
+/// Why:
+///  A batch of names is one command line, and a command line has its own limit
+///  (`MAX_ARG_STRLEN` and `ARG_MAX` on this system);
+///  a hundred thousand bytes of names leaves room for the environment and for any name's own length,
+///  and costs one Git start per batch (about 2 ms measured on this host, 2026-11-15).
+const HASH_BATCH_BYTES: usize = 100_000;
+
+/// What:
+///  Fill in the objects of one batch of marked entries,
+///  asking Git once from the worktree root.
+///  `&mut [Option<String>]` is the answer being filled, one slot per entry.
+/// Why:
+///   The names are relative to the worktree root, because the filter Git applies is chosen by the name
+///  it is given and a root-relative name matches the repository's own attribute rules;
+///  the query runs from the root for the same reason.
+///  A Git that failed, or answered a different number of objects, says nothing about the bytes, so it
+///  is a failure rather than an edit or no edit.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function readTheObjects(facts, root, entries, batch, objects): void; // throws
+/// ```
+fn read_the_objects(
+    facts: &mut GitFacts,
+    root: &Path,
+    entries: &[MarkedEntry],
+    batch: &[usize],
+    objects: &mut [Option<String>],
+) -> Result<(), String> {
+    let mut arguments: Vec<OsString> = crate::global_arguments::without_directory_changes(facts.global_prefix.as_slice());
+    for token in ["--no-optional-locks", "hash-object", "--"] {
+        arguments.push(OsString::from(token));
+    }
+    for index in batch {
+        arguments.push(path_argument(entries[*index].path.as_slice()));
+    }
+    let output: MetadataOutput = facts.query_in(root, arguments, "the objects of the worktree copies")?;
+    if !output.success {
+        return Err(failed(&output, "the objects of the worktree copies"));
+    }
+    let found: Vec<&[u8]> = output.stdout.split(|byte| return *byte == b'\n').filter(|line| return !line.is_empty()).collect();
+    if found.len() != batch.len() {
+        return Err(format!(
+            "Git answered {} objects for the {} marked paths the guard asked about, so the guard cannot tell which of them the edit the index hides is at",
+            found.len(),
+            batch.len()
+        ));
+    }
+    for (slot, object) in batch.iter().zip(found.iter()) {
+        objects[*slot] = Some(String::from_utf8_lossy(object).trim().to_string());
+    }
+    return Ok(());
 }
 
 /// What:
@@ -509,55 +486,6 @@ fn relative_path(bytes: &[u8]) -> Option<PathBuf> {
 fn relative_path(bytes: &[u8]) -> Option<PathBuf> {
     let text: String = String::from_utf8(bytes.to_vec()).ok()?;
     return Some(PathBuf::from(text));
-}
-
-/// What:
-///  The modification time of one worktree entry as seconds and nanoseconds since the epoch.
-/// Why:
-///   That pair is what the index records and what Git's own refresh compares,
-///  and a clock the system will not report is no evidence of an edit.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function modifiedOfMetadata(metadata): [number, number];
-/// ```
-fn modified_of_metadata(metadata: &std::fs::Metadata) -> (i64, i64) {
-    let since: std::time::Duration = match metadata.modified().ok().and_then(|time| return time.duration_since(std::time::UNIX_EPOCH).ok()) {
-        Some(found) => found,
-        None => std::time::Duration::ZERO,
-    };
-    return (i64::try_from(since.as_secs()).unwrap_or(i64::MAX), i64::from(since.subsec_nanos()));
-}
-
-/// What:
-///  Whether a file carries the executable bit Git records.
-/// Why:
-///   A `100755` entry and a `100644` one are different files to Git,
-///  so a chmod is an edit like any other.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isExecutable = (metadata) => (metadata.mode & 0o111) !== 0;
-/// ```
-#[cfg(unix)]
-fn is_executable(metadata: &std::fs::Metadata) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    return metadata.permissions().mode() & 0o111 != 0;
-}
-
-/// What:
-///  Whether a file carries the executable bit Git records.
-/// Why:
-///   No gate compiles this branch (the crate does not build for Windows; README, Requirements),
-///  and the answer doubles as the one the Unix branch gives an unreadable mode.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const isExecutable = (metadata) => false;
-/// ```
-#[cfg(not(unix))]
-fn is_executable(_metadata: &std::fs::Metadata) -> bool {
-    return false;
 }
 
 /// What:

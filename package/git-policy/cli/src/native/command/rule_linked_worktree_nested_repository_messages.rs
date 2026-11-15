@@ -47,6 +47,10 @@ pub struct NotSaved<'a> {
     /// The repositories the stopped save moved and could not put back,
     ///  each with the place it is.
     pub still_moved: &'a [SavedCopy],
+    /// The repositories whose move gave no answer within its ceiling,
+    ///  each with the place it may be.
+    ///  A rename that was given up on is not known to have failed, so these are named as possible places.
+    pub unanswered: &'a [SavedCopy],
 }
 
 /// What:
@@ -124,6 +128,28 @@ pub fn nested_repository_not_saved_message(not_saved: NotSaved<'_>) -> String {
             continue;
         };
         kept.push_str(format!("\n  {} => {}", copy.path, place.display()).as_str());
+    }
+    // A move that gave no answer is not known to have failed: the repository may be at its own place or below the saved
+    //  copies, and the rejection says both rather than claiming nothing changed.
+    let mut may_be: String = String::new();
+    for copy in not_saved.unanswered {
+        let place: String = match copy.saved_to.as_deref() {
+            Some(saved) => saved.display().to_string(),
+            None => not_saved.saved_root.display().to_string(),
+        };
+        may_be.push_str(format!("\n  {} may be at its own place in the worktree, or here: {}", copy.path, place).as_str());
+    }
+    if !may_be.is_empty() {
+        return format!(
+            "monochromatic-git-policy-cli: this clean would delete {what} {listed} and everything in {them}, but {them} could not \
+             all be saved first ({}: {}), so the command is rejected and the clean did not run. One or more moves gave no answer \
+             within their ceiling, so the wrapper cannot tell whether {them} moved:{may_be}{kept}\nEvery other repository is \
+             still where it was. Look where each one may be before you run the clean again, and free the space under {}, or fix \
+             its permissions, or move {them} out of the way yourself. {HATCH_ADVICE}",
+            not_saved.failure.subject,
+            not_saved.failure.reason,
+            not_saved.saved_root.display()
+        );
     }
     if !kept.is_empty() {
         return format!(

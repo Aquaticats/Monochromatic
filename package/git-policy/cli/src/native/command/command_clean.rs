@@ -195,8 +195,15 @@ pub fn parse_clean_region(
     let mut forces: usize = 0;
     let mut exclusions: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
     for occurrence in &parsed.occurrences {
-        if occurrence.id == FORCE && !occurrence.negated {
-            forces += 1;
+        if occurrence.id == FORCE {
+            // `--no-force` resets the count, which is Git's `OPTION_COUNTUP`: `clean -f -f --no-force -f` is one force.
+            //  A reading that only counted the positive spellings saw three and would save or refuse for a clean Git
+            //  runs on its own terms.
+            if occurrence.negated {
+                forces = 0;
+            } else {
+                forces += 1;
+            }
         }
         // `--exclude` is `PARSE_OPT_NONEG`, so a value is the pattern whichever spelling carried it.
         if occurrence.id == EXCLUDE

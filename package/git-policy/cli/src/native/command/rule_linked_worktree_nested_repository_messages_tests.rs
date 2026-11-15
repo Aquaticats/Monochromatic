@@ -72,6 +72,7 @@ fn the_rejection_names_one_repository_in_the_singular() {
         failure: &failure(),
         saved_root: saved_root.as_path(),
         still_moved: &[],
+        unanswered: &[],
     });
     for expected in [
         "this clean would delete the Git repository nested and everything in it",
@@ -96,6 +97,7 @@ fn the_rejection_names_many_repositories_and_counts_the_rest() {
         failure: &failure(),
         saved_root: saved_root.as_path(),
         still_moved: &[],
+        unanswered: &[],
     });
     assert!(message.contains("the Git repositories repo0, repo1"), "{message}");
     assert!(message.contains("and 2 more"), "{message}");
@@ -121,6 +123,7 @@ fn a_repository_that_could_not_be_put_back_is_named_where_it_is() {
         failure: &failure(),
         saved_root: saved_root.as_path(),
         still_moved: stayed.as_slice(),
+        unanswered: &[],
     });
     for expected in [
         "nested => /common/.git/monochromatic-git-policy-cli/discarded/2026-11-11T03-00-00/nested",

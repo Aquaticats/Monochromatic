@@ -213,3 +213,74 @@ fn another_file_system_is_refused_in_words_a_person_can_act_on() {
     assert!(failure.contains("another file system"), "{failure}");
     assert!(failure.contains("does not copy a whole repository"), "{failure}");
 }
+
+/// What:
+///  A save whose rename was given up on and then went through keeps that move:
+///  the rollback finds the late success and puts the repository back where it was,
+///  the rejection names it as possibly moved,
+///  and the sentence no longer says nothing was changed.
+/// Why:
+///  A step that was given up on is not known to have failed.
+///  The seventh review found the rejection could say `nothing was changed` and `The repository is
+///  still where it was` while the repository stood under the saved-copy directory:
+///  the move was recorded only after the bounded wait, so a rename that succeeded late was left out
+///  of the rollback and of the answer.
+///  The stall here is the code's own seam (`MoveAside`), not a mount:
+///  the rename happens, and the save is told nothing came back.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// setNestedRepositoriesAsideWaitedWith(common, root, ['nested'], now, (from, to) => { renameSync(from, to); return undefined; });
+/// // the repository is back at its own place, and the rejection says it may be at either
+/// ```
+#[test]
+fn a_rename_that_answers_after_its_ceiling_is_put_back_and_reported_as_uncertain() {
+    let root: PathBuf = crate::command_test_support::fixture("save-late-rename");
+    let worktree: PathBuf = root.join("worktree");
+    let common: PathBuf = root.join("common");
+    std::fs::create_dir_all(worktree.join("nested/.git")).expect("the repository");
+    std::fs::write(worktree.join("nested/untracked.txt"), b"the person's work\n").expect("its work");
+    std::fs::create_dir_all(common.as_path()).expect("the common directory");
+    // The move goes through for real and answers nothing, which is a rename the save gave up on.
+    let late_success = |from: &Path, to: &Path| -> Option<std::io::Result<()>> {
+        if let Some(parent) = to.parent() {
+            std::fs::create_dir_all(parent).expect("the place the copy goes");
+        }
+        std::fs::rename(from, to).expect("the rename went through");
+        return None;
+    };
+    let stopped: super::SaveStopped = super::set_nested_repositories_aside_waited_with(
+        common.as_path(),
+        worktree.as_path(),
+        &[Vec::from(b"nested".as_slice())],
+        1,
+        &late_success,
+    )
+    .expect_err("a move that answered nothing stops the save");
+    assert_eq!(stopped.unanswered.len(), 1, "the move that gave no answer is named: {:?}", stopped.unanswered);
+    assert_eq!(stopped.unanswered[0].path, "nested");
+    // The rollback found the late success: the repository is where the worktree had it again.
+    assert!(
+        worktree.join("nested/untracked.txt").exists(),
+        "a move that answered nothing and then went through is put back"
+    );
+    assert!(
+        std::fs::read_dir(common.join(super::SAVED_DIRECTORY))
+            .map(|entries| return entries.flatten().any(|each| return each.path().join("nested").exists()))
+            .unwrap_or(false)
+            == false,
+        "nothing of the repository is left below the saved copies"
+    );
+    // The sentence says what is known: the move did not answer, and the repository may be at either place.
+    let message: String = crate::rule_linked_worktree_nested_repository_messages::nested_repository_not_saved_message(
+        crate::rule_linked_worktree_nested_repository_messages::NotSaved {
+        repositories: &[Vec::from(b"nested".as_slice())],
+        failure: &stopped.failure,
+        saved_root: common.join(super::SAVED_DIRECTORY).as_path(),
+        still_moved: stopped.still_moved.as_slice(),
+        unanswered: stopped.unanswered.as_slice(),
+    });
+    assert!(message.contains("may be at its own place"), "{message}");
+    assert!(!message.contains("nothing was changed"), "a move that may have happened is not nothing: {message}");
+    crate::command_test_support::remove(root.as_path());
+}

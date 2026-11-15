@@ -391,6 +391,9 @@ pub fn dirty_question(command: GuardedCommand, region: &[OsString]) -> Option<Di
 /// const reaches = (region) => region.some((w) => spellsLong(w, 'sparse', RM_LONG_OPTIONS)) && !region.some((w) => spellsLong(w, 'cached', RM_LONG_OPTIONS));
 /// ```
 fn reaches_a_skipped_edit(region: &[OsString]) -> bool {
+    // An option written twice is the last one, negation included: `git rm --sparse --no-sparse s.txt` is a plain
+    //  removal and `git rm --no-sparse --sparse s.txt` reaches the marked edit
+    //  (measured on this host with native Git 2.56.0, 2026-11-15).
     let mut sparse: bool = false;
     let mut cached: bool = false;
     for token in region {
@@ -398,8 +401,12 @@ fn reaches_a_skipped_edit(region: &[OsString]) -> bool {
         if written == b"--" {
             break;
         }
-        sparse = sparse || crate::command_discard::spells_long(written, "sparse", crate::command_discard::RM_LONG_OPTIONS);
-        cached = cached || crate::command_discard::spells_long(written, "cached", crate::command_discard::RM_LONG_OPTIONS);
+        if let Some(state) = crate::command_discard::long_option_state(written, "sparse", crate::command_discard::RM_LONG_OPTIONS) {
+            sparse = state;
+        }
+        if let Some(state) = crate::command_discard::long_option_state(written, "cached", crate::command_discard::RM_LONG_OPTIONS) {
+            cached = state;
+        }
     }
     return sparse && !cached;
 }

@@ -335,6 +335,64 @@ pub(crate) fn spells_long(token: &[u8], wanted: &str, siblings: &[&str]) -> bool
 }
 
 /// What:
+///  The state one token gives a boolean long option,
+///  negation included,
+///  or nothing when the token is not that option.
+///  `Option<bool>` is "on, off, or not this option".
+/// Why:
+///  Git accepts `--no-<name>` for every boolean option that is not `PARSE_OPT_NONEG`,
+///  and an option written twice is the last one:
+///  `git rm -f --no-force` is an unforced removal and `git rm --no-force -f` a forced one
+///  (`OPT__FORCE` is `OPTION_COUNTUP`, whose negation resets the count; measured on this host with
+///  native Git 2.56.0,
+///  2026-11-15).
+///  A scan that stopped at the first `-f` read the second spelling as forced,
+///  which refuses a whole class of commands Git runs.
+///  `wanted` is the option's own name and `siblings` the command's other long names,
+///  because Git accepts a prefix only while no sibling starts the same way.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const state = (token, 'force', RM_LONG_OPTIONS); // true | false | undefined
+/// ```
+pub(crate) fn long_option_state(token: &[u8], wanted: &str, siblings: &[&str]) -> Option<bool> {
+    if !token.starts_with(b"--") {
+        return None;
+    }
+    let written: &[u8] = token.split(is_equals).next().unwrap_or_default();
+    let name: &[u8] = &written[b"--".len()..];
+    if name == wanted.as_bytes() {
+        return Some(true);
+    }
+    // `--no-<name>`: Git reads it as the same option turned off, and the negation must not be an
+    //  ambiguous prefix of anything else the command has.
+    if let Some(negated) = name.strip_prefix(b"no-")
+        && !negated.is_empty()
+    {
+        let mut matched: Vec<&str> = Vec::<&str>::new();
+        for sibling in siblings {
+            if sibling.as_bytes().starts_with(negated) {
+                matched.push(sibling);
+            }
+        }
+        if matched.len() == 1 && matched[0] == wanted {
+            return Some(false);
+        }
+        return None;
+    }
+    let mut matched: Vec<&str> = Vec::<&str>::new();
+    for sibling in siblings {
+        if sibling.as_bytes().starts_with(name) {
+            matched.push(sibling);
+        }
+    }
+    if matched.len() == 1 && matched[0] == wanted {
+        return Some(true);
+    }
+    return None;
+}
+
+/// What:
 ///  Whether a token is a cluster of short flags that contains `letter`.
 /// Why:
 ///   `-rf` and `-fr` are `-r -f` in every command read by a flag scan,
@@ -449,10 +507,20 @@ pub fn force_discard(word: &[u8], region: &[OsString]) -> Discard {
         b"worktree" => WORKTREE_REMOVE_LONG_OPTIONS,
         _ => RM_LONG_OPTIONS,
     };
+    // An option written twice is the last one, and `--no-force` turns it off (`OPTION_COUNTUP`):
+    //  a scan that stopped at the first `-f` read `git rm -f --no-force` as forced.
+    let mut forced: bool = false;
     for token in options_of(region) {
-        if has_short(token, b'f') || spells_long(token, "force", siblings) {
-            return Discard::Overwrites;
+        if has_short(token, b'f') {
+            forced = true;
+            continue;
         }
+        if let Some(state) = long_option_state(token, "force", siblings) {
+            forced = state;
+        }
+    }
+    if forced {
+        return Discard::Overwrites;
     }
     return Discard::Harmless;
 }

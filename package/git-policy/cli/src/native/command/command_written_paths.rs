@@ -388,6 +388,7 @@ fn move_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
 fn checkout_index_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
     let names: &[&str] = crate::command_discard::CHECKOUT_INDEX_LONG_OPTIONS;
     let mut all: bool = false;
+    let mut stdin: bool = false;
     let mut prefix: Option<OsString> = None;
     let mut pathspecs: Vec<OsString> = Vec::<OsString>::new();
     let mut at: usize = 0;
@@ -404,8 +405,12 @@ fn checkout_index_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
             }
             continue;
         }
-        if spells_long(written, "all", names) {
-            all = true;
+        if let Some(state) = crate::command_discard::long_option_state(written, "all", names) {
+            all = state;
+            continue;
+        }
+        if let Some(state) = crate::command_discard::long_option_state(written, "stdin", names) {
+            stdin = state;
             continue;
         }
         if spells_long(written, "prefix", names) {
@@ -439,6 +444,13 @@ fn checkout_index_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
             continue;
         }
         pathspecs.push(region[at - 1].clone());
+    }
+    // A form with neither `--all` nor a path has nothing to write: Git refuses it
+    //  (`fatal: git checkout-index: nothing specified`), so the guard reads no write rather than the whole index.
+    //  `--stdin` is the exception: Git reads its paths from the input, which the guard cannot read, so that form is
+    //  judged over every path of the index (SPEC.md, the limits of this reading).
+    if !all && pathspecs.is_empty() && !stdin {
+        return None;
     }
     let named: Vec<OsString> = if all { Vec::<OsString>::new() } else { pathspecs };
     return Some(match prefix {
@@ -577,20 +589,19 @@ fn checkout_written_paths(region: &[OsString]) -> Option<WrittenPaths> {
 /// const guesses = (region) => !region.some((word) => spellsLong(word, 'no-guess'));
 /// ```
 fn guess_is_not_switched_off(region: &[OsString]) -> bool {
+    // Git obeys the last of the two, so `--no-guess --guess` guesses and `--guess --no-guess` does not.
+    //  `--` ends the options, and everything after it is a path.
+    let mut guess: bool = true;
     for token in region {
         let written: &[u8] = token.as_encoded_bytes();
         if written == b"--" {
-            return true;
+            break;
         }
-        let Some(name) = written.strip_prefix(b"--") else {
-            continue;
-        };
-        if b"guess".starts_with(name) || b"no-guess".starts_with(name) && name.len() > b"no-".len() {
-            // `--guess` (any prefix) leaves the guess on; `--no-guess` (any prefix past `--no-`) turns it off.
-            return !name.starts_with(b"no-");
+        if let Some(state) = crate::command_discard::long_option_state(written, "guess", &["guess"]) {
+            guess = state;
         }
     }
-    return true;
+    return guess;
 }
 
 /// What:
@@ -800,8 +811,8 @@ fn pathspec_file(region: &[OsString]) -> Option<(OsString, bool)> {
         if written == b"--" {
             break;
         }
-        if spells_long(written, "pathspec-file-nul", &names) {
-            nul_separated = true;
+        if let Some(state) = crate::command_discard::long_option_state(written, "pathspec-file-nul", &names) {
+            nul_separated = state;
             continue;
         }
         if !spells_long(written, "pathspec-from-file", &names) {
@@ -884,3 +895,8 @@ fn first_positional(region: &[OsString], table: &[crate::command_options::Option
 #[cfg(test)]
 #[path = "command_written_paths_tests.rs"]
 mod tests;
+
+/// Every option a written-path reading consults, checked against real Git when it is given twice.
+#[cfg(test)]
+#[path = "command_repeated_options_tests.rs"]
+mod repeated_options_tests;

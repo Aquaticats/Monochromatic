@@ -216,47 +216,154 @@ fn keep_the_nested_repositories_a_clean_would_delete(
         Ok(found) => found,
         Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
     };
-    let Some(as_typed) = clean_dry_run_arguments(prefix.as_slice(), region, run_in.as_path()) else {
-        return NestedRepositories::Nothing;
-    };
-    let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(as_typed) {
-        Ok(answer) => answer,
-        // What the clean would delete was not read, so a repository it would delete was not seen; a nonzero exit is
-        //  no proof that the later clean refuses, and running on it deleted a repository no copy held.
-        Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
-    };
     // The names are printed relative to the directory the dry run started in, which is not the caller's own directory
     //  when Git runs the clean inside a `!` alias's shell, so that directory's own prefix is the one read here.
     let command_prefix: Vec<u8> = crate::command_run_directory::run_directory_prefix(root, run_in.as_path(), location.prefix.as_slice());
-    let repositories: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root, command_prefix.as_slice()) {
-        Ok(found) => found,
-        Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
-    };
-    if repositories.is_empty() {
-        return NestedRepositories::Nothing;
-    }
-    let milliseconds: i64 = now_milliseconds();
-    match set_nested_repositories_aside(common_dir, root, repositories.as_slice(), milliseconds) {
-        Ok(copies) => {
+    // What the clean deletes is asked again after every save, and a repository that appeared in between is saved too:
+    //  the clean runs after the saves, so a selection made once would let a repository made in that window be deleted
+    //  with the folder.
+    //  A bounded number of looks keeps a repository made in a loop from holding the command: after the last one the
+    //  clean is refused and everything already moved is put back.
+    let mut saved: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
+    let mut copies: Vec<SavedCopy> = Vec::<SavedCopy>::new();
+    // Every move this reading made, byte-exact, so a refusal can put each one back where it was.
+    let mut moves: Vec<(Vec<u8>, PathBuf, SavedCopy)> = Vec::<(Vec<u8>, PathBuf, SavedCopy)>::new();
+    for _look in 1..=LOOKS_BEFORE_REFUSING {
+        let Some(as_typed) = clean_dry_run_arguments(prefix.as_slice(), region, run_in.as_path()) else {
+            return NestedRepositories::Nothing;
+        };
+        let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(as_typed) {
+            Ok(answer) => answer,
+            // What the clean would delete was not read, so a repository it would delete was not seen; a nonzero exit
+            //  is no proof that the later clean refuses, and running on it deleted a repository no copy held.
+            Err(message) => return refuse_after_a_failed_look(root, moves.as_slice(), message),
+        };
+        let found: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root, command_prefix.as_slice()) {
+            Ok(found) => found,
+            Err(message) => return refuse_after_a_failed_look(root, moves.as_slice(), message),
+        };
+        // A repository this reading already moved aside is gone from the walk, and one it names now is new.
+        let appearing: Vec<Vec<u8>> = found.into_iter().filter(|path| return !saved.contains(path)).collect();
+        if appearing.is_empty() {
+            if copies.is_empty() {
+                return NestedRepositories::Nothing;
+            }
+            let milliseconds: i64 = now_milliseconds();
             let unpruned: String = prune_after_save(common_dir, copies.as_slice(), milliseconds, discarded_limits);
             return NestedRepositories::Saved {
                 notice: format!("{}{unpruned}", saved_nested_repository_notice(copies.as_slice())),
                 copies,
             };
         }
-        Err(stopped) => {
-            let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
-            return NestedRepositories::Refused {
-                message: nested_repository_not_saved_message(NotSaved {
-                    repositories: repositories.as_slice(),
+        // Every look keeps its own folder of saved copies, so a repository saved in one look and one saved in the next
+        //  are both named with the place each is.
+        match set_nested_repositories_aside(common_dir, root, appearing.as_slice(), now_milliseconds()) {
+            Ok(more) => {
+                for (index, each) in more.iter().enumerate() {
+                    if let Some(place) = each.saved_to.clone() {
+                        let path: Vec<u8> = appearing.get(index).cloned().unwrap_or_default();
+                        moves.push((path, place, each.clone()));
+                    }
+                }
+                saved.extend(appearing);
+                copies.extend(more);
+            }
+            Err(stopped) => {
+                let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
+                let message: String = nested_repository_not_saved_message(NotSaved {
+                    repositories: appearing.as_slice(),
                     failure: &stopped.failure,
                     saved_root: saved_root.as_path(),
                     still_moved: stopped.still_moved.as_slice(),
-                }),
-                copies: stopped.still_moved,
-            };
+                    unanswered: stopped.unanswered.as_slice(),
+                });
+                // The looks before this one moved repositories aside, and a refused clean must leave the worktree as
+                //  it found it: those copies go back too.
+                let mut not_returned: Vec<SavedCopy> = put_every_move_back(root, moves.as_slice());
+                not_returned.extend(stopped.still_moved);
+                return NestedRepositories::Refused {
+                    message: if not_returned.is_empty() {
+                        message
+                    } else {
+                        format!("{message}\nSome repositories could not be put back and are kept under {}.", saved_root.display())
+                    },
+                    copies: not_returned,
+                };
+            }
         }
     }
+    // A repository kept appearing after every look: nothing here may delete what was not looked at, so the clean stops
+    //  and every move this reading made is put back.
+    let not_returned: Vec<SavedCopy> = put_every_move_back(root, moves.as_slice());
+    let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
+    return NestedRepositories::Refused {
+        message: format!(
+            "monochromatic-git-policy-cli: this clean would delete Git repositories, and a repository appeared in the paths \
+             it deletes after every one of the {LOOKS_BEFORE_REFUSING} looks, so the command is rejected and the clean did not \
+             run. Every repository this reading had already moved aside was put back where it was{}. Run the clean again \
+             when nothing else is writing there. If you have decided to delete that repository on purpose, pass \
+             --no-enforce-worktree directly after `clean` (for example `git clean --no-enforce-worktree -f -f -d -X`).",
+            if not_returned.is_empty() {
+                String::new()
+            } else {
+                format!(", except {} kept under {}", not_returned.len(), saved_root.display())
+            }
+        ),
+        copies: not_returned,
+    };
+}
+
+/// How many looks at what the clean deletes are taken before the clean is refused.
+/// Why:
+///  Every look saves what it finds, so a repository made while the save runs is saved by the next one;
+///  a repository made in a loop, or a program writing into the ignored folder all the time, would otherwise hold the
+///  command with no end, which the owner's rule forbids.
+///  Three looks leave room for one more repository to appear while a large repository is renamed aside.
+const LOOKS_BEFORE_REFUSING: usize = 3;
+
+/// What:
+///  Refuse the clean after a look failed or a save stopped, and put back every move earlier looks made.
+///  `&Path` borrows the worktree root, `&[SavedCopy]` and the moves the copies of those looks.
+/// Why:
+///  A refused clean must leave the worktree as it found it;
+///  a copy that cannot be put back is named by the rejection, because nothing else would.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function refuseAfterAFailedLook(root, copies, moves, message): NestedRepositories;
+/// ```
+fn refuse_after_a_failed_look(
+    root: &Path,
+    moves: &[(Vec<u8>, PathBuf, SavedCopy)],
+    message: String,
+) -> NestedRepositories {
+    let not_returned: Vec<SavedCopy> = put_every_move_back(root, moves);
+    return NestedRepositories::Refused { message, copies: not_returned };
+}
+
+/// What:
+///  Put every move this reading made back where the worktree had it,
+///  and answer with the ones that could not be returned.
+/// Why:
+///  A refused clean must leave the worktree as it found it,
+///  and a copy whose return gave no answer may be at either place, so the rejection names it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function putEveryMoveBack(root, moves): SavedCopy[];
+/// ```
+fn put_every_move_back(root: &Path, moves: &[(Vec<u8>, PathBuf, SavedCopy)]) -> Vec<SavedCopy> {
+    let mut not_returned: Vec<SavedCopy> = Vec::<SavedCopy>::new();
+    for (path, destination, copy) in moves.iter().rev() {
+        let source: PathBuf = root.join(crate::path_bytes::os_from_path_bytes(path));
+        if matches!(
+            crate::discarded_nested_repository::move_back_within_a_ceiling(source.as_path(), destination.as_path()),
+            crate::discarded_nested_repository::Back::NotAnswered
+        ) {
+            not_returned.push(copy.clone());
+        }
+    }
+    return not_returned;
 }
 
 /// What:
@@ -421,3 +528,8 @@ fn refuse_a_stopped_save(
     }
     return rejected(LINKED_WORKTREE_REQUIRED_CODE, message.to_string());
 }
+
+/// The two looks of a clean, and what a repository made between them meets.
+#[cfg(test)]
+#[path = "policy_linked_worktree_nested_repositories_tests.rs"]
+mod tests;

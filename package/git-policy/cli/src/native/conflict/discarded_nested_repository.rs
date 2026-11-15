@@ -65,6 +65,69 @@ pub fn set_nested_repositories_aside(
     repositories: &[Vec<u8>],
     milliseconds: i64,
 ) -> Result<Vec<SavedCopy>, SaveStopped> {
+    return set_nested_repositories_aside_waited_with(
+        common_dir,
+        worktree_root,
+        repositories,
+        milliseconds,
+        &move_a_repository_within_a_ceiling,
+    );
+}
+
+/// What:
+///  One move of a repository into the saved copies, as the save waits for it:
+///  the two places, and either the rename's own answer or nothing when the ceiling passed first.
+///  `Option<std::io::Result<()>>` is "the answer, or none".
+/// Why:
+///  The move runs on a thread the save waits for only until the ceiling,
+///  and a control cannot hold a real rename past that ceiling;
+///  this is the seam it replaces,
+///  so the control proves what the save does with a rename that gave no answer and then went
+///  through.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type MoveAside = (from: string, to: string) => io.Result | undefined;
+/// ```
+pub type MoveAside = dyn Fn(&Path, &Path) -> Option<std::io::Result<()>>;
+
+/// What:
+///  The production move: a rename on a thread the save waits for only until the worktree lookup
+///  ceiling.
+/// Why:
+///  A rename on a mount whose server stopped answering waits in the kernel with no end.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const moveWithinACeiling = (from, to) => workWithin(WORKTREE_LOOKUP_CEILING, () => renameSync(from, to));
+/// ```
+fn move_a_repository_within_a_ceiling(from: &Path, to: &Path) -> Option<std::io::Result<()>> {
+    let source: PathBuf = from.to_path_buf();
+    let destination: PathBuf = to.to_path_buf();
+    return crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, move || {
+        return std::fs::rename(source.as_path(), destination.as_path());
+    });
+}
+
+/// What:
+///  The same save with the move given, so a control can make one give no answer and then go through.
+///  `&MoveAside` is the move to use for every repository.
+/// Why:
+///  The seventh review's finding is about a rename that was given up on and then completed:
+///  the save must keep that move, the rollback must find the late success, and the rejection must say
+///  the repository may be at either place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// setNestedRepositoriesAsideWaitedWith(commonDir, root, repositories, now, aMoveThatAnswersNothingAndThenMoves)
+/// ```
+pub(crate) fn set_nested_repositories_aside_waited_with(
+    common_dir: &Path,
+    worktree_root: &Path,
+    repositories: &[Vec<u8>],
+    milliseconds: i64,
+    move_aside: &MoveAside,
+) -> Result<Vec<SavedCopy>, SaveStopped> {
     // Creating the folder of saved copies is a storage step of its own, and a mount whose server stopped answering
     //  makes a `mkdir` wait in the kernel with no end, so it runs on a thread this save waits for only to the ceiling.
     let common: PathBuf = common_dir.to_path_buf();
@@ -73,7 +136,7 @@ pub fn set_nested_repositories_aside(
     }) {
         Some(Ok(created)) => created,
         Some(Err(error)) => {
-            return Err(SaveStopped { failure: SaveFailure::io(common_dir.display().to_string(), error.to_string()), still_moved: Vec::<SavedCopy>::new() })
+            return Err(SaveStopped { failure: SaveFailure::io(common_dir.display().to_string(), error.to_string()), still_moved: Vec::<SavedCopy>::new(), unanswered: Vec::<SavedCopy>::new() })
         }
         // No answer is not a failed creation: the folder may exist now, so the save stops and names the place.
         None => {
@@ -86,6 +149,7 @@ pub fn set_nested_repositories_aside(
                     ),
                 ),
                 still_moved: Vec::<SavedCopy>::new(),
+                unanswered: Vec::<SavedCopy>::new(),
             })
         }
     };
@@ -129,21 +193,28 @@ pub fn set_nested_repositories_aside(
         written.insert(parent.to_path_buf());
         // A rename or a sync on a mount whose server stopped answering waits in the kernel with no end,
         //  so each runs on a thread this process waits for only until the read ceiling.
-        let Some(moved_here) = crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, {
-            let from: PathBuf = source.clone();
-            let to: PathBuf = destination.clone();
-            move || return std::fs::rename(from.as_path(), to.as_path())
-        }) else {
-            return Err(stopped(
-                SaveFailure::io(
+        let attempted: Moved = Moved {
+            source: source.clone(),
+            destination: destination.clone(),
+            copy: SavedCopy { path: shown.clone(), saved_to: Some(destination.clone()) },
+        };
+        let Some(moved_here) = move_aside(source.as_path(), destination.as_path()) else {
+            // No answer is not a failure: the rename may have gone through after the wait gave up on it, so the move
+            //  is kept and the put-back returns a late success. The rejection says the move did not answer and where
+            //  the repository may be.
+            let mut maybe_moved: Vec<Moved> = moved.clone();
+            maybe_moved.push(attempted);
+            return Err(SaveStopped {
+                failure: SaveFailure::io(
                     shown,
                     format!(
                         "moving it into the saved copies gave no answer within {} seconds, so the wrapper cannot tell whether it moved: it is at its own place in the worktree, or below the saved copies",
                         crate::wait_ceilings::WORKTREE_LOOKUP_CEILING.as_secs()
                     ),
                 ),
-                moved.as_slice(),
-            ));
+                still_moved: put_back(maybe_moved.as_slice()),
+                unanswered: vec![maybe_moved.last().expect("the move just added").copy.clone()],
+            });
         };
         if let Err(error) = moved_here {
             return Err(stopped(SaveFailure::io(shown, describe_rename_failure(error)), moved.as_slice()));
@@ -195,6 +266,10 @@ pub struct SaveStopped {
     /// The repositories a put-back could not return,
     ///  each with the place it is.
     pub still_moved: Vec<SavedCopy>,
+    /// The repositories whose move gave no answer within its ceiling,
+    ///  each with the place it may be:
+    ///  a rename that was given up on is not known to have failed.
+    pub unanswered: Vec<SavedCopy>,
 }
 
 /// What:
@@ -209,6 +284,7 @@ pub struct SaveStopped {
 /// ```ts
 /// type Moved = { source: string; destination: string; copy: SavedCopy };
 /// ```
+#[derive(Clone)]
 struct Moved {
     /// Where the repository was below the worktree.
     source: PathBuf,
@@ -232,7 +308,61 @@ struct Moved {
 /// const stopped = (failure, moved) => ({ failure, stillMoved: putBack(moved) });
 /// ```
 fn stopped(failure: SaveFailure, moved: &[Moved]) -> SaveStopped {
-    return SaveStopped { failure, still_moved: put_back(moved) };
+    return SaveStopped {
+        failure,
+        still_moved: put_back(moved),
+        unanswered: Vec::<SavedCopy>::new(),
+    };
+}
+
+/// What:
+///  What came of putting one saved repository back.
+///  An `enum` is a closed set of named alternatives.
+/// Why:
+///  Three answers mean three different things for the person:
+///  the repository is back where it was,
+///  it never left (a destination that is not there is a rename that never happened),
+///  or the return gave no answer and it may be at either place.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type Back = 'returned' | 'never-moved' | 'not-answered';
+/// ```
+pub enum Back {
+    /// The repository is where the worktree had it.
+    Returned,
+    /// Nothing stood below the saved copies, so the move never happened.
+    NeverMoved,
+    /// The return gave no answer within its ceiling.
+    NotAnswered,
+}
+
+/// What:
+///  One saved repository returned to the place the worktree had it,
+///  for no longer than the worktree lookup ceiling.
+///  `&Path` borrows the place the worktree had it and the place the copy is.
+/// Why:
+///  A rename on a mount whose server stopped answering waits in the kernel with no end,
+///  so every return runs on a thread this process waits for only until the ceiling.
+///  A destination that is not there is a move that never happened rather than a failure,
+///  which is what a rename given up on and then completed elsewhere leaves.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function moveBackWithinACeiling('/w/nested', '/r/.git/.../discarded/<stamp>/nested'): Back;
+/// ```
+pub fn move_back_within_a_ceiling(source: &Path, destination: &Path) -> Back {
+    let to: PathBuf = source.to_path_buf();
+    let from: PathBuf = destination.to_path_buf();
+    let returned: Option<std::io::Result<()>> =
+        crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, move || {
+            return std::fs::rename(from.as_path(), to.as_path());
+        });
+    return match returned {
+        Some(Ok(())) => Back::Returned,
+        Some(Err(error)) if error.kind() == std::io::ErrorKind::NotFound => Back::NeverMoved,
+        Some(Err(_)) | None => Back::NotAnswered,
+    };
 }
 
 /// What:
@@ -258,15 +388,10 @@ fn stopped(failure: SaveFailure, moved: &[Moved]) -> SaveStopped {
 fn put_back(moved: &[Moved]) -> Vec<SavedCopy> {
     let mut still: Vec<SavedCopy> = Vec::<SavedCopy>::new();
     for each in moved.iter().rev() {
-        let moved_back: Option<std::io::Result<()>> =
-            crate::work_awaited_within_a_ceiling::work_within(crate::wait_ceilings::WORKTREE_LOOKUP_CEILING, {
-                let from: PathBuf = each.destination.clone();
-                let to: PathBuf = each.source.clone();
-                move || return std::fs::rename(from.as_path(), to.as_path())
-            });
-        // A move that failed, and a move that gave no answer at the ceiling, both leave the repository
-        //  below the saved copies, where the rejection names it.
-        if !matches!(moved_back, Some(Ok(()))) {
+        // A move that gave no answer may still have gone through, so the put-back tries every move it kept.
+        //  A destination that is not there is a move that never happened: the repository is where it was, and
+        //  nothing is kept below the saved copies for it.
+        if matches!(move_back_within_a_ceiling(each.source.as_path(), each.destination.as_path()), Back::NotAnswered) {
             still.push(each.copy.clone());
         }
     }
