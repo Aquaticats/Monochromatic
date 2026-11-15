@@ -35,7 +35,7 @@ use crate::commit_build_part_durations::{BuildPartClock, note_build_part};
 use crate::commit_transaction::TransactionStop;
 use crate::global_arguments::global_layout;
 use crate::shadow_create::take_or_create_shadow;
-use crate::transaction_git::{GitContext, GitRequest, run_git_checked};
+use crate::transaction_git::GitContext;
 use crate::transaction_journal::TransactionMode;
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -257,7 +257,7 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
     //       (`SPEC.md`, "Merges and commits never fail";
     //       the bound's reason is `THE_CAPTURE_IS_TAKEN_AGAIN_AT_MOST`).
     let mut asked_for: AskedForCommit;
-    let mut kept_index: Vec<u8> = Vec::new();
+    let kept_index: Vec<u8>;
     let mut capture_taken: usize = 0;
     loop {
         capture_taken += 1;
@@ -508,24 +508,6 @@ pub enum Asked<T> {
 /// value.known(); value.leftOutBecause(); value.couldNotTell()
 /// ```
 impl<T> Asked<T> {
-    /// The value the captures name,
-    /// or nothing when they name none.
-    fn known(&self) -> Option<&T> {
-        return match self {
-            Asked::Known(found) => Some(found),
-            Asked::LeftOut(_) | Asked::CouldNotTell(_) => None,
-        };
-    }
-
-    /// The form that leaves this value out,
-    /// or nothing when some answer was taken.
-    fn left_out_because(&self) -> Option<&'static str> {
-        return match self {
-            Asked::LeftOut(form) => Some(form),
-            Asked::Known(_) | Asked::CouldNotTell(_) => None,
-        };
-    }
-
     /// Why the captures could not say,
     /// or nothing when they did.
     fn could_not_tell(&self) -> Option<&str> {

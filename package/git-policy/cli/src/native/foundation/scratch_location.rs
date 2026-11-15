@@ -323,12 +323,12 @@ pub fn prepare_commit_scratch(
         //       A volume that cannot answer leaves the tree to its modification time, as every tree was kept before the claim existed.
         match crate::tree_held_by_a_live_process::claim_a_made_tree(tree) {
             Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed)) => {
-                let (tree, claim): (PathBuf, crate::tree_held_by_a_live_process::HeldTree) = claimed.into_parts();
-                return Ok((tree, Some(claim)));
+                let (made, claim): (PathBuf, crate::tree_held_by_a_live_process::HeldTree) = claimed.into_parts();
+                return Ok((made, Some(claim)));
             }
-            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(tree)) => {
-                debug(TAG, format!("whether {} is held cannot be asked of the volume, so this commit's tree is kept by its modification time", tree.display()).as_str());
-                return Ok((tree, None));
+            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(unanswered)) => {
+                debug(TAG, format!("whether {} is held cannot be asked of the volume, so this commit's tree is kept by its modification time", unanswered.display()).as_str());
+                return Ok((unanswered, None));
             }
             // The sweep took this tree first: it is going, and this attempt makes another rather than build in a tree a removal is emptying.
             Err(crate::tree_held_by_a_live_process::TreeIsGoing) => {

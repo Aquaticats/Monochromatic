@@ -475,16 +475,16 @@ impl HandedShadow {
             Err(crate::tree_held_by_a_live_process::TreeIsGoing) => return None,
             Ok(claimed) => claimed,
         };
-        let (path, held): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = match claim {
+        let (where_it_is, held): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = match claim {
             // A volume that cannot say whether the tree is held leaves it to its mark, as every holder did before the claim.
             crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(tree) => (tree, None),
             crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed) => {
-                let (tree, claim) = claimed.into_parts();
-                (tree, Some(claim))
+                let (where_it_is, its_claim) = claimed.into_parts();
+                (where_it_is, Some(its_claim))
             }
         };
-        let renewal: ScratchRenewal = ScratchRenewal::start_holding(path.as_path(), every, held);
-        return Some(Self { path, _renewal: renewal, the_service_removes_it: false });
+        let renewal: ScratchRenewal = ScratchRenewal::start_holding(where_it_is.as_path(), every, held);
+        return Some(Self { path: where_it_is, _renewal: renewal, the_service_removes_it: false });
     }
 
     /// Where the tree is.

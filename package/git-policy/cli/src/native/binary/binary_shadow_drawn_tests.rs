@@ -772,7 +772,7 @@ fn one_loss(name: &str, phase: &str, entry: &str) -> LossRow {
     let present: Vec<String> = std::fs::read_dir(scratch.as_path())
         .expect("the scratch tree")
         .flatten()
-        .map(|entry| { return entry.file_name().to_string_lossy().into_owned(); })
+        .map(|listed| { return listed.file_name().to_string_lossy().into_owned(); })
         .collect();
     println!("reached={phase}:{entry} entries={present:?}");
     let removed: std::io::Result<()> = match std::fs::symlink_metadata(target.as_path()) {
@@ -1053,7 +1053,7 @@ fn one_lost_at(name: &str, phase: &str, entry: &str) -> PropertyRow {
     };
     std::fs::write(markers.join(format!("{phase}-1.release")), b"").expect("release the held commit");
     let seen: Observed = waiting.join().expect("the commit");
-    assert!(removed.is_ok(), "the row {row} takes its entry away: {removed:?}", row = format!("{phase}:{entry}"));
+    assert!(removed.is_ok(), "the row {}:{} takes its entry away: {removed:?}", phase, entry);
     let moved: Option<String> = match seen.code {
         Some(0) => Some(super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-parse", "HEAD"])),
         _other => None,

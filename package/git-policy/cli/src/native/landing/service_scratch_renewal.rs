@@ -95,10 +95,10 @@ impl ScratchRenewal {
             // A tree a sweep is taking is no tree to renew: nothing can keep one alive that is on its way out.
             Err(crate::tree_held_by_a_live_process::TreeIsGoing) => return None,
             // A volume that cannot answer leaves the mark alone, as every holder did before the claim existed.
-            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(tree)) => (tree, None),
+            Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::TheVolumeCannotSay(unanswered)) => (unanswered, None),
             Ok(crate::tree_held_by_a_live_process::ClaimOnAMadeTree::Claimed(claimed)) => {
-                let (tree, claim) = claimed.into_parts();
-                (tree, Some(claim))
+                let (made, claim) = claimed.into_parts();
+                (made, Some(claim))
             }
         };
         return Some((path.clone(), Self::start_holding(path.as_path(), every, held)));
