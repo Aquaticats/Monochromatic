@@ -32,10 +32,13 @@
 //!   count, bytes, newest write inside, root write time).
 //!   Every pass puts such a tree back under its version's name; what the record says decides only whether it goes back
 //!   as the finished copy it was, or as a copy nothing may take for finished.
-//! - a deletion name (`<root>/<tool>/.mpm-shadow-deleting.<version>`):
+//! - a deletion name (`<root>/<tool>/.mpm-shadow-deleting.<version>`, and `.mpm-shadow-deleting..mpm-shadow-removing.
+//!   <version>` for a tree whose deletion began from its removal name, which is how every removal this module deletes
+//!   ends):
 //!   a version whose deletion has begun, and which is finished, never restored.
 //!   Only the deletion step writes this name, and it writes it before unlinking the first file, so whatever stands
 //!   under it is condemned and may be partly gone.
+//!   The record beside it names the version, so the pass finds it from either name.
 //! - a downloads removal name and a downloads deletion name, for the archives, under `downloads/<tool>/`.
 //! - a download in progress (`downloads/<tool>/<version>/<file>.download` and the file beside it):
 //!   written by an install, never by this module.
@@ -170,7 +173,8 @@ use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_re
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
     JudgedTree, RemovalMarker, TreeFacts, VersionDirectory, deleting_of, downloads_of, inode_of,
-    install_directory_name, judged_of_tree, leftover_downloads, read_judged, record_of, removal_markers, tombstone_of,
+    install_directory_name, judged_of_tree, leftover_downloads, read_judged, record_of, record_of_marker,
+    removal_markers, tombstone_of,
     tree_facts, version_directories, write_judged,
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
@@ -1584,7 +1588,12 @@ pub fn finish_removals(run: &TrimRun) -> FinishOutcome {
         if marker.version_deleting {
             match delete_tree_within(&marker.version_marker, run.deadline()) {
                 None => {
-                    let _ = fs::remove_file(record_of(&marker.version_directory));
+                    // What: the record names the version, so it is found from either removal name.
+                    // Why: a deletion name is built from the removal name, and a record left behind is what a later
+                    // removal of the same version would be read through.
+                    if let Some(record) = record_of_marker(&marker.version_marker) {
+                        let _ = fs::remove_file(record);
+                    }
                     outcome.lines.push(format!(
                         "mpm-shadow: removed {} and finished a deletion an earlier run started",
                         marker.version_directory.display()

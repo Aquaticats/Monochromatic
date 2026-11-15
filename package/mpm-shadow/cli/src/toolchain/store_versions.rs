@@ -509,6 +509,35 @@ pub fn record_of(version_directory: &Path) -> PathBuf {
     return facts_of(&tombstone_of(version_directory));
 }
 
+/// The version name a tree under a removal name or a deletion name carries,
+/// or `None` when the name carries none of the two prefixes.
+/// Why:
+/// A deletion name is built from the name the tree stood under, so a tree whose deletion began from its removal name
+/// carries both prefixes, and the record beside it names the version, not the name the tree has now.
+pub fn version_name_of_marker(marker: &Path) -> Option<String> {
+    let mut name: String = file_name_text(marker);
+    let mut carried: Option<String> = None;
+    loop {
+        if let Some(version) = name.strip_prefix(TOMBSTONE_PREFIX) {
+            carried = Some(version.to_string());
+            name = version.to_string();
+            continue;
+        }
+        if let Some(version) = name.strip_prefix(DELETING_PREFIX) {
+            carried = Some(version.to_string());
+            name = version.to_string();
+            continue;
+        }
+        return carried;
+    }
+}
+
+/// The record beside the removal name of the version a tree under either removal name belongs to.
+pub fn record_of_marker(marker: &Path) -> Option<PathBuf> {
+    let version: String = version_name_of_marker(marker)?;
+    return Some(marker.with_file_name(format!("{TOMBSTONE_PREFIX}{version}{FACTS_SUFFIX}")));
+}
+
 /// The name a version directory is moved to when its deletion begins.
 pub fn deleting_of(directory: &Path) -> PathBuf {
     let name: String = file_name_text(directory);

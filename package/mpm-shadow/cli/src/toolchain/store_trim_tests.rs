@@ -1221,7 +1221,15 @@ fn never_puts_a_partly_deleted_tombstone_back_as_a_version() {
     let fixture = Fixture::new();
     // A version the fixture does not hold, so "the version's name is free" is the fixture's own state too.
     let version: PathBuf = fixture.root.join("node/20.0.0");
-    let deleting: PathBuf = crate::toolchain::store_versions::deleting_of(&version);
+    // The name a removal's deletion leaves: built from the removal name, which is what every removal this module
+    // deletes writes.
+    let deleting: PathBuf = crate::toolchain::store_versions::deleting_of(&tombstone_of(&version));
+    // The record of the removal a later pass must find from this name.
+    make_finished_copy(&version, b"a whole copy before the removal began");
+    let judged = judged_of_tree(&version, Instant::now() + Duration::from_secs(60)).expect("judge the whole copy");
+    write_judged(&version, &judged).expect("write the removal's record");
+    // The tree the removal held leaves its name; the deletion of it had begun when the kill landed.
+    fs::remove_dir_all(&version).expect("take the tree out of its name");
     // The state a kill inside the deletion leaves: a deletion name holding a tree a file short.
     make_finished_copy(&deleting, b"surviving program");
     fs::create_dir_all(deleting.join("lib")).expect("make the library directory");
@@ -1233,7 +1241,8 @@ fn never_puts_a_partly_deleted_tombstone_back_as_a_version() {
 
     assert!(!version.exists(), "a partly deleted copy was put back as the version: {:?}", finished.lines);
     assert!(!deleting.exists(), "the deletion was not finished: {:?}", finished.lines);
-    assert!(crate::toolchain::store_versions::removal_markers(&fixture.root).is_empty());
+    assert!(removal_markers(&fixture.root).is_empty());
+    assert!(!record_of(&version).exists(), "the record outlived the tree it described: {:?}", finished.lines);
 }
 
 /// What:
