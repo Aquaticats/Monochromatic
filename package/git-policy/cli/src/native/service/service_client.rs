@@ -27,7 +27,7 @@
 use crate::service_client_settings_and_watches::RECONNECTS;
 pub use crate::service_client_listen_and_ask_to_retire::{START_WAIT, ask_to_retire};
 use crate::service_client_listen_and_ask_to_retire::{Heard, Wrote, a_message_is_already_here, listen, read_message, write_within};
-pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
+pub use crate::service_client_settings_and_watches::{Activation, ClientConfig, FreshScratch, ManagerAnswer, ManagerWatch, START_NOTICE_GRACE, manager_watch_for};
 use crate::service_client_settings_and_watches::CONNECT_PAUSE;
 use crate::diagnostic_log::debug;
 use crate::service_client_reach_service::reach_current;
@@ -230,9 +230,9 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         //  The withdrawal is asked for and its answer is the command's end:
         //  a commit that landed before the signal came stays landed and says so,
         //  and one the service gives up was not made.
-        if let Some(signal) = crate::service_client_interrupted::stop_requested() {
+        if let Some((signal, sender)) = crate::service_client_interrupted::stop() {
             trace.answer_wait += waiting_since.elapsed();
-            return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal });
+            return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal, sender });
         }
         // What:
         //  The place the service named,
@@ -322,9 +322,9 @@ fn submit_loop(config: &ClientConfig, request: &CommitRequest, notices: &mut dyn
         renew_scratch(config, &mut last_renewed);
         let written_at: Instant = Instant::now();
         let answered: Option<Result<Submitted, ClientFailure>> = loop {
-            if let Some(signal) = crate::service_client_interrupted::stop_requested() {
+            if let Some((signal, sender)) = crate::service_client_interrupted::stop() {
                 trace.answer_wait += written_at.elapsed();
-                return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal });
+                return withdraw(config, request.id.as_str(), last_blocker.take(), Instant::now(), WhyWithdrawn::Interrupted { signal, sender });
             }
             // What:
             //  Where the commit stands, and that it is inside a write, are said here, before each wait, so a service that

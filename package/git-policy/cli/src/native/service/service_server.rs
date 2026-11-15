@@ -34,7 +34,7 @@ use crate::service_server_land_group::{land_group, settle_open_batches};
 use crate::service_server_connection_handling::ConnectionShared;
 use crate::service_queue_received_on_the_runtime::{Received, receive_for_at_most};
 use crate::service_server_accept_connections_as_tasks::start_acceptor_or_exit;
-use crate::service_runtime_build_report::{no_worker_words, start_what_the_service_cannot_serve_without};
+use crate::service_runtime_build_report::{EXIT_NO_WORKER, no_worker_words, start_what_the_service_cannot_serve_without};
 use crate::stop_of_the_service_noticed_by_its_children::{begin_unfinished_work, is_stopping};
 use crate::service_journal::{DONE_RETAINED, landed_commits, prune_done};
 use crate::service_index_lock::unsettled_locks;
@@ -179,6 +179,11 @@ pub struct ServeSettings {
     /// `WAITING_NOTICE_AFTER`);
     /// a control shortens it.
     pub place_after: Duration,
+    /// How long a landing waits for the note that names its repository to the service that starts next
+    /// (`wait_ceilings.rs`,
+    /// `LANDING_WATCH_NOTE_CEILING`);
+    /// a control shortens it.
+    pub note_ceiling: Duration,
     /// The Git directory of the worktree whose units are this service's,
     /// as its note or its journal named it when the service started,
     /// and nothing when it was not there or could not be told.
@@ -209,6 +214,7 @@ impl ServeSettings {
             instance: None,
             stuck_after: NEVER_ENDED_STEP_SLOW_AFTER,
             place_after: crate::wait_ceilings::WAITING_NOTICE_AFTER,
+            note_ceiling: crate::wait_ceilings::LANDING_WATCH_NOTE_CEILING,
             own_git_dir: None,
             own_worktree_check: OWN_WORKTREE_CHECK,
             journal_restore_ceiling: START_CEILING,
@@ -236,7 +242,7 @@ fn start_the_after_commit_work_or_exit(receiver: UnboundedReceiver<Wake>, handle
     };
     if start_what_the_service_cannot_serve_without("the after-commit work", work).is_none() {
         crate::service_error!("{}", no_worker_words("the after-commit work"));
-        std::process::exit(4);
+        std::process::exit(EXIT_NO_WORKER);
     }
 }
 
@@ -538,7 +544,7 @@ fn serve_in_a_landing((listener, context, settings): (UnixListener, &LandContext
                 continue;
             }
             let mut handed_back: std::collections::HashSet<String> = std::collections::HashSet::new();
-            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, &mut handed_back, &drawn);
+            land_group(context, settings.instance.as_deref(), &mut seq, group, &mut landed, &mut captures, settings.place_after, settings.note_ceiling, &mut handed_back, &drawn);
             board.end_group(ids.as_slice());
             // The requests are landed and answered, so no landing reads these any more; each removal runs beside this loop, bounded,
             //  and says so in the journal when it cannot finish (`service_scratch_release_removal.rs`).
