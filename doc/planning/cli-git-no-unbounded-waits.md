@@ -300,6 +300,18 @@ Status words:
     push is ended,
     the service's retry plan keeps it,
     and the notice says the push is queued.
+    The stop that follows is one budget, and its waits share it:
+    `STOP_CEILING` (18.1 s)
+    measured from the moment it asks the child to end,
+    with the wait after the kill and the wait for the rest of the tree taking what is left of it.
+    AMENDED 2026-11-16:
+    before that the stop read its ceiling afresh in each wait and added a grace of its own after the kill,
+    so a stop whose member the kernel did not release took the ceiling and a grace more than the bound it states
+    (measured:
+    `1.334 s` where the bound was `1.000 s`,
+    and `push_ms=30443` where the whole stop is 18.1 s and the window 7 s,
+    `package/git-policy/cli/src/native/push/stop_of_a_push_and_sweep_of_its_locks_tests.rs`,
+    `a_member_the_kernel_does_not_release_does_not_hold_the_stop_past_its_ceiling`).
     Built.
 24. `src/native/bounded_query.rs` read-only queries (120 s ceiling,
     `doc/planning/cli-git-shipped-limits-audit.md`).

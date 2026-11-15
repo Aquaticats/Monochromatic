@@ -9733,6 +9733,20 @@ in-process reader can) gives every value of the multi-valued keys.
   which justify the kill and the sweep and not five seconds;
   an open question for the owner),
   and reported with exit code 124.
+  The whole stop is bounded by `STOP_CEILING`,
+  measured from the moment it asks the child to end:
+  inside the grace it waits whatever its tree's state,
+  past the grace only while a member sits in an uninterruptible call,
+  and every later wait of the stop,
+  the one after the kill and the one for the rest of the tree,
+  takes what is left of that
+  bound instead of reading it afresh,
+  so what a person waits is the bound this file states and not a multiple of it
+  (measured 2026-11-16:
+  a member the kernel does not
+  release made a stop report 1.334 s where its ceiling was 1.000 s before those waits shared the bound and 1.086 s after,
+  `src/native/push/stop_of_a_push_and_sweep_of_its_locks_tests.rs`,
+  `a_member_the_kernel_does_not_release_does_not_hold_the_stop_past_its_ceiling`).
   The report names what was cut short,
   says that the remote may or may not have taken the push,
   and says whether a retry is planned;
@@ -11171,7 +11185,8 @@ with `a_second_settlement_of_one_record_lands_the_change_once`,
   and logs the notice of the rest;
   it removes nothing the judgement does not prove.
   Its wait for the rest of the tree is bounded by `STOP_CEILING`,
-  the bound every other wait of a stop has:
+  the bound every other wait of a stop has,
+  and by what is left of that bound when the stop reaches it:
   a descendant wedged in a dead file system,
   or one that left the process group the signal reached,
   then leaves its locks to that judgement instead of leaving a task waking every ten milliseconds for the life of the

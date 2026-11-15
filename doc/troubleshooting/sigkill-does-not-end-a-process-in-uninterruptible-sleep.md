@@ -38,6 +38,14 @@ and only the wait that owns the child prints the line about the wait,
 so it is said once.
 Its three findings were reproduced in the crate at `0076cb74ed`,
 and the controls that hold them are named under workaround 1.
+AMENDED 2026-11-16:
+the unbounded wait this doc is about is the scratch step of a commit,
+which the owner chose to keep waiting.
+The stop of a *push* is bounded instead:
+`STOP_CEILING` is one budget measured from the moment it asks its tree to end,
+and a member the kernel has
+not released by its end goes to a task of its own
+(`package/git-policy/cli/src/native/push/stop_of_a_push_and_sweep_of_its_locks.rs`).
 
 ## Symptom
 
@@ -171,6 +179,26 @@ whose filesystems are local and whose runs are mount-free (`BOX`).
 So the claim rests on the documented kernel behaviour and on the crate's own
 code,
 not on a reproduction here.
+
+A process the kernel has not released can be held for a control **without** a
+mount and without a privilege,
+and that was measured on 2026-11-16:
+`strace --attach <pid>` traces a process,
+and a `SIGSTOP` to the tracer leaves the tracee in `ptrace_stop`
+(`t` in `/proc/<pid>/stat`,
+`wchan=ptrace_stop`)
+when it is killed,
+unreaped by its real parent until the tracer runs again
+(`waitpid` with `WNOHANG` answered `0` for a second,
+then the status `9` once the tracer was resumed).
+That is the wait a process in `D` leaves behind it from the stop's side,
+and it is the member the push stop's ceiling control uses
+(`package/git-policy/cli/src/native/push/stop_of_a_push_and_sweep_of_its_locks_tests.rs`,
+`a_member_the_kernel_does_not_release_does_not_hold_the_stop_past_its_ceiling`).
+It is not `D`,
+so it does not stand in for the state a look reports;
+it stands in for the reap,
+which is what a stop waits for.
 
 One arrangement **was** measured on 2026-11-12,
 because it needs no privilege and no mount:
