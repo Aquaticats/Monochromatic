@@ -269,7 +269,16 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
             //  command's captures leave as it was.
             let copies: PathBuf = input.scratch.join(crate::conclusion_cleanup::CONCLUSION_COPY_DIRECTORY);
             let _cleared: crate::scratch_entry_removal::Removal = crate::scratch_entry_removal::remove_within(copies.as_path(), crate::scratch_entry_removal::SCRATCH_REMOVAL_CEILING);
-            let _restored: std::io::Result<u64> = std::fs::copy(captured_index.as_path(), input.commit_index);
+            // What: The index this command was given is put back exactly as the captures hold it.
+            // Why:  Git rewrites the private index as it prepares a commit, and the tree this command asked for is the one the
+            //       kept copy names; a copy that went with the first attempt's tree cannot say what the person staged, so the
+            //       commit is not built again rather than built on what Git left (`SPEC.md`, "Merges and commits never fail").
+            if std::fs::copy(captured_index.as_path(), input.commit_index).is_err() {
+                return Err(TransactionStop::Message(format!(
+                    "the copy of the private index {} went before the commit could be built again, so nothing was committed and nothing landed",
+                    captured_index.display()
+                )));
+            }
         }
         // The creation names each of its own stretches, so the shadow is named here only as the surface they run on.
         let tree: crate::shadow_create::ShadowTree = take_or_create_shadow(
@@ -419,7 +428,8 @@ pub struct AskedForCommit {
     /// or nothing when the command's form does not settle them.
     parents: Option<Vec<String>>,
     /// The tree Git's commit must hold,
-    /// or nothing when the index this command was given could not name one.
+    /// or nothing when the command's form settles no tree of its own,
+    /// or when Git could not name the one the index held.
     tree: Option<String>,
 }
 
@@ -446,7 +456,7 @@ impl AskedForCommit {
         if let Some(asked) = self.tree.as_ref()
             && &prepared.tree_oid != asked
         {
-            return Err(format!("its tree is {} where the index this command was given holds {}", prepared.tree_oid, asked));
+            return Err(format!("its tree is {} where the index this command was given holds {asked}", prepared.tree_oid));
         }
         return Ok(());
     }
@@ -501,6 +511,16 @@ fn expected_parents_of(input: &BuildInput<'_>) -> Result<Option<Vec<String>>, Tr
 /// const asked = { parents, tree: writeTree(capturedIndex) };
 /// ```
 fn the_commit_that_was_asked_for(input: &BuildInput<'_>, parents: &Option<Vec<String>>) -> Result<AskedForCommit, TransactionStop> {
+    // What: A command whose commit carries the tree it started from asks no tree of its own.
+    // Why:  A reword fixup's commit holds the tree of the branch it rewords, whatever the index stages, so holding the
+    //       index's tree against it would refuse the commit the person asked for; its parents still stand.
+    let carries_its_base_tree: bool = input.arguments.iter().any(|argument| {
+        let text: String = argument.to_string_lossy().to_string();
+        return text.starts_with("--fixup=reword:") || text.starts_with("--fixup=amend:");
+    });
+    if carries_its_base_tree {
+        return Ok(AskedForCommit { parents: parents.clone(), tree: None });
+    }
     let captured: PathBuf = input.scratch.join(CAPTURED_INDEX);
     let mut request: GitRequest = GitRequest::new(input.cwd, &["write-tree"]);
     request.without_prefix = true;

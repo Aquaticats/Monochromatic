@@ -249,6 +249,9 @@ impl Drop for FixtureService {
         //  `remove_dir_all` cannot do through the alias, because the alias is a link.
         let named: PathBuf = std::fs::canonicalize(self.runtime.as_path()).unwrap_or_else(|_| { return self.runtime.clone(); });
         let _removed = std::fs::remove_dir_all(named);
+        // The descriptor that named the directory keeps the deleted directory alive, so the alias is let go here:
+        //  a fixture's runtime is gone when the fixture is, alias and all.
+        release_alias(self.runtime.as_path());
     }
 }
 
@@ -396,12 +399,40 @@ pub fn short_runtime_directory(fixture: &Fixture) -> PathBuf {
 /// ```
 fn alias_kept_for_the_process(directory: &Path) -> PathBuf {
     use std::os::fd::AsRawFd as _;
-    static KEPT: std::sync::OnceLock<std::sync::Mutex<Vec<std::fs::File>>> = std::sync::OnceLock::new();
-    let mut kept = KEPT.get_or_init(|| { return std::sync::Mutex::new(Vec::new()); }).lock().expect("the runtime descriptors");
+    let mut kept: std::sync::MutexGuard<'_, Vec<(PathBuf, std::fs::File)>> = alias_keepers().lock().expect("the runtime descriptors");
     let opened: std::fs::File = std::fs::File::open(directory).expect("a runtime directory to name");
     let alias: PathBuf = PathBuf::from(format!("/proc/{}/fd/{}", std::process::id(), opened.as_raw_fd()));
-    kept.push(opened);
+    kept.push((alias.clone(), opened));
     return alias;
+}
+
+/// What:
+///  The descriptors that keep the runtime aliases of this test process naming their directories.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const keepers = []; keepers.push([alias, file])
+/// ```
+fn alias_keepers() -> &'static std::sync::Mutex<Vec<(PathBuf, std::fs::File)>> {
+    static KEPT: std::sync::OnceLock<std::sync::Mutex<Vec<(PathBuf, std::fs::File)>>> = std::sync::OnceLock::new();
+    return KEPT.get_or_init(|| { return std::sync::Mutex::new(Vec::new()); });
+}
+
+/// What:
+///  Lets go of the descriptor that names `alias`,
+///  so the directory it named is gone once it was removed.
+/// Why:
+///  A descriptor keeps a deleted directory alive,
+///  and `exists()` on `/proc/<pid>/fd/<n>` follows it,
+///  so a runtime nobody uses any more would still name a directory.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// keepers = keepers.filter(([named]) => named !== alias)
+/// ```
+fn release_alias(alias: &Path) {
+    let mut kept: std::sync::MutexGuard<'_, Vec<(PathBuf, std::fs::File)>> = alias_keepers().lock().expect("the runtime descriptors");
+    kept.retain(|(named, _): &(PathBuf, std::fs::File)| { return named.as_path() != alias; });
 }
 
 /// What:
