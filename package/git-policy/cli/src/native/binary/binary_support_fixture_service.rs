@@ -245,7 +245,10 @@ impl Drop for FixtureService {
                 kill_with_everything_it_started(child);
             }
         }
-        let _removed = std::fs::remove_dir_all(&self.runtime);
+        // A runtime reached through a `/proc/<pid>/fd/<n>` alias is removed by the directory it names, which
+        //  `remove_dir_all` cannot do through the alias, because the alias is a link.
+        let named: PathBuf = std::fs::canonicalize(self.runtime.as_path()).unwrap_or_else(|_| { return self.runtime.clone(); });
+        let _removed = std::fs::remove_dir_all(named);
     }
 }
 
@@ -348,28 +351,57 @@ pub fn start_fixture_service_in(runtime: PathBuf) -> FixtureService {
 
 /// What:
 ///  A directory of this fixture's own,
-///  short enough to hold a socket name.
+///  whose path is short enough to hold a socket name whatever the fixture's home is.
 /// Why:
 ///   A Unix socket's name must fit `SUN_LEN`,
 /// which is 108 bytes,
-/// and a fixture root under a deep checkout does not.
+/// and neither a fixture root under a deep checkout nor a disposable home under one does.
 /// A control that bound its socket beside the fixture failed with "path must be shorter than SUN_LEN"
 ///  on a long checkout and passed on a short one (2026-11-08),
-///  so a test depended on how deep the repository sat.
-/// The service's own socket already lives in such a directory,
-/// and this is the one place that makes it.
+///  so a test depended on how deep the repository sat;
+/// and a home long enough for the path left the fixture's service on an abstract socket,
+/// where a commit asks for no drawn tree and every control of the hand-out fails or passes for nothing
+/// (`service_client_shadow_hand_out.rs`).
+/// The directory is therefore made under this fixture's own home and reached through a `/proc/<pid>/fd/<n>` alias of it:
+///  the alias is short whatever the home is, it resolves in the service and in every command the control runs,
+///  and it names a descriptor of this process, which lives as long as its fixtures.
+/// The service's own socket already lives in a short directory,
+/// and this is the one place that makes one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// const runtime = shortRuntimeDirectory(fixture); // `${HOME}/temp/agent/rt-${pid}-${n}`
+/// const real = `${HOME}/temp/agent/rt-${pid}-${n}`; mkdir(real); const fd = open(real, O_PATH); return `/proc/${pid}/fd/${fd}`
 /// ```
 pub fn short_runtime_directory(fixture: &Fixture) -> PathBuf {
     let _ = fixture;
     let home: PathBuf = PathBuf::from(std::env::var_os("HOME").expect("a home directory for the service's runtime directory"));
     let number: usize = RUNTIME_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    let runtime: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
-    std::fs::create_dir_all(runtime.join("monochromatic-git-policy-cli")).expect("runtime directory");
-    return runtime;
+    let real: PathBuf = home.join("temp/agent").join(format!("rt-{}-{number}", std::process::id()));
+    std::fs::create_dir_all(real.join("monochromatic-git-policy-cli")).expect("runtime directory");
+    return alias_kept_for_the_process(real.as_path());
+}
+
+/// What:
+///  A short path that names `directory`,
+///  held open for as long as this process lives.
+/// Why:
+///   `/proc/<pid>/fd/<n>` is short, absolute and resolvable by every process,
+///  and the descriptor it names must stay open or the path stops naming anything;
+///  the descriptors are kept here for the life of the test process,
+///  which is as long as the fixtures that use them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const kept = []; kept.push(open(directory)); return `/proc/${process.pid}/fd/${fd}`
+/// ```
+fn alias_kept_for_the_process(directory: &Path) -> PathBuf {
+    use std::os::fd::AsRawFd as _;
+    static KEPT: std::sync::OnceLock<std::sync::Mutex<Vec<std::fs::File>>> = std::sync::OnceLock::new();
+    let mut kept = KEPT.get_or_init(|| { return std::sync::Mutex::new(Vec::new()); }).lock().expect("the runtime descriptors");
+    let opened: std::fs::File = std::fs::File::open(directory).expect("a runtime directory to name");
+    let alias: PathBuf = PathBuf::from(format!("/proc/{}/fd/{}", std::process::id(), opened.as_raw_fd()));
+    kept.push(opened);
+    return alias;
 }
 
 /// What:

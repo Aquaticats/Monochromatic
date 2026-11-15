@@ -13,6 +13,7 @@
 //!  a tree that goes after that write is one the commit is already done with,
 //!  because the request carries the change and the landing reads the commit's own scratch tree.
 //!  A tree that goes while Git builds in it is the wrapper's own cache too,
+//!  and so is one that goes after Git has built the commit and before it is read back out of the tree,
 //!  so the commit builds once more in another tree and lands, and its record says so.
 //!  The first two instants are the wrapper's own phase markers (`CLI_GIT_TEST_ONLY_PHASE_SIGNAL`),
 //!  and the third is a `pre-commit` hook of the fixture's own repository,
@@ -22,7 +23,7 @@
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! pauseAt('shadow-handed'); await rm(handed, { recursive: true }); release(); expect(await commit()).toLand();
-//! await hookStallsAtPreCommit(); await rm(handed, { recursive: true }); release(); expect(await commit()).toLand();
+//! pauseAt('shadow-readable'); await rm(handed, { recursive: true }); release(); expect(await commit()).toLand();
 //! ```
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
@@ -109,10 +110,58 @@ fn a_repository_with_a_drawn_tree(name: &str) -> (Case, PathBuf) {
         drawn = drawn_trees(folder.as_path());
     }
     assert_eq!(drawn.len(), 1, "a stock of one is what the draw keeps: {drawn:?}");
+    assert!(
+        the_service_can_hand_a_tree_out(&case),
+        "this control did not run: the fixture's service listens on an abstract socket (its runtime directory is too long for a \
+         socket path), and a commit asks an abstract service for no drawn tree (`service_client_shadow_hand_out.rs`), so no \
+         tree is handed and this control's scenario cannot happen here"
+    );
     let handed: PathBuf = drawn.remove(0);
     std::fs::write(case.repo.join("a.txt"), "base\none\ntwo\n").expect("the second edit");
     git(&case.fixture, case.repo.as_path(), &["add", "--", "a.txt"]);
     return (case, handed);
+}
+
+/// What:
+///  Whether this fixture's service listens at a named socket,
+///  which is the only shape in which a commit is handed a drawn tree.
+/// Why:
+///   A service on an abstract socket hands nothing (`service_client_shadow_hand_out.rs`),
+///  so a control of the handed-tree loss would fail for want of a tree or,
+///  worse, pass without the loss it names.
+///  The fixture's runtime directory is an alias short enough for a socket path
+///  (`short_runtime_directory`), so this is a premise a run has and not a hope,
+///  and a run that cannot meet it says so instead of proving nothing.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const canHandOut = (c) => socketAddressOf(c.service.runtime, instanceOf(c.repo + '/.git')) instanceof Path
+/// ```
+fn the_service_can_hand_a_tree_out(case: &Case) -> bool {
+    let git_dir: PathBuf = case.repo.join(".git");
+    let instance: String = git_policy_cli::service_instance::instance_of(git_dir.as_path());
+    return matches!(
+        git_policy_cli::service_address_of_a_worktree::socket_address_of(case.service.runtime.as_path(), instance.as_str()),
+        git_policy_cli::service_server_socket_binding::Bind::Path(_named)
+    );
+}
+
+/// What:
+///  Whether the commit wrote its own ref store into `tree`,
+///  which is what a commit that builds in a handed tree does and a commit that left the tree stocked never does.
+/// Why:
+///   A control that removes "the tree the commit is building in" must know that this is that tree,
+///  and a tree in the drawn folder is only a candidate until the commit's ref store is in it
+///  (`shadow_ref_write.rs`, `write_shadow_refs`).
+///  This is what makes the difference between a control that exercises the hand-out and one that passes for nothing
+///  when no tree was handed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const builtIn = (tree) => existsSync(join(tree, 'packed-refs'))
+/// ```
+fn the_commit_built_in(tree: &Path) -> bool {
+    return tree.join("packed-refs").is_file();
 }
 
 /// What:
@@ -139,6 +188,8 @@ fn a_commit_that_loses_its_handed_tree_after_its_question_still_lands() {
         );
         std::thread::sleep(Duration::from_millis(5));
     }
+    // The `shadow-handed` marker is reached only in the arm that holds a tree the service handed over, so the wait above is
+    //  this control's proof that a tree was handed, and no assertion about the tree's own content is needed here.
     // The tree goes, as another program of the repository's removal would take it.
     std::fs::remove_dir_all(handed.as_path()).expect("the handed tree goes");
     std::fs::write(markers.join("shadow-handed-1.release"), b"").expect("release the paused command");
@@ -177,6 +228,10 @@ fn a_commit_whose_handed_tree_goes_after_its_last_write_still_lands() {
         );
         std::thread::sleep(Duration::from_millis(5));
     }
+    assert!(
+        the_commit_built_in(handed.as_path()),
+        "the commit wrote its ref store into the tree it was handed, so this control is exercising a handed tree"
+    );
     std::fs::remove_dir_all(handed.as_path()).expect("the handed tree goes");
     std::fs::write(markers.join("service-prepared-1.release"), b"").expect("release the paused command");
     let seen: Observed = waiting.join().expect("the paused command");
@@ -226,6 +281,10 @@ fn a_commit_whose_handed_tree_goes_while_git_builds_in_it_still_lands() {
     }
     assert!(handed.exists(), "the tree the commit was handed is the tree it is about to build in");
     // The tree goes, as a person's removal or a full drive takes one: no sweep and no claim is involved.
+    assert!(
+        the_commit_built_in(handed.as_path()),
+        "the commit wrote its ref store into the tree it was handed, so this control is exercising a handed tree"
+    );
     std::fs::remove_dir_all(handed.as_path()).expect("the handed tree goes");
     std::fs::write(markers.join("shadow-built-1.release"), b"").expect("release the held commit");
     let seen: Observed = waiting.join().expect("the commit");
@@ -238,5 +297,50 @@ fn a_commit_whose_handed_tree_goes_while_git_builds_in_it_still_lands() {
     let parts: &serde_json::Map<String, serde_json::Value> =
         record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
     assert!(parts.contains_key("shadow went"), "the record says the shadow went and the commit built again: {record}");
+    remove_settled(&case.fixture);
+}
+
+/// What:
+///  A commit whose handed tree goes after Git has built its commit and before that commit is read back out of the tree
+///  lands, in a tree of its own or one from the pool,
+///  and its record says what it did.
+/// Why:
+///  Git wrote the commit and the ref that names it into the tree,
+///  so a tree that goes there takes the only name of the commit Git made:
+///  the object is in the real repository and nothing points at it,
+///  and a read-back of the gone tree can only answer with its failure (`service_native.rs`, `build_with_git`).
+///  The wrapper makes the commit once more in another tree, which asks the same command line again, and lands.
+///  The commit is held at the wrapper's own marker for that instant, so the loss is placed exactly there.
+#[test]
+fn a_commit_whose_handed_tree_goes_after_git_built_it_still_lands() {
+    let (case, handed): (Case, PathBuf) = a_repository_with_a_drawn_tree("handed-tree-taken-after-git-built-it");
+    // The marker of the second attempt is released before it is reached, so only the first attempt is held.
+    std::fs::write(case.markers.join("shadow-readable-2.release"), b"").expect("the release of a second attempt");
+    let mut command: Command = a_commit_paused_at(&case, "shadow-readable", "two");
+    let markers: PathBuf = case.markers.clone();
+    let waiting: std::thread::JoinHandle<Observed> = std::thread::spawn(move || { return observe(&mut command, b""); });
+    let reached: PathBuf = markers.join("shadow-readable-1.reached");
+    let began: Instant = Instant::now();
+    while !reached.exists() {
+        assert!(
+            began.elapsed() < PATIENCE,
+            "the wrapper reached the instant Git had built its commit in the handed tree and the commit was not yet read back"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(the_commit_built_in(handed.as_path()), "the commit wrote its ref store into the tree it was handed, so this control is exercising a handed tree");
+    // The tree goes, as a person's removal or a full drive takes one: no sweep and no claim is involved.
+    std::fs::remove_dir_all(handed.as_path()).expect("the handed tree goes");
+    std::fs::write(markers.join("shadow-readable-1.release"), b"").expect("release the held commit");
+    let seen: Observed = waiting.join().expect("the commit");
+    let words: String = stderr_of(&seen);
+    assert_eq!(seen.code, Some(0), "a commit whose shadow went before its read-back must still land: {words}");
+    let subjects: String = git_text(&case.fixture, case.repo.as_path(), &["log", "--format=%s"]);
+    assert_eq!(subjects.lines().collect::<Vec<&str>>(), vec!["two", "one", "base", "initial"], "the commit is on the branch");
+    let record: serde_json::Value = last_record(case.repo.as_path());
+    let parts: &serde_json::Map<String, serde_json::Value> =
+        record["buildParts"].as_object().unwrap_or_else(|| { panic!("the record has no build parts: {record}") });
+    assert!(parts.contains_key("shadow went"), "the record says the shadow went and the commit built again: {record}");
+    assert_eq!(record["attempts"], serde_json::Value::from(1), "the attempt count is the commit's own and the rebuild is inside it: {record}");
     remove_settled(&case.fixture);
 }

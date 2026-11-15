@@ -28,7 +28,7 @@
 
 use crate::capture_invocation::InvocationCapture;
 use crate::commit_args::{resolve_private_commit_args, split_commit_invocation, without_all_flag};
-use crate::commit_preparation::{PreparationRequest, read_prepared_commit, run_native_commit};
+use crate::commit_preparation::{PreparationRequest, PreparedCommit, read_prepared_commit, run_native_commit};
 /// The build phase's stretches,
 /// which the creation and Git's build mark as they go.
 use crate::commit_build_part_durations::{BuildPartClock, note_build_part};
@@ -194,6 +194,13 @@ pub fn private_invocation(
 /// await buildWithGit(input)
 /// ```
 ///
+///  A shadow can go at any of the three moments the build reads or writes it:
+///  before Git is asked to build in it,
+///  while Git builds in it,
+///  and after Git has built in it and before the commit it made is read back.
+///  The first two are answered before Git's work is trusted again,
+///  and the third after it: Git's commit object is in the real repository but nothing points at it,
+///  because the ref that named it went with the tree, so the commit is made again.
 ///  A shadow that has gone before Git is asked to build in it is one Git is not asked to build in at all:
 ///  the commit builds again in another tree, so no line of Git's about a tree that went is the person's to read.
 ///  A shadow that goes while Git builds in it is the wrapper's own cache and never the person's failure:
@@ -300,7 +307,35 @@ pub fn build_with_git(input: &mut BuildInput<'_>) -> Result<GitBuilt, Transactio
             return Err(TransactionStop::NativeExit(status));
         }
         input.clock.next("commit read back");
-        let prepared = read_prepared_commit(input.context, shadow.as_path())?;
+        // What: A control may hold the commit at this instant, with Git's commit in the shadow and the commit not yet read out
+        //       of it (`transaction_phase.rs`, `Phase::ShadowReadable`).
+        // Why:  A tree that goes now takes the ref that names the commit Git made, so the read-back can only answer with its
+        //       failure; no other instant lets a control place that loss. Nothing arms this marker in a run.
+        crate::service_pruned::reach_service_phase(crate::transaction_phase::Phase::ShadowReadable).map_err(|error| {
+            return TransactionStop::Message(format!("the commit read-back's test-only phase marker could not be reached: {error}"));
+        })?;
+        let prepared: PreparedCommit = match read_prepared_commit(input.context, shadow.as_path()) {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                // What: A read-back that failed in a tree that is gone is made once more in another tree, and the commit lands.
+                // Why:  Git may have made its commit and this read is the only place that would name it, because the tree it was
+                //       written in held the ref that pointed at it. The object it wrote is in the real repository and nothing
+                //       points at it, so a collection takes it later; the commit that lands is made again, which means the same
+                //       command line again, an editor and a signer asked a second time among it.
+                //       A read-back whose tree is still there failed for the repository's or the volume's reason and is the
+                //       commit's to report (`SPEC.md`, "Merges and commits never fail").
+                if attempt == 1 && !crate::shadow_drawn::drawn_tree_is_still_there(shadow.as_path()) {
+                    note_build_part(SHADOW_WENT_PART, Duration::ZERO, Duration::ZERO);
+                    crate::diagnostic_log::debug(
+                        "serviceNative",
+                        format!("the shadow {} went before the commit it built could be read back ({error}), so this commit builds in a new tree", shadow.display()).as_str(),
+                    );
+                    *input.handed = None;
+                    continue;
+                }
+                return Err(error.into());
+            }
+        };
         return Ok(GitBuilt { parents: parents_of(prepared.raw.as_slice()), message: message_of(prepared.raw.as_slice()), commit: prepared.oid, drawn });
     }
 }

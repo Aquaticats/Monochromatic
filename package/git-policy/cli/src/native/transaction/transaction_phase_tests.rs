@@ -23,6 +23,7 @@ fn phases_are_named_in_transaction_order() {
             "service-staged",
             "shadow-handed",
             "shadow-built",
+            "shadow-readable",
             "service-prepared",
             "service-sent-back",
             "kept-references-listed",
