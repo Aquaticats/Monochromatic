@@ -105,6 +105,11 @@ pub mod lock_birth_times;
 /// The line a Git the wrapper starts writes about itself between `fork` and `exec`.
 pub mod own_record_before_becoming_git;
 
+/// Controls of the step between `fork` and `exec`: its functions allocate nothing.
+#[cfg(test)]
+#[path = "own_record_before_becoming_git_tests.rs"]
+mod own_record_before_becoming_git_tests;
+
 /// The record a command writes about the processes it starts in a repository,
 /// and the proof that one of them is gone.
 pub mod lock_holder_records;
