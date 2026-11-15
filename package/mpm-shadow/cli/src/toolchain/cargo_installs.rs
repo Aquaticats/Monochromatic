@@ -46,6 +46,9 @@ use crate::version::compare_versions;
 use super::across_roots::{winning_root, winning_version};
 /// Imports `ToolchainError` from `super::error`.
 use super::error::ToolchainError;
+/// Imports `resolves_under` from `super::store_versions`,
+/// which proves at the act that a path lies under the store.
+use super::store_versions::resolves_under;
 /// Imports `atomic_symlink` from `super::install_support`.
 use super::install_support::atomic_symlink;
 /// Imports what this module uses from `super::layout`.
@@ -411,6 +414,15 @@ pub fn remove_older_than_newest(
             continue;
         }
         let directory: PathBuf = version_directory(toolchain_root, crate_name, &name);
+        // What: what will be deleted is shown to lie under the store.
+        // Why: the names come from files, and the check at the reader is not the proof at the act.
+        if !resolves_under(toolchain_root, &directory) {
+            return Err(ToolchainError::failure(format!(
+                "{} does not lie under the store {}, so it is not removed",
+                directory.display(),
+                toolchain_root.display()
+            )));
+        }
         if keeps.keep_reason(&tool_store_name, &name, &directory).is_some() {
             // A lock names it or a process of this user runs it: the newest-only rule stops here.
             continue;

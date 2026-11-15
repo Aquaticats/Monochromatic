@@ -226,7 +226,34 @@ pub(crate) fn process_is_gone(pid: u32) -> bool {
     if pid == std::process::id() || !Path::new("/proc/self").exists() {
         return false;
     }
-    return !Path::new("/proc").join(pid.to_string()).exists();
+    // What: a process that has ended and waits to be collected is gone, not there.
+    // Why: its `/proc` entry stays until its parent reaps it, and reading that as "the process lives" would keep
+    // every later install and removal of what it held waiting on a dead holder.
+    return !process_lives(pid);
+}
+
+/// What:
+/// Whether the process `pid` is running rather than ended:
+/// its entry is in `/proc` and its state is not the one a process that has ended waits in.
+/// Why:
+/// A zombie keeps its number and its start time, so both answers that judge a holder by them have to read the state
+/// as well as the presence of the entry.
+#[cfg(target_os = "linux")]
+pub(crate) fn process_lives(pid: u32) -> bool {
+    let Ok(line) = std::fs::read_to_string(format!("/proc/{pid}/stat")) else {
+        return false;
+    };
+    let Some((_name, after_name)) = line.rsplit_once(')') else {
+        return false;
+    };
+    return after_name.split_whitespace().next() != Some("Z");
+}
+
+/// Whether the process `pid` is running rather than ended;
+/// no platform but Linux keeps the file that says.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn process_lives(_pid: u32) -> bool {
+    return true;
 }
 
 /// Whether the process `pid` is gone;
@@ -334,7 +361,9 @@ pub(crate) fn process_has_ended(identity: &ProcessIdentity) -> bool {
         return process_is_gone(identity.pid);
     }
     return match identity_of_pid(identity.pid) {
-        Some(now) => now.started != identity.started,
+        // What: the same number and the same start time, but a state that says the process has ended, is an ending.
+        // Why: a zombie keeps both of them until its parent collects it, and it holds nothing.
+        Some(now) => now.started != identity.started || !process_lives(identity.pid),
         // The number names no process any more, or the table cannot say: only the first is an ending.
         None => process_is_gone(identity.pid),
     };

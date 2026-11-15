@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 /// Imports `HoldKind` and the scan under test.
-use crate::toolchain::store_path_holders::{HoldKind, held_reason, holders_of, mapped_path, opaque_reason};
+use crate::toolchain::store_path_holders::{HoldKind, held_reason, holders_of, mapped_path, opaque_holder_reason};
 use crate::test_scratch::scratch;
 
 /// A deadline far enough away that the scan completes.
@@ -102,19 +102,27 @@ fn reports_a_scan_that_ran_out_of_time() {
     assert!(holders.incomplete.is_some(), "{holders:?}");
 }
 
-/// A hidden process whose name is part of a tool's directory name is a reason to keep that tool's versions,
-/// and a hidden process whose name is nothing of the kind is not.
+/// A hidden process of this account is a reason to keep every removable version,
+/// whatever it calls itself, and the line names it and says the scan cannot tell.
+/// Why:
+/// The kernel will not say which file it runs or where it works, so its name is no evidence either way:
+/// a miss was never a clearance, and the version it may hold is kept.
 #[test]
 fn names_a_hidden_process_that_may_run_a_tool() {
     let mut holders = crate::toolchain::store_path_holders::StoreHolders::default();
+    assert!(opaque_holder_reason(&holders).is_none(), "nothing hidden keeps nothing");
     holders.opaque.push(crate::toolchain::store_path_holders::OpaqueProcess {
         pid: 4242,
         comm: "git_policy_cli-".to_string(),
     });
 
-    let reason: String = opaque_reason(&holders, "cargo-monochromatic-git-policy-cli").expect("the name names the tool");
-    assert!(reason.contains("4242"), "{reason}");
-    assert!(opaque_reason(&holders, "node").is_none());
+    let reason: String = opaque_holder_reason(&holders).expect("a hidden process keeps the versions");
+    assert!(reason.contains("4242"), "the line names the process: {reason}");
+    assert!(reason.contains("may run"), "the line says the scan cannot tell: {reason}");
+
+    holders.opaque.push(crate::toolchain::store_path_holders::OpaqueProcess { pid: 4243, comm: "x".to_string() });
+    let two: String = opaque_holder_reason(&holders).expect("two hidden processes keep the versions");
+    assert!(two.contains("and 1 more"), "the line counts the others: {two}");
 }
 
 /// The words a hold is printed with say what the process does with the path.

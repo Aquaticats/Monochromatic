@@ -318,6 +318,8 @@ const SHORTEST_COMPARED_NAME: usize = 5;
 /// so a version it runs cannot be found by its path;
 /// its name is all that is left,
 /// and a name that matches the tool is taken as evidence that the version may be in use.
+/// The size- and age-bounded cleanup asks this, because it judges only while the stores are over their bound;
+/// the two removals an install makes ask `opaque_holder_reason` instead, which keeps more.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -338,4 +340,33 @@ pub fn opaque_reason(holders: &StoreHolders, tool_directory_name: &str) -> Optio
         }
     }
     return None;
+}
+
+/// What:
+/// Why any process of this account that the kernel refuses to describe may use any version,
+/// or `None` when every process of the account can be described.
+/// Why:
+/// A process that hides what it runs is a process nobody can check:
+/// it may hold any file of the store and work in any version,
+/// so what it may hold is kept and the line says the scan cannot tell.
+/// The review of this change showed a same-user process that made itself undumpable holding a version's file and
+/// working inside it while the removals took the version for unused.
+/// Its name is not evidence either way:
+/// a wrapper that holds tokens hides its program the same way and calls itself anything,
+/// so a match was never a proof and a miss was never a clearance.
+/// The cost is that every such process keeps every removable version until it ends;
+/// that cost is the owner's question, and until it is answered this is the answer both removals give.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function opaqueHolderReason(holders: StoreHolders): string | undefined
+/// ```
+pub fn opaque_holder_reason(holders: &StoreHolders) -> Option<String> {
+    let first: &OpaqueProcess = holders.opaque.first()?;
+    let others: usize = holders.opaque.len() - 1;
+    let more: String = if others > 0 { format!(" and {others} more") } else { String::new() };
+    return Some(format!(
+        "pid {}{more} hides what it runs, so a process of this account may run any version",
+        first.pid
+    ));
 }

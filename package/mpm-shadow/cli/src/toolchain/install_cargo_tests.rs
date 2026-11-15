@@ -269,6 +269,9 @@ fn a_third_party_crate_keeps_the_generic_failure_even_when_compiling_was_disable
 /// and the next tree that installed the newer one removed it again (seen on this machine on 2026-11-13).
 #[test]
 fn installing_a_newer_version_keeps_the_version_another_worktree_lock_names_and_removes_the_one_nothing_names() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     rig.runner.on("cargo binstall", fake_binstall(&["mpm-shadow"]));
     install_finished(&rig, EARLIER);
@@ -296,6 +299,9 @@ fn installing_a_newer_version_keeps_the_version_another_worktree_lock_names_and_
 /// and a service whose program went away cannot start again until an install puts it back.
 #[test]
 fn installing_a_newer_version_keeps_the_version_a_process_of_this_account_runs() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     rig.runner.on("cargo binstall", fake_binstall(&["mpm-shadow"]));
     install_finished(&rig, EARLIER);

@@ -253,18 +253,27 @@ fn measures_the_length_of_every_file_below() {
 /// `cargo/../../outside`, which let the cleanup scan and delete a directory outside the store.
 #[test]
 fn a_store_directory_name_is_one_plain_name_or_nothing() {
-    for refused in ["../../outside", "..", ".", "", "a/b", "cargo", "downloads"] {
+    for refused in ["../../outside", "..", ".", "", "a/b"] {
         assert_eq!(
             install_directory_name(Route::CargoBinstall, refused),
             None,
             "a cargo-binstall crate named {refused:?} became a directory"
         );
+    }
+    // An archive tool's id is mapped to the tool's own alphabet first, so a separator becomes a dash and the store
+    // keeps one directory; what the mapping leaves as no plain name is refused.
+    for refused in ["..", ".", "", "cargo", "downloads"] {
         assert_eq!(
             install_directory_name(Route::Archive, refused),
             None,
             "an archive tool named {refused:?} became a directory"
         );
     }
+    assert_eq!(
+        install_directory_name(Route::Archive, "a/b"),
+        Some("a-b".to_string()),
+        "an archive id's separator maps to the store's own alphabet"
+    );
     assert_eq!(
         install_directory_name(Route::CargoBinstall, "fd-find"),
         Some("cargo/fd-find".to_string()),

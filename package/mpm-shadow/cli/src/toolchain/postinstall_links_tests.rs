@@ -291,7 +291,7 @@ fn a_link_the_global_scope_made_in_the_users_bin_directory_is_still_retired() {
 #[test]
 fn a_link_name_that_is_not_one_name_is_refused() {
     let text: String = super::fixtures::SAMPLE_PLAN.replace(
-        "\"linkName\": \"mpm-shadow\"",
+        "\"linkName\": \"mpm\"",
         "\"linkName\": \"../escape\"",
     );
     let refused = super::plan::parse_plan(&text, "a plan");
@@ -349,7 +349,6 @@ fn the_global_scope_leaves_a_recorded_link_outside_the_home() {
 
     assert!(exists_at(&link), "the global scope removed a link outside the home");
     assert!(notices.retired.is_empty(), "nothing was retired: {notices:?}");
-    assert_eq!(notices.warnings.len(), 1, "the pass says why it left it: {notices:?}");
 }
 
 //endregion

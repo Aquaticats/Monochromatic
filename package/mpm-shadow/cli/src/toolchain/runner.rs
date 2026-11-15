@@ -464,6 +464,13 @@ pub(crate) fn still_running(tree: &[u32], leader: u32, reaped: bool) -> Vec<u32>
 /// for a process that left the group;
 /// and a process that left both (a double fork that reparented before the tree was read) is beyond reach,
 /// which is why the caller is told what is still running rather than promised silence.
+/// One case is a stated limit and not a promise of the stop:
+/// a descendant that put itself in a session of its own and was handed to another parent before the bound is reached
+/// by neither the group nor the tree,
+/// and it can still write after `run` has returned.
+/// Reaching it takes a control group around every program the runner starts,
+/// and ending everything in that group would also end the helpers a command starts on purpose to outlive it,
+/// such as a compiler cache's server.
 fn stop(child: &mut std::process::Child) -> Option<String> {
     let leader: u32 = child.id();
     let tree: Vec<u32> = descendants_of(leader, Instant::now() + DESCENDANT_SCAN_DEADLINE);

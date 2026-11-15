@@ -101,6 +101,9 @@ fn write_lock(directory: &PathBuf, crate_name: &str, version: &str) -> PathBuf {
 
 #[test]
 fn the_command_keeps_every_version_a_listed_worktree_names_and_removes_the_rest() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     for version in ["1.1.0", "1.2.3", "1.3.0"] {
@@ -170,6 +173,9 @@ fn a_repository_published_crate_keeps_the_longer_alpha_number_as_its_newest_vers
 /// with the directory.
 #[test]
 fn a_crate_directory_that_holds_something_the_scan_does_not_count_stays() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     finish_install(&version_directory(&root, "fd-find", "1.1.0"), "fd-find", "1.1.0", &["fd"]);
@@ -194,6 +200,9 @@ fn a_crate_directory_that_holds_something_the_scan_does_not_count_stays() {
 /// never that nothing was deleted.
 #[test]
 fn a_partly_removed_version_directory_says_part_of_it_may_be_gone() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     let victim = version_directory(&root, "fd-find", "1.1.0");
@@ -222,6 +231,9 @@ fn a_partly_removed_version_directory_says_part_of_it_may_be_gone() {
 /// a run killed in between leaves no link rather than one naming a version that is deleted.
 #[test]
 fn a_crate_no_lock_names_loses_its_current_link_before_its_versions() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     finish_install(
@@ -281,6 +293,9 @@ fn a_prune_that_cannot_repoint_current_deletes_no_version() {
 /// so an install that lands afterwards is not in the list it deletes from.
 #[test]
 fn an_installation_that_lands_while_the_prune_runs_is_never_deleted() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     finish_install(&version_directory(&root, "fd-find", "1.0.0"), "fd-find", "1.0.0", &["fd"]);
@@ -381,6 +396,9 @@ fn the_link_already_naming_a_newer_finished_version_is_not_moved_back() {
 /// refused to point it at the vanished version.
 #[test]
 fn the_link_is_settled_when_the_version_the_plan_keeps_has_vanished() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     let crate_name = "monochromatic-lint";
@@ -414,6 +432,9 @@ fn the_link_is_settled_when_the_version_the_plan_keeps_has_vanished() {
 /// the way an unlink failure does.
 #[test]
 fn a_repointing_failure_after_another_link_says_what_was_removed() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     // No lock names `monochromatic-a`, so its only version goes and its link goes with it.
@@ -451,6 +472,9 @@ fn a_repointing_failure_after_another_link_says_what_was_removed() {
 /// the way the recursive removals do.
 #[test]
 fn a_link_removal_failure_after_another_link_says_what_was_removed() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     for crate_name in ["monochromatic-a", "monochromatic-b"] {

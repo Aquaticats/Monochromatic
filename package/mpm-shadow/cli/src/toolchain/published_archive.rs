@@ -68,7 +68,7 @@ use super::prune_cargo::PresentVersion;
 /// Imports what this module uses from `super::download_ownership`.
 use super::download_ownership::{RemovalClaim, RemovalRight, live_owner, take_removal_right};
 /// Imports what this module uses from `super::store_versions`.
-use super::store_versions::{DOWNLOADS_DIRECTORY_NAME, downloads_in_use};
+use super::store_versions::{DOWNLOADS_DIRECTORY_NAME, downloads_in_use, resolves_under};
 /// Imports the name checks from `super::segment`.
 use super::segment::{check_bin_name, check_tool_id, check_version};
 /// Imports the keeps every removal asks from `super::store_keeps`.
@@ -251,6 +251,15 @@ pub fn point_current_at_newest_archive(toolchain_root: &Path, id: &str, first_bi
 /// ```
 pub fn remove_downloads(toolchain_root: &Path, id: &str, version: &str) -> Result<(), ToolchainError> {
     let directory: PathBuf = tool_downloads_dir(toolchain_root, id, version)?;
+    // What: what will be deleted is shown to lie under the store.
+    // Why: the names come from files, and the check at the reader is not the proof at the act.
+    if !resolves_under(toolchain_root, &directory) {
+        return Err(ToolchainError::failure(format!(
+            "{} does not lie under the store {}, so its archives are not removed",
+            directory.display(),
+            toolchain_root.display()
+        )));
+    }
     // What: the right to remove these archives is taken before they are judged, and an install that is using them is
     // seen before anything is deleted.
     // Why: a check and then a delete leaves a window an install can start in,
@@ -395,6 +404,15 @@ pub fn remove_older_archives(
             continue;
         }
         let directory: PathBuf = tool_install_dir(toolchain_root, id, &name)?;
+        // What: what will be deleted is shown to lie under the store.
+        // Why: the names come from files, and the check at the reader is not the proof at the act.
+        if !resolves_under(toolchain_root, &directory) {
+            return Err(ToolchainError::failure(format!(
+                "{} does not lie under the store {}, so it is not removed",
+                directory.display(),
+                toolchain_root.display()
+            )));
+        }
         if keeps.keep_reason(&tool_store_name, &name, &directory).is_some() {
             // A lock names it or a process of this user runs it: the newest-only rule stops here.
             continue;

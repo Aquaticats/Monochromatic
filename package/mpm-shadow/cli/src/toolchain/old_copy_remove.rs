@@ -136,6 +136,15 @@ pub fn remove_copy(ctx: &Context, plan: &OldCopyPlan) -> Result<String, String> 
 /// export function removeVersion(plan: LoserPlan, directory: string, version: string): void  // throws
 /// ```
 pub fn remove_version(plan: &LoserPlan, directory: &Path, version: &str) -> Result<(), String> {
+    // What: what will be deleted is shown to lie under the root the plan names.
+    // Why: the copy's path is built from names a lock gives, and this is the proof at the act.
+    if !super::store_versions::resolves_under(&plan.root, directory) {
+        return Err(format!(
+            "cannot remove {}: it does not lie under {}",
+            directory.display(),
+            plan.root.display()
+        ));
+    }
     match fs::remove_dir_all(directory) {
         Ok(()) => {}
         Err(error) if error.kind() == ErrorKind::NotFound => {}

@@ -156,7 +156,13 @@ fn resolved_beside(link: &Path) -> PathBuf {
 /// ```
 fn is_own_link(ctx: &Context, path: &Path) -> bool {
     if ctx.scope.kind == ScopeKind::Global {
-        return true;
+        // What: the global scope owns the links its record names under the person's home, and no others.
+        // Why: its record is never copied from another place, so a path there was made by this scope;
+        // a path outside the home is one no plan of this scope writes a link to,
+        // and a record that names one has been edited or was made somewhere else,
+        // so the path is left alone rather than removed on the record's word.
+        let home: PathBuf = resolved(&ctx.scope.home);
+        return resolved_beside(path).starts_with(&home);
     }
     let root: PathBuf = resolved(&ctx.scope.root);
     let place: PathBuf = resolved_beside(path);

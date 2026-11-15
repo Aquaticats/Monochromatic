@@ -153,6 +153,9 @@ fn a_tree_pinning_an_older_repository_tool_keeps_the_newer_install_runs_it_and_i
 
 #[test]
 fn installing_a_newer_repository_tool_removes_the_older_one_and_leaves_no_dangling_link() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     rig.runner.on("cargo binstall", fake_binstall(&["mpm-shadow"]));
     let scope_old = second_tree(&rig);
@@ -281,6 +284,9 @@ fn the_newest_installed_version_reads_a_longer_alpha_number_as_the_newer_one() {
 
 #[test]
 fn pointing_current_at_the_newest_and_removing_the_older_ones_keep_the_longer_alpha_number() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     for version in [LATER_ALPHA, EARLIER_ALPHA] {

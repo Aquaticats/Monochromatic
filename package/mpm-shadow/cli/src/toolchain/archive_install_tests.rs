@@ -116,6 +116,9 @@ fn a_release_without_its_program_is_refused_and_so_is_one_whose_program_cannot_r
 
 #[test]
 fn a_directory_with_an_executable_of_the_right_name_but_no_marker_is_never_finished() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = rig_with_working_older_release();
     let root = rig.scope.toolchain_root.clone();
     // What `tar` left of an 8 MB program cut off at 3 MB: mode 755, the right name, the wrong bytes.
@@ -370,6 +373,9 @@ fn lock_naming_first_bin(version: &str, first_bin: &str) -> String {
 
 #[test]
 fn a_symlinked_or_hidden_directory_is_never_a_version() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = rig_with_working_older_release();
     let root = rig.scope.toolchain_root.clone();
     let tool_dir = tool_directory(&root, ID).expect("a plain name");
@@ -398,6 +404,9 @@ fn a_symlinked_or_hidden_directory_is_never_a_version() {
 
 #[test]
 fn installing_leaves_an_unfinished_newer_directory_alone_and_replaces_the_older_working_version() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = rig_with_working_older_release();
     serve_releases(&rig, &["0.2.1"]);
     let root = rig.scope.toolchain_root.clone();
@@ -411,6 +420,9 @@ fn installing_leaves_an_unfinished_newer_directory_alone_and_replaces_the_older_
 
 #[test]
 fn the_last_lock_read_decides_which_program_shows_an_install_finished() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     let root = rig.scope.toolchain_root.clone();
     finish_archive(&root, "0.2.0");

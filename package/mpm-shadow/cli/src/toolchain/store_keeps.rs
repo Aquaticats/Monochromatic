@@ -44,7 +44,7 @@ use super::model::{LockedTool, Route};
 /// which names the crate a `cargo-binstall` entry installs.
 use super::observe::package_name;
 /// Imports what this module uses from `super::store_path_holders`.
-use super::store_path_holders::{StoreHolders, held_reason, holders_of};
+use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_holder_reason};
 /// Imports what this module uses from `super::store_trim`,
 /// so a removal reads the same locks and the same process table the cleanup does.
 use super::store_trim::{NamedVersions, TrimBounds, read_named_versions, roots_to_trim, visible_locks};
@@ -193,6 +193,13 @@ impl InstallKeeps {
         if let Some(reason) = held_reason(&self.holders, directory) {
             // What: one sentence from the process scan, naming the process and what it holds.
             // Why: a version a service runs is not removed from under it; the line says which service.
+            return Some(format!("it is in use: {reason}"));
+        }
+        // What: a process the kernel will not describe may hold this version, so it is kept too.
+        // Why: the scan cannot tell which file it runs or where it works,
+        // and taking the version away would leave that process's next start with nothing;
+        // the removal of old versions answers this the same way, and the two answer alike.
+        if let Some(reason) = opaque_holder_reason(&self.holders) {
             return Some(format!("it is in use: {reason}"));
         }
         return None;

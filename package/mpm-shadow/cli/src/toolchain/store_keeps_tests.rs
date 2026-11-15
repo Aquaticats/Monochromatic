@@ -133,6 +133,9 @@ pub(super) fn second_tree_naming(rig: &Rig, version: &str) -> PathBuf {
 
 #[test]
 fn a_version_another_worktree_lock_names_is_kept_and_the_reason_names_that_lock() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     fs::create_dir_all(version_directory(&rig, "0.2.0")).expect("make the version directory");
     // Control: with this tree's lock alone the version is nothing to anyone, so the test can fail.
@@ -151,6 +154,9 @@ fn a_version_another_worktree_lock_names_is_kept_and_the_reason_names_that_lock(
 
 #[test]
 fn a_version_no_lock_names_and_no_process_runs_is_kept_by_nothing() {
+    if crate::toolchain::fixtures::machine_hides_processes() {
+        return;
+    }
     let rig = Rig::new();
     fs::create_dir_all(version_directory(&rig, "0.2.0")).expect("make the version directory");
     let keeps: InstallKeeps = InstallKeeps::of(&rig.context());
@@ -168,11 +174,19 @@ fn a_version_a_process_of_this_account_runs_is_kept_and_the_reason_names_the_pro
     let directory: PathBuf = version_directory(&rig, "0.2.0");
     let program: PathBuf = directory.join("release-folder").join(FIXTURE_BIN);
     fs::create_dir_all(&directory).expect("make the version directory");
-    // What: the store is there and nothing runs it yet.
+    // What: the store is there and nothing of this test runs it yet.
     // Why: the same path then reports a holder only because a program was started from it, which is what proves the
     // scan reached this process rather than answering for another reason.
+    // A machine with a process the kernel will not describe keeps every version already, so the strict "nothing
+    // keeps it" is only asked where the scan described every process.
     let before: InstallKeeps = InstallKeeps::of(&rig.context());
-    assert_eq!(before.keep_reason(FIXTURE_DIRECTORY, "0.2.0", &directory), None, "nothing runs it yet");
+    let scan = super::store_path_holders::holders_of(
+        std::slice::from_ref(&rig.scope.toolchain_root),
+        std::time::Instant::now() + std::time::Duration::from_secs(2),
+    );
+    if scan.opaque.is_empty() {
+        assert_eq!(before.keep_reason(FIXTURE_DIRECTORY, "0.2.0", &directory), None, "nothing runs it yet");
+    }
 
     let stand_in: StandIn = StandIn::started_from(&program);
     let keeps: InstallKeeps = InstallKeeps::of(&rig.context());

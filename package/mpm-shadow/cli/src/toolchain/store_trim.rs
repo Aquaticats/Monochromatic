@@ -74,9 +74,10 @@ use super::scope::{EnvMap, ScopeKind, global_scope};
 /// Imports what this module uses from `super::store_path_holders`.
 use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_reason};
 /// Imports what this module uses from `super::store_versions`.
+use super::segment::check_version;
 use super::store_versions::{
     DOWNLOADS_DIRECTORY_NAME, EntryNaming, TOMBSTONE_PREFIX, VersionDirectory, downloads_in_use, downloads_of,
-    install_directory_name, leftover_downloads, tombstone_of, tombstones, tree_size, version_directories,
+    install_directory_name, leftover_downloads, resolves_under, tombstone_of, tombstones, tree_size, version_directories,
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
@@ -397,6 +398,18 @@ fn compare_oldest_first(left: &TrimCandidate, right: &TrimCandidate) -> std::cmp
 }
 
 /// What:
+/// Whether the store keeps a tool's payload in a version directory of its own for this route.
+/// Why:
+/// A name that cannot be joined is refused for such a route and skipped for the others,
+/// so a lock naming pnpm or rustup tools is not called unreadable.
+fn route_has_version_directory(route: Route) -> bool {
+    return !matches!(
+        route,
+        Route::MpmPnpm | Route::MpmUvx | Route::RustupToolchain | Route::RustupComponents | Route::BinSourced
+    );
+}
+
+/// What:
 /// The versions the lock files name:
 /// tool directory name to version to the lock that names it,
 /// plus why a lock could not be read.
@@ -486,7 +499,22 @@ impl NamedVersions {
                 Route::CargoBinstall => crate_of_entry(id, entry),
                 _ => id.clone(),
             };
+            // What: a name this pass cannot join is refused with its file, and the whole lock is then unreadable.
+            // Why: the name is data from a file, and a lock that is not read keeps every version;
+            // the review of this change showed `../../outside` becoming `cargo/../../outside`,
+            // which made the cleanup scan and delete a directory outside the store.
+            if let Err(message) = check_version(version) {
+                return Err(format!("{} names tools.{id} at a version that is not one name: {message}", origin.display()));
+            }
             let Some(directory_name) = install_directory_name(route, &name_source) else {
+                // A route whose payload is not a version directory names nothing here; every other route refuses.
+                if route_has_version_directory(route) {
+                    return Err(format!(
+                        "{} names tools.{id} at a directory name that is not one plain name ({}), so its versions cannot be told from anything else",
+                        origin.display(),
+                        name_source
+                    ));
+                }
                 continue;
             };
             self.by_tool
@@ -789,6 +817,18 @@ fn remove_one(candidate: &TrimCandidate, run: &TrimRun) -> Removal {
     let out_of_time = || return run.started.elapsed() >= run.bounds.work_limit;
     if candidate.leftover {
         return remove_leftover(candidate);
+    }
+    // What: what will be moved or deleted is shown to lie under the root it was found in.
+    // Why: the candidate's names come from files, and the check at the reader is not the proof at the act:
+    // a path that resolves outside the store is not this store's to touch, whatever named it.
+    for path in [Some(&candidate.directory), candidate.downloads.as_ref()].into_iter().flatten() {
+        if !resolves_under(&candidate.root, path) {
+            return Removal::Kept(format!(
+                "{} does not lie under the store root {}, so it is not removed",
+                path.display(),
+                candidate.root.display()
+            ));
+        }
     }
     if out_of_time() {
         return Removal::Deferred;
@@ -1282,10 +1322,36 @@ pub fn finish_removals(
             // or this pass gave the version back above and restored the archives with it;
             // deleting the tombstone would take the archives from that removal or from the version just restored,
             // and a claim whose maker has ended does not hold it.
-            if let Some((tool, version)) = downloads_tombstone(root, &marker)
-                && (claimed_here.contains(&version) || removal_held(root, &tool, &version))
-            {
-                continue;
+            if let Some((tool, version)) = downloads_tombstone(root, &marker) {
+                if claimed_here.contains(&version) || removal_held(root, &tool, &version) {
+                    continue;
+                }
+                // What: archives moved aside beside a version that is still at its own name are put back.
+                // Why: the removal moves the archives before it claims the version,
+                // so that state is a removal that never got as far as the claim, and the version it belongs to is
+                // still there: the review of this change showed the pass deleting them and leaving the version
+                // without the files it was installed with.
+                // A version that already has archives of its own is one another install published, and the
+                // tombstone beside it is the older copy's, which then goes.
+                let version_directory: PathBuf = root.join(&tool).join(&version);
+                let downloads: PathBuf = downloads_of(root, &tool, &version);
+                if version_directory.is_dir() && !downloads.exists() {
+                    match fs::rename(&marker, &downloads) {
+                        Ok(()) => {
+                            lines.push(format!(
+                                "mpm-shadow: gave back the archives of {version} of {tool}, which a removal an earlier run started moved aside before it claimed the version"
+                            ));
+                        }
+                        Err(error) => {
+                            unfinished.insert(root.clone());
+                            lines.push(format!(
+                                "mpm-shadow: kept {}: its version is still there and its archives cannot be given back: {error}",
+                                marker.display()
+                            ));
+                        }
+                    }
+                    continue;
+                }
             }
             let bytes: u64 = tree_size(&marker);
             match fs::remove_dir_all(&marker) {

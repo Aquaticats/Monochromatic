@@ -71,7 +71,10 @@ use super::runner::{ProcessRunner, Runner};
 use super::scope::{EnvMap, Scope, ScopeKind, resolve_scope};
 /// Imports what this module uses from `super::store_path_holders`,
 /// which answers whether a running process uses a version.
-use super::store_path_holders::{StoreHolders, held_reason, holders_of};
+use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_holder_reason};
+/// Imports `resolves_under` from `super::store_versions`,
+/// which proves at the act that a path lies under the store.
+use super::store_versions::resolves_under;
 /// Imports `DEFAULT_WORK_LIMIT_MILLIS` from `super::store_trim`,
 /// the bound the cleanup already gives a read of the process table.
 use super::store_trim::DEFAULT_WORK_LIMIT_MILLIS;
@@ -116,7 +119,13 @@ fn holders_or_refusal(root: &Path) -> Result<StoreHolders, ToolchainError> {
 /// function runningReason(holders: StoreHolders, versionDirectory: string): string | undefined
 /// ```
 fn running_reason(holders: &StoreHolders, version_directory: &Path) -> Option<String> {
-    return held_reason(holders, version_directory).map(|reason| return format!("it is in use: {reason}"));
+    if let Some(reason) = held_reason(holders, version_directory) {
+        return Some(format!("it is in use: {reason}"));
+    }
+    // What: a process the kernel will not describe may hold this version, so it is kept too.
+    // Why: the scan cannot tell which file it runs or where it works, and a version in use must not be deleted;
+    // the removal of old versions answers this the same way, and the two answer alike.
+    return opaque_holder_reason(holders).map(|reason| return format!("it is in use: {reason}"));
 }
 
 /// One version directory found on disk.
@@ -329,6 +338,18 @@ fn prune_archives(
     for (id, version) in plan_archive_prune(&present) {
         let directory: PathBuf = tool_install_dir(&scope.toolchain_root, &id, &version)
             .map_err(|error| return after_removing(error, removed))?;
+        // What: what will be deleted is shown to lie under the store.
+        // Why: the names come from files, and the check at the reader is not the proof at the act.
+        if !resolves_under(&scope.toolchain_root, &directory) {
+            return Err(after_removing(
+                ToolchainError::failure(format!(
+                    "{} does not lie under the store {}, so it is not removed",
+                    directory.display(),
+                    scope.toolchain_root.display()
+                )),
+                removed,
+            ));
+        }
         // What: a version a running process of this user uses is not judged, whatever the locks say.
         // Why: the process would keep running from the unlinked file, and its next start would find nothing there.
         if running_reason(holders, &directory).is_some() {
@@ -477,6 +498,18 @@ pub fn prune_toolchain(
     let mut planned: Vec<(String, String, PathBuf)> = Vec::new();
     for (crate_name, version) in plan_prune(&present, &named) {
         let directory: PathBuf = scope.toolchain_root.join(CARGO_NAMESPACE).join(&crate_name).join(&version);
+        // What: what will be deleted is shown to lie under the store.
+        // Why: the names come from files, and the check at the reader is not the proof at the act.
+        if !resolves_under(&scope.toolchain_root, &directory) {
+            return Err(after_removing(
+                ToolchainError::failure(format!(
+                    "{} does not lie under the store {}, so it is not removed",
+                    directory.display(),
+                    scope.toolchain_root.display()
+                )),
+                &[],
+            ));
+        }
         // A version the other toolchain root's `current` forwards to is the one that root runs: never pruned from here.
         if other_root_forwards_to(&current_link(&scope.other_toolchain_root, &crate_name), &directory) {
             continue;
@@ -639,6 +672,16 @@ fn remove_current_link(
     unlinked: &mut Vec<PathBuf>,
 ) -> Result<(), ToolchainError> {
     let link: PathBuf = current_link(toolchain_root, crate_name);
+    if !resolves_under(toolchain_root, &link) {
+        return Err(after_removing(
+            ToolchainError::failure(format!(
+                "{} does not lie under the store {}, so it is not removed",
+                link.display(),
+                toolchain_root.display()
+            )),
+            unlinked,
+        ));
+    }
     let named: String = match running_version(toolchain_root, crate_name) {
         Some(named) => named,
         // No link to read, or one whose name this run cannot take: nothing here is this run's to remove.

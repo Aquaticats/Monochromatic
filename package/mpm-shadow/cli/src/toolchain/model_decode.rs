@@ -23,7 +23,7 @@ use super::model_decode_support::{DecodeResult, as_nonempty_text, as_object, as_
 /// Imports the package name a declaration installs.
 use super::observe::declared_package_name;
 /// Imports the checks that a name is one plain directory name.
-use super::segment::{check_bin_name, check_directory_name, check_tool_id, check_version};
+use super::segment::{check_bin_name, check_directory_name, check_tool_id, check_version, name_problem};
 /// Imports the platform ids an artifact row may be keyed by.
 use super::update_resolve::LINUX_PLATFORMS;
 
@@ -70,9 +70,21 @@ fn decode_postinstall(value: &Value, path: &str) -> DecodeResult<Postinstall> {
             Some(directory) => Some(as_nonempty_text(directory, &format!("{link_path}.linkDir"))?),
             None => None,
         };
+        // What: the link's name is one file name, and its directory does not walk up out of what it is joined to.
+        // Why: both come from a file and both become a path the tool writes a link at and later removes one from;
+        // `../elsewhere` in either would leave the directory the plan names.
+        let link_name: String = as_nonempty_text(name, &format!("{link_path}.linkName"))?;
+        if let Some(problem) = name_problem(&link_name) {
+            return Err(format!("{link_path}.linkName {problem}"));
+        }
+        if let Some(directory) = &link_dir
+            && let Some(problem) = climbing_problem(directory)
+        {
+            return Err(format!("{link_path}.linkDir {problem}"));
+        }
         return Ok(Postinstall::Link(PostinstallLink {
             source_bin: as_nonempty_text(source, &format!("{link_path}.sourceBin"))?,
-            link_name: as_nonempty_text(name, &format!("{link_path}.linkName"))?,
+            link_name,
             link_dir,
         }));
     }
@@ -376,4 +388,20 @@ pub fn decode_lock_entry(id: &str, value: &Value, path: &str) -> DecodeResult<Lo
         None => Vec::new(),
     };
     return Ok(LockedTool { declaration, version, artifacts });
+}
+
+/// What:
+/// Why `text` is not a directory a link may be written in:
+/// it walks up out of the directory it is joined to.
+/// Why:
+/// An absolute directory is allowed (a person's plan may name one),
+/// and a relative one is joined to the scope's root,
+/// but `..` in either leaves what the plan names for somewhere the tool does not own.
+fn climbing_problem(text: &str) -> Option<&'static str> {
+    for segment in std::path::Path::new(text).components() {
+        if segment == std::path::Component::ParentDir {
+            return Some("walks up out of the directory it names (it holds `..`)");
+        }
+    }
+    return None;
 }

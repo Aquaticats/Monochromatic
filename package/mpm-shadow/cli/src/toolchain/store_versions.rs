@@ -44,6 +44,9 @@ use serde_json::Value;
 use super::cargo_installs::{CARGO_NAMESPACE, CURRENT_LINK_NAME};
 /// Imports `install_dir_name` from `super::layout`.
 use super::layout::install_dir_name;
+/// Imports the name checks from `super::segment`,
+/// which every name that becomes a path asks before it is joined.
+use super::segment::{RESERVED_TOOL_DIRECTORIES, directory_name_problem};
 /// Imports `Route` from `super::model`.
 use super::model::Route;
 /// Imports `file_name_text` and `write_atomically` from `super::util`.
@@ -170,6 +173,10 @@ pub fn write_size_records(toolchain_root: &Path, records: &BTreeMap<String, Size
 /// Why:
 /// The scan and the "this run installed it" check must agree on where a tool's versions live,
 /// so both ask this.
+/// The name is data from a file when a lock gives it, so it is one plain directory name before it is joined anywhere,
+/// or the answer is `None`:
+/// the review of this change showed a `cargo-binstall` row's `packageId` of `../../outside` becoming
+/// `cargo/../../outside`, which made the cleanup scan and delete a directory outside the store.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -181,14 +188,49 @@ pub fn install_directory_name(route: Route, id: &str) -> Option<String> {
         Route::CargoBinstall => {
             let crate_name: &str =
                 if let Some(rest) = id.strip_prefix("cargo:") { rest } else { id };
+            if directory_name_problem(crate_name).is_some() {
+                return None;
+            }
             Some(format!("{CARGO_NAMESPACE}/{crate_name}"))
         }
         // An archive, a Go module, the Android SDK and a crate installed from git each own a top-level directory
         // named after the tool's id, with one directory per version below it.
-        Route::Archive | Route::GoInstall | Route::AndroidSdk | Route::CargoGit => Some(install_dir_name(id)),
+        Route::Archive | Route::GoInstall | Route::AndroidSdk | Route::CargoGit => {
+            let directory: String = install_dir_name(id);
+            if directory_name_problem(&directory).is_some() || RESERVED_TOOL_DIRECTORIES.contains(&directory.as_str()) {
+                return None;
+            }
+            Some(directory)
+        }
         // pnpm, uv, rustup and the `bin` downloader keep their payload in their own home, not in a version directory.
         Route::MpmPnpm | Route::MpmUvx | Route::RustupToolchain | Route::RustupComponents | Route::BinSourced => None,
     };
+}
+
+/// What:
+/// Whether what stands at `path` lies under `root` once both are resolved,
+/// or whether nothing stands there at all.
+/// Why:
+/// Names come from files and are joined to the store root, and a lock's row, a plan's row or a link can name a path
+/// that leaves the store.
+/// Before anything is moved or deleted, the path that will be acted on is resolved and shown to lie under the store:
+/// a name is data until that proof, whatever the checks at its reader allowed.
+/// Nothing at the path is not a reason to refuse, because nothing there is nothing to lose.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function resolvesUnder(root: string, path: string): boolean
+/// ```
+pub fn resolves_under(root: &Path, path: &Path) -> bool {
+    let resolved_path: PathBuf = match fs::canonicalize(path) {
+        Ok(found) => found,
+        Err(_) => return true,
+    };
+    let resolved_root: PathBuf = match fs::canonicalize(root) {
+        Ok(found) => found,
+        Err(_) => return false,
+    };
+    return resolved_path.starts_with(&resolved_root);
 }
 
 /// What:
@@ -449,6 +491,17 @@ pub fn version_directories(
                 continue;
             }
             let directory: PathBuf = entry.path();
+            // What: a version whose path resolves outside the store is not listed, and the scan says it left one out.
+            // Why: the names come from files and from directory entries, and a link at a tool's name leaves the store;
+            // the scan is the first place that can prove it after the join.
+            if !resolves_under(toolchain_root, &directory) {
+                stopped = Some(format!(
+                    "{} resolves outside {}, so no version of it is judged",
+                    directory.display(),
+                    toolchain_root.display()
+                ));
+                break;
+            }
             let Ok(metadata) = fs::symlink_metadata(&directory) else {
                 continue;
             };
