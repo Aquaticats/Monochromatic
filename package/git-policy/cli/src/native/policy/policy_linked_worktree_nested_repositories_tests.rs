@@ -153,6 +153,72 @@ fn a_clean_names_the_nested_repository_it_takes_before_git_runs() {
 }
 
 /// What:
+///  A clean that cannot delete a directory takes no repository,
+///  so the question is not asked of Git at all,
+///  while the same clean with `-d` is asked.
+/// Why:
+///  Without `-d` Git removes no directory
+///  (`git clean -f -X` printed nothing at all and left `ignored/` with its file in place,
+///  measured on this host with native Git 2.56.0, 2026-11-15),
+///  and a repository is a directory,
+///  so the dry run's answer would name nothing and the record needs it not:
+///  that start is the whole cost this branch adds to a clean over `main`
+///  (`keep/cost-a-clean-by-its-steps.ts` in this run's scratch folder).
+///  A positional pathspec does delete a directory Git names without `-d`,
+///  so a clean that names one is still asked.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// decideClean(places, ['-f', '-X'])     // no dry run, one 'allowed' line
+/// decideClean(places, ['-f', '-d', '-X']) // one dry run
+/// ```
+#[test]
+fn a_clean_without_descents_takes_no_repository_and_asks_git_nothing() {
+    let places: Places = worktree_with_a_nested_repository("policy-nested-no-descent");
+    let shim: PathBuf = places.root.join("git-that-records-a-dry-run");
+    let reached: PathBuf = places.root.join("dry-runs");
+    std::fs::write(
+        shim.as_path(),
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\nexec {REAL_GIT} \"$@\"\n",
+            reached.display(),
+            REAL_GIT = REAL_GIT
+        )
+        .as_bytes(),
+    )
+    .expect("the shim");
+    let mut permissions = std::fs::metadata(shim.as_path()).expect("the shim").permissions();
+    std::os::unix::fs::PermissionsExt::set_mode(&mut permissions, 0o755);
+    std::fs::set_permissions(shim.as_path(), permissions).expect("the shim runs");
+    let prefix: Vec<OsString> = vec![OsString::from("-C"), places.linked.as_os_str().to_os_string()];
+    let mut facts: GitFacts = git_facts(shim.as_path(), prefix.as_slice(), isolated_overlay().as_slice());
+    let location = facts.location().expect("the linked worktree's identity");
+    for (region, asked) in [(vec!["-f", "-X"], false), (vec!["-f", "-d", "-X"], true)] {
+        let before: usize = audit_lines(places.main.as_path()).len();
+        let written: Vec<OsString> = region.iter().map(OsString::from).collect();
+        let mut seen: Vec<OsString> = vec![OsString::from("clean")];
+        seen.extend(written.iter().cloned());
+        let outcome: PolicyOutcome = allow_a_discarding_form(AllowedForm {
+            facts: &mut facts,
+            command: GuardedCommand::CleanIgnoredOnly,
+            location: &location,
+            region: written.as_slice(),
+            seen: seen.as_slice(),
+            dirty: Some(false),
+        });
+        assert!(matches!(outcome, PolicyOutcome::Findings(ref found) if found.is_empty()), "{outcome:?}");
+        let calls: String = std::fs::read_to_string(reached.as_path()).unwrap_or_default();
+        let dry_runs: usize = calls.lines().filter(|line| return line.contains(" clean ") && line.contains(" -n ")).count();
+        assert_eq!(dry_runs, if asked { 1 } else { 0 }, "{region:?}: the calls were {calls:?}");
+        let lines: Vec<String> = audit_lines(places.main.as_path()).into_iter().skip(before).collect();
+        assert_eq!(lines.len(), 1, "{region:?}: {lines:?}");
+        assert!(lines[0].contains("\"outcome\":\"allowed\""), "{region:?}: {lines:?}");
+        assert!(!lines[0].contains("nestedRepositories"), "{region:?}: {lines:?}");
+    }
+    remove(places.root.as_path());
+}
+
+/// What:
 ///  A clean that takes no repository keeps the one line it always left.
 /// Why:
 ///  A clean of ignored files that meets no nested repository is the ordinary case,

@@ -119,6 +119,20 @@ fn nested_repositories_a_clean_takes(
         return Ok(Vec::<Vec<u8>>::new());
     }
     // What:
+    //  A clean that cannot delete a directory takes no repository, so Git is not asked.
+    // Why:
+    //  Without `-d` Git removes no directory at all:
+    //  `git clean -f -X` in a worktree whose only ignored entry is the directory `ignored/` printed nothing and
+    //  left the directory and its file in place (measured on this host with native Git 2.56.0, 2026-11-15).
+    //  A repository is a directory, so the dry run's answer would name nothing and the record needs it not,
+    //  and that start is the whole cost this reading adds to a clean over `main`
+    //  (`keep/cost-a-clean-by-its-steps.ts`, this run's scratch folder).
+    //  A positional path is still asked: Git removes a directory a pathspec names without `-d`
+    //  (`git clean -ffX -- vendor`, measured earlier and recorded in "Discarding commands").
+    if !parsed.descends && parsed.paths.is_empty() {
+        return Ok(Vec::<Vec<u8>>::new());
+    }
+    // What:
     //  A clean with no force under the default `clean.requireForce` is Git's own refusal.
     // Why:
     //  `cmd_clean` refuses it before it deletes anything
