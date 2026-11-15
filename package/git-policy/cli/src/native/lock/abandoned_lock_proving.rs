@@ -166,6 +166,28 @@ use std::path::{Path, PathBuf};
 ///  where a control acts as a Git that takes the freed name.
 pub(crate) const UNLINKED_THE_LOCK: &str = "abandoned-lock-unlinked";
 
+/// What:
+///  The instant after a clearance unlinked the PID file and before it unlinks the lock,
+///  which is one step of the clearance a control kills the process at.
+/// Why:
+///  A process can be killed at any instruction, and the state after this one is a lock that stands with
+///  its binding and no PID file:
+///  the next command must clear it by that binding (a review of `0fe1e01e9f`,
+/// finding 2).
+///  Named here so both halves of that promise reach one point,
+/// and inert unless the test variable or a control names it.
+pub const AFTER_THE_PID_FILE_IS_UNLINKED: &str = "after-the-pid-file-is-unlinked";
+
+/// What:
+///  The instant after a clearance unlinked the record of the lock it cleared,
+///  which is the last step of the clearance a control kills the process at.
+/// Why:
+///  What a kill here leaves is the state of a finished clearance, and the next command must meet a
+///  repository it can clear.
+///  Named here as the other steps of the clearance are,
+/// and inert unless the test variable or a control names it.
+pub const AFTER_THE_RECORD_IS_REMOVED: &str = "after-the-record-is-removed";
+
 /// How long a command that met another command's removal of the same lock waits for it to finish.
 /// Exempt from a citation under `LQM` (class:
 /// pacing of a removal):
@@ -328,6 +350,8 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     {
         let _removed = std::fs::remove_file(pid_file.as_path());
     }
+    // A control reaches here to act as the process killed at this step of the clearance.
+    crate::service_fault::reach(AFTER_THE_PID_FILE_IS_UNLINKED);
     std::fs::remove_file(lock).ok()?;
     // A control reaches here to act as a Git that takes the freed name at this instant.
     crate::service_fault::reach(UNLINKED_THE_LOCK);
@@ -336,6 +360,8 @@ pub fn clear_one(lock: &Path, common_dir: &Path) -> Option<Clearance> {
     if let Some(recorded) = record.as_ref() {
         crate::lock_bindings::remove(recorded);
     }
+    // A control reaches here to act as the process killed at this step of the clearance.
+    crate::service_fault::reach(AFTER_THE_RECORD_IS_REMOVED);
     // The lease, where this platform offers one, is released only now: both names are gone.
     drop(proof);
     return Some(Clearance { lock: lock.to_path_buf(), pid, evidence });

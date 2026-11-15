@@ -1199,3 +1199,310 @@ fn a_lock_that_stands_when_the_watch_opens_is_known_and_never_bound() {
     assert!(known, "a lock standing in a folder the watch opens on must be known");
     assert!(taken.is_empty(), "a lock found by reading is never bound to a child: {taken:?}");
 }
+
+/// What:
+///  A script that takes a lock in the directory its last argument names,
+///  writes the PID file beside it only when `write_pid` says so,
+///  and kills itself.
+/// Why:
+///  The two states a kill can leave are the ones the review of `0fe1e01e9f` separates:
+///  a lock that stands with its PID file, and a lock whose Git was killed between creating it and
+///  writing the PID file (finding 1), whose only evidence is what the watcher saw.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const fakeGit = writeScript(`for a in "$@"; do last="$a"; done; cd "$last"; : > index.lock; ${writePid ? "printf 'pid %s\\n' $$ > index~pid.lock" : ""}; sleep 0.05; kill -9 $$`)
+/// ```
+fn a_fake_git_that_takes_a_lock_and_dies(directory: &Path, name: &str, write_pid: bool) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt as _;
+    let program: PathBuf = directory.join(name);
+    let pid_line: &str = if write_pid { "printf 'pid %s\\n' \"$$\" > index~pid.lock\n" } else { "" };
+    let script: String = format!("#!/bin/sh\nfor argument in \"$@\"; do last=\"$argument\"; done\ncd \"$last\" || exit 1\n: > index.lock\n{pid_line}sleep 0.05\nkill -9 \"$$\"\n");
+    std::fs::write(program.as_path(), script).expect("the fake Git");
+    std::fs::set_permissions(program.as_path(), std::fs::Permissions::from_mode(0o755)).expect("the fake Git runs");
+    return program;
+}
+
+/// A child-start report that records the child, as a caller of the watched runner does.
+struct RecordTheChild;
+
+impl crate::forwarding::ChildStarted for RecordTheChild {
+    fn started(&mut self, pid: u32) {
+        crate::lock_holder_records::note_child_started(pid);
+    }
+}
+
+/// What:
+///  A lock whose Git was killed between creating it and writing its PID file is bound by the sight of it,
+///  and the next command clears it and a commit lands.
+/// Why:
+///  The watched Git creates `index.lock` and is killed before `index~pid.lock` is written;
+///  the binder required a PID file, so no record was written,
+///  and the next command had neither a record nor a PID file to prove the holder gone:
+///  the lock stayed for good and every commit after it failed
+///  (a review of `0fe1e01e9f`,
+/// finding 1).
+///  What the wrapper saw is the evidence, not what Git wrote beside the lock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const child = runWatched(fakeGitTakingOnlyALock()); await until(bindingsOf(indexLock).length);
+/// expect(clearOne(indexLock, {births: 'coarse'})).toBeDefined(); expect(git(['commit', '-m', 'next']).status).toBe(0)
+/// ```
+#[test]
+fn a_lock_its_git_left_without_a_pid_file_is_bound_by_the_sight_and_cleared() {
+    let directory: PathBuf = crate::test_support::fixture("watch-lock-without-a-pid-file");
+    let repository: PathBuf = crate::test_support::repository(directory.as_path(), "repo");
+    let common: PathBuf = repository.join(".git");
+    std::fs::write(repository.join("staged.txt"), "a change the next commit lands\n").expect("a staged change");
+    let _added = crate::test_support::git(repository.as_path(), &["add", "staged.txt"]);
+    crate::lock_holder_records::remember_repository(common.as_path());
+    crate::lock_holder_records::record_this_process(common.as_path());
+    crate::lock_watch::remember(Some(Watched { common_dir: common.clone(), roots: vec![common.clone()] }));
+    let fake_git: PathBuf = a_fake_git_that_takes_a_lock_and_dies(directory.as_path(), "fake-lock-before-pid", false);
+    let mut started = RecordTheChild;
+    let outcome = crate::forwarding::run_real_git_naming(fake_git.as_path(), &[common.as_os_str().to_owned()], &[], &mut started, crate::hooks_off::StartOwner::Wrapper)
+        .expect("the watched runner collects its Git");
+    crate::lock_watch::remember(None);
+    let lock: PathBuf = common.join("index.lock");
+    let bindings: Vec<Binding> = lock_bindings::bindings_of(common.as_path(), lock.as_path());
+    let clearance = crate::lock_birth_times::with_birth_times(crate::lock_birth_times::BirthTimes::Coarse(std::time::Duration::from_secs(3600)), || {
+        return crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
+    });
+    let stands: bool = lock.exists();
+    let commit = crate::test_support::git_output(repository.as_path(), &["commit", "--quiet", "--message", "next"]);
+    let landed: bool = commit.status.success();
+    crate::test_support::remove(directory.as_path());
+    assert_eq!(outcome, crate::forwarding::ChildOutcome::Signaled(9), "the control's Git dies by its own kill");
+    assert!(!bindings.is_empty(), "the sight of the lock is the evidence, so a record names it though no PID file was written");
+    assert!(matches!(clearance, Some(ref found) if found.evidence == crate::abandoned_lock_proving::Evidence::Binding), "the next command clears the lock by that record: {clearance:?}");
+    assert!(!stands, "the lock is gone after the next command");
+    assert!(landed, "the commit after it lands: {}", String::from_utf8_lossy(commit.stderr.as_slice()));
+}
+
+/// What:
+///  A tracker returns every lock its child took,
+///  and no count drops one silently.
+/// Why:
+///  The binder wrote records only for the locks the tracker returned,
+///  and the tracker stopped at thirty-two:
+///  a lock past that count fell back to the birth order,
+///  which proves nothing where the two births are equal or unreadable,
+///  so the lock stayed and the reference update that needed it failed for good
+///  (a review of `0fe1e01e9f`,
+/// finding 4).
+///  The list is bounded by the names one run follows, and this states the bound does not drop
+///  a standing take.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// feed(thirtyThreeStandingPairs()); expect(locksTaken(child).length).toBe(33)
+/// ```
+#[test]
+fn a_tracker_returns_every_standing_lock_its_child_took() {
+    let directory: PathBuf = crate::test_support::fixture("watch-no-lock-count-drops-one");
+    let heads: PathBuf = directory.join("refs/heads");
+    let pid: i64 = i64::from(std::process::id());
+    let mut tracker: Tracker = Tracker::new();
+    let mut written: Vec<PathBuf> = Vec::new();
+    for index in 0..33 {
+        let namespace: PathBuf = heads.join(format!("namespace-{index:02}"));
+        std::fs::create_dir_all(namespace.as_path()).expect("the reference namespace");
+        let lock: PathBuf = namespace.join("topic.lock");
+        std::fs::write(lock.as_path(), b"an unfinished reference update\n").expect("the lock");
+        std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {pid}\n")).expect("its PID file");
+        tracker.feed(&[created(namespace.as_path(), "topic.lock"), created(namespace.as_path(), "topic~pid.lock")]);
+        written.push(lock);
+    }
+    let returned: Vec<PathBuf> = tracker.locks_taken(pid);
+    crate::test_support::remove(directory.as_path());
+    for lock in written.iter() {
+        assert!(returned.contains(lock), "the tracker must return the lock at {}: {returned:?}", lock.display());
+    }
+}
+
+/// What:
+///  A Git the bounded runner started records its own child,
+///  as every watched start does,
+///  so the record the watcher wrote can clear the lock that Git left.
+/// Why:
+///  The bounded runner watched its Git and wrote a binding for the lock it took,
+///  and never wrote the record of the child's start:
+///  the proof asks for that record, refused the binding, and the commit after it failed for good
+///  (a review of `0fe1e01e9f`,
+/// finding 3).
+///  One function starts a watched Git and records it, so no runner can watch without recording.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// runRealGitUntil(fakeGitLeavingALock()); expect(identitiesRecorded(boundPid)).not.toEqual([]);
+/// expect(clearOne(indexLock)).toBeDefined(); expect(git(['commit', '-m', 'next']).status).toBe(0)
+/// ```
+#[test]
+fn a_git_the_bounded_runner_started_records_its_child() {
+    let directory: PathBuf = crate::test_support::fixture("watch-bounded-runner-records-its-child");
+    let repository: PathBuf = crate::test_support::repository(directory.as_path(), "repo");
+    let common: PathBuf = repository.join(".git");
+    std::fs::write(repository.join("staged.txt"), "a change the next commit lands\n").expect("a staged change");
+    let _added = crate::test_support::git(repository.as_path(), &["add", "staged.txt"]);
+    crate::lock_holder_records::remember_repository(common.as_path());
+    crate::lock_holder_records::record_this_process(common.as_path());
+    crate::lock_watch::remember(Some(Watched { common_dir: common.clone(), roots: vec![common.clone()] }));
+    let fake_git: PathBuf = a_fake_git_that_takes_a_lock_and_dies(directory.as_path(), "fake-lock-of-the-bounded-runner", true);
+    let outcome = crate::forwarding::run_real_git_until(fake_git.as_path(), &[common.as_os_str().to_owned()], &[], std::time::Duration::from_secs(30), crate::hooks_off::StartOwner::Wrapper)
+        .expect("the bounded runner collects its Git");
+    crate::lock_watch::remember(None);
+    let lock: PathBuf = common.join("index.lock");
+    let bindings: Vec<Binding> = lock_bindings::bindings_of(common.as_path(), lock.as_path());
+    let bound: Option<i64> = bindings.first().map(|found| { return found.pid; });
+    let recorded: Vec<String> = bound.map(|pid| { return crate::lock_holder_record_reads::identities_recorded(common.as_path(), pid); }).unwrap_or_default();
+    let clearance = crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
+    let stands: bool = lock.exists();
+    let commit = crate::test_support::git_output(repository.as_path(), &["commit", "--quiet", "--message", "next"]);
+    let landed: bool = commit.status.success();
+    crate::test_support::remove(directory.as_path());
+    assert_eq!(outcome, crate::forwarding::ChildOutcome::Signaled(9), "the control's Git dies by its own kill");
+    assert!(!bindings.is_empty(), "the bounded runner's watcher records the lock its Git took");
+    assert!(!recorded.is_empty(), "the bounded runner records the child it started");
+    assert!(matches!(clearance, Some(ref found) if found.evidence == crate::abandoned_lock_proving::Evidence::Binding), "the next command clears the lock by that record: {clearance:?}");
+    assert!(!stands, "the lock is gone after the next command");
+    assert!(landed, "the commit after it lands: {}", String::from_utf8_lossy(commit.stderr.as_slice()));
+}
+
+/// The steps of taking a lock and of clearing one, by the name a control passes to the helper below.
+/// Why:
+///  A process can be killed at any instruction, so each step of a take and each step of a clearance is
+///  one row of the walk control: the state after each must be one the next command clears
+///  (a review of `0fe1e01e9f`,
+/// and the invariant it states).
+const WALK_STEPS: [&str; 5] = [
+    "after-the-lock",
+    "after-the-pid-file",
+    "after-the-pid-file-unlink",
+    "after-the-lock-unlink",
+    "after-the-record",
+];
+
+/// The variable that names the step the helper below takes, and the fixture it takes it in.
+const WALK_STEP_VARIABLE: &str = "CLI_GIT_TEST_WALK_STEP";
+const WALK_FIXTURE_VARIABLE: &str = "CLI_GIT_TEST_WALK_FIXTURE";
+
+/// What:
+///  Take one step of a take or of a clearance,
+///  and, for a clearance's step, die there as a killed process does.
+/// Why:
+///  The walk control needs a process that can be killed at one named instruction,
+///  and the helper is a copy of this test binary started for that one step
+///  (`test_support::this_test_binary`).
+///  Nothing happens when the variable is absent, so the suite's own run of it is a no-op.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const step = process.env.CLI_GIT_TEST_WALK_STEP; if (!step) return;
+/// const fixture = process.env.CLI_GIT_TEST_WALK_FIXTURE; takeOrClearUntilTheStep(fixture, step)
+/// ```
+#[test]
+fn a_step_of_a_take_or_a_clearance_is_killed_for_the_walk_control() {
+    let Some(step) = std::env::var_os(WALK_STEP_VARIABLE) else {
+        return;
+    };
+    let step: String = step.to_string_lossy().into_owned();
+    let fixture: PathBuf = PathBuf::from(std::env::var_os(WALK_FIXTURE_VARIABLE).expect("the walk's fixture"));
+    let repository: PathBuf = crate::test_support::repository(fixture.as_path(), "repo");
+    let common: PathBuf = repository.join(".git");
+    std::fs::write(repository.join("staged.txt"), "a change the next commit lands\n").expect("a staged change");
+    let _added = crate::test_support::git(repository.as_path(), &["add", "staged.txt"]);
+    match step.as_str() {
+        "after-the-lock" | "after-the-pid-file" => {
+            crate::lock_holder_records::remember_repository(common.as_path());
+            crate::lock_holder_records::record_this_process(common.as_path());
+            crate::lock_watch::remember(Some(Watched { common_dir: common.clone(), roots: vec![common.clone()] }));
+            let write_pid: bool = step == "after-the-pid-file";
+            let fake_git: PathBuf = a_fake_git_that_takes_a_lock_and_dies(fixture.as_path(), "fake-git-of-the-walk", write_pid);
+            let mut started = RecordTheChild;
+            let outcome = crate::forwarding::run_real_git_naming(fake_git.as_path(), &[common.as_os_str().to_owned()], &[], &mut started, crate::hooks_off::StartOwner::Wrapper)
+                .expect("the watched runner collects its Git");
+            crate::lock_watch::remember(None);
+            assert_eq!(outcome, crate::forwarding::ChildOutcome::Signaled(9), "the step's Git dies by its own kill");
+        }
+        other => {
+            // A clearance's step: the fixture holds a killed Git's lock, its PID file, its record and the pin.
+            let lock: PathBuf = common.join("index.lock");
+            let (pid, identity) = a_dead_holder_for_the_gap();
+            std::fs::write(lock.as_path(), b"unfinished work of the killed Git\n").expect("the lock");
+            std::fs::write(pid_file_of(lock.as_path()).as_path(), format!("pid {pid}\n")).expect("its PID file");
+            let holders: PathBuf = crate::lock_holder_records::folder_of(common.as_path());
+            std::fs::create_dir_all(holders.as_path()).expect("the record folder");
+            std::fs::write(holders.join("a-child-record"), crate::lock_holder_records::record_text(&[("child", pid, identity.clone())])).expect("the child record");
+            assert!(
+                lock_bindings::write(common.as_path(), lock.as_path(), &(pid, identity), folder_named(common.as_path())).is_some(),
+                "the plant pins the lock"
+            );
+            let point: &str = match other {
+                "after-the-pid-file-unlink" => crate::abandoned_lock_proving::AFTER_THE_PID_FILE_IS_UNLINKED,
+                "after-the-lock-unlink" => crate::abandoned_lock_proving::UNLINKED_THE_LOCK,
+                "after-the-record" => crate::abandoned_lock_proving::AFTER_THE_RECORD_IS_REMOVED,
+                _ => panic!("unknown walk step {other}"),
+            };
+            // SAFETY: `_exit` takes one number and touches no memory; the control ends this step's process here, as a
+            //         kill at this instruction would.
+            crate::service_fault::hooks::set(point, std::rc::Rc::new(|| { unsafe { libc::_exit(7) } }));
+            let outcome = crate::abandoned_lock_proving::clear_one(lock.as_path(), common.as_path());
+            panic!("the clearance was not killed at step {other}: {outcome:?}");
+        }
+    }
+}
+
+/// What:
+///  Kill a process at each step of taking a lock and at each step of clearing one,
+///  and require that the next command clears what is left and that a commit lands.
+/// Why:
+///  This is the property the four fixes are one statement of:
+///  a commit is never failed for a reason of the wrapper's own,
+///  a process can be killed at any instruction,
+///  and what the wrapper saw is the evidence.
+///  The steps are the whole of a take (the lock, then its PID file) and the whole of a clearance
+///  (the PID file, the lock, the record), and the next command is the pass every command runs.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const step of walkSteps()) { runTheStepInAChildKilledAt(step); clearAbandonedLocks([common]);
+///   expect(indexLock).not.toExist(); expect(git(['commit', '-m', 'next']).status).toBe(0) }
+/// ```
+#[test]
+fn a_kill_at_each_step_of_a_take_and_of_a_clearance_leaves_what_the_next_command_clears() {
+    let root: PathBuf = crate::test_support::fixture("walk-a-kill-at-each-step");
+    let helper: PathBuf = crate::test_support::this_test_binary().expect("the test binary's own path");
+    let mut rows: Vec<String> = Vec::new();
+    for step in WALK_STEPS {
+        let fixture: PathBuf = root.join(step);
+        std::fs::create_dir_all(fixture.as_path()).expect("the step's fixture");
+        let ran = std::process::Command::new(helper.as_path())
+            .args(["lock::lock_watch_tests::a_step_of_a_take_or_a_clearance_is_killed_for_the_walk_control", "--exact", "--test-threads=1"])
+            .env(WALK_STEP_VARIABLE, step)
+            .env(WALK_FIXTURE_VARIABLE, fixture.as_path())
+            .env("CLI_GIT_TEST_ROOT", root.join("unit-fixtures"))
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .expect("the step's own process");
+        let common: PathBuf = fixture.join("repo").join(".git");
+        // The next command: the pass every command makes, from a fresh process.
+        let _outcome = crate::abandoned_locks::clear_abandoned_locks(std::slice::from_ref(&common));
+        let lock: PathBuf = common.join("index.lock");
+        let stands: bool = lock.exists();
+        let commit = crate::test_support::git_output(fixture.join("repo").as_path(), &["commit", "--quiet", "--message", "next"]);
+        rows.push(format!(
+            "{step}: step status={:?} signal={:?}; lock stands={stands}; commit status={:?}; step said={:?}",
+            ran.status.code(),
+            std::os::unix::process::ExitStatusExt::signal(&ran.status),
+            commit.status.code(),
+            String::from_utf8_lossy(ran.stderr.as_slice()).lines().filter(|line| { return line.contains("panicked") || line.contains("walk step"); }).collect::<Vec<&str>>()
+        ));
+        assert!(!stands, "{step}: the next command clears the lock: {}", rows.last().expect("the row just written"));
+        assert!(commit.status.success(), "{step}: the commit after it lands: {}", rows.last().expect("the row just written"));
+    }
+    crate::test_support::remove(root.as_path());
+    let _walk = rows;
+}

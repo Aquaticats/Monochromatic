@@ -714,3 +714,41 @@ fn folder_named(path: &Path) -> (u64, u64) {
     let seen = crate::index_lock_evidence::read_lock_metadata(path).ok().flatten().expect("the folder's own identity");
     return (seen.device, seen.inode);
 }
+
+/// What:
+///  The state a clearance leaves when the process is killed after it unlinked the PID file
+///  and before it unlinked the lock is cleared by the next command,
+///  through the binding that explains it.
+/// Why:
+///  The clearance removes the PID file first, while the lock still holds its name (a review of
+///  `6c2272132b`, finding 2);
+///  a process can be killed at any instruction, so the state after that unlink is a lock that
+///  stands with its binding and no PID file.
+///  The proof then required the PID file to name the bound process,
+///  so the binding explained nothing and the lock stayed for good
+///  (a review of `0fe1e01e9f`,
+/// finding 2).
+///  A clearance is re-enterable: what remains after a kill at any of its steps is cleared by the
+///  next command.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const lock = plantBoundLock(); rm(pidFile); expect(clearOne(lock)).toBeDefined()
+/// ```
+#[test]
+fn a_clearance_killed_after_its_pid_file_unlink_is_finished_by_the_next_command() {
+    let common_dir: PathBuf = a_git_directory("bound-after-the-pid-file-went");
+    let (pid, identity) = dead_holder();
+    plant_bound(common_dir.as_path(), "index.lock", pid, identity.as_str());
+    let lock: PathBuf = common_dir.join("index.lock");
+    let pid_file: PathBuf = pid_file_beside(lock.as_path());
+    assert!(pid_file.exists(), "the plant writes the PID file a killed Git leaves");
+    std::fs::remove_file(pid_file.as_path()).expect("the killed clearance had unlinked the PID file");
+    let clearance = crate::lock_birth_times::with_birth_times(crate::lock_birth_times::BirthTimes::Coarse(std::time::Duration::from_secs(3600)), || {
+        return crate::abandoned_lock_proving::clear_one(lock.as_path(), common_dir.as_path());
+    });
+    let stands: bool = lock.exists();
+    remove(common_dir.as_path());
+    assert!(matches!(clearance, Some(ref found) if found.evidence == Evidence::Binding), "the binding explains the lock without a PID file: {clearance:?}");
+    assert!(!stands, "the next command's clearance finishes what the killed one began");
+}
