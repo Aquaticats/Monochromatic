@@ -155,7 +155,7 @@ pub fn wait_until_nothing_listens(address: &git_policy_cli::service_server::Bind
                 // The wrapper starts its own service, so a command the fixture ran after it ended its service can have
                 //  started another one here; the fixture wants the address empty, so it asks that service to leave as
                 //  long as it answers.
-                let _asked = git_policy_cli::service_client_listen_and_ask_to_retire::ask_to_retire(address);
+                git_policy_cli::service_client_listen_and_ask_to_retire::ask_to_retire(address);
             }
             git_policy_cli::service_client_listen_and_ask_to_retire::Reached::OtherAccount => {}
         }
