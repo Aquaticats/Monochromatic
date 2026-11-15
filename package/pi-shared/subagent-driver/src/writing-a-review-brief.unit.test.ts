@@ -10,6 +10,7 @@
  @module
  */
 
+import { spawn, } from 'node:child_process';
 import { existsSync, } from 'node:fs';
 import {
   mkdir,
@@ -966,6 +967,122 @@ await describe({
              */
             const briefFile = join(reviewsFolder, aReview(), 'brief.md',);
             expect(existsSync(briefFile,),).toBe(true,);
+          },
+        },),
+        it({
+          name: 'takes a review folder a starter left when it was killed after taking it, so a killed starter blocks nobody for good',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The reviews folder the killed start wrote into.
+             */
+            const reviewsFolder = join(folder.path, 'reviews',);
+            /**
+             The owner file the killed start leaves.
+             */
+            const ownerFile = ownerFileOfAReview({ reviewsFolder, review: aReview(), },);
+            /**
+             The start that takes the folder and waits to be killed, writing the record of the process it is.
+             */
+            const childFile = join(folder.path, 'a-start-that-takes-the-folder.ts',);
+            await writeFile(childFile, `
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+/**
+ The kernel's answer about this process, whose fields after the name begin at its state.
+ */
+const stat = readFileSync('/proc/self/stat', 'utf8',);
+const fields = stat.slice(stat.lastIndexOf(')') + 2,).split(' ',);
+/**
+ The moment this process began, which tells it from a later process of the same number.
+ */
+const startTicks = fields[19];
+/**
+ The boot this process runs on.
+ */
+const bootId = readFileSync('/proc/sys/kernel/random/boot_id', 'utf8',).trim();
+mkdirSync(dirname(process.argv[3],), { recursive: true, },);
+writeFileSync(process.argv[3], JSON.stringify({
+  branch: process.argv[2],
+  commit: 'abc1234',
+  ranges: ['main...feat/one-change'],
+  source: 'package/a-package',
+  claimedAt: new Date().toISOString(),
+  process: { pid: process.pid, bootId, startTicks },
+}, null, 2,) + '\\n',);
+process.stdout.write('took the folder\\n',);
+setInterval(() => {}, 1000,);
+`,);
+            /**
+             The start that took the folder.
+             */
+            const child = spawn(process.execPath, [childFile, aBranch(), ownerFile,], {
+              stdio: ['ignore', 'pipe', 'pipe',],
+            },);
+            /**
+             What the start said on its error stream, for a start that ends before it takes the folder.
+             */
+            let childErrors = '';
+            child.stderr.setEncoding('utf8',);
+            child.stderr.on('data', function saidOnTheErrorStream(chunk: string,) {
+              childErrors += chunk;
+            },);
+            try {
+              await new Promise<void>(function waitForTheFolder(resolve, reject,) {
+                child.stdout.setEncoding('utf8',);
+                child.stdout.once('data', function tookTheFolder(chunk: string,) {
+                  if (chunk.includes('took the folder',)) {
+                    resolve();
+                  }
+                },);
+                child.once('exit', function endedBeforeTaking(code,) {
+                  reject(new Error(`the start ended before it took the folder, with ${String(code,)}: ${childErrors}`,),);
+                },);
+              },);
+              /**
+               The number of the start that took the folder.
+               */
+              const killed = child.pid;
+              expect(typeof killed,).toBe('number',);
+              child.kill('SIGKILL',);
+              await new Promise<void>(function waitForTheEnd(resolve,) {
+                child.once('exit', function ended() {
+                  resolve();
+                },);
+              },);
+              /**
+               What the folder held before this start wrote its brief.
+               */
+              const before = JSON.parse(await readFile(ownerFile, 'utf8',),) as {
+                readonly process?: { readonly pid?: unknown };
+              };
+              expect(before.process?.pid,).toBe(killed,);
+              /**
+               What this start answered.
+               */
+              const briefed = await writeAChangeOfBranch({
+                changed: [aModifiedFile(aCodeFile(),),],
+                folder: folder.path,
+              },);
+              expect(briefed.written,).toBe(true,);
+              /**
+               What the folder now records.
+               */
+              const owner = JSON.parse(await readFile(ownerFile, 'utf8',),) as {
+                readonly branch?: unknown;
+                readonly process?: { readonly pid?: unknown };
+              };
+              expect(owner.branch,).toBe(aBranch(),);
+              expect(owner.process?.pid,).toBe(process.pid,);
+              /**
+               The brief the writer wrote.
+               */
+              const briefFile = join(reviewsFolder, aReview(), 'brief.md',);
+              expect(existsSync(briefFile,),).toBe(true,);
+            }
+            finally {
+              child.kill('SIGKILL',);
+            }
           },
         },),
         it({
