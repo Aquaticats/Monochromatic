@@ -1639,6 +1639,119 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The record of another boot is clean and goes to pass 53; the push stop and the killed-Git lock go back; two gate controls have their cause; the launcher goes to review (2026-11-15T08:32:03-05:00)
+
+Not final and not approved:
+what three reviews and two authors report,
+how the coordinating session weighed them,
+and what it did.
+
+- **The record of another boot** (`5879fd0613`),
+  its review,
+  ended 08:26:06,
+  five of five files,
+  four controls run by name,
+  **no defect found**.
+  It goes to **integration pass 53**,
+  queued first
+  (`~/temp/agent/pi-runs/integration-pass-53-with-a-holders-identity-spelled-another-way-never-taken-for-gone-prompt.md`).
+  One of the gate's standing failures is this branch's.
+- **The stop of a stopped push** (`2da23e4478`),
+  its second review,
+  ended 08:26:00,
+  four of four files,
+  one thing,
+  reproduced:
+  the helper that runs a job "no longer than" a duration applies the whole duration to the wait for a permit and again to the wait for the job,
+  so a stop with a ceiling of one second answered after 1.35 s,
+  and can take almost twice its ceiling.
+  **Weighed**:
+  it goes back;
+  the branch's name is that a stop ends within its bound.
+  The author is asked to fix the helper with one deadline and to list its other callers.
+  Its third run is queued sixth.
+- **The lock a killed Git left, for a reference lock** (`6c2272132b`),
+  its third review,
+  ended 08:25:04,
+  13 of 13 files,
+  three things,
+  each reproduced with the production functions,
+  none a repeat,
+  and nothing against the limit the SPEC states for the bounded runner:
+  a sweep at the same time removes the process record a new lock's binding needs;
+  clearing an old lock removes the PID file a new lock at that name inherited;
+  a lock made together with its folder is not in the watch
+  (the code's own comment says it is missed).
+  In each the lock stays and the next commit fails on it.
+  **Weighed**:
+  all three go back,
+  as one shape,
+  with the table of looked-then-acted places asked for first.
+  Its author's fourth run is queued eighth.
+- **The three gate controls that failed for the first time**,
+  a fresh run,
+  ended 08:24:49 at `760ed393d2`.
+  Two have their cause,
+  in the test both times,
+  shown by arms in both gate images:
+  the reader of a process's CPU counters lost a thread between listing it and reading its file;
+  the stand-in journal read nothing until the commit returned,
+  so on a slow machine its socket filled and one entry fell back to standard error
+  (the image before pass 51 fails the same way at a quarter of a CPU,
+  so pass 51 is not the cause).
+  Both fixed in the tests,
+  with a guard for the first.
+  The third,
+  `real_cargo_leaves_a_stale_lockfile_as_checked_out`,
+  did not fail in eleven arms;
+  the gate's lines say the fill's first clean was ended by a signal 9 from outside the runner.
+  All three passed in the two gates since.
+  The author's second run is queued thirteenth,
+  to settle the third by the run it named and to make that control's failure say the fill's own reason;
+  its review follows.
+  That author ran `printenv CARGO_TARGET_DIR`
+  (one name,
+  no credential)
+  and `du` of the whole scratch root once
+  (223 GiB),
+  and says so;
+  its next brief names both.
+- **The driver's launcher ends when its run has ended**,
+  its author's second run,
+  ended 08:26:58 at `090e416990`.
+  Its review is queued fourteenth
+  (`main...090e416990`,
+  35 code files that are not tests).
+  Two things it noticed and left:
+  a `putEndedReviewsBack` test can fail when a summary and its bound fall in one millisecond
+  (added as a sighting to the queued brief on the driver's suites);
+  and a wrapper process whose folder is a run's worktree counts as that run's own work,
+  which is how three launchers waited six hours,
+  now bounded at thirty minutes.
+- **Two processes an ended review left**,
+  named by that author and stopped by the coordinating session at 08:30:26:
+  scopes `run-p1152543-i34590644.scope` and `run-p3806427-i41497819.scope`,
+  each one `node` holding a lock of the pnpm override lock shim's review with a timer that never ends,
+  23 and 19 hours old,
+  working in that review's folder,
+  with no going run of that review.
+  Both are gone.
+- **The temperature**,
+  read at 08:29:09:
+  52.1 degrees,
+  budget 32.0 threads,
+  3.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:29:13:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:23;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  14 runs going,
+  none silent for twenty minutes.
+  None of the three resumed sessions is named by the credential scan.
+  The queue held 87 entries at 08:32:03.
+
 ##### The drawn shadow tree: a file lost from a commit's scratch can end in a commit nobody wrote; the address-space controls have one small finding left (2026-11-15T08:25:36-05:00)
 
 Not final and not approved:
