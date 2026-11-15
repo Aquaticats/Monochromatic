@@ -11391,6 +11391,25 @@ so no event is an exception.
   A shell alias (`!...`) is run by Git's shell,
   which finds real Git's own `git` first on `PATH`,
   so the command inside it runs with the options Git gives that shell and not with these.
+  Nothing of the wrapper can stand inside that shell: it never starts itself as a shim and never writes shell text
+  (`doc/planning/cli-git-no-self-invocation.md`,
+  the owner's "We should never invoke ourselves recursively"),
+  and a text a shell runs cannot be read to the end,
+  because a shell can build the words another way (`action=remove; git worktree $action`, a substitution, a function,
+  `eval`, a second alias).
+  So a `!` alias is judged when its own command is one plain Git command line this wrapper can read
+  (an inner `-C`, `-c`, `--git-dir` or `--work-tree` included, followed and judged where it points),
+  and it is refused when it is anything else,
+  with the words of what could not be read and with `git --no-enforce-worktree <the alias and its words>` as the way
+  out, which runs it as real Git runs it.
+  That refusal is the price of the ban: a shell alias holding a pipe, a function or a variable is run only through that
+  opt-out.
+  A stated limit, which no guard of the wrapper can close:
+  an alias value that names real Git by an absolute path
+  (`alias.x=/usr/bin/git worktree remove`, or the same words carried in a variable),
+  runs that program with no wrapper in between,
+  and whatever it does to a worktree happens outside every policy,
+  exactly as typing that absolute path would.
 - `git config` starts that only report or change configuration go without the options,
   because they report what the
   repository configures and the wrapper reads `core.hooksPath` and `core.fsmonitor` that way (the commit warning,
