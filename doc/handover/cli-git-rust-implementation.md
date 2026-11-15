@@ -1639,6 +1639,81 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow: an install that removes no version goes back with four findings and one stated limit; the removal of old versions answers and goes to review (2026-11-15T08:47:49-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed them,
+what it read on `main`,
+and what it queued.
+
+- **An install removes no version** (`3f4ac7efdf`),
+  its fifth review,
+  ended 08:43:46,
+  25 of 25 files,
+  five things,
+  each reproduced in a disposable copy through the package's own test task,
+  none a repeat:
+  - a lock row whose `packageId` is `../../outside` makes the cleanup read and delete a folder outside the store;
+  - a removal killed before it claims the version leaves its downloads under a removing name,
+    and the recovery deletes them though the version is still there;
+  - a child stopped at its bound can leave a descendant in a session of its own that writes after `run` returns;
+  - a killed child nobody has collected counts as a live owner,
+    so later installs and removals of that version wait out its claim;
+  - a version held by a process that cannot be described is taken for unused.
+- **Weighed**:
+  four go back.
+  The third is taken as a limit and gets a sentence in the runner's doc:
+  reaching a descendant that left its parent's group and parentage takes a control group around each child,
+  and ending everything in one would also end helpers meant to outlive the command.
+  For the last,
+  the branch is asked to answer as the removal of old versions already does
+  (keep what such a process may hold),
+  which keeps the two branches alike until the owner answers the question kept at 05:22:17.
+  The author's fifth run is queued tenth
+  (`~/temp/agent/pi-runs/mpm-shadow-install-removes-no-version-answers-its-fifth-review-of-2026-11-15-prompt.md`).
+- **Read on `main`**,
+  because the first deletes outside the store:
+  `main` holds neither `toolchain/store_trim.rs` nor `toolchain/store_versions.rs`.
+  The cleanup the finding is in exists on the branch alone,
+  so the installed `mpm-shadow` does not have it.
+- **The removal of old versions**,
+  its author's third run,
+  ended 08:42:14 at `45c0b46705`:
+  the eighth review's eight tests all failed at the old tip and seven pass now;
+  the eighth is written against the old shape and its two halves have controls of their own.
+  Thirteen places that removed or renamed,
+  five of them with nothing proving the object,
+  are now one function that reads the facts again at the instant it acts and answers "kept" for anything it could not read whole.
+  Nine controls each fail with their fix out.
+  Counted here,
+  read-only:
+  109 versions,
+  49.6 GiB;
+  the decision before would remove 27 versions,
+  25.3 GiB,
+  and all 27 are kept by the rule for the fifteen processes that cannot be described,
+  as the question kept at 05:22:17 says.
+  872 tests and 89 controls pass.
+  Its review is queued eleventh
+  (`main...45c0b46705`,
+  fifteen code files that are not tests).
+- **The temperature**,
+  read at 08:46:30:
+  53.9 degrees,
+  budget 32.0 threads,
+  6.2 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:46:30:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:41;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+  The queue held 86 entries at 08:47:49.
+
 ##### Two authors answer and go to review: the wrapper under the gate container's Git, and the process that holds a file open in a worktree (2026-11-15T08:42:01-05:00)
 
 Not final and not approved:
