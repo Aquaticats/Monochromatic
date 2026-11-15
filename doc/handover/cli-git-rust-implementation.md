@@ -1559,6 +1559,87 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The commit-service fix is reviewed clean and starts integration pass 51; the address-space controls and the lock-holders folder are answered and go to review (2026-11-15T04:31:37-05:00)
+
+Not final and not approved:
+what one review and two authors report,
+and what the coordinating session queued.
+
+- **The commit service of a unit the manager no longer holds** (`78750dd149`),
+  its second review,
+  ended 04:25:36:
+  ten of ten files and the diff,
+  no defect found.
+  It ran 57 of the package's tests by name
+  (the client's reach of the service,
+  the messages,
+  the hand-off and the ownership of a commit's scratch tree),
+  all passing.
+  It says it used the package's stand-ins and probed no real manager.
+  So the review ran,
+  and the branch goes to a pass.
+- **Integration pass 51** is queued at the head for that one branch
+  (`~/temp/agent/pi-runs/integration-pass-51-with-the-commit-service-of-a-unit-the-manager-no-longer-holds-asked-to-start-prompt.md`).
+  Its brief asks it to run the author's proof against a real manager in a `podman` container once at the merged tip,
+  and once with the wrapper of `main`,
+  where the hand-over must fail,
+  as the positive control.
+  Pass 50 goes beside it;
+  each meets the other through `main`.
+  This is the fix for the commits that Git made and rolled back on this machine under `0.6.1-alpha.36`.
+- **The controls of a service under an address-space limit**,
+  their author's third run,
+  ended 04:28:08 at `7e9e3c2f3c`.
+  The control now waits for the limited service's own exit,
+  at most 10 s,
+  and requires the status the program gives when it has no worker,
+  now a named constant in `service_main.rs` in place of a bare 4.
+  With the three exits planted out the control fails
+  (where the review's run passed);
+  with the copier held back the moved controls pass.
+  It lists every read of a copied log and what each decides.
+  **It had already built a wait for the copier** before the note of 04:19 reached it
+  (`dcdd99f5c2`:
+  the copier signals its end on a channel and `settle_the_service_log` waits for it);
+  by the note it left that in place.
+  The journal branch's author,
+  whose resume had not started,
+  has that commit named in its brief with leave to read it and a suggestion to take the same names,
+  so that the second branch to reach `main` does not bring a second wait.
+  Its review is queued fourth
+  (`main...7e9e3c2f3c`,
+  six code files that are not tests).
+- **The lock-holders folder**,
+  its author's third run,
+  ended 04:28:25 at `429503238b`,
+  `main` merged.
+  The four findings answered,
+  each control quoted failing with its fix out:
+  a lock a dead Git left in the Git directory and one beside an index Git was told to use are cleared on the record the common directory holds;
+  the proof reads the record of the number the lock names;
+  the Git run under a ceiling names its child the moment it exists.
+  It lists every Git start and whether it is named,
+  and says how pass 49's rule and its change meet.
+  Cost:
+  not measurable inside the spread
+  (medians 56 and 63 ms,
+  the same arm against itself reaching 267 ms).
+  Clippy 0;
+  guards and `lock::` 414 of 414;
+  the gate's two controls pass on this machine and in the gate's image.
+  Its review is queued fifth
+  (`main...429503238b`,
+  thirteen code files that are not tests).
+  Two of the gate's standing failures wait on it.
+- Read at 04:30:10:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 04:24;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The queue held 81 entries at 04:31:37.
+
 ##### The wrapper under the gate container's Git goes back a third time, for one test helper whose bound another program keeps (2026-11-15T04:25:14-05:00)
 
 Not final and not approved:
