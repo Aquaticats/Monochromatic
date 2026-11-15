@@ -108,6 +108,15 @@ pub(super) fn record_file(ctx: &Context) -> PathBuf {
     return ctx.scope.launcher_dir.join(RECORD_FILE_NAME);
 }
 
+/// The record's map of link path to target, empty when it cannot be read.
+/// Why:
+/// A removal of a directory entry needs the record of what this tool wrote there, and the target it recorded is what
+/// tells this tool's own entry from a person's alias at the same path.
+pub(super) fn recorded_links(ctx: &Context) -> BTreeMap<PathBuf, PathBuf> {
+    let (links, _unreadable) = read_record(&record_file(ctx));
+    return links;
+}
+
 /// The recorded links (path to target),
 /// and a warning when the record exists but cannot be read,
 /// in which case nothing is retired this run.

@@ -108,6 +108,8 @@ pub struct UpdateReport {
     pub wrote: bool,
     /// Tool ids the auto-sync installed before a retry.
     pub synced: Vec<String>,
+    /// One sentence per write this run left to the next install, and why.
+    pub warnings: Vec<String>,
 }
 
 /// The methods of `UpdateReport`.
@@ -313,7 +315,7 @@ pub fn update_loaded(
     for result in &results {
         outcomes.push(result.outcome.clone());
     }
-    let mut report: UpdateReport = UpdateReport { outcomes, wrote: false, synced };
+    let mut report: UpdateReport = UpdateReport { outcomes, wrote: false, synced, warnings: Vec::new() };
     if report.has_failures() || check {
         return Ok(report);
     }
@@ -330,8 +332,13 @@ pub fn update_loaded(
     }
     let text: String = render_lock(&Lock { tools });
     if loaded.lock_text.as_deref() != Some(text.as_str()) {
-        publish_lock(scope, &loaded.revisions, &text)?;
-        report.wrote = true;
+        let published: super::publish::Published = publish_lock(scope, &loaded.revisions, &text)?;
+        // A publish the guard's holder made this run leave to the next install is said, and the command goes on: a
+        // failed publish would fail the install and the commit waiting for it.
+        match published.deferred() {
+            Some(sentence) => report.warnings.push(sentence.to_string()),
+            None => report.wrote = true,
+        }
     }
     return Ok(report);
 }
@@ -424,6 +431,9 @@ pub fn format_update_report(report: &UpdateReport, check: bool) -> String {
             OutcomeKind::Failed { .. } => failed += 1,
             _ => {}
         }
+    }
+    for sentence in &report.warnings {
+        text.push_str(&format!("toolchain update: {sentence}\n"));
     }
     if failed > 0 {
         text.push_str(&format!("toolchain update: {failed} lookups failed; toolchain.lock.json was not written\n"));

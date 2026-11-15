@@ -192,6 +192,9 @@ pub struct AddReport {
     /// The ids the plan already held,
     /// in the order given.
     pub existing: Vec<String>,
+    /// The sentence for an append this run left to the next install, when the scope guard stayed held; the entries are
+    /// not in the plan then, so `added` is empty.
+    pub deferred: Option<String>,
 }
 
 /// The methods of `AddReport`.
@@ -655,7 +658,14 @@ where
     }
     let updated: String = plan_with_entries(&text, &label, &report.added)?;
     let expected: Revision = revision_of(&Some(content));
-    publish_plan(scope, &expected, &updated)?;
+    let published: super::publish::Published = publish_plan(scope, &expected, &updated)?;
+    if let Some(sentence) = published.deferred() {
+        // Nothing was appended: the entries are left to the next install, which is told by the sentence, and the
+        // command goes on rather than failing the commit that runs it.
+        report.added.clear();
+        report.deferred = Some(sentence.to_string());
+        return Ok(report);
+    }
     after_plan_write()?;
     return Ok(report);
 }

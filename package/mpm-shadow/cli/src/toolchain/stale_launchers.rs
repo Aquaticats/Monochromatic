@@ -49,7 +49,7 @@
 //! ```
 
 /// Imports `BTreeSet` from `std::collections`.
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 /// Imports `fs` from `std`.
 use std::fs;
 /// Imports the read trait the block comparison and the record read fill their buffers with.
@@ -160,10 +160,9 @@ fn record_is_own(record: &Path, declared_tools: &BTreeSet<&str>) -> Result<Judge
         }
         Err(reason) => return Err(reason),
     };
-    let mut text: String = String::new();
-    if let Err(error) = file.read_to_string(&mut text) {
-        return Err(format!("{} cannot be read: {error}", record.display()));
-    }
+    // The read ends at the same bound every other read here has: a record another command keeps appending to has no
+    // end to wait for, and the descriptor is the one the judgement below is made about.
+    let text: String = super::ordinary_file::read_bounded_text(&mut file, record)?;
     let judged: Judged = judged_of_open(&file, text.as_bytes())?;
     let Some(parsed) = parse_record(&text) else {
         return Err(format!("{} is not a launcher record mpm-shadow wrote", record.display()));
@@ -312,7 +311,7 @@ impl<'a> Proofs<'a> {
     }
 
     /// What:
-    /// `Ok(why)` when the file a link names is provably a launcher of this tool's own.
+    /// `Ok((launcher, why))` when the file a link names is provably a launcher of this tool's own.
     /// Why:
     /// The link names whatever it points at,
     /// which is this checkout's launcher for a tool this repository publishes,
@@ -321,9 +320,10 @@ impl<'a> Proofs<'a> {
     /// A link whose file another install has already removed is judged by the launcher of the same name in this checkout,
     /// but only when the link said the name was in a launcher folder at all:
     /// a person's broken link to somewhere else shares a name and nothing more.
-    fn linked_launcher(&mut self, link: &Path, declared_tools: &BTreeSet<&str>) -> Result<String, String> {
+    fn linked_launcher(&mut self, link: &Path, declared_tools: &BTreeSet<&str>) -> Result<(PathBuf, String), String> {
         if let Ok(resolved) = fs::canonicalize(link) {
-            return Ok(self.own(&resolved, declared_tools)?.why);
+            let proven: Proven = self.own(&resolved, declared_tools)?;
+            return Ok((resolved, proven.why));
         }
         let stated: PathBuf = match fs::read_link(link) {
             Ok(stated) => stated,
@@ -346,7 +346,8 @@ impl<'a> Proofs<'a> {
                 name.to_string_lossy()
             ));
         }
-        return Ok(self.own(&here, declared_tools)?.why);
+        let proven: Proven = self.own(&here, declared_tools)?;
+        return Ok((here, proven.why));
     }
 
     /// What:
@@ -558,19 +559,27 @@ fn witness_launchers_in(folder: &Path, declared_tools: &BTreeSet<&str>, witnesse
 /// and then nothing names the links it made;
 /// a launcher whose link is invisible would be removed from under it.
 /// The `-bin` suffix is the convention the cleanup of old copies already reads a checkout's link folders by.
-fn link_folders(ctx: &Context) -> Vec<PathBuf> {
+fn link_folders(ctx: &Context) -> (Vec<PathBuf>, Vec<String>) {
     let mut folders: Vec<PathBuf> = vec![ctx.scope.exposure_dir.clone()];
+    let mut unlistable: Vec<String> = Vec::new();
     let cache: PathBuf = ctx.scope.root.join(".cache");
-    if let Ok(entries) = fs::read_dir(&cache) {
-        let mut found: Vec<PathBuf> = Vec::new();
-        for entry in entries.flatten() {
-            let name: String = entry.file_name().to_string_lossy().to_string();
-            if name.ends_with(LINK_DIRECTORY_SUFFIX) && entry.path().is_dir() {
-                found.push(entry.path());
+    match fs::read_dir(&cache) {
+        Ok(entries) => {
+            let mut found: Vec<PathBuf> = Vec::new();
+            for entry in entries.flatten() {
+                let name: String = entry.file_name().to_string_lossy().to_string();
+                if name.ends_with(LINK_DIRECTORY_SUFFIX) && entry.path().is_dir() {
+                    found.push(entry.path());
+                }
             }
+            found.sort();
+            folders.extend(found);
         }
-        found.sort();
-        folders.extend(found);
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => unlistable.push(format!(
+            "left everything in {} alone: the directory cannot be listed, so which links this tool made there is unknown: {error}",
+            cache.display()
+        )),
     }
     folders.push(ctx.scope.link_dir.clone());
     for tool in ctx.tools {
@@ -585,7 +594,7 @@ fn link_folders(ctx: &Context) -> Vec<PathBuf> {
             distinct.push(folder);
         }
     }
-    return distinct;
+    return (distinct, unlistable);
 }
 
 /// What:
@@ -598,38 +607,72 @@ fn link_folders(ctx: &Context) -> Vec<PathBuf> {
 /// and a hidden entry is a write of a killed run
 /// (`atomic_symlink`'s `.<name>.<pid>.tmp` and this pass's `.<name>.<pid>.<n>.retired`),
 /// which would otherwise keep a launcher alive for ever because it still resolved to it.
-fn managed_link_paths(ctx: &Context) -> Vec<PathBuf> {
+fn managed_link_paths(ctx: &Context) -> (Vec<PathBuf>, Vec<String>) {
+    let (folders, mut unlistable): (Vec<PathBuf>, Vec<String>) = link_folders(ctx);
     let mut paths: Vec<PathBuf> = Vec::new();
-    for folder in link_folders(ctx) {
-        if let Ok(entries) = fs::read_dir(&folder) {
-            for entry in entries.flatten() {
-                let name: String = entry.file_name().to_string_lossy().to_string();
-                // A hidden temporary is a write of a killed run, except one whose maker is alive: that one is the link an
-                // install is placing right now, and its target is a launcher nothing may remove from under it.
-                if name.starts_with('.') && !a_live_installs_temporary(&name) {
-                    continue;
+    for folder in folders {
+        match fs::read_dir(&folder) {
+            Ok(entries) => {
+                for entry in entries.flatten() {
+                    let name: String = entry.file_name().to_string_lossy().to_string();
+                    // A hidden temporary is a write of a killed run, except one whose maker is alive: that one is the link an
+                    // install is placing right now, and its target is a launcher nothing may remove from under it.
+                    if name.starts_with('.') && !a_live_installs_temporary(&name) {
+                        continue;
+                    }
+                    paths.push(entry.path());
                 }
-                paths.push(entry.path());
             }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => unlistable.push(format!(
+                "left everything in {} alone: the directory cannot be listed, so whether a link there reaches a launcher \
+                 is unknown: {error}",
+                folder.display()
+            )),
         }
     }
     paths.extend(recorded_link_paths(ctx));
-    return paths;
+    return (paths, unlistable);
 }
 
 /// What:
-/// Every link `mpm-shadow` manages that resolves to `launcher`.
+/// What reaches a launcher:
+/// these links, nothing, or the folders this pass could not list.
+/// Why:
+/// "Could not find out" is never "there is none": a folder this pass cannot list may hold the one link that makes the
+/// launcher needed, so the answer has a third value and the caller keeps the launcher on it (the ninth review
+/// reproduced a launcher retired while an unlistable folder still held a link to it).
+pub(crate) enum Reaching {
+    /// These links name the launcher.
+    These(Vec<PathBuf>),
+    /// Nothing this pass can find names the launcher.
+    Nothing,
+    /// One sentence per folder this pass could not list; what reaches the launcher is unknown then.
+    Unknown(Vec<String>),
+}
+
+/// What:
+/// Every link `mpm-shadow` manages that names `launcher`,
+/// or the sentence naming a folder this pass could not list.
 /// Why:
 /// A launcher is removed only once nothing points at it,
-/// and the postinstall link of a dropped name can outlive the lock that declared it.
-fn links_reaching(ctx: &Context, launcher: &Path) -> Vec<PathBuf> {
+/// and the postinstall link of a dropped name can outlive the lock that declared it;
+/// a folder this pass cannot list is an answer of its own, never an empty one.
+fn links_reaching(ctx: &Context, launcher: &Path) -> Reaching {
+    let (paths, unlistable): (Vec<PathBuf>, Vec<String>) = managed_link_paths(ctx);
+    if !unlistable.is_empty() {
+        return Reaching::Unknown(unlistable);
+    }
     let mut reaching: Vec<PathBuf> = Vec::new();
-    for link in managed_link_paths(ctx) {
+    for link in paths {
         if names_the_launcher(&link, launcher) {
             reaching.push(link);
         }
     }
-    return reaching;
+    if reaching.is_empty() {
+        return Reaching::Nothing;
+    }
+    return Reaching::These(reaching);
 }
 
 /// What:
@@ -664,14 +707,65 @@ fn names_the_launcher(link: &Path, launcher: &Path) -> bool {
 
 //endregion
 
+/// What:
+/// Whether the directory entry at `link` is one this tool wrote,
+/// and the sentence saying what proves it,
+/// or the sentence saying nothing does.
+/// Why:
+/// Ownership of the target is not ownership of the entry: a person's alias points at a declared launcher as well.
+/// What proves the entry:
+/// the record of postinstall links naming that path with the target the link states,
+/// the lock declaring a postinstall link there,
+/// the farm link of the launcher's own name,
+/// or a hidden name of this tool's killed write whose maker is gone.
+fn entry_is_this_tools(
+    link: &Path,
+    launcher: &Path,
+    recorded: &BTreeMap<PathBuf, PathBuf>,
+    declared_paths: &BTreeSet<PathBuf>,
+    in_the_farm: bool,
+) -> Result<&'static str, String> {
+    if declared_paths.contains(link) {
+        return Ok("this lock declares a postinstall link there");
+    }
+    let stated: Option<PathBuf> = fs::read_link(link).ok();
+    if let Some(recorded_target) = recorded.get(link)
+        && stated.as_deref() == Some(recorded_target.as_path())
+    {
+        return Ok("the record of postinstall links names that path with the target it states");
+    }
+    let name: String = link.file_name().map(|name| return name.to_string_lossy().to_string()).unwrap_or_default();
+    if name.starts_with('.') && maker_of(&name).is_some_and(|pid| return process_is_gone(pid)) {
+        return Ok("its hidden name is a killed write of this tool's own, whose maker is gone");
+    }
+    if in_the_farm
+        && let (Some(given), Some(target_name)) = (link.file_name(), launcher.file_name())
+        && given == target_name
+    {
+        return Ok("it is the farm's link under the launcher's own name, which is the one link an install makes for a bin");
+    }
+    return Err(
+        "no record of this tool names that path, the lock declares no link there, and it is not the farm's link under the \
+         launcher's own name, so nothing says this tool wrote that directory entry rather than a person"
+            .to_string(),
+    );
+}
+
 //region The three passes
 
 /// What:
 /// Removes one link of a name the lock declares nowhere,
-/// when what it names is provably a launcher of this tool's own.
+/// when what it names is provably a launcher of this tool's own
+/// and when what proves the directory entry is this tool's own entry.
 /// Why:
-/// The proof is what the link points at, never the link's own name:
-/// the same rule and the same sentences serve the farm and the folders a tool's postinstall step links into.
+/// A launcher a link points at says nothing about who wrote the link's directory entry: a person's alias to a declared
+/// launcher points at one of this tool's launchers too, and the ninth review reproduced retirement deleting such an
+/// alias. So two proofs are asked, and the second is about the entry:
+/// the record of postinstall links names that path with the target the link states,
+/// or the lock declares a postinstall link there,
+/// or it is the farm link of the launcher's own name (the one link an install makes for a bin),
+/// or it is the hidden leftover of a killed write of this tool's own.
+/// A link that only the first proof answers is left and named, for its owner.
 fn retire_one_link(
     ctx: &Context,
     made_links: &[String],
@@ -681,11 +775,14 @@ fn retire_one_link(
     judged: Judged,
     declared_tools: &BTreeSet<&str>,
     proofs: &mut Proofs<'_>,
+    recorded: &BTreeMap<PathBuf, PathBuf>,
+    declared_paths: &BTreeSet<PathBuf>,
+    in_the_farm: bool,
     notices: &mut LauncherNotices,
     report_unproven: bool,
 ) {
-    let why: String = match proofs.linked_launcher(path, declared_tools) {
-        Ok(why) => why,
+    let (launcher, why): (PathBuf, String) = match proofs.linked_launcher(path, declared_tools) {
+        Ok(proof) => proof,
         Err(why) => {
             // A link nothing proves in a folder the lock does not declare is what a tool's own postinstall command keeps
             // there (the search shadow links `rg` and eight more), so the person reading the report is told only about
@@ -696,6 +793,16 @@ fn retire_one_link(
             return;
         }
     };
+    if let Err(not_ours) = entry_is_this_tools(path, &launcher, recorded, declared_paths, in_the_farm) {
+        if report_unproven {
+            notices.warnings.push(format!(
+                "left {} alone: {reason}, and its bytes are this tool's own, but {not_ours}; remove it yourself if it is \
+                 stale",
+                path.display()
+            ));
+        }
+        return;
+    }
     match remove_if_still(path, judged, &|| return may_remove(ctx, made_links, name, Some(path))) {
         Ok(Removal::Retired) => notices.retired.push(format!("retired the link {} because {reason} ({why})", path.display())),
         Ok(Removal::Gone) => {}
@@ -728,6 +835,7 @@ fn retire_farm_links(
     started: &Declared,
     declared_tools: &BTreeSet<&str>,
     proofs: &mut Proofs<'_>,
+    recorded: &BTreeMap<PathBuf, PathBuf>,
     notices: &mut LauncherNotices,
 ) {
     for entry in entries {
@@ -784,6 +892,9 @@ fn retire_farm_links(
             judged,
             declared_tools,
             proofs,
+            recorded,
+            &started.paths,
+            true,
             notices,
             true,
         );
@@ -804,6 +915,7 @@ fn retire_other_links(
     started: &Declared,
     declared_tools: &BTreeSet<&str>,
     proofs: &mut Proofs<'_>,
+    recorded: &BTreeMap<PathBuf, PathBuf>,
     notices: &mut LauncherNotices,
 ) {
     let mut declared_folders: BTreeSet<PathBuf> = BTreeSet::new();
@@ -812,7 +924,8 @@ fn retire_other_links(
             declared_folders.insert(parent.to_path_buf());
         }
     }
-    for folder in link_folders(ctx) {
+    let (folders, _unlistable): (Vec<PathBuf>, Vec<String>) = link_folders(ctx);
+    for folder in folders {
         if folder == ctx.scope.exposure_dir {
             continue;
         }
@@ -863,6 +976,9 @@ fn retire_other_links(
                 judged,
                 declared_tools,
                 proofs,
+                recorded,
+                &started.paths,
+                false,
                 notices,
                 report_unproven,
             );
@@ -929,14 +1045,25 @@ fn retire_launchers(
                 return false;
             }
         };
-        let reaching: Vec<PathBuf> = links_reaching(ctx, &launcher);
-        if !reaching.is_empty() {
-            notices.warnings.push(format!(
-                "left {} alone: its name is nowhere in this lock and its bytes are mpm-shadow's own, but {} still points at it",
-                launcher.display(),
-                reaching.iter().map(|link| return link.display().to_string()).collect::<Vec<String>>().join(", ")
-            ));
-            continue;
+        match links_reaching(ctx, &launcher) {
+            Reaching::These(reaching) => {
+                notices.warnings.push(format!(
+                    "left {} alone: its name is nowhere in this lock and its bytes are mpm-shadow's own, but {} still points at it",
+                    launcher.display(),
+                    reaching.iter().map(|link| return link.display().to_string()).collect::<Vec<String>>().join(", ")
+                ));
+                continue;
+            }
+            Reaching::Nothing => {}
+            Reaching::Unknown(sentences) => {
+                notices.warnings.extend(sentences);
+                notices.warnings.push(format!(
+                    "left {} alone: its name is nowhere in this lock and its bytes are mpm-shadow's own, but this pass could \
+                     not list every folder a link to it can live in, so what reaches it is unknown; the next install retires it",
+                    launcher.display()
+                ));
+                continue;
+            }
         }
         match still_undeclared(ctx, made_links, &name, None) {
             Some(true) => {}
@@ -1265,7 +1392,7 @@ pub struct LauncherNotices {
 /// or two different entries, and the hidden one is kept and named.
 /// A hidden name whose maker is still running is an install inside its own removal and is not touched.
 pub(super) fn repair_what_a_kill_left(ctx: &Context, notices: &mut LauncherNotices) {
-    let mut folders: Vec<PathBuf> = link_folders(ctx);
+    let (mut folders, _unlistable): (Vec<PathBuf>, Vec<String>) = link_folders(ctx);
     folders.push(ctx.scope.launcher_dir.clone());
     let mut seen: BTreeSet<PathBuf> = BTreeSet::new();
     for folder in folders {
@@ -1365,8 +1492,11 @@ pub fn retire_undeclared_launchers(ctx: &Context, made_links: &[String], link_se
     let declared_tools: BTreeSet<&str> = started.tools.iter().map(|id| return id.as_str()).collect();
     let mut proofs: Proofs<'_> = Proofs::new(ctx);
     // The links go before the launchers they point at, so no link is ever left naming a file that is gone.
-    retire_farm_links(ctx, made_links, &farm, &started, &declared_tools, &mut proofs, &mut notices);
-    retire_other_links(ctx, made_links, &started, &declared_tools, &mut proofs, &mut notices);
+    // What the record of postinstall links says this tool wrote, read once for both link passes: it is the record a
+    // removal of a link's directory entry rests on.
+    let recorded: BTreeMap<PathBuf, PathBuf> = super::postinstall_links::recorded_links(ctx);
+    retire_farm_links(ctx, made_links, &farm, &started, &declared_tools, &mut proofs, &recorded, &mut notices);
+    retire_other_links(ctx, made_links, &started, &declared_tools, &mut proofs, &recorded, &mut notices);
     // A launcher goes only while the record of postinstall links says which links this tool made:
     // a killed run can have made one in a folder nothing can find (a `linkDir` the plan no longer declares),
     // and removing the launcher from under it would leave it dangling for good.

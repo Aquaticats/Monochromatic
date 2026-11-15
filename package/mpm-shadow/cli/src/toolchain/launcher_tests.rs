@@ -15,6 +15,9 @@ use super::scope::ScopeKind;
 /// The id the tests use for the tool.
 const TOOL: &str = "cargo:monochromatic-git-policy-cli";
 
+/// The version the tests give a launcher's placement, which is the version the sample lock pins.
+const VERSION: &str = "1.2.3";
+
 /// A lock text pinning the tool at `version`.
 fn lock_text(version: &str) -> String {
     return format!("{{\"schemaVersion\":1,\"tools\":{{\"{TOOL}\":{{\"version\":\"{version}\",\"route\":\"cargo-binstall\"}}}}}}");
@@ -135,14 +138,14 @@ fn the_launcher_never_blocks_a_run_for_an_unreadable_lock_a_missing_tool_or_a_mi
 fn a_launcher_is_made_with_its_record_beside_it() {
     let rig = Rig::new();
     let real = rig.scope.toolchain_root.join("cargo").join("x").join("current").join("bin").join("x");
-    let launcher = ensure_launcher(&rig.scope, TOOL, "git", &real).expect("made");
+    let launcher: PathBuf = ensure_launcher(&rig.scope, TOOL, "git", &real, VERSION).expect("made").launcher;
     assert_eq!(launcher, rig.scope.launcher_dir.join("git"));
     assert!(launcher.is_file());
     let record = parse_record(&fs::read_to_string(record_path(&launcher)).expect("a record")).expect("parses");
     assert_eq!(record.real, real);
     assert_eq!(record.lock_file, rig.scope.lock_file);
     // A second call (the exposure link and a postinstall link both ask) leaves no temporary name behind.
-    ensure_launcher(&rig.scope, TOOL, "git", &real).expect("made again");
+    ensure_launcher(&rig.scope, TOOL, "git", &real, VERSION).expect("made again");
     let mut names: Vec<String> = fs::read_dir(&rig.scope.launcher_dir)
         .expect("list")
         .flatten()
@@ -177,7 +180,7 @@ fn make_a_launcher_after_deleting_the_running_binary(report: &Path) {
     fs::remove_file(&running).expect("delete the running binary");
     assert!(!running.exists(), "the file the process runs from is gone");
     let real = rig.scope.toolchain_root.join("cargo").join("x").join("current").join("bin").join("x");
-    let launcher = ensure_launcher(&rig.scope, TOOL, "git", &real).expect("a launcher is made through /proc/self/exe");
+    let launcher: PathBuf = ensure_launcher(&rig.scope, TOOL, "git", &real, VERSION).expect("a launcher is made through /proc/self/exe").launcher;
     fs::write(report, fs::metadata(&launcher).expect("the launcher exists").len().to_string()).expect("write the report");
 }
 
@@ -276,7 +279,7 @@ fn a_launcher_is_not_made_under_a_repository_that_is_not_there() {
     let rig = Rig::new();
     repository_on_a_drive_that_is_gone(&rig, "the 860 drive is not mounted yet", 75);
     let real = rig.scope.toolchain_root.join("cargo").join("x").join("current").join("bin").join("x");
-    let error = ensure_launcher(&rig.scope, TOOL, "git", &real).expect_err("refused");
+    let error = ensure_launcher(&rig.scope, TOOL, "git", &real, VERSION).expect_err("refused");
     assert!(error.to_string().contains("the 860 drive is not mounted yet"), "{error}");
     assert!(!rig.scope.launcher_dir.exists(), "nothing was created");
 }
@@ -287,7 +290,7 @@ fn a_launcher_is_made_under_a_repository_the_check_says_is_ready() {
     let rig = Rig::new();
     repository_on_a_drive_that_is_gone(&rig, "ready", 0);
     let real = rig.scope.toolchain_root.join("cargo").join("x").join("current").join("bin").join("x");
-    assert!(ensure_launcher(&rig.scope, TOOL, "git", &real).is_ok());
+    assert!(ensure_launcher(&rig.scope, TOOL, "git", &real, VERSION).is_ok());
 }
 
 #[test]
@@ -366,7 +369,7 @@ fn make_a_launcher_from_wherever_it_runs(report: &Path) {
     let root: PathBuf = PathBuf::from(env.get(INSTALLED_SHADOW_ROOT).expect("the worktree root this child is told about"));
     let scope: Scope = repo_scope(&root, &env).expect("a scope");
     let real: PathBuf = scope.toolchain_root.join("demo").join("current").join("bin").join("tool");
-    let launcher: PathBuf = ensure_launcher(&scope, TOOL, "git", &real).expect("a launcher is made");
+    let launcher: PathBuf = ensure_launcher(&scope, TOOL, "git", &real, VERSION).expect("a launcher is made").launcher;
     fs::write(report, fs::read(&launcher).expect("the launcher's bytes")).expect("write the report");
 }
 
@@ -438,7 +441,7 @@ fn a_launcher_that_cannot_be_placed_leaves_no_record_behind() {    let rig = Rig
     let source: PathBuf = rig.scope.root.join("store").join("cli-git-native");
     write_executable(&source);
 
-    let outcome = ensure_launcher(&rig.scope, TOOL, "cli-git-native", &source);
+    let outcome = ensure_launcher(&rig.scope, TOOL, "cli-git-native", &source, VERSION);
 
     assert!(outcome.is_err(), "a launcher cannot be placed over a directory: {outcome:?}");
     let record: PathBuf = record_path(&rig.scope.launcher_dir.join("cli-git-native"));
@@ -467,10 +470,10 @@ fn a_late_record_from_an_install_the_lock_no_longer_names_leaves_the_newer_recor
     let scope_in_hook = rig.scope.clone();
     let newer_real_in_hook = newer_real.clone();
     super::launcher::seam::set_after_the_place(Some(Box::new(move || {
-        ensure_launcher(&scope_in_hook, newer_tool, name, &newer_real_in_hook).expect("the newer install finishes");
+        ensure_launcher(&scope_in_hook, newer_tool, name, &newer_real_in_hook, VERSION).expect("the newer install finishes");
     })));
 
-    ensure_launcher(&rig.scope, older_tool, name, &older_real).expect("the older install resumes and finishes");
+    ensure_launcher(&rig.scope, older_tool, name, &older_real, VERSION).expect("the older install resumes and finishes");
 
     super::launcher::seam::set_after_the_place(None);
     let launcher: PathBuf = rig.scope.launcher_dir.join(name);
@@ -482,30 +485,6 @@ fn a_late_record_from_an_install_the_lock_no_longer_names_leaves_the_newer_recor
 
 //endregion
 
-#[test]
-fn a_record_that_cannot_take_the_folders_lock_is_not_written() {
-    let rig = Rig::new();
-    // The folder's record lock is held by an install that is inside its write, which the test stands in for.
-    fs::create_dir_all(&rig.scope.launcher_dir).expect("make the launcher folder");
-    let lock_path: PathBuf = rig.scope.launcher_dir.join(".launch-records.lock");
-    let guard: fs::File = fs::OpenOptions::new().create(true).truncate(false).write(true).open(&lock_path).expect("open the record lock");
-    guard.lock().expect("hold the record lock");
-    let real = rig.scope.toolchain_root.join("cargo").join("x").join("current").join("bin").join("x");
-
-    let outcome = ensure_launcher(&rig.scope, TOOL, "git", &real);
-
-    let record: PathBuf = record_path(&rig.scope.launcher_dir.join("git"));
-    assert!(
-        outcome.is_err(),
-        "a record write that cannot take the folder s lock must refuse rather than write: {outcome:?}"
-    );
-    assert!(
-        fs::symlink_metadata(&record).is_err(),
-        "no record was written without the lock ({} is there)",
-        record.display()
-    );
-    drop(guard);
-}
 
 //region The ninth review: an older install of the same tool, and a records lock that stays held
 
@@ -534,10 +513,10 @@ fn a_late_install_of_the_same_tool_leaves_the_newer_record_under_the_lock_on_dis
     // The newer install of the same tool finishes, lock and record, while this one stands after placing its program.
     super::launcher::seam::set_after_the_place(Some(Box::new(move || {
         fs::write(&scope_in_hook.lock_file, super::lock::render_lock(&newer_lock)).expect("publish the newer lock");
-        ensure_launcher(&scope_in_hook, SHADOW_TOOL_ID, SHADOW_BIN, &newer_real_in_hook).expect("the newer install finishes");
+        ensure_launcher(&scope_in_hook, SHADOW_TOOL_ID, SHADOW_BIN, &newer_real_in_hook, "99.0.0").expect("the newer install finishes");
     })));
 
-    ensure_launcher(&rig.scope, SHADOW_TOOL_ID, SHADOW_BIN, &older_real).expect("the delayed install finishes");
+    ensure_launcher(&rig.scope, SHADOW_TOOL_ID, SHADOW_BIN, &older_real, VERSION).expect("the delayed install finishes");
 
     super::launcher::seam::set_after_the_place(None);
     let launcher: PathBuf = rig.scope.launcher_dir.join(SHADOW_BIN);
@@ -561,7 +540,7 @@ fn a_held_records_lock_leaves_the_record_to_the_next_install() {
     let real: PathBuf = rig.scope.root.join("store").join(SHADOW_BIN);
     write_executable(&real);
 
-    let outcome = ensure_launcher(&rig.scope, SHADOW_TOOL_ID, SHADOW_BIN, &real);
+    let outcome = ensure_launcher(&rig.scope, SHADOW_TOOL_ID, SHADOW_BIN, &real, VERSION);
 
     let record: PathBuf = record_path(&rig.scope.launcher_dir.join(SHADOW_BIN));
     let written: bool = fs::symlink_metadata(&record).is_ok();

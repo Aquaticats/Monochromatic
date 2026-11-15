@@ -97,7 +97,10 @@ pub fn run_lock(scope: &Scope, mode: LockMode) -> Result<String, ToolchainError>
     }
     // The text must itself be a lock mpm-shadow accepts: decode what is about to be published.
     parse_lock(&text, "the new toolchain.lock.json")?;
-    publish_lock(scope, &loaded.revisions, &text)?;
+    let published: super::publish::Published = publish_lock(scope, &loaded.revisions, &text)?;
+    if let Some(sentence) = published.deferred() {
+        return Ok(sentence.to_string());
+    }
     return Ok(format!(
         "toolchain lock rewritten from the plan, {} tools, resolution kept ({})",
         projected.tools.len(),

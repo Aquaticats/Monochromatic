@@ -156,6 +156,19 @@ pub(crate) fn read_ordinary_at_most(path: &Path, limit: u64) -> Result<Vec<u8>, 
     return read_bounded(&mut file, path, limit);
 }
 
+/// What:
+/// The text of an ordinary file this run opened, read with the same bound as every other read here.
+/// Why:
+/// A record's proof reads the file it judged through the descriptor it judged, so it has the open file and not just its
+/// name; the read still ends at the bound, because a file another command keeps appending to has no end to wait for.
+pub(crate) fn read_bounded_text(file: &mut fs::File, path: &Path) -> Result<String, String> {
+    let bytes: Vec<u8> = read_bounded(file, path, MAX_ORDINARY_BYTES)?;
+    return match String::from_utf8(bytes) {
+        Ok(text) => Ok(text),
+        Err(_) => Err(format!("{} is not text this tool can read", path.display())),
+    };
+}
+
 /// The text of the ordinary file at `path`,
 /// and the sentence naming what is wrong with it when it is not text.
 pub(crate) fn read_ordinary_text(path: &Path) -> Result<String, String> {

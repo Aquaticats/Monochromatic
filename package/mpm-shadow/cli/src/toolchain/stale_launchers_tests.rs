@@ -71,7 +71,7 @@ fn rig_with_installed_shadow() -> Rig {
 fn make_launcher(rig: &Rig, name: &str, tool_id: &str) -> PathBuf {
     let program: PathBuf = rig.scope.root.join("store").join(name);
     write_executable(&program);
-    return ensure_launcher(&rig.scope, tool_id, name, &program).expect("the launcher is made");
+    return ensure_launcher(&rig.scope, tool_id, name, &program, INSTALLED).expect("the launcher is made").launcher;
 }
 
 /// The exposed link `install` makes for `name`.
@@ -338,17 +338,18 @@ fn a_link_whose_launcher_is_gone_everywhere_stays() {
     assert!(notices.warnings[0].contains("in no launcher folder"), "{notices:?}");
 }
 
-//region Links no record knows about, and links that were never mpm-shadow's
-// The review of the first commit found both: a postinstall link a killed install made before it wrote the record was
-// invisible to the links this pass asked about, so its launcher was removed and the link dangled; and a link that did
-// not resolve was judged by the name of its target alone, so a person's own broken link went with it.
+//region Links no record names, and links that were never mpm-shadow's
+// A link a killed install made before it wrote the record of postinstall links is a link no record names, and the
+// ninth review's rule is that a name no record has is a person's: it is left, its launcher stays (a link reaches it),
+// and the sentence says what no record proves. A link that does not resolve is judged by its stated target alone, so a
+// person's own broken link stays with the launcher the statement keeps.
 
 #[test]
-fn a_postinstall_link_no_record_knows_of_is_retired_with_its_launcher() {
+fn a_link_no_record_names_is_left_with_its_launcher_and_said() {
     let rig = rig_with_installed_shadow();
     let launcher: PathBuf = make_launcher(&rig, RENAMED_BIN, SHADOW_TOOL);
-    // The state of a first install killed after it made its postinstall links and before it wrote the record of them,
-    // and the same state with an unreadable record: nothing names this link.
+    // The state of a first install killed after it made its postinstall links and before it wrote the record of them:
+    // nothing names this link, so nothing says this tool wrote that entry.
     let link_directory: PathBuf = rig.scope.root.join(".cache").join(format!("{RENAMED_BIN}-bin"));
     fs::create_dir_all(&link_directory).expect("make the postinstall link folder");
     let link: PathBuf = link_directory.join("linked");
@@ -356,8 +357,15 @@ fn a_postinstall_link_no_record_knows_of_is_retired_with_its_launcher() {
 
     let notices = retire(&rig);
 
-    assert!(!exists_at(&link), "the link names a launcher of a name the lock dropped, so it goes too: {notices:?}");
-    assert!(!exists_at(&launcher) && !exists_at(&record_path(&launcher)));
+    assert!(exists_at(&link), "a name no record has is a person's, and it stays: {notices:?}");
+    assert!(
+        exists_at(&launcher) && exists_at(&record_path(&launcher)),
+        "the link reaches its launcher, so the launcher and the record stay: {notices:?}"
+    );
+    assert!(
+        notices.warnings.iter().any(|line| return line.contains(&link.display().to_string())),
+        "the sentence names the link that keeps the launcher: {notices:?}"
+    );
 }
 
 #[test]
@@ -835,15 +843,15 @@ fn a_folder_of_links_that_cannot_be_listed_keeps_the_launcher_and_says_why() {
             "folder state {:?}: the launcher's survival must follow what this pass could find out; {notices:?}",
             state
         );
-        if let (LinkFolderState::UnlistableWithALink, Some(link)) = (&state, &link) {
-            assert!(exists_at(link), "the pass cannot remove a link it cannot see: {notices:?}");
+        if let (LinkFolderState::UnlistableWithALink, Some(kept)) = (&state, &link) {
+            assert!(exists_at(kept), "the pass cannot remove a link it cannot see: {notices:?}");
             assert!(
                 notices.warnings.iter().any(|line| return line.contains("cannot be listed")),
                 "the sentence names the folder it could not list: {notices:?}"
             );
         }
-        if let (LinkFolderState::ListedWithALink, Some(link)) = (&state, &link) {
-            assert!(exists_at(link), "a link the folder does not let this pass remove stays: {notices:?}");
+        if let (LinkFolderState::ListedWithALink, Some(kept)) = (&state, &link) {
+            assert!(exists_at(kept), "a link the folder does not let this pass remove stays: {notices:?}");
         }
     }
 }

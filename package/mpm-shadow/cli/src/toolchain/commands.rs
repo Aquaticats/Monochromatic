@@ -215,6 +215,9 @@ pub fn dispatch(name: &str, matches: &ArgMatches) -> Option<i32> {
                     Ok(report) => report,
                     Err(error) => return Some(report(&error)),
                 };
+                if let Some(sentence) = &additions.deferred {
+                    println!("toolchain install: {sentence}");
+                }
                 for declaration in &additions.added {
                     println!(
                         "toolchain install: added {} to {}: request {}, route {}, bins {}",

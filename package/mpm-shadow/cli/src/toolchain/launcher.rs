@@ -190,6 +190,22 @@ fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
 }
 
 /// What:
+/// What placing a launcher left:
+/// its path,
+/// and the sentence for a record this run left to the next install.
+/// Why:
+/// A records lock that stays held, or a record that is older than the one the lock on disk asks for, leaves the record
+/// where it is; that is not a failure (it would fail the install and the commit running it), and it is said so a
+/// person knows the next install writes it.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Laid {
+    /// The launcher's path.
+    pub launcher: PathBuf,
+    /// The sentence naming what was left to the next install, when there was such a thing.
+    pub deferred: Option<String>,
+}
+
+/// What:
 /// Makes the launcher for binary `name` of a repository-published tool in this tree and returns its path.
 /// The record is written after the launcher,
 /// so a visible record always has the launcher it describes.
@@ -205,9 +221,9 @@ fn place_binary(source: &Path, target: &Path) -> Result<(), ToolchainError> {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function ensureLauncher(scope: Scope, tool: LockedTool, name: string, real: string): string
+/// export function ensureLauncher(scope: Scope, tool: LockedTool, name: string, real: string, version: string): Laid
 /// ```
-pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) -> Result<PathBuf, ToolchainError> {
+pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path, version: &str) -> Result<Laid, ToolchainError> {
     // A launcher folder under a repository whose link to the 860 drive does not resolve is never made:
     // the plain message of the repository link check comes before any write.
     if let LinkVerdict::NotReady { message } = repository_link_verdict(&scope.home, &scope.launcher_dir, CHECK_DEADLINE) {
@@ -227,8 +243,8 @@ pub fn ensure_launcher(scope: &Scope, tool_id: &str, name: &str, real: &Path) ->
     seam::after_the_place();
     // After the program, never before: the record is the proof a retirement may remove a launcher, so it must not name a
     // program that is not there yet.
-    write_the_record_the_lock_asks_for(scope, name, tool_id, &launcher, &record)?;
-    return Ok(launcher);
+    let deferred: Option<String> = write_the_record_the_lock_asks_for(scope, name, tool_id, version, &launcher, &record)?;
+    return Ok(Laid { launcher, deferred });
 }
 
 /// The file name of the claim that orders making a launcher and its links against retiring that launcher.
@@ -366,27 +382,46 @@ fn write_the_record_the_lock_asks_for(
     scope: &Scope,
     name: &str,
     tool_id: &str,
+    version: &str,
     launcher: &Path,
     record: &LaunchRecord,
-) -> Result<(), ToolchainError> {
+) -> Result<Option<String>, ToolchainError> {
     let path: PathBuf = record_path(launcher);
     let text: String = render_record(record);
     // The common case of an install with nothing to do: the record already says what this run would write, so nothing is
     // replaced and no lock is taken. A reader needs no lock; only a writer does.
     if the_record_at(&path)?.as_deref() == Some(text.as_str()) {
-        return Ok(());
+        return Ok(None);
     }
     let lock_path: PathBuf = scope.launcher_dir.join(RECORD_LOCK_NAME);
-    let _guard: fs::File = take_the_records_lock(&lock_path)?;
+    let Some(_guard) = take_the_records_lock(&lock_path)? else {
+        // Contention defers: the record that stands keeps the launcher provable, and the next install writes this one.
+        return Ok(Some(format!(
+            "{} was not written: another mpm-shadow holds {} past {} s; the next install writes it",
+            path.display(),
+            lock_path.display(),
+            RECORD_LOCK_WAIT.as_secs()
+        )));
+    };
     // Under the lock the record is read again, because another install may have written it between the read above and
     // this instant, and the lock on disk is asked which tool it gives this name now.
     let standing: Option<String> = the_record_at(&path)?;
     let on_disk: Option<Lock> = current_lock(scope);
     if on_disk.as_ref().is_some_and(|lock| return another_tool_declares(lock, name, tool_id)) {
-        return Ok(());
+        return Ok(None);
     }
     if standing.as_deref() == Some(text.as_str()) {
-        return Ok(());
+        return Ok(None);
+    }
+    // A record of this same tool stands with another real path, which is an older install of the same tool resuming
+    // after a newer one: the lock on disk says which version this bin belongs to now, and the record whose install the
+    // lock does not name is the older one. A lock that cannot be read names no version, so nothing is replaced then.
+    if let Some(standing_record) = standing.as_deref().and_then(parse_record)
+        && standing_record.tool_id == tool_id
+        && standing_record.real != record.real
+        && !on_disk.as_ref().is_some_and(|lock| return pins_version(lock, tool_id, version))
+    {
+        return Ok(None);
     }
     // A record naming another tool stands, and the lock on disk does not give this name to this tool: that record is what
     // the last install made of the name, and this one leaves it. A name the lock declares nowhere is retired by the next
@@ -396,7 +431,7 @@ fn write_the_record_the_lock_asks_for(
         && parse_record(standing_text).is_some_and(|standing_record| return standing_record.tool_id != tool_id)
         && !on_disk.as_ref().is_some_and(|lock| return declares_launcher_for(lock, name, tool_id))
     {
-        return Ok(());
+        return Ok(None);
     }
     if let Some(standing_text) = &standing
         && parse_record(standing_text).is_none()
@@ -407,7 +442,15 @@ fn write_the_record_the_lock_asks_for(
             path.display()
         )));
     }
-    return write_atomically(&path, text.as_bytes());
+    write_atomically(&path, text.as_bytes())?;
+    return Ok(None);
+}
+
+/// Whether the lock gives `tool_id` the version `version`.
+/// Why:
+/// This is the answer a record's write needs to tell an older install of the same tool from the one the lock asks for.
+fn pins_version(lock: &Lock, tool_id: &str, version: &str) -> bool {
+    return lock.tools.iter().any(|tool| return tool.declaration.id == tool_id && tool.version == version);
 }
 
 /// What:
@@ -429,25 +472,24 @@ fn the_record_at(path: &Path) -> Result<Option<String>, ToolchainError> {
 
 /// What:
 /// The folder's record lock, taken with a bound,
-/// or the sentence that says why the record was not written.
+/// or `None` when another command holds it for that long.
 /// Why:
 /// A writer that cannot take it must not write a record at all:
 /// a record written without the lock could replace the newer record another install just wrote,
 /// which is the defect this lock exists for.
-fn take_the_records_lock(lock_path: &Path) -> Result<fs::File, ToolchainError> {
+/// A bound that runs out answers `None` rather than an error: contention defers the record to the next install, and a
+/// failure here would fail the install and the commit running it.
+///
+/// A lock that cannot even be opened or tested is an error, because nothing is known about it then.
+fn take_the_records_lock(lock_path: &Path) -> Result<Option<fs::File>, ToolchainError> {
     let handle: fs::File = create_lock_file(lock_path).map_err(ToolchainError::failure)?;
     let deadline: std::time::Instant = std::time::Instant::now() + RECORD_LOCK_WAIT;
     loop {
         match handle.try_lock() {
-            Ok(()) => return Ok(handle),
+            Ok(()) => return Ok(Some(handle)),
             Err(std::fs::TryLockError::WouldBlock) => {
                 if std::time::Instant::now() >= deadline {
-                    return Err(ToolchainError::failure(format!(
-                        "no launcher record was written: another mpm-shadow holds {} for longer than {} seconds, and a record \
-                         written without it could replace the record a newer install just wrote",
-                        lock_path.display(),
-                        RECORD_LOCK_WAIT.as_secs()
-                    )));
+                    return Ok(None);
                 }
                 std::thread::sleep(RECORD_LOCK_POLL);
             }

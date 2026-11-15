@@ -35,7 +35,7 @@ use super::error::ToolchainError;
 /// Imports `sha256_hex` from `super::hash`.
 use super::hash::sha256_hex;
 /// Imports the one way this tool opens or creates a file it did not just make.
-use super::ordinary_file::{create_lock_file, read_ordinary_through_links};
+use super::ordinary_file::{create_lock_file, read_ordinary_text, read_ordinary_through_links};
 /// Imports `Scope` from `super::scope`.
 use super::scope::Scope;
 /// Imports the shared named helpers.
@@ -107,20 +107,65 @@ pub fn read_revisions(scope: &Scope) -> Result<Revisions, ToolchainError> {
 }
 
 /// What:
-/// How long a publish waits for the scope's guard before it does its compare and its write without it.
+/// How long a publish waits for the scope's guard before it leaves its text to the next install.
 /// Why:
 /// Nothing waits forever, so a holder that is stopped or hung must not stop another command.
 /// The guard covers exactly one region, and this is where its reason lives:
 /// the read of the plan's and the lock's revisions, the comparison of them with the ones the caller read, and the
-/// atomic write, so that two commands publishing the plan or the lock do not both pass the comparison and lose the
-/// other's entry, and so that the plan and the lock do not move between each other's publishes.
-/// What it buys is that window, and nothing else: the comparison and the atomic write are what refuse to publish over
-/// a file that moved, and the guard only keeps them from racing. So a publish that cannot take it inside this bound
-/// does the same comparison and the same write without it, at the cost of the race between two publishes (a lock
-/// resolution one link would redo, or a plan entry whose command reports that the plan moved), and never a failure:
-/// a failure would take the install, and the commit waiting for it, down for the one thing that is already late.
+/// atomic write, so that two commands publishing the plan or the lock do not both pass the comparison and write over
+/// each other's finished file, and so that the plan and the lock do not move between each other's publishes.
+/// A publish that cannot take it inside this bound does not write (the ninth review reproduced two bounded publishers
+/// erasing one another's finished plans); it answers `Published::Deferred` with the sentence that names the holder, and
+/// the caller reports it and goes on, because a failed publish fails the install and the commit waiting for it, while a
+/// deferred one is done by the next install.
 /// The region is a read and a write of a few hundred kilobytes at most, so this bound has a hundredfold slack.
 pub const GUARD_WAIT: Duration = Duration::from_secs(5);
+
+/// What a publish did.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Published {
+    /// The file holds this run's text, or already did.
+    Written,
+    /// Another command holds the scope guard past the bound, so nothing was written, and the sentence says why.
+    Deferred(String),
+}
+
+/// The methods of `Published`.
+impl Published {
+    /// The sentence for work this publish left to the next install, when there is one.
+    pub fn deferred(&self) -> Option<&str> {
+        return match self {
+            Published::Written => None,
+            Published::Deferred(sentence) => Some(sentence.as_str()),
+        };
+    }
+}
+
+/// What:
+/// Who holds the scope's guard,
+/// as far as the guard file says.
+/// Why:
+/// A command that could not take the guard says so in words,
+/// and the holder's note is what can name it;
+/// a note that is absent or unreadable is said to be so rather than guessed at.
+pub fn holder_of(scope: &Scope) -> String {
+    let text: String = read_ordinary_text(&scope.guard_file).unwrap_or_default();
+    return match text.trim().parse::<u32>() {
+        Ok(pid) => format!("another mpm-shadow (process {pid}, the last one that took it)"),
+        Err(_) => "another command in this checkout (it left no note of its process)".to_string(),
+    };
+}
+
+/// The sentence for a publish the guard's holder made this run leave to the next install.
+fn deferred_sentence(scope: &Scope, target: &Path) -> String {
+    return format!(
+        "{} was not written: {} holds {}, and this command waited {} s for it; the next install writes it",
+        target.display(),
+        holder_of(scope),
+        scope.guard_file.display(),
+        GUARD_WAIT.as_secs()
+    );
+}
 
 /// The pause between two attempts at the lock.
 const GUARD_POLL: Duration = Duration::from_millis(20);
@@ -261,23 +306,23 @@ pub fn write_atomically(target: &Path, text: &str) -> Result<(), ToolchainError>
 /// Publishes `text` as the new lock if the plan and lock still have the revisions `expected`.
 /// Why:
 /// This is the one write path of the lock.
-/// It takes the scope lock,
+/// It takes the scope guard,
 /// re-reads both revisions,
 /// refuses when
 ///           either moved,
-/// and writes atomically;
+/// and writes atomically under that guard;
 /// nothing else in the crate writes `toolchain.lock.json`.
+/// A guard it cannot take means nothing is written and the answer says so: writing without the guard is what would let
+/// a second publisher erase the first one's finished lock.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// export function publishLock(scope: Scope, expected: Revisions, text: string): void
+/// export function publishLock(scope: Scope, expected: Revisions, text: string): Published
 /// ```
-pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(), ToolchainError> {
-    // The guard is taken when another command has not taken it; when the holder is stopped or slow past the bound,
-    // this publish does the same compare and the same atomic write without it rather than failing: a failed publish
-    // fails the install, and the commit waiting for that install, which is the loss this order avoids.
-    // What the guard buys is in one place: `GUARD_WAIT`'s reason.
-    let guard: Option<Guard> = acquire_guard(scope)?;
+pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<Published, ToolchainError> {
+    let Some(guard) = acquire_guard(scope)? else {
+        return Ok(Published::Deferred(deferred_sentence(scope, &scope.lock_file)));
+    };
     let observed: Revisions = read_revisions(scope)?;
     let moved: Vec<String> = moved_files(expected, &observed, scope);
     if !moved.is_empty() {
@@ -295,7 +340,7 @@ pub fn publish_lock(scope: &Scope, expected: &Revisions, text: &str) -> Result<(
     }
     write_atomically(&scope.lock_file, text)?;
     drop(guard);
-    return Ok(());
+    return Ok(Published::Written);
 }
 
 /// What:
@@ -356,12 +401,10 @@ fn write_atomically_keeping_mode(target: &Path, text: &str) -> Result<(), Toolch
 /// ```ts
 /// export function publishPlan(scope: Scope, expected: Revision, text: string): void
 /// ```
-pub fn publish_plan(scope: &Scope, expected: &Revision, text: &str) -> Result<(), ToolchainError> {
-    // The guard is taken when another command has not taken it; when the holder is stopped or slow past the bound,
-    // this publish does the same compare and the same atomic write without it rather than failing: a failed publish
-    // fails the install, and the commit waiting for that install, which is the loss this order avoids.
-    // What the guard buys is in one place: `GUARD_WAIT`'s reason.
-    let guard: Option<Guard> = acquire_guard(scope)?;
+pub fn publish_plan(scope: &Scope, expected: &Revision, text: &str) -> Result<Published, ToolchainError> {
+    let Some(guard) = acquire_guard(scope)? else {
+        return Ok(Published::Deferred(deferred_sentence(scope, &scope.plan_file)));
+    };
     let observed: Revisions = read_revisions(scope)?;
     #[cfg(test)]
     seam::after_the_revision_read();
@@ -375,7 +418,8 @@ pub fn publish_plan(scope: &Scope, expected: &Revision, text: &str) -> Result<()
     }
     let result: Result<(), ToolchainError> = write_atomically_keeping_mode(&scope.plan_file, text);
     drop(guard);
-    return result;
+    result?;
+    return Ok(Published::Written);
 }
 
 /// The step a control uses to run a second publisher between this one's revision read and its write.

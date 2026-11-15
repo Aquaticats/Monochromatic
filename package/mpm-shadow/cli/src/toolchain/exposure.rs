@@ -78,11 +78,13 @@ fn extra_dirs(ctx: &Context) -> Vec<PathBuf> {
 /// ```ts
 /// function exposedTarget(scope: Scope, tool: LockedTool, name: string, found: string): string
 /// ```
-fn exposed_target(scope: &Scope, tool: &LockedTool, name: &str, found: &Path) -> Result<PathBuf, ToolchainError> {
+fn exposed_target(scope: &Scope, tool: &LockedTool, name: &str, found: &Path) -> Result<(PathBuf, Option<String>), ToolchainError> {
     if is_repository_published(tool) {
-        return ensure_launcher(scope, &tool.declaration.id, name, found);
+        let laid: super::launcher::Laid =
+            ensure_launcher(scope, &tool.declaration.id, name, found, &tool.version)?;
+        return Ok((laid.launcher, laid.deferred));
     }
-    return Ok(found.to_path_buf());
+    return Ok((found.to_path_buf(), None));
 }
 
 /// What:
@@ -146,13 +148,13 @@ fn link_the_bin(
         )));
     };
     // Under the claim: the launcher, then its record, then the link.
-    let claimed_target: PathBuf = exposed_target(ctx.scope, tool, name, found)?;
+    let (claimed_target, deferred): (PathBuf, Option<String>) = exposed_target(ctx.scope, tool, name, found)?;
     // The seam a control uses to run a second install's retirement between this placement and this link, which is the
     // interleaving the eighth review reproduced. Compiled in tests only.
     #[cfg(test)]
     seam::before_the_link();
     atomic_symlink(link, &claimed_target)?;
-    return Ok(None);
+    return Ok(deferred);
 }
 
 /// What:
