@@ -1670,6 +1670,55 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The commit that does not wait behind the service's writes fails its third review with four things, and the guard against blocking calls on a worker did not see one of them (2026-11-15T18:25:53-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The commit that does not wait behind the service's writes** (`4aaaa51c56`),
+  its third review,
+  ended 18:20:29:
+  15 of 15 files,
+  four things;
+  for each it says what it ran and what it read.
+  - A service that could not take a place of its own in the journal says it "cannot tell whether it is alone",
+    then answers `Withdrawn` for a request another service admits
+    (run through the board's own interface with a `services` folder that could not be written;
+    no branch write was run).
+  - A place made under its final name and written afterwards,
+    left at no bytes by a kill,
+    reads as `Unknown` for good and switches early withdrawal off for that journal
+    (the leftover was run;
+    the kill was read).
+  - After an outer restore that gave no answer,
+    the saved pushes and the watch notes are looked for under an empty path and so never retried
+    (the fallback's state was run;
+    the whole start was read).
+  - The watch note's check before its hand-off calls `std::fs::canonicalize` on the runtime's worker
+    (`strace` showed the `readlink` on the runtime's thread;
+    a file system that does not answer was read).
+  Weighed:
+  the first is "could not tell" taken for the best case;
+  the second a record published before it is whole;
+  the third a fallback that invents a value;
+  the fourth the class of this branch's last review again.
+  **`source_guard::blocking_code_off_the_runtime` passes at that tip with the call in it**,
+  reached from an `async fn` through two plain functions;
+  the author is asked what the guard reads,
+  to widen it with this path as its first failing case,
+  and to report what else it then finds.
+  That guard is in `main`;
+  what it lets through there is not known until it is widened.
+  The author's fourth run is queued seventh.
+- Read at 18:24:54:
+  six changed files in the main checkout;
+  no launcher had outlived a run;
+  no process inside a worktree whose run was not going;
+  20 runs going,
+  none silent for twenty minutes.
+
 ##### The push of a branch that is not checked out fails its ninth review with four reproduced things; cargo-shadow's two tests that passed or failed by the run were the tests' own (2026-11-15T18:14:37-05:00)
 
 Not final and not approved:
