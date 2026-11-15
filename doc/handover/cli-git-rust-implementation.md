@@ -1530,6 +1530,45 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The wrapper under the gate container's Git bounds every process its tests start and goes to review again (2026-11-15T03:59:40-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The wrapper under the Git the gate's container installs**,
+  its author's third run,
+  ended 03:55:04 at `253b4238cc`,
+  `main` with `0.6.1-alpha.38` merged.
+  It reproduced both findings first in the gate's base image.
+  Every process start in the seven files the branch changes now has a bound:
+  the version query,
+  the modified wrapper build,
+  the four global-argument queries,
+  the direct metadata query and the typed-value sweep through one new test helper that ends a child at its bound and reaps it,
+  and five bare waits of the forwarding tests.
+  Both controls were committed without the bound and failed,
+  then the fix;
+  the fix taken out again reproduced the two failures.
+  On the guards it reports that none refuses an unbounded start in a test:
+  `source_guard::blocking_code_off_the_runtime` matches these spellings but reads release sources only,
+  and the fixture's watchdog names no query and is armed only by a fixture.
+  It describes the guard such a rule would need and did not build it;
+  no run owns that yet.
+  Clippy 0;
+  72 of 72 and 18 of 18 on this machine and the same in the gate's base image.
+  Its review is queued second
+  (`main...253b4238cc`,
+  four code files that are not tests).
+  Seven of the gate's standing failures wait on it.
+- Read at 03:59:16:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 03:49;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The queue held 81 entries at 03:59:40.
+
 ##### The landed removal's twelfth run answers its seventh review with three rules and goes to review (2026-11-15T03:50:16-05:00)
 
 Not final and not approved:
