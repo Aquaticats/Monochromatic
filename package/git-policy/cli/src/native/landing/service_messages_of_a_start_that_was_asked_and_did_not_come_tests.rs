@@ -45,7 +45,8 @@ fn every_state_of_the_wait_reads_as_itself() {
 ///  Every clause avoids the implementation words a person is never told
 ///  (`service_messages::DENYLIST`).
 /// Why:
-///  The clause is printed inside the message of a failure, which the denylist guards,
+///  The clause is printed inside the message of a failure,
+///  which the denylist guards,
 ///  and a word that names how the service works is what the rules forbid there.
 ///
 /// In TS you'd write (pseudocode):

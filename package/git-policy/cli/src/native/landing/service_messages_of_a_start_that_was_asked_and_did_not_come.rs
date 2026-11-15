@@ -17,7 +17,8 @@
 //!  So the words are composed from the two facts themselves,
 //!  one clause each,
 //!  and every clause follows from what was remembered
-//!  (`service_client_reach_service.rs`, the table in its module doc).
+//!  (`service_client_reach_service.rs`,
+//!  the table in its module doc).
 //!  They live beside the rendering of every failure rather than inside it,
 //!  because that file is at the line bound the repository linter enforces (`rust/max-lines`).
 //!
@@ -39,7 +40,8 @@
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ManagerLastWords {
-    /// The manager named the unit's state, in its own word (`active`,
+    /// The manager named the unit's state,
+    /// in its own word (`active`,
     /// `activating`,
     /// `inactive`,
     /// `failed`,
@@ -48,7 +50,8 @@ pub enum ManagerLastWords {
     /// The manager answered that it holds no such unit,
     /// which is what a unit that stopped and was unloaded leaves.
     NotHeld,
-    /// The manager gave no answer: the exchange with it failed,
+    /// The manager gave no answer:
+    /// the exchange with it failed,
     /// or it was never asked.
     Silent,
 }
@@ -82,7 +85,8 @@ pub enum RequestedStart {
 /// What:
 ///  The clause for a wait that ended without a greeting.
 /// Why:
-///  Two clauses, one per remembered fact,
+///  Two clauses,
+///  one per remembered fact,
 ///  so the sentence can be checked against the table cell it came from,
 ///  and no cell says something the wait did not learn.
 ///
@@ -98,7 +102,8 @@ pub(crate) fn did_not_start(unit: Option<&str>, answer: &ManagerLastWords, asked
 }
 
 /// What:
-///  What the manager last said, in a clause.
+///  What the manager last said,
+///  in a clause.
 /// Why:
 ///  A unit the manager reports as `activating` is one whose start is under way,
 ///  and saying so is the fact that keeps a stuck start from reading as a start nobody asked for.
@@ -119,7 +124,8 @@ fn what_the_manager_said(unit: &str, answer: &ManagerLastWords) -> String {
 }
 
 /// What:
-///  What this command asked the manager for, in a clause.
+///  What this command asked the manager for,
+///  in a clause.
 /// Why:
 ///  "itself" carries the one thing the client knows and the reader needs:
 ///  what this command asked,
@@ -136,6 +142,26 @@ fn what_this_command_asked(unit: &str, asked: RequestedStart) -> String {
         RequestedStart::ResetAndStart => format!("this command asked it to forget that {unit} failed and then to start it"),
         RequestedStart::Restart => format!("this command asked it to restart {unit}"),
     };
+}
+
+/// What:
+///  The failure a hand-off reports for a wait that ended without a greeting,
+///  or nothing when the failure is another one.
+/// Why:
+///  The reason is the two facts the wait remembered,
+///  so it is worded here where they are,
+///  and the hand-off keeps the one call.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// workNotHandedOver(failure) // { kind: 'work-not-handed-over', reason } | undefined
+/// ```
+pub(crate) fn work_not_handed_over(failure: &crate::service_messages::ClientFailure) -> Option<crate::service_messages::ClientFailure> {
+    let crate::service_messages::ClientFailure::DidNotStart { unit, answer, asked } = failure else { return None };
+    return Some(crate::service_messages::ClientFailure::WorkNotHandedOver(format!(
+        "the commit service did not start: {}",
+        did_not_start(unit.as_deref(), answer, *asked)
+    )));
 }
 
 /// Controls stay out of the release executable.

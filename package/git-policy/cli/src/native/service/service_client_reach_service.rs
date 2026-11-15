@@ -9,7 +9,8 @@
 //! the steps have their own file
 //!  so the submit loop stays readable.
 //!
-//! What the wait learns, and what it says when it ends
+//! What the wait learns,
+//! and what it says when it ends
 //! (`service_messages_of_a_start_that_was_asked_and_did_not_come.rs`):
 //!  every answer of the manager at a poll,
 //!  what this command does about it,
@@ -32,14 +33,19 @@
 //!  the client cannot tell whose connection asked,
 //!  and the manager's own `activating` is the fact that a start is under way,
 //!  so no sentence claims who started the unit.
-//! The cells, with the words each produces
+//! The cells,
+//! with the words each produces
 //!  (`<u>` is the unit this command asked about):
 //!
-//! - `activating`, nothing asked:
-//!   "the service manager says <u> is activating, so a start of it is under way, and this command asked it for nothing itself".
+//! - `activating`,
+//!   nothing asked:
+//!   "the service manager says <u> is activating,
+//!   so a start of it is under way,
+//!   and this command asked it for nothing itself".
 //!   This is the cell a socket-activated start leaves,
 //!   and it read "nothing asked it to start that unit" before.
-//! - `activating`, after a start was asked for a unit the manager held no such unit for:
+//! - `activating`,
+//!   after a start was asked for a unit the manager held no such unit:
 //!   the same "a start of it is under way",
 //!   "and this command asked it to start <u>".
 //! - `inactive`:
@@ -50,19 +56,22 @@
 //!   and the sentence says the manager answered that it holds no such unit
 //!   and that this command asked for the start.
 //! - `failed`:
-//!   the failed state is forgotten and a start asked, once,
+//!   the failed state is forgotten and a start asked,
+//!   once,
 //!   and a second `failed` answer ends the wait with that cell's words.
 //! - `active` with nothing greeting:
 //!   one restart is asked at the ceiling,
 //!   and the sentence says the unit is active and that this command asked for the restart.
-//! - `deactivating`, or any other state:
+//! - `deactivating`,
+//!   or any other state:
 //!   nothing is asked,
 //!   and the manager's word is what the person reads.
 //! - unreachable:
 //!   nothing is asked and the wait ends at the start wait,
 //!   and the sentence says the manager gave no answer and that this command asked for nothing itself.
 //! - no manager can be asked at all (`start_watch` absent):
-//!   "no service manager could be asked about this worktree's commit service, so nothing started it".
+//!   "no service manager could be asked about this worktree's commit service,
+//!   so nothing started it".
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -177,7 +186,7 @@ pub(crate) fn reach(
             },
         }
         if let Some(watch) = config.start_watch.as_ref()
-            && last_asked.is_none_or(|at: Instant| { return at.elapsed() >= watch.every; })
+            && a_poll_is_due(last_asked, watch.every)
         {
             last_asked = Some(Instant::now());
             let answer: ManagerAnswer = (watch.state)(watch.bus.as_path(), watch.unit.as_str());
@@ -366,6 +375,23 @@ fn nothing_answered(config: &ClientConfig, connected: bool, waited: Duration) ->
         return ClientFailure::DidNotStart { unit: None, answer: ManagerLastWords::Silent, asked: RequestedStart::Nothing };
     }
     return ClientFailure::NothingAnswered { address: crate::service_server::address_text(&config.address), waited };
+}
+
+/// What:
+///  Whether the service manager is due to be asked again,
+///  which is the first time and then once every `every`.
+/// Why:
+///  A named function keeps the condition of the wait readable and keeps no closure over the watch it belongs to.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// aPollIsDue(lastAsked, every) // lastAsked === undefined || now - lastAsked >= every
+/// ```
+fn a_poll_is_due(last_asked: Option<Instant>, every: Duration) -> bool {
+    return match last_asked {
+        Some(at) => at.elapsed() >= every,
+        None => true,
+    };
 }
 
 /// What:

@@ -309,7 +309,8 @@ fn the_first_inactive_answer_asks_the_manager_to_start_the_unit() {
 /// Why:
 ///   A service that stopped is unloaded by the manager,
 ///   and `GetUnit` then answers `NoSuchUnit` for it rather than `inactive`
-///   (measured against this machine's manager with `gdbus call … Manager.GetUnit`, 2026-11-14:
+///   (measured against this machine's manager with `gdbus call … Manager.GetUnit`,
+///   2026-11-14:
 ///   `Error: GDBus.Error:org.freedesktop.systemd1.NoSuchUnit: Unit … not loaded.`).
 ///   The client read that answer as "the manager cannot be asked",
 ///   so the start its own words promise ("the client's own wait starts the unit when it finds it inactive",
@@ -317,7 +318,8 @@ fn the_first_inactive_answer_asks_the_manager_to_start_the_unit() {
 ///   a service that retired before serving anything stops its own socket,
 ///   and every merge's hand-off of that worktree then ended with "the commit service did not start"
 ///   (`2026-11-14T20:51:03-05:00` and three later merges of one worktree).
-///   A start is what loads the unit again, so that answer is a reason to ask for one.
+///   A start is what loads the unit again,
+///   so that answer is a reason to ask for one.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -362,7 +364,8 @@ fn a_unit_the_manager_holds_no_such_unit_for_is_asked_to_start() {
 ///   "The commit service did not start" was printed where no start was ever asked for,
 ///   and the notice said the manager "does not hold" the unit,
 ///   which is the manager's answer about a unit rather than the silence of a manager nothing could reach.
-///   A reader needs the two apart: one is a service to start,
+///   A reader needs the two apart:
+///   one is a service to start,
 ///   the other a session whose service manager this command cannot reach,
 ///   and the failure names the unit and the wait's own answer so a later record can tell them apart.
 ///
@@ -411,7 +414,7 @@ fn a_manager_that_cannot_be_asked_names_itself_and_asks_for_no_start() {
     //  the two clauses of the words a wait that ends without a greeting prints.
     assert!(rendered.contains("gave no answer"), "and that the manager answered nothing: {rendered}");
     assert!(rendered.contains("asked it for nothing itself"), "and that nothing of this command asked for a start: {rendered}");
-    let reason: String = match crate::service_handoff::not_handed_over(failure) {
+    let reason: String = match crate::service_messages_of_a_work_that_was_not_handed_over::not_handed_over(failure) {
         ClientFailure::WorkNotHandedOver(reason) => reason,
         other => panic!("work that was not handed over says so: {other:?}"),
     };
@@ -1069,7 +1072,8 @@ fn the_notice_of_a_wait_with_no_manager_reaches_the_person_before_the_wait_ends(
 ///  and never as one nothing asked to start.
 /// Why:
 ///   A socket-activated unit is started by a connection to its socket,
-///   which is what this command makes: the connection sits in the socket unit's queue,
+///   which is what this command makes:
+///   the connection sits in the socket unit's queue,
 ///   the manager starts the service,
 ///   and the service greets nothing until it is ready.
 ///   The manager's answer is then `activating` at every poll,
@@ -1115,7 +1119,9 @@ fn a_start_the_manager_reports_as_under_way_is_not_described_as_never_asked_for(
 }
 
 /// What:
-///  A unit the manager answers it holds no such unit for, after a start of it was asked, is described by that answer,
+///  A unit the manager answers it holds no such unit for,
+///  after a start of it was asked,
+///  is described by that answer,
 ///  never as a manager that gave no answer.
 /// Why:
 ///   The start asked for a unit the manager unloaded is the one repair that state has,
