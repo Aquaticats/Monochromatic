@@ -20,13 +20,23 @@
  the whole scan: the summary of the run `lock-shim-of-pi-takes-over-a-lock-whose-holder-is-gone-2` recorded
  `ESRCH: no such process, read '/proc/4038785/comm'` as its `workProblem`.
 
+ A process number is no name for one process. The kernel gives a freed number to a later process, and the control group such a
+ process is in says nothing about whose it is: on 2026-11-14 a review of this code proved that a record naming a build at a number
+ another process now holds is read as the build still running. So `/proc/<pid>/stat` is read as well, which says both the state the
+ kernel gives the process and its start time in clock ticks since boot, and a start time no later process at that number repeats
+ (`package/mpm-shadow/cli/src/shadow_identity.rs` reads it the same way for the same reason). Measured with a process this machine
+ started and ended: a gone process answers `ENOENT` before the open and `ESRCH` after it, and a process that has ended but whose
+ parent has not reaped it still answers, with the state `Z`.
+
  @module
  */
 
+import { readFileSync, } from 'node:fs';
 import {
   readFile,
   readlink,
 } from 'node:fs/promises';
+import { join, } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
 
 /**
@@ -143,3 +153,204 @@ export const readsOfTheProcessFolder: ProcessFolderReads = {
     );
   },
 };
+
+/**
+ What one line of `/proc/<pid>/stat` says about a process: whether it holds one at all, and which process it describes.
+ */
+export type LifeOfAProcess =
+  | {
+    /**
+     The line holds a state and a start time.
+     */
+    readonly found: true;
+
+    /**
+     The state the kernel gives it: `R` while it runs, `S` while it sleeps, `Z` once it has ended and its parent has not reaped it.
+     */
+    readonly state: string;
+
+    /**
+     Its start time in clock ticks since boot, which no later process at its number repeats.
+     */
+    readonly birth: string;
+  }
+    | {
+    /**
+     The line holds no state and no start time, so it describes no process this can read.
+     */
+      readonly found: false;
+    };
+
+/**
+ Which field after the program's name holds the start time: the twentieth, counted from one.
+ */
+const BIRTH_FIELD_AFTER_THE_NAME = 19;
+
+/**
+ Reads the state and the start time out of one line of `/proc/<pid>/stat`.
+
+ That file puts the program's name in brackets as its second field, and a name may hold spaces and brackets of its own, so the fields
+ are counted from the last `)` in the line: the state is the first field after it, and the start time is the twentieth. The kernel
+ writes one space between those fields.
+
+ @param statText - one whole line of `/proc/<pid>/stat`
+
+ @returns the state and the birth, or that the line holds neither
+
+ @example
+ ```ts
+ const life = lifeIn({ statText: '4242 (sleep) S 1 4242 4242 0 -1 4194560 91 0 0 0 0 0 0 0 20 0 1 0 20004601 2797568 185 18446744073709551615', },);
+ ```
+ */
+export function lifeIn({ statText, }: { readonly statText: string },): LifeOfAProcess {
+  /**
+   Where the program's name ends, which is where the fields a reader can count begin.
+   */
+  const named = statText.lastIndexOf(')',);
+  if (named === (-1)) {
+    return { found: false, };
+  }
+  /**
+   The fields after the name, of which the state is the first and the start time the twentieth.
+   */
+  const fields = statText.slice(named + 1,)
+    .trim()
+    .split(' ',);
+  /**
+   The state the kernel gives the process.
+   */
+  const [state,] = fields;
+  /**
+   The start time the kernel gave it, in clock ticks since boot.
+   */
+  const birth = fields[BIRTH_FIELD_AFTER_THE_NAME];
+  if (
+    (state === undefined)
+      || (state === '')
+      || (birth === undefined)
+      || (birth === '')
+  ) {
+    return { found: false, };
+  }
+  return {
+    found: true,
+    state,
+    birth,
+  };
+}
+
+/**
+ The states a process holds once it has ended: a zombie waiting to be reaped, and one the kernel is tearing down.
+ */
+const ENDED_PROCESS_STATES: ReadonlySet<string> = new Set<string>([
+  'Z',
+  'X',
+]);
+
+/**
+ Says whether the state the kernel gives a process is one of a process that has ended.
+
+ A zombie has done no work since it ended: its working-folder link has no target, and nothing it started is still going.
+
+ @param state - the state `/proc/<pid>/stat` gave
+
+ @returns whether the process has ended
+
+ @example
+ ```ts
+ const ended = processHasEnded({ state: 'Z', },);
+ ```
+ */
+export function processHasEnded({ state, }: { readonly state: string },): boolean {
+  return ENDED_PROCESS_STATES.has(state,);
+}
+
+/**
+ What reading the birth of a process now answered.
+ */
+export type BirthOfAProcessNow =
+  | {
+    /**
+     The start time the kernel gave it, in clock ticks since boot.
+     */
+    readonly read: 'birth';
+    readonly birth: string;
+  }
+    | {
+    /**
+     Why no birth was read, which is a process that has gone as much as a folder this account may not read.
+     */
+      readonly read: 'unreadable';
+      readonly code: string;
+    };
+
+/**
+ Reads a process's birth from the process folder, now, without waiting.
+
+ The line that records a run's work is written while Pi's events arrive, in the order they arrived, so the birth it carries is read
+ where it is written rather than awaited: a promise would let the next event's line be written first, and the number in the feed could
+then sit beside a birth read after that number had been reused. It is one read of one short file per process a tool answer names.
+
+ @param processFolder - the folder holding one entry per process, `/proc` here
+
+ @param pid - the process number
+
+ @returns the birth, or why there is none
+
+ @example
+ ```ts
+ const read = birthOfProcessNow({ processFolder: '/proc', pid: 486667, },);
+ ```
+ */
+export function birthOfProcessNow({
+  processFolder,
+  pid,
+}: {
+  readonly processFolder: string;
+  readonly pid: number;
+},): BirthOfAProcessNow {
+  /**
+   The line of the process's own record that holds its state and its start time.
+   */
+  const path = join(
+    processFolder,
+    String(pid,),
+    'stat',
+  );
+  try {
+    /**
+     What the line says about the process, read now rather than awaited: the feed line this birth belongs to cannot wait for it.
+     */
+    // oxlint-disable-next-line no-restricted-syntax/no-sync -- the line that records a run's work is written in the order Pi's events arrive, so this read cannot be awaited; see doc/lint/sync-read-of-one-process-line.md
+    const statText = readFileSync(
+      path,
+      'utf8',
+    );
+    /**
+     The life the line describes.
+     */
+    const life = lifeIn({ statText, },);
+    if (!life.found) {
+      return {
+        read: 'unreadable',
+        code: '',
+      };
+    }
+    return {
+      read: 'birth',
+      birth: life.birth,
+    };
+  }
+  catch (error) {
+    /**
+     The code the read failed with, which is what this answer says instead of a birth.
+     */
+    const code = errorCodeOf(error,);
+    // A process that has gone, and one this account may not read, keep no birth in the record: the caller leaves the field out, and
+    // a scan then says the recorded work is not provably the process at that number.
+    return {
+      read: 'unreadable',
+      code,
+    };
+  }
+}

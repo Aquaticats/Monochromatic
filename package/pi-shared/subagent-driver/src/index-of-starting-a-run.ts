@@ -117,6 +117,7 @@ export {
   type WorkAsked,
   type WorkWaitedFor,
 } from './kept-while-work-runs.ts';
+export type { WatchRequest, } from './watch-request.ts';
 export {
   CHECKOUT_MARKER,
   CheckoutNotFoundError,

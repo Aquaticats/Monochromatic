@@ -80,7 +80,9 @@ export type WorkAsked =
    */
   | 'kept'
   /**
-   The work ended, so the agent was sent back to read it and the run goes on.
+   The work ended, so the agent was sent back to read it and the run goes on. A wake whose send failed counts the same way: it went
+   out with an acceptance that is unknown, so it is never sent again, and the run goes on until a reply settles or its own wall clock
+   ends it.
    */
     | 'resumed'
   /**
@@ -119,7 +121,125 @@ export async function askAboutItsWork({
   /**
    The lines that name the work still running.
    */
-  const work = (watch.workLeftRunning === undefined) ? [] : await watch.workLeftRunning();
+  const work = await workTheRunStillHasRunning({ watch, },);
+  return await answerAboutItsWork({
+    watch,
+    waited,
+    work,
+  },);
+}
+
+/**
+ Reads what the run has running now, which is the one read of this step that may fail.
+
+ Kept apart from what the answer is made to do, so that a caller can catch this read alone: a message that fails to go out is no
+ failed read, and a run told its work ended twice is a run that may do what follows twice.
+
+ @param watch - watch request
+
+ @returns the lines that name the work the run still has going, empty when it has none
+
+ @throws whatever the read failed with, which the caller decides on
+
+ @example
+ ```ts
+ const work = await workTheRunStillHasRunning({ watch, },);
+ ```
+ */
+async function workTheRunStillHasRunning({ watch, }: { readonly watch: WatchRequest },): Promise<readonly string[]> {
+  return (watch.workLeftRunning === undefined) ? [] : await watch.workLeftRunning();
+}
+
+/**
+ How sending the message that wakes the agent ended.
+ */
+type WakeSent =
+  | {
+    /**
+     Pi answered the message.
+     */
+    readonly sent: true;
+    readonly answer: CommandAnswer;
+  }
+    | {
+    /**
+     Sending failed, and what it said.
+     */
+      readonly sent: false;
+      readonly problem: string;
+    };
+
+/**
+ Sends the message that sends the agent back to work it can read, and says what came of it rather than throwing.
+
+ A send that throws is its own state: the write may have failed before Pi saw the prompt, or the answer may have been lost once Pi
+ had begun the turn, and nothing here can tell those apart. So the failure is answered rather than thrown, and the caller treats a
+ wake that may have gone out as one it must never send again.
+
+ @param watch - watch request
+
+ @param said - the message
+
+ @returns Pi's answer, or what the send failed with
+
+ @example
+ ```ts
+ const sent = await answerToTheWake({ watch, said, },);
+ ```
+ */
+async function answerToTheWake({
+  watch,
+  said,
+}: {
+  readonly watch: WatchRequest;
+  readonly said: string;
+},): Promise<WakeSent> {
+  try {
+    return {
+      sent: true,
+      answer: await watch.connection
+        .send({
+          command: {
+            type: 'prompt',
+            message: said,
+          },
+          deadline: watch.deadline,
+        },),
+    };
+  }
+  catch (error) {
+    return {
+      sent: false,
+      problem: String(error,),
+    };
+  }
+}
+
+/**
+ Says what the run's work now is, and does what that needs: keeps the run, or sends the agent back to work it can read.
+
+ @param watch - watch request
+
+ @param waited - where the driver stands with the work, which this fills and clears
+
+ @param work - the lines that name the work still running, as the last read of the process table found it
+
+ @returns what stands between the run and its end
+
+ @example
+ ```ts
+ const asked = await answerAboutItsWork({ watch, waited, work: [], },);
+ ```
+ */
+async function answerAboutItsWork({
+  watch,
+  waited,
+  work,
+}: {
+  readonly watch: WatchRequest;
+  readonly waited: WorkWaitedFor;
+  readonly work: readonly string[];
+},): Promise<WorkAsked> {
   if (work.length > 0) {
     if (waited.work === undefined) {
       // One line at the start of the wait names what is waited for, so a reader of the feed sees why the run is still up.
@@ -150,16 +270,36 @@ export async function askAboutItsWork({
   const settledBefore = watch.record
     .settledCount();
   /**
+   How sending that message ended.
+   */
+  const sent = await answerToTheWake({
+    watch,
+    said,
+  },);
+  if (!sent.sent) {
+    // A send that failed says nothing about whether Pi took the prompt: the write may have failed before it, or the answer may have
+    // been lost once Pi had begun the turn. So the wake is not sent again and is not counted as answered: the run stays up for a
+    // reply that may yet come, and its own wall clock ends a run whose reply never does. The feed keeps one line saying so, which is
+    // where a reader sees a wake whose acceptance is unknown rather than one Pi refused.
+    watch.record
+      .note({
+        kind: 'wake',
+        work: ended,
+        success: false,
+        error: sent.problem,
+        preview: preview({
+          value: said,
+          length: FEED_PREVIEW_CHARACTERS.inboxMessage,
+        },),
+      },);
+    delete waited.work;
+    waited.wokenAtSettle = settledBefore;
+    return 'resumed';
+  }
+  /**
    Pi's answer, waited for within the run's own deadline.
    */
-  const answer = await watch.connection
-    .send({
-      command: {
-        type: 'prompt',
-        message: said,
-      },
-      deadline: watch.deadline,
-    },);
+  const { answer, } = sent;
   /**
    What Pi said it did with the message.
    */
@@ -190,6 +330,66 @@ export async function askAboutItsWork({
 }
 
 /**
+ What reading the run's work answered.
+ */
+type WorkRead =
+  | {
+    /**
+     The read answered.
+     */
+    readonly read: true;
+    readonly work: readonly string[];
+  }
+    | {
+    /**
+     The read failed, and the driver has already said what with in the feed and the summary.
+     */
+      readonly read: false;
+    };
+
+/**
+ Reads what the run has running now, reporting a read that fails rather than throwing it on.
+
+ @param watch - watch request
+
+ @param waited - where the driver stands with the work, which keeps the last failure it reported
+
+ @returns what the read found, or that it could not be read
+
+ @example
+ ```ts
+ const read = await workTheRunStillHasRunningOrReportAFailure({ watch, waited, },);
+ ```
+ */
+async function workTheRunStillHasRunningOrReportAFailure({
+  watch,
+  waited,
+}: {
+  readonly watch: WatchRequest;
+  readonly waited: WorkWaitedFor;
+},): Promise<WorkRead> {
+  try {
+    return {
+      read: true,
+      work: await workTheRunStillHasRunning({ watch, },),
+    };
+  }
+  catch (error) {
+    /**
+     What the failed read said, which names the path and the code it failed with.
+     */
+    const failure = String(error,);
+    // The read is asked on every look, so one failure that lasts is noted once instead of burying the feed under itself.
+    if (waited.unreadable !== failure) {
+      waited.unreadable = failure;
+      watch.record
+        .noteWorkProblem(failure,);
+    }
+    return { read: false, };
+  }
+}
+
+/**
  Asks what the run left running, and keeps a run whose work cannot be read rather than ending it as one that finished.
 
  By the time this is asked the agent has ended its turn and the run is only waiting out its own idle time, so a read that fails
@@ -204,7 +404,8 @@ export async function askAboutItsWork({
 
  The one failure that does not keep the run is the driver's own feed having failed, which the summary already reports under
  `feedProblem` and which rewrites the run's end to `driver-failed`: keeping such a run would hold it to its wall clock to learn
- what the driver already knows.
+ what the driver already knows. Only the read is caught here: a message that fails to go out is no failed read, and it is answered
+ where it is sent.
 
  @param watch - watch request
 
@@ -224,23 +425,14 @@ export async function askAboutItsWorkOrReportAFailure({
   readonly watch: WatchRequest;
   readonly waited: WorkWaitedFor;
 },): Promise<WorkAsked> {
-  try {
-    return await askAboutItsWork({
-      watch,
-      waited,
-    },);
-  }
-  catch (error) {
-    /**
-     What the failed read said, which names the path and the code it failed with.
-     */
-    const failure = String(error,);
-    // The read is asked on every look, so one failure that lasts is noted once instead of burying the feed under itself.
-    if (waited.unreadable !== failure) {
-      waited.unreadable = failure;
-      watch.record
-        .noteWorkProblem(failure,);
-    }
+  /**
+   What the read of the run's work found.
+   */
+  const read = await workTheRunStillHasRunningOrReportAFailure({
+    watch,
+    waited,
+  },);
+  if (!read.read) {
     // A driver whose own feed failed has already lost the record of the run, and the summary reports that under `feedProblem`; the
     // run's end is rewritten to `driver-failed` for it, so keeping the run would only hold it to its wall clock. Every other failed
     // read keeps it, because nothing is known about the work it left.
@@ -252,6 +444,14 @@ export async function askAboutItsWorkOrReportAFailure({
       .failed;
     return feedFailed ? 'nothing' : 'kept';
   }
+  // A read that succeeded is what a later failure is a change from: a failure that repeats one the driver has already reported is
+  // news again once a good read has stood between them, so the note of the last failure is cleared by every good read.
+  delete waited.unreadable;
+  return await answerAboutItsWork({
+    watch,
+    waited,
+    work: read.work,
+  },);
 }
 
 /**

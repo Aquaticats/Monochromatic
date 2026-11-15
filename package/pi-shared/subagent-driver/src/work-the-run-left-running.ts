@@ -10,7 +10,7 @@
  Three things are asked, and only what they show is used:
 
  - the run's own `process` tool, whose every start, update and list is a record of the run's feed, and whose records carry the
-   process number, the folder it was started in and the command it runs;
+   process number, the start time the kernel gave that process, the folder it was started in and the command it runs;
  - the machine's process table, for a process working in the run's worktree or run folder whose control group is not the run's
    own unit: a `systemd-run --scope` the agent made leaves the unit's control group, so it is visible there and the unit itself
    is not;
@@ -19,6 +19,10 @@
 
  What none of them can show is not guessed at: a process whose folder cannot be read counts for nothing, and a run whose work
  nothing names ends as it ended before this existed.
+
+ A number recorded by the tool names no process on its own: the kernel gives a freed number to the next process, which may work in
+ another folder and another control group. So the record keeps the start time read when it was written, and a scan counts the recorded
+ work as running only when the process at that number has the same start time and has not ended.
 
  @module
  */
@@ -39,6 +43,8 @@ import { isRecord, } from './read-pi-fields.ts';
 import {
   type ProcessFolderReads,
   ProcessFileUnreadableError,
+  lifeIn,
+  processHasEnded,
   processHasGone,
   readsOfTheProcessFolder,
 } from './reads-of-the-process-folder.ts';
@@ -211,39 +217,85 @@ export async function cgroupOf({
 }
 
 /**
- Says whether a process number is one the process folder still holds.
+ Says whether the process the run's tool recorded is still the process at that number.
 
- @param processFolder - the folder holding one entry per process
+The number alone is no evidence: the kernel gives a freed number to a later process, which may work in another folder and another
+control group, and a scan that counted the number counted that process as the build. So two things are compared, both read from
+`/proc/<pid>/stat`: the start time the record kept when the work was recorded, which no later process at that number repeats, and
+the state, because a process that has ended and waits to be reaped has done no work since.
 
- @param pid - the process number
+ @param processFolder - the folder holding one entry per process, `/proc` here
+
+ @param work - the process the run's tool recorded, with the birth the record kept
 
  @param reads - the reads of one process, which a test replaces
 
- @returns whether the process is there
+ @returns whether the recorded work still runs
+
+ @throws ProcessFileUnreadableError when the read failed for a reason that is neither the process having gone nor this account
+ being refused
 
  @example
  ```ts
- const alive = processIsThere({ processFolder: '/proc', pid: 486667, },);
+ const runs = await recordedWorkStillRuns({ processFolder: '/proc', work, reads, },);
  ```
  */
-async function processIsThere({
+async function recordedWorkStillRuns({
   processFolder,
-  pid,
+  work,
   reads,
 }: {
   readonly processFolder: string;
-  readonly pid: number;
+  readonly work: WorkOfARun;
   readonly reads: ProcessFolderReads;
 },): Promise<boolean> {
   /**
-   The control group of a process that is there, which is never empty.
+   The birth the record kept, which no later process at that number repeats.
    */
-  const cgroup = await cgroupOf({
+  const recorded = work.birth;
+  if ((work.pid === undefined) || (recorded === undefined)) {
+    // A record with no number names no process, and one with no birth cannot say which process it named: a feed written before the
+    // birth was kept, or one whose read failed. The number alone is what a later process at it makes worthless, so the recorded work
+    // is not counted as running.
+    return false;
+  }
+  /**
+   The file holding the state and the start time of the process at that number.
+   */
+  const path = join(
     processFolder,
-    entry: String(pid,),
-    reads,
-  },);
-  return cgroup !== '';
+    String(work.pid,),
+    'stat',
+  );
+  try {
+    /**
+     What that line says about the process.
+     */
+    const life = lifeIn({ statText: await reads.textOf(path,), },);
+    // The state says whether the process has ended, and the birth says whether this is the process the record named at all.
+    return life.found
+      && (!processHasEnded({ state: life.state, },))
+      && (life.birth === recorded);
+  }
+  catch (error) {
+    /**
+     The code the operating system gave the read.
+     */
+    const code = errorCodeOf(error,);
+    // A process that ended at any instant of this scan, or one whose folder this account may not read, is no evidence that the
+    // recorded work runs.
+    if (
+      processHasGone({ code, },)
+        || (code === 'EACCES')
+        || (code === 'EPERM')
+    ) {
+      return false;
+    }
+    throw (error instanceof ProcessFileUnreadableError) ? error : new ProcessFileUnreadableError({
+      path,
+      error,
+    },);
+  }
 }
 
 /**
@@ -374,12 +426,12 @@ export async function workOutlivingTheTurnIn({
   const named = new Set<number>();
   for (const work of reported) {
     /**
-     Whether the number the tool holds is still a process.
+     Whether the process at the number the tool holds is the one the record named, and still runs.
      */
     // oxlint-disable-next-line eslint/no-await-in-loop -- one process after another, each read before the next is asked about; a handful of processes at most; see doc/lint/sequential-awaits.md
-    const alive = (work.pid === undefined) ? false : await processIsThere({
+    const alive = await recordedWorkStillRuns({
       processFolder,
-      pid: work.pid,
+      work,
       reads,
     },);
     /**

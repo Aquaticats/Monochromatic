@@ -22,6 +22,7 @@ import {
   startObservingPiRun,
 } from './observe-pi-events.ts';
 import { preview, } from './previews-of-pi-messages.ts';
+import { withBirthsOfRecordedWork, } from './processes-a-tool-answer-names.ts';
 import {
   isRateLimit,
   kindOfModelError,
@@ -124,6 +125,12 @@ export type RecordOfPiRunRequest = {
    Where the record reads the time. A test gives its own, so a silence is measured instead of waited for.
    */
   readonly now?: () => number;
+
+  /**
+   The folder holding one entry per process, which a `processes` record is given the birth of each process it names from. A test
+   points this at its own entries, so no test reads this machine's process table.
+   */
+  readonly processFolder?: string;
 };
 
 /**
@@ -143,6 +150,7 @@ export type RecordOfPiRunRequest = {
 export function startRecordOfPiRun({
   feedFile,
   now = Date.now,
+  processFolder = '/proc',
 }: RecordOfPiRunRequest,): RecordOfPiRun {
   /**
    When the run started.
@@ -216,11 +224,17 @@ export function startRecordOfPiRun({
   /**
    Writes one feed line, which also counts as activity.
 
+   A `processes` record is given the birth of every process it names here, at the moment the line is written: the number a tool held
+   names a later process once this one has ended, and the birth is what a later scan tells them apart by.
+
    @param entry - fields of the line
    */
   function note(entry: PiRecord,): void {
     activity.at = now();
-    feed.note(entry,);
+    feed.note(withBirthsOfRecordedWork({
+      entry,
+      processFolder,
+    },),);
   }
 
   /**

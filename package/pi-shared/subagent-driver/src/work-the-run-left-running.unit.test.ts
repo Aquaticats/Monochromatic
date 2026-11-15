@@ -94,6 +94,76 @@ function aScopeOfItsOwn(): string {
 }
 
 /**
+ The start time a fixture gives both a recorded process and the process at its number, in clock ticks since boot.
+
+ @returns the start time
+
+ @example
+ ```ts
+ const birth = aBirth();
+ ```
+ */
+function aBirth(): string {
+  return '20004601';
+}
+
+/**
+ The start time a later process at the same number has, which no record of the first process repeats.
+
+ @returns the start time
+
+ @example
+ ```ts
+ const birth = aLaterBirth();
+ ```
+ */
+function aLaterBirth(): string {
+  return '21000000';
+}
+
+/**
+ How many fields a line of `/proc/<pid>/stat` holds between the state and the start time, whose values nothing here reads.
+ */
+const FIELDS_BETWEEN_STATE_AND_BIRTH = 18;
+
+/**
+ The line `/proc/<pid>/stat` holds for a process a test wrote, as the kernel writes it.
+
+ @param state - the state the kernel gives it
+
+ @param birth - its start time in clock ticks since boot
+
+ @returns the line
+
+ @example
+ ```ts
+ const line = aStatLine({ state: 'S', birth: aBirth(), },);
+ ```
+ */
+function aStatLine({
+  state,
+  birth,
+}: {
+  readonly state: string;
+  readonly birth: string;
+},): string {
+  /**
+   The fields after the program's name: the state first, and the start time twentieth.
+   */
+  const afterTheName = [
+    state,
+    ...Array.from(
+      { length: FIELDS_BETWEEN_STATE_AND_BIRTH, },
+      function aFieldNothingReads() {
+        return '0';
+      },
+    ),
+    birth,
+  ];
+  return `4242 (a-program) ${afterTheName.join(' ',)}\n`;
+}
+
+/**
  One line of a feed written before the driver kept a tool's answer whole, holding the answer itself in `result`.
 
  A feed written now keeps only a preview of the answer there, which is why the driver writes a `processes` record beside it: the
@@ -257,6 +327,9 @@ async function makeFolder(): Promise<{
 
  @param command - the program the kernel names for it
 
+ @param birth - the start time the kernel gave it
+
+ @param state - the state the kernel gives it
 
  @returns nothing
 
@@ -271,12 +344,16 @@ async function writeProcess({
   cgroup,
   worksIn,
   command,
+  birth = aBirth(),
+  state = 'S',
 }: {
   readonly folder: string;
   readonly pid: number;
   readonly cgroup: string;
   readonly worksIn: string;
   readonly command: string;
+  readonly birth?: string;
+  readonly state?: string;
 },): Promise<void> {
   await mkdir(join(
     folder,
@@ -297,6 +374,17 @@ async function writeProcess({
       'comm',
     ),
     `${command}\n`,
+  );
+  await writeFile(
+    join(
+      folder,
+      String(pid,),
+      'stat',
+    ),
+    aStatLine({
+      state,
+      birth,
+    },),
   );
   await symlink(
     worksIn,
@@ -695,7 +783,7 @@ await describe({
           },
         },),
         it({
-          name: 'names the work the process tool reported while its number is still there, and asks no manager about it',
+          name: 'names the work the process tool reported while its number still holds that very process, and asks no manager about it',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -712,10 +800,17 @@ await describe({
               cgroup: theRunsUnit(),
               worksIn: aWorktree(),
               command: 'bash',
+              birth: aBirth(),
             },);
             await writeFile(
               join(folder.path, 'feed.jsonl',),
-              `${aToolAnswer({ action: 'list', processes: [aProcess({ pid: 101, },),], },)}\n`,
+              `${aToolAnswer({
+                action: 'list',
+                processes: [aProcess({
+                  pid: 101,
+                  birth: aBirth(),
+                },),],
+              },)}\n`,
             );
             expect(await workOutlivingTheTurnIn({
               runFolder: folder.path,
@@ -729,6 +824,199 @@ await describe({
                 };
               },
             },),).toEqual(['proc_7adb (native-build-2) 101 cd /repo/.claude/worktrees/pi-copy-route && systemd-run --user --scope -- mise run build',],);
+          },
+        },),
+        it({
+          name: 'counts recorded work as gone when a later process holds its number, and asks no manager about it',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            // The process at the number the build held, which is a later one: its start time is its own, and it works elsewhere.
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: '/elsewhere',
+              command: 'unrelated',
+              birth: aLaterBirth(),
+            },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  pid: 101,
+                  birth: aBirth(),
+                },),
+              },)}\n`,
+            );
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                throw new Error('no manager is asked about work whose process is not the recorded one',);
+              },
+            },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'counts recorded work as gone when the record kept no start time for it',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: '/elsewhere',
+              command: 'bash',
+              birth: aBirth(),
+            },);
+            // A record written before the driver kept a start time, which cannot say which process it named.
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({ pid: 101, },),
+              },)}\n`,
+            );
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                throw new Error('no manager is asked about work that names no unit',);
+              },
+            },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'counts recorded work as gone when its process has ended and waits to be reaped',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            // The very process the record named, which has ended and whose parent has not reaped it: a zombie does no work.
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: '/elsewhere',
+              command: 'bash',
+              birth: aBirth(),
+              state: 'Z',
+            },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  pid: 101,
+                  birth: aBirth(),
+                },),
+              },)}\n`,
+            );
+            expect(await workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              run: async function answered() {
+                throw new Error('no manager is asked about work that names no unit',);
+              },
+            },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'reports a read of the recorded work\'s own line that failed for a reason other than the process having gone',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The process folder a test writes, whose own entry is the run's unit.
+             */
+            const processes = join(folder.path, 'proc',);
+            await writeSelf({
+              folder: processes,
+              cgroup: theRunsUnit(),
+            },);
+            await writeProcess({
+              folder: processes,
+              pid: 101,
+              cgroup: aScopeOfItsOwn(),
+              worksIn: '/elsewhere',
+              command: 'bash',
+              birth: aBirth(),
+            },);
+            await writeFile(
+              join(folder.path, 'feed.jsonl',),
+              `${aToolAnswer({
+                action: 'start',
+                process: aProcess({
+                  pid: 101,
+                  birth: aBirth(),
+                },),
+              },)}\n`,
+            );
+            /**
+             The reader of the process folder, whose read of that process's own line fails as a damaged table would.
+             */
+            const reads = readsAnsweringFor({
+              folder: processes,
+              entry: '101',
+              code: 'EIO',
+              failingFile: 'stat',
+            },);
+            await expect(workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              reads,
+              run: async function answered() {
+                throw new Error('no manager is asked about a read that failed',);
+              },
+            },),).rejects.toBeInstanceOf(ProcessFileUnreadableError,);
+            await expect(workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              reads,
+              run: async function answered() {
+                throw new Error('no manager is asked about a read that failed',);
+              },
+            },),).rejects.toHaveProperty('code', 'EIO',);
+            await expect(workOutlivingTheTurnIn({
+              runFolder: folder.path,
+              workingFolder: aWorktree(),
+              processFolder: processes,
+              reads,
+              run: async function answered() {
+                throw new Error('no manager is asked about a read that failed',);
+              },
+            },),).rejects.toHaveProperty('path', join(
+              processes,
+              '101',
+              'stat',
+            ),);
           },
         },),
         it({

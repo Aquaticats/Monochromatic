@@ -10,6 +10,11 @@
  @module
  */
 
+import type { PiRecord, } from './driver-types.ts';
+import {
+  birthOfProcessNow,
+  type BirthOfAProcessNow,
+} from './reads-of-the-process-folder.ts';
 import {
   isRecord,
   recordsIn,
@@ -61,6 +66,15 @@ export type WorkOfARun = {
    The status the tool last reported, when a record named one.
    */
   readonly status?: string;
+
+  /**
+   The start time the kernel gave the process, in clock ticks since boot, when the record was written.
+
+   The tool says nothing of it: the driver reads it once, from `/proc/<pid>/stat`, as it writes the record of an answer that names
+   the process, and a scan reads it again later. A number the tool held can be a later process's by then, and this is what tells the
+   two apart (`reads-of-the-process-folder.ts`). A record written before this existed, and one whose read failed, carries none.
+   */
+  readonly birth?: string;
 };
 
 /**
@@ -90,6 +104,7 @@ function processesInOne({ value, }: { readonly value: unknown },): readonly Work
     command: ((typeof value.command) === 'string') ? value.command : '',
     cwd: ((typeof value.cwd) === 'string') ? value.cwd : '',
     ...((typeof value.status) === 'string' ? { status: value.status, } : {}),
+    ...((typeof value.birth) === 'string' ? { birth: value.birth, } : {}),
   },];
 }
 
@@ -138,4 +153,72 @@ export function processesNamedIn({ value, }: { readonly value: unknown },): read
   ].flatMap(function processNamed(named,) {
     return processesInOne({ value: named, },);
   },);
+}
+
+/**
+ A feed line with the birth of every process a `processes` record names, so a scan can tell the process it recorded from a later one
+ at the same number.
+
+ The record keeps the tool's answer whole but for this one field per process, which the tool did not say. It is read as the line is
+ written, because a number alone names no process once the kernel gives it to the next one: the review of 2026-11-14 found a build
+ that had ended reported as still running from the number a later process held.
+
+ @param entry - a feed line, of any kind
+
+ @param processFolder - the folder holding one entry per process, `/proc` here
+
+ @param birthOf - how a birth is read now, which a test replaces
+
+ @returns the line, with a birth under every process of a `processes` record whose number could be read
+
+ @example
+ ```ts
+ const line = withBirthsOfRecordedWork({ entry: { kind: 'processes', processes: [{ id: 'proc_7adb', pid: 486667 }] }, processFolder: '/proc', },);
+ ```
+ */
+export function withBirthsOfRecordedWork({
+  entry,
+  processFolder,
+  birthOf = birthOfProcessNow,
+}: {
+  readonly entry: PiRecord;
+  readonly processFolder: string;
+  readonly birthOf?: (request: {
+    readonly processFolder: string;
+    readonly pid: number;
+  }) => BirthOfAProcessNow;
+},): PiRecord {
+  if (entry.kind !== PROCESSES_RECORD_KIND) {
+    return entry;
+  }
+  /**
+   The processes the record names, each with the birth of the process at its number as this moment reads it.
+   */
+  const processes = recordsIn(entry.processes,)
+    .map(function withItsBirth(process,) {
+      /**
+       The fields of the process the tool named, of which only the number is read here.
+       */
+      const { pid, } = process;
+      if ((typeof pid) !== 'number') {
+        return process;
+      }
+      /**
+       What reading the birth now said.
+       */
+      const read = birthOf({
+        processFolder,
+        pid,
+      },);
+      // A birth this moment cannot read is left out, and the line is written all the same: the run's record of what its own tool said
+      // must not fail over one process, and a scan reading a line with no birth says the work it named is not provably still there.
+      return (read.read === 'birth') ? {
+        ...process,
+        birth: read.birth,
+      } : process;
+    },);
+  return {
+    ...entry,
+    processes,
+  };
 }

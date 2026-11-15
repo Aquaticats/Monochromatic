@@ -154,11 +154,13 @@ function stopReasonOf({
 
  @param standardErrorFile - the file Pi's standard error is kept in, for every start
 
+ @param processFolder - the folder holding one entry per process, `/proc` here, which the scan of the run's work reads
+
  @returns the last Pi, why the run ended, and every start that failed before it took the prompt
 
  @example
  ```ts
- const starts = await startsOfARun({ options, record, inbox, deadline, environment, standardErrorFile, },);
+ const starts = await startsOfARun({ options, record, inbox, deadline, environment, standardErrorFile, processFolder: '/proc', },);
  ```
  */
 export async function startsOfARun({
@@ -168,6 +170,7 @@ export async function startsOfARun({
   deadline,
   environment,
   standardErrorFile,
+  processFolder,
 }: {
   readonly options: DriverOptions;
   readonly record: RecordOfPiRun;
@@ -175,6 +178,7 @@ export async function startsOfARun({
   readonly deadline: number;
   readonly environment: NodeJS.ProcessEnv;
   readonly standardErrorFile: string;
+  readonly processFolder: string;
 },): Promise<StartsOfARun> {
   /**
    When the driver's whole sequence of starts must be over: one start-up bound from now, and never past the run's own wall clock.
@@ -281,9 +285,7 @@ export async function startsOfARun({
         return await workOutlivingTheTurnIn({
           runFolder: options.runFolder,
           workingFolder: options.workingFolder,
-          processFolder: process.env
-            .PI_RUNS_PROCESS_FOLDER
-            ?? '/proc',
+          processFolder,
           run: runCommandWithChildProcess,
         },);
       },

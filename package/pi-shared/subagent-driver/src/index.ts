@@ -214,12 +214,18 @@ export {
 } from './work-the-run-left-running.ts';
 
 /**
- Reads of one process's own files from the process folder, and the codes a process that has ended answers to them.
+ Reads of one process's own files from the process folder, the codes a process that has ended answers to them, and the start time
+ that tells a process from a later one at its number.
  */
 export {
   GONE_PROCESS_CODES,
+  type BirthOfAProcessNow,
+  type LifeOfAProcess,
   type ProcessFolderReads,
   ProcessFileUnreadableError,
+  birthOfProcessNow,
+  lifeIn,
+  processHasEnded,
   processHasGone,
   readsOfTheProcessFolder,
 } from './reads-of-the-process-folder.ts';

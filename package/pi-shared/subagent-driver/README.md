@@ -1188,6 +1188,34 @@ Any other code is reported,
 with the path and the code,
 as a read the scan could not finish.
 
+A process number is no name for one process.
+The kernel gives a freed number to the next process,
+so a `processes` record carries the start time the kernel gave each process it names,
+read once from `/proc/<pid>/stat` as the line is written,
+and the scan counts recorded work as running only when the process at that number has the same start time and has not ended.
+A record with no start time,
+which is one written before this existed,
+names no process this can prove still runs,
+and a zombie counts as gone because it has done no work since it ended.
+A review of this package on 2026-11-14 reproduced the defect:
+a build that had ended was reported as still running from the number a later process held,
+and the driver waited on work that was not the agent's.
+
+A zombie is left out by both readings of the process table:
+the recorded one reads its state,
+and the one that walks the table finds its working-folder link has no target.
+
+A wake whose send failed is no failed read.
+Pi may have taken the prompt before the answer path failed,
+so the driver sends that wake once and never again,
+keeps the run up for a reply that may yet come,
+and writes one `wake` line with `success: false` and the failure's text.
+The run's own wall clock ends a run whose reply never arrives,
+so the agent is neither told twice nor left untold.
+A read that fails keeps the run as above,
+and a good read clears the note of the last failure,
+so a failure that comes back after a good scan is news again.
+
 `driver-failed` means the driver itself hit an error before it knew how the run ended,
 or that the feed could not be written:
 `driverError` names the error,

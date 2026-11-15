@@ -800,6 +800,18 @@ await describe({
         expect(String(run.feed[waiting]?.problem,),).toContain('native-build',);
         expect(woke,).toBeGreaterThan(waiting,);
         expect(run.feed[woke]?.success,).toBe(true,);
+        /**
+         The record of the tool's answer that named the build, which the driver kept with the start time it read for the number.
+         */
+        const recorded = run.feed.find((entry,) => entry.kind === PROCESSES_RECORD_KIND,);
+        /**
+         The process that record names, as the feed kept it.
+         */
+        const recordedWork = recordsIn(recorded?.processes,).find((process,) => process.id === 'proc_work1',);
+        expect(typeof recordedWork?.pid,).toBe('number',);
+        // The start time is what tells this process from a later one at the same number, and a scan reads it again later.
+        expect(typeof recordedWork?.birth,).toBe('string',);
+        expect(String(recordedWork?.birth,),).not.toBe('',);
       },
     },),
     it({
