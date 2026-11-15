@@ -1530,6 +1530,50 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's stale launchers, taken over by a fresh run, answer their seventh review and go to review (2026-11-15T03:43:27-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **mpm-shadow, stale launchers** (each removal proves the entry it removes),
+  the fresh run that took the branch over,
+  ended 03:38:34 at `c115e9ec4e`.
+  Nine controls,
+  each quoted failing with its fix taken out,
+  all nine passing with the fixes in.
+  Two things it found in the earlier author's own controls and says plainly:
+  one control passed with its fix out,
+  three runs of three,
+  and was changed to wait for the blocked writer;
+  another cannot be made red from its own two terms
+  (size and modification time),
+  because the content digest the run added proves more,
+  so the control that goes red there is the run's own.
+  Cost against `68bc782526`,
+  interleaved,
+  spread first:
+  with nothing to do 0.97 times,
+  inside the spread;
+  retiring one launcher 1.07 to 1.20 times over three rounds,
+  7 to 21 ms more,
+  because the 5.6 MB launcher is read and digested twice.
+  Clippy 0;
+  827 of 827 tests passed.
+  It did not merge `main`,
+  and lists seven things it noticed and left alone,
+  among them that placing a launcher replaces whatever stands at its name without the proof a retirement now needs.
+  Its review is queued sixth
+  (`main...c115e9ec4e`,
+  twelve code files that are not tests).
+- Read at 03:43:01:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 03:29;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The queue held 81 entries at 03:43:27.
+
 ##### The scratch root measures 354 GiB; four repository copies that ended reviews left are deleted (2026-11-15T03:37:51-05:00)
 
 Not final and not approved:
