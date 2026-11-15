@@ -316,7 +316,7 @@ fn a_commits_scratch_tree_collects_nothing_on_the_commits_own_path() {
     protect_path(scratch.as_path(), PRIVATE_DIRECTORY_MODE).expect("private");
     std::fs::write(scratch.join("cli-git-input-stale"), b"x").expect("a stale entry a killed command left");
     age(scratch.join("cli-git-input-stale").as_path(), SCRATCH_STALE_AFTER * 2);
-    let (tree, _claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d-0", SCRATCH_REMOVAL_CEILING)
+    let (tree, _claim_318): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d-0", SCRATCH_REMOVAL_CEILING)
         .expect("a commit's scratch tree");
     assert!(tree.is_dir(), "the tree the commit writes into is made");
     assert!(
@@ -693,7 +693,7 @@ fn a_commits_scratch_tree_is_made_where_the_sweep_covers_it() {
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
     let named: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
-    let (tree, _claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), named, SCRATCH_REMOVAL_CEILING).expect("the scratch tree");
+    let (tree, _claim_695): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), named, SCRATCH_REMOVAL_CEILING).expect("the scratch tree");
     assert_eq!(tree, common.join(REPOSITORY_SCRATCH_NAME).join(named));
     assert_eq!(mode_of(tree.as_path()), 0o700);
     remove(root.as_path());
@@ -723,9 +723,9 @@ fn a_preparation_proves_the_directory_it_did_not_make_and_not_the_tree_it_just_m
     let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
     let named: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
     // The second attempt makes its tree beside a scratch directory that is already there, which is every commit but the first.
-    let (_first, _claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d-0", SCRATCH_REMOVAL_CEILING).expect("the first commit's tree");
+    let (_first, _claim_725): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d-0", SCRATCH_REMOVAL_CEILING).expect("the first commit's tree");
     test_proofs::forget();
-    let (tree, _claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), named, SCRATCH_REMOVAL_CEILING).expect("the second commit's tree");
+    let (tree, _claim_727): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), named, SCRATCH_REMOVAL_CEILING).expect("the second commit's tree");
     let proved: Vec<PathBuf> = test_proofs::proved();
     assert_eq!(proved, vec![scratch], "the directory this commit did not make is proved to be this account's and private, and the tree it just made needs no proof: {proved:?}");
     assert_eq!(tree, common.join(REPOSITORY_SCRATCH_NAME).join(named));
@@ -745,12 +745,12 @@ fn a_leftover_its_removal_cut_short_is_moved_aside_and_the_attempt_goes_on() {
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
     let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d";
-    let (first, _claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), name, SCRATCH_REMOVAL_CEILING).expect("the first attempt's tree");
+    let (first, _claim_747): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), name, SCRATCH_REMOVAL_CEILING).expect("the first attempt's tree");
     for at in 0..500 {
         std::fs::write(first.join(format!("entry-{at}")), b"x").expect("a file of the first attempt");
     }
     // The ceiling a stalled device gives the removal: the leftover is still there when the next attempt begins.
-    let (again, _claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), name, Duration::from_micros(1)).expect("the next attempt's tree");
+    let (again, _claim_752): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), name, Duration::from_micros(1)).expect("the next attempt's tree");
     assert_eq!(again, first, "the attempt keeps the name of its own tree");
     assert!(!again.join("entry-0").exists(), "the attempt starts from an empty tree");
     let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
@@ -790,11 +790,11 @@ fn a_removal_of_a_leftover_is_never_given_the_name_the_next_attempt_makes() {
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
     let name: &str = "monochromatic-git-policy-cli-service-0a1b2c3d-0";
-    let (first, _claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), name, SCRATCH_REMOVAL_CEILING).expect("the first attempt's tree");
+    let (first, _claim_792): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), name, SCRATCH_REMOVAL_CEILING).expect("the first attempt's tree");
     std::fs::write(first.join("commit.index"), b"the earlier attempt's index").expect("a private index of the earlier attempt");
     // The ceiling of a removal that outlives it: the leftover is still there when the next attempt begins.
     test_targets::forget();
-    let (again, _claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), name, Duration::from_micros(1)).expect("the next attempt's tree");
+    let (again, _claim_796): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), name, Duration::from_micros(1)).expect("the next attempt's tree");
     let named: Vec<PathBuf> = test_targets::named();
     assert_eq!(named.len(), 1, "the leftover's removal is started once: {named:?}");
     assert_ne!(named[0], again, "the removal is given the name the old tree was moved to, not the name this attempt makes");
@@ -819,10 +819,10 @@ fn a_scratch_tree_of_a_killed_command_is_swept() {
     let root: PathBuf = fixture("scratch-commit-killed");
     let common: PathBuf = root.join("repo/.git");
     std::fs::create_dir_all(&common).expect("common directory");
-    let (tree, claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d", SCRATCH_REMOVAL_CEILING).expect("the scratch tree");
+    let (tree, claim_821): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) = prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3d", SCRATCH_REMOVAL_CEILING).expect("the scratch tree");
     std::fs::write(tree.join("commit.index"), b"index").expect("a file in the tree");
     // The command is killed here: its claim dies with it, nothing removes the tree, and no service ever held it.
-    drop(claim);
+    drop(claim_821);
     age(tree.as_path(), SCRATCH_STALE_AFTER * 2);
     let _prepared: PathBuf = prepare_repository_scratch(common.as_path()).expect("a later preparation");
     assert!(!tree.exists(), "the sweep of the place the tree is in removes it: {}", tree.display());
@@ -845,7 +845,7 @@ fn a_tree_a_maker_holds_is_never_removed_by_a_sweep_for_its_age() {
     std::fs::create_dir_all(common.as_path()).expect("the common directory");
     let place: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
     std::fs::create_dir_all(place.as_path()).expect("the scratch place");
-    let (tree, claim): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) =
+    let (tree, claim_847): (PathBuf, Option<crate::tree_held_by_a_live_process::HeldTree>) =
         prepare_commit_scratch(common.as_path(), common.as_path(), "monochromatic-git-policy-cli-service-0a1b2c3e", SCRATCH_REMOVAL_CEILING).expect("the tree");
     std::fs::write(tree.join("commit.index"), b"index").expect("a file in the tree");
     // The wall clock steps past the bound between the making and the sweep, which is what the review's fourth finding needs.
@@ -853,7 +853,7 @@ fn a_tree_a_maker_holds_is_never_removed_by_a_sweep_for_its_age() {
     let swept: usize = sweep_stale(place.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
     assert!(tree.exists(), "a tree its maker holds is no tree a sweep removes, and {swept} entries were removed");
     // The maker goes: its claim dies with it, and the next sweep takes the tree by age.
-    drop(claim);
+    drop(claim_847);
     let after: usize = sweep_stale(place.as_path(), SystemTime::now(), SCRATCH_STALE_AFTER, SCRATCH_REMOVAL_CEILING);
     assert_eq!(after, 1, "an abandoned tree is still collected");
     assert!(!tree.exists(), "the tree is gone");

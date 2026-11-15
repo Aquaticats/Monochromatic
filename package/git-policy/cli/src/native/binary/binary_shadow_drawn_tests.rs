@@ -559,7 +559,7 @@ fn the_scratch_tree_of_the_commit(repo: &Path) -> PathBuf {
 /// ```
 fn head_and_its_parents(case: &Case) -> Vec<String> {
     let line: String = super::commit::git_text(&case.fixture, case.repo.as_path(), &["rev-list", "--parents", "-n", "1", "HEAD"]);
-    return line.trim().split_whitespace().map(String::from).skip(1).collect();
+    return line.split_whitespace().map(String::from).skip(1).collect();
 }
 
 /// What:
@@ -680,7 +680,7 @@ fn a_commit_whose_private_index_goes_is_still_the_commit_that_was_asked_for() {
 ///  the list of those tables is what the question asks for (`shadow_create.rs`, `the_shadow_holds_what_a_creation_makes`).
 #[test]
 fn a_reftable_shadow_that_loses_its_tables_is_built_again() {
-    let case: Case = case("reftable-loses-its-tables");
+    let mut case: Case = case("reftable-loses-its-tables");
     let reftable: PathBuf = case.fixture.root.join("reftable");
     std::fs::create_dir(reftable.as_path()).expect("the repository directory");
     git(&case.fixture, reftable.as_path(), &["init", "--quiet", "--ref-format=reftable", "--initial-branch=main"]);
@@ -690,7 +690,7 @@ fn a_reftable_shadow_that_loses_its_tables_is_built_again() {
     git(&case.fixture, reftable.as_path(), &["add", "--", "a.txt"]);
     let base: String = super::commit::git_text(&case.fixture, reftable.as_path(), &["rev-parse", "HEAD"]);
     case.service.serve(&case.fixture, reftable.join(".git").as_path());
-    let case: Case = Case { repo: reftable, ..case };
+    case.repo = reftable;
     // The build that answers the loss reaches the pause again, and this control holds only the first attempt.
     std::fs::write(case.markers.join("shadow-built-2.release"), b"").expect("a second attempt may go on");
     let mut command: Command = a_commit_built_by_git_paused_at(&case, "shadow-built", &["commit", "--quiet", "--message=two", "--", "a.txt"]);
@@ -792,9 +792,9 @@ fn one_loss(name: &str, phase: &str, entry: &str) -> LossRow {
         .and_then(|line| { return serde_json::from_str::<serde_json::Value>(line.as_str()).ok(); })
         .and_then(|record| {
             let parts: serde_json::Map<String, serde_json::Value> = record["buildParts"].as_object().cloned().unwrap_or_default();
-            for name in ["shadow went", "commit differed"] {
-                if parts.contains_key(name) {
-                    return Some(String::from(name));
+            for part in ["shadow went", "commit differed"] {
+                if parts.contains_key(part) {
+                    return Some(String::from(part));
                 }
             }
             return None;
