@@ -1640,6 +1640,86 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The commit service the wrapper starts itself has `main` merged in, with twenty-six suite failures put down to the machine; it gets a review and a run for the measured cause; the driver's brief writer goes back with two findings (2026-11-15T13:17:41-05:00)
+
+Not final and not approved:
+what one author and one review report,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The commit service that the wrapper starts itself and that needs no service manager**,
+  its author's eleventh run,
+  ended 13:11:15 at `567ae37198`,
+  with `main` wholly merged
+  (fifteen conflicts,
+  each resolved by reading both sides).
+  `main`'s manager watch is gone with the manager,
+  `zbus` with it,
+  and the controls that assert what a manager said are removed or rewritten;
+  the control `service_no_manager::a_commit_with_no_service_manager_stops_plainly_and_changes_nothing` now asserts that the commit is made.
+  The library suite once:
+  7,810 of 7,811,
+  the one its own and fixed after.
+  The binary suite once:
+  1,169 of 1,196,
+  27 failed,
+  of which 26 are not among the gate's standing names;
+  four failed alone and were rewritten or removed,
+  and the report puts the rest down to the fixture's readiness wait,
+  its 120-second bound,
+  or memory "under the power-saver budget".
+  The review's five scripts were not run again after the merge.
+- **Weighed**:
+  - A test that passes alone and fails in its suite has a cause until it is measured,
+    and the machine is not one.
+    The power-saver profile ended at 10:45:27,
+    and this branch changes how a service is started,
+    so a readiness wait that runs out is where a defect of its own would show.
+    The author's twelfth run is queued tenth for the merged tip's evidence alone:
+    the binary suite once at its tip and once at `main` the gate's way,
+    compared by name,
+    a cause from its own output for every name that differs;
+    the five scripts again.
+  - It is also asked to say,
+    building nothing,
+    whether the wrapper at this tip uses a manager anywhere when there is one,
+    and what a machine running the installed release under its `cli-git@.service` units does at the first commit after this branch is installed.
+    The record
+    (section "The owner adds to the systemd answer")
+    says the service needs no manager and uses one only as an enhancement;
+    the author's report of 2026-11-13 counted that enhancement among what kept the branch from a merge,
+    and this merge removes the manager's code.
+    **Whether that is what was decided is not this session's to settle**;
+    the answer goes to the owner with the facts.
+  - A review of the whole range at the merged tip is queued eleventh
+    (`main...567ae37198`,
+    78 code files that are not tests),
+    beside the author's run and not after it,
+    since what it reads is the code and not the suite.
+    Its count of files read is held against 78 when it reports.
+- **The driver's brief writer for every kind of code file** (`2b6532d992`),
+  its fourth review,
+  ended 13:12:52,
+  11 of 11 files,
+  two things,
+  each reproduced with real Git history and a passing control beside it:
+  a branch that deletes a code file and changes its test gets a brief that says the change is to tests alone,
+  because removed paths are filtered out before the kind of a change is decided;
+  and a file name shown with escapes that also holds an apostrophe cannot be read back as the brief says.
+  The author's fifth run is queued ninth:
+  the kind of a change from every path the range touches whatever was done to it;
+  a spelling a shell gives back byte for byte,
+  held by a round trip.
+- Read at 13:15:27:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 13:06;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### The long runtime directory's controls are cleared for the next pass with one finding in a test helper; the stop of a stopped push now writes nothing on its path, and its review is queued (2026-11-15T13:08:01-05:00)
 
 Not final and not approved:
