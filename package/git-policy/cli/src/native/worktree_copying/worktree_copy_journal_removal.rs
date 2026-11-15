@@ -212,20 +212,38 @@ fn remove_subtrees_until_none_is_left((cursor, subtrees): (Arc<std::sync::atomic
 /// ```ts
 /// const outcomes = await Promise.all(workers.map(() => runBlockingJobWithinTheBudget(() => removeSubtrees(cursor, subtrees))));
 /// ```
+/// What a split removal came to when the tree is still there.
+/// Why:
+///  A removal that found no place never ran and changed nothing, and it is looked at again later;
+/// a removal that ran and failed leaves what it had not removed yet, and is the one case a plain recursive deletion is
+///  tried in its place (the review of `a7a6958f9d`, third finding).
+/// The two must not be told apart by the text of an error: the place answer is the pool's own (`BlockingJobError`), and
+/// it is turned into a failure of the removal only by a caller that may not say "not now".
+enum TheRemovalThatCouldNotRun {
+    /// No place came for the work, or the system refused a thread,
+    /// so none of the removal ran and nothing changed.
+    NoPlace,
+    /// A step of the removal ran and failed,
+    /// so the tree holds what remains.
+    Failed(std::io::Error),
+}
+
 async fn remove_subtrees_awaiting(
     (cursor, subtrees): (Arc<std::sync::atomic::AtomicUsize>, Arc<[PathBuf]>),
     workers: usize,
-) -> Vec<std::io::Result<()>> {
+) -> Vec<Result<(), TheRemovalThatCouldNotRun>> {
     let mut states: Vec<(Arc<std::sync::atomic::AtomicUsize>, Arc<[PathBuf]>)> = Vec::new();
     for _worker in 0..workers {
         states.push((Arc::clone(&cursor), Arc::clone(&subtrees)));
     }
-    let mut outcomes: Vec<std::io::Result<()>> = Vec::new();
+    let mut outcomes: Vec<Result<(), TheRemovalThatCouldNotRun>> = Vec::new();
     for answer in run_all_side_by_side_on_the_runtime(states, remove_subtrees_until_none_is_left).await {
         outcomes.push(match answer {
-            Ok(outcome) => outcome,
-            Err(crate::blocking_job::BlockingJobError::Panicked) => Err(std::io::Error::other("a removal worker panicked")),
-            Err(refused) => Err(std::io::Error::other(format!("a removal worker did not run ({refused})"))),
+            Ok(outcome) => outcome.map_err(TheRemovalThatCouldNotRun::Failed),
+            // No place came for this worker, so its share of the subtrees was not touched and is still there.
+            Err(crate::blocking_job::BlockingJobError::NoPlaceWithinTheCeiling) => Err(TheRemovalThatCouldNotRun::NoPlace),
+            Err(crate::blocking_job::BlockingJobError::Panicked) => Err(TheRemovalThatCouldNotRun::Failed(std::io::Error::other("a removal worker panicked"))),
+            Err(refused) => Err(TheRemovalThatCouldNotRun::Failed(std::io::Error::other(format!("a removal worker did not run ({refused})")))),
         });
     }
     return outcomes;
@@ -255,10 +273,33 @@ async fn remove_subtrees_awaiting(
 /// await removeTreeSplit(path); // rm -r, with the subtrees removed concurrently
 /// ```
 pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
+    return match remove_tree_split_saying_why(path) {
+        Ok(()) => Ok(()),
+        // A place that never came is said in the words of the removal: nothing ran, and nothing of the tree changed.
+        Err(TheRemovalThatCouldNotRun::NoPlace) => Err(std::io::Error::other(format!(
+            "no place came for the walk below {} within {:?}, so nothing of it was removed",
+            path.display(),
+            crate::wait_ceilings::PLACE_WAIT_CEILING
+        ))),
+        Err(TheRemovalThatCouldNotRun::Failed(error)) => Err(error),
+    };
+}
+
+/// What:
+///  `remove_tree_split`, with the two answers kept apart for a caller that may say "not now".
+/// Why:
+///  A caller that would otherwise do the removal itself in place must be able to see that nothing ran, and a caller that
+///  may not say "not now" reads the same two answers from `remove_tree_split`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// removeTreeSplitSayingWhy(path); // { removed } | { noPlace } | { failed }
+/// ```
+fn remove_tree_split_saying_why(path: &Path) -> Result<(), TheRemovalThatCouldNotRun> {
     return match crate::lazy_runtime::run_on_runtime(remove_tree_split_awaiting(path)) {
         Ok(outcome) => outcome,
         // Nothing was removed, and the reason the runtime could not run the workers is why.
-        Err(refusal) => Err(std::io::Error::other(format!("the subtrees below {} were not removed side by side ({refusal})", path.display()))),
+        Err(refusal) => Err(TheRemovalThatCouldNotRun::Failed(std::io::Error::other(format!("the subtrees below {} were not removed side by side ({refusal})", path.display())))),
     };
 }
 
@@ -273,7 +314,7 @@ pub fn remove_tree_split(path: &Path) -> std::io::Result<()> {
 /// ```ts
 /// async function removeTreeSplit(path: string): Promise<void>;
 /// ```
-async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
+async fn remove_tree_split_awaiting(path: &Path) -> Result<(), TheRemovalThatCouldNotRun> {
     let (subtrees, shallow): (Vec<PathBuf>, Vec<PathBuf>) = walk_to_the_split_depth_on_the_pool(path).await?;
     let workers: usize = sliced_workers(usize::MAX, PARALLEL_COPY_MAX_WORKERS, &HostResources::read());
     let cursor: Arc<std::sync::atomic::AtomicUsize> = Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -283,7 +324,7 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
     // The directories above the split depth hold nothing now, so this is a handful of known removals rather than a
     //  walk: it stays on the caller, where the sweep that kills the copy at each `rmdir` still traces the wrapper's own
     //  thread (`binary/binary_fault_trace_tests.rs`, `copy_flow`).
-    return remove_shallow_directories(shallow.as_slice());
+    return remove_shallow_directories(shallow.as_slice()).map_err(TheRemovalThatCouldNotRun::Failed);
 }
 
 /// What:
@@ -310,15 +351,18 @@ async fn remove_tree_split_awaiting(path: &Path) -> std::io::Result<()> {
 /// ```ts
 /// async function walkToTheSplitDepthOnThePool(path: string): [string[], string[]]
 /// ```
-async fn walk_to_the_split_depth_on_the_pool(path: &Path) -> std::io::Result<(Vec<PathBuf>, Vec<PathBuf>)> {
+async fn walk_to_the_split_depth_on_the_pool(path: &Path) -> Result<(Vec<PathBuf>, Vec<PathBuf>), TheRemovalThatCouldNotRun> {
     return match run_a_job_or_no_place(path.to_path_buf(), walk_to_the_split_depth_of).await {
-        Ok(lists) => lists,
+        // The walk ran and answered: its own failure is a removal that ran and failed.
+        Ok(lists) => lists.map_err(TheRemovalThatCouldNotRun::Failed),
+        // No place came and the system may have refused a thread: nothing ran, and nothing of the tree was touched.
+        Err(crate::blocking_job::BlockingJobError::NoPlaceWithinTheCeiling) => Err(TheRemovalThatCouldNotRun::NoPlace),
         // Another answer leaves the walk on another thread, outlasting its ceiling, or ended with the runtime, so no
         //  result of it can be read here and nothing is walked on this task.
-        Err(other) => Err(std::io::Error::other(format!(
+        Err(other) => Err(TheRemovalThatCouldNotRun::Failed(std::io::Error::other(format!(
             "the walk to the split depth below {} has no result this call can read ({other})",
             path.display()
-        ))),
+        )))),
     };
 }
 
@@ -436,16 +480,40 @@ fn remove_shallow_directories(shallow: &[PathBuf]) -> std::io::Result<()> {
 /// ```
 pub fn remove_tree_if_present(path: &Path) -> Result<(), WorktreeCopyError> {
     // `match` accepts absence and reports every other removal failure.
-    // A split removal that fails is tried again as one plain removal.
-    let removed: std::io::Result<()> = match remove_tree_split(path) {
+    // What: a walk that found no place leaves the tree where it is, and a split removal that ran and failed is tried
+    //       again as one plain removal.
+    // Why:  the plain deletion runs on the calling task and waits on storage with no bound, so it must never stand in
+    //       for work that never began: a stage that was not removed is looked at again by the command that reads its
+    //       journal, and nothing of it changed (the review of `a7a6958f9d`, third finding).
+    let removed: std::io::Result<()> = match remove_tree_split_saying_why(path) {
         Ok(()) => Ok(()),
-        Err(_split_failure) => std::fs::remove_dir_all(path),
+        Err(TheRemovalThatCouldNotRun::NoPlace) => return Err(left_for_a_later_look(path)),
+        Err(TheRemovalThatCouldNotRun::Failed(_)) => std::fs::remove_dir_all(path),
     };
     match removed {
         Ok(()) => return Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(raw_failure(&error)),
     }
+}
+
+/// What:
+///  The failure of a removal that found no place,
+/// in the words a person reads.
+/// Why:
+///   Nothing was removed and nothing changed, so the file or directory is still there and the record that names it is
+/// looked at again by the next command: a person reading this must not think the stage is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const leftForALaterLook = (path) => new WorktreeCopyError(`... ${path} was not removed because no place came ...; nothing of it changed, and the record that names it is looked at again.`)
+/// ```
+fn left_for_a_later_look(path: &Path) -> WorktreeCopyError {
+    return WorktreeCopyError(format!(
+        "monochromatic-git-policy-cli: no place came within {:?} for the walk that removes {}, so it was not removed; nothing of it changed, and the record that names it is looked at again by the next command.",
+        crate::wait_ceilings::PLACE_WAIT_CEILING,
+        path.display()
+    ));
 }
 
 /// What:
