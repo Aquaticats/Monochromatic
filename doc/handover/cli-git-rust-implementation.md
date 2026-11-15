@@ -1663,6 +1663,56 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The wrapper under the gate container's Git: the helper's words now state its two limits; the review of that delta is queued first (2026-11-15T09:53:05-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session checked and queued.
+
+- **The author's seventh run**,
+  ended 09:47:53 at `aeae08fa24`:
+  sentences only,
+  no code and no test.
+  `QueryEnding::AtTheBound` now means that the bound ran out and the last status the wait returned was the signal the helper sends,
+  with the sentence that a query killed by that signal from elsewhere in that instant reads the same;
+  and what is bounded is the answer,
+  not every thread that served it.
+  The author found two sentences that were false and not only strong
+  (`QueryAnswer::ending` said "never by the query's status";
+  the tests' module doc said no status is read as the bound's doing),
+  both contradicting the code since the round before,
+  and corrected them in the same change.
+  Clippy exit 0;
+  32 of 32 named tests pass.
+- **Checked here**:
+  the delta from `d73a209b3e` to `aeae08fa24` under `package/` touches two files,
+  the helper and its tests,
+  and all 46 changed lines are comment lines.
+- **Its review** is written by hand,
+  for that delta alone and with the two limits stated in its brief
+  (`~/temp/agent/change-reviews/git-policy-cli-wrapper-under-the-gate-containers-git-the-words-added-after-its-sixth-review/`),
+  and queued first,
+  on Kimi.
+  Its brief says a result by reading counts for this change,
+  since no code changed;
+  that is an exception to the reading that a review which ran nothing clears nothing,
+  adopted for a delta of comments alone and open to veto.
+  A clean review sends the branch to a pass,
+  and seven of the gate's standing failures with it.
+- **The temperature**,
+  read at 09:52:10:
+  53.9 degrees,
+  budget 32.0 threads,
+  5.8 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 09:52:11:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:45;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
 ##### The landed removal answers: an alias the wrapper cannot read is refused; a suggestion of the coordinating session collided with a recorded rule; the checkout migration answers (2026-11-15T09:46:57-05:00)
 
 Not final and not approved:
