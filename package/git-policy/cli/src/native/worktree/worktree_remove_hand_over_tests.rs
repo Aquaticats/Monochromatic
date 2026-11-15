@@ -683,6 +683,39 @@ fn the_service_keeps_a_worktree_another_worktree_was_added_inside_after_the_hand
 }
 
 /// What:
+///  A worktree a command added inside the handed-over one at a detached `HEAD` keeps the outer worktree
+///  while it holds an edit to a tracked file,
+///  and the person reads why.
+/// Why:
+///  The service's proof reads the registrations through the one reader every caller uses,
+///  and that reader left every detached `HEAD` out of its list:
+///  the detached nested worktree was invisible to the proof,
+///  and the service removed it with the parent,
+///  taking an edit that existed nowhere else
+///  (a review of this change,
+///  finding 2).
+///  This is the failing-first control of that reader: the nested worktree is at a detached `HEAD`
+///  and holds a changed tracked file,
+///  and the branch-bearing control above is its positive twin.
+#[test]
+fn the_service_keeps_a_worktree_a_detached_nested_worktree_holds_an_edit_in() {
+    let linked: Linked = a_repository_with_a_linked_worktree_and_ignore_rules("worktree-hand-over-detached-nested-edit", ".claude/\n");
+    let item: WorkItem = handed_over(&linked);
+    let inside: PathBuf = linked.worktree.join(".claude/worktrees/b");
+    crate::test_support::git(linked.worktree.as_path(), &["worktree", "add", "--quiet", "--detach", inside.to_str().expect("utf8"), "HEAD"]);
+    let changed: PathBuf = inside.join("tracked.txt");
+    std::fs::write(changed.as_path(), b"an edit at a detached head that exists nowhere else\n").expect("a tracked file the person changed there");
+    let verdict: Verdict = delete_subvolume_of(&item);
+    assert!(
+        matches!(&verdict, Verdict::Failed(words) if words.contains("holds changed tracked files")),
+        "the worktree holding a detached nested worktree's edit stays, and the reason says what it holds: {verdict:?}"
+    );
+    assert_eq!(std::fs::read(changed.as_path()).expect("the edit is still there"), b"an edit at a detached head that exists nowhere else\n", "the edit is not deleted");
+    assert!(linked.worktree.is_dir(), "the worktree the merge landed stays");
+    remove(linked.root.as_path());
+}
+
+/// What:
 ///  An ignored file written into the handed-over worktree after the hand-over goes with it,
 ///  and the removal's record names it.
 /// Why:

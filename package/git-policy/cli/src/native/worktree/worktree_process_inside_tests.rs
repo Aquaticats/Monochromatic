@@ -176,6 +176,101 @@ fn a_process_of_this_account_whose_folder_cannot_be_read_keeps_the_folder() {
     assert!(why.contains("nothing proves it is outside it"), "{why}");
 }
 
+/// What:
+///  A stand-in process table with one process whose working folder cannot be read,
+///  a group the caller writes for it and for this command,
+///  and the start time that decides whether it is older than the worktree.
+/// Why:
+///   A program that hides its folder leaves two facts a scan can read:
+///  the group it runs in and when it started,
+///  and this control has to hold both fixed to say which one decided the answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const table = aTableWithAHiddenProcess(4242, '/ours.scope', '/ours.scope/child.scope', 1000);
+/// ```
+fn a_table_with_a_hidden_process(pid: u32, our_group: &str, their_group: &str, started_seconds_ago: u64) -> PathBuf {
+    let root: PathBuf = fixture(&format!("process-table-hidden-group-{pid}-{}", started_seconds_ago));
+    let table: PathBuf = root.join("proc");
+    let entry: PathBuf = table.join(pid.to_string());
+    std::fs::create_dir_all(entry.as_path()).expect("a process entry");
+    std::fs::create_dir_all(table.join("self").as_path()).expect("this command's own entry");
+    // A hundred ticks a second, and an uptime far enough ahead that the difference is the age written here.
+    let uptime: u64 = started_seconds_ago + 100;
+    std::fs::write(table.join("uptime"), format!("{uptime}.00 0.00\n")).expect("the machine's uptime");
+    std::fs::write(table.join("self/cgroup"), format!("0::{our_group}\n")).expect("this command's own group");
+    std::fs::write(entry.join("cgroup"), format!("0::{their_group}\n")).expect("the process's own group");
+    std::fs::write(entry.join("cwd"), b"not a link, so nothing can be read from it").expect("a working folder that cannot be read");
+    std::fs::write(entry.join("comm"), b"a program\n").expect("the kernel's name for the program");
+    // State `S`, flags none, and the start time: field 3, field 9 and field 22 of the record.
+    std::fs::write(
+        entry.join("stat"),
+        format!("{pid} (a program) S 1 {pid} {pid} 0 -1 0 0 0 0 0 0 0 0 20 0 1 0 {} 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n", started_seconds_ago * 100),
+    )
+    .expect("the process's record");
+    return table;
+}
+
+/// The age a hidden process that began long before the worktree has to the scan,
+/// which is the pair that used to be the whole answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// anAgeOlderThanTheWorktree() // Duration { seconds: 1000 }
+/// ```
+fn an_age_older_than_the_worktree() -> Duration {
+    return Duration::from_secs(1000);
+}
+
+/// What:
+///  A process of this account that hides its working folder,
+///  began before the worktree was made,
+///  and runs in this command's own control group,
+///  keeps the worktree anyway.
+/// Why:
+///   A start time does not prove a process is outside a folder:
+///  a process that began before the worktree existed can change its folder into it afterwards,
+///  and the guard then removed a worktree around a live process
+///  (a review of this change,
+///  finding 4).
+///  A process in this command's own group or below it is the work a worktree is used by,
+///  and not the services a session starts with,
+///  and it is the one kind of hidden process whose age decides nothing.
+#[test]
+fn a_hidden_process_of_this_commands_own_group_keeps_the_worktree_whatever_its_start() {
+    let root: PathBuf = fixture("process-hidden-own-group");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
+    let table: PathBuf = a_table_with_a_hidden_process(4242, "/user.slice/app.scope", "/user.slice/app.scope/child.scope", 1000);
+    let found: ProcessWorking = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(an_age_older_than_the_worktree()));
+    assert_eq!(
+        found,
+        ProcessWorking::Someone(WorkingProcess { pid: 4242, program: Some(String::from("a program")), folder: WorkingFolder::Unreadable }),
+        "a hidden process in this command's own group may be inside, so the worktree stays"
+    );
+}
+
+/// What:
+///  A hidden process that began before the worktree and runs in another group does not keep it,
+///  and this is the cost the module's description names.
+/// Why:
+///   Every removal on a machine whose session starts services that hide their folders
+///  would otherwise be refused,
+///  measured on this host at eleven such processes,
+///  so the scan takes the group as the line:
+///  a process of this command's work may be inside, a service of the session is taken as outside.
+///  A control states that answer plainly,
+///  because a reader of this code has to know which process it is wrong about.
+#[test]
+fn a_hidden_process_of_another_group_and_an_older_start_is_taken_as_outside() {
+    let root: PathBuf = fixture("process-hidden-other-group");
+    let worktree: PathBuf = root.join("worktree");
+    std::fs::create_dir(worktree.as_path()).expect("a folder a process may work in");
+    let table: PathBuf = a_table_with_a_hidden_process(4343, "/user.slice/app.scope", "/user.slice/user@1000.service/init.scope", 1000);
+    let found: ProcessWorking = process_working_inside(worktree.as_path(), &worktree.join(".git"), table.as_path(), Some(an_age_older_than_the_worktree()));
+    assert_eq!(found, ProcessWorking::Nobody, "a session service that began before the worktree is taken as outside it");
+}
+
 #[test]
 fn a_process_that_ended_while_it_was_read_does_not_count() {
     let root: PathBuf = fixture("process-ended");

@@ -426,6 +426,55 @@ fn a_removal_is_refused_while_a_nested_worktree_holds_an_edit_and_the_escape_rec
 }
 
 /// What:
+///  A nested worktree whose path holds a byte that is not UTF-8 is found, refused, and named in the record.
+/// Why:
+///  A Git pathname is its bytes, and the reader that found the worktrees inside a candidate turned the recorded bytes into
+///  text:
+///  the replacement character named no directory,
+///  the nested worktree was left out of the guard and out of the record,
+///  and an unforced removal deleted an edit that existed nowhere else with no refusal and no entry
+///  (a review of this change,
+///  finding 3).
+///  This is the failing-first control of that reader, and the UTF-8 control above is its positive twin.
+#[test]
+fn a_removal_is_refused_while_a_nested_worktree_whose_name_is_not_utf8_holds_an_edit() {
+    use std::os::unix::ffi::OsStrExt as _;
+    let (fixture, repo, topic): (Fixture, PathBuf, PathBuf) = a_repository_with_a_worktree("removal-nested-not-utf8", "nested*\n");
+    let mut name: std::ffi::OsString = std::ffi::OsString::from("nested-");
+    name.push(std::ffi::OsStr::from_bytes(&[0xff]));
+    let nested: PathBuf = topic.join(name.as_os_str());
+    git(
+        &fixture,
+        repo.as_path(),
+        &[
+            std::ffi::OsStr::new("worktree"),
+            std::ffi::OsStr::new("add"),
+            std::ffi::OsStr::new("--quiet"),
+            std::ffi::OsStr::new("-b"),
+            std::ffi::OsStr::new("nested"),
+            nested.as_os_str(),
+        ],
+    );
+    std::fs::write(nested.join("README.md"), b"# an edit in a worktree whose name is not text\n").expect("an uncommitted edit");
+    let refused: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "remove", "../topic"]);
+    assert_ne!(refused.code, Some(0), "an edit at a name that is not UTF-8 keeps the outer worktree: {}", stderr_of(&refused));
+    assert_eq!(
+        std::fs::read(nested.join("README.md")).expect("the edit is still there"),
+        b"# an edit in a worktree whose name is not text\n",
+        "the edit is not deleted"
+    );
+    // The escape takes it, and the record names the worktree in the bytes Git recorded, which is what `worktreeHex` is
+    //  for: a path is its bytes from the registration to the record.
+    let escaped: Observed = run_wrapped(&fixture, repo.as_path(), &["worktree", "--no-enforce-worktree", "remove", "../topic"]);
+    assert_eq!(escaped.code, Some(0), "the escape runs the removal: {}", stderr_of(&escaped));
+    let record: String = deletion_record(repo.as_path()).expect("the record of what the removal deleted");
+    assert!(!record.contains("\"nested\":[]"), "the record names a nested worktree: {record}");
+    let hex: String = git_policy_cli::path_bytes_in_records::hex_of_path(nested.as_path());
+    assert!(record.contains(hex.as_str()), "and names it in the bytes the repository recorded, {hex}: {record}");
+    remove(&fixture);
+}
+
+/// What:
 ///  A worktree nested in a removal that holds nothing of the person's is not a reason to keep the outer one.
 /// Why:
 ///  The refusal is about work that exists nowhere else,

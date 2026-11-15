@@ -85,3 +85,39 @@ fn a_repository_with_no_such_folder_remembers_nothing() {
     let common: PathBuf = fixture("kept-retry-empty");
     assert_eq!(remembered_kept(common.as_path()), Vec::new(), "no folder, no kept worktree");
 }
+
+/// What:
+///  A named pipe among the records does not hold the reader,
+///  and the records that are regular files are read.
+/// Why:
+///  `remembered_kept` reads every `.txt` under the folder,
+///  and a name a process made a named pipe waits inside `open(2)` for a writer that never comes:
+///  the person's `git merge` then never returns,
+///  which is what a review of this change reproduced with a writerless FIFO (finding 6).
+///  Every other record read of this change opens without waiting for a writer
+///  (`read_record_here`), and this reader is one of them now.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkfifo(keptDir + '/stuck.txt'); expect(within(5000, () => rememberedKept(common))).toHaveLength(1);
+/// ```
+#[test]
+fn a_named_pipe_among_the_records_does_not_hold_the_reader() {
+    let common: PathBuf = fixture("kept-retry-named-pipe");
+    let worktree: PathBuf = common.join("outer");
+    remember_kept(common.as_path(), worktree.as_path(), "refs/heads/feature", "103:4242 103:4343", "a lock is a promise to keep it");
+    let directory: PathBuf = path_for_reading(common.as_path(), KEPT_RETRY_FOLDER);
+    let pipe: PathBuf = directory.join("stuck.txt");
+    let made: std::process::Output = std::process::Command::new("/usr/bin/mkfifo").arg(pipe.as_os_str()).output().expect("mkfifo");
+    assert!(made.status.success(), "the named pipe is made: {made:?}");
+    let (sender, receiver) = std::sync::mpsc::channel::<usize>();
+    let reading_here: PathBuf = common.clone();
+    let reader: std::thread::JoinHandle<()> = std::thread::spawn(move || {
+        let count: usize = remembered_kept(reading_here.as_path()).len();
+        let _sent = sender.send(count);
+    });
+    let counted = receiver.recv_timeout(std::time::Duration::from_secs(5));
+    // The read is over before the bound, and the record that is a regular file is the one this asks for.
+    assert_eq!(counted, Ok(1), "the records that are files are read and the named pipe is not waited on");
+    let _closed = reader.join();
+}

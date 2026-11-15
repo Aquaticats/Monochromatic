@@ -230,6 +230,53 @@ fn a_forwarded_removal_asks_for_the_removed_worktrees_units_to_be_stopped() {
     remove(root.as_path());
 }
 
+/// What:
+///  A forwarded removal looks once more immediately before it starts Git,
+///  so a worktree a process is working in is kept even though the policy judged the command earlier.
+/// Why:
+///  The policy's judgement is a proof of a moment:
+///  its proof of cleanliness, the listing of what will go and, on the subvolume route, a rename stand between it and the
+///  instruction that deletes,
+///  and a process can enter the worktree in that window.
+///  A removal that started Git on the earlier answer deleted the folder a program was working in
+///  (a review of this change,
+///  finding 5).
+///  Real Git's own run is the part this program cannot look inside,
+///  which is why the look is the last thing before it.
+#[cfg(unix)]
+#[test]
+fn a_forwarded_removal_looks_once_more_before_it_starts_git() {
+    let root: PathBuf = fixture("forward-removal-last-look");
+    let (main, common) = source(root.as_path());
+    git(main.as_path(), &["worktree", "add", "--quiet", "-b", "topic", "../wt"]);
+    let worktree: PathBuf = std::fs::canonicalize(root.join("wt")).expect("canonical worktree");
+    let facts: CopyFacts = CopyFacts {
+        identity: main_identity(main.as_path(), common.as_path()),
+        creates: false,
+        destination: None,
+        add_plan: None,
+        removal_escaped: false,
+        remove_plan: Some(RemovePlan { target: worktree.clone(), operand: worktree.clone().into_os_string(), force: false }),
+        quiet: false,
+    };
+    let mut child: std::process::Child = std::process::Command::new("/usr/bin/sleep")
+        .arg("120")
+        .current_dir(worktree.as_path())
+        .spawn()
+        .expect("a program working in the worktree");
+    let finished: ForwardedRun = run_forwarded_git(
+        Path::new(REAL_GIT),
+        arguments(&["-C", main.to_str().expect("utf8"), "worktree", "remove", worktree.to_str().expect("utf8")]).as_slice(),
+        isolated_overlay().as_slice(),
+        Some(&facts),
+    );
+    let _ended = child.kill();
+    let _waited = child.wait();
+    assert_eq!(finished, ForwardedRun::Ran(1), "the last look refuses and Git is not started");
+    assert!(worktree.is_dir(), "the worktree the program is working in stays");
+    remove(root.as_path());
+}
+
 /// A forwarded removal takes the removed worktree's shadow pool with it:
 /// the pool's name is the administrative directory the removal deletes,
 /// so nothing can ever claim a member of it
