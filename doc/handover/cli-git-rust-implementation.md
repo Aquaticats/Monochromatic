@@ -1640,6 +1640,76 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The driver's launcher that ends with its run: eight reproduced findings, three its own and five the queue's, which a second branch also carries; each goes to one run (2026-11-15T12:44:42-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+what it queued,
+and one check of the queue this machine runs on.
+
+- **The launcher that ends when its run has ended** (`090e416990`),
+  its first review of the whole range,
+  ended 12:38:13,
+  35 of 35 files,
+  eight things,
+  each reproduced with the branch's source in disposable state
+  (the manager through the code's own seam,
+  one with a real child process).
+- **Five are the queue's**,
+  in three files the range adds
+  (`filling-free-places-from-a-queue.ts`,
+  `queue-of-runs.ts`,
+  `settling-the-starts-a-filling-watches.ts`):
+  a filling with an old snapshot deletes a set-aside record another filling just wrote,
+  and the entry is then nowhere;
+  two writers each rename a whole copy over the queue and one insertion is lost;
+  a filling takes out by name whatever now stands under it,
+  a corrected entry included;
+  two fillings both start one entry;
+  recovery drops the record of a batch that is still active and a second is started.
+- **Three are the launcher's**:
+  an old summary of an earlier attempt hides a new launcher before its unit exists,
+  so a second gate answers `start` for a name a live launcher holds;
+  a start that gave up at its deadline is set aside and not put back,
+  because the reason is read from the last line a batch printed;
+  and the timeout of a resumed launcher sends `SIGTERM` and goes on waiting,
+  so a launcher that ignores it holds its caller for good.
+- **Measured before weighing**:
+  `main` holds `going-runs.ts` and `run-command.ts` and none of the three queue files;
+  this range adds them;
+  the queue filling's branch
+  (`a634fbf060`)
+  adds them too and is not inside this one.
+  Two branches cannot both bring those files to `main`.
+- **Weighed**:
+  one thing to one run.
+  The launcher's author goes back for its three
+  (third run,
+  queued tenth),
+  told to build nothing for the five and to say first where its three queue files came from and what its subject needs of them.
+  The five were appended as sightings to the brief of the queued fresh run that builds the claim before a start
+  (it had not begun),
+  with the review folder to read.
+- **The queue this machine runs on is written the same way**:
+  the scratch put script renames a whole copy over the queue file and takes no lock,
+  and the filling unit writes the same file.
+  Checked at 12:45:19 for the eight entries queued since 12:01:
+  each is in the queue under its name or has a run folder;
+  none is lost.
+  That is one look and no proof against the next;
+  the package's claim design is what removes it,
+  and until then a queued entry is looked for again when its turn does not come.
+- Read at 12:42:50:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 12:38;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### The driver's takeover of a review folder fails its eighth review with two more orders of steps, and the author is asked whether a takeover is needed at all; mpm-shadow's install branch answers (2026-11-15T12:39:01-05:00)
 
 Not final and not approved:
