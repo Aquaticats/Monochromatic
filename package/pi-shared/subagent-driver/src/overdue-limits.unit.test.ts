@@ -250,6 +250,62 @@ await describe({
       },
     },),
     it({
+      name: 'leaves out a run whose silent command could not be ended, because its length is the driver failure and not a job',
+      fn: async () => {
+        await using runs = await standInRunsFolder({
+          runs: [
+            {
+              name: 'could-not-recover-1',
+              summary: {
+                endReason: 'silent-command-unanswered',
+                totalMilliseconds: 61 * MINUTE,
+              },
+              feedLines: [
+                {
+                  t: 0,
+                  kind: 'tool_start',
+                  tool: 'bash',
+                },
+                {
+                  t: TEN_MINUTES,
+                  kind: 'tool_end',
+                  tool: 'bash',
+                },
+              ],
+            },
+            {
+              name: 'idle-1',
+              summary: {
+                endReason: 'idle',
+                totalMilliseconds: MINUTE,
+              },
+              feedLines: [
+                {
+                  t: 0,
+                  kind: 'tool_start',
+                  tool: 'bash',
+                },
+                {
+                  t: THIRTY_SECONDS,
+                  kind: 'tool_end',
+                  tool: 'bash',
+                },
+              ],
+            },
+          ],
+        },);
+        /**
+         What the folder says.
+         */
+        const evidence = await evidenceFromRunsFolder({ runsFolder: runs.path, },);
+        // The hour the run sat silent is no evidence of how long work takes, so only the run that finished is measured.
+        expect(evidence.finishedRuns,).toBe(1,);
+        expect(evidence.overdueMilliseconds,).toBe(rankOf([MINUTE,], 0.9,),);
+        // The call it did finish is still a call that finished.
+        expect(evidence.toolCalls,).toBe(2,);
+      },
+    },),
+    it({
       name: 'answers no limit at all for a runs folder holding no finished run',
       fn: async () => {
         await using runs = await standInRunsFolder({
