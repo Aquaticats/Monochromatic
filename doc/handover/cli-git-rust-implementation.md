@@ -738,6 +738,17 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T04:25:14-05:00,
+  from the third review of the Git-version branch
+  (`253b4238cc`),
+  not blocking work:
+  a branch goes to an integration pass only after a review with no finding.
+  This branch's change to the program has stood through three reviews with nothing found,
+  while each review found something in its tests,
+  so seven gate failures still wait.
+  Keep the rule as it is,
+  or let a branch whose only open findings are in test code go to a pass while its author answers them on the same branch?
+
 - Added 2026-11-15T04:21:09-05:00,
   from the third review of the journal branch
   (`2d001c892e`),
@@ -1547,6 +1558,61 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The wrapper under the gate container's Git goes back a third time, for one test helper whose bound another program keeps (2026-11-15T04:25:14-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The wrapper under the Git the gate's container installs** (`253b4238cc`),
+  its third review,
+  ended 04:19:43.
+  The range's files read in full;
+  again nothing found in the two production files.
+  Two things reproduced,
+  both in the one helper the last round added,
+  `real_git_within`,
+  each by a program that imports the file and runs it:
+  a descendant in a session of its own that holds the child's pipe makes the call outlast its bound
+  (4,002 ms against one second);
+  and a child that exits 124 or 137 by itself,
+  or dies by a signal before the bound,
+  is reported as ended by the bound,
+  its status and output lost.
+- **Weighed**:
+  both follow from one choice,
+  that `/usr/bin/timeout` keeps the bound and the helper guesses from a status what it did.
+  Neither changes what the program does,
+  and the fixture's queries of real Git start no such descendant.
+  But the branch added the helper to make "no test waits without a bound" true,
+  and the first finding shows it is not;
+  the fix is one function.
+  So the branch still does not go to a pass with a finding open,
+  by the loop's own rule.
+  The author is resumed,
+  its fourth run:
+  the helper keeps its own bound and knows by its own act whether it ended the child
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-answers-its-third-review-of-2026-11-15-prompt.md`,
+  queued second).
+- **What this costs**:
+  seven of the gate's standing failures wait on this branch.
+  Its production change has stood through three reviews with nothing found;
+  three rounds have gone to its tests.
+  That a wrapper fix waits on its tests' helpers is the rule working as written,
+  and it is slow;
+  the owner may want it otherwise,
+  and the question is kept with the others.
+- Read at 04:24:15:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 04:18;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The resumed session is not named by the credential scan.
+  The queue held 81 entries at 04:25:14.
 
 ##### The journal branch goes back for a race in the fixture's log copier and a guard that a URL blinds; its third finding is weighed down to a line of documentation (2026-11-15T04:19:50-05:00)
 
