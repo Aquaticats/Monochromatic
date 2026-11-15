@@ -1670,6 +1670,67 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The push of a branch that is not checked out fails its ninth review with four reproduced things; cargo-shadow's two tests that passed or failed by the run were the tests' own (2026-11-15T18:14:37-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The push of a branch that is not checked out** (`7aef6368e7`),
+  its ninth review,
+  ended 18:08:50:
+  23 of 23 files,
+  four things,
+  each reproduced by a script.
+  - A `git switch` between the repair's reading of `HEAD` and its `git apply --index` stages the merge on an unrelated branch,
+    and the record is let go.
+  - A `git symbolic-ref` that fails with status 128 is read as a detached `HEAD`:
+    the only repair record is deleted and the next commit records a reversal of the merge.
+  - A switch away before the repair's first read leaves the old tree staged on another branch,
+    and later sweeps skip the record because its branch is not the one shown.
+  - Taking a dead repair owner's place by renaming the fixed path can move a live record and put it back over a third,
+    leaving two live owners.
+  Weighed:
+  the first and third are one thing
+  (the repair is about a worktree's index and files and was keyed to the branch the worktree shows);
+  the second is "could not tell" read as an answer,
+  against the author's own control of the round before;
+  the fourth is the takeover built on a rename,
+  the shape a review faulted on another branch this week.
+  The author's eleventh run is queued sixth.
+  Nothing of this branch is in `main`.
+- **cargo-shadow's two tests that pass or fail from run to run**,
+  fresh run ended 18:12:28 at `f0c4ca0150`,
+  two test files changed.
+  Its account,
+  each cause shown by widening the window and by the old form failing:
+  - `tests/shim.rs`:
+    the helper read the child's two pipes only after its exit,
+    so a child that printed more than a pipe holds stood in its write and the helper's own clock called that a loop.
+    It caught one such child standing seventeen minutes in `anon_pipe_write`.
+    The helper now reads both streams from the start and shows a loop by the launcher's own trace.
+  - `round_thirteen_tests.rs`:
+    the fixture announced a process number with one `fs::write` and the test killed the writer before parsing it;
+    the fixture now publishes by rename and the test reads before it kills.
+  Review queued thirteenth.
+  **Left with no owner by that run, and said so**:
+  `round_fourteen_tests::a_recycled_time_namespace_number_never_reads_a_live_launcher_as_gone` passes alone and failed in five of six whole-suite runs
+  (the freed namespace number was not reused in eight attempts,
+  the suite's other tests taking numbers from the same allocator).
+  The author writes that repairing it changes what a certification row's evidence is;
+  it gets a run of its own once that sentence is read against the package's docs,
+  next round.
+  A sighting for the driver's silent-command subject from the same report:
+  a tool call ended at its 900 s bound while its `systemd-run --scope` payload lived ten minutes more,
+  the bound standing on the caller and not on the payload.
+- Read at 18:13:04:
+  six changed files in the main checkout;
+  no launcher had outlived a run;
+  no process inside a worktree whose run was not going;
+  19 runs going,
+  none silent for twenty minutes.
+
 ##### Issue 6293 answers its five findings, three of them the same as claims just sent to the branch it stands on; the order of the two branches, and a narrow review (2026-11-15T17:57:30-05:00)
 
 Not final and not approved:
