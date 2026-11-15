@@ -13,6 +13,11 @@
  @module
  */
 
+import {
+  maskDataOf,
+  type MaskedData,
+} from './masking-of-data.ts';
+
 /**
  Says whether a value is one this masking replaces.
 
@@ -81,20 +86,7 @@ export type SecretValue = {
   readonly value: string;
 };
 
-/**
- What one walk of a value found.
- */
-export type MaskedDeeply<Value> = {
-  /**
-   The value, with every string in it masked. It is the value handed in when nothing changed.
-   */
-  readonly value: Value;
 
-  /**
-   Whether anything was masked.
-   */
-  readonly changed: boolean;
-};
 
 /**
  The masking of every value of this machine's secret environment.
@@ -108,10 +100,17 @@ export type SecretValueMasking = {
   readonly maskText: (text: string) => string;
 
   /**
-   Every string inside a value masked, so a whole message or a whole transcript is masked in one call. The shape a value has is
-   the shape it keeps: this replaces text with text and touches nothing else, so a caller can hand in a message and read one back.
+   A value masked as the data it serialises to, which is what Pi will serialise: every string of it masked, its keys masked with
+   them, and no method, accessor or cycle of the original kept. What Pi gets back is plain data, or the answer that it could not be
+   masked, and never the value that went in.
    */
-  readonly maskDeeply: <Value>(value: Value) => MaskedDeeply<Value>;
+  readonly maskData: (value: unknown) => MaskedData;
+
+  /**
+   How many characters at the end of a text are the beginning of a form and must not be written yet, which is what a writer of a
+   stream holds back between two writes.
+   */
+  readonly heldBackSuffixLength: (text: string) => number;
 
   /**
    How many forms are looked for, which is what a test measures the cost of.
@@ -131,11 +130,12 @@ export type SecretValueMasking = {
 };
 
 /**
- What a writer of a run's own files needs of the masking: the text of a record, and the strings inside one.
+ What a writer of a run's own files needs of the masking: the text of a record, the data of one, and what a stream holds back.
  */
 export type TextMasking = {
   readonly maskText: (text: string) => string;
-  readonly maskDeeply: <Value>(value: Value) => MaskedDeeply<Value>;
+  readonly maskData: (value: unknown) => MaskedData;
+  readonly heldBackSuffixLength: (text: string) => number;
 
   /**
    The length of the longest form, which is how many characters a writer of a stream holds back between two writes.
@@ -144,18 +144,18 @@ export type TextMasking = {
 };
 
 /**
- The masking a run whose values are not known yet writes with, which changes nothing.
+ The masking a run whose values are not known yet writes with, which changes nothing and holds nothing back.
  */
 export const MASKING_NOTHING: TextMasking = {
   longestFormLength: 0,
   maskText: function maskNoText(text,) {
     return text;
   },
-  maskDeeply: function maskNoValue<Value>(value: Value,): MaskedDeeply<Value> {
-    return {
-      value,
-      changed: false,
-    };
+  maskData: function maskNoData(value,) {
+    return { value, };
+  },
+  heldBackSuffixLength: function holdsNothingBack() {
+    return 0;
   },
 };
 
@@ -391,6 +391,61 @@ export function createSecretValueMasking({
   );
 
   /**
+   Every proper prefix of every form, and the longest form's length, which is what a stream must hold back.
+   */
+  const heldBackPrefixes: {
+    readonly prefixes: ReadonlySet<string>;
+    readonly longest: number
+  } =
+    (function prefixesOfForms() {
+      /**
+       The prefixes, each a text that could still become a form when more arrives.
+       */
+      const prefixes = new Set<string>();
+      for (const form of formsLongestFirst) {
+        for (let length = 1; length < form.length; length += 1) {
+          prefixes.add(form.slice(
+            0,
+            length,
+          ),);
+        }
+      }
+      return {
+        prefixes,
+        longest: formsLongestFirst[0]
+          ?.length
+          ?? 0,
+      };
+    })();
+
+  /**
+   Says how many characters at the end of a text are the beginning of a form, which must not be written before more arrives.
+
+   A writer of a stream cuts its text where the next read begins, so a value can be split across two writes. Holding back the
+   longest suffix that is still a proper prefix of a form is what makes the two writes, together, mask it.
+
+   @param text - the text about to be written
+
+   @returns how many of its characters are held back
+   */
+  function heldBackSuffixLength(text: string,): number {
+    /**
+     The longest suffix length to consider, which is one fewer than the longest form: a whole form is matched, not held.
+     */
+    const longest = Math.min(
+      heldBackPrefixes.longest - 1,
+      text.length,
+    );
+    for (let length = longest; length > 0; length -= 1) {
+      if (heldBackPrefixes.prefixes
+        .has(text.slice(text.length - length,),)) {
+        return length;
+      }
+    }
+    return 0;
+  }
+
+  /**
    Says whether a text holds a form of an armed value.
 
    @param text - the text to ask about
@@ -481,94 +536,27 @@ export function createSecretValueMasking({
   }
 
   /**
-   Masks every string inside a value, keeping the parts nothing was masked in.
+   Masks a value as the data it serialises to, which is what Pi will serialise.
+
+   The value goes through the one serialisation Pi uses, the text is masked, and the answer is what that text parses back to: plain
+   data whose keys and values are masked and which keeps no method, accessor or cycle of the original. A value that does not
+   serialise, whose masking throws, or whose masked form is not the same shape of data is not handed on at all.
 
    @param value - the value to mask
 
-   @returns the value with every string in it masked, and whether anything was masked
+   @returns the data it became, or that it could not be masked
    */
-  function maskDeeplyOfUnknown(value: unknown,): MaskedDeeply<unknown> {
-    if ((typeof value) === 'string') {
-      /**
-       The string after masking.
-       */
-      const masked = maskText(value,);
-      return {
-        value: masked,
-        changed: masked !== value,
-      };
-    }
-    if (Array.isArray(value,)) {
-      /**
-       The parts after masking, and whether any of them changed.
-       */
-      const parts = value.map(function maskPart(part,) {
-        return maskDeeplyOfUnknown(part,);
-      },);
-      /**
-       Whether any part held a value.
-       */
-      const changed = parts.some(function didChange(part,) {
-        return part.changed;
-      },);
-      return {
-        value: changed ? parts.map(function valueOfPart(part,) {
-          return part.value;
-        },) : value,
-        changed,
-      };
-    }
-    if (((typeof value) === 'object') && (value !== null)) {
-      /**
-       The object's fields after masking.
-       */
-      const fields = Object.entries(value,)
-        .map(function maskField([key, field,],) {
-          return [
-            key,
-            maskDeeply(field,),
-          ] as const;
-        },);
-      /**
-       Whether any field held a value.
-       */
-      const changed = fields.some(function didChange([, part,],) {
-        return part.changed;
-      },);
-      return {
-        value: changed ? Object.fromEntries(fields.map(function valueOfField([key, part,],) {
-          return [
-            key,
-            part.value,
-          ];
-        },)) : value,
-        changed,
-      };
-    }
-    return {
+  function maskData(value: unknown,): MaskedData {
+    return maskDataOf({
       value,
-      changed: false,
-    };
-  }
-
-  /**
-   Masks every string inside a value, whose shape is the shape it keeps.
-
-   @param value - the value to mask
-
-   @returns the value with every string in it masked, and whether anything was masked
-   */
-  function maskDeeply<Value>(value: Value,): MaskedDeeply<Value> {
-    // Masking replaces a string with a string and keeps every other part exactly as it was, so the shape handed in is the shape
-    // that comes back. TypeScript cannot check a rewrite of a structure against the structure's own type, and this is the one
-    // place where the shape is carried over rather than narrowed.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- masking keeps the shape it was given; see the comment above.
-    return maskDeeplyOfUnknown(value,) as MaskedDeeply<Value>;
+      maskText,
+    },);
   }
 
   return {
     maskText,
-    maskDeeply,
+    maskData,
+    heldBackSuffixLength,
     valueCount: values.length,
     patternCount: formsLongestFirst.length,
     longestFormLength: formsLongestFirst[0]

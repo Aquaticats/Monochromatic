@@ -40,7 +40,6 @@ import type {
 } from '@monochromatic-dev/ownership-marker-foreign-borrowed/ts';
 import {
   createSecretValueMasking,
-  type MaskedDeeply,
   type SecretValue,
   type SecretValueMasking,
 } from './secret-value-masking.ts';
@@ -78,6 +77,57 @@ const SPARE_COPY_FILE_NAME_PREFIX = 'pi-output-';
 const LONGEST_HANDOVER_BYTES = 1_048_576;
 
 //endregion Constants
+
+//region Withheld in place
+
+/**
+ A message that stands where one this extension could not mask would have stood, of the same role, so Pi keeps it instead.
+
+ @param event - Pi's message event
+
+ @param cause - why the message could not be masked
+
+ @returns a message of the same role, holding nothing of the original
+ */
+function withheldMessage({
+  event,
+  cause,
+}: {
+  readonly event: ForeignBorrowed<MessageEndEvent>;
+  readonly cause: string;
+},): MessageEndEvent['message'] {
+  // Pi rejects a `message_end` replacement whose role differs from the message it has, and would then keep the original, so the
+  // replacement keeps the role and carries nothing else of it: no content, no tool call, no usage.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Pi's message types carry a role-specific shape this replacement cannot satisfy field for field.
+  return {
+    role: event.message
+      .role,
+    content: `[this message was withheld: the driver could not mask the secret values in it (${cause})]`,
+    timestamp: event.message
+      .timestamp,
+  } as MessageEndEvent['message'];
+}
+
+/**
+ A message that stands where a transcript this extension could not mask would have stood.
+
+ @param cause - why the transcript could not be masked
+
+ @returns one message holding nothing of the original
+ */
+function withheldUserMessage({ cause, }: { readonly cause: string },): {
+  readonly role: 'user';
+  readonly content: string;
+  readonly timestamp: number
+} {
+  return {
+    role: 'user' as const,
+    content: `[this conversation was withheld: the driver could not mask the secret values in it (${cause})]`,
+    timestamp: Date.now(),
+  };
+}
+
+//endregion Withheld in place
 
 //region Reading what the driver handed over
 
@@ -293,19 +343,19 @@ function maskedToolResultPart({
 /**
  Masks one tool result, which is what Pi calls after the tool has run and before the result becomes a message.
 
- Every field Pi copies into the message is masked: the content, the details a tool declared, and the structured content a tool
- declared an output schema for. A field that changed is returned as its masked self, and every other field is returned as it came,
- because Pi reads a patch that leaves a field out as a reason to drop it.
+ Every field Pi copies into the message is masked as the data it serialises to: the content, the details a tool declared, and the
+ structured content a tool declared an output schema for. A field that could not be masked withholds the whole result, because
+ Pi reads an omitted `details` as unchanged and would then keep the tool's own.
 
  @param event - Pi's tool result event
 
  @param masking - the masking
 
- @returns the result with every value masked, or nothing when nothing was masked
+ @returns the result as data, or that it must be withheld
 
  @example
  ```ts
- const patch = maskedToolResult({ event, masking, },);
+ const answer = maskedToolResult({ event, masking, },);
  ```
  */
 export function maskedToolResult({
@@ -314,37 +364,53 @@ export function maskedToolResult({
 }: {
   readonly event: ForeignBorrowed<ToolResultEvent>;
   readonly masking: SecretValueMasking;
-  // Pi's own hook takes `undefined` as "nothing changed", and a handler that returned an empty patch would drop the structured
-  // content a tool declared, so the absence is mirrored from the installed interface rather than modelled here.
-  // oxlint-disable-next-line no-restricted-syntax/no-nullish-union -- Pi's `tool_result` handler result is `T | undefined`.
-},): ToolResultEventResult | undefined {
+},): { readonly patch: ToolResultEventResult } | {
+  readonly withheld: true;
+  readonly cause: string
+} {
   /**
-   The content, with the text of each part masked.
+   The content as data, which is one answer for keys, methods, cycles and every other thing an object can do.
    */
-  const content = maskedToolResultParts({
-    content: event.content,
-    masking,
-  },);
+  const content = masking.maskData(event.content,);
+  if ('withheld' in content) {
+    return {
+      withheld: true,
+      cause: content.cause,
+    };
+  }
   /**
-   The details a tool declared, masked field by field.
+   The details as data, when the tool declared any.
    */
-  const details = masking.maskDeeply(event.details,);
+  const details = (event.details === undefined) ? undefined : masking.maskData(event.details,);
+  if ((details !== undefined) && ('withheld' in details)) {
+    return {
+      withheld: true,
+      cause: details.cause,
+    };
+  }
   /**
-   The structured content a tool declared an output schema for, masked field by field, when the tool declared any.
+   The structured content as data, when the tool declared any.
    */
   const structured = (event.structuredContent === undefined)
     ? undefined
-    : masking.maskDeeply(event.structuredContent,);
-  if ((!content.changed) && (!details.changed)
-    && (structured?.changed !== true)) {
-    return undefined;
+    : masking.maskData(event.structuredContent,);
+  if ((structured !== undefined) && ('withheld' in structured)) {
+    return {
+      withheld: true,
+      cause: structured.cause,
+    };
   }
   return {
-    content: content.parts,
-    details: details.value,
-    ...(structured?.changed === true ? { structuredContent: structured.value, } : {}),
-    // Pi drops a structured field a patch leaves out, so the field is returned as it came even when nothing in it was masked.
-    ...((structured !== undefined) && (!structured.changed) ? { structuredContent: structured.value, } : {}),
+    patch: {
+      // The data is Pin's own content shape, re-parsed from the serialisation it came from; a value whose shape changed was
+      // withheld above, so what reaches here is the shape the tool declared.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Pi's content type is the shape the round trip proved.
+      content: content.value as ToolResultEvent['content'],
+      // A field the tool never declared is left out, so Pi keeps what it had; a field it declared is returned as its masked data.
+      ...((details === undefined) ? {} : { details: (details as { readonly value: unknown }).value, }),
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Pi's output schema value is what the round trip proved.
+      ...((structured === undefined) ? {} : { structuredContent: (structured as { readonly value: unknown }).value as never, }),
+    },
   };
 }
 
@@ -428,18 +494,18 @@ export function armSecretValueMasking({
 
    @param event - Pi's tool result event
 
-   @param failure - what the masking threw
+   @param cause - why the result could not be masked
 
    @returns the result Pi shows instead of the tool's own
    */
   function withheldResult({
     event,
-    failure,
+    cause,
   }: {
     readonly event: ForeignBorrowed<ToolResultEvent>;
-    readonly failure: unknown;
+    readonly cause: string;
   },): ToolResultEventResult {
-    noteFailure(`${MASKING_ARMED_COMMAND}: a tool result was withheld because it could not be masked: ${Error.isError(failure,) ? failure.name : 'a failure'}`,);
+    noteFailure(`${MASKING_ARMED_COMMAND}: a tool result was withheld because it could not be masked: ${cause}`,);
     /**
      The path Pi saved the result's whole output in, if it saved one.
      */
@@ -455,6 +521,9 @@ export function armSecretValueMasking({
           ? WITHHELD_RESULT_TEXT
           : `${WITHHELD_RESULT_TEXT} (its whole output is in ${spareCopy.path})`,
       },],
+      // Pi reads an omitted `details` as unchanged and would keep the tool's own, so the withheld result says explicitly that it
+      // has none.
+      details: { withheld: true, },
     };
   }
 
@@ -463,12 +532,18 @@ export function armSecretValueMasking({
     async function maskOneToolResult(event,) {
       try {
         /**
-         The result with every value masked.
+         What masking the result found: the patch Pi keeps, or that the result must be withheld.
          */
-        const patch = maskedToolResult({
+        const answer = maskedToolResult({
           event,
           masking,
         },);
+        if ('withheld' in answer) {
+          return withheldResult({
+            event,
+            cause: answer.cause,
+          },);
+        }
         /**
          The path Pi saved the result's whole output in, if it saved one.
          */
@@ -488,12 +563,12 @@ export function armSecretValueMasking({
             noteFailure(rewritten.problem,);
           }
         }
-        return patch;
+        return answer.patch;
       }
       catch (error) {
         return withheldResult({
           event,
-          failure: error,
+          cause: Error.isError(error,) ? error.name : 'a failure',
         },);
       }
     },
@@ -502,38 +577,37 @@ export function armSecretValueMasking({
   pi.on(
     'context_with_system',
     function maskTheTranscript(event: ForeignBorrowed<ContextWithSystemEvent>,) {
-      try {
-        /**
-         The transcript with every string in it masked.
-         */
-        const messages = masking.maskDeeply(event.messages,);
-        return messages.changed
-          ? { messages: messages.value, }
-          : undefined;
+      /**
+       The transcript as data, which is what the request will serialise.
+       */
+      const messages = masking.maskData(event.messages,);
+      if ('withheld' in messages) {
+        noteFailure(`${MASKING_ARMED_COMMAND}: the transcript could not be masked (${messages.cause}), so the request carries none of it`,);
+        // Nothing of the transcript is sent: a request with a marker in it holds no value, and Pi fails a request it cannot build
+        // rather than sending the original.
+        return { messages: [withheldUserMessage({ cause: messages.cause, },),], };
       }
-      catch (error) {
-        noteFailure(`${MASKING_ARMED_COMMAND}: the transcript could not be masked: ${Error.isError(error,) ? error.name : 'a failure'}`,);
-        return undefined;
-      }
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Pi's message shape is the one the round trip proved.
+      return { messages: messages.value as ContextWithSystemEvent['messages'], };
     },
   );
 
   pi.on(
     'message_end',
     function maskTheMessageBeforePiKeepsIt(event: ForeignBorrowed<MessageEndEvent>,) {
-      try {
-        /**
-         The message with every string in it masked.
-         */
-        const message = masking.maskDeeply(event.message,);
-        return message.changed ? { message: message.value, } : undefined;
+      /**
+       The message as data, which is what Pi will write to its session.
+       */
+      const message = masking.maskData(event.message,);
+      if ('withheld' in message) {
+        noteFailure(`${MASKING_ARMED_COMMAND}: a message could not be masked (${message.cause}), so a message that says so is kept in its place`,);
+        return { message: withheldMessage({
+          event,
+          cause: message.cause,
+        },), };
       }
-      catch (error) {
-        // Pi keeps the message it has when a handler throws, so this fails closed the way the run's start does: nothing is kept
-        // unmasked without the driver hearing about it, and a tool result that reached here is already masked at its own hook.
-        noteFailure(`${MASKING_ARMED_COMMAND}: a message could not be masked before Pi kept it: ${Error.isError(error,) ? error.name : 'a failure'}`,);
-        return undefined;
-      }
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Pi's message shape is the one the round trip proved.
+      return { message: message.value as MessageEndEvent['message'], };
     },
   );
 

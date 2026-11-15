@@ -20,7 +20,7 @@ export {
   type TextMasking,
   MASKED_VALUE_CLOSING,
   MASKED_VALUE_OPENING,
-  type MaskedDeeply,
+
   maskedValueMarker,
   MINIMUM_MASKED_VALUE_LENGTH,
   type SecretValue,
@@ -28,6 +28,27 @@ export {
   type SecretValueMasking,
 } from './secret-value-masking.ts';
 export { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
+export {
+  createStreamMatcher,
+  type StreamMatcher,
+} from './masking-a-stream.ts';
+export {
+  maskDataOf,
+  type MaskedData,
+  type WithheldCause,
+} from './masking-of-data.ts';
+export {
+  maskSpareCopyOfToolOutput,
+  spareCopyOfToolOutput,
+} from './pi-output-file-of-a-tool-result.ts';
+export {
+  type FileIdentity,
+  identityOfFile,
+  readAFileWithItsIdentity,
+  replaceAFileWithItsMaskedText,
+  type ReplacedFile,
+  sameFile,
+} from './replacing-a-file-only-if-it-is-the-one-that-was-read.ts';
 export {
   storeOfTheCheckout,
   valuesInTheCheckoutStore,

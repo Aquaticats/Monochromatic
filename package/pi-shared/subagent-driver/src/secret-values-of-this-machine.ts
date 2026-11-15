@@ -15,6 +15,7 @@
  */
 
 import type { SecretValue, } from './secret-value-masking.ts';
+import { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
 import { valuesInTheCheckoutStore, } from './secret-values-in-the-checkout-store.ts';
 import {
   type EnvironmentOfThisMachine,
@@ -114,6 +115,14 @@ export async function readSecretValuesOfThisMachine({
     environment,
     home,
   },);
+  if ('unreadable' in identity) {
+    // Somebody declared an identity and this code cannot read it: the key that opens every store is a place a value stands, and a
+    // run that started without it would mask nothing of what it holds.
+    throw new SecretEnvironmentUnreadableError({
+      source: 'the age identity this machine declares',
+      cause: identity.cause,
+    },);
+  }
   /**
    The driver's own environment.
    */
@@ -124,9 +133,9 @@ export async function readSecretValuesOfThisMachine({
     },),),
   },);
   /**
-   The identity's keys, or none when the identity could not be read.
+   The identity's keys: none when no identity is declared, and none when one that is declared cannot be read, which stops the run.
    */
-  const identityValues: readonly SecretValue[] = ('cause' in identity) ? [] : identity.values;
+  const identityValues: readonly SecretValue[] = ('values' in identity) ? identity.values : [];
   return {
     values: withoutRepeatedValues([
       ...storeValues,
@@ -142,10 +151,10 @@ export async function readSecretValuesOfThisMachine({
       },]),
       ...pi.sources,
       ...shell.sources,
-      ...(('cause' in identity) ? [] : [{
+      ...(('values' in identity) ? [{
         source: identity.source,
         count: identityValues.length,
-      },]),
+      },] : []),
       {
         source: 'the driver\'s own environment',
         count: fromEnvironment.length,
@@ -154,10 +163,6 @@ export async function readSecretValuesOfThisMachine({
     unread: [
       ...pi.unread,
       ...shell.unread,
-      ...(('cause' in identity) ? [{
-        source: 'the age identity',
-        cause: identity.cause,
-      },] : []),
     ],
   };
 }

@@ -13,6 +13,7 @@
  */
 
 import { closeSync, } from 'node:fs';
+import { readFile, } from 'node:fs/promises';
 import type {
   ContextWithSystemEvent,
   ExtensionAPI,
@@ -206,6 +207,78 @@ export function armTheStandInMasking({ scenario, }: { readonly scenario: string 
     /* oxlint-enable typescript/no-unsafe-type-assertion */
   };
   return armed.masking;
+}
+
+/**
+ Reads a session file's text.
+
+ @param sessionFile - the file
+
+ @returns its text, or that it is not there
+ */
+async function textOfASession({ sessionFile, }: { readonly sessionFile: string },): Promise<
+  | { readonly text: string }
+    | { readonly absent: true }
+  > {
+  try {
+    return { text: await readFile(
+      sessionFile,
+      'utf8',
+    ), };
+  }
+  catch (error) {
+    if (!Error.isError(error,)) {
+      throw error;
+    }
+    return { absent: true, };
+  }
+}
+
+/**
+ Says, in a line the tests read, whether the session file the stand-in was given holds an armed value when Pi starts.
+
+ It is a yes or a no and never a value: the point is whether the driver masked a session before Pi could read it.
+
+ @param masking - what the stand-in armed with
+
+ @param sessionFile - the session Pi was handed, when it was handed one
+
+ @returns the line to write, or nothing when there is no session file to look at
+
+ @example
+ ```ts
+ await writeLogLine(await sessionHoldsAValue({ masking, sessionFile, },));
+ ```
+ */
+export async function sessionHoldsAValue({
+  masking,
+  sessionFile,
+}: {
+  readonly masking: StandInMasking;
+  readonly sessionFile?: string;
+},): Promise<string | { readonly absent: true }> {
+  if (sessionFile === undefined) {
+    return { absent: true, };
+  }
+  /**
+   The session's text, or nothing when it is not there.
+   */
+  const read = await textOfASession({ sessionFile, },);
+  if ('absent' in read) {
+    return 'session-holds-armed-value unknown';
+  }
+  /**
+   The session's text.
+   */
+  const { text, } = read;
+  return `session-holds-armed-value ${
+    masking.values
+      .some(function standsIn(value,) {
+      return text.includes(value.value,);
+    },)
+      ? 'yes'
+      : 'no'
+  }`;
 }
 
 /**

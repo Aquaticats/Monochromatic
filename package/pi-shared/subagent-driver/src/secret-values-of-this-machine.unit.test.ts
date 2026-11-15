@@ -487,6 +487,77 @@ await describe({
       },
     },),
     it({
+      name: 'stops the run when an age identity the machine declares cannot be read',
+      fn: async () => {
+        await using home = await makeFolder({ prefix: 'pi-secret-values-identity-home-', },);
+        /**
+         A folder where the identity file should be, which is there and is not an ordinary file.
+         */
+        const identityFolder = join(home.path, 'identity-is-a-directory',);
+        await mkdir(
+          identityFolder,
+          { recursive: true, },
+        );
+        /**
+         The read that must stop the run.
+         */
+        const read = readSecretValuesOfThisMachine({
+          environment: {
+            PATH: process.env.PATH ?? '',
+            SOPS_AGE_KEY_FILE: identityFolder,
+          },
+          home: home.path,
+          checkoutFolder: home.path,
+        },);
+        await expect(read,).rejects.toBeInstanceOf(SecretEnvironmentUnreadableError,);
+        /**
+         The message the run would say, which names what could not be read.
+         */
+        const said: { message: string } = { message: '', };
+        try {
+          await read;
+        }
+        catch (error) {
+          said.message = String(error,);
+        }
+        expect(said.message,).toContain('age identity',);
+      },
+    },),
+    it({
+      name: 'arms the literal a shell start-up file exports with a hash at its start, and stops the run on a value it cannot give',
+      fn: async () => {
+        await using home = await makeFolder({ prefix: 'pi-secret-values-hash-home-', },);
+        /**
+         A start-up file whose credential is a literal beginning with a hash, which is what bash exports there.
+         */
+        await writeFile(
+          join(home.path, '.bashrc',),
+          `export ${SHELL_NAME}=#a-literal-value-with-a-hash\n`,
+        );
+        /**
+         What the read found.
+         */
+        const read = await readSecretValuesOfThisMachine({
+          environment: { PATH: process.env.PATH ?? '', },
+          home: home.path,
+          checkoutFolder: home.path,
+        },);
+        expect(read.values.map(function nameOf(value,) {
+          return value.value;
+        },),).toContain('#a-literal-value-with-a-hash',);
+        // A value the shell computes is one this code cannot give, and a run that started without it would mask nothing of it.
+        await writeFile(
+          join(home.path, '.bashrc',),
+          `export ${SHELL_NAME}=$(printf %s a-computed-value)\n`,
+        );
+        await expect(readSecretValuesOfThisMachine({
+          environment: { PATH: process.env.PATH ?? '', },
+          home: home.path,
+          checkoutFolder: home.path,
+        },),).rejects.toBeInstanceOf(SecretEnvironmentUnreadableError,);
+      },
+    },),
+    it({
       name: 'reads no store from a checkout that declares none, and still reads the other sources',
       fn: async () => {
         await using home = await makeFolder({ prefix: 'pi-secret-values-no-store-', },);

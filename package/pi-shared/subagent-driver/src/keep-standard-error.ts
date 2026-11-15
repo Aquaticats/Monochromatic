@@ -10,6 +10,7 @@
 
 import { createWriteStream, } from 'node:fs';
 import type { Readable, } from 'node:stream';
+import { createStreamMatcher, } from './masking-a-stream.ts';
 import {
   MASKING_NOTHING,
   type TextMasking,
@@ -50,16 +51,9 @@ export async function keepStandardError(
   },
 ): Promise<void> {
   /**
-   How many characters the copy holds back between two writes: one fewer than the longest form a value is printed in.
+   The one matcher every write of this stream goes through, which holds back whatever could still become a match.
    */
-  const holdBack = Math.max(
-    0,
-    mask.longestFormLength - 1,
-  );
-  /**
-   The characters of the last write that are held back, which the next write completes.
-   */
-  const carry: { held: string } = { held: '', };
+  const matcher = createStreamMatcher({ mask, },);
   /**
    Where the masked bytes go.
    */
@@ -71,28 +65,14 @@ export async function keepStandardError(
     source.setEncoding('utf8',);
     for await (const chunk of source as AsyncIterable<string>) {
       /**
-       The text this write is about, which is what was held back and what arrived.
+       What may be written of this chunk now, which is nothing while it is still the beginning of a possible match.
        */
-      const text = carry.held + chunk;
-      /**
-       How much of it is held back for the next write.
-       */
-      const keep = Math.min(
-        holdBack,
-        text.length,
-      );
-      carry.held = text.slice(text.length - keep,);
-      sink.write(
-        mask.maskText(text.slice(
-          0,
-          text.length - keep,
-        ),),
-      );
+      const writable = matcher.push(chunk,);
+      if (writable !== '') {
+        sink.write(writable,);
+      }
     }
-    if (carry.held !== '') {
-      sink.write(mask.maskText(carry.held,),);
-      carry.held = '';
-    }
+    sink.write(matcher.flush(),);
     // A write stream ends through a callback, which is the one shape Node gives for waiting on it.
     /* oxlint-disable-next-line promise/avoid-new -- ending a write stream is a callback API, and this promise is what waits on it. */
     await new Promise<void>(function endTheSink(resolve,) {

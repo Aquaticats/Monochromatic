@@ -16,7 +16,7 @@ import {
   createSecretValueMasking,
   MASKED_VALUE_CLOSING,
   MASKED_VALUE_OPENING,
-  type MaskedDeeply,
+  type MaskedData,
   maskedValueMarker,
   MINIMUM_MASKED_VALUE_LENGTH,
 } from '../dist/final/node/index.mjs';
@@ -214,11 +214,17 @@ await describe({
             /**
              What masking made of it.
              */
-            const masked: MaskedDeeply<typeof message> = oneValue.maskDeeply(message,);
-            expect(masked.changed,).toBe(true,);
-            expect(masked.value.content[0]?.text,).toBe(`STAND_IN_API_KEY=${MARKER}`,);
-            expect(masked.value.role,).toBe('toolResult',);
-            expect(masked.value.toolCallId,).toBe('call-1',);
+            const masked: MaskedData = oneValue.maskData(message,);
+            if (!('value' in masked)) {
+              throw new Error('a message of ordinary data was withheld',);
+            }
+            /**
+             The message as data.
+             */
+            const data = masked.value as { readonly content: readonly { readonly text?: string }[]; readonly role?: string; readonly toolCallId?: string };
+            expect(data.content[0]?.text,).toBe(`STAND_IN_API_KEY=${MARKER}`,);
+            expect(data.role,).toBe('toolResult',);
+            expect(data.toolCallId,).toBe('call-1',);
             // The message handed in is untouched, so a caller that masks a transcript keeps the one it holds.
             expect(message.content[0]?.text,).toBe(`STAND_IN_API_KEY=${TOKEN_VALUE}`,);
           },
@@ -236,9 +242,11 @@ await describe({
             /**
              What masking made of it.
              */
-            const masked = oneValue.maskDeeply(message,);
-            expect(masked.changed,).toBe(false,);
-            expect(masked.value,).toBe(message,);
+            const masked = oneValue.maskData(message,);
+            if (!('value' in masked)) {
+              throw new Error('a message of ordinary data was withheld',);
+            }
+            expect(masked.value,).toEqual(message,);
           },
         },),
         it({

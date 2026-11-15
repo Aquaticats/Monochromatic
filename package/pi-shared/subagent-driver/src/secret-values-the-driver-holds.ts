@@ -8,6 +8,8 @@
  @module
  */
 
+import { existsSync, } from 'node:fs';
+import { join, } from 'node:path';
 import { readOrdinaryFile, } from './read-ordinary-file.ts';
 import {
   resolveSopsIdentity,
@@ -153,7 +155,13 @@ export type ValuesInTheAgeIdentity =
     readonly values: readonly SecretValue[];
     readonly source: string
   }
-    | { readonly cause: string };
+  // No identity is declared anywhere, which is a machine whose store this code would fail to read later, or none at all.
+    | { readonly absent: true }
+  // An identity was declared and cannot be read, which is a place a value stands that this code does not know.
+    | {
+      readonly unreadable: true;
+      readonly cause: string
+    };
 
 /**
  Reads the key that decrypts the store, which is the one value that opens every other one.
@@ -183,8 +191,14 @@ export async function valuesInTheAgeIdentity({
     environment,
     home,
   },);
-  if ('cause' in identity) {
-    return { cause: identity.cause, };
+  if ('absent' in identity) {
+    return { absent: true, };
+  }
+  if ('unreadable' in identity) {
+    return {
+      unreadable: true,
+      cause: identity.cause,
+    };
   }
   return valuesOfTheIdentity({ identity: identity.identity, },);
 }
@@ -206,7 +220,11 @@ async function identityOfThisMachine({
   readonly home: string;
 },): Promise<
   | { readonly identity: SopsIdentity }
-    | { readonly cause: string }
+    | { readonly absent: true }
+    | {
+      readonly unreadable: true;
+      readonly cause: string
+    }
   > {
   try {
     return { identity: await resolveSopsIdentity({
@@ -215,8 +233,73 @@ async function identityOfThisMachine({
     },), };
   }
   catch (error) {
-    return { cause: plainCauseOf(error,), };
+    if (!Error.isError(error,)) {
+      throw error;
+    }
+    // A machine that declares no identity has none to read: that is "not there", not "could not". One that declares an identity
+    // this code cannot use is a place a value stands that this code does not know.
+    return identityIsDeclared({
+      environment,
+      home,
+    },)
+      ? {
+        unreadable: true,
+        cause: plainCauseOf(error,),
+      }
+      : { absent: true, };
   }
+}
+
+/**
+ Says whether this machine declares an age identity, by one of the variables mise reads or by its own default file.
+
+ @param environment - the environment naming an identity
+
+ @param home - the home folder the default file is in
+
+ @returns whether an identity is declared at all
+
+ @example
+ ```ts
+ const declared = identityIsDeclared({ environment: process.env, home: '/home/a', },);
+ ```
+ */
+function identityIsDeclared({
+  environment,
+  home,
+}: {
+  readonly environment: EnvironmentOfThisMachine;
+  readonly home: string;
+},): boolean {
+  /**
+   Whether one of the variables an identity can be named by holds anything.
+   */
+  const named = [
+    'MISE_SOPS_AGE_KEY',
+    'MISE_SOPS_AGE_KEY_FILE',
+    'SOPS_AGE_KEY_FILE',
+    'SOPS_AGE_KEY',
+  ].some(function isSet(name,) {
+    /**
+     The variable's value.
+     */
+    const value = environment[name];
+    return ((typeof value) === 'string') && (value.trim() !== '');
+  },);
+  // The default file is the identity when it is there, even when it cannot be read: that is still a declaration. This asks the
+  // file system once, before Pi is started, for a path whose answer is a yes or a no.
+  // oxlint-disable-next-line no-restricted-syntax/no-sync -- one question of the file system at a run's start, not a stream.
+  return named || existsSync(join(
+    environment.MISE_CONFIG_DIR
+      ?? join(
+        environment.XDG_CONFIG_HOME ?? join(
+          home,
+          '.config',
+        ),
+        'mise',
+      ),
+    'age.txt',
+  ),);
 }
 
 /**
@@ -232,7 +315,10 @@ async function valuesOfTheIdentity({ identity, }: { readonly identity: SopsIdent
     readonly values: readonly SecretValue[];
     readonly source: string
   }
-    | { readonly cause: string }
+    | {
+      readonly unreadable: true;
+      readonly cause: string
+    }
   > {
   /**
    What a marker names this identity as: the variable that named it, or the file it is kept in.
@@ -267,7 +353,10 @@ async function valuesOfTheIdentity({ identity, }: { readonly identity: SopsIdent
     };
   }
   catch (error) {
-    return { cause: plainCauseOf(error,), };
+    return {
+      unreadable: true,
+      cause: plainCauseOf(error,),
+    };
   }
 }
 

@@ -11,6 +11,7 @@ import { join, } from 'node:path';
 import {
   MILLISECONDS_PER_SECOND,
   NESTED_RUN_VARIABLE,
+  NO_RUN_FAILURE,
 } from './driver-constants.ts';
 import {
   CLEAN_END_REASONS,
@@ -27,7 +28,6 @@ import {
 import {
   createSecretValueMasking,
   MASKING_NOTHING,
-  type MaskedDeeply,
   type SecretValue,
   type TextMasking,
 } from './secret-value-masking.ts';
@@ -48,6 +48,7 @@ import {
 import { startRecordOfPiRun, } from './record-of-pi-run.ts';
 import { startsOfARun, } from './starts-of-a-run.ts';
 import { endingLineOf, } from './the-line-a-driver-ends-with.ts';
+import { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
 import { maskTheSessionAtRest, } from './session-file-at-rest.ts';
 import { writeSummary, } from './write-summary.ts';
 
@@ -225,9 +226,13 @@ export async function supervisePiRun(
         return writeMasking.masking
           .maskText(text,);
       },
-      maskDeeply: function maskDeeplyInAFeedLine<Value>(value: Value,): MaskedDeeply<Value> {
+      maskData: function maskDataInAFeedLine(value,) {
         return writeMasking.masking
-          .maskDeeply(value,);
+          .maskData(value,);
+      },
+      heldBackSuffixLength: function heldBackForAFeedLine(text,) {
+        return writeMasking.masking
+          .heldBackSuffixLength(text,);
       },
     },
   },);
@@ -278,6 +283,30 @@ export async function supervisePiRun(
    */
   const maskingArguments = await maskingExtensionArguments({ folder: import.meta.dirname, },);
   /**
+   A session this run resumes is masked before Pi starts, so that no request Pi builds from it, its compaction among them, can carry
+   a value an earlier run left in it. Pi's own hooks cover what this run writes, and never what was already there.
+   */
+  if (options.session !== undefined) {
+    /**
+     What masking the resumed session found.
+     */
+    const resumed = await maskTheSessionAtRest({
+      sessionFile: options.session,
+      mask: writeMasking.masking,
+    },);
+    if (resumed.outcome === 'unmasked') {
+      // A value an earlier session holds, which this code cannot take out before Pi reads it: the run does not start.
+      throw new SecretEnvironmentUnreadableError({
+        source: `the session ${options.session}`,
+        cause: resumed.problem,
+      },);
+    }
+    record.note({
+      kind: 'session_resumed',
+      rewritten: resumed.outcome === 'rewritten',
+    },);
+  }
+  /**
    Where Pi's standard error is kept for every start of this run: a start that will not go on says why there and nowhere else, and
    one file holds what each start printed.
    */
@@ -318,6 +347,34 @@ export async function supervisePiRun(
     startFailures,
     startStoppedBy,
   } = starts;
+  /**
+   The session file the run leaves behind, which Pi reports in its own statistics and which a resumed run named itself.
+   */
+  const sessionFile = sessionFileIn({
+    sessionStats: putAway.sessionStats,
+    ...(options.session === undefined ? {} : { named: options.session, }),
+  },);
+  /**
+   What masking that file found: Pi's own hooks should have kept every value out of it, and this closes what no hook reaches.
+
+   It runs before the feed is closed and before the summary is written, because a session that still holds a value is a run that did
+   not finish clean, and the reader has to be told where that value is.
+   */
+  /**
+   What masking the session at rest found.
+   */
+  const sessionAtRest = ('absent' in sessionFile)
+    ? { outcome: 'absent' as const, }
+    : await maskTheSessionAtRest({
+      sessionFile: sessionFile.path,
+      mask: writeMasking.masking,
+    },);
+  if (sessionAtRest.outcome === 'unmasked') {
+    record.note({
+      kind: 'session_at_rest',
+      problem: sessionAtRest.problem,
+    },);
+  }
   await record.close();
   /**
    The error Pi settled on, when nothing after it recovered.
@@ -340,6 +397,12 @@ export async function supervisePiRun(
     modelError,
     feedProblem,
     piExit,
+    sessionAtRest: (sessionAtRest.outcome === 'unmasked')
+      ? {
+        failed: true,
+        problem: sessionAtRest.problem,
+      }
+      : NO_RUN_FAILURE,
   },);
   /**
    What the caller reads.
@@ -350,31 +413,10 @@ export async function supervisePiRun(
     piHasExited: lastConnection.hasExited(),
     sessionStats: putAway.sessionStats,
     piStartAttempts: starts.startsTaken,
+    ...((sessionAtRest.outcome === 'unmasked') ? { sessionAtRest: sessionAtRest.problem, } : {}),
     ...(startFailures.length === 0 ? {} : { piStartFailures: startFailures, }),
     ...(startStoppedBy === undefined ? {} : { piStartStoppedBy: startStoppedBy, }),
   },);
-  /**
-   The session file the run leaves behind, which Pi reports in its own statistics and which a resumed run named itself.
-   */
-  const sessionFile = sessionFileIn({
-    sessionStats: putAway.sessionStats,
-    ...(options.session === undefined ? {} : { named: options.session, }),
-  },);
-  /**
-   What masking that file found: Pi's own hooks should have kept every value out of it, and this closes what no hook reaches.
-   */
-  const sessionAtRest = ('path' in sessionFile)
-    ? await maskTheSessionAtRest({
-      sessionFile: sessionFile.path,
-      mask: writeMasking.masking,
-    },)
-    : { rewritten: false, };
-  if (sessionAtRest.problem !== undefined) {
-    record.note({
-      kind: 'session_at_rest',
-      problem: sessionAtRest.problem,
-    },);
-  }
   await writeSummary({
     runFolder: options.runFolder,
     summary,

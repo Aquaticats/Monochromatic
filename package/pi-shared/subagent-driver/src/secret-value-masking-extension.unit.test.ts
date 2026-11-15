@@ -419,14 +419,16 @@ await describe({
       },
     },),
     it({
-      name: 'answers nothing when no value stands in the result, so Pi keeps everything it had',
+      name: 'answers the result as data when no value stands in it, which is the same data Pi had',
       fn: async () => {
         const recording = armRecording();
         const masked = await maskOneResult(
           recording,
           bashResultOf({ text: 'a build finished in 3.4 s', },),
         );
-        expect(masked,).toBeUndefined();
+        // Every result goes through the one serialisation, so Pi gets plain data back whatever an object could do; when no value
+        // was armed the data is the same the tool gave.
+        expect(masked?.content,).toEqual([{ type: 'text', text: 'a build finished in 3.4 s', },],);
       },
     },),
     it({
@@ -474,7 +476,7 @@ await describe({
       },
     },),
     it({
-      name: 'answers nothing when a transcript holds no value, so the request is the one Pi built',
+      name: 'answers the transcript as data when it holds no value, which is the same transcript Pi built',
       fn: async () => {
         const recording = armRecording();
         const event: ContextWithSystemEvent = {
@@ -485,7 +487,9 @@ await describe({
             timestamp: 0,
           },],
         };
-        expect(maskTranscript(recording, event,),).toBeUndefined();
+        expect(
+          JSON.stringify(maskTranscript(recording, event,),),
+        ).toBe(JSON.stringify({ messages: event.messages, },),);
       },
     },),
     it({

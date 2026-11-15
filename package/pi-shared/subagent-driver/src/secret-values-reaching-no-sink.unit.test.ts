@@ -467,10 +467,13 @@ await describe({
       },
     },),
     it({
-      name: 'answers a tool result nothing was masked in with no patch, which Pi reads as unchanged',
+      name: 'answers a tool result as the same data when no value stands in it',
       fn: async () => {
         const masking = createSecretValueMasking({ values: VALUES, },);
-        expect(maskedToolResult({
+        /**
+         What masking a result of ordinary data found.
+         */
+        const answer = maskedToolResult({
           event: {
             type: 'tool_result',
             toolCallId: 'stand-in-call',
@@ -481,7 +484,12 @@ await describe({
             isError: false,
           } as never,
           masking,
-        },),).toBeUndefined();
+        },);
+        if ('withheld' in answer) {
+          throw new Error('a tool result of ordinary data was withheld',);
+        }
+        expect(answer.patch.content,).toEqual([{ type: 'text', text: 'ordinary result', },],);
+        expect(answer.patch.details,).toEqual({ ordinary: 'kept', },);
       },
     },),
   ],

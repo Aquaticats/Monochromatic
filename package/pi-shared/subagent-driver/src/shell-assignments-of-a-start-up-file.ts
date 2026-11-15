@@ -11,6 +11,7 @@
  */
 
 import { carriesCredentialName, } from './environment-without-credentials.ts';
+import { SecretEnvironmentUnreadableError, } from './secret-environment-unreadable-error.ts';
 
 //region Constants
 
@@ -118,11 +119,9 @@ export function writtenValue({ written, }: { readonly written: string },): Writt
     if (WORD_BREAKS.has(character,)) {
       return { value: characters.join('',), };
     }
-    // A `#` begins a comment only where a word begins, and a word break already ended the value above, so the only place a
-    // comment can start here is the value's own first character.
-    if ((character === '#') && (index === 0)) {
-      return { value: characters.join('',), };
-    }
+    // A `#` begins a comment only where a word begins, and a word break already ended the value above. Right after the `=` there
+    // is no word break, so bash takes `A=#x` as the value `#x` and a comment needs the space of `A= #x`.
+    
     if ((character === '\\') && ((written[index + 1] ?? '') !== '')) {
       characters.push(written[index + 1] ?? '',);
       index += 1;
@@ -197,10 +196,34 @@ export function exportedCredentialValues({
       continue;
     }
     /**
+     Which line this is, counting from one, which a reader has to fix a value it cannot give.
+     */
+    const lineNumber = text.slice(
+      0,
+      assignment.index,
+    )
+      .split('\n',)
+      .length;
+    /**
      The value the shell exports.
      */
     const read = writtenValue({ written, },);
-    if ((!('value' in read)) || (read.value === '')) {
+    if ('computed' in read) {
+      // The shell computes this one when it loads, so this code cannot know the credential it holds: the run does not start
+      // without it.
+      throw new SecretEnvironmentUnreadableError({
+        source: `${fileName} line ${String(lineNumber,)}`,
+        cause: `${name} is computed by the shell when it loads, so the value it exports cannot be read here; write the credential out in the file, or take it out of it`,
+      },);
+    }
+    if ('malformed' in read) {
+      throw new SecretEnvironmentUnreadableError({
+        source: `${fileName} line ${String(lineNumber,)}`,
+        cause: `the value of ${name} does not close its quoting, so the value the shell exports cannot be read here`,
+      },);
+    }
+    if (read.value === '') {
+      // An empty value exports nothing, which is a value this file declares and nobody can print.
       continue;
     }
     assignments.push({

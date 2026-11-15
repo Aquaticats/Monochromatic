@@ -38,6 +38,7 @@ import {
 import {
   armTheStandInMasking,
   answerCommands,
+  sessionHoldsAValue,
   type StandInMasking,
 } from './stand-in-pi-masking-fixture.ts';
 import {
@@ -366,6 +367,19 @@ await appendFile(
     return value.name;
   },),)}\n`,
 );
+/**
+ Whether the session Pi was handed holds an armed value as Pi starts, which is a yes or a no and never a value.
+ */
+const sessionValue = await sessionHoldsAValue({
+  masking,
+  ...(env.STAND_IN_PI_SESSION_FILE === undefined ? {} : { sessionFile: env.STAND_IN_PI_SESSION_FILE, }),
+},);
+if ((typeof sessionValue) === 'string') {
+  await appendFile(
+    log,
+    `marker ${sessionValue}\n`,
+  );
+}
 if (scenario === 'crash') {
   exit(CRASH_STATUS,);
 }

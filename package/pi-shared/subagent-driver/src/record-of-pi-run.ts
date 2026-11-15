@@ -236,9 +236,21 @@ export function startRecordOfPiRun({
    */
   function note(entry: PiRecord,): void {
     activity.at = now();
-    // One boundary for every line: the entry is masked whole, so a field nobody thought of is covered as the ones that were.
-    feed.note(mask.maskDeeply(entry,)
-      .value,);
+    // One boundary for every line: the entry is masked as the data it serialises to, so a field nobody thought of, a key, and a
+    // method an object carries are all covered by the same answer.
+    /**
+     The entry as data, or why it could not be masked.
+     */
+    const masked = mask.maskData(entry,);
+    feed.note(
+      ('value' in masked)
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the line's own fields are what the round trip proved.
+        ? masked.value as PiRecord
+        : {
+          kind: 'withheld',
+          cause: masked.cause,
+        },
+    );
   }
 
   /**
@@ -326,6 +338,7 @@ export function startRecordOfPiRun({
       piStartAttempts,
       piStartFailures,
       piStartStoppedBy,
+      sessionAtRest,
     },) {
       return {
         endReason,
@@ -343,6 +356,7 @@ export function startRecordOfPiRun({
         piStartAttempts: piStartAttempts ?? 1,
         ...(piStartFailures === undefined ? {} : { piStartFailures, }),
         ...(piStartStoppedBy === undefined ? {} : { piStartStoppedBy, }),
+        ...(sessionAtRest === undefined ? {} : { sessionAtRest, }),
         ...modelErrorOf({
           run: observed,
           retries: state.retriesSinceAnswer,

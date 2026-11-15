@@ -11,12 +11,7 @@
  @module
  */
 
-import { randomBytes, } from 'node:crypto';
-import {
-  rename,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { replaceAFileWithItsMaskedText, } from './replacing-a-file-only-if-it-is-the-one-that-was-read.ts';
 // oxlint-disable-next-line no-restricted-syntax/no-system-tmpdir -- this names the folder Pi writes its own output files in; nothing of this package is written there.
 import { tmpdir, } from 'node:os';
 import {
@@ -30,9 +25,12 @@ import type { SecretValueMasking, } from './secret-value-masking.ts';
 //region Constants
 
 /**
- How Pi names a file it keeps a tool's whole output in: this prefix, then random hex.
+ The whole of the name Pi gives a file it keeps a tool's whole output in: `pi-output-`, sixteen random hex characters, then an
+ extension (`dist/utils/output-files.js` in Pi 1.5.2, `randomBytes(8).toString("hex")`). A file whose name is not that is somebody
+ else's, whatever the prefix says.
  */
-const PI_OUTPUT_FILE_NAME_PREFIX = 'pi-output-';
+// oxlint-disable-next-line no-restricted-syntax/no-regex -- the whole name Pi gives one file is a shape, and the pattern is anchored with bounded runs.
+const PI_OUTPUT_FILE_NAME_PATTERN = /^pi-output-[0-9a-f]{16}(?:\.[^/]*)?$/u;
 
 /**
  How many random bytes the file of its own is named with, which is what keeps two rewrites of one folder apart.
@@ -94,11 +92,11 @@ export function spareCopyOfToolOutput({
     return { absent: true, };
   }
   /**
-   Whether the path is where Pi could have written the file: its own folder, and its own prefix on the name.
+   Whether the path is where Pi could have written the file: its own folder, and the whole of its own naming rule, which is not the
+   prefix alone.
    */
   const isPiOwn = (dirname(path,) === piOutputFolder)
-    && basename(path,)
-      .startsWith(PI_OUTPUT_FILE_NAME_PREFIX,);
+    && PI_OUTPUT_FILE_NAME_PATTERN.test(basename(path,),);
   return isPiOwn ? { path, } : { absent: true, };
 }
 
@@ -131,12 +129,15 @@ async function textOfTheSpareCopy({ path, }: { readonly path: string },): Promis
 /**
  Masks the file Pi saved a truncated tool output in, so a value masked in what the model reads is not left in what Pi wrote.
 
+ The masked text goes to a file of its own beside the original and is renamed over it, and only while the path still names the file
+ that was read: a file another command wrote in between is read and masked on the next turn, not lost.
+
  @param path - the file Pi saved the output in
 
  @param masking - the masking
 
  @returns why the file could not be rewritten, when it could not
- 
+
  @example
  ```ts
  const problem = await maskSpareCopyOfToolOutput({ path, masking, },);
@@ -150,53 +151,15 @@ export async function maskSpareCopyOfToolOutput({
   readonly masking: SecretValueMasking;
 },): Promise<{ readonly problem?: string }> {
   /**
-   The file's text, or nothing when it is not a file this code may rewrite.
+   What replacing the file found.
    */
-  const text = await textOfTheSpareCopy({ path, },);
-  if ('absent' in text) {
-    return {};
-  }
-  /**
-   The same text with every value masked.
-   */
-  const masked = masking.maskText(text.text,);
-  if (masked === text.text) {
-    return {};
-  }
-  /**
-   The file of its own the masked text goes to first.
-   */
-  const replacement = `${path}.masked-${randomBytes(
-    REPLACEMENT_NAME_BYTES,
-  )
-    .toString('hex',)}`;
-  try {
-    await writeFile(
-      replacement,
-      masked,
-      {
-        mode: PRIVATE_FILE_MODE,
-        flag: 'wx',
-      },
-    );
-    await rename(
-      replacement,
-      path,
-    );
-    return {};
-  }
-  catch (error) {
-    // Whatever failed, the original is still the whole original: the replacement is a file of its own that never got in its way.
-    await rm(
-      replacement,
-      { force: true, },
-    );
-    return {
-      problem: `the whole output of a masked tool result could not be rewritten, so the file keeps what Pi wrote: ${
-        Error.isError(error,) ? error.name : 'a failure'
-      }`,
-    };
-  }
+  const replaced = await replaceAFileWithItsMaskedText({
+    path,
+    maskText: masking.maskText,
+  },);
+  return ('problem' in replaced)
+    ? { problem: `the whole output of a masked tool result could not be rewritten, so the file keeps what was written: ${replaced.problem}` }
+    : {};
 }
 
 //endregion Putting the masked text in its place

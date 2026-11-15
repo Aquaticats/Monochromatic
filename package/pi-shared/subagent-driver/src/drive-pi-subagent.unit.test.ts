@@ -140,6 +140,30 @@ function folderOfSops(): readonly string[] {
 }
 
 /**
+ Takes a folder's permission to make a new file away for as long as the test's scope lasts, and gives it back after.
+
+ @param folder - the folder
+
+ @returns a disposer that gives the mode back
+ */
+async function refuseNewFiles({ folder, }: { readonly folder: string },): Promise<{
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  await chmod(
+    folder,
+    0o500,
+  );
+  return {
+    async [Symbol.asyncDispose]() {
+      await chmod(
+        folder,
+        0o700,
+      );
+    },
+  };
+}
+
+/**
  How long a run whose Pi answers nothing may last, in seconds: long enough for the start's own bound to end the wait for the
  command list, and short enough that the test spends no minute on it.
  */
@@ -1874,6 +1898,80 @@ await describe({
         expect(run.standardError,).not.toContain(MASKED_STORE_VALUE,);
         // No Pi was started, so the stand-in wrote nothing: a run whose masking cannot be armed does not begin.
         expect(run.logWasWritten,).toBe(false,);
+      },
+    },),
+    it({
+      name: 'masks the session a run resumes before Pi can read a value out of it',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        await using sessionFolder = await makeFolder();
+        /**
+         The session this run resumes, holding a value an earlier run left in it.
+         */
+        const sessionFile = join(sessionFolder.path, 'resumed.jsonl',);
+        await writeFile(
+          sessionFile,
+          `${JSON.stringify({ type: 'message', message: { role: 'user', content: `an old session holds ${MASKED_STORE_VALUE}`, }, },)}\n`,
+        );
+        const run = await runDriver({
+          scenario: 'normal',
+          extraOptions: [`--session=${sessionFile}`,],
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+            STAND_IN_PI_SESSION_FILE: sessionFile,
+          },
+        },);
+        expect(run.summary.endReason,).toBe('idle',);
+        // What Pi was handed held no value at the moment it started, which is what covers its own compaction request.
+        expect(run.feed.find((entry,) => entry.kind === 'session_resumed',)?.rewritten,).toBe(true,);
+        expect(run.markers,).toContain('session-holds-armed-value no',);
+        /**
+         What the session holds once the run is over.
+         */
+        const kept = await readFile(
+          sessionFile,
+          'utf8',
+        );
+        expect(kept,).not.toContain(MASKED_STORE_VALUE,);
+      },
+    },),
+    it({
+      name: 'does not end clean when the session a run leaves still holds a value',
+      fn: async () => {
+        await using store = await createSopsFixture({ values: { [MASKED_STORE_NAME]: MASKED_STORE_VALUE, }, },);
+        await using sessionFolder = await makeFolder();
+        /**
+         The session Pi reports, holding a value no hook of this run would have seen.
+         */
+        const sessionFile = join(sessionFolder.path, 'session.jsonl',);
+        await writeFile(
+          sessionFile,
+          `${JSON.stringify({ type: 'custom', customType: 'an-extension', data: { credential: MASKED_STORE_VALUE, }, },)}\n`,
+        );
+        // The folder takes no new file for as long as this scope lasts, so the masked text cannot be put beside the session.
+        await using writable = await refuseNewFiles({ folder: sessionFolder.path, },);
+        void writable;
+        const run = await runDriver({
+          scenario: 'normal',
+          extraPathEntries: folderOfSops(),
+          environment: {
+            ENV_LOCAL_JSON_PATH: store.storePath,
+            SOPS_AGE_KEY_FILE: store.identityPath,
+            STAND_IN_PI_SESSION_FILE: sessionFile,
+          },
+        },);
+        expect(run.summary.endReason,).toBe('session-unmasked',);
+        expect(run.status,).not.toBe(CLEAN_STATUS,);
+        // The feed says where the value still is, before it is closed.
+        expect(run.feed.some((entry,) => entry.kind === 'session_at_rest',),).toBe(true,);
+        expect(String(run.summary.sessionAtRest,),).toContain('session.jsonl',);
+        // The session is left exactly as it was, which is the person's file rather than a half-written one.
+        expect(await readFile(
+          sessionFile,
+          'utf8',
+        ),).toContain(MASKED_STORE_VALUE,);
       },
     },),
     it({
