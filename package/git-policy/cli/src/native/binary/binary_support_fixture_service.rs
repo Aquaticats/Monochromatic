@@ -590,7 +590,7 @@ impl FixtureService {
                 panic!(
                     "the fixture's commit service ended ({status}) before it listened at {}; what it wrote was:\n{}",
                     git_policy_cli::service_server::address_text(&address),
-                    crate::support_fixture_service_log::quoted(crate::support_fixture_service_log::service_log(fixture.root.as_path()).as_str())
+                    crate::support_fixture_service_log::service_log(fixture.root.as_path())
                 );
             }
             // A service that is starting on a loaded host is working: it reads its configuration, opens its log and binds

@@ -829,7 +829,7 @@ fn a_deliberate_failure_quotes_a_fixture_s_service_words() {
     let _settled: bool = wait_for_the_copies(&mut copies, root.as_path(), SERVICE_LOG_END_BOUND);
     panic!(
         "a control that fails on purpose; what its fixture's service said was:\n{}",
-        quoted(service_log(root.as_path()).as_str())
+        service_log(root.as_path())
     );
 }
 
