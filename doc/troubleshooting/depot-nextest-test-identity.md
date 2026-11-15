@@ -72,7 +72,7 @@ it does not implement this classname mapping.
 ## Verification
 
 The [adapter evidence](../audit/depot-tests-identity-adapter-2026-10-18.evidence.json)
-and [source archive](../audit/depot-tests-identity-adapter-2026-10-18.sources.json.gz)
+and source archive (`../audit/depot-tests-identity-adapter-2026-10-18.sources.json.gz`)
 retain exact source,
 raw and derived reports,
 original ZIPs,
@@ -81,6 +81,8 @@ and control outcomes.
 The producer executable's SHA256 is
 `53470cfc9b5cbcd96780db2d348700d76af962467503791f1f8a8824d8967e5c`.
 It reports the matching Nextest version and commit.
+`depot-tests-identity-adapter-2026-10-18.sources.json.gz` left the tree on 2026-11-13.
+`doc/audit/removed-archives-and-where-history-holds-each.md` holds the commit and the command that prints it.
 
 The passing catalog consists of the original 34-case XML,
 both original 17-case XML reports,

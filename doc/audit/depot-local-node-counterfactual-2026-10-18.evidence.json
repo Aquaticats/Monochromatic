@@ -5,7 +5,19 @@
   "admission": {
     "path": "doc/audit/depot-local-node-counterfactual-admission-2026-10-18.evidence.json",
     "bytes": 3700,
-    "sha256": "e02c3b7516bf093882af54deaff10dcc8db2116f6993afa69bc5c739ec563b0b"
+    "sha256": "e02c3b7516bf093882af54deaff10dcc8db2116f6993afa69bc5c739ec563b0b",
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": 4079,
+        "sha256": "63213b310ac64dff67f28b8443f78db1ef067896a076017f1b5fda2e56b63d42",
+        "removedFromTree": false,
+        "historyCommand": null,
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "legs": [
     {
@@ -464,7 +476,19 @@
     "gzipSha256": "bf7243ebbd570e912bf84fdca493c0c5a6ffda3de40211a9abdba97edc6a482d",
     "uncompressedBytes": 182003,
     "uncompressedSha256": "783dff2cb05399505e8e81e359b3fe536c719d82c9c1a1b3ac32b37db4797739",
-    "bodies": 14
+    "bodies": 14,
+    "inTreeNow": [
+      {
+        "measuredOn": "2026-11-13",
+        "bytes": null,
+        "sha256": null,
+        "removedFromTree": true,
+        "historyCommand": "git show 1b29e57f37ea1a698501870026d7de1f07ebdf5d:doc/audit/depot-local-node-counterfactual-2026-10-18.sources.json.gz",
+        "record": "doc/audit/removed-archives-and-where-history-holds-each.md",
+        "keptAs": null,
+        "note": null
+      }
+    ]
   },
   "causalQualification": {
     "fixturePath": "With logger write access and verbosity held constant, adding only the untracked fixtures -> fixture alias changes the four entry-resolution failures to four authored passes",

@@ -1,0 +1,2 @@
+{"file":"internal/persistent-vector.ts","replaced":"export const VIEW_THRESHOLD = 1024;","with":"export const VIEW_THRESHOLD = 2;"}
+{"file":"internal/input-buffer-view.ts","replaced":"export const VIEW_THRESHOLD = 16384;","with":"export const VIEW_THRESHOLD = 2;"}

@@ -157,6 +157,8 @@ async function sendFirstPrompt({
     record.countHandledPrompt();
   }
   if ((answer.ending === 'answered') && (!answeredRefusal(answer,))) {
+    // Pi took the prompt, which is where work may begin: a Pi that leaves after this is never started again.
+    record.countPromptTaken();
     return { endReason: 'still-running', };
   }
   return {

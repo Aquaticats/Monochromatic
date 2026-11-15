@@ -18,6 +18,7 @@ use crate::service_instance::LEGACY_SOCKET_RELATIVE;
 use crate::service_messages::ClientFailure;
 use crate::service_provision_host_and_manager::{LEGACY_SERVICE_UNIT_NAME, LEGACY_SOCKET_UNIT_NAME, Manager, ProvisionHost, refusal, runtime_unit_dir};
 use crate::service_provision_unit_file_ownership_and_writes::{any_named_anywhere, carries_own_marker, is_own_unit_file, remove_settled};
+use crate::service_server::Bind;
 use crate::systemd_dbus::{CallError, EXCHANGE_WAIT, NO_SUCH_UNIT};
 use std::path::PathBuf;
 
@@ -106,7 +107,8 @@ pub(crate) fn retire_earlier_service(host: &ProvisionHost, manager: &mut dyn Man
         return Ok(false);
     }
     if !units.is_empty() {
-        ask_to_retire(socket_file.as_path());
+        // The earlier release never listened at an abstract name: its unit names a file under the runtime directory.
+        ask_to_retire(&Bind::Path(socket_file.clone()));
         // The time spent asking the earlier service to retire is not taken from the stop calls.
         manager.within(EXCHANGE_WAIT);
         // The socket first, so that the manager cannot start the service again for a connection that arrives meanwhile.
@@ -142,6 +144,8 @@ fn stop_units(manager: &mut dyn Manager, units: &[&str]) -> Result<(), ClientFai
         match manager.stop(name) {
             Ok(()) => {}
             Err(CallError::Manager { name: error, .. }) if error == NO_SUCH_UNIT => {}
+            // What: The stop calls follow the one exchange's time the retirement sets before them.
+            // Why:  A stop that ran out of that time names it, and every other refusal leaves the time unread.
             Err(error) => return Err(refusal(error)),
         }
     }
@@ -230,6 +234,8 @@ fn wait_until_stopped(host: &ProvisionHost, manager: &mut dyn Manager, units: &[
             let state: Option<String> = match manager.active_state(name) {
                 Ok(found) => found,
                 Err(CallError::TimedOut) => return Err(still_stopping(host, name)),
+                // A question that is answered with anything else leaves this wait; a timeout above is the retirement's
+                //  own budget, and the time the exchange gets is what a refusal itself names.
                 Err(error) => return Err(refusal(error)),
             };
             if matches!(&state, Some(text) if !matches!(text.as_str(), "inactive" | "failed")) {
