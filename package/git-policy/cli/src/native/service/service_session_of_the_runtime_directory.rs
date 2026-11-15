@@ -135,7 +135,7 @@ pub(crate) fn same_place(left: &Path, right: &Path) -> bool {
         return true;
     }
     return match (std::fs::canonicalize(left), std::fs::canonicalize(right)) {
-        (Ok(left), Ok(right)) => left == right,
+        (Ok(resolved_left), Ok(resolved_right)) => resolved_left == resolved_right,
         _ => false,
     };
 }

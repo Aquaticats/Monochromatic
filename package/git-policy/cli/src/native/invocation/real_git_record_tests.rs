@@ -74,10 +74,10 @@ fn two_starts_that_remember_at_once_both_succeed() {
         let mut threads: Vec<std::thread::JoinHandle<(PathBuf, std::io::Result<()>)>> = Vec::new();
         for git in [first.clone(), second.clone()] {
             let gate: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&barrier);
-            let runtime: PathBuf = round_runtime.clone();
+            let place: PathBuf = round_runtime.clone();
             threads.push(std::thread::spawn(move || {
                 gate.wait();
-                return (git.clone(), super::remember(runtime.as_path(), git.as_path()));
+                return (git.clone(), super::remember(place.as_path(), git.as_path()));
             }));
         }
         for thread in threads {
