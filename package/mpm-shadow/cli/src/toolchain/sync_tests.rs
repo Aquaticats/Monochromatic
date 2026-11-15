@@ -512,3 +512,52 @@ fn an_install_keeps_the_version_the_current_link_names() {
 }
 
 //endregion the cleanup of old versions an install runs
+
+
+
+/// A runner that records the ceiling of every request it is given, and answers as a program that printed nothing.
+#[derive(Default)]
+struct RecordingCeilings {
+    ceilings: std::cell::RefCell<Vec<Option<std::time::Instant>>>,
+}
+
+impl super::runner::Runner for RecordingCeilings {
+    fn run(&self, request: &super::runner::RunRequest) -> super::runner::RunOutcome {
+        self.ceilings.borrow_mut().push(request.deadline);
+        return super::runner::RunOutcome { stdout: String::new(), stderr: String::new(), code: 0 };
+    }
+}
+
+/// What:
+/// A postinstall command is started with a ceiling, not with no bound at all.
+/// Why:
+/// A commit hook runs this program, and a postinstall command that never ends must not hold the install forever; the
+/// request type has no "no ceiling" value, and this control says the postinstall step names one.
+#[test]
+fn hands_a_postinstall_command_a_ceiling() {
+    let mut rig = Rig::new();
+    let program = shadow_bin_dir(&rig).join("mpm-shadow");
+    write_executable(&program);
+    rig.lock.tools[7].declaration.options.postinstall = Some(Postinstall::Run(PostinstallRun {
+        source_bin: "mpm-shadow".to_string(),
+        args: Vec::new(),
+    }));
+    let tools = vec![rig.lock.tool("cargo:monochromatic-mpm-shadow").expect("the shadow tool is in the sample lock")];
+    let recording = RecordingCeilings::default();
+    let context = super::context::Context {
+        scope: &rig.scope,
+        env: &rig.env,
+        runner: &recording,
+        http: &rig.http,
+        host: &rig.host,
+        tools: &rig.lock.tools,
+    };
+
+    let report = run_postinstall_commands(&context, &tools);
+
+    let ceilings = recording.ceilings.borrow().clone();
+    assert!(!ceilings.is_empty(), "the postinstall step started no program: {report:?}");
+    for ceiling in &ceilings {
+        assert!(ceiling.is_some(), "the postinstall request names no ceiling at all");
+    }
+}

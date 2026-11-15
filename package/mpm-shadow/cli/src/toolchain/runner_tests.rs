@@ -109,3 +109,36 @@ fn ends_a_child_at_the_deadline_it_was_given() {
         "the outcome does not say the child was ended: {outcome:?}"
     );
 }
+
+
+/// What:
+/// A request returns at its ceiling even when a grandchild inherited the output pipe and holds it open.
+/// Why:
+/// What a request waits for is the child's ending and the end of its output; a descendant that holds a pipe must not
+/// hold the request, and a Git that forks a helper is exactly that shape.
+#[test]
+fn ends_a_request_while_a_grandchild_holds_the_pipe() {
+    let directory = scratch();
+    let fifo = directory.path().join("release-the-grandchild.fifo");
+    let made = std::process::Command::new("mkfifo").arg(&fifo).status().expect("start mkfifo");
+    assert!(made.success(), "mkfifo failed: {made}");
+    let ceiling = std::time::Instant::now() + std::time::Duration::from_millis(50);
+    let request = RunRequest::new(
+        "/bin/sh",
+        &["-c", "read release < \"$1\" & exit 0", "sh", fifo.to_str().expect("UTF-8 fifo path")],
+    )
+    .with_deadline(ceiling);
+    let running = std::thread::spawn(move || ProcessRunner.run(&request));
+
+    std::thread::sleep(std::time::Duration::from_millis(250));
+    let returned_before_release = running.is_finished();
+
+    // Always release the grandchild before asserting, so the control leaves nothing blocked.
+    std::fs::write(&fifo, b"release\n").expect("release the grandchild");
+    let outcome = running.join().expect("join the bounded runner");
+    assert!(
+        returned_before_release,
+        "the direct child exited and its 50 ms ceiling passed, but the runner stayed blocked until the grandchild's \
+         pipe closed; outcome={outcome:?}"
+    );
+}

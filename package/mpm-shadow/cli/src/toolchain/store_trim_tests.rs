@@ -37,7 +37,7 @@ use crate::toolchain::fixtures::sample_scope_on_disk;
 use crate::toolchain::http::NoNetwork;
 use crate::toolchain::published_archive::is_finished;
 use crate::toolchain::scope::EnvMap;
-use crate::toolchain::store_trim::trim_after_install_with;
+use crate::toolchain::store_trim::{finish_removals_with, trim_after_install_with};
 use crate::toolchain::store_trim::{MAX_AGE_FLOOR, MAX_WORK_LIMIT, format_span};
 use crate::toolchain::store_versions::{TOMBSTONE_PREFIX, judged_of_tree, record_of, removal_markers, tombstone_of, write_judged};
 use crate::test_scratch::scratch;
@@ -2281,3 +2281,124 @@ fn hands_the_cleanup_work_limit_to_the_git_it_starts() {
 }
 
 //endregion what the one function proves, and what the seventh review found
+
+
+//region the ninth review: the names on disk, the locks read before recovery, and the archives in flight
+
+/// What:
+/// A sync that recovers a killed deletion reads the lock first, so a version the current lock names keeps its tree.
+/// Why:
+/// Recovery ran before any lock was read, so a tree a killed cleanup left under a deletion name was deleted though the
+/// lock named its version.
+#[test]
+fn keeps_a_deletion_tree_the_lock_names_when_a_sync_recovers() {
+    let (_directory, scope, env) = sample_scope_on_disk();
+    let store: PathBuf = scope.toolchain_root.clone();
+    fs::write(&scope.lock_file, r#"{"tools":{"node":{"version":"20.0.0","route":"archive"}}}"#)
+        .expect("write the lock naming the interrupted version");
+    let version: PathBuf = store.join("node/20.0.0");
+    let deleting: PathBuf = crate::toolchain::store_versions::deleting_of(&tombstone_of(&version));
+    fs::create_dir_all(&deleting).expect("make the interrupted deletion tree");
+    fs::write(deleting.join("surviving-user-data"), b"must remain").expect("write surviving data");
+    fs::write(unfinished_marker(&store), b"").expect("make recovery run");
+    let runner = FakeRunner::new();
+    runner.answer("git -C", &format!("worktree {}\nHEAD abc\n\n", scope.root.display()), 0);
+    let host = Host::current();
+    let context = Context { scope: &scope, env: &env, runner: &runner, http: &NoNetwork, host: &host, tools: &[] };
+
+    trim_after_install_with(&context, &[], Some(StoreHolders::default()));
+
+    assert!(
+        deleting.join("surviving-user-data").exists(),
+        "the lock named node 20.0.0, but a sync's recovery deleted the surviving data before reading that lock"
+    );
+}
+
+/// What:
+/// A deletion name carries the version last, however many removal prefixes stand in front of it.
+/// Why:
+/// A normal removal renames a version to its removal name and the deletion renames that again, so a killed deletion
+/// leaves a name two prefixes deep; reading the version as the remainder after one prefix made a lock that names that
+/// version match nothing.
+#[test]
+fn keeps_a_double_prefixed_deletion_tree_a_lock_names() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/20.0.0");
+    let deleting: PathBuf = crate::toolchain::store_versions::deleting_of(&tombstone_of(&version));
+    fs::create_dir_all(&deleting).expect("make the normal interrupted deletion tree");
+    fs::write(deleting.join("surviving-user-data"), b"must remain").expect("write surviving data");
+    let lock: PathBuf = fixture.root.join("toolchain.lock.json");
+    fs::write(&lock, r#"{"tools":{"node":{"version":"20.0.0","route":"archive"}}}"#)
+        .expect("write the lock naming the interrupted version");
+    let named = read_named_versions(std::slice::from_ref(&lock));
+    let parsed = crate::toolchain::store_versions::removal_markers(&fixture.root);
+    assert_eq!(parsed.len(), 1, "{parsed:?}");
+    assert_eq!(parsed[0].version, "20.0.0", "the version is the name's last part, after every prefix: {parsed:?}");
+
+    let finished = finish_removals_with(&fixture.run(), &named);
+
+    assert!(
+        deleting.join("surviving-user-data").exists(),
+        "the lock-aware pass deleted data although the lock names 20.0.0; lines={:?}",
+        finished.lines
+    );
+}
+
+/// What:
+/// An unreadable lock keeps a killed deletion's tree, because it may name that version.
+/// Why:
+/// What the pass could not read it takes for present.
+#[test]
+fn keeps_a_deletion_tree_when_a_lock_cannot_be_read() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/20.0.0");
+    let deleting: PathBuf = crate::toolchain::store_versions::deleting_of(&tombstone_of(&version));
+    fs::create_dir_all(&deleting).expect("make the interrupted deletion tree");
+    fs::write(deleting.join("surviving-user-data"), b"must remain").expect("write surviving data");
+    let named = crate::toolchain::store_trim::NamedVersions {
+        by_tool: std::collections::BTreeMap::new(),
+        unreadable: Some("the lock cannot be read".to_string()),
+    };
+
+    let finished = finish_removals_with(&fixture.run(), &named);
+
+    assert!(
+        deleting.join("surviving-user-data").exists(),
+        "a tree was deleted while a lock that may name it could not be read: {:?}",
+        finished.lines
+    );
+}
+
+/// What:
+/// The only complete archive is kept while the replacement download is still in flight.
+/// Why:
+/// A live downloads directory that holds only a partial download is not a finished replacement; deleting the
+/// moved-aside archives loses the only complete copy.
+#[test]
+fn keeps_the_only_complete_archive_while_a_replacement_downloads() {
+    let fixture = Fixture::new();
+    let version: PathBuf = fixture.root.join("node/26.11.0");
+    assert!(version.join("program").exists(), "the live version must exist");
+    let downloads: PathBuf = fixture.root.join("downloads/node/26.11.0");
+    let marker: PathBuf = tombstone_of(&downloads);
+    fs::create_dir_all(&downloads).expect("make the complete archives");
+    fs::write(downloads.join("complete-archive"), b"the only complete archive").expect("write the complete archive");
+    fs::rename(&downloads, &marker).expect("model the interrupted archive move");
+    fs::create_dir_all(&downloads).expect("start replacement downloads");
+    fs::write(downloads.join("replacement.tar.download"), b"partial replacement").expect("write an in-flight download");
+
+    let finished = finish_removals(&fixture.run());
+
+    assert!(
+        marker.join("complete-archive").exists(),
+        "recovery deleted the only complete archive and left just an in-flight download: {:?}",
+        finished.lines
+    );
+    assert!(
+        finished.lines.iter().any(|line| return line.contains("in flight")),
+        "the line does not say why the archives stayed: {:?}",
+        finished.lines
+    );
+}
+
+//endregion the ninth review: the names on disk, the locks read before recovery, and the archives in flight
