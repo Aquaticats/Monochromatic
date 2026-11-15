@@ -96,6 +96,33 @@ pub(crate) struct TheMarker {
     pub(crate) to: PathBuf,
     /// The add that began the filling, as its process and the moment it asked.
     pub(crate) begun_by: String,
+    /// Whether the run that wrote the marker also made the clean's target directory beside the staging
+    /// name, which is what lets a later run remove that directory.
+    /// A marker that does not say so proves nothing about a directory at the target name,
+    /// and one written by a release that never wrote this field says nothing either.
+    pub(crate) made_target: bool,
+}
+
+/// What a marker records about the names beside the build directory it claims.
+/// Why:
+///   A name is not proof that a thing is this job's,
+///  so the marker is where a run writes down the directories it made:
+///  the staging name always,
+///  because the marker is written before anything is cloned into it,
+///  and the clean's target directory only when the run that writes the marker made it.
+///  The add writes a marker before its move aside and makes no target directory,
+///  so its marker records the staging alone and a later filling cleans into a directory of its own.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type WhatTheMarkerRecords = 'theStaging' | 'theStagingAndItsTarget';
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WhatTheMarkerRecords {
+    /// The staging name alone.
+    TheStaging,
+    /// The staging name and the target directory beside it, both made by the run that wrote the marker.
+    TheStagingAndItsTarget,
 }
 
 /// What:
@@ -133,7 +160,7 @@ pub(crate) enum TheMarkerThere {
 ///
 /// A build directory whose path is not UTF-8,
 /// which no marker could name back.
-fn marker_text(to: &Path, begun_by: &str) -> Result<Vec<u8>, String> {
+fn marker_text(to: &Path, begun_by: &str, records: WhatTheMarkerRecords) -> Result<Vec<u8>, String> {
     let Some(named) = to.to_str() else {
         return Err(format!("{} is not valid UTF-8, so no marker can name the build directory it takes", to.display()));
     };
@@ -142,6 +169,9 @@ fn marker_text(to: &Path, begun_by: &str) -> Result<Vec<u8>, String> {
     fields.insert(String::from("repair"), serde_json::Value::from(CARGO_PREWARM_REPAIR));
     fields.insert(String::from("to"), serde_json::Value::from(named));
     fields.insert(String::from("begunBy"), serde_json::Value::from(begun_by));
+    if records == WhatTheMarkerRecords::TheStagingAndItsTarget {
+        fields.insert(String::from("madeTarget"), serde_json::Value::from(true));
+    }
     let claimed: String = serde_json::Value::Object(fields).to_string();
     let mut text: Vec<u8> = Vec::with_capacity(MARKER_LEAD.len() + claimed.len() + 1);
     text.extend_from_slice(MARKER_LEAD.as_bytes());
@@ -191,7 +221,14 @@ pub(crate) fn the_marker_there(marker: &Path) -> TheMarkerThere {
     if repair != CARGO_PREWARM_REPAIR || begun_by.is_empty() {
         return TheMarkerThere::SomebodyElses;
     }
-    return TheMarkerThere::ThisJobs(TheMarker { to: PathBuf::from(to), begun_by: String::from(begun_by) });
+    // A marker of a release that never wrote the record says nothing about the target directory, and a value that is
+    //  not the boolean this job writes is somebody's edit rather than this job's claim on a directory.
+    let made_target: bool = match parsed.get("madeTarget") {
+        None => false,
+        Some(serde_json::Value::Bool(true)) => true,
+        Some(_) => return TheMarkerThere::SomebodyElses,
+    };
+    return TheMarkerThere::ThisJobs(TheMarker { to: PathBuf::from(to), begun_by: String::from(begun_by), made_target });
 }
 
 /// What:
@@ -204,6 +241,7 @@ pub(crate) fn the_marker_there(marker: &Path) -> TheMarkerThere {
 /// ```ts
 /// const markerClaims = (marker, destination) => theMarkerThere(marker).claim?.to === destination;
 /// ```
+#[cfg(test)]
 pub(crate) fn marker_claims(marker: &Path, destination: &Path) -> bool {
     return matches!(the_marker_there(marker), TheMarkerThere::ThisJobs(claim) if claim.to == destination);
 }
@@ -267,7 +305,7 @@ pub(crate) enum TheMarkersAnswer {
 
 /// What:
 ///  Write the marker that claims the two names of one workspace,
-///  naming the build directory it stages and the add that began it,
+///  naming the build directory it stages, the add that began it and the directories it made,
 ///  and say whether it is this run's.
 /// Why:
 ///   An exclusive write makes two fillings of one workspace agree on one marker instead of replacing
@@ -284,8 +322,8 @@ pub(crate) enum TheMarkersAnswer {
 ///
 /// A marker that cannot be written,
 /// and a build directory whose path no marker can name.
-pub(crate) fn write_marker(marker: &Path, destination: &Path) -> Result<TheMarkersAnswer, String> {
-    let text: Vec<u8> = marker_text(destination, this_adds_name_for_itself().as_str())?;
+pub(crate) fn write_marker(marker: &Path, destination: &Path, records: WhatTheMarkerRecords) -> Result<TheMarkersAnswer, String> {
+    let text: Vec<u8> = marker_text(destination, this_adds_name_for_itself().as_str(), records)?;
     return match crate::private_storage::write_private_file_unsynced(marker, text.as_slice()) {
         Ok(()) => Ok(TheMarkersAnswer::WrittenByThisRun),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(TheMarkersAnswer::WrittenByAnother),

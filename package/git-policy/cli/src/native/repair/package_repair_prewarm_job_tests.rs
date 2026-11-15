@@ -95,7 +95,7 @@ fn a_failed_clean_leaves_no_staging_directory_and_no_destination() {
     std::fs::write(entry.from.as_ref().expect("the source's build directory").join("debug/deps/libserde.rlib"), b"a dependency build").expect("the dependency");
     let staged: PathBuf = staging_of(entry.to.as_path());
     std::fs::create_dir_all(staged.join("left-by-a-killed-run")).expect("a staging directory an earlier run left");
-    super::write_marker(super::marker_of(staged.as_path()).as_path(), entry.to.as_path()).expect("the marker an earlier run left");
+    super::write_marker(super::marker_of(staged.as_path()).as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the marker an earlier run left");
     let failed: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &entry);
     assert!(failed.is_err(), "a clean that could not run is reported: {failed:?}");
     assert!(!staged.exists(), "the staging directory this job's marker claims is removed");
@@ -127,7 +127,7 @@ fn a_filling_killed_after_it_published_leaves_nothing_of_its_own() {
     std::fs::write(entry.to.join("kept"), b"a build's own artifact").expect("the file");
     let staged: PathBuf = staging_of(entry.to.as_path());
     std::fs::create_dir_all(staged.as_path()).expect("the staging directory the publish left empty");
-    super::write_marker(super::marker_of(staged.as_path()).as_path(), entry.to.as_path()).expect("the marker the killed filling wrote first");
+    super::write_marker(super::marker_of(staged.as_path()).as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the marker the killed filling wrote first");
     let filled: Filled = super::fill_one_in_a_control(&fill_of_nowhere(), &entry).expect("a filled destination is kept");
     assert_eq!(filled, Filled::Kept, "the worktree keeps what the build made");
     assert_eq!(std::fs::read(entry.to.join("kept")).expect("the file"), b"a build's own artifact");
@@ -284,7 +284,7 @@ fn a_marker_a_copy_carried_from_another_worktree_never_skips_the_repair() {
     std::fs::write(entry.to.join("debug/copied"), b"the source's state\n").expect("a file of the copy");
     let staging: PathBuf = staging_of(entry.to.as_path());
     let marker: PathBuf = super::marker_of(staging.as_path());
-    super::write_marker(marker.as_path(), &root.join("another-worktree/worktree-build")).expect("the marker the source worktree's killed add left");
+    super::write_marker(marker.as_path(), &root.join("another-worktree/worktree-build"), super::WhatTheMarkerRecords::TheStaging).expect("the marker the source worktree's killed add left");
     assert!(!staging.exists(), "the copy carried the marker and the build state, and no staging directory");
     let git_directory: PathBuf = root.join("git-directory");
     let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the carried marker is placed and the repair runs");
@@ -296,23 +296,25 @@ fn a_marker_a_copy_carried_from_another_worktree_never_skips_the_repair() {
 }
 
 /// What:
-///  A copy that carried another worktree's staged state as well as its build state is repaired
-///  over this worktree's own state:
-///  the carried staging copy goes,
-///  and the build directory the copy carried is staged for the filling's clean.
+///  A copy that carried another worktree's staged state as well as its build state is refused,
+///  with the state left exactly as it was found:
+///  nothing at the staging name is removed for this worktree's own state,
+///  and the add says what to run instead.
 /// Why:
-///   Two directories at the names of one build directory come from one source worktree:
-///  the state its add moved aside, and the state a build made there afterwards.
-///  Both name the source's paths, so the newer one is what a clean has to remove before a build can
-///  trust anything here,
-///  and the older copy is a directory of this job's own that nothing else will ever read.
+///   The marker that came with the copy names another worktree's build directory,
+///  so it proves nothing about the names beside this one,
+///  and a directory at the staging name is somebody's unless this job's own marker for this very
+///  build directory records making it.
+///  Removing it would be removing bytes by where they stand rather than by proof,
+///  so the names are left, the add refuses, and the person's own `cargo clean` is what completes
+///  the repair.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// writeMarker(carriedForAnotherWorktree); mkdirSync(staging); expect(stageTheWorktreesOwnState(destination)).toEqual({ staged: staging }); expect(staging/debug/copied).toExist()
+/// writeMarker(carriedForAnotherWorktree); mkdirSync(staging); expect(stageTheWorktreesOwnState(destination)).toBeErr(); expect(staging/debug/copied).toExist()
 /// ```
 #[test]
-fn a_staged_copy_a_copy_carried_is_replaced_by_the_state_this_worktree_holds() {
+fn a_staged_copy_a_copy_carried_is_left_and_the_add_says_what_to_run() {
     let root: PathBuf = fixture("prewarm-carried-staging");
     let entry: PrewarmEntry = entry_of(root.as_path());
     std::fs::create_dir_all(entry.to.join("debug")).expect("the copied build state");
@@ -321,13 +323,12 @@ fn a_staged_copy_a_copy_carried_is_replaced_by_the_state_this_worktree_holds() {
     std::fs::create_dir_all(staging.join("debug")).expect("the staging copy the source worktree's add made");
     std::fs::write(staging.join("debug/copied"), b"the older state of the same tree\n").expect("a file of the carried staging copy");
     let marker: PathBuf = super::marker_of(staging.as_path());
-    super::write_marker(marker.as_path(), &root.join("another-worktree/worktree-build")).expect("the source worktree's marker, carried here by the copy");
+    super::write_marker(marker.as_path(), &root.join("another-worktree/worktree-build"), super::WhatTheMarkerRecords::TheStaging).expect("the source worktree's marker, carried here by the copy");
     let git_directory: PathBuf = root.join("git-directory");
-    let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the carried names are taken back and this worktree's state is staged");
-    assert_eq!(staged, Staged::Staged(staging.clone()), "this worktree's own copied state is staged");
-    assert!(staging.join("debug/built").is_file(), "the newer state of the tree is what the filling cleans");
-    assert!(!staging.join("debug/copied").exists(), "and the older carried copy of it is gone");
-    assert!(super::marker_claims(marker.as_path(), entry.to.as_path()), "under this add's claim on this build directory");
+    let staged: Result<Staged, String> = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path()));
+    assert!(staged.is_err(), "the add refuses a name it did not make: {staged:?}");
+    assert!(staging.join("debug/copied").is_file(), "the carried staging copy is left exactly as it was found");
+    assert!(entry.to.join("debug/built").is_file(), "and this worktree's own state stays where it is for the person's clean");
     remove(root.as_path());
 }
 
@@ -351,7 +352,7 @@ fn a_marker_whose_rename_never_happened_stages_the_state_again() {
     std::fs::write(entry.to.join("debug/copied"), b"the source's state\n").expect("a file of the copy");
     let staging: PathBuf = staging_of(entry.to.as_path());
     let marker: PathBuf = super::marker_of(staging.as_path());
-    super::write_marker(marker.as_path(), entry.to.as_path()).expect("the marker this worktree's killed add wrote before its rename");
+    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the marker this worktree's killed add wrote before its rename");
     assert!(!staging.exists(), "the kill left the marker and no staging directory");
     let git_directory: PathBuf = root.join("git-directory");
     let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path())).expect("the state is staged again");
@@ -393,7 +394,8 @@ fn the_exclude_file_keeps_its_own_lines_and_names_the_staging_once() {
     super::exclude_the_staging_names(git_dir.as_path()).expect("naming them again is nothing");
     let named: String = std::fs::read_to_string(git_dir.join("info/exclude")).expect("the exclude file");
     assert!(named.contains("hand-written/"), "the person's own line stays: {named}");
-    assert_eq!(named.matches(super::EXCLUDED_STAGING_PATTERNS[0]).count(), 1, "the pattern is named once: {named}");
+    let patterns: Vec<String> = super::excluded_staging_patterns();
+    assert_eq!(named.matches(patterns[0].as_str()).count(), 1, "the pattern is named once: {named}");
     remove(root.as_path());
 }
 
@@ -674,7 +676,7 @@ fn a_filling_that_is_alive_keeps_its_names_from_the_next_one() {
     };
     std::fs::create_dir_all(usual.join("debug")).expect("the live filling's staging copy");
     std::fs::write(usual.join("debug/the-live-fillings-state"), b"held\n").expect("a file of the live filling's copy");
-    super::write_marker(marker.as_path(), entry.to.as_path()).expect("the live filling's marker");
+    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the live filling's marker");
     let fill: Fill = Fill {
         cargo: cargo_that_succeeds(root.as_path()),
         limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
@@ -714,7 +716,7 @@ fn a_filling_a_kill_left_has_its_names_taken_and_its_leftovers_removed() {
     let marker: PathBuf = super::marker_of(usual.as_path());
     std::fs::create_dir_all(usual.join("debug")).expect("a killed filling's staging copy");
     std::fs::write(usual.join("debug/the-killed-fillings-state"), b"left behind\n").expect("a file of the killed filling's copy");
-    super::write_marker(marker.as_path(), entry.to.as_path()).expect("the killed filling's marker");
+    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the killed filling's marker");
     let fill: Fill = Fill {
         cargo: cargo_that_succeeds(root.as_path()),
         limits: ToolLimits { window: std::time::Duration::from_secs(5), ceiling: FILLING_DEADLINE },
@@ -755,7 +757,7 @@ fn an_add_never_takes_the_names_of_a_filling_that_is_alive() {
         super::TheClaim::Held(lease) => lease,
         other => panic!("the filling takes the lease: {other:?}"),
     };
-    super::write_marker(marker.as_path(), entry.to.as_path()).expect("the live filling's marker");
+    super::write_marker(marker.as_path(), entry.to.as_path(), super::WhatTheMarkerRecords::TheStaging).expect("the live filling's marker");
     let git_directory: PathBuf = root.join("git-directory");
     let staged: Result<Staged, String> = super::stage_the_worktrees_own_state(entry.to.as_path(), Some(git_directory.as_path()));
     assert!(staged.is_err(), "the add gives way rather than take a live filling's names: {staged:?}");
@@ -804,12 +806,13 @@ fn every_pattern_the_exclude_file_lacks_is_named_and_none_is_written_twice() {
     let git_dir: PathBuf = root.join("git-directory");
     std::fs::create_dir_all(git_dir.join("info")).expect("the Git directory's info folder");
     let exclude: PathBuf = git_dir.join("info/exclude");
-    let subsets: usize = 1 << super::EXCLUDED_STAGING_PATTERNS.len();
+    let patterns: Vec<String> = super::excluded_staging_patterns();
+    let subsets: usize = 1 << patterns.len();
     for subset in 0..subsets {
         let mut present: Vec<&str> = Vec::new();
-        for (index, pattern) in super::EXCLUDED_STAGING_PATTERNS.iter().enumerate() {
+        for (index, pattern) in patterns.iter().enumerate() {
             if subset & (1 << index) != 0 {
-                present.push(pattern);
+                present.push(pattern.as_str());
             }
         }
         let mut text: String = String::from("# a person's own line\n");
@@ -821,8 +824,8 @@ fn every_pattern_the_exclude_file_lacks_is_named_and_none_is_written_twice() {
         super::exclude_the_staging_names(git_dir.as_path()).expect("the patterns are named");
         let lines: Vec<String> = lines_in(exclude.as_path());
         assert!(lines.iter().any(|line| return line == "# a person's own line"), "subset {subset:04b}: the person's own line stays: {lines:?}");
-        for pattern in super::EXCLUDED_STAGING_PATTERNS {
-            let count: usize = lines.iter().filter(|line| return line.as_str() == pattern).count();
+        for pattern in &patterns {
+            let count: usize = lines.iter().filter(|line| return **line == pattern.as_str()).count();
             assert_eq!(count, 1, "subset {subset:04b}: {pattern} stands on a line of its own exactly once: {lines:?}");
         }
         // Naming them again writes nothing more, whatever the subset left behind.
@@ -848,7 +851,8 @@ fn every_pattern_the_exclude_file_lacks_is_named_and_none_is_written_twice() {
 #[test]
 fn a_last_line_without_a_line_end_never_carries_the_next_pattern() {
     // Two states of a file a kill cut short: its last line is one of this job's patterns, and it is a person's.
-    for last_line in [super::EXCLUDED_STAGING_PATTERNS[2], "# a person's cut-short line"] {
+    let patterns: Vec<String> = super::excluded_staging_patterns();
+    for last_line in [patterns[2].as_str(), "# a person's cut-short line"] {
         let root: PathBuf = fixture("prewarm-exclude-no-line-end");
         let git_dir: PathBuf = root.join("git-directory");
         std::fs::create_dir_all(git_dir.join("info")).expect("the Git directory's info folder");
@@ -857,8 +861,8 @@ fn a_last_line_without_a_line_end_never_carries_the_next_pattern() {
         super::exclude_the_staging_names(git_dir.as_path()).expect("the patterns are named");
         let lines: Vec<String> = lines_in(exclude.as_path());
         assert_eq!(lines[0], last_line, "the cut-short line is a line of its own afterwards: {lines:?}");
-        for pattern in super::EXCLUDED_STAGING_PATTERNS {
-            let count: usize = lines.iter().filter(|line| return line.as_str() == pattern).count();
+        for pattern in &patterns {
+            let count: usize = lines.iter().filter(|line| return **line == pattern.as_str()).count();
             assert_eq!(count, 1, "{pattern} stands on a line of its own exactly once after {last_line:?}: {lines:?}");
         }
         remove(root.as_path());
@@ -973,8 +977,9 @@ fn a_staging_pattern_git_does_not_ignore_by_is_named_again() {
         let raw: String = String::from_utf8_lossy(std::fs::read(exclude.as_path()).expect("the exclude file").as_slice()).into_owned();
         let lines: Vec<&str> = raw.split('\n').collect();
         assert!(lines.contains(&form), "{form:?}: the person's line stays as they wrote it: {raw:?}");
-        for pattern in super::EXCLUDED_STAGING_PATTERNS {
-            let count: usize = lines.iter().filter(|line| return **line == pattern).count();
+        let patterns: Vec<String> = super::excluded_staging_patterns();
+        for pattern in &patterns {
+            let count: usize = lines.iter().filter(|line| return **line == pattern.as_str()).count();
             assert_eq!(count, 1, "{form:?}: {pattern} is a line of its own exactly once: {raw:?}");
         }
         remove(root.as_path());
@@ -1138,10 +1143,206 @@ fn a_pattern_another_writer_appends_between_the_read_and_the_write_keeps_both_li
     let raw: String = String::from_utf8_lossy(std::fs::read(exclude.as_path()).expect("the exclude file").as_slice()).into_owned();
     let lines: Vec<&str> = raw.split('\n').collect();
     assert!(lines.contains(&"important-file"), "the other command's pattern is a line of its own: {raw:?}");
-    for pattern in super::EXCLUDED_STAGING_PATTERNS {
-        let count: usize = lines.iter().filter(|line| return **line == pattern).count();
+    for pattern in super::excluded_staging_patterns() {
+        let count: usize = lines.iter().filter(|line| return **line == pattern.as_str()).count();
         assert_eq!(count, 1, "{pattern} is a line of its own exactly once: {raw:?}");
     }
     assert!(!raw.contains("important-file*.monochromatic-prewarm/"), "nothing joins the other command's pattern and the first staging pattern: {raw:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  A directory that stood at the target name before the filling claimed it keeps every file in it,
+///  through the filling's clean and the giving back of the names,
+///  and the clean is given a directory this run made instead.
+/// Why:
+///   The names this job may remove are the names this job made,
+/// and a directory at the target name was not made by any operation of this job's:
+/// the filling reads the add's marker, hands the target name to Cargo as its target directory,
+/// and the giving back of the names then removes it whole.
+/// A marker that records making the target is the proof a later run removes one by, and the add's
+/// marker records the staging alone, so a directory that stood there before the claim is left.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// stage(destination); writeFileSync(join(targetOf(staging), 'whoever.txt'), 'their build output'); fillOne(fillOfNowhere(), entryOf(staged)); expect(existsSync(join(targetOf(staging), 'whoever.txt'))).toBe(true)
+/// ```
+#[test]
+fn a_target_directory_that_stood_there_before_the_claim_is_left_whole() {
+    let root: PathBuf = fixture("prewarm-foreign-target");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.to.as_path()).expect("the build directory");
+    std::fs::write(entry.to.join("artifact"), b"a build's artifact").expect("the artifact");
+    let staging: PathBuf = staging_of(entry.to.as_path());
+    let staged: Staged = super::stage_the_worktrees_own_state(entry.to.as_path(), None).expect("the add stages its state");
+    assert_eq!(staged, Staged::Staged(staging.clone()), "the state moves aside under this job's marker");
+    let target: PathBuf = super::target_of(staging.as_path());
+    std::fs::create_dir_all(target.as_path()).expect("a directory that appeared at the target name after the add staged");
+    let theirs: PathBuf = target.join("whoever.txt");
+    std::fs::write(theirs.as_path(), b"another command's build output").expect("a file of theirs");
+    let staged_entry: PrewarmEntry = PrewarmEntry { staged_in: Some(staging.clone()), from: None, ..entry.clone() };
+    let filled: Result<Filled, String> = super::fill_one_in_a_control(&fill_of_nowhere(), &staged_entry);
+    assert!(filled.is_err(), "a clean that could not run is reported: {filled:?}");
+    assert!(theirs.exists(), "the directory that stood at the target name keeps its files: {}", theirs.display());
+    remove(root.as_path());
+}
+
+/// What:
+///  The add refuses a target name something this job did not make already holds,
+///  and leaves it and the build directory whole.
+/// Why:
+///   The add stages the copied state under three names, and a directory at the target name is
+///  neither the staging name nor the marker:
+///  a guard that looks at those two alone stages the state with a name beside it that it will then
+///  hand to a clean and remove, so the person's directory goes without a word.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkdirSync(targetOf(stagingOf(destination))); writeFileSync(join(targetOf(stagingOf(destination)), 'whoever.txt'), 'x'); expect(stageTheWorktreesOwnState(destination)).toBeErr()
+/// ```
+#[test]
+fn the_add_refuses_a_target_name_it_did_not_make() {
+    let root: PathBuf = fixture("prewarm-foreign-target-at-the-add");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    std::fs::create_dir_all(entry.to.as_path()).expect("the build directory");
+    std::fs::write(entry.to.join("artifact"), b"a build's artifact").expect("the artifact");
+    let target: PathBuf = super::target_of(staging_of(entry.to.as_path()).as_path());
+    std::fs::create_dir_all(target.as_path()).expect("a directory at the target name");
+    let theirs: PathBuf = target.join("whoever.txt");
+    std::fs::write(theirs.as_path(), b"another command's build output").expect("a file of theirs");
+    let staged: Result<Staged, String> = super::stage_the_worktrees_own_state(entry.to.as_path(), None);
+    assert!(staged.is_err(), "the add refuses a name it did not make: {staged:?}");
+    assert!(theirs.exists(), "the directory at the target name keeps its files: {}", theirs.display());
+    assert!(entry.to.join("artifact").exists(), "and the build directory is where it was");
+    remove(root.as_path());
+}
+
+/// What:
+///  A symbolic link at the staging name that points at nothing is still that link after the add stages its state.
+/// Why:
+///   A link whose target does not exist answers `exists` with false,
+/// and a rename replaces the name it lands on,
+/// so a guard that asks only whether the name exists takes the person's link for nothing there and unlinks it.
+/// A name is not proof that a thing is this job's:
+/// the staging name must be free of any entry at all,
+/// and the move aside must fail rather than replace.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// symlinkSync(join(root, 'nothing-here'), staging); const staged = stageTheWorktreesOwnState(destination, undefined); expect(staged).toBeErr(); expect(lstatSync(staging).isSymbolicLink()).toBe(true)
+/// ```
+#[test]
+fn a_link_to_nothing_at_the_staging_name_is_never_replaced_by_the_move_aside() {
+    let root: PathBuf = fixture("prewarm-staging-link");
+    let destination: PathBuf = root.join("worktree-build");
+    std::fs::create_dir_all(destination.as_path()).expect("the build directory");
+    std::fs::write(destination.join("artifact"), b"a build's artifact").expect("the artifact");
+    let staging: PathBuf = staging_of(destination.as_path());
+    std::os::unix::fs::symlink(root.join("nothing-here"), staging.as_path()).expect("the person's link");
+    let staged: Result<Staged, String> = super::stage_the_worktrees_own_state(destination.as_path(), None);
+    eprintln!("THE ANSWER OF THE MOVE ASIDE: {staged:?}");
+    assert!(staged.is_err(), "a name somebody else's link holds is refused rather than replaced: {staged:?}");
+    let standing: std::fs::Metadata = std::fs::symlink_metadata(staging.as_path()).expect("the name is still there");
+    assert!(standing.file_type().is_symlink(), "the person's link is still the link it was: {:?}", standing.file_type());
+    assert!(destination.join("artifact").exists(), "and the build directory is where it was");
+    remove(root.as_path());
+}
+
+/// What:
+///  Every name the makers of a staging name can produce is ignored by real Git,
+///  the names of a run's own included,
+///  and the person's `git add --all` stages none of them.
+/// Why:
+///   The names stand inside the worktree,
+/// so Git is what decides whether a commit sees them,
+/// and a pattern written for the usual name alone left the names a second filling takes for itself
+/// visible while that filling was at work:
+/// the person's next `git add --all` then staged a partial copy of the build state.
+/// The patterns are read from the functions that make the names,
+/// so a form one of them can produce is a form this control asks Git about.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const form of everyFormOf(destination)) expect(checkIgnore(form)).toBe(true); git('add', '--all'); expect(staged()).toEqual([])
+/// ```
+#[test]
+fn every_form_the_name_makers_make_is_ignored_by_real_git() {
+    let root: PathBuf = fixture("prewarm-patterns-real-git");
+    let repo: PathBuf = crate::test_support::repository(root.as_path(), "repo");
+    let destination: PathBuf = repo.join("target");
+    std::fs::create_dir_all(destination.as_path()).expect("the build directory");
+    let mut exclude: String = super::excluded_staging_patterns().join("\n");
+    exclude.push('\n');
+    std::fs::write(repo.join(".git/info/exclude"), exclude.as_bytes()).expect("the repository's exclude file");
+    std::fs::write(repo.join("tracked.txt"), b"the person's file\n").expect("a file of theirs");
+    crate::test_support::git(repo.as_path(), &["add", "--", "tracked.txt"]);
+    crate::test_support::git(repo.as_path(), &["commit", "--quiet", "--message=the-person's-file"]);
+    // Every form beside this build directory, made by the functions that make them: the directories hold an artifact and the
+    //  marker and the lease are files.
+    let usual: PathBuf = super::staging_of(destination.as_path());
+    let own: PathBuf = super::a_name_of_this_runs_own(usual.as_path());
+    let mut forms: Vec<PathBuf> = Vec::new();
+    for staging in [usual, own] {
+        for (named, directory) in [
+            (staging.clone(), true),
+            (super::target_of(staging.as_path()), true),
+            (super::marker_of(staging.as_path()), false),
+            (super::lease_of(staging.as_path()), false),
+        ] {
+            let artifact: PathBuf = if directory { named.join("artifact") } else { named };
+            std::fs::create_dir_all(artifact.parent().expect("a parent")).expect("the directories of the name");
+            std::fs::write(artifact.as_path(), b"a partial copy of the build state\n").expect("the file of the name");
+            forms.push(artifact);
+        }
+    }
+    for form in &forms {
+        let relative: &std::ffi::OsStr = form.strip_prefix(repo.as_path()).expect("inside the repository").as_os_str();
+        let checked: std::process::Output = crate::test_support::git_output(repo.as_path(), &[
+            std::ffi::OsStr::new("check-ignore"),
+            std::ffi::OsStr::new("--no-index"),
+            std::ffi::OsStr::new("--quiet"),
+            std::ffi::OsStr::new("--"),
+            relative,
+        ]);
+        assert!(checked.status.success(), "Git ignores {}: {:?}", form.display(), String::from_utf8_lossy(checked.stderr.as_slice()));
+    }
+    // A positive control for the control: a file that is nobody's staging name is not ignored.
+    assert!(
+        !crate::test_support::git_output(repo.as_path(), &["check-ignore", "--no-index", "--quiet", "--", "tracked.txt"]).status.success(),
+        "a file of the person's is not ignored, so the patterns are what ignore the staging names"
+    );
+    crate::test_support::git(repo.as_path(), &["add", "--all"]);
+    let staged: String = crate::test_support::git_text(repo.as_path(), &["diff", "--cached", "--name-only"]);
+    assert!(staged.trim().is_empty(), "the person's `git add --all` stages nothing of this job's names: {staged:?}");
+    remove(root.as_path());
+}
+
+/// What:
+///  The words for a resolution that a mirror could not make name the mirror and never send a person to
+///  update their lock.
+/// Why:
+///   A dependency whose path leaves the worktree is not carried into a mirror of it,
+/// and the person's lock is read and never written,
+/// so a lock is never that cause:
+/// advising an update would send them to change the one file that cannot be the reason,
+/// and the change would not help.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const words = theWordsForAMirrorThatGaveWay('it exited with 101: failed to load manifest for dependency `shared`', entry); expect(words).toContain('leaves the worktree'); expect(words).not.toContain('cargo update')
+/// ```
+#[test]
+fn the_words_for_a_mirror_that_gave_way_name_the_mirror_and_never_the_lock() {
+    let root: PathBuf = fixture("prewarm-mirror-words");
+    let entry: PrewarmEntry = entry_of(root.as_path());
+    let reason: &str = "it exited with 101: failed to load manifest for dependency `shared`";
+    let words: String = super::the_words_for_a_mirror_that_gave_way(reason, &entry);
+    assert!(words.contains(reason), "the tool's own words are kept: {words}");
+    assert!(words.contains("leaves the worktree"), "and the cause a mirror has is named: {words}");
+    assert!(!words.contains("cargo update"), "a lock is never what stopped it, so no advice sends a person to one: {words}");
+    assert!(words.contains("removed"), "and what this job did with the copy is said: {words}");
+    // The contrast: a reason that is the lock's own keeps the lock's advice.
+    let the_locks_own: String = format!("cannot update {LOCK_FILE} as --locked requires");
+    assert!(super::what_to_do_next(&entry, the_locks_own.as_str()).contains("cargo update"), "a lock's own refusal keeps its advice");
     remove(root.as_path());
 }
