@@ -1330,6 +1330,94 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The removal guard's author answers what pass 41 found and goes to review; the renamed subvolume and mpm-shadow's install go back to their authors (2026-11-14T20:58:07-05:00)
+
+Not final and not approved:
+what one author and two reviews report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The removal that refuses a worktree a process works in**,
+  its author's eighth run,
+  ended 20:52:58 at `9690c78ef7`.
+  By its report:
+  the guard now decides which worktree Git would remove the way Git's `find_worktree` does
+  (read from Git's source at v2.56.0),
+  and where Git would remove nothing it refuses nothing;
+  the command's own chain of parents is left out of the scan,
+  by the owner's decision of 2026-11-14;
+  the two mount controls pass inside a PID namespace of their own,
+  eleven of eleven on a btrfs root;
+  and the process scan's one failure in the gate was the control's own race
+  (the helper's descriptor absent at the instant `spawn` returns in 59 of 60 rounds),
+  now waited for within a bound.
+  Its whole suites failed fifteen tests,
+  fourteen of them among the gate's 28.
+  Its review is queued second
+  (`main...9690c78ef7`,
+  21 code files);
+  pass 41 is resumed when that review finds nothing.
+- **The fifteenth is a control that judges its fixture's path**:
+  `service_reference_lock::the_words_for_a_commit_a_lock_holds_never_call_it_refused` forbids the letters `refus` in an output that carries the fixture's path,
+  and that author's scratch folder is named for a removal that refuses.
+  One agent's reading,
+  with a passing run under another root quoted.
+  A fresh run has it and its like
+  (`~/temp/agent/pi-runs/control-of-a-lock-held-commits-words-passes-whatever-the-fixture-path-is-named-prompt.md`).
+- **The renamed subvolume left with no owner** (`b7481cca10`),
+  its review,
+  ended 20:51:50,
+  seven of seven files,
+  five things,
+  four by runs on real btrfs fixtures:
+  the scan deletes a subvolume on the strength of its name alone;
+  it also scans beside the main checkout,
+  where no removal renames anything;
+  a path that becomes a named pipe between the check and the open blocks the command with no end;
+  a parent directory whose name is not UTF-8 makes the delete answer `Done` at another path,
+  again and again;
+  and a delete already pending gets no wake.
+- **Weighed**:
+  the last four are worth their fix.
+  The first is the branch's own premise,
+  since the subvolume it is for has lost every record,
+  so "require a record" would undo the branch;
+  the name carries that subvolume's own kernel ID,
+  which is strong against accident and nothing against intent.
+  The author is asked to write down what the name proves,
+  and to look for evidence that travels with the subvolume
+  (a mark set before the rename is this session's suggestion,
+  not a requirement)
+  (`~/temp/agent/pi-runs/renamed-subvolume-left-with-no-owner-answers-its-review-of-2026-11-14-prompt.md`).
+- **mpm-shadow's install that removes no version a lock names or a process runs** (`937485686f`),
+  its third review,
+  ended 20:55:23,
+  24 of 24 files,
+  six things,
+  four by runs of the production functions:
+  a process scan that did not finish is taken as proof that nothing runs a version,
+  and the running one is deleted;
+  a second sync clears the recovery marker while a live removal holds a hidden claim,
+  so a kill leaves the version hidden for good;
+  a failure to settle `current` does not stop the deletion of the version it names;
+  a timed-out child leaves its descendants writing;
+  and,
+  by reading,
+  the work limit does not bound the filesystem work,
+  and the downloads check and the delete are a check and then a delete.
+  All six lie in files the range changes
+  (`git diff --stat` of the four files the later findings name).
+  The author is resumed
+  (`~/temp/agent/pi-runs/mpm-shadow-install-removes-no-version-answers-its-third-review-of-2026-11-14-prompt.md`).
+- Read at 20:55:56:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  the filling unit was active,
+  with 18 runs going.
+  Neither resumed session is named by the credential scan.
+  The queue held 73 entries at 20:58:07.
+
 ##### The landing author answers seven findings and leaves controls, the guard and the merge open; the discarding commands and the brief writer for tests go back to their authors (2026-11-14T20:53:23-05:00)
 
 Not final and not approved:
