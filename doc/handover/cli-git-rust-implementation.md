@@ -1594,6 +1594,52 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's install that removes no version is answered a fourth time and goes to review (2026-11-15T06:33:26-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **mpm-shadow, an install removes no version a lock names or a process runs**,
+  the fresh run's fourth run,
+  ended 06:28:15 at `3f4ac7efdf`,
+  `main` merged.
+  867 of 867 tests pass in release;
+  Clippy 0.
+  Cost over 20 interleaved rounds of two release binaries:
+  an install that takes no tool,
+  ratio median 0.947 (0.560 to 1.072);
+  an install that removes an old version,
+  ratio median 0.984 (0.902 to 1.160);
+  one arm against itself spreads as wide,
+  so none that can be measured.
+  Two of the review's tests do not fail inside their own fixtures,
+  and the author says why for each.
+  Its review is queued twelfth
+  (`main...3f4ac7efdf`,
+  25 code files that are not tests).
+  Its open questions,
+  left with the review:
+  whether a refusal after two seconds is the right answer for an install that meets a live removal of its archives,
+  and whether a name made of device and inode should reach the size record on disk.
+- The author ran `systemctl --user show-environment` once and says so;
+  it printed `HOME` and `LANG` and nothing else.
+  It met the user's service manager not answering,
+  which is the stop of 05:23 recorded in the section of 2026-11-15T05:53:33-05:00.
+- **The temperature**,
+  read at 06:32:51:
+  61.5 degrees,
+  budget 32.0 threads,
+  23.0 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 06:32:54:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 06:27;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The queue held 84 entries at 06:33:26.
+
 ##### Three authors answer: the landing stages under a name only its maker can make and holds no lock, the landed removal refuses on `FETCH_HEAD`, and the fixture's wait keeps what it did not see end (2026-11-15T06:28:33-05:00)
 
 Not final and not approved:
