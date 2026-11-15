@@ -671,7 +671,7 @@ fn a_retirement_between_a_placement_and_its_link_is_never_left_dangling() {
     let declared = &mut without_the_bin
         .tools
         .iter_mut()
-        .find(|tool| return tool.declaration.id == SHADOW_TOOL)
+        .find(|each| return each.declaration.id == SHADOW_TOOL)
         .expect("the sample lock holds the tool")
         .declaration;
     declared.bins.clear();
@@ -695,12 +695,12 @@ fn a_retirement_between_a_placement_and_its_link_is_never_left_dangling() {
     let exposure = super::exposure::rebuild_exposure(&rig.context(), &[&tool]);
     super::exposure::seam::set_before_the_link(None);
 
-    let exposure = exposure.expect("install A's link pass runs");
-    let removal: LauncherNotices = removal.lock().expect("the notices are not poisoned").clone();
+    let pass = exposure.expect("install A's link pass runs");
+    let retirement: LauncherNotices = removal.lock().expect("the notices are not poisoned").clone();
     assert!(
         !(exists_at(&link) && !exists_at(&launcher)),
         "install A's link dangles: a retirement took the launcher between the placement and the link; \
-         pass: {exposure:?}, retirement: {removal:?}"
+         pass: {pass:?}, retirement: {retirement:?}"
     );
 }
 
