@@ -1640,6 +1640,82 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The long runtime directory's controls are cleared for the next pass with one finding in a test helper; the stop of a stopped push now writes nothing on its path, and its review is queued (2026-11-15T13:08:01-05:00)
+
+Not final and not approved:
+what one review and one author report,
+how the coordinating session weighed it,
+what it queued,
+and one thing it deferred.
+
+- **The long runtime directory's controls** (`394ae7444a`),
+  their third review,
+  ended 13:01:58,
+  of the whole range against `main`.
+  One finding,
+  in a test helper:
+  `a_link_past_the_path_limit` leaves out the separator and lands its link two bytes past the limit where it says one
+  (shown with the real control under `strace`:
+  42 bytes against a longest of 40),
+  and its control asserts only the side.
+  The review ran the package's check and every control of the four touched modules under a short home and a 200-byte one;
+  all passed.
+- **Coverage, held against the range**:
+  the range changes 14 files,
+  all of them tests,
+  test support,
+  the README,
+  and two files of the gate's tooling.
+  The review read the whole diff and five support files in full;
+  the queue line counted six,
+  and the sixth is `testing/test_support.rs`
+  (5 lines changed),
+  whose 19 controls the review ran.
+  The two tooling files were read here:
+  one is a comment,
+  the other adds `SPEC.md` to the list of files the gate's image carries,
+  which a control reads.
+  **No file of the wrapper that is not a test changes.**
+- **Weighed**:
+  by the owner's answer of 2026-11-15
+  (open findings in test code do not hold a wrapper branch)
+  the branch is cleared for the next pass at `394ae7444a`.
+  It is what answers six of the sixteen failures of the gate on `0.6.1-alpha.42`.
+  The author's fourth run is queued thirteenth for the helper,
+  and for an assertion of the made length in every helper that builds a path to a stated length.
+- **Deferred, and why**:
+  integration pass 55 is not queued yet.
+  Pass 54 is still going,
+  and a pass is merged only when `main` holds nothing in the wrapper that its tip lacks;
+  a pass 55 started before 54 is in `main` would have to be done again.
+  It is queued when pass 54 is merged,
+  with this branch and whatever a review has cleared by then.
+- **The stop of a stopped push**,
+  its author's fourth run,
+  ended 13:02:43 at `944eacedc7`:
+  nothing on the path of a stop writes any more.
+  The owed line,
+  the sweep's notice and the refused-spawn note are returned as words,
+  and whoever asked for the stop says them after the push's place is given back.
+  The control
+  (a standard error nobody drains)
+  fails in 30 s with the write put back and passes in under half a second without;
+  the cost of a stop is the same with a full and with a drained pipe
+  (medians 221.5 ms both,
+  eight rounds interleaved).
+  Its review is queued seventh
+  (`main...944eacedc7`,
+  9 code files that are not tests).
+- Read at 13:06:37:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 13:01;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### The third of the three gate controls is settled: its failure was the control's own, like the other two, and the machine's memory is excluded; its review is queued (2026-11-15T13:01:41-05:00)
 
 Not final and not approved:
