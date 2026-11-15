@@ -1530,6 +1530,156 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### mpm-shadow's stale launchers, taken over by a fresh run, answer their seventh review and go to review (2026-11-15T03:43:27-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **mpm-shadow, stale launchers** (each removal proves the entry it removes),
+  the fresh run that took the branch over,
+  ended 03:38:34 at `c115e9ec4e`.
+  Nine controls,
+  each quoted failing with its fix taken out,
+  all nine passing with the fixes in.
+  Two things it found in the earlier author's own controls and says plainly:
+  one control passed with its fix out,
+  three runs of three,
+  and was changed to wait for the blocked writer;
+  another cannot be made red from its own two terms
+  (size and modification time),
+  because the content digest the run added proves more,
+  so the control that goes red there is the run's own.
+  Cost against `68bc782526`,
+  interleaved,
+  spread first:
+  with nothing to do 0.97 times,
+  inside the spread;
+  retiring one launcher 1.07 to 1.20 times over three rounds,
+  7 to 21 ms more,
+  because the 5.6 MB launcher is read and digested twice.
+  Clippy 0;
+  827 of 827 tests passed.
+  It did not merge `main`,
+  and lists seven things it noticed and left alone,
+  among them that placing a launcher replaces whatever stands at its name without the proof a retirement now needs.
+  Its review is queued sixth
+  (`main...c115e9ec4e`,
+  twelve code files that are not tests).
+- Read at 03:43:01:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 03:29;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The queue held 81 entries at 03:43:27.
+
+##### The scratch root measures 354 GiB; four repository copies that ended reviews left are deleted (2026-11-15T03:37:51-05:00)
+
+Not final and not approved:
+a measurement by the coordinating session and one deletion.
+
+- **Measured at 03:30** with `du` at depth one:
+  `~/temp/agent` 354,154 MiB.
+  Its largest folders:
+  `change-reviews` 136,281;
+  `pkgrepair-repair-off-the-path` 65,966;
+  `sonnet-audits` 45,612;
+  `record-of-another-boot-control-passes-in-a-container-scratch` 26,722;
+  `kimi-trials` 16,476;
+  `module-test-logs` 11,106;
+  `pkgrepair-verify` 7,084;
+  `pi-runs` 6,756.
+  The scratch root is on the repository's drive,
+  which had 1,997 GiB free of 3,727.
+- **Inside `change-reviews`**,
+  four folders of about 27 GiB each were whole copies of the repository that driver reviews made to build in:
+  the start gate's cap from one file (third review),
+  the start gate's machine-wide cap,
+  the settled run that never ends as failed,
+  and the brief writer for tests (third review).
+- **Checked before deleting** each copy:
+  the review's report,
+  brief and reproductions stand outside it;
+  no review unit of that name was going;
+  no process had its working folder inside
+  (464 processes read);
+  Git does not have it registered as a worktree;
+  the reviewed commit is held by a branch
+  (`33bda3e7d2`,
+  `7faa687169`,
+  `8f9b026bdc`),
+  and the fourth copy's `.git` file points at its review worktree's own Git folder in the repository.
+  All four reviews are superseded by later reviews or by what is in `main`.
+- **Deleted at 03:37:36**,
+  those four paths by name,
+  at disk weight 1.
+  `change-reviews` then measured 27,800 MiB.
+  Free space on the drive read 2,044,230 MiB right after,
+  no higher than before to the gigabyte:
+  either the copies shared their data with the checkout they were copied from,
+  or the filesystem had not yet given the space back.
+  Read again at 03:38:35,
+  a minute after the deletion returned:
+  2,044,118 MiB free,
+  1,544,534 MiB used,
+  so the space had not come back,
+  and a deletion of plain files on this filesystem is settled within a transaction.
+  The deletion therefore freed close to nothing on the drive.
+  The filesystem is btrfs with `compress=zstd:3`
+  (`findmnt`),
+  where `du` counts a file's size before compression and counts data shared between copies once per copy;
+  so the 354 GiB that `du` gives for the scratch root is an upper bound,
+  not what the drive would get back.
+  The drive's own figure is 1.37 TiB of data used of 2.98 TiB allocated
+  (`btrfs filesystem df`).
+  Which share of the difference is compression and which is sharing was not measured,
+  since the copies are gone.
+- **Kept on purpose**:
+  the build trees of three reviews whose authors' resumes are queued and may run the reviews' reproductions against them
+  (long runtime directory 4,727 MiB,
+  add-never-skips 8,189 MiB,
+  issue 6293's fifth review 3,839 MiB);
+  each goes when its author's answer is in.
+- **The other large folders, looked at 03:39 and kept**,
+  none with a process working inside:
+  - `pkgrepair-repair-off-the-path` and `pkgrepair-verify`
+    (last written 2026-11-13 and 2026-11-12)
+    are the scratch of the work that took the package repair off an add's waiting path.
+    The repository's docs cite them by path:
+    this file in fourteen lines,
+    `doc/planning/cli-git-worktree-add-package-repair-off-the-waiting-path.md`,
+    and `doc/handover/agents-at-once-on-this-machine.md`.
+    They stay as cited evidence;
+    their `stage-…` build folders are the only part that could go,
+    and only if the filesystem's own measurement shows they hold space of their own.
+  - `sonnet-audits` and `kimi-trials`
+    (written 2026-11-09 to 2026-11-13)
+    hold the audits of releases alpha.10,
+    alpha.12 and alpha.14;
+    the Kimi audit of alpha.14's LFS is still open work,
+    so they stay.
+  - The record-of-another-boot scratch belongs to a run that is queued or going.
+  A measurement with `btrfs filesystem du` of what these folders hold alone and what they share was started at 03:40 as its own unit at disk weight 1.
+- **That measurement, ended 03:45:05** (`btrfs filesystem du --summarize`;
+  "exclusive" is what no other file shares,
+  counted before compression):
+  - `pkgrepair-repair-off-the-path`: 63,408 MiB in all,
+    13,372 exclusive;
+  - `sonnet-audits`: 38,889 in all,
+    1,929 exclusive;
+  - `kimi-trials`: 15,641 in all,
+    15,626 exclusive;
+  - `change-reviews` after the deletion: 27,445 in all,
+    25,991 exclusive.
+  So these four folders hold about 57 GiB that a deletion could give back,
+  against 1,996 GiB free:
+  nothing here presses on the drive,
+  and nothing more is deleted for space.
+  The tool could not read one file,
+  a fixture a review made unreadable on purpose
+  (`change-reviews/pnpm-override-lock-shim-takes-over-a-lock-whose-holder-is-gone/home/fixture-a-read-error-takeover-2/.auth.json.lock`).
+
 ##### The long-runtime-directory controls go back to their author: one still fails by the width of a process number, and two let a one-byte change through (2026-11-15T03:30:00-05:00)
 
 Not final and not approved:
