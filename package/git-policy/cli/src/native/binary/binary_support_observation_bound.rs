@@ -9,6 +9,14 @@
 //!  reaps the command,
 //!  reads the two pipes on threads under one grace,
 //!  and says which of those things ended the command.
+//!  The bound counts from the command's own start,
+//!  read from the kernel's record of it,
+//!  so no work of this parent after the spawn can move the deadline.
+//!  A signal goes out only through a handle that still names the command:
+//!  a pinned process for the command itself,
+//!  and the process group only while the command,
+//!  held unreaped,
+//!  still pins the group's number.
 //!  The faces a control calls live next door in `binary_support_observation.rs`,
 //!  which reaches these items as `crate::support_observation_bound`.
 //!
@@ -17,9 +25,13 @@
 //! const answer = waitUnderBound(child, group, bound, input); // { status, stdout, stderr, ending, heldOpen }
 //! ```
 
+use std::ffi::{OsStr, OsString};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Child, Command};
+use crate::supervisor::take_kill;
+use crate::supervisor_pin::{Delivered, Pin};
+use crate::supervisor_proc::{stat_of, tick};
 
 /// How long the pipes of a command may take to reach their end once the command is gone
 /// before this wait leaves them to whoever holds them.
@@ -90,6 +102,9 @@ pub struct Answer {
     /// The pipes a process that outlived the command still holds,
     /// named for a failure.
     pub held_open: Vec<&'static str>,
+    /// The supervisor's message when it ended the command,
+    /// claimed while the command was still unreaped so the number it names was still the command's.
+    pub supervisor_message: Option<String>,
 }
 
 impl Answer {
@@ -161,9 +176,14 @@ pub fn draining<R: std::io::Read + Send + 'static>(mut reader: R) -> (std::sync:
 ///  and answer what it showed and who ended it.
 /// Why:
 ///  The bound is this wait's own:
-///  it waits on the child with the bound as its deadline,
+///  it counts from the child's own start (`remaining_of`),
+///  it waits on the child with that as its deadline,
 ///  and at the bound it ends the process group the command leads and reaps the command,
 ///  so the ending is decided by this wait's act and never by a status another program's bound happens to share.
+///  The child is never reaped before the decision:
+///  the waiter learns of the exit with `WNOWAIT`,
+///  so the number a signal has to name is still the child's when the signal goes out,
+///  and a command that ended by itself is signalled by nothing.
 ///  The input is written by a thread of its own,
 ///  so a child that fills its output before it reads all its input is not deadlocked,
 ///  and the two pipes are read on threads under one grace,
@@ -174,44 +194,56 @@ pub fn draining<R: std::io::Read + Send + 'static>(mut reader: R) -> (std::sync:
 pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, bound: std::time::Duration, input: &[u8]) -> Answer {
     let id: u32 = child.id();
     let pid: libc::pid_t = libc::pid_t::try_from(id).expect("a process ID fits the pid type");
+    let started: u64 = stat_of(pid).expect("a command this wait holds is readable until it is reaped").started;
+    let remaining: std::time::Duration = remaining_of(started, bound);
     let (standard_output, output_end) = draining(child.stdout.take().expect("piped standard output"));
     let (standard_error, error_end) = draining(child.stderr.take().expect("piped standard error"));
     if let Some(mut standard_input) = child.stdin.take() {
         let owned: Vec<u8> = input.to_vec();
         // A child that exits without reading its input closes the pipe; that is not a control's failure.
-        // The writer is not joined: a process that holds the other end of that pipe could hold this wait, and the
-        //  thread ends with this process.
+        // The writer is not joined: a process that holds the other end of that pipe could hold this wait,
+        //  and the thread ends with this process.
         let _writer: std::thread::JoinHandle<()> = std::thread::Builder::new()
             .spawn(move || { let _ = standard_input.write_all(owned.as_slice()); })
             .expect("the writer of a command's input starts");
     }
-    // The wait blocks on the child instead of looking at the clock, so a command that ends in a millisecond costs a
-    // millisecond; the bound is the wait's own deadline, not a poll's.
-    let (status_sender, status_receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
+    // The wait blocks on the child instead of looking at the clock,
+    //  so a command that ends in a millisecond costs a millisecond;
+    //  the waiter reports the exit without reaping the child,
+    //  because the number a signal has to name must still be the child's when it goes out.
+    let (exit_sender, exit_receiver) = std::sync::mpsc::channel::<std::io::Result<()>>();
     let waiter: std::thread::JoinHandle<()> = std::thread::Builder::new()
-        .spawn(move || { let _ = status_sender.send(child.wait()); })
+        .spawn(move || { let _ = exit_sender.send(wait_for_the_exit(pid)); })
         .expect("the waiter of a command starts");
-    let (status, ending): (std::process::ExitStatus, Ending) = match status_receiver.recv_timeout(bound) {
-        Ok(Ok(status)) => (status, Ending::Itself),
-        Ok(Err(error)) => panic!("the ending of the command {id} cannot be read: {error}"),
-        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-            // SAFETY: `kill` reads the two numbers it is given and touches no memory of ours.
-            let signalled: libc::c_int = unsafe {
-                match group {
-                    Some(leader) => libc::kill(-leader, libc::SIGKILL),
-                    None => libc::kill(pid, libc::SIGKILL),
+    let (ending, supervisor_message, status): (Ending, Option<String>, std::process::ExitStatus) =
+        match exit_receiver.recv_timeout(remaining) {
+            Ok(Ok(())) => {
+                // The command ended by itself, and the claim comes before the reap for the same reason.
+                let claimed: Option<String> = take_kill(id);
+                (Ending::Itself, claimed, reaped(&mut child))
+            }
+            Ok(Err(error)) => panic!("the ending of the command {id} cannot be read: {error}"),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                if exited_without_reaping(pid) {
+                    // It ended by itself in the instant the bound came due, so nothing is signalled.
+                    let claimed: Option<String> = take_kill(id);
+                    (Ending::Itself, claimed, reaped(&mut child))
+                } else {
+                    let claimed: Option<String> = take_kill(id);
+                    signal_the_child_and_its_group(pid, started, group);
+                    // A `SIGKILL`ed command is a zombie within this window,
+                    //  so a command still not ended in it is a defect of this wait,
+                    //  not a slow host;
+                    //  the waiter reports the exit without reaping, and the reap below is then immediate.
+                    let ended: std::io::Result<()> = exit_receiver.recv_timeout(REAPING).unwrap_or_else(|_| {
+                        panic!("the command {id} was ended at its bound of {bound:?} and not reaped within {REAPING:?}")
+                    });
+                    ended.unwrap_or_else(|error| panic!("the ending of the command {id} cannot be read: {error}"));
+                    (Ending::AtTheBound, claimed, reaped(&mut child))
                 }
-            };
-            let reaped: std::io::Result<std::process::ExitStatus> = status_receiver
-                .recv_timeout(REAPING)
-                .unwrap_or_else(|_| panic!("the command {id} was ended at its bound of {bound:?} and not reaped within {REAPING:?}"));
-            let status: std::process::ExitStatus = reaped.unwrap_or_else(|error| panic!("the ending of the command {id} cannot be read: {error}"));
-            // This wait's own act decides this and never the status the command came back with;
-            // a group that was already gone was ended by the command itself, not by this call.
-            (status, if signalled == 0 { Ending::AtTheBound } else { Ending::Itself })
-        }
-        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => panic!("the waiter of the command {id} ended without its status"),
-    };
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => panic!("the waiter of the command {id} ended without its ending"),
+        };
     let _joined = waiter.join();
     // What the pipes gave, under one grace for both, and never a wait past it.
     let grace_ends: std::time::Instant = std::time::Instant::now() + PIPE_GRACE;
@@ -230,7 +262,132 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, bound: std
         stderr: standard_error.lock().expect("the bytes of a command's standard error").clone(),
         ending,
         held_open,
+        supervisor_message,
     };
+}
+
+/// What:
+///  How much of `bound` is left, counted from the command's own start.
+/// Why:
+///  A control's bound is a bound on the command,
+///  so it counts from the instant the command began,
+///  which the kernel recorded when it created the process:
+///  no work of this parent after the spawn,
+///  and no delay of a loaded host in reaching the wait,
+///  moves the deadline,
+///  and a wait given a child another program started still counts the bound as its control stated it.
+///  The start is recorded in whole clock ticks,
+///  so the count is short by less than one tick and the command is never ended after its bound.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const left = birthTicks * tick + bound - bootNow(); // never longer than the bound
+/// ```
+fn remaining_of(started: u64, bound: std::time::Duration) -> std::time::Duration {
+    let period_ns: u128 = tick().as_nanos();
+    let birth_ns: u128 = u128::from(started).saturating_mul(period_ns);
+    let deadline_ns: u128 = birth_ns.saturating_add(bound.as_nanos());
+    let left_ns: u128 = deadline_ns.saturating_sub(boot_now_ns());
+    return std::time::Duration::from_nanos(u64::try_from(left_ns).unwrap_or(u64::MAX));
+}
+
+/// The boot clock now, in nanoseconds:
+///  the clock a process's start is recorded in.
+fn boot_now_ns() -> u128 {
+    let mut now: libc::timespec = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    // SAFETY: `clock_gettime` writes the one `timespec` it is given and reads no memory of ours.
+    let asked: libc::c_int = unsafe { libc::clock_gettime(libc::CLOCK_BOOTTIME, &raw mut now) };
+    assert_eq!(asked, 0, "the boot clock answers");
+    let seconds: u128 = u128::try_from(now.tv_sec).expect("a boot time is not before the boot");
+    let nanoseconds: u128 = u128::try_from(now.tv_nsec).expect("a part of a second is not negative");
+    return seconds.saturating_mul(1_000_000_000).saturating_add(nanoseconds);
+}
+
+/// What:
+///  Wait until the child exits,
+///  without reaping it.
+/// Why:
+///  A reaped process frees its number,
+///  and another process of the account can be given it at once;
+///  `WNOWAIT` leaves the child a zombie,
+///  so its number and its group's number still name it while this wait may still have to signal them.
+fn wait_for_the_exit(pid: libc::pid_t) -> std::io::Result<()> {
+    let mut ended: libc::siginfo_t = unsafe { std::mem::zeroed() };
+    loop {
+        // SAFETY: `waitid` writes the one `siginfo_t` it is given and reads no memory of ours;
+        //  `WNOWAIT` says the child is not reaped.
+        let answered: libc::c_int = unsafe { libc::waitid(libc::P_PID, libc::id_t::try_from(pid).expect("a pid fits the id type"), &raw mut ended, libc::WEXITED | libc::WNOWAIT) };
+        if answered == 0 {
+            return Ok(());
+        }
+        let error: std::io::Error = std::io::Error::last_os_error();
+        if error.kind() != std::io::ErrorKind::Interrupted {
+            return Err(error);
+        }
+    }
+}
+
+/// Whether the child has exited,
+/// without reaping it.
+fn exited_without_reaping(pid: libc::pid_t) -> bool {
+    let mut ended: libc::siginfo_t = unsafe { std::mem::zeroed() };
+    // SAFETY: as `wait_for_the_exit`; `WNOHANG` makes the look answer at once,
+    //  and `WNOWAIT` keeps the child unreaped either way.
+    let answered: libc::c_int = unsafe { libc::waitid(libc::P_PID, libc::id_t::try_from(pid).expect("a pid fits the id type"), &raw mut ended, libc::WEXITED | libc::WNOWAIT | libc::WNOHANG) };
+    return answered == 0 && unsafe { ended.si_pid() } != 0;
+}
+
+/// Reap the child this wait holds and answer what it came to.
+fn reaped(child: &mut Child) -> std::process::ExitStatus {
+    return child.wait().expect("a command this wait holds unreaped is reaped at once");
+}
+
+/// What:
+///  Signal the command at its bound,
+///  through handles that still name it.
+/// Why:
+///  A process number is reused once its process is reaped,
+///  so a signal sent to a number saved a moment ago can end another process of the account;
+///  the command is a zombie here and is not reaped until after these signals,
+///  so its own number and its group's number are still its own,
+///  and the pin is checked again before the signal goes out.
+fn signal_the_child_and_its_group(pid: libc::pid_t, started: u64, group: Option<libc::pid_t>) {
+    let pin: Pin = Pin::open(pid, started).expect("a command this wait holds unreaped is still the process it started");
+    let _delivered: Delivered = pin.signal(libc::SIGKILL);
+    if let Some(leader) = group {
+        // SAFETY: `kill` reads the two numbers it is given and touches no memory of ours;
+        //  the leader of this group is unreaped,
+        //  so no other process can have been given the group's number yet.
+        let _signalled: libc::c_int = unsafe { libc::kill(-leader, libc::SIGKILL) };
+    }
+}
+
+/// What:
+///  The seconds the harness's bounded form puts in front of a program,
+///  `/usr/bin/timeout --signal=KILL <seconds>`,
+///  or nothing for a line that is not that form or asks `timeout` for no limit.
+/// Why:
+///  One place reads the form,
+///  so the bound a line states and the program it starts cannot disagree.
+fn in_front_of_a_bounded_program(command: &Command) -> Option<u64> {
+    let program: String = command.get_program().to_string_lossy().into_owned();
+    if program.rsplit('/').next() != Some("timeout") {
+        return None;
+    }
+    let arguments: Vec<OsString> = command.get_args().map(OsStr::to_os_string).collect();
+    let [signal, seconds, _rest @ ..] = arguments.as_slice() else {
+        return None;
+    };
+    if signal != "--signal=KILL" {
+        return None;
+    }
+    let Ok(whole_seconds) = seconds.to_string_lossy().parse::<u64>() else {
+        return None;
+    };
+    if whole_seconds == 0 {
+        return None;
+    }
+    return Some(whole_seconds);
 }
 
 /// What:
@@ -251,22 +408,35 @@ pub fn wait_under_bound(mut child: Child, group: Option<libc::pid_t>, bound: std
 /// const bound = secondsOf(`timeout --signal=KILL ${line}`) ?? SHARED.backstop;
 /// ```
 pub fn stated_bound(command: &Command) -> std::time::Duration {
-    let program: String = command.get_program().to_string_lossy().into_owned();
-    if program.rsplit('/').next() != Some("timeout") {
-        return UNSTATED_BOUND;
-    }
-    let mut arguments = command.get_args().map(|argument| { return argument.to_string_lossy().into_owned(); });
-    let (Some(signal), Some(seconds)) = (arguments.next(), arguments.next()) else {
+    let Some(seconds) = in_front_of_a_bounded_program(command) else {
         return UNSTATED_BOUND;
     };
-    if signal != "--signal=KILL" {
-        return UNSTATED_BOUND;
-    }
-    let Ok(whole_seconds) = seconds.parse::<u64>() else { return UNSTATED_BOUND };
-    if whole_seconds == 0 {
-        return UNSTATED_BOUND;
-    }
-    return std::time::Duration::from_secs(whole_seconds);
+    return std::time::Duration::from_secs(seconds);
+}
+
+/// What:
+///  The program the harness's bounded form names,
+///  and its arguments:
+///  `/usr/bin/timeout --signal=KILL <seconds> <program> <argument> …` gives `<program>` and its arguments.
+/// Why:
+///  A wait that lets `timeout` run beside its own timer has two deadlines for one value,
+///  and then no status can say which timer ended the command;
+///  the wait starts the program the line names itself,
+///  in the group it makes,
+///  so there is one timer and the ending is its own act.
+///  `None` for any other line,
+///  which the wait starts as it was given and bounds with `UNSTATED_BOUND`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const started = withoutTheTimer('timeout --signal=KILL 600 git status'); // { program: 'git', args: ['status'] }
+/// ```
+pub fn the_program_the_line_starts(command: &Command) -> Option<(OsString, Vec<OsString>)> {
+    in_front_of_a_bounded_program(command)?;
+    let arguments: Vec<OsString> = command.get_args().map(OsStr::to_os_string).collect();
+    let rest: &[OsString] = arguments.get(2..)?;
+    let (named, its_arguments) = rest.split_first()?;
+    return Some((named.clone(), its_arguments.to_vec()));
 }
 
 /// The command line as a person reads it:

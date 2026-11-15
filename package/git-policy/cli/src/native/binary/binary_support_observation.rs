@@ -20,10 +20,11 @@
 //! ```
 
 use std::ffi::{OsStr, OsString};
+use std::os::fd::RawFd;
 use std::os::unix::process::CommandExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
-use crate::support_observation_bound::{Answer, UNSTATED_BOUND, spelled_command, stated_bound, wait_under_bound};
+use crate::support_observation_bound::{Answer, UNSTATED_BOUND, spelled_command, stated_bound, the_program_the_line_starts, wait_under_bound};
 use crate::support_program_names_and_time_bound::TIME_BOUND_SECONDS;
 
 /// The signal `timeout --signal=KILL` re-raises on itself when the bound it was given was hit:
@@ -146,7 +147,8 @@ pub fn without_wait_notices(bytes: &[u8]) -> Vec<u8> {
 /// Why:
 ///  The bound,
 ///  the ending and the pipes are kept by `observe_with`,
-///  once for this face and the two below it.
+///  once for this face and the three below it.
+///  A control that hands an inherited descriptor to its command uses `observe_handing`.
 ///
 /// # Panics
 ///  As `observe_raw`.
@@ -248,12 +250,11 @@ pub fn shared_bound_misuse(command: &Command) -> Option<SharedBoundMisuse> {
 ///  With the supervisor's message when it ended the command.
 ///  When a process that outlived the child still holds one of its pipes after `PIPE_GRACE`.
 pub fn supervised_wait(child: Child, input: &[u8], cleanup: impl FnOnce()) -> Output {
-    let child_id: u32 = child.id();
     let answer: Answer = wait_under_bound(child, None, UNSTATED_BOUND, input);
     // The supervisor ended it:
     // a loop or a deadlock,
     // with the reason and the tasks of the tree in the message.
-    if let Some(message) = super::supervisor::take_kill(child_id) {
+    if let Some(message) = answer.supervisor_message {
         panic!("{message}");
     }
     cleanup();
@@ -273,7 +274,23 @@ pub fn supervised_wait(child: Child, input: &[u8], cleanup: impl FnOnce()) -> Ou
 ///  pipes;
 ///  see `Answer::refuse_a_second_ending`.
 pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
-    return observe_with(command, input, true);
+    return observe_with(command, input, true, None);
+}
+
+/// What:
+///  Run a command to completion and observe it,
+///  handing it the descriptor `handed` holds as the descriptor number beside it,
+///  as a fixture's tripwire pipe is handed to everything the command starts.
+/// Why:
+///  The wait starts a bounded command's program itself,
+///  so a descriptor a control would have armed with its own `pre_exec`
+///  is handed here instead,
+///  and a control that armed one on observation would lose it silently.
+///
+/// # Panics
+///  As `observe_raw`.
+pub fn observe_handing(command: &mut Command, input: &[u8], handed: (RawFd, RawFd)) -> Observed {
+    return observe_with(command, input, true, Some(handed));
 }
 
 /// What:
@@ -289,7 +306,108 @@ pub fn observe_raw(command: &mut Command, input: &[u8]) -> Observed {
 /// # Panics
 ///  As `observe_raw`.
 pub fn observe_without_waiting_for_the_after_commit_work(command: &mut Command, input: &[u8]) -> Observed {
-    return observe_with(command, input, false);
+    return observe_with(command, input, false, None);
+}
+
+/// What:
+///  Start `command` with the bound its line states,
+///  and nothing else timing it.
+/// Why:
+///  A command built by `bounded_for` is `/usr/bin/timeout --signal=KILL <n> <program> …`,
+///  and a wait that let that timer run beside its own would have two deadlines for one value:
+///  whichever fired first would end the command,
+///  and no status could say which one it was.
+///  So the program the line names is started here,
+///  in a group this wait makes,
+///  with the environment and the directory the command carries,
+///  and the answer says whether this wait started it (`true`)
+///  or was given a line it does not parse and started as it was (`false`).
+///  The descriptor a control hands over goes to the child as well,
+///  in the same `pre_exec` a control would have armed.
+///
+/// # Panics
+///  When a bounded command carries no environment of its own:
+///  the wait rebuilds such a command from the pairs it sets,
+///  which is what the fixture's `hermetic` gives it,
+///  and a command built otherwise would silently lose the environment it inherited.
+fn start_under_its_own_bound(command: &mut Command, handed: Option<(RawFd, RawFd)>) -> (Child, bool) {
+    let Some((program, arguments)) = the_program_the_line_starts(command) else {
+        command.process_group(0);
+        if let Some((held, number)) = handed {
+            hand_a_descriptor(command, held, number);
+        }
+        let given: Child = command
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("process starts");
+        return (given, false);
+    };
+    let carried: Vec<(OsString, OsString)> = environment_of(command);
+    let spelled: String = spelled_command(command);
+    assert!(
+        is_the_fixtures_environment(carried.as_slice()),
+        "{spelled} carries no environment of its own, and this wait starts a bounded command from the pairs the \
+         fixture's hermetic environment sets: a command built without it would lose the environment it inherited"
+    );
+    let mut direct: Command = Command::new(program);
+    direct.args(arguments.as_slice());
+    direct.env_clear();
+    for (name, value) in carried {
+        direct.env(name, value);
+    }
+    if let Some(at) = command.get_current_dir() {
+        direct.current_dir(at);
+    }
+    direct.process_group(0);
+    if let Some((held, number)) = handed {
+        hand_a_descriptor(&mut direct, held, number);
+    }
+    let started: Child = direct
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("process starts");
+    return (started, true);
+}
+
+/// The environment a command sets,
+/// in the order it was given.
+fn environment_of(command: &Command) -> Vec<(OsString, OsString)> {
+    let mut carried: Vec<(OsString, OsString)> = Vec::new();
+    for (name, value) in command.get_envs() {
+        let Some(text) = value else {
+            panic!("a bounded command removes a variable, and this wait rebuilds it from the pairs it sets alone");
+        };
+        carried.push((name.to_os_string(), text.to_os_string()));
+    }
+    return carried;
+}
+
+/// Whether these pairs are the fixture's hermetic environment,
+/// which is the environment `hermetic` gives every bounded command and the only one this wait can rebuild.
+fn is_the_fixtures_environment(carried: &[(OsString, OsString)]) -> bool {
+    let marks: [&str; 4] = ["PATH", "HOME", "GIT_CONFIG_NOSYSTEM", "GIT_CONFIG_GLOBAL"];
+    return marks.iter().all(|mark| {
+        return carried.iter().any(|(name, _value)| { return name == mark; });
+    });
+}
+
+/// Hand `held` to a child as `number`,
+/// so the pipe a fixture checks for outlives neither the command nor what it starts.
+fn hand_a_descriptor(command: &mut Command, held: RawFd, number: RawFd) {
+    // SAFETY: between fork and exec only `dup2`, an async-signal-safe call, runs;
+    //  it clears the close-on-exec flag of the copy the child keeps.
+    unsafe {
+        command.pre_exec(move || {
+            if libc::dup2(held, number) < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            return Ok(());
+        });
+    }
 }
 
 /// What:
@@ -297,24 +415,28 @@ pub fn observe_without_waiting_for_the_after_commit_work(command: &mut Command, 
 ///  one run of a command,
 ///  and the wait for the after-commit work given or refused.
 /// Why:
-///  The two faces differ only in that wait,
+///  The faces differ only in that wait and in the descriptor they hand,
 /// so the bound,
 /// the misuse check and the reading live once.
+///  A command whose line states a bound is started by this wait without the `/usr/bin/timeout` in front of it:
+///  the wait is then the only timer on the command,
+///  which is what lets the answer say who ended it
+///  (two equal deadlines cannot tell which of them fired).
 ///  The command leads a process group of its own,
-///  which is the group the bound ends;
-///  `timeout` makes such a group for itself a moment after it starts (`setpgid` in its own process),
-///  and this wait makes it before the command runs,
-///  so the group it ends is one it made.
+///  which is the group the bound ends,
+///  and the group it ends is one this wait made.
 ///
 /// # Panics
 ///  When the command is a commit transaction or a manual page under the shared bound;
 ///  see `shared_bound_misuse`.
+///  When a bounded command does not carry the fixture's hermetic environment,
+///  which is what lets this wait rebuild it without changing what the program sees.
 ///  When the supervisor ended the command,
 ///  with the supervisor's message.
 ///  When this wait ended the command at the bound,
 ///  or a pipe the command's output came through is still held;
 ///  see `Answer::refuse_a_second_ending`.
-fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commit_work: bool) -> Observed {
+fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commit_work: bool, handed: Option<(RawFd, RawFd)>) -> Observed {
     match shared_bound_misuse(command) {
         Some(SharedBoundMisuse::CommitTransaction) => panic!(
             "a commit under the shared bound: the work of a landed commit happens in the commit service, outside the command's \
@@ -331,19 +453,21 @@ fn observe_with(command: &mut Command, input: &[u8], waiting_for_the_after_commi
     let bound: std::time::Duration = stated_bound(command);
     let spelled: String = spelled_command(command);
     let directory: Option<PathBuf> = command.get_current_dir().map(Path::to_path_buf);
-    command.process_group(0);
-    let child: Child = command
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("process starts");
+    let (child, started_by_the_wait): (Child, bool) = start_under_its_own_bound(command, handed);
     let child_id: u32 = child.id();
     let group: libc::pid_t = libc::pid_t::try_from(child_id).expect("a process ID fits the pid type");
+    // A command this wait started itself no longer carries the shared bound in its line,
+    //  which is how the supervisor finds the commands a control starts for itself;
+    //  so the one bound the supervisor judges is asked for here.
+    if started_by_the_wait && bound == UNSTATED_BOUND {
+        super::supervisor::watch(child_id, super::supervisor::SHARED);
+    }
     let answer: Answer = wait_under_bound(child, Some(group), bound, input);
     // The supervisor ended it: a loop or a deadlock, and its message names the reason and the tasks of the tree.
-    //  Claimed before the cleanup, which can take longer than the grace in which an unclaimed kill aborts the process.
-    if let Some(message) = super::supervisor::take_kill(child_id) {
+    //  The wait claimed that message before it reaped the command,
+    //  and the cleanup runs after it here, because the cleanup can take longer than the grace in which an
+    //  unclaimed kill aborts the process.
+    if let Some(message) = answer.supervisor_message {
         panic!("{message}");
     }
     if waiting_for_the_after_commit_work && let Some(at) = directory.as_deref() {
