@@ -368,10 +368,13 @@ fn queue_at(work: &Path) -> Vec<(String, PathBuf)> {
 /// The record, the wake and the return are one path in that order
 /// (`repair::package_repair_relink::hand_over_with` writes the record and then wakes the service),
 /// and this control reads the queue at the moment the add returns,
-/// waiting for nothing,
-/// and compares the record's own modification time with the moment of that answer.
+/// waiting for nothing.
 /// What it proves: something a person runs cannot be told that work the add handed over is done while no record of it exists,
 /// because the record is there before the add's own answer.
+/// A record's modification time is no measure of when it was written:
+/// a claim stamps it again,
+/// and one run measured that stamp 6.28 µs after the add had answered,
+/// so what this control reads is the record's presence and not its time.
 #[test]
 fn the_add_writes_the_record_it_hands_over_before_it_returns() {
     let fixture: Fixture = fixture("repair-record-at-return");
@@ -379,8 +382,7 @@ fn the_add_writes_the_record_it_hands_over_before_it_returns() {
     let record: PathBuf = fake_pnpm(&fixture, 0);
     let work: PathBuf = repo.join(".git/monochromatic-git-policy-cli/work");
     add_without_waiting_for_the_after_commit_work(&fixture, repo.as_path(), &[], "one", "../one");
-    // No wait of any kind stands between the add's return and these two readings.
-    let answered: std::time::SystemTime = std::time::SystemTime::now();
+    // No wait of any kind stands between the add's return and this reading.
     let queued: Vec<(String, PathBuf)> = queue_at(work.as_path());
     let one: PathBuf = fixture.root.join("one");
     let handed: Vec<&(String, PathBuf)> = queued
@@ -393,13 +395,6 @@ fn the_add_writes_the_record_it_hands_over_before_it_returns() {
         "the add returned with no record of the relink it handed over for {} in {}: {queued:?}",
         one.display(),
         work.display()
-    );
-    let written: std::time::SystemTime = std::fs::metadata(handed[0].1.as_path()).and_then(|metadata| { return metadata.modified(); }).expect("the record's modification time");
-    assert!(
-        written <= answered,
-        "the record {} was written {:?} after the add had already answered, so a command after the add can be told work is done before it is written down",
-        handed[0].1.display(),
-        written.duration_since(answered).expect("a record written after the answer")
     );
     // The work itself is the service's from here, so the fixture is left only once the tool has run.
     wait_for_pnpm_runs(record.as_path(), 1);
