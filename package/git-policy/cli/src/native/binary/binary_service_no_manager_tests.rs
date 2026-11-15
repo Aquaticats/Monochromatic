@@ -18,7 +18,6 @@
 
 use super::commit::{git_text, remove_settled, wrapped_commit};
 use super::support::{Fixture, Observed, fixture, git, observe, repository, run_direct, stderr_of};
-use git_policy_cli::service_messages::{LINGER_COMMAND, NOTHING_CHANGED};
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Output;
