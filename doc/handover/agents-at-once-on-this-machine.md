@@ -7,7 +7,28 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **17** agents run on this machine at once since 2026-11-15T01:00:44-05:00
+At most **20** agents run on this machine at once since 2026-11-15T10:50:46-05:00,
+by the owner's answer of that morning
+("Step to 20 with the probe (Recommended)",
+asked whether the cap stays at 17 until the new drive,
+steps to 20 under the probe,
+or goes back to 24 at once;
+`doc/handover/cli-git-rust-implementation.md`,
+"Answers on waking").
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-20-20261115T105046`
+(eight hours)
+and the probe `disk-ceiling-probe-level-20-20261115T105110`
+(eight hours).
+Should twenty fail on two slow readings in a row,
+the rule under "What counts as the ceiling" gives eighteen and then seventeen,
+the level that held from 01:00:44 to 10:50:46
+(at seventeen,
+from the end of the snapshot cleanup at 01:45:02 to 09:02,
+27 of 434 readings took a second or more and none twice in a row).
+No run that is going is stopped when a level ends.
+What follows is the state before that answer,
+kept as it was written.
+At most 17 agents ran at once from 2026-11-15T01:00:44-05:00
 (18 from 00:50:55;
 level eighteen failed at 00:57:33 on 109,241 ms and then 59,474 ms,
 under "Level 18 fails on stalls of 109 and 59 seconds, 2026-11-15T00:44:53-05:00 to 01:00:46-05:00").
