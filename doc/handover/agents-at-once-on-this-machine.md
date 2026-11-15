@@ -17,9 +17,8 @@ or goes back to 24 at once;
 "Answers on waking").
 The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-20-20261115T105046`
 (eight hours)
-and the probe a unit named `disk-ceiling-probe-level-20-` with the second it was started in
-(started 10:50:58 or within seconds of it,
-eight hours).
+and the probe `disk-ceiling-probe-level-20-20261115T105110`
+(eight hours).
 Should twenty fail on two slow readings in a row,
 the rule under "What counts as the ceiling" gives eighteen and then seventeen,
 the level that held from 01:00:44 to 10:50:46

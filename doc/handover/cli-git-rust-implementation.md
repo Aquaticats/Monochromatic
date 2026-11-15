@@ -1686,7 +1686,17 @@ and what the coordinating session did.
   (open: the review of one assertion's message).
   Brief:
   `~/temp/agent/pi-runs/integration-pass-54-with-the-wrapper-under-the-gates-git-the-file-holder-and-the-address-space-controls-prompt.md`.
-  It should take ten of the gate's sixteen with it.
+  Eight of the gate's sixteen failures are the subject of two of its branches
+  (seven of the Git version and the file holder);
+  whether they pass in the gate's image is for the gate after the release to show.
+  Queued after it at 10:58:
+  the masking author's fourth run
+  (second in the queue)
+  and the Git-version author's run for the three sentences.
+  Measured for the masking's `\uXXXX` finding,
+  counts only:
+  of the 41 string tokens in Pi's two credential files none is written otherwise than `JSON.stringify` writes it,
+  so it meets nothing on this machine today.
 - **The review of the Git-version branch's two rewritten sentences**
   (ended 10:48:15,
   by reading)
