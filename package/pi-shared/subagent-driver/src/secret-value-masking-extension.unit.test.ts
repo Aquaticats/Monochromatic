@@ -10,7 +10,9 @@
 
 import {
   chmod,
+  constants,
   mkdtemp,
+  open,
   readFile,
   rm,
   writeFile,
@@ -41,6 +43,51 @@ import {
   type SecretValue,
   SECRET_VALUES_FD,
 } from '../dist/final/node/index.mjs';
+
+/**
+ Opens a named pipe for writing, which is what a reader waiting on one needs.
+
+ @param path - the named pipe
+
+ @returns the writer, or nothing when no reader is waiting for one
+ */
+async function openForWriting({ path, }: { readonly path: string },) {
+  try {
+    return await open(
+      path,
+      constants.O_WRONLY | constants.O_NONBLOCK,
+    );
+  }
+  catch (error) {
+    if (!Error.isError(error,)) {
+      throw error;
+    }
+    return undefined;
+  }
+}
+
+/**
+ Gives a named pipe a writer when the test is done with it, so a read that was waiting on one ends and the test process can go.
+
+ Without this, a read that waits on a pipe with no writer keeps the whole file alive after the test has failed.
+
+ @param path - the named pipe
+
+ @returns a disposer that opens the pipe for writing and closes it
+ */
+async function aPipeThatReleases({ path, }: { readonly path: string },): Promise<{
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  return {
+    async [Symbol.asyncDispose]() {
+      /**
+       A writer, which unblocks whoever is waiting to read.
+       */
+      const writer = await openForWriting({ path, },);
+      await writer?.close();
+    },
+  };
+}
 
 /**
  How long a read of a file Pi saved a tool's output in may take in this file before the test calls it a wait, which is what a
@@ -519,6 +566,8 @@ await describe({
         );
         expect(made.status,).toBe(0,);
         const recording = armRecording({ piOutputFolder: folder.path, },);
+        await using release = await aPipeThatReleases({ path, },);
+        void release;
         /**
          The answer of the hook, which must come without waiting for a writer that never comes.
          */

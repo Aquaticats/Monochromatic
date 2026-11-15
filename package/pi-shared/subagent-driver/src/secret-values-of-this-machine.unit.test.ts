@@ -14,6 +14,8 @@ import {
   mkdtemp,
   rm,
   writeFile,
+  constants,
+  open
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import { createSopsFixture, } from '@monochromatic-dev/env-local-json-core/ts/fixture.ts';
@@ -50,6 +52,51 @@ const PI_KEY_VALUE = 'stand-in-provider-key-abcdefghij';
  A stand-in provider key of Pi's other file, which must differ from the first so both names are kept.
  */
 const PI_MODEL_KEY_VALUE = 'stand-in-model-key-uvwxyzabcd';
+
+/**
+ Opens a named pipe for writing, which is what a reader waiting on one needs.
+
+ @param path - the named pipe
+
+ @returns the writer, or nothing when no reader is waiting for one
+ */
+async function openForWriting({ path, }: { readonly path: string },) {
+  try {
+    return await open(
+      path,
+      constants.O_WRONLY | constants.O_NONBLOCK,
+    );
+  }
+  catch (error) {
+    if (!Error.isError(error,)) {
+      throw error;
+    }
+    return undefined;
+  }
+}
+
+/**
+ Gives a named pipe a writer when the test is done with it, so a read that was waiting on one ends and the test process can go.
+
+ Without this, a read that waits on a pipe with no writer keeps the whole file alive after the test has failed.
+
+ @param path - the named pipe
+
+ @returns a disposer that opens the pipe for writing and closes it
+ */
+async function aPipeThatReleases({ path, }: { readonly path: string },): Promise<{
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  return {
+    async [Symbol.asyncDispose]() {
+      /**
+       A writer, which unblocks whoever is waiting to read.
+       */
+      const writer = await openForWriting({ path, },);
+      await writer?.close();
+    },
+  };
+}
 
 /**
  How long a source read may take in this file before the test calls it a wait, which is what a read of a named pipe would be.
@@ -416,6 +463,8 @@ await describe({
           home: home.path,
           checkoutFolder: home.path,
         },);
+        await using release = await aPipeThatReleases({ path: join(agentFolder, 'auth.json',), },);
+        void release;
         /**
          What the read gave before this test's bound: its refusal, or nothing when it was still waiting. A read that waits for a
          writer shows as a failure here rather than holding the suite open.
