@@ -87,9 +87,12 @@ function failuresNamed({ failures, }: { readonly failures: readonly string[] },)
   if (failures.length === 0) {
     return '';
   }
-  return `${String(failures.length,)} case${(failures.length === 1) ? '' : 's'} failed: `
-    + failures.slice(0, CASES_NAMED_IN_A_FAILURE,)
-      .join('; ');
+  /**
+   The failing cases the sentence names, joined.
+   */
+  const named = failures.slice(0, CASES_NAMED_IN_A_FAILURE,)
+    .join('; ');
+  return `${String(failures.length,)} case${(failures.length === 1) ? '' : 's'} failed: ${named}`;
 }
 
 /**
