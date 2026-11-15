@@ -105,12 +105,12 @@ pub(crate) async fn move_the_ref_only_awaiting(
             }));
         }
     };
-    if let Some(taken) = taken {
+    if let Some(holder) = taken {
         debug(
             TAG,
-            &format!("a worktree at {} took {branch_ref} before its reference moved, so the branch is moved there", taken.display()),
+            &format!("a worktree at {} took {branch_ref} before its reference moved, so the branch is moved there", holder.display()),
         );
-        return Ok(NowhereMove::Held(taken));
+        return Ok(NowhereMove::Held(holder));
     }
     // What: the branch's tip and the common Git directory in one call.
     // Why: the record's directory is asked for only when the branch is about to move, and one Git spawn is the whole of
@@ -180,17 +180,17 @@ pub(crate) async fn move_the_ref_only_awaiting(
             }));
         }
     };
-    let Some(appeared) = appeared else {
+    let Some(took_it) = appeared else {
         let _removed = remove_branch_move(record.as_path());
         return Ok(NowhereMove::Answered(Advanced::Nowhere));
     };
     let repaired: Repaired =
-        finish_the_checkout_that_raced_the_move(git, appeared.as_path(), branch_ref, local, merge_oid).await?;
+        finish_the_checkout_that_raced_the_move(git, took_it.as_path(), branch_ref, local, merge_oid).await?;
     if repaired.write_refused {
         // What: the record stays when Git refused a write, because a later command may finish it.
         // Why: the checkout still holds the older files on paths the merge changes, and the person was not asked anything:
         //      the move writes them by the proof, so a lock is all that stood in the way.
-        debug(TAG, &format!("the checkout at {} was not written, so the record stays for a later command", appeared.display()));
+        debug(TAG, &format!("the checkout at {} was not written, so the record stays for a later command", took_it.display()));
     } else {
         // The repair has run and told what it left, so the record has nothing more to finish: a record kept would only
         //  tell it again at every command. A stop inside the repair left it, and the next command finishes the rest.

@@ -3834,6 +3834,8 @@ fn a_stop_after_the_reference_moves_leaves_a_record_the_next_command_finishes() 
     finish_branch_moves(&there, common_dir.as_path(), &mut stderr).expect("the sweep runs");
     assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "the checkout is finished: {}", String::from_utf8_lossy(&stderr));
     assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "and the record is gone");
+    let said: String = String::from_utf8_lossy(&stderr).into_owned();
+    assert!(said.contains("now holds refs/heads/topic"), "the command says what it wrote: {said}");
     remove(&s.scenario.root);
 }
 

@@ -253,10 +253,10 @@ pub fn list_branch_moves(common_dir: &Path) -> std::io::Result<Vec<PathBuf>> {
     };
     let mut records: Vec<PathBuf> = Vec::new();
     for entry in listing {
-        let entry = entry?;
-        let name: std::ffi::OsString = entry.file_name();
+        let read = entry?;
+        let name: std::ffi::OsString = read.file_name();
         if name.to_string_lossy().ends_with(RECORD_SUFFIX) {
-            records.push(entry.path());
+            records.push(read.path());
         }
     }
     records.sort();
@@ -397,8 +397,8 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
             // The worktree that holds the branch finishes its own checkout.
             continue;
         }
-        let tip = run_query_awaiting(git, &argv(&["rev-parse", "--verify", format!("{}^{{commit}}", movement.target_ref).as_str()])).await;
-        let tip: String = match tip {
+        let asked = run_query_awaiting(git, &argv(&["rev-parse", "--verify", format!("{}^{{commit}}", movement.target_ref).as_str()])).await;
+        let tip: String = match asked {
             Ok(printed) if printed.code == Some(0) => String::from_utf8_lossy(&printed.stdout).trim().to_owned(),
             _ => {
                 debug_line(out, &format!("the tip of {} could not be read, so the record {} is left", movement.target_ref, record.display()));
@@ -421,6 +421,18 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
         match brought {
             Ok(crate::auto_push_reconcile_branch_checkout::Brought::Right) => {
                 let _removed = remove_branch_move(record.as_path());
+                // What: a copy of the line the merge recovery prints, for a state change the person did not ask for.
+                // Why: a push that stopped left this checkout holding the older files, and an unrelated command may have
+                //      written the merge into it; a person who learns of it only by a changed file would be right to ask
+                //      what wrote it.
+                let _noted = writeln!(
+                    out,
+                    "monochromatic-git-policy-cli: the checkout at {place} now holds {branch} at {merge}, which a push that stopped \
+                     before it finished that checkout left behind; the edits you made elsewhere are kept.",
+                    place = place.display(),
+                    branch = movement.target_ref,
+                    merge = movement.new_oid
+                );
             }
             Ok(crate::auto_push_reconcile_branch_checkout::Brought::Left { paths, reason, write_refused }) => {
                 if write_refused {
