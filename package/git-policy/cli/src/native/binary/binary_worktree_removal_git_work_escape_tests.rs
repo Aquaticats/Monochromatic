@@ -1049,3 +1049,251 @@ fn a_registration_this_program_cannot_read_is_refused_and_the_nested_worktree_st
     assert_eq!(readable.code, Some(0), "the nested commit is still readable after a collection: {}", stderr_of(&readable));
     remove(&scene.fixture);
 }
+
+/// What:
+///  Every route by which a removal reaches Git through this program is guarded,
+///  and the words judged are the words Git runs:
+///  the built-in typed as it is,
+///  a plain alias,
+///  an alias of an alias,
+///  a `!` alias whose shell runs one plain `git` command,
+///  with the caller's own `-c` before the alias word and the removal's own words after it.
+/// Why:
+///  The guard read `command.arguments`, which for `alias.rmwt='!git worktree remove'` still start with `rmwt`, so
+///  `git rmwt <worktree>` exited 0 and deleted a hidden edit the same removal typed as the built-in was refused for
+///  (a review of `8858f843ee`, finding 1).
+///  The alias is handed to Git as the person typed it, and the shell inside it runs the command the guard judged.
+///  The opt-out arm is the way out: `--no-enforce-worktree` before a `!` alias still runs the removal as real Git runs it.
+#[test]
+fn every_route_a_removal_reaches_git_by_is_guarded() {
+    for (name, aliases, words) in [
+        // A plain alias, and an alias of that alias.
+        ("removal-route-plain-alias", vec![("alias.rmwt", "worktree remove")], vec!["rmwt"]),
+        ("removal-route-alias-of-alias", vec![("alias.rmwt", "worktree remove"), ("alias.again", "rmwt")], vec!["again"]),
+        // A `!` alias, whose shell runs one plain `git` command.
+        ("removal-route-shell-alias", vec![("alias.rmwt", "!git worktree remove")], vec!["rmwt"]),
+        // The caller's own `-c` before the alias word, which is what the alias is.
+        ("removal-route-config-alias", Vec::new(), vec!["-c", "alias.rmwt=worktree remove", "rmwt"]),
+        // The removal's own words after the alias word.
+        ("removal-route-after-the-word", vec![("alias.rmwt", "worktree remove")], vec!["rmwt", "--"]),
+    ] {
+        let scene: Scene = a_repository_with_a_recorded_worktree(name);
+        let task: String = scene.task.display().to_string();
+        scene.hide_an_edit();
+        for (key, value) in aliases {
+            run_direct(&scene.fixture, scene.repo.as_path(), &["config", key, value]);
+        }
+        // The control: the same removal typed as the built-in, which is refused.
+        let typed: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
+        assert_eq!(typed.code, Some(1), "{name}: the built-in form is refused: {}", stderr_of(&typed));
+        let mut arguments: Vec<&str> = words.clone();
+        arguments.push(task.as_str());
+        let aliased: Observed = scene.remove_with(arguments.as_slice());
+        let said: String = stderr_of(&aliased);
+        assert_eq!(aliased.code, Some(1), "{name}: the aliased form is refused too: {said}");
+        assert!(said.contains(TRACKED), "{name}: and names the hidden edit: {said}");
+        assert!(scene.task.join(TRACKED).exists(), "{name}: and nothing was removed");
+        remove(&scene.fixture);
+    }
+
+    // The way out reaches through a `!` alias too: the wrapper's own control stands before the alias word, and the
+    // removal Git then runs is Git's.
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-route-shell-alias-escape");
+    let task: String = scene.task.display().to_string();
+    scene.hide_an_edit();
+    run_direct(&scene.fixture, scene.repo.as_path(), &["config", "alias.rmwt", "!git worktree remove"]);
+    let refused: Observed = scene.remove_with(&["rmwt", task.as_str()]);
+    assert_eq!(refused.code, Some(1), "the alias is refused first: {}", stderr_of(&refused));
+    let escaped: Observed = scene.remove_with(&["--no-enforce-worktree", "rmwt", task.as_str()]);
+    assert_eq!(escaped.code, Some(0), "and the opt-out before the alias runs it: {}", stderr_of(&escaped));
+    assert!(!scene.task.exists(), "with the worktree gone, as real Git leaves it");
+    remove(&scene.fixture);
+}
+
+/// What:
+///  A hidden edit in a worktree registered inside the target keeps the outer worktree,
+///  on the route the ladder serves and on the plain forward,
+///  and no edit there lets the outer removal go.
+/// Why:
+///  The removal deletes the inner checkout and its own Git directory with the outer one,
+///  and the hidden-edit question was asked of the outer directory alone:
+///  an outer removal exited 0 and deleted the inner worktree's edited file
+///  (a review of `8858f843ee`, finding 2).
+///  The commit question already walked the worktrees inside the target;
+///  now one list of what a removal takes is made once and every question goes over it
+///  (`worktree_removal_worktrees_it_takes`).
+#[test]
+fn a_hidden_edit_in_a_worktree_inside_keeps_the_outer_one_on_every_route() {
+    for (name, words) in [
+        ("removal-nested-hidden-edit-ladder", vec!["worktree", "remove"]),
+        ("removal-nested-hidden-edit-forward", vec!["--no-worktree-copy", "worktree", "remove"]),
+    ] {
+        let scene: Scene = a_repository_with_a_recorded_worktree(name);
+        let outer: String = scene.task.display().to_string();
+        // The nested checkout is ignored on the branch the outer worktree is on, so the outer worktree is clean.
+        std::fs::write(scene.task.join(".gitignore"), "/inner/\n").expect("the ignore file");
+        run_direct(&scene.fixture, scene.task.as_path(), &["add", ".gitignore"]);
+        run_direct(&scene.fixture, scene.task.as_path(), &["commit", "--quiet", "--message=ignore the nested checkout"]);
+        let nested: PathBuf = scene.task.join("inner");
+        let named: &str = nested.to_str().expect("a UTF-8 fixture path");
+        run_direct(&scene.fixture, scene.repo.as_path(), &["worktree", "add", "--quiet", "-b", "inner", named, "main"]);
+        // The control: the same edit in the outer worktree keeps it, so the question is alive on this route.
+        run_direct(&scene.fixture, scene.task.as_path(), &["update-index", "--assume-unchanged", TRACKED]);
+        std::fs::write(scene.task.join(TRACKED), "outer edit\n").expect("an outer edit");
+        let mut control: Vec<&str> = words.clone();
+        control.push(outer.as_str());
+        let refused_outer: Observed = scene.remove_with(control.as_slice());
+        assert_eq!(refused_outer.code, Some(1), "{name}: an edit in the outer worktree is refused: {}", stderr_of(&refused_outer));
+        // The same, with the edit only in the nested worktree.
+        run_direct(&scene.fixture, scene.task.as_path(), &["update-index", "--no-assume-unchanged", TRACKED]);
+        std::fs::write(scene.task.join(TRACKED), "base\n").expect("the outer file back");
+        run_direct(&scene.fixture, nested.as_path(), &["update-index", "--assume-unchanged", TRACKED]);
+        std::fs::write(nested.join(TRACKED), "inner edit\n").expect("an edit in the nested worktree");
+        let mut arguments: Vec<&str> = words.clone();
+        arguments.push(outer.as_str());
+        let refused_nested: Observed = scene.remove_with(arguments.as_slice());
+        let said: String = stderr_of(&refused_nested);
+        assert_eq!(refused_nested.code, Some(1), "{name}: an edit in the worktree inside is refused: {said}");
+        assert!(said.contains(&nested.display().to_string()), "{name}: and the refusal names that worktree: {said}");
+        assert_eq!(std::fs::read_to_string(nested.join(TRACKED)).expect("the inner edit is there"), "inner edit\n", "{name}: and the edit stays");
+        // The control: with no edit there, the outer removal goes.
+        run_direct(&scene.fixture, nested.as_path(), &["update-index", "--no-assume-unchanged", TRACKED]);
+        std::fs::write(nested.join(TRACKED), "base\n").expect("the inner file back");
+        let mut allowed: Vec<&str> = words.clone();
+        allowed.push(outer.as_str());
+        let removed: Observed = scene.remove_with(allowed.as_slice());
+        assert_eq!(removed.code, Some(0), "{name}: no edit there lets the outer removal go: {}", stderr_of(&removed));
+        assert!(!scene.task.exists(), "{name}: and both worktrees are gone");
+        remove(&scene.fixture);
+    }
+}
+
+/// What:
+///  A commit only a worktree inside the target names keeps the outer worktree,
+///  on both routes.
+/// Why:
+///  The commit question already walked the worktrees inside the target,
+///  and this is the control that says so on the route the ladder serves and on the plain forward,
+///  so the list of what a removal takes is checked against both.
+#[test]
+fn a_commit_only_a_worktree_inside_names_keeps_the_outer_one_on_every_route() {
+    for (name, words) in [
+        ("removal-nested-commit-ladder", vec!["worktree", "remove"]),
+        ("removal-nested-commit-forward", vec!["--no-worktree-copy", "worktree", "remove"]),
+    ] {
+        let scene: Scene = a_repository_with_a_recorded_worktree(name);
+        let outer: String = scene.task.display().to_string();
+        std::fs::write(scene.task.join(".gitignore"), "/inner/\n").expect("the ignore file");
+        run_direct(&scene.fixture, scene.task.as_path(), &["add", ".gitignore"]);
+        run_direct(&scene.fixture, scene.task.as_path(), &["commit", "--quiet", "--message=ignore the nested checkout"]);
+        let nested: PathBuf = scene.task.join("inner");
+        let named: &str = nested.to_str().expect("a UTF-8 fixture path");
+        run_direct(&scene.fixture, scene.repo.as_path(), &["worktree", "add", "--quiet", "--detach", named, "main"]);
+        std::fs::write(nested.join("only-here.txt"), "made here\n").expect("a file in the nested worktree");
+        run_direct(&scene.fixture, nested.as_path(), &["add", "only-here.txt"]);
+        run_direct(&scene.fixture, nested.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+        let nested_commit: std::process::Output = git(&scene.fixture, nested.as_path(), &["rev-parse", "HEAD"]);
+        let commit: String = String::from_utf8_lossy(nested_commit.stdout.as_slice()).trim().to_owned();
+        let mut arguments: Vec<&str> = words.clone();
+        arguments.push(outer.as_str());
+        let refused: Observed = scene.remove_with(arguments.as_slice());
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{name}: a commit in the worktree inside is refused: {said}");
+        assert!(said.contains(&commit[..12]), "{name}: and names the commit: {said}");
+        assert!(nested.exists(), "{name}: and the worktree inside stays");
+        remove(&scene.fixture);
+    }
+}
+
+/// What:
+///  A detached `HEAD` written in capital hexadecimal is refused like the small one,
+///  and the commit survives a collection in that worktree;
+///  a record written in capitals is no different.
+/// Why:
+///  `git rev-list` prints names in small letters and the filter compared them as text,
+///  so a valid `HEAD` in capitals was dropped from the stranded set: the removal ended 0 and a collection took the
+///  commit
+///  (a review of `8858f843ee`, finding 3).
+///  Git reads a name in either case as the same object, and so does every comparison here now.
+#[test]
+fn an_uppercase_object_name_is_the_same_object_as_the_small_one() {
+    for (name, where_it_stands) in [("removal-uppercase-head", "HEAD"), ("removal-uppercase-record", "ORIG_HEAD")] {
+        let scene: Scene = a_repository_with_a_recorded_worktree(name);
+        let task: String = scene.task.display().to_string();
+        run_direct(&scene.fixture, scene.task.as_path(), &["checkout", "--quiet", "--detach"]);
+        std::fs::write(scene.task.join("only-here.txt"), "made here\n").expect("a file in the worktree");
+        run_direct(&scene.fixture, scene.task.as_path(), &["add", "only-here.txt"]);
+        run_direct(&scene.fixture, scene.task.as_path(), &["commit", "--quiet", "--message=work on a detached head"]);
+        let named: std::process::Output = git(&scene.fixture, scene.task.as_path(), &["rev-parse", "HEAD"]);
+        let commit: String = String::from_utf8_lossy(named.stdout.as_slice()).trim().to_owned();
+        assert!(commit.chars().any(|letter| return letter.is_ascii_alphabetic()), "the commit has letters to capitalise");
+        if where_it_stands == "HEAD" {
+            run_direct(&scene.fixture, scene.task.as_path(), &["reflog", "expire", "--expire=now", "--all"]);
+            let admin: PathBuf = admin_of(&scene.fixture, BRANCH);
+            let head: PathBuf = admin.join("HEAD");
+            std::fs::write(head.as_path(), format!("{}\n", commit.to_uppercase())).expect("a capital HEAD");
+            run_direct(&scene.fixture, scene.task.as_path(), &["rev-parse", "--verify", "HEAD"]);
+        } else {
+            // The reflog and the detached `HEAD` go, and the reset's own record, written in capitals, is the only name.
+            git(&scene.fixture, scene.task.as_path(), &["reset", "--hard", "main"]);
+            run_direct(&scene.fixture, scene.task.as_path(), &["reflog", "expire", "--expire=now", "--all"]);
+            let admin: PathBuf = admin_of(&scene.fixture, BRANCH);
+            std::fs::remove_file(admin.join("logs/HEAD").as_path()).expect("the reflog goes");
+            std::fs::write(admin.join("ORIG_HEAD").as_path(), format!("{}\n", commit.to_uppercase())).expect("a capital record");
+        }
+        let refused: Observed = scene.remove_with(&["worktree", "remove", task.as_str()]);
+        let said: String = stderr_of(&refused);
+        assert_eq!(refused.code, Some(1), "{name}: the capital name is refused: {said}");
+        assert!(said.contains(&commit[..12]), "{name}: and the name it keeps is the small one Git prints: {said}");
+        assert!(scene.task.exists(), "{name}: and the worktree stays");
+        // A detached `HEAD` is a root of a collection run in its worktree, so the collection keeps the commit there.
+        // A record is no root of any collection, so the record arm first names the commit as the refusal's sentence says,
+        // which is what a person does next, and then collects.
+        if where_it_stands != "HEAD" {
+            // The remedy the sentence prints: `git -C <the worktree> branch <a name you choose> <the commit>`.
+            run_direct(&scene.fixture, scene.task.as_path(), &["branch", "keep-the-commit", commit.as_str()]);
+        }
+        run_direct(&scene.fixture, scene.task.as_path(), &["gc", "--prune=now"]);
+        let readable: Observed = run_direct(&scene.fixture, scene.task.as_path(), &["cat-file", "-e", commit.as_str()]);
+        assert_eq!(readable.code, Some(0), "{name}: and the commit is still readable after a collection: {}", stderr_of(&readable));
+        remove(&scene.fixture);
+    }
+}
+
+/// What:
+///  A relative `-C` removes what real Git removes,
+///  and still guards,
+///  with a `-c` of the caller's read by the guard's own question.
+/// Why:
+///  The guard's own Git ran from the common Git directory and forwarded the caller's relative `-C` again,
+///  so its query failed and the person's valid removal was refused where real Git removes the worktree
+///  (a review of `8858f843ee`, finding 4).
+///  The guard now carries the caller's options that change what Git answers and none that move it.
+#[test]
+fn a_relative_c_removes_like_real_git_and_still_guards() {
+    let scene: Scene = a_repository_with_a_recorded_worktree("removal-relative-c");
+    let task: String = scene.task.display().to_string();
+    // Run from the directory the relative `-C` names its repository from, which is the fixture's own root.
+    let parent: PathBuf = scene.fixture.root.clone();
+    // The guard is alive from here: an edit keeps the worktree even with the relative `-C`.
+    scene.hide_an_edit();
+    let refused: Observed = run_wrapped(&scene.fixture, parent.as_path(), &["-C", "repo", "worktree", "remove", task.as_str()]);
+    let said: String = stderr_of(&refused);
+    assert_eq!(refused.code, Some(1), "an edit keeps the worktree through a relative -C: {said}");
+    assert!(said.contains(TRACKED), "and the refusal names it: {said}");
+    // The caller's own `-c` reaches the guard's question: the same name in another case is the same worktree.
+    run_direct(&scene.fixture, scene.task.as_path(), &["update-index", "--no-assume-unchanged", TRACKED]);
+    std::fs::write(scene.task.join(TRACKED), "base\n").expect("the file back");
+    run_direct(&scene.fixture, scene.repo.as_path(), &["config", "core.ignorecase", "true"]);
+    scene.hide_an_edit();
+    let differing: String = format!("{}/{}", task.rsplit_once('/').expect("a parent").0, "TASK");
+    let folded: Observed = run_wrapped(&scene.fixture, parent.as_path(), &["-C", "repo", "worktree", "remove", differing.as_str()]);
+    assert_eq!(folded.code, Some(1), "a relative -C and a case-differing name are refused: {}", stderr_of(&folded));
+    run_direct(&scene.fixture, scene.task.as_path(), &["update-index", "--no-assume-unchanged", TRACKED]);
+    std::fs::write(scene.task.join(TRACKED), "base\n").expect("the file back");
+    // A clean worktree goes through the same relative `-C`, as real Git removes it.
+    let removed: Observed = run_wrapped(&scene.fixture, parent.as_path(), &["-C", "repo", "worktree", "remove", task.as_str()]);
+    assert_eq!(removed.code, Some(0), "a clean worktree goes through a relative -C: {}", stderr_of(&removed));
+    assert!(!scene.task.exists(), "and the worktree is gone");
+    remove(&scene.fixture);
+}
