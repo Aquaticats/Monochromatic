@@ -340,6 +340,23 @@ fn is_numeric_kind(kind: Kind) -> bool {
     return matches!(kind, Kind::Integer { .. } | Kind::IntegerOrBoolean | Kind::Abbreviation);
 }
 
+/// The key as the configuration parser hands it to the table:
+///  the section and the name in lower case,
+/// and the subsection as it was written
+///  (`parse_config_text` in `repo_read_config_text.rs`).
+/// Why:
+///  `git help --config` prints some keys with capitals,
+/// so a lookup with that spelling would find no kind and skip the key entirely.
+fn canonical_key(key: &str) -> String {
+    let Some((section, rest)) = key.split_once('.') else {
+        return key.to_ascii_lowercase();
+    };
+    return match rest.rsplit_once('.') {
+        Some((subsection, name)) => format!("{}.{}.{}", section.to_ascii_lowercase(), subsection, name.to_ascii_lowercase()),
+        None => format!("{}.{}", section.to_ascii_lowercase(), rest.to_ascii_lowercase()),
+    };
+}
+
 /// The spellings one numeric kind is swept with:
 ///  the shared edges,
 /// and a number one past each bound the kind states.
@@ -368,7 +385,7 @@ fn every_edge_spelling_of_a_numeric_key_is_declined_or_answered_by_git() {
     let shape: &Shape = trial.shapes.iter().find(|shape| { return shape.0.first().is_some_and(|word| { return *word == "ls-files"; }); }).expect("the listing shape");
     let mut keys: Vec<(String, Kind)> = Vec::new();
     for key in documented_keys() {
-        let Some(kind) = kind_of(key.as_str()) else {
+        let Some(kind) = kind_of(canonical_key(key.as_str()).as_str()) else {
             continue;
         };
         if is_numeric_kind(kind) {
