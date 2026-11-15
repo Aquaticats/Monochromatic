@@ -364,6 +364,12 @@ fn names_for(destination: &Path, git_dir: Option<&Path>) -> Result<TheNames, Str
     // The target directory is made before the marker that records it: a marker is the proof a later run removes a directory
     //  by, and it can only witness a making that has already happened. A directory somebody else's at the usual target name
     //  is left where it is, and the clean is given a name of this run's own.
+    #[cfg(test)]
+    BEFORE_THE_TARGET_IS_MADE.with(|hook| {
+        if let Some(another) = hook.borrow().as_ref() {
+            another();
+        }
+    });
     let target: PathBuf = make_the_target_of(usual.as_path())?;
     return match write_marker(marker.as_path(), destination, WhatTheMarkerRecords::TheStagingAndItsTarget)? {
         TheMarkersAnswer::WrittenByThisRun => Ok(TheNames { staging: usual, target, marker: Some(marker), lease: Some(lease) }),
@@ -374,6 +380,16 @@ fn names_for(destination: &Path, git_dir: Option<&Path>) -> Result<TheNames, Str
             return names_of_this_runs_own(usual.as_path());
         }
     };
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A control may take the usual target name between this run's look at the names and its own exclusive create,
+    /// which is where another command's directory appears.
+    /// Why:
+    ///   The window is two adjacent calls,
+    /// and a control that waited on a wall clock would pass whatever the code did.
+    pub(crate) static BEFORE_THE_TARGET_IS_MADE: std::cell::RefCell<Option<Box<dyn Fn()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// What:

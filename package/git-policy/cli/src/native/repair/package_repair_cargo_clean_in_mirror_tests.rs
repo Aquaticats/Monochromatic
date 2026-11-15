@@ -180,3 +180,105 @@ fn cargo_on_the_search_path() -> PathBuf {
     }
     return PathBuf::from("/nonexistent/cargo");
 }
+
+/// What:
+///  A clean in a mirror works in a Cargo home that holds the registry index and not the dependency's source,
+///  which is a state the workspace's own clean handles,
+///  and the person's lock is left alone.
+/// Why:
+///   The mirror is the only place Cargo runs, so what it asks Cargo for decides what an offline machine needs:
+/// the clean needs the lock and the index,
+/// and a full resolution needs every dependency's manifest,
+/// which Cargo can only read from a crate archive or an extracted source.
+/// The dependency's archive and source are removed from a disposable home here,
+/// the clean the repair runs is shown to succeed in it,
+/// and the mirror must give that same answer.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const home = disposableHome(realHome); expect(runClean(home, workspace)).toBe(0); const run = await cleanInAMirror({ ...belongings, tool: cargoWithHome(home), locked: false }); expect(run.end).toBe('succeeded')
+/// ```
+#[test]
+fn a_mirror_clean_in_a_home_without_the_dependencys_source_cleans_the_workspace() {
+    let tool: PathBuf = cargo_on_the_search_path();
+    if !tool.is_file() {
+        panic!("no cargo on the search path, so this control cannot show what it exists to show");
+    }
+    let Some(real_home): Option<PathBuf> = std::env::var_os("CARGO_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| return PathBuf::from(home).join(".cargo")))
+    else {
+        panic!("no Cargo home to borrow the registry index from, so this control cannot show what it exists to show");
+    };
+    let root: PathBuf = fixture("clean-in-a-mirror-without-the-dependency");
+    let worktree: PathBuf = root.join("worktree");
+    let workspace: PathBuf = worktree.join("package/own");
+    std::fs::create_dir_all(workspace.join("src")).expect("the workspace");
+    std::fs::write(
+        workspace.join("Cargo.toml"),
+        b"[package]\nname = \"own\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n\n[dependencies]\nitoa = \"1\"\n",
+    )
+    .expect("the manifest, with one registry dependency");
+    std::fs::write(workspace.join("src/lib.rs"), b"pub fn own() {}\n").expect("the source");
+    let build: PathBuf = root.join("build");
+    let target: PathBuf = root.join("target");
+    // A build with the home this test runs under, which has the dependency's source, so there is state to clean.
+    let built: std::process::Output = std::process::Command::new(tool.as_path())
+        .args(["build", "--offline", "--quiet"])
+        .current_dir(workspace.as_path())
+        .env("CARGO_BUILD_BUILD_DIR", build.as_os_str())
+        .env("CARGO_TARGET_DIR", target.as_os_str())
+        .env("CARGO_NET_OFFLINE", "true")
+        .output()
+        .expect("cargo runs");
+    assert!(built.status.success(), "the workspace builds: {}", String::from_utf8_lossy(built.stderr.as_slice()));
+    let lock: PathBuf = workspace.join(crate::package_repair_cargo_lock::LOCK_FILE);
+    let persons: Vec<u8> = std::fs::read(lock.as_path()).expect("the build wrote the lock");
+    // The disposable home: the index this machine has, and no archive and no source of the dependency.
+    let disposable: PathBuf = root.join("cargo-home");
+    std::fs::create_dir_all(disposable.join("registry/cache")).expect("the disposable home's cache");
+    std::fs::create_dir_all(disposable.join("registry/src")).expect("the disposable home's sources");
+    std::os::unix::fs::symlink(real_home.join("registry/index"), disposable.join("registry/index")).expect("the index is borrowed, not copied");
+    if real_home.join("config.toml").is_file() {
+        std::fs::copy(real_home.join("config.toml"), disposable.join("config.toml")).expect("the home's configuration is copied, never read");
+    }
+    // A cargo that runs the real one with that home, so the offline state is the fixture's own and not this process's.
+    let in_the_disposable_home: PathBuf = root.join("cargo-in-the-disposable-home");
+    crate::test_support::executable(
+        in_the_disposable_home.as_path(),
+        format!("#!/bin/sh\nCARGO_HOME='{}' exec '{}' \"$@\"\n", disposable.display(), tool.display()).as_bytes(),
+    );
+    // The state's own control: the clean the repair runs needs no dependency source here.
+    let cleaned_here: std::process::Output = std::process::Command::new(in_the_disposable_home.as_path())
+        .args(["clean", "--offline", "--package", "own"])
+        .current_dir(workspace.as_path())
+        .env("CARGO_BUILD_BUILD_DIR", root.join("control-build"))
+        .env("CARGO_TARGET_DIR", root.join("control-target"))
+        .env("CARGO_NET_OFFLINE", "true")
+        .output()
+        .expect("cargo runs");
+    assert!(
+        cleaned_here.status.success(),
+        "the clean needs no dependency source in this home: {}",
+        String::from_utf8_lossy(cleaned_here.stderr.as_slice())
+    );
+    let git_dir: PathBuf = root.join("git-dir");
+    std::fs::create_dir_all(git_dir.as_path()).expect("the Git directory");
+    let run: ToolRun = crate::lazy_runtime::run_on_runtime(clean_in_a_mirror(MirrorClean {
+        tool: CargoTool { program: in_the_disposable_home, limits: ToolLimits { window: std::time::Duration::from_secs(120), ceiling: std::time::Duration::from_secs(300) } },
+        worktree: worktree.clone(),
+        workspace: workspace.clone(),
+        members: vec![String::from("own")],
+        build_directory: build.clone(),
+        target_directory: target.clone(),
+        locked: false,
+        kept_in: Some(git_dir.clone()),
+        job: String::from("a-controls-job"),
+    }))
+    .expect("the runtime")
+    .expect("the mirror gave the clean's own answer rather than a resolution this home cannot make");
+    assert_eq!(run.end, ToolEnd::Succeeded, "the clean ran in the mirror");
+    assert!(entries_named(build.as_path(), "own").is_empty(), "the member's artifacts are gone: {:?}", entries_named(build.as_path(), "own"));
+    assert_eq!(std::fs::read(lock.as_path()).expect("the person's lock"), persons, "the person's lock keeps its bytes");
+    remove(root.as_path());
+}

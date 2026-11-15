@@ -11,6 +11,11 @@ use std::path::PathBuf;
 /// so a control reaches the clean and never runs a build.
 const NO_CARGO: &str = "/nonexistent/monochromatic-prewarm-control/cargo";
 
+/// Join one name onto a directory, for a closure that must not capture the fixture root twice.
+fn join_file(directory: &Path, name: &str) -> PathBuf {
+    return directory.join(name);
+}
+
 /// What a control fills with when it expects the clean to stop it.
 fn fill_of_nowhere() -> Fill {
     return Fill { cargo: PathBuf::from(NO_CARGO), limits: ToolLimits { window: std::time::Duration::from_millis(200), ceiling: std::time::Duration::from_secs(5) }, kept_in: None, worktree: PathBuf::from("/nonexistent/worktree"), filling: String::from("a-controls-filling") };
@@ -1345,4 +1350,87 @@ fn the_words_for_a_mirror_that_gave_way_name_the_mirror_and_never_the_lock() {
     let the_locks_own: String = format!("cannot update {LOCK_FILE} as --locked requires");
     assert!(super::what_to_do_next(&entry, the_locks_own.as_str()).contains("cargo update"), "a lock's own refusal keeps its advice");
     remove(root.as_path());
+}
+
+/// What:
+///  A clean's target directory that this run made under a name of its own is not recorded as the usual one,
+///  so a later filling never removes a directory that was at the usual name before this run's marker.
+/// Why:
+///   The marker is the proof a later filling removes a directory by,
+/// and it can only say what the run that wrote it made:
+/// the usual target name was taken by another command between this run's look and its exclusive create,
+/// so this run's target is under a name of its own and the marker must not claim the usual one.
+/// A kill before the giving back leaves the marker, and the later filling acts on what it says.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// hook(() => mkdirSync(usualTarget) && writeFileSync(join(usualTarget, 'whoever.txt'), 'x')); const names = namesFor(destination); expect(names.target).not.toBe(usualTarget); dropWithoutGivingBack(names); namesFor(destination); expect(existsSync(join(usualTarget, 'whoever.txt'))).toBe(true)
+/// ```
+#[test]
+fn the_target_made_under_a_name_of_this_runs_own_is_not_recorded_as_the_usual_one() {
+    let root: PathBuf = fixture("prewarm-fallback-target-recorded");
+    let destination: PathBuf = root.join("worktree-build");
+    std::fs::create_dir_all(destination.as_path()).expect("the build directory");
+    let usual_target: PathBuf = super::target_of(super::staging_of(destination.as_path()).as_path());
+    let theirs: PathBuf = usual_target.join("whoever.txt");
+    let planted: PathBuf = usual_target.clone();
+    super::BEFORE_THE_TARGET_IS_MADE.with(|hook| {
+        *hook.borrow_mut() = Some(Box::new(move || {
+            // Another command's directory, at the usual target name, between this run's look and its own exclusive create.
+            std::fs::create_dir_all(planted.as_path()).expect("another command's directory at the usual target name");
+            std::fs::write(join_file(planted.as_path(), "whoever.txt"), b"another command's build output").expect("a file of theirs");
+        }));
+    });
+    let names: TheNames = super::names_for(destination.as_path(), None).expect("the names of this filling");
+    super::BEFORE_THE_TARGET_IS_MADE.with(|hook| { *hook.borrow_mut() = None; });
+    assert_ne!(names.target, usual_target, "the clean is given a directory this run made, under a name of its own: {}", names.target.display());
+    // The filling is killed before it gives the names back: the marker stays and the lease goes with the process.
+    drop(names);
+    let later: TheNames = super::names_for(destination.as_path(), None).expect("the names a later filling takes");
+    assert!(theirs.exists(), "the directory that was already at the usual target name keeps its files: {}", theirs.display());
+    drop(later);
+    remove(root.as_path());
+}
+
+/// What:
+///  A filling that ends after its worktree was removed and another was added at the same path removes
+///  nothing of the new worktree's.
+/// Why:
+///   The names are taken by a lease on a file inside the worktree,
+/// and a worktree removed and made again at one path gives the old filling a locked descriptor on a file no
+/// name reaches while the new add locks a fresh file of the same name:
+/// both believe they hold the names.
+/// Every removal is therefore addressed through the descriptor of the directory this filling took the names in,
+/// so a removal after that directory was replaced reaches nothing of the new one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const names = namesFor(destination); rmSync(worktree, { recursive: true }); mkdirSync(staging); mkdirSync(target); writeFileSync(marker, 'the new add'); giveBack(names); expect(existsSync(join(staging, 'staged'))).toBe(true)
+/// ```
+#[test]
+fn a_filling_that_ends_after_its_worktree_was_replaced_removes_nothing_of_the_new_one() {
+    let root: PathBuf = fixture("prewarm-replaced-worktree");
+    let worktree: PathBuf = root.join("worktree");
+    let destination: PathBuf = worktree.join("build");
+    std::fs::create_dir_all(destination.as_path()).expect("the build directory");
+    let names: TheNames = super::names_for(destination.as_path(), None).expect("the names this filling took");
+    std::fs::create_dir_all(names.staging.as_path()).expect("the staging copy the clone makes");
+    std::fs::write(names.staging.join("staged"), b"the old worktree's state").expect("a file of the old copy");
+    let marker: PathBuf = names.marker.clone().expect("the marker this filling wrote");
+    // The worktree goes and another is added at the same path, whose add takes the same names for its own state.
+    std::fs::remove_dir_all(worktree.as_path()).expect("the worktree removed");
+    std::fs::create_dir_all(destination.as_path()).expect("the new worktree's build directory");
+    std::fs::create_dir_all(names.staging.as_path()).expect("the new worktree's staged state");
+    std::fs::create_dir_all(names.target.as_path()).expect("the new worktree's target directory");
+    std::fs::write(marker.as_path(), b"the new add's marker\n").expect("the new worktree's marker");
+    let theirs: PathBuf = names.staging.join("staged");
+    std::fs::write(theirs.as_path(), b"the new worktree's state").expect("the new worktree's staged file");
+    let their_target_file: PathBuf = names.target.join("their-artifact");
+    std::fs::write(their_target_file.as_path(), b"the new worktree's artifact").expect("the new worktree's target file");
+    // The old filling ends.
+    super::give_back(&names);
+    assert!(theirs.exists(), "the new worktree's staged state is still there: {}", theirs.display());
+    assert!(their_target_file.exists(), "and the files in its target directory: {}", their_target_file.display());
+    assert!(marker.exists(), "and its marker: {}", marker.display());
+    std::fs::remove_dir_all(root.as_path()).expect("the fixture goes");
 }
