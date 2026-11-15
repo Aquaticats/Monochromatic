@@ -42,13 +42,15 @@ const CONTROL_PARK_CEILING: Duration = Duration::from_secs(60);
 /// so a held record costs no processor time.
 const RELEASE_POLL: Duration = Duration::from_millis(2);
 
-/// The file a control leaves or waits for, beside the path it named.
+/// The file a control leaves or waits for,
+/// beside the path it named.
 fn marker(where_the_control_holds_it: &Path, what: &str) -> PathBuf {
     return where_the_control_holds_it.with_file_name(format!("{}.{what}", where_the_control_holds_it.file_name().unwrap_or_default().to_string_lossy()));
 }
 
 /// What:
-///  Waits where a control says, when the variable arms one,
+///  Waits where a control says,
+/// when the variable arms one,
 ///  before the decision of a request is published.
 /// Why:
 ///   The hold is the control's,

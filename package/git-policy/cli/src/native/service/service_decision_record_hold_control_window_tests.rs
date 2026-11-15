@@ -22,7 +22,8 @@ fn the_two_files_of_one_control_sit_beside_its_path() {
 ///  A hold whose release file is already there leaves its reached file and returns,
 ///  so a control that pre-releases the write of the command that wakes the service is not held by it.
 /// Why:
-///  The first write of a fixture's service is the one that wakes it, and a control measures a later one:
+///  The first write of a fixture's service is the one that wakes it,
+/// and a control measures a later one:
 /// the release file is the only difference between the two.
 #[test]
 fn a_hold_that_is_already_released_leaves_its_mark_and_returns() {

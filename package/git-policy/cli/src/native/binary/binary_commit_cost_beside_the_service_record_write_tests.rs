@@ -10,7 +10,8 @@
 //! so the write is gone from the waiting path:
 //! this measurement says what that costs a commit when nothing is slow,
 //! and it is run against a control arm built from the same source with the write put back,
-//! interleaved, as ratios with their ranges.
+//! interleaved,
+//! as ratios with their ranges.
 //! It asserts only that every commit landed and stayed inside this project's bound on a commit.
 //! Run it with
 //! `mise run //package/git-policy/cli:native:test:binary:host -- --run-ignored only a_commit_costs_no_more --no-capture`.
@@ -28,19 +29,23 @@ use std::process::Output;
 use std::time::{Duration, Instant};
 
 /// How many commits one run makes:
-/// five, so a run gives a spread and not a single reading.
+/// five,
+/// so a run gives a spread and not a single reading.
 const ROUNDS: usize = 5;
 
-/// The floor of this project's bound on a commit: five seconds.
+/// The floor of this project's bound on a commit:
+/// five seconds.
 const FIVE_SECONDS: Duration = Duration::from_secs(5);
 
 /// What the measurement is made on.
 struct Setup {
-    /// The disposable fixture, removed at the end.
+    /// The disposable fixture,
+    /// removed at the end.
     fixture: Fixture,
     /// The working repository.
     repo: PathBuf,
-    /// The service, stopped with this value.
+    /// The service,
+    /// stopped with this value.
     service: FixtureService,
 }
 
@@ -75,7 +80,8 @@ fn real_git_commit_ms(fixture: &Fixture, repo: &Path) -> Duration {
     return began.elapsed();
 }
 
-/// The `queued_ms` of every answered landing the service logged, in order.
+/// The `queued_ms` of every answered landing the service logged,
+/// in order.
 fn answered_queued(setup: &Setup) -> Vec<String> {
     let log: String = crate::support_fixture_service_log::service_log(setup.fixture.root.as_path());
     return log

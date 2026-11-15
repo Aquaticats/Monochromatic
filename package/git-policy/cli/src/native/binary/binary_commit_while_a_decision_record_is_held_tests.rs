@@ -7,15 +7,18 @@
 //!  while the drive that holds the service's own state directory took 109,241 ms for a 4 KiB write-and-sync and the
 //!  repository's drive answered in 10 ms.
 //! The landing board publishes one such record for every request before its group is landed
-//!  (`service_busy.rs`, `begin_group`),
+//!  (`service_busy.rs`,
+//! `begin_group`),
 //! so the commit's place in the queue waits for a write of the service's own bookkeeping on a drive the commit does
 //!  not otherwise touch.
 //! This control holds that write where the drive would
-//! (`service_decision_record_hold_control_window.rs`, armed by its own variable only)
+//! (`service_decision_record_hold_control_window.rs`,
+//! armed by its own variable only)
 //!  and asserts the one thing this project requires of a commit:
 //! it is answered within the greater of five seconds and twice what real Git takes for the same commit,
 //!  measured here on the same fixture.
-//! A commit answered later than that waited for the service's own record, not for its commit.
+//! A commit answered later than that waited for the service's own record,
+//! not for its commit.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
@@ -30,7 +33,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-/// The floor of this project's bound on a commit: five seconds
+/// The floor of this project's bound on a commit:
+/// five seconds
 /// (`package/git-policy/cli/SPEC.md`).
 const FIVE_SECONDS: Duration = Duration::from_secs(5);
 
@@ -55,7 +59,8 @@ struct Hold {
 }
 
 impl Hold {
-    /// The hold of one fixture's service, beside the fixture.
+    /// The hold of one fixture's service,
+    /// beside the fixture.
     fn beside(fixture: &Fixture) -> Hold {
         let at: PathBuf = fixture.root.join("record-of-a-decision");
         return Hold {
@@ -119,7 +124,8 @@ fn last_queued_ms(log: &str) -> String {
 ///  The record is the service's own bookkeeping about a request;
 /// a commit's answer needs the commit,
 ///  and the wait the two commits of 2026-11-15 bore was spent on the write of that record on the drive
-///  that stalled, not on anything the commit needed.
+///  that stalled,
+/// not on anything the commit needed.
 #[test]
 fn a_commit_is_answered_while_the_record_of_a_decision_is_held() {
     let fixture: Fixture = fixture("a-commit-while-a-decision-record-is-held");
