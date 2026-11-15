@@ -12,7 +12,7 @@
  @module
  */
 
-import { spawn, } from 'node:child_process';
+import { spawn, type ChildProcess, } from 'node:child_process';
 import { once, } from 'node:events';
 import {
   mkdir,
@@ -84,7 +84,7 @@ async function makeFolder(): Promise<{
   const path = await mkdtemp(join(scratchRoot(), 'pi-review-claim-',),);
   return {
     path,
-    async [Symbol.asyncDispose]() {
+    async [Symbol.asyncDispose](): Promise<void> {
       await rm(path, { recursive: true, force: true, },);
     },
   };
@@ -196,7 +196,7 @@ function aManagerWatching({
   standIn,
   asked = [],
 }: {
-  readonly standIn: { readonly pid?: number; readonly exitCode: number | null; readonly signalCode: NodeJS.Signals | null };
+  readonly standIn: ChildProcess;
   readonly asked?: string[];
 },): RunCommand {
   return async function answersAboutTheStandIn(request,) {
@@ -265,7 +265,7 @@ await describe({
             /**
              Claims the folder for one commit and keeps what it answered.
              */
-            const take = async function take({
+            async function take({
               commit,
               claim,
               afterLookingAtADeadOwner,
@@ -289,7 +289,7 @@ await describe({
               catch (error) {
                 answers.push(`${claim}: ${(error instanceof ReviewFolderTakenError) ? 'refused' : String(error,)}`,);
               }
-            };
+            }
             /**
              The start held between its look and its removal.
              */
@@ -353,60 +353,65 @@ await describe({
               record: aRecord({ commit: 'dead-commit', claim: 'the-dead-claim', process: aDeadStart(), },),
             },);
             /**
-             The process that stands in for the review's unit, which outlives the command that wrote the record.
+             The process that stands in for the review's unit, which outlives the command that wrote the record, and which is
+             killed when this test ends, however it ends.
              */
-            const standIn = spawn(process.execPath, ['--input-type=module', '-e', 'setInterval(() => {}, 1000);',], {
-              stdio: 'ignore',
-            },);
+            await using theStandIn = {
+              child: spawn(process.execPath, ['--input-type=module', '-e', 'setInterval(() => {}, 1000);',], {
+                stdio: 'ignore',
+              },),
+              async [Symbol.asyncDispose]() {
+                this.child.kill('SIGKILL',);
+              },
+            };
+            /**
+             The stand-in the manager watches.
+             */
+            const { child: standIn, } = theStandIn;
+            await once(standIn, 'spawn',);
+            /**
+             The unit names the manager was asked about.
+             */
+            const asked: string[] = [];
+            const manager = aManagerWatching({ standIn, asked, },);
+            /**
+             The start's own identity.
+             */
+            const identity = await processIdentityOfThisProcess();
+            /**
+             The refusal a start while the review runs answers.
+             */
+            let caught: unknown;
             try {
-              await once(standIn, 'spawn',);
-              /**
-               The unit names the manager was asked about.
-               */
-              const asked: string[] = [];
-              const manager = aManagerWatching({ standIn, asked, },);
-              /**
-               The start's own identity.
-               */
-              const identity = await processIdentityOfThisProcess();
-              /**
-               The refusal a start while the review runs answers.
-               */
-              let caught: unknown;
-              try {
-                await takeReviewFolder({
-                  reviewFolder: dirname(ownerFile,),
-                  ownerFile,
-                  branch: BRANCH,
-                  unit: UNIT,
-                  manager,
-                  owner: aRecord({ commit: 'commit-b', claim: 'claim-b', process: identity, },),
-                },);
-              }
-              catch (error) {
-                caught = error;
-              }
-              expect(caught,).toBeInstanceOf(ReviewFolderTakenError,);
-              expect(String(caught,),).toContain(UNIT,);
-              expect((await theOwnerShown({ ownerFile, },)).claim,).toBe('the-dead-claim',);
-              expect(asked,).toContain(UNIT,);
-              standIn.kill('SIGKILL',);
-              await once(standIn, 'exit',);
               await takeReviewFolder({
                 reviewFolder: dirname(ownerFile,),
                 ownerFile,
                 branch: BRANCH,
                 unit: UNIT,
                 manager,
-                owner: aRecord({ commit: 'commit-c', claim: 'claim-c', process: identity, },),
+                owner: aRecord({ commit: 'commit-b', claim: 'claim-b', process: identity, },),
               },);
-              const owner = await theOwnerShown({ ownerFile, },);
-              expect(owner.claim,).toBe('claim-c',);
-              expect(owner.process.pid,).toBe(identity.pid,);
             }
-            finally {
-              standIn.kill('SIGKILL',);
+            catch (error) {
+              caught = error;
             }
+            expect(caught,).toBeInstanceOf(ReviewFolderTakenError,);
+            expect(String(caught,),).toContain(UNIT,);
+            expect((await theOwnerShown({ ownerFile, },)).claim,).toBe('the-dead-claim',);
+            expect(asked,).toContain(UNIT,);
+            standIn.kill('SIGKILL',);
+            await once(standIn, 'exit',);
+            await takeReviewFolder({
+              reviewFolder: dirname(ownerFile,),
+              ownerFile,
+              branch: BRANCH,
+              unit: UNIT,
+              manager,
+              owner: aRecord({ commit: 'commit-c', claim: 'claim-c', process: identity, },),
+            },);
+            const owner = await theOwnerShown({ ownerFile, },);
+            expect(owner.claim,).toBe('claim-c',);
+            expect(owner.process.pid,).toBe(identity.pid,);
           },
         },),
         it({

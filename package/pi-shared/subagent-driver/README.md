@@ -550,9 +550,25 @@ which defaults to this package's `doc/rules-every-pi-brief-carries.md` in the ch
 
 It takes the review's folder before anything is written:
 an owner file only one start can create records the branch,
-the commit and the process that took it,
-so a second start with the same change name is refused with both branches named,
-and a folder whose owner has ended is taken again.
+the commit,
+the review's unit,
+and the process that took it.
+The unit is what keeps the folder:
+a review outlives the command that wrote its brief and started it,
+so a folder whose command has ended but whose review unit still runs is kept,
+and a taker must have the manager's own answer that the unit is gone.
+A manager that does not answer is unknown,
+and unknown keeps the folder.
+A record that names a unit which was never started,
+because the command ended between writing the record and starting the unit,
+has no review to keep the folder,
+so the folder is taken.
+A second start with the same change name is refused with both branches named,
+and a folder whose owner has ended is taken again by exactly one taker:
+the taker makes a ticket named after the record's own claim,
+reads the record again,
+and removes it only when it still carries that claim,
+so it never removes a record another start linked after its look.
 It then writes the diff of the ranges under the source folder,
 the brief that names the files the reviewer reads,
 an empty `reproductions/` folder,
@@ -721,8 +737,10 @@ with status `none`,
 while the first goes on,
 and it holds between two separate starters as well as inside one batch.
 A branch whose change leaves nothing to review takes no folder at all.
-A folder whose owner has ended is taken again,
-so a start killed between taking a folder and writing its brief blocks nobody for good.
+A folder whose owner has ended is taken again by exactly one taker,
+because a takeover removes the record it read and only that record,
+so a start killed between taking a folder and writing its brief blocks nobody for good,
+and two starts taking one dead owner's place cannot both believe they own it.
 
 When a review ends,
 the command saves its last assistant message as its `review.md` when the review wrote none,

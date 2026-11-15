@@ -23,6 +23,7 @@ import {
   mkdir,
   writeFile,
 } from 'node:fs/promises';
+import { randomUUID, } from 'node:crypto';
 import { dirname, } from 'node:path';
 import {
   type ReviewFolderOwner,
@@ -48,6 +49,11 @@ import {
   reviewFolderOf,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
+import {
+  type RunCommand,
+  runCommandWithChildProcess,
+} from './run-command.ts';
+import { unitNameOfGiven, } from './running-pi-units.ts';
 
 /**
  Writes the diff, the brief and the reproductions folder of one review.
@@ -75,6 +81,8 @@ import {
 
  @param rulesFile - the rules file's path, which the brief names first
 
+ @param manager - how the user's manager is asked whether a review of this folder still runs, which a test hands in
+
  @returns whether the brief was written, and the line to print
 
  @throws ReviewGitError when git did not answer with a success
@@ -96,6 +104,7 @@ export async function writeReviewBrief({
   reviewsFolder,
   runsFolder,
   rulesFile,
+  manager = runCommandWithChildProcess,
 }: {
   readonly git: GitQuestion;
   readonly checkoutFolder: string;
@@ -108,6 +117,7 @@ export async function writeReviewBrief({
   readonly reviewsFolder: string;
   readonly runsFolder: string;
   readonly rulesFile: string;
+  readonly manager?: RunCommand;
 }): Promise<BriefOfOneReview> {
   /**
    The diff and the files a reviewer is given.
@@ -134,6 +144,10 @@ export async function writeReviewBrief({
   },);
   // The folder is taken only now: a change that leaves nothing to read writes nothing and holds no folder, so a branch with
   // nothing to review never stands in the way of one with something to review under the same change name.
+  /**
+   The unit this review runs as, whose life the folder's claim follows.
+   */
+  const unit = unitNameOfGiven({ name: runNameOfAReview({ review, },), },);
   await takeReviewFolder({
     reviewFolder,
     ownerFile: ownerFileOfAReview({
@@ -141,6 +155,8 @@ export async function writeReviewBrief({
       review,
     },),
     ...((branch === undefined) ? {} : { branch, }),
+    unit,
+    manager,
     owner: {
       ...((branch === undefined) ? {} : { branch, }),
       commit,
@@ -148,6 +164,8 @@ export async function writeReviewBrief({
       source,
       claimedAt: new Date()
         .toISOString(),
+      unit,
+      claim: randomUUID(),
       process: await processIdentityOfThisProcess(),
     },
   },);

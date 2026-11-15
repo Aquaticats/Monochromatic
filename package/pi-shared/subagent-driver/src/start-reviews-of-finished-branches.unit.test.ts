@@ -15,12 +15,13 @@ import {
 } from 'node:child_process';
 import { once, } from 'node:events';
 import {
+  chmod,
   mkdir,
   mkdtemp,
   rm,
   writeFile,
 } from 'node:fs/promises';
-import { join, } from 'node:path';
+import { dirname, join, } from 'node:path';
 import { promisify, } from 'node:util';
 import {
   describe,
@@ -280,6 +281,36 @@ async function makeRepository(folder: string,): Promise<string> {
 }
 
 /**
+ Writes a stand-in for the user's manager that answers that no review runs, and returns the folder it is found in.
+
+ The command asks the manager whether a review of the folder still runs. This machine's manager is not asked by a test, and its
+ bus is not reachable from the fixture's own home, so the fixture puts a program named `systemctl` first on the fixture's path.
+
+ @param folder - the fixture's folder
+
+ @returns the folder the stand-in is in
+
+ @example
+ ```ts
+ const bin = await aManagerThatSaysNoReviewRuns({ folder },);
+ ```
+ */
+async function aManagerThatSaysNoReviewRuns({ folder, }: { readonly folder: string },): Promise<string> {
+  /**
+   The folder the stand-in is found in.
+   */
+  const bin = join(folder, 'a-manager-that-says-no-review-runs',);
+  await mkdir(bin, { recursive: true, },);
+  /**
+   The stand-in itself, which prints the state `systemctl is-active` prints for a unit that is not running.
+   */
+  const manager = join(bin, 'systemctl',);
+  await writeFile(manager, `#!${process.execPath}\nprocess.stdout.write('inactive\\n',);\nprocess.exit(3,);\n`, 'utf8',);
+  await chmod(manager, 0o755,);
+  return bin;
+}
+
+/**
  Runs the command for the fixture's branch.
 
  @param repo - the fixture's folder
@@ -306,6 +337,11 @@ async function runTheCommand({
 }): Promise<{ readonly status: number; readonly printed: string }> {
   try {
     /**
+     The environment the command runs in, with a manager that says no review runs first on its path.
+     */
+    const environment = fixtureEnvironmentOf(repo,);
+    environment.PATH = `${await aManagerThatSaysNoReviewRuns({ folder: dirname(reviewsFolder,), },)}:${environment.PATH ?? ''}`;
+    /**
      What the command printed.
      */
     const answered = await execFileAsync(
@@ -320,7 +356,7 @@ async function runTheCommand({
       ],
       {
         cwd: repo,
-        env: fixtureEnvironmentOf(repo,),
+        env: environment,
         encoding: 'utf8',
         timeout: 60_000,
         killSignal: 'SIGKILL',

@@ -41,6 +41,17 @@ import {
 } from '../dist/final/node/index.mjs';
 
 /**
+ A manager that says no review of any unit runs, which a test that starts no unit hands the writer.
+ */
+async function anIdleManager(): Promise<CommandOutput> {
+  return {
+    status: 3,
+    stdout: 'inactive\n',
+    stderr: '',
+  };
+}
+
+/**
  The change a review reads.
 
  @returns the change's name
@@ -597,6 +608,7 @@ async function writeAChangeThrough(changed: readonly ChangedInATest[],): Promise
     reviewsFolder,
     runsFolder: join(folder.path, 'runs',),
     rulesFile: aRulesFile(),
+    manager: anIdleManager,
   },);
   return {
     briefed,
@@ -648,6 +660,7 @@ async function writeAChangeOfBranch({
     reviewsFolder: join(folder, 'reviews',),
     runsFolder: join(folder, 'runs',),
     rulesFile: aRulesFile(),
+    manager: anIdleManager,
   },);
 }
 
