@@ -929,3 +929,9 @@ mod housekeeping_beside_a_commit;
 /// it must be answered within the bound this project puts on a commit.
 #[path = "binary_commit_while_a_decision_record_is_held_tests.rs"]
 mod commit_while_a_decision_record_is_held;
+
+/// What one commit through the service costs when no drive is slow:
+/// five commits over one warm fixture,
+/// measured for the record against a control arm with the service's record write put back.
+#[path = "binary_commit_cost_beside_the_service_record_write_tests.rs"]
+mod commit_cost_beside_the_service_record_write;
