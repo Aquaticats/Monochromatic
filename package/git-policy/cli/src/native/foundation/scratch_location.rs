@@ -377,7 +377,7 @@ pub fn the_path_the_next_attempt_may_use(tree: PathBuf, ceiling: Duration) -> Op
     //       ends; a rename is one step that cannot be half done, so the name the next attempt writes is free the moment
     //       this returns, whatever the old removal goes on doing at the aside's name
     //       (the same rule the leftover handling above follows).
-    let Some(parent) = tree.parent() else { return None };
+    let parent: &Path = tree.parent()?;
     let name: String = tree.file_name().map(|name| { return name.to_string_lossy().into_owned(); }).unwrap_or_default();
     let aside: PathBuf = parent.join(format!("{name}.going-{}", crate::random_id::random_uuid().unwrap_or_default()));
     match std::fs::rename(tree.as_path(), aside.as_path()) {

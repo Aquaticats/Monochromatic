@@ -441,10 +441,9 @@ fn lock_without_waiting(tree: &Path, share: Share) -> std::io::Result<std::fs::F
         });
     return match answered {
         crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::Ran(outcome) => outcome,
-        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoThreadToStart => Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "the system refused a thread to ask whether this tree is held, so nothing was asked",
-        )),
+        crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoThreadToStart => {
+            Err(std::io::Error::other("the system refused a thread to ask whether this tree is held, so nothing was asked"))
+        }
         crate::work_awaited_within_a_ceiling::TheAnswerOfAThreadOfWork::NoAnswer => Err(std::io::Error::new(
             std::io::ErrorKind::TimedOut,
             format!("whether this tree is held cannot be asked within {THE_CLAIM_IS_ASKED_FOR_AT_MOST:?}"),

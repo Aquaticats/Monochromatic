@@ -695,8 +695,8 @@ fn the_form_of_the_commit(arguments: &[OsString]) -> TheFormOfTheCommit {
             },
             None => None,
         };
-        if let Some(value) = value
-            && value.starts_with("reword:")
+        if let Some(named) = value
+            && named.starts_with("reword:")
         {
             forms = TheFormOfTheCommit::CarriesTheRewordedTree;
         }

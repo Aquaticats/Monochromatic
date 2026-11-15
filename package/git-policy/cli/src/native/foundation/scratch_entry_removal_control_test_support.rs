@@ -74,8 +74,8 @@ pub(crate) fn wait_before_the_deletion() {
         return;
     }
     let waited: Option<Receiver<()>> = WAITING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
-    if let Some(waited) = waited {
+    if let Some(held) = waited {
         HELD_FOR_A_CONTROL.fetch_add(1, Ordering::SeqCst);
-        let _released = waited.recv_timeout(CONTROL_PATIENCE);
+        let _released = held.recv_timeout(CONTROL_PATIENCE);
     }
 }
