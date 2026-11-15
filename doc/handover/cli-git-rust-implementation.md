@@ -1640,6 +1640,56 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The checkout migration answers its review: it places without ever replacing, and says which of its two halves its controls hold; its review is queued (2026-11-15T13:36:13-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The checkout migration that does not refuse its own repository**,
+  its author's second run,
+  ended 13:31:16 at `cd7206407c`
+  (its merge of `main`,
+  `8086ad59d2`,
+  is inside that tip):
+  the review's three findings answered.
+  An entry that was another kind of thing when the carry reached it is counted and named,
+  and `--remove-old` refuses while any such entry stands.
+  A file is placed at a free name with `renameat2(RENAME_NOREPLACE)` and never replaces;
+  an entry the pass saw is replaced only while the name still holds that very object;
+  a filesystem without the call refuses.
+  Each notice's reader says which first lines it accepts,
+  and the classifier takes them from there.
+- **What it says against itself**,
+  kept here because a review should hold it:
+  with the classifier half of the first fix taken out,
+  all four controls still passed,
+  so the copy path is what the controls hold and the classifier is a second net no control fails for;
+  and a window between the comparison and the replacing remains,
+  stated in the module's doc with the reason an exchange cannot close it.
+- Cost:
+  20,000 files in 200 folders,
+  the real command,
+  both arms alternating:
+  median ratio 1.027,
+  inside one arm's own spread
+  (4.12 to 10.64 s unchanged).
+  406 of 406 tests of the modules it changed,
+  5 of 5 binary migration controls,
+  Clippy clean.
+- Its review is queued ninth
+  (`main...cd7206407c`,
+  14 code files that are not tests).
+- Read at 13:35:53:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 13:15;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes;
+  integration pass 54 is one of them.
+
 ##### The commit service the wrapper starts itself has `main` merged in, with twenty-six suite failures put down to the machine; it gets a review and a run for the measured cause; the driver's brief writer goes back with two findings (2026-11-15T13:17:41-05:00)
 
 Not final and not approved:
