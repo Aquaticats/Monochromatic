@@ -84,14 +84,20 @@ const PATIENCE: Duration = Duration::from_secs(5);
 const ALREADY_SPENT_PATIENCE: Duration = Duration::from_millis(200);
 
 /// What:
-///  A command in the harness's own bounded form:
-///  `timeout --signal=KILL <seconds> <script>`.
+///  A command in the harness's own bounded form,
+///  built as `bounded_for` builds one:
+///  `timeout --signal=KILL <seconds> <script>`,
+///  with the fixture's hermetic environment and the fixture as its directory.
 /// Why:
 ///  Every command of the binary controls carries its bound in its own line,
-///  and the bound this wait keeps is the one that line states.
-fn bounded_script(script: &Path, seconds: &str) -> Command {
+///  and the bound this wait keeps is the one that line states;
+///  the wait starts the program such a line names,
+///  which it does from the environment the line sets.
+fn bounded_script(made: &Fixture, script: &Path, seconds: &str) -> Command {
     let mut command: Command = Command::new(TIMEOUT);
     command.arg("--signal=KILL").arg(seconds).arg(script);
+    crate::support::hermetic(&mut command, made, std::ffi::OsStr::new("/usr/bin:/bin"));
+    command.current_dir(made.root.as_path());
     return command;
 }
 
@@ -189,8 +195,7 @@ fn the_wait_starts_the_program_the_line_names_with_no_timer_in_front_of_it() {
     let parent: PathBuf = made.root.join("parent");
     let body: String = format!("#!/bin/sh\nprintf '%s' \"$PPID\" > \"{}\"\nexit 0\n", parent.display());
     let command: PathBuf = script(&made, "says-its-parent", body.as_str());
-    let mut wrapped: Command = bounded_script(command.as_path(), AMPLE_SECONDS);
-    wrapped.current_dir(made.root.as_path());
+    let mut wrapped: Command = bounded_script(&made, command.as_path(), AMPLE_SECONDS);
     let seen = observe(&mut wrapped, b"");
     assert_eq!(seen.code, Some(0), "the command ends by itself: {}", String::from_utf8_lossy(seen.stderr.as_slice()));
     let written: String = std::fs::read_to_string(parent.as_path()).expect("the script wrote its parent");
@@ -214,8 +219,10 @@ fn the_wait_starts_the_program_the_line_names_with_no_timer_in_front_of_it() {
 fn a_bound_counts_from_the_commands_own_start() {
     let made: Fixture = fixture("observe-spent-bound");
     let command: PathBuf = script(&made, "runs-past-its-bound", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
-    let mut started: Command = bounded_script(command.as_path(), ONE_SECOND);
-    started.current_dir(made.root.as_path());
+    // A child of this control's own with no timer around it,
+    //  so the only bound on it is the one the wait is given.
+    let mut started: Command = Command::new(SHELL);
+    started.arg(command.as_path()).current_dir(made.root.as_path());
     let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut started);
     // The command runs for longer than its own bound before the wait is called at all.
     std::thread::sleep(Duration::from_millis(1_200));
@@ -245,8 +252,7 @@ fn a_bound_counts_from_the_commands_own_start() {
 fn the_inner_timer_of_a_child_is_never_the_ending_this_wait_reports() {
     let made: Fixture = fixture("observe-inner-timer");
     let command: PathBuf = script(&made, "kept-alive", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
-    let mut wrapped: Command = bounded_script(command.as_path(), ONE_SECOND);
-    wrapped.current_dir(made.root.as_path());
+    let mut wrapped: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
     let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut wrapped);
     // The permitted interleaving the review reproduced: this process does other work before it waits.
     std::thread::sleep(Duration::from_millis(100));
@@ -272,8 +278,7 @@ fn the_inner_timer_of_a_child_is_never_the_ending_this_wait_reports() {
 fn the_signal_at_the_bound_reaches_the_command_and_no_other_process() {
     let made: Fixture = fixture("observe-signal-identity");
     let command: PathBuf = script(&made, "waits-for-ever", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
-    let mut started: Command = bounded_script(command.as_path(), ONE_SECOND);
-    started.current_dir(made.root.as_path());
+    let mut started: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
     let (child, group): (Child, libc::pid_t) = spawned_beside_the_control(&mut started);
     // A second child of this control's own, in a group of its own, that no signal may reach.
     let mut beside: Command = Command::new("/usr/bin/sleep");
@@ -352,8 +357,7 @@ fn a_command_that_ends_by_itself_keeps_its_own_status_and_signal() {
     for (index, (body, code)) in cases.iter().enumerate() {
         let name: String = format!("ending-{index}");
         let command: PathBuf = script(&made, name.as_str(), format!("#!/bin/sh\n{body}\n").as_str());
-        let mut wrapped: Command = bounded_script(command.as_path(), AMPLE_SECONDS);
-        wrapped.current_dir(made.root.as_path());
+        let mut wrapped: Command = bounded_script(&made, command.as_path(), AMPLE_SECONDS);
         let seen = observe(&mut wrapped, b"");
         println!("{body}: the wait answered code {:?}", seen.code);
         assert_eq!(seen.code, *code, "{body}: the command ended by itself, so its own status is the answer");
@@ -376,8 +380,7 @@ fn a_command_that_never_ends_is_ended_at_its_bound() {
     let command: PathBuf = script(&made, "waits-for-ever", format!("#!/bin/sh\nexec /usr/bin/sleep {HOLDS_SECONDS}\n").as_str());
     let began: Instant = Instant::now();
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let mut wrapped: Command = bounded_script(command.as_path(), ONE_SECOND);
-        wrapped.current_dir(made.root.as_path());
+        let mut wrapped: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
         return observe(&mut wrapped, b"");
     }));
     let elapsed: Duration = began.elapsed();
@@ -412,8 +415,7 @@ fn a_command_whose_descendant_holds_its_output_is_ended_at_its_bound() {
     let command: PathBuf = script(&made, "starts-a-descendant", body.as_str());
     let began: Instant = Instant::now();
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let mut wrapped: Command = bounded_script(command.as_path(), ONE_SECOND);
-        wrapped.current_dir(made.root.as_path());
+        let mut wrapped: Command = bounded_script(&made, command.as_path(), ONE_SECOND);
         return observe(&mut wrapped, b"");
     }));
     let elapsed: Duration = began.elapsed();
@@ -449,8 +451,7 @@ fn a_command_that_ends_by_itself_says_that_a_descendant_still_holds_its_output()
     let command: PathBuf = script(&made, "leaves-a-descendant", body.as_str());
     let began: Instant = Instant::now();
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let mut wrapped: Command = bounded_script(command.as_path(), AMPLE_SECONDS);
-        wrapped.current_dir(made.root.as_path());
+        let mut wrapped: Command = bounded_script(&made, command.as_path(), AMPLE_SECONDS);
         return observe(&mut wrapped, b"");
     }));
     let elapsed: Duration = began.elapsed();
@@ -482,8 +483,7 @@ fn a_command_that_writes_more_than_a_pipe_holds_keeps_all_of_it() {
     let blocks: usize = written / 4096;
     let body: String = format!("#!/bin/sh\nexec /usr/bin/dd if=/dev/zero bs=4096 count={blocks} 2>/dev/null\n");
     let command: PathBuf = script(&made, "writes-much", body.as_str());
-    let mut wrapped: Command = bounded_script(command.as_path(), AMPLE_SECONDS);
-    wrapped.current_dir(made.root.as_path());
+    let mut wrapped: Command = bounded_script(&made, command.as_path(), AMPLE_SECONDS);
     let seen = observe(&mut wrapped, b"");
     assert_eq!(seen.code, Some(0), "the command that writes much ends by itself");
     assert_eq!(seen.stdout.len(), written, "every byte the command wrote is in the answer");
