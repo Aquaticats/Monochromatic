@@ -52,6 +52,11 @@ const SECRET = 'stand-in-hook-value-0123456789';
 const SECRET_NAME = 'STAND_IN_HOOK_API_KEY';
 
 /**
+ What Pi's own `message_end` answers when no handler changed the message, which this test turns into a failure.
+ */
+const NOTHING_CHANGED: unique symbol = Symbol('message kept unchanged',);
+
+/**
  The one stand-in value every test arms with.
  */
 const VALUES: readonly SecretValue[] = [{ name: SECRET_NAME, value: SECRET, },];
@@ -72,12 +77,14 @@ async function piToolCallLoop() {
   /**
    A resolver that starts from Pi's own folder.
    */
-  const requireFromPi = createRequire(realpathSync(fileURLToPath(agentSessionEntry,),),);
+  const requireFromPi = createRequire(
+    realpathSync(fileURLToPath(agentSessionEntry,),),
+  );
   /**
    Where Pi's tool-call loop is.
    */
   const corePackage = requireFromPi.resolve('@earendil-works/pi-agent-core/package.json',);
-  return await import(new URL('./dist/index.js', pathToFileURL(corePackage,),).href,) as {
+  return await import(new URL('dist/index.js', pathToFileURL(corePackage,),).href,) as {
     readonly runToolCall: (
       toolCall: unknown,
       options: unknown,
@@ -96,7 +103,6 @@ function armedRunner() {
   /**
    The extension API Pi hands an extension, as far as this extension uses it.
    */
-  /* oxlint-disable typescript/no-unsafe-type-assertion -- this plays Pi's own extension API, and the two members the extension uses are the ones it registers. */
   const api = {
     on: function on(event: string, handler: (event: never,) => unknown,) {
       handlers.set(
@@ -111,7 +117,6 @@ function armedRunner() {
       // A command list is a start's business, not a hook's.
     },
   } as unknown as Parameters<typeof armSecretValueMasking>[0]['pi'];
-  /* oxlint-enable typescript/no-unsafe-type-assertion */
   armSecretValueMasking({
     pi: api,
     values: VALUES,
@@ -120,10 +125,10 @@ function armedRunner() {
     },
   },);
   /**
-   The runner Pi reads its handlers from.
+   The runner Pi reads its handlers from, which is Pi's own class with the members its hooks read.
    */
-  const runner = Object.assign(
-    Object.create(ExtensionRunner.prototype,),
+  const runner: ExtensionRunner = Object.assign(
+    Object.create(ExtensionRunner.prototype,) as ExtensionRunner,
     {
       extensions: [{ path: 'stand-in-extension', handlers, },],
       createContext: function createContext() {
@@ -195,9 +200,8 @@ async function throughRealToolCall(result: unknown,) {
       context: { messages: [], tools: [tool,], },
       afterToolCall: async function afterToolCall(context: unknown,) {
         // Pi's own tool-result hook, which its session owns and its tool loop calls back into.
-        /* oxlint-disable-next-line typescript/no-unsafe-member-access -- the method is Pi's own, and the test calls it as Pi's loop does. */
-        const afterToolCall = (AgentSession.prototype as unknown as { _afterToolCall: (this: unknown, context: unknown) => Promise<unknown> })._afterToolCall;
-        return await afterToolCall.call(
+        const afterToolCallOfPi = (AgentSession.prototype as unknown as { _afterToolCall: (this: unknown, context: unknown) => Promise<unknown> })._afterToolCall;
+        return await afterToolCallOfPi.call(
           session,
           context as never,
         );
@@ -342,14 +346,18 @@ await describe({
          What Pi's own `message_end` hooks answered: the message Pi keeps, which is the replacement applied where the original
          stood.
          */
-        const kept = await ExtensionRunner.prototype.emitMessageEnd.call(
+        // Pi's own `message_end` answers nothing when no handler changed anything, which is the absence this test calls a failure.
+        const answer = await ExtensionRunner.prototype.emitMessageEnd.call(
           runner,
           { type: 'message_end', message, },
-        ) as typeof message | undefined;
-        expect(kept,).toBeDefined();
-        if (kept === undefined) {
+        ) ?? NOTHING_CHANGED;
+        if (answer === NOTHING_CHANGED) {
           throw new Error('Pi kept the message it had, so nothing was masked',);
         }
+        /**
+         The message Pi keeps.
+         */
+        const kept = answer;
         expect(JSON.stringify(kept,),).not.toContain(SECRET,);
         expect(JSON.stringify(kept,),).toContain(maskedValueMarker(SECRET_NAME,),);
         /**
@@ -359,7 +367,7 @@ await describe({
           folder.path,
           join(folder.path, 'sessions',),
         );
-        session.appendMessage(kept,);
+        session.appendMessage(kept as never,);
         expect(await textOfSession({ session, },),).not.toContain(SECRET,);
         /**
          What Pi's compaction request carried, which Pi builds from the session and sends without the context hook.
@@ -374,7 +382,7 @@ await describe({
          */
         const summarize = generateSummaryWithUsage as unknown as (...arguments_: unknown[]) => Promise<unknown>;
         await summarize(
-          [{ role: 'user', content: kept.content, timestamp: 0, },],
+          [{ role: 'user', content: (kept as { readonly content: unknown }).content, timestamp: 0, },],
           { reasoning: false, },
           0,
           undefined,

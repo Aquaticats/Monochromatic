@@ -24,6 +24,7 @@ import {
   it,
 } from '@monochromatic-dev/test-harness-core/ts';
 import { spawnSync, } from 'node:child_process';
+import { setTimeout as wait, } from 'node:timers/promises';
 import {
   readSecretValuesOfThisMachine,
   SecretEnvironmentUnreadableError,
@@ -49,6 +50,11 @@ const PI_KEY_VALUE = 'stand-in-provider-key-abcdefghij';
  A stand-in provider key of Pi's other file, which must differ from the first so both names are kept.
  */
 const PI_MODEL_KEY_VALUE = 'stand-in-model-key-uvwxyzabcd';
+
+/**
+ How long a source read may take in this file before the test calls it a wait, which is what a read of a named pipe would be.
+ */
+const SOURCE_READ_BOUND_MILLISECONDS = 10_000;
 
 /**
  A stand-in OAuth access token of Pi's own credential file.
@@ -410,7 +416,25 @@ await describe({
           home: home.path,
           checkoutFolder: home.path,
         },);
-        await expect(read,).rejects.toBeInstanceOf(SecretEnvironmentUnreadableError,);
+        /**
+         What the read gave before this test's bound: its refusal, or nothing when it was still waiting. A read that waits for a
+         writer shows as a failure here rather than holding the suite open.
+         */
+        const outcome: { refusal?: unknown } = {};
+        try {
+          await Promise.race([
+            read,
+            wait(
+              SOURCE_READ_BOUND_MILLISECONDS,
+              'still-waiting' as const,
+              { ref: false, },
+            ),
+          ],);
+        }
+        catch (error) {
+          outcome.refusal = error;
+        }
+        expect(outcome.refusal,).toBeInstanceOf(SecretEnvironmentUnreadableError,);
       },
     },),
     it({

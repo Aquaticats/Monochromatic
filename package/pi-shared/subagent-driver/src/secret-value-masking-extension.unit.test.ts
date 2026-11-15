@@ -19,6 +19,7 @@ import { join, } from 'node:path';
 import { spawn, spawnSync, } from 'node:child_process';
 import { Writable, } from 'node:stream';
 import { randomBytes, } from 'node:crypto';
+import { setTimeout as wait, } from 'node:timers/promises';
 import type {
   ContextWithSystemEvent,
   ExtensionAPI,
@@ -40,6 +41,12 @@ import {
   type SecretValue,
   SECRET_VALUES_FD,
 } from '../dist/final/node/index.mjs';
+
+/**
+ How long a read of a file Pi saved a tool's output in may take in this file before the test calls it a wait, which is what a
+ read of a named pipe would be.
+ */
+const SPARE_COPY_READ_BOUND_MILLISECONDS = 5_000;
 
 /**
  A stand-in value, long enough to be masked.
@@ -204,6 +211,30 @@ function maskTranscript(recording: Recording, event: ContextWithSystemEvent,): u
     throw new Error('the extension registered no context_with_system handler',);
   }
   return handler(event as never,);
+}
+
+/**
+ Takes a folder's permission to make a new file away, and gives it back when the test is done with it.
+
+ @param folder - the folder
+
+ @returns a disposer that gives the mode back
+ */
+async function refuseNewFiles({ folder, }: { readonly folder: string },): Promise<{
+  readonly [Symbol.asyncDispose]: () => Promise<void>
+}> {
+  await chmod(
+    folder,
+    0o500,
+  );
+  return {
+    async [Symbol.asyncDispose]() {
+      await chmod(
+        folder,
+        0o700,
+      );
+    },
+  };
 }
 
 /**
@@ -452,25 +483,16 @@ await describe({
           text: `${TOKEN_NAME}=${TOKEN_VALUE}\n`,
         },);
         const recording = armRecording({ piOutputFolder: folder.path, },);
-        await chmod(
-          folder.path,
-          0o500,
+        // The folder refuses a new file for as long as this line's scope lasts, and takes its own mode back when it ends.
+        await using writable = await refuseNewFiles({ folder: folder.path, },);
+        void writable;
+        await maskOneResult(
+          recording,
+          bashResultOf({
+            text: 'the output was longer than Pi shows',
+            details: { fullOutputPath: path, },
+          },),
         );
-        try {
-          await maskOneResult(
-            recording,
-            bashResultOf({
-              text: 'the output was longer than Pi shows',
-              details: { fullOutputPath: path, },
-            },),
-          );
-        }
-        finally {
-          await chmod(
-            folder.path,
-            0o700,
-          );
-        }
         // The original is the whole original: the masked text never got in its way.
         expect(await readFile(
           path,
@@ -507,14 +529,19 @@ await describe({
               text: 'ordinary result',
               details: { fullOutputPath: path, },
             },),
-          ),
-          new Promise<'waited'>(function waitTooLong(resolve,) {
-            setTimeout(() => {
-              resolve('waited',);
-            }, 5_000,);
+          ).then(function answeredTheHook(patch: unknown,) {
+            return {
+              answered: true as const,
+              patch,
+            };
           },),
+          wait(
+            SPARE_COPY_READ_BOUND_MILLISECONDS,
+            { answered: false as const, },
+            { ref: false, },
+          ),
         ],);
-        expect(answered,).not.toBe('waited',);
+        expect(answered.answered,).toBe(true,);
       },
     },),
     it({
