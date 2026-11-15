@@ -47,6 +47,20 @@ function anIntegrationBranch(): string {
 }
 
 /**
+ The commit the integration branch's tip is, in this file's answers.
+
+ @returns the commit's id
+
+ @example
+ ```ts
+ const tip = anIntegrationTip();
+ ```
+ */
+function anIntegrationTip(): string {
+  return 'main-tip';
+}
+
+/**
  The commit under review.
 
  @returns the commit's id
@@ -125,9 +139,11 @@ function aNotePath(): string {
 /**
  A stand-in git whose change touches exactly the paths given, which the reviewed commit still holds.
 
+ Every revision is answered with a commit of its own, so a test can tell a question asked of a name from one asked of a commit.
+
  @param paths - the paths the change touched, each from the top of the checkout
 
- @returns a git that answers the three questions one reading asks
+ @returns a git that answers the questions one reading asks
 
  @example
  ```ts
@@ -138,12 +154,41 @@ function gitTouching({ paths, }: { readonly paths: readonly string[] },): (
   request: { readonly words: readonly string[] },
 ) => Promise<CommandOutput> {
   return async function git({ words, }: { readonly words: readonly string[] },): Promise<CommandOutput> {
-    /**
-     The paths as git prints them, one to a line.
-     */
-    const listed = `${paths.join('\n',)}\n`;
-    return answered((words[0] === 'ls-tree') ? listed : ((words[1] === '--name-only') ? listed : 'a diff of them'),);
+    if (words[0] === 'rev-parse') {
+      return answered(`${(words[2] ?? '').replace('^{commit}', '')}-commit`,);
+    }
+    if (words[0] === 'merge-base') {
+      return answered('base-commit',);
+    }
+    if (words[0] === 'ls-tree') {
+      return answered(`${paths.join('\n',)}\n`,);
+    }
+    return answered(rawAndPatchOf({ paths, },),);
   };
+}
+
+/**
+ Writes one answer of `git diff --raw -z --patch` for a change that modifies the paths given.
+
+ @param paths - the paths the change touched
+
+ @returns the answer, with a raw entry per path and a patch that names each
+
+ @example
+ ```ts
+ const answer = rawAndPatchOf({ paths: [`${aSourceFolder()}/gate.rs`], },);
+ ```
+ */
+function rawAndPatchOf({ paths, }: { readonly paths: readonly string[] },): string {
+  return `${paths.map(function entryOf(path,) {
+    return `:100644 100644 0000000 1234567 M\0${path}\0`;
+  },)
+    .join('',)
+     }\0${
+     paths.map(function patchOf(path,) {
+      return `diff --git a/${path} b/${path}\n`;
+    },)
+      .join('',)}`;
 }
 
 await describe({
@@ -153,31 +198,31 @@ await describe({
       name: rangeOfABranch.name,
       children: [
         it({
-          name: 'reads a branch the integration has not merged as the integration against the tip\'s object name, so the range excludes what both share and later reads cannot see another tip',
+          name: 'reads a branch the integration has not merged as the integration\'s tip commit against the tip\'s object name, so the range excludes what both share and later reads cannot see another tip',
           fn: async () => {
             expect(rangeOfABranch({
               tip: aCommit(),
-              integration: anIntegrationBranch(),
+              integrationTip: anIntegrationTip(),
               merges: [],
-            },),).toBe(`${anIntegrationBranch()}...${aCommit()}`,);
+            },),).toBe(`${anIntegrationTip()}...${aCommit()}`,);
           },
         },),
         it({
-          name: 'reads a branch a merge already took as that merge\'s first parent against the tip\'s object name, because the integration range would be empty',
+          name: 'reads a branch a merge already took as that merge\'s first parent commit against the tip\'s object name, because the integration range would be empty',
           fn: async () => {
             /**
              The merge that took the branch's tip.
              */
             const merge = 'def456';
             /**
-             The merge's own parents, of which the second is the branch's tip.
+             The merge's own first parent, which is the commit the range starts at.
              */
             const parents = '789abc';
             expect(rangeOfABranch({
               tip: aCommit(),
-              integration: anIntegrationBranch(),
+              integrationTip: anIntegrationTip(),
               merges: [`${merge} ${parents} ${aCommit()}`,],
-            },),).toBe(`${merge}^1...${aCommit()}`,);
+            },),).toBe(`${parents}...${aCommit()}`,);
           },
         },),
       ],
@@ -247,66 +292,80 @@ await describe({
       name: materialOfAReview.name,
       children: [
         it({
-          name: 'reads each range\'s diff under the source folder, keeps only the code the reviewed commit still holds, and asks git for each with the words that filter them',
+          name: 'asks every name as a commit once, reads one diff question per range, and keeps only the code the reviewed commit still holds',
           fn: async () => {
             /**
              The git questions the reading asked, in order.
              */
             const asked: (readonly string[])[] = [];
             /**
-             What the stand-in git answers, by the first word that tells the questions apart.
-             */
-            const answers = new Map<string, string>([
-              ['diff', `diff --git a/${aSourceFolder()}/gate.rs b/${aSourceFolder()}/gate.rs`],
-              ['ls-tree', `${aSourceFolder()}/gate.rs`],
-            ],);
-            /**
-             A git that answers the reading's questions.
+             A git that records every question and answers the reading's.
              */
             async function git({ words, }: { readonly words: readonly string[] }): Promise<CommandOutput> {
               asked.push(words,);
-              if (words[0] === 'ls-tree') {
-                return answered(answers.get('ls-tree') ?? '',);
+              if (words[0] === 'rev-parse') {
+                return answered(`${(words[2] ?? '').replace('^{commit}', '')}-commit`,);
               }
-              return answered((words[1] === '--name-only')
-                ? `${aSourceFolder()}/gate.rs\n${aSourceFolder()}/gate_tests.rs\n${aSourceFolder()}/gone.rs`
-                : (answers.get('diff') ?? ''),);
+              if (words[0] === 'merge-base') {
+                return answered('base-commit',);
+              }
+              if (words[0] === 'ls-tree') {
+                return answered(`${aSourceFolder()}/gate.rs\n`,);
+              }
+              return answered(rawAndPatchOf({
+                paths: [
+                  `${aSourceFolder()}/gate.rs`,
+                  `${aSourceFolder()}/gate_tests.rs`,
+                  `${aSourceFolder()}/gone.rs`,
+                ],
+              },),);
             }
             /**
-             The ranges the review reads.
+             The range the review reads.
              */
-            const ranges = [`${anIntegrationBranch()}...${aBranch()}`,];
+            const range = `${anIntegrationBranch()}...${aBranch()}`;
             /**
              What the reading answered.
              */
             const material = await materialOfAReview({
               git,
               checkoutFolder: '/repo',
-              ranges,
+              ranges: [range,],
               source: aSourceFolder(),
               commit: aCommit(),
             },);
             expect(material.diff,).toContain(aSourceFolder(),);
             expect(material.files,).toEqual([`${aSourceFolder()}/gate.rs`,],);
-            expect(asked,).toContainEqual([
-              'diff',
-              ranges[0],
-              '--',
-              aSourceFolder(),
+            // Both sides of the range and the commit under review are commits, and the range names them.
+            expect(material.commit,).toBe(`${aCommit()}-commit`,);
+            expect(material.ranges,).toEqual([`base-commit...${aCommit()}-commit`,],);
+            // The range's left side is read before the commit under review, so a name that moves is read once.
+            expect(asked.slice(0, 2,),).toEqual([
+              ['rev-parse', '--verify', `${anIntegrationBranch()}^{commit}`,],
+              ['rev-parse', '--verify', `${aCommit()}^{commit}`,],
             ],);
             expect(asked,).toContainEqual([
+              'merge-base',
+              `${anIntegrationBranch()}-commit`,
+              `${aCommit()}-commit`,
+            ],);
+            // One question gives the diff and the paths it touches, so no second read can name another change.
+            expect(asked.filter(function isADiff(words,) {
+              return words[0] === 'diff';
+            },),).toEqual([[
               'diff',
-              '--name-only',
-              '--diff-filter=AM',
-              ranges[0],
+              '--raw',
+              '--patch',
+              '-z',
+              `base-commit...${aCommit()}-commit`,
               '--',
               aSourceFolder(),
-            ],);
+            ],],);
             expect(asked,).toContainEqual([
               'ls-tree',
               '--name-only',
               '-r',
-              aCommit(),
+              `${aCommit()}-commit`,
               '--',
               aSourceFolder(),
             ],);
@@ -348,13 +407,7 @@ await describe({
             /**
              A git whose change is one test file.
              */
-            async function git({ words, }: { readonly words: readonly string[] }): Promise<CommandOutput> {
-              return answered((words[0] === 'ls-tree')
-                ? `${aSourceFolder()}/gate_tests.rs`
-                : (words[1] === '--name-only')
-                  ? `${aSourceFolder()}/gate_tests.rs`
-                  : 'a diff of a test');
-            }
+            const git = gitTouching({ paths: [`${aSourceFolder()}/gate_tests.rs`,], },);
             expect((await materialOfAReview({
               git,
               checkoutFolder: '/repo',

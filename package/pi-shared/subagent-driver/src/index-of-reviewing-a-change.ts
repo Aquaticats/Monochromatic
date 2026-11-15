@@ -82,6 +82,22 @@ export {
 } from './reviews-of-finished-branches.ts';
 export { writeReviewBrief, } from './writing-a-review-brief.ts';
 export {
+  type GenerationFileWrite,
+  type GenerationPut,
+  type ReviewGeneration,
+  putAGenerationInPlace,
+} from './a-review-generation-in-place.ts';
+export {
+  type DiffAndFiles,
+  diffAndFilesIn,
+} from './a-diff-and-its-files.ts';
+export {
+  type PinnedRange,
+  type PinnedRanges,
+  commitOfARevision,
+  pinnedRangesOf,
+} from './a-range-pinned-to-a-commit.ts';
+export {
   rangeInWords,
   rangesInALine,
   rangesInWords,

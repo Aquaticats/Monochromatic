@@ -1,37 +1,34 @@
 /**
  Writes what a review of one change reads: the diff of its ranges under the reviewed source folder, the brief that names its
- files, and the folder its reproductions go in.
+ files, and the record of what the review was given, as one generation in a folder of its own.
 
  A change that leaves nothing to read under the source folder writes nothing and answers one line, because a reviewer given no
  file reports nothing, which reads as a clean review although nothing was reviewed. What a change leaves to read is the code
  under that folder and the files that decide how that code is built, checked or run.
 
+ The three files are written whole or not at all (`src/a-review-generation-in-place.ts`), and a review folder that is already there
+ is never written into: the caller is told what it holds, because a folder that holds a brief may be a review a reviewer is reading
+ or one that was killed before its verdict.
+
  @module
  */
 
-import {
-  mkdir,
-  writeFile,
-} from 'node:fs/promises';
-import { dirname, } from 'node:path';
 import type { BriefOfOneReview } from './reviews-of-finished-branches.ts';
 import {
   type GitQuestion,
   type ReviewReading,
   materialOfAReview,
 } from './material-of-a-review.ts';
+import { putAGenerationInPlace, } from './a-review-generation-in-place.ts';
 import { briefOfAReview, } from './review-brief.ts';
 import {
   briefFileOfAReview,
-  diffFileOfAReview,
-  readingFileOfAReview,
-  reproductionsFolderOfAReview,
   reviewFolderOf,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
 
 /**
- Writes the diff, the brief and the reproductions folder of one review.
+ Writes the diff, the brief, the record of what the review was given and the reproductions folder of one review, as one generation.
 
  @param git - how one git question is run
 
@@ -53,7 +50,8 @@ import {
 
  @param rulesFile - the rules file's path, which the brief names first
 
- @returns whether the brief was written, and the line to print
+ @returns whether the brief was written, and the line to print; a review folder that is already there is answered with what it
+ holds and nothing is written into it
 
  @throws ReviewGitError when git did not answer with a success
 
@@ -86,7 +84,7 @@ export async function writeReviewBrief({
   readonly rulesFile: string;
 }): Promise<BriefOfOneReview> {
   /**
-   The diff and the files a reviewer is given.
+   The diff, the files and the ranges as the one commit under review reads them.
    */
   const material = await materialOfAReview({
     git,
@@ -100,88 +98,64 @@ export async function writeReviewBrief({
     === 0) {
     return {
       written: false,
-      line: `nothing to review under ${source} in ${ranges.join(' and ',)}`,
+      line: `nothing to review under ${source} in ${material.ranges
+        .join(' and ',)}`,
     };
   }
   /**
-   The review's own folder.
+   The folder the review's own files are read from.
    */
   const reviewFolder = reviewFolderOf({
     reviewsFolder,
     review,
   },);
   /**
-   The file the diff is written to.
+   What putting the three files in place answered.
    */
-  const diffFile = diffFileOfAReview({
+  const put = await putAGenerationInPlace({
     reviewsFolder,
     review,
-  },);
-  /**
-   The file the brief is written to.
-   */
-  const briefFile = briefFileOfAReview({
-    reviewsFolder,
-    review,
-  },);
-  await mkdir(
-    reproductionsFolderOfAReview({
-      reviewsFolder,
-      review,
-    },),
-    { recursive: true, },
-  );
-  await mkdir(
-    dirname(diffFile,),
-    { recursive: true, },
-  );
-  await writeFile(
-    diffFile,
-    material.diff,
-    'utf8',
-  );
-  // The record of what the review was given is written before the brief, so that no folder holds a brief without its record: a
-  // reviewer copies the ranges from the brief and the check reads them against this record, and a run killed between two writes
-  // must not leave a brief whose review can only be answered as one that cannot be told. The record is also what a fix that
-  // answers this review starts at, since a branch moves on as soon as anyone commits to it, and it keeps the files the brief
-  // listed, so what the review's own file states it covered is judged against what it was given.
-  await writeFile(
-    readingFileOfAReview({
-      reviewsFolder,
-      review,
-    },),
-    `${JSON.stringify(
-      {
+    generation: {
+      brief: briefOfAReview({
         review,
-        commit,
-        ranges,
+        commit: material.commit,
+        ranges: material.ranges,
         source,
         files: material.files,
-      } satisfies ReviewReading,
-      undefined,
-      2
-    )}\n`,
-    'utf8',
-  );
-  await writeFile(
-    briefFile,
-    briefOfAReview({
-      review,
-      commit,
-      ranges,
-      source,
-      files: material.files,
-      focus,
-      reviewsFolder,
-      runsFolder,
-      rulesFile,
-    },),
-    'utf8',
-  );
+        focus,
+        reviewsFolder,
+        runsFolder,
+        rulesFile,
+      },),
+      diff: material.diff,
+      record: `${JSON.stringify(
+        {
+          review,
+          commit: material.commit,
+          ranges: material.ranges,
+          source,
+          files: material.files,
+        } satisfies ReviewReading,
+        undefined,
+        2
+      )}\n`,
+    },
+  },);
+  if (put.kind === 'already-there') {
+    return {
+      written: false,
+      line: `${runNameOfAReview({ review, },)}: ${reviewFolder} already holds `
+        + `${put.held
+          .toSorted()
+          .join(', ',)}, so no brief was written`,
+    };
+  }
   return {
     written: true,
     line: `${runNameOfAReview({ review, },)}: ${String(material.files
-      .length,)} files to read, brief at ${briefFile}; `
-      + `its worktree starts at ${commit}. Its folder is ${reviewFolder}`,
+      .length,)} files to read, brief at ${briefFileOfAReview({
+      reviewsFolder,
+      review,
+    },)}; its worktree starts at ${material.commit}. Its folder is ${reviewFolder}`,
   };
 }

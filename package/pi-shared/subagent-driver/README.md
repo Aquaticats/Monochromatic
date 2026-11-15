@@ -535,6 +535,9 @@ the change's name;
 the commit under review;
 `--range`,
 what changed, repeatable because a branch the integration merged more than once is read over each merge's own range;
+its right side is the commit under review,
+whatever the range names there,
+because a review reads the change of that commit;
 `--source`,
 the folder whose changes are reviewed;
 `--focus`,
@@ -548,17 +551,21 @@ which the brief lists among the folders a reviewer must not read;
 and `--rules-file`,
 which defaults to this package's `doc/rules-every-pi-brief-carries.md` in the checkout.
 
-It writes the diff of the ranges under the source folder,
-then `what-the-review-read.json`,
-which records the commit,
-the ranges,
-the source folder a fix that answers this review starts from,
-and the files the brief listed,
-then the brief that names the code files among them,
-and an empty `reproductions/` folder.
-The record goes before the brief so that no review folder holds a brief without the record its review states its ranges against:
-a process killed between the two writes leaves a record nothing has used yet,
-not a brief whose review can only be answered as one that cannot be told.
+Every revision the ranges and `--commit` name is turned into a commit once, at the start,
+and each range's diff and the files it touches come from one answer of git
+(`git diff --raw -z --patch`), so a branch or an integration that moves between two questions cannot give a diff of one change and
+a file list of another.
+The ranges written into the brief and `what-the-review-read.json` name commits on both sides,
+so a reader can ask the same range later and get the same answer:
+`main...abc1234` becomes `<the merge base of main and abc1234>...abc1234`.
+
+The three files of one review are written into a folder of their own beside the review's, and that folder is given the review's
+name in one step that fails when the name is taken (`src/a-review-generation-in-place.ts`).
+So a review folder is `change.diff`, `what-the-review-read.json` and `brief.md` of one generation, or it is not there:
+a process killed at any instruction leaves a dot-named folder that is never a review, and a second writing for another commit
+either finds the folder free and writes its whole generation, or leaves the folder it found alone and answers with what it holds.
+The names that writer makes are those three and `reproductions/`; a file another writer keeps in a review folder, such as an owner
+record, is never replaced or removed by it, and a review folder that is already there, whatever it holds, is never written into.
 It prints one line:
 
 ```text
@@ -667,11 +674,13 @@ the branch a branch's change is read against;
 `--reviews-folder`;
 and `--runs-folder`.
 
-For each branch it resolves the branch's tip once,
-and from that commit writes the brief of the range `<integration>...<the tip's object name>`,
-or `<merge>^1...<the tip's object name>` for a branch a merge took,
-so the diff, the tree listing, the record and the reviewer's base all speak of one commit
-and no later read can see another tip.
+For each call it resolves the integration's tip once,
+and for each branch the branch's tip once,
+and from those two commits writes the brief of the range
+`<the integration's tip commit>...<the branch's tip commit>`,
+or `<the merge's first parent commit>...<the branch's tip commit>` for a branch a merge took,
+so the range, the diff, the tree listing, the record and the reviewer's base all speak of one commit
+and a merge into the integration during the call cannot move one branch's range under it.
 It then starts its review through the retrying start,
 so the review waits for a slot of the review pool instead of refusing.
 The run's words are fixed here,

@@ -122,7 +122,6 @@ async function reviewIsWritten({ review, }: { readonly review: string },): Promi
  */
 const started = await startReviews({
   branches: options.branches,
-  integration: options.integration,
   runsFolder: options.runsFolder,
   checkoutFolder,
   briefFileOf: function briefFileOf({ review, },) {
@@ -146,6 +145,17 @@ const started = await startReviews({
         words: [
           'rev-parse',
           branch,
+        ],
+      },)).trim();
+    },
+    integrationTip: async function integrationTip() {
+      return (await outputOfGit({
+        git,
+        checkoutFolder,
+        words: [
+          'rev-parse',
+          '--verify',
+          `${options.integration}^{commit}`,
         ],
       },)).trim();
     },

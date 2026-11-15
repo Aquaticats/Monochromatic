@@ -11,15 +11,18 @@
 
 import { basename, } from 'node:path';
 import { isRecord, } from './read-pi-fields.ts';
-import type { CommandOutput, } from './run-command.ts';
+import {
+  type GitQuestion,
+  outputOfGit,
+} from './a-git-question.ts';
+import { diffAndFilesIn, } from './a-diff-and-its-files.ts';
+import { pinnedRangesOf, } from './a-range-pinned-to-a-commit.ts';
 
-/**
- How this module asks git a question, which a test replaces with the answers it expects.
- */
-export type GitQuestion = (request: {
-  readonly words: readonly string[];
-  readonly folder: string;
-}) => Promise<CommandOutput>;
+export {
+  ReviewGitError,
+  outputOfGit,
+} from './a-git-question.ts';
+export type { GitQuestion, } from './a-git-question.ts';
 
 /**
  The file extensions a review reads, which are the languages the reviewed code is written in.
@@ -133,16 +136,6 @@ const BUILD_FILE_PATH_ENDINGS: readonly string[] = [
 ];
 
 /**
- A git question a review could not get an answer to.
- */
-export class ReviewGitError extends Error {
-  /**
-   The name printed with the message.
-   */
-  override readonly name = 'ReviewGitError';
-}
-
-/**
  What a review of a change reads.
  */
 export type ReviewMaterial = {
@@ -155,50 +148,19 @@ export type ReviewMaterial = {
    The files the reviewer is given, each a path from the top of the checkout, in the order git named them.
    */
   readonly files: readonly string[];
+
+  /**
+   The ranges, each with both sides written as commits, which is what a brief and a record name so a reader can ask the same
+   question later and get the same answer.
+   */
+  readonly ranges: readonly string[];
+
+  /**
+   The commit under review, as the full name of the commit every question here was asked about.
+   */
+  readonly commit: string;
 };
 
-/**
- Asks git one question in the checkout and answers with what it printed.
-
- @param git - how one git question is run
-
- @param checkoutFolder - the checkout the question is about
-
- @param words - the question's words
-
- @returns what git printed
-
- @throws ReviewGitError when git did not answer with a success
-
- @example
- ```ts
- const shown = await outputOfGit({ git, checkoutFolder: '/repo', words: ['rev-parse', 'main'], },);
- ```
- */
-export async function outputOfGit({
-  git,
-  checkoutFolder,
-  words,
-}: {
-  readonly git: GitQuestion;
-  readonly checkoutFolder: string;
-  readonly words: readonly string[];
-}): Promise<string> {
-  /**
-   What git answered.
-   */
-  const answered = await git({
-    words,
-    folder: checkoutFolder,
-  },);
-  if (answered.status !== 0) {
-    throw new ReviewGitError(
-      `git ${words.join(' ',)} in ${checkoutFolder} answered status ${String(answered.status,)}: ${answered.stderr
-        .trim()}`,
-    );
-  }
-  return answered.stdout;
-}
 
 /**
  What a review read, kept beside its own files so a fix that answers it knows where to start.
@@ -347,37 +309,36 @@ export function readingIn({
 }
 
 /**
- Reads the range that names what a branch changed, from the integration branch that holds it, by the object name of the commit
- under review.
+ Reads the range that names what a branch changed, from the integration that holds it, with both sides written as commits.
 
  A branch the integration already merged has an empty `integration...branch`, and a reviewer given it reads nothing. Its own
  change is then the range from the merge that took it: the merge's first parent to the branch's tip.
 
- The range's right side is the tip's object name, never the branch's name: a branch moves on as soon as anyone commits to it, and a
- range that still says `main...fix/a` is evaluated again by every later git question, so the diff, the tree listing and the
- reviewer's checkout can come from three different commits. This side and the commit the caller resolved are the same commit only
- when one git question names it, and this function is handed that one.
+ Both sides are commits, never a branch's name: a branch moves on as soon as anyone commits to it, and this machine merges into its
+ integration many times an hour, so a range that still said `main...fix/a` would be evaluated again by every later git question and
+ the diff, the tree listing and the reviewer's checkout could come from three different commits. The tip and the integration's tip
+ are each read once by the caller, and the merge's first parent is a commit already.
 
- @param tip - the branch's tip commit, which the range names and which the merge is found by
+ @param tip - the branch's tip commit, which the range names on its right and which the merge is found by
 
- @param integration - the integration branch the change was or will be merged into
+ @param integrationTip - the integration's tip commit, which the range names on its left when no merge took the branch
 
  @param merges - the integration's own first-parent merges, each as `<merge> <parent>...`
 
- @returns the range, as `git diff` and `git log` take one, with the tip's object name on its right
+ @returns the range, as `git diff` and `git log` take one, with commits on both sides
 
  @example
  ```ts
- const range = rangeOfABranch({ tip, integration: 'main', merges: [], },);
+ const range = rangeOfABranch({ tip, integrationTip, merges: [], },);
  ```
  */
 export function rangeOfABranch({
   tip,
-  integration,
+  integrationTip,
   merges,
 }: {
   readonly tip: string;
-  readonly integration: string;
+  readonly integrationTip: string;
   readonly merges: readonly string[];
 }): string {
   /**
@@ -392,10 +353,11 @@ export function rangeOfABranch({
     .find(function tookTheTip(fields,) {
       return fields.slice(1,)
         .includes(tip,);
-    },)?.[0];
+    },);
   return (takingMerge === undefined)
-    ? `${integration}...${tip}`
-    : `${takingMerge}^1...${tip}`;
+    ? `${integrationTip}...${tip}`
+    : `${takingMerge.at(1,)
+      ?? tip}...${tip}`;
 }
 
 /**
@@ -496,6 +458,11 @@ export function codeFilesAmong({ paths, }: { readonly paths: readonly string[] }
  Reads what a review of one change reads: the diff of every range under the source folder, and the code files and build
  decisions among what those ranges touched that the reviewed commit still holds.
 
+ Every revision the ranges and the commit name is turned into a commit once, before any question is asked about it, and each
+ range's diff and the paths it touches come from one answer of git (`git diff --raw -z --patch`). So a branch that moves between
+ two questions cannot make the diff, the file list and the tree listing speak of different commits, and a range whose integration
+ is merged under it cannot lose its files between two reads.
+
  @param git - how one git question is run
 
  @param checkoutFolder - the checkout the ranges are read from
@@ -506,7 +473,7 @@ export function codeFilesAmong({ paths, }: { readonly paths: readonly string[] }
 
  @param commit - the commit under review, whose tree says which files a reviewer can read
 
- @returns the diff and the files to read
+ @returns the diff, the files to read, the ranges with both sides as commits, and the commit under review
 
  @throws ReviewGitError when git did not answer with a success
 
@@ -529,6 +496,15 @@ export async function materialOfAReview({
   readonly commit: string;
 }): Promise<ReviewMaterial> {
   /**
+   The ranges and the commit under review, every name read once, so no later question can see another branch tip.
+   */
+  const pinned = await pinnedRangesOf({
+    git,
+    checkoutFolder,
+    ranges,
+    commit,
+  },);
+  /**
    The diff of every range, in the order the ranges were given.
    */
   const diffs: string[] = [];
@@ -537,31 +513,31 @@ export async function materialOfAReview({
    */
   const touched: string[] = [];
   /* oxlint-disable eslint/no-await-in-loop -- one range's diff after another, because each range's answer is joined in the order
-     the caller gave them. See doc/lint/sequential-awaits.md. */
-  for (const range of ranges) {
-    diffs.push(await outputOfGit({
+     the caller gave them, and the file list of a range is the one its own diff names. See doc/lint/sequential-awaits.md. */
+  for (const range of pinned.ranges) {
+    /**
+     The answer of one question, which holds both the diff and the paths it touches.
+     */
+    const answer = await outputOfGit({
       git,
       checkoutFolder,
       words: [
         'diff',
+        '--raw',
+        '--patch',
+        '-z',
         range,
         '--',
         source,
       ],
-    },),);
-    for (const path of (await outputOfGit({
-      git,
-      checkoutFolder,
-      words: [
-        'diff',
-        '--name-only',
-        '--diff-filter=AM',
-        range,
-        '--',
-        source,
-      ],
-    },)).split('\n',)) {
-      if ((path !== '') && (!touched.includes(path,))) {
+    },);
+    /**
+     What that one answer holds: the diff written beside the brief, and the paths it names.
+     */
+    const read = diffAndFilesIn({ answer, },);
+    diffs.push(read.diff,);
+    for (const path of read.paths) {
+      if (!touched.includes(path,)) {
         touched.push(path,);
       }
     }
@@ -577,7 +553,7 @@ export async function materialOfAReview({
       'ls-tree',
       '--name-only',
       '-r',
-      commit,
+      pinned.commit,
       '--',
       source,
     ],
@@ -591,5 +567,7 @@ export async function materialOfAReview({
       .filter(function isHeldByTheCommit(path,) {
         return held.has(path,);
       },),
+    ranges: pinned.ranges,
+    commit: pinned.commit,
   };
 }

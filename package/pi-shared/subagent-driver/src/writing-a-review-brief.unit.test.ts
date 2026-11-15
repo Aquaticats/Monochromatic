@@ -1,9 +1,11 @@
 /**
- Writes what a review of one change reads: the diff of its ranges, the record of what it was given, and its brief.
+ Writes what a review of one change reads: the diff of its ranges, the record of what it was given, and its brief, as one
+ generation.
 
- The order of the writes is part of what this file checks. The record is written before the brief, so that no review folder holds a
- brief without the record its review states its ranges against: a run killed between two writes leaves a record nothing has used
- yet rather than a brief whose review can only be answered as one that cannot be told.
+ Two things this file checks are about one moment of answers. Every revision the ranges and the commit name is turned into a commit
+ once, before anything is asked about it, and one git answer holds both the diff and the paths it touches, so an integration that
+ moves between two questions cannot make a change with a file read as nothing to review. And the three files are written whole or
+ not at all, so a second writing for another commit never leaves an old brief beside a new diff and record.
 
  @module
  */
@@ -15,6 +17,7 @@ import {
   mkdtemp,
   readFile,
   rm,
+  writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
@@ -90,7 +93,8 @@ async function makeFolder(): Promise<{
 }
 
 /**
- Answers the git questions one brief is written from: the diff of the range, the files it touched, and the files the commit holds.
+ Answers the git questions one brief is written from: each revision as a commit, the range's merge base, the answer that holds
+ both the diff and the paths it touches, and the files the commit holds.
 
  @param files - the files the range touched and the commit holds
 
@@ -106,15 +110,38 @@ function gitAnswering({ files, }: { readonly files: readonly string[] },): GitQu
     readonly words: readonly string[];
     readonly folder: string;
   },): Promise<CommandOutput> {
-    /**
-     What git prints for this question, which is a path per line unless it is asked for the diff itself.
-     */
-    const stdout = words.includes('diff',) && (!words.includes('--name-only',))
-      ? 'a diff of the range\n'
-      : `${files.join('\n',)}\n`;
+    if (words[0] === 'rev-parse') {
+      return {
+        status: 0,
+        stdout: `${(words[2] ?? '').replace('^{commit}', '')}\n`,
+        stderr: '',
+      };
+    }
+    if (words[0] === 'merge-base') {
+      return {
+        status: 0,
+        stdout: 'base-commit\n',
+        stderr: '',
+      };
+    }
+    if (words[0] === 'ls-tree') {
+      return {
+        status: 0,
+        stdout: `${files.join('\n',)}\n`,
+        stderr: '',
+      };
+    }
     return {
       status: 0,
-      stdout,
+      stdout: `${files.map(function entryOf(path,) {
+        return `:100644 100644 0000000 1234567 M\0${path}\0`;
+      },)
+        .join('',)
+         }\0${
+         files.map(function patchOf(path,) {
+          return `diff --git a/${path} b/${path}\n`;
+        },)
+          .join('',)}`,
       stderr: '',
     };
   };
@@ -195,13 +222,10 @@ async function aDisposableRepository({ folder, }: { readonly folder: string },):
     readonly merge?: string;
     readonly files: readonly { readonly blob: string; readonly path: string }[];
   },): string {
-    return `commit ${ref}\nmark ${mark}\ncommitter Disposable Review <disposable@example.invalid> 1700000000 +0000\n`
-      + `${data(message,)}${(from === undefined) ? '' : `from ${from}\n`}`
-      + `${(merge === undefined) ? '' : `merge ${merge}\n`}`
-      + files.map(function added(file,) {
+    return `commit ${ref}\nmark ${mark}\ncommitter Disposable Review <disposable@example.invalid> 1700000000 +0000\n${data(message,)}${(from === undefined) ? '' : `from ${from}\n`}${(merge === undefined) ? '' : `merge ${merge}\n`}${files.map(function added(file,) {
         return `M 100644 ${file.blob} ${file.path}\n`;
       },)
-        .join('',);
+        .join('',)}`;
   }
   /**
    The base file every commit holds, and the one main adds beside it.
@@ -357,7 +381,7 @@ async function generationIn(reviewsFolder: string,): Promise<{
   /**
    The record's fields, which a generation always keeps together.
    */
-  const fields = (typeof record === 'object') && (record !== null) ? record as {
+  const fields = ((typeof record) === 'object') && (record !== null) ? record as {
     readonly commit: string;
     readonly ranges: readonly string[];
   } : { commit: '', ranges: [], };
@@ -427,7 +451,10 @@ await describe({
             },),);
             expect(briefed.written,).toBe(true,);
             expect(await readFile(join(reviewsFolder, aReview(), 'change.diff',), 'utf8',),)
-              .toBe('a diff of the range\n',);
+              .toBe(theFilesTouched().map(function patchOf(path,) {
+                return `diff --git a/${path} b/${path}\n`;
+              },)
+                .join('',),);
             expect(
               JSON.parse(await readFile(
                 join(reviewsFolder, aReview(), 'what-the-review-read.json',),
@@ -436,192 +463,48 @@ await describe({
             ).toEqual({
               review: aReview(),
               commit: 'abc1234',
-              ranges: ['main...fix/rewrite-the-gate',],
+              // Both sides of the range are commits, so a reader can ask it again and get the same answer.
+              ranges: ['base-commit...abc1234',],
               source: 'package/a/src',
               files: theFilesTouched(),
             },);
           },
         },),
         it({
-          name: 'writes the record of what the review was given before the brief, so no folder holds a brief without its record',
+          name: 'never writes into a review folder that is already there, and answers with what it holds',
           fn: async () => {
             await using folder = await makeFolder();
             /**
              The folder that holds one folder per review.
              */
             const reviewsFolder = join(folder.path, 'reviews',);
-            // A directory where the record goes makes its write fail after the diff was written, which is the state a process
-            // killed between the record's write and the brief's leaves; a brief without a record is what must not be left.
-            await mkdir(join(reviewsFolder, aReview(), 'what-the-review-read.json',), { recursive: true, },);
+            /**
+             The review's own folder, which holds the brief of an earlier writing and a file this writer did not make.
+             */
+            const reviewFolder = join(reviewsFolder, aReview(),);
+            await mkdir(reviewFolder, { recursive: true, },);
+            await writeFile(join(reviewFolder, 'brief.md',), 'a brief of an earlier writing\n', 'utf8',);
+            await writeFile(join(reviewFolder, 'owner.json',), '{"unit":"a"}\n', 'utf8',);
+            /**
+             What writing the brief answered over that folder.
+             */
+            const briefed = await writeReviewBrief(aBriefRequest({
+              reviewsFolder,
+              git: gitAnswering({ files: theFilesTouched(), },),
+            },),);
+            expect(briefed.written,).toBe(false,);
+            // The caller reads which folder is in the way and what it holds, and nothing of it is replaced or removed.
+            expect(briefed.line,).toContain(reviewFolder,);
+            expect(briefed.line,).toContain('brief.md',);
+            expect(briefed.line,).toContain('owner.json',);
+            expect(await readFile(join(reviewFolder, 'brief.md',), 'utf8',),)
+              .toBe('a brief of an earlier writing\n',);
             await expect(
-              writeReviewBrief(aBriefRequest({
-                reviewsFolder,
-                git: gitAnswering({ files: theFilesTouched(), },),
-              },),),
-            ).rejects.toThrow();
-            await expect(
-              readFile(join(reviewsFolder, aReview(), 'brief.md',),),
+              readFile(join(reviewFolder, 'change.diff',),),
             ).rejects.toThrow(MISSING_PATH_CODE,);
-          },
-        },),
-        it({
-          name: 'leaves the record of what the review was given when the brief cannot be written, which is a state nothing reads',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The folder that holds one folder per review.
-             */
-            const reviewsFolder = join(folder.path, 'reviews',);
-            /**
-             The record of what the review was given, which the writer puts in place before the brief.
-             */
-            const readingFile = join(reviewsFolder, aReview(), 'what-the-review-read.json',);
-            // A directory where the brief goes fails its write alone, so what is left is the state a kill between the two writes
-            // leaves once the record goes first.
-            await mkdir(join(reviewsFolder, aReview(), 'brief.md',), { recursive: true, },);
             await expect(
-              writeReviewBrief(aBriefRequest({
-                reviewsFolder,
-                git: gitAnswering({ files: theFilesTouched(), },),
-              },),),
-            ).rejects.toThrow();
-            expect(
-              JSON.parse(await readFile(readingFile, 'utf8',),),
-            ).toEqual({
-              review: aReview(),
-              commit: 'abc1234',
-              ranges: ['main...fix/rewrite-the-gate',],
-              source: 'package/a/src',
-              files: theFilesTouched(),
-            },);
-          },
-        },),
-
-        it({
-          name: 'answers one generation whatever the integration does between its questions, so a change with a file is not answered as nothing to review',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The repository, and the commits the two runs are written for.
-             */
-            const repository = await aDisposableRepository({ folder: folder.path, },);
-            /**
-             The request one run makes of the writer.
-             */
-            const aRun = function aRun({ reviewsFolder, }: { readonly reviewsFolder: string },) {
-              return writeReviewBrief({
-                ...aBriefRequest({
-                  reviewsFolder,
-                  git: gitOfTheRepository({
-                    repository,
-                    moveMainTo: repository.mergedMain,
-                  },),
-                },),
-                checkoutFolder: repository.checkoutFolder,
-                commit: repository.firstChangeCommit,
-                ranges: [`main...${repository.firstChangeCommit}`,],
-              },);
-            };
-            /**
-             What the first run answered.
-             */
-            const firstRun = await aRun({ reviewsFolder: join(folder.path, 'reviews',), },);
-            /**
-             What the second run answered, with `main` moving again after every one of its questions.
-             */
-            const secondRun = await aRun({ reviewsFolder: join(folder.path, 'reviews-again',), },);
-            expect(firstRun.written,).toBe(true,);
-            expect(secondRun.written,).toBe(true,);
-            /**
-             The generation each run wrote.
-             */
-            const first = await generationIn(join(folder.path, 'reviews',),);
-            /**
-             The generation the second run wrote from the same answers.
-             */
-            const second = await generationIn(join(folder.path, 'reviews-again',),);
-            // The change has a file in it, and the file is in the diff, the record and the brief's range.
-            expect(first.diff,).toContain(repository.firstChangeFile,);
-            expect(first.ranges,).toHaveLength(1,);
-            expect(first.brief,).toContain(first.ranges[0],);
-            // Neither run names the integration by its name, which is what moves: the range names the commit it was read at.
-            expect(first.ranges[0],).not.toContain('main',);
-            // The same answers from the same commits, whatever main did between the questions.
-            expect(second.ranges,).toEqual(first.ranges,);
-            expect(second.commit,).toBe(first.commit,);
-            expect(second.diff,).toBe(first.diff,);
-          },
-        },),
-        it({
-          name: 'writes one generation whole, so a second writing for another commit never leaves an old brief beside a new diff and record',
-          fn: async () => {
-            await using folder = await makeFolder();
-            /**
-             The repository the two writings are for.
-             */
-            const repository = await aDisposableRepository({ folder: folder.path, },);
-            /**
-             The folder that holds one folder per review.
-             */
-            const reviewsFolder = join(folder.path, 'reviews',);
-            await writeReviewBrief({
-              ...aBriefRequest({
-                reviewsFolder,
-                git: gitOfTheRepository({ repository, },),
-              },),
-              checkoutFolder: repository.checkoutFolder,
-              commit: repository.firstChangeCommit,
-              ranges: [`main...${repository.firstChangeCommit}`,],
-            },);
-            // The second writing cannot replace the brief of the first: the file is read-only, which is the state a process
-            // killed at that write leaves, and the second writing reports it rather than replacing it.
-            await chmod(join(reviewsFolder, aReview(), 'brief.md',), 0o444,);
-            /**
-             What the second writing threw, if it threw: this control judges the folder, not the words of the answer.
-             */
-            let secondWritingThrew = '';
-            try {
-              await writeReviewBrief({
-                ...aBriefRequest({
-                  reviewsFolder,
-                  git: gitOfTheRepository({ repository, },),
-                },),
-                checkoutFolder: repository.checkoutFolder,
-                commit: repository.secondChangeCommit,
-                ranges: [`main...${repository.secondChangeCommit}`,],
-              },);
-            }
-            catch (error) {
-              secondWritingThrew = String(error,);
-            }
-            finally {
-              await chmod(join(reviewsFolder, aReview(), 'brief.md',), 0o644,);
-            }
-            /**
-             What the folder holds after both writings.
-             */
-            const generation = await generationIn(reviewsFolder,);
-            // Whatever the second writing answered, the folder holds one generation: its brief names the range its record keeps,
-            // and its diff is the change of the commit its record names.
-            /**
-             The file the record's commit adds, which the diff of that generation holds.
-             */
-            const expectedFile = (generation.commit === repository.firstChangeCommit)
-              ? repository.firstChangeFile
-              : repository.secondChangeFile;
-            /**
-             The file the other change adds, which the diff of this generation does not hold.
-             */
-            const otherFile = (generation.commit === repository.firstChangeCommit)
-              ? repository.secondChangeFile
-              : repository.firstChangeFile;
-            expect(generation.brief,).toContain(generation.ranges[0],);
-            expect(generation.diff,).toContain(expectedFile,);
-            expect(generation.diff,).not.toContain(otherFile,);
-            // Where the writing threw, it threw on the file it could not replace, which is what a killed writing leaves.
-            if (secondWritingThrew !== '') {
-              expect(secondWritingThrew,).toContain('EACCES',);
-            }
+              readFile(join(reviewFolder, 'what-the-review-read.json',),),
+            ).rejects.toThrow(MISSING_PATH_CODE,);
           },
         },),
         it({

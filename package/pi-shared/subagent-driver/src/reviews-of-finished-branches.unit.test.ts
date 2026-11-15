@@ -115,17 +115,17 @@ function aTip({ change, }: { readonly change: string },): string {
 }
 
 /**
- The integration branch a change is read against.
+ The commit the integration branch's tip is, in this file's answers.
 
- @returns the branch's name
+ @returns the commit's id
 
  @example
  ```ts
- const integration = anIntegrationBranch();
+ const tip = anIntegrationTip();
  ```
  */
-function anIntegrationBranch(): string {
-  return 'main';
+function anIntegrationTip(): string {
+  return 'main-tip';
 }
 
 /**
@@ -220,6 +220,9 @@ function seamsAnswering({
       branchTip: async function branchTip({ branch, },) {
         return aTip({ change: changeOfBranch({ branch, },), },);
       },
+      integrationTip: async function integrationTip() {
+        return anIntegrationTip();
+      },
       integrationMerges: async function integrationMerges() {
         return merges;
       },
@@ -286,7 +289,6 @@ function aStartRequest({
     branches: changes.map(function branchOfOne(change,) {
       return branchOf({ change, },);
     },),
-    integration: anIntegrationBranch(),
     runsFolder: aRunsFolder(),
     checkoutFolder: aCheckoutFolder(),
     briefFileOf: function briefFileOf({ review, }: { readonly review: string }): string {
@@ -421,7 +423,7 @@ await describe({
               briefs: new Map([
                 [aChange(), {
                   written: false,
-                  line: `nothing to review under package/a/src in ${anIntegrationBranch()}...${branchOf({ change: aChange(), },)}`,
+                  line: 'nothing to review under package/a/src in a range of commits',
                 },],
                 [anotherChange(), { written: true, line: 'another brief', },],
               ],),
@@ -434,8 +436,7 @@ await describe({
              What the starter answered.
              */
             const started = await startReviews(aStartRequest({ changes: [aChange(), anotherChange(),], seams, },),);
-            expect(started.lines[0],).toBe(`nothing to review under package/a/src in `
-              + `${anIntegrationBranch()}...${branchOf({ change: aChange(), },)}`,);
+            expect(started.lines[0],).toBe('nothing to review under package/a/src in a range of commits',);
             expect(asked.starts.map(function reviewOf(start,) {
               return start.review;
             },),).toEqual([anotherChange(),],);
@@ -523,11 +524,11 @@ await describe({
             // anyone commits to it.
             expect(asked.briefs.map(function rangeOf(brief,) {
               return brief.range;
-            },),).toEqual([`${anIntegrationBranch()}...${aTip({ change: aChange(), },)}`,],);
+            },),).toEqual([`${anIntegrationTip()}...${aTip({ change: aChange(), },)}`,],);
             expect(asked.briefs,).toEqual([{
               review: aChange(),
               commit: aTip({ change: aChange(), },),
-              range: `${anIntegrationBranch()}...${aTip({ change: aChange(), },)}`,
+              range: `${anIntegrationTip()}...${aTip({ change: aChange(), },)}`,
             },],);
           },
         },),
@@ -539,6 +540,10 @@ await describe({
              */
             const merge = 'def456';
             /**
+             The merge's first parent, which is the commit the range starts at.
+             */
+            const parents = '789abc';
+            /**
              The seams, whose integration holds the branch's tip.
              */
             const { seams, asked } = seamsAnswering({
@@ -549,16 +554,16 @@ await describe({
               starts: new Map(),
               saves: new Map(),
               written: [],
-              merges: [`${merge} 789abc ${aTip({ change: aChange(), },)}`,],
+              merges: [`${merge} ${parents} ${aTip({ change: aChange(), },)}`,],
             },);
             await startReviews(aStartRequest({ changes: [aChange(),], seams, },),);
             expect(asked.briefs.map(function rangeOf(brief,) {
               return brief.range;
-            },),).toEqual([`${merge}^1...${aTip({ change: aChange(), },)}`,],);
+            },),).toEqual([`${parents}...${aTip({ change: aChange(), },)}`,],);
             expect(asked.briefs,).toEqual([{
               review: aChange(),
               commit: aTip({ change: aChange(), },),
-              range: `${merge}^1...${aTip({ change: aChange(), },)}`,
+              range: `${parents}...${aTip({ change: aChange(), },)}`,
             },],);
           },
         },),

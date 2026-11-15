@@ -144,6 +144,11 @@ export type ReviewStartingSeams = {
   readonly branchTip: (request: { readonly branch: string }) => Promise<string>;
 
   /**
+   The integration's tip commit, which the reviews' ranges are read against.
+   */
+  readonly integrationTip: () => Promise<string>;
+
+  /**
    The integration branch's own first-parent merges, each as `<merge> <parent>...`.
    */
   readonly integrationMerges: () => Promise<readonly string[]>;
@@ -244,8 +249,6 @@ export function retryWordsOfAReview({
 
  @param branches - the branches a review is wanted for
 
- @param integration - the integration branch a branch's change is read against
-
  @param runsFolder - folder the driver writes its runs into
 
  @param checkoutFolder - the top of the checkout the worktrees are made in
@@ -258,19 +261,17 @@ export function retryWordsOfAReview({
 
  @example
  ```ts
- const lines = await startReviews({ branches, integration, runsFolder, checkoutFolder, briefFileOf, seams, },);
+ const lines = await startReviews({ branches, runsFolder, checkoutFolder, briefFileOf, seams, },);
  ```
  */
 export async function startReviews({
   branches,
-  integration,
   runsFolder,
   checkoutFolder,
   briefFileOf,
   seams,
 }: {
   readonly branches: readonly string[];
-  readonly integration: string;
   readonly runsFolder: string;
   readonly checkoutFolder: string;
   readonly briefFileOf: (request: { readonly review: string }) => string;
@@ -301,6 +302,11 @@ export async function startReviews({
    last line names and what its status counts.
    */
   const reviewsThatDoNotCover: string[] = [];
+  /**
+   The integration's tip commit, read once, so every range this call writes names the same commit and a merge into the integration
+   during the call cannot move one branch's range under it.
+   */
+  const integrationTip = await seams.integrationTip();
   /* oxlint-disable eslint/no-await-in-loop -- one branch after another, because each brief and start is written and made before
      the next, and the stagger is what keeps their slots in the order given. See doc/lint/sequential-awaits.md. */
   for (const branch of branches) {
@@ -339,7 +345,7 @@ export async function startReviews({
      */
     const range = rangeOfABranch({
       tip: commit,
-      integration,
+      integrationTip,
       merges: await seams.integrationMerges(),
     },);
     /**
