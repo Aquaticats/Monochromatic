@@ -1226,3 +1226,50 @@ by the coordinating session.
   the filling unit was restarted at seventeen at 01:00:44 and the probe at 01:00:46.
   19 agents were going;
   none was stopped.
+
+#### The stalls end with the snapshot cleanup, again: level 17 from 2026-11-15T01:00:46-05:00 to 02:23:05-05:00
+
+Not final and not approved:
+the readings of level seventeen so far,
+taken by the coordinating session from the same file.
+
+- **`snapper-cleanup.service` ended at 01:45:02**
+  (`systemctl show`;
+  its last journal lines are "Running empty-pre-post cleanup for 'root'" and "Running 'btrfs qgroup clear-stale /var/home/.snapshots'").
+  It had run since 00:00:11,
+  an hour and three quarters.
+- **Until it ended**:
+  43 readings at this level from 01:00:46,
+  ten of them a second or more on either drive,
+  none twice in a row on one drive over five seconds,
+  so the level stood.
+  The home drive:
+  29,005 ms at 01:02:46,
+  8,211 ms at 01:28:21,
+  5,232 ms at 01:38:51,
+  2,917 ms at 01:36:45.
+  The build drive took 1.5 to 7.1 s at seven readings between 01:24 and 01:44,
+  the minutes in which the wrapper's whole suites and a container gate ran there.
+  16 to 19 agents were going.
+- **After it ended**:
+  39 readings from 01:45:04 to 02:23:05,
+  none a second or more,
+  the slowest 116 ms.
+  12 to 17 agents were going,
+  a container gate ran from 02:00 to 02:17,
+  and the machine's daily toolchain update ran throughout.
+- **What this does and does not show**:
+  on two nights running the long stalls of the home drive stopped within minutes of the cleanup's end
+  (this section,
+  and "The stalls end within seven minutes of the snapshot cleanup's end" for the night before).
+  The count of agents fell in the same window tonight,
+  from 17 to 12,
+  because this session's queue stood still from 02:12 to 02:21,
+  so tonight's after-window is not the same load as its before-window;
+  the first 27 minutes after the cleanup's end,
+  28 readings at 15 to 17 agents before the queue stood still,
+  had no slow reading either
+  (the slowest 116 ms).
+  The single stalls of the evening before,
+  with no cleanup running,
+  are not explained by any of this.

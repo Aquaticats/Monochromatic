@@ -103,6 +103,55 @@ pub struct FreshScratch {
 }
 
 /// What:
+///  What the service manager answered about the unit a client asks after,
+/// with the two ways of having no state kept apart.
+/// Why:
+///   A unit that stopped is unloaded by the manager,
+/// and `GetUnit` then answers `NoSuchUnit` rather than `inactive`
+///  (`systemd_dbus.rs`,
+/// the `GetUnit` of an instance nothing holds).
+/// A start is what loads the unit again,
+/// so a client that read
+///  "it holds no such unit" as "the manager cannot be asked" never asked for the one call that repairs it:
+/// on 2026-11-14T20:51-05:00
+///  a merge's hand-off ended with "the commit service did not start" for the four merges of one worktree after a service
+///  retired and stopped its own socket,
+/// and nothing was ever started.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type ManagerAnswer = { kind: 'state', text: string } | { kind: 'not-held' } | { kind: 'unreachable' };
+/// ```
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ManagerAnswer {
+    /// The unit's `ActiveState` (`active`,
+    /// `activating`,
+    /// `inactive`,
+    /// `failed`,
+    /// ...).
+    State(String),
+    /// The manager answered that it holds no such unit,
+    /// which is the state of a unit that stopped and was unloaded,
+    /// and a start loads it again.
+    NotHeld,
+    /// The manager could not be asked at all (no bus at the path this command was given,
+    /// or the exchange failed),
+    /// which leaves the wait to the start wait.
+    Unreachable,
+}
+
+impl ManagerAnswer {
+    /// The state text the manager answered,
+    /// or nothing where it answered something else.
+    pub fn state(&self) -> Option<&str> {
+        return match self {
+            Self::State(text) => Some(text.as_str()),
+            Self::NotHeld | Self::Unreachable => None,
+        };
+    }
+}
+
+/// What:
 ///  How the client asks the service manager whether the service unit has failed.
 /// Why:
 ///   A service that is starting sends nothing,
@@ -113,7 +162,7 @@ pub struct FreshScratch {
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type ManagerWatch = { bus: string; unit: string; socketUnit: string; every: number; state: (bus, unit) => string | undefined; start: (bus, unit) => boolean; reset: (bus, unit) => boolean; restart: (bus, unit) => boolean };
+/// type ManagerWatch = { bus: string; unit: string; socketUnit: string; every: number; state: (bus, unit) => ManagerAnswer; start: (bus, unit) => boolean; reset: (bus, unit) => boolean; restart: (bus, unit) => boolean };
 /// ```
 #[derive(Clone, Debug)]
 pub struct ManagerWatch {
@@ -132,11 +181,11 @@ pub struct ManagerWatch {
     /// `activating`,
     /// `inactive`,
     /// `failed`,
-    /// ...);
-    /// nothing when the manager cannot be
-    ///  asked,
+    /// ...),
+    /// or the manager's word that it holds no such unit,
+    /// or that it could not be asked,
     /// which leaves the wait to the start wait.
-    pub state: fn(&std::path::Path, &str) -> Option<String>,
+    pub state: fn(&std::path::Path, &str) -> ManagerAnswer,
     /// Asks the manager to start the unit;
     /// whether the manager took the request.
     pub start: fn(&std::path::Path, &str) -> bool,
@@ -154,11 +203,24 @@ pub struct ManagerWatch {
 /// while a start is waited for.
 pub const MANAGER_ASK_EVERY: Duration = START_NOTICE_GRACE;
 
-/// The manager's `ActiveState` of `unit`:
-/// nothing when the bus or the unit cannot be asked about.
-pub(crate) fn unit_state(bus: &std::path::Path, unit: &str) -> Option<String> {
-    let mut connection: Bus = Bus::connect(bus, EXCHANGE_WAIT).ok()?;
-    return connection.active_state(unit).ok()?;
+/// What:
+///  The manager's `ActiveState` of `unit`,
+/// the manager's word that it holds no such unit,
+/// or that it could not be asked.
+/// Why:
+///  `active_state` answers `Ok(None)` for a unit the manager does not hold,
+/// which a start is what repairs,
+/// while a failed exchange is not;
+/// keeping the two apart is what lets the client ask for the start instead of waiting
+/// out a service nothing will start.
+///
+pub(crate) fn unit_state(bus: &std::path::Path, unit: &str) -> ManagerAnswer {
+    let Ok(mut connection) = Bus::connect(bus, EXCHANGE_WAIT) else { return ManagerAnswer::Unreachable };
+    return match connection.active_state(unit) {
+        Ok(Some(state)) => ManagerAnswer::State(state),
+        Ok(None) => ManagerAnswer::NotHeld,
+        Err(_could_not_ask) => ManagerAnswer::Unreachable,
+    };
 }
 
 /// Asks the manager to start `unit`;
