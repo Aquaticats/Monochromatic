@@ -176,8 +176,8 @@ pub(crate) fn real_git_within(
     command.process_group(0);
     let mut child: std::process::Child = command.spawn().expect("the query starts");
     let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
-    let (standard_output, output_ended) = draining(child.stdout.take().expect("piped standard output"));
-    let (standard_error, error_ended) = draining(child.stderr.take().expect("piped standard error"));
+    let (standard_output, output_reached_its_end) = draining(child.stdout.take().expect("piped standard output"));
+    let (standard_error, error_reached_its_end) = draining(child.stderr.take().expect("piped standard error"));
     if let Some(bytes) = input {
         let mut standard_input: std::process::ChildStdin = child.stdin.take().expect("piped standard input");
         standard_input.write_all(bytes).expect("the query's input");
@@ -208,8 +208,8 @@ pub(crate) fn real_git_within(
     let _joined = waiter.join();
     // What the pipes gave, under one grace for both, and never a wait past it.
     let grace_ends: std::time::Instant = std::time::Instant::now() + PIPE_GRACE;
-    let output_ended: bool = output_ended.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
-    let error_ended: bool = error_ended.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
+    let output_ended: bool = output_reached_its_end.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
+    let error_ended: bool = error_reached_its_end.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
     let stdout: Vec<u8> = standard_output.lock().expect("the query's standard output").clone();
     let stderr: Vec<u8> = standard_error.lock().expect("the query's standard error").clone();
     return QueryAnswer {
