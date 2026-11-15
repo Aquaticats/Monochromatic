@@ -220,6 +220,8 @@ pub struct VersionDirectory {
     pub downloads: Option<PathBuf>,
     /// The size the version and its downloads weigh, in bytes.
     pub bytes: u64,
+    /// The size the version's own tree weighs, in bytes, without the archives kept for it.
+    pub tree_bytes: u64,
     /// When the version directory was last written.
     pub written: SystemTime,
     /// The device and inode number of the version directory,
@@ -405,6 +407,7 @@ pub fn version_directories(toolchain_root: &Path, tools: &BTreeSet<String>, dead
                 directory,
                 downloads,
                 bytes,
+                tree_bytes: facts.bytes,
                 written,
                 inode,
                 files: facts.files,
@@ -485,8 +488,8 @@ pub fn tombstone_of(directory: &Path) -> PathBuf {
 }
 
 /// The suffix of the sidecar that records what a removal judged of the tree it moved aside.
-/// It sits beside the removal name, holds the tree's file count, bytes, newest write and root write time,
-/// and is what lets a later pass tell a whole tombstone from a partly deleted one.
+/// It sits beside the removal name, holds the tree's identity and the facts a walk of it read,
+/// and is what lets a later pass tell a whole tombstone from one a deletion has begun inside.
 pub const FACTS_SUFFIX: &str = ".facts";
 
 /// The sidecar that records what a removal judged of the tree it moved aside,
@@ -494,6 +497,13 @@ pub const FACTS_SUFFIX: &str = ".facts";
 pub fn facts_of(marker: &Path) -> PathBuf {
     let name: String = file_name_text(marker);
     return marker.with_file_name(format!("{name}{FACTS_SUFFIX}"));
+}
+
+/// The sidecar that describes the tree of the version at `version_directory`,
+/// whether that tree stands under its own name,
+/// its removal name or its deletion name.
+pub fn record_of(version_directory: &Path) -> PathBuf {
+    return facts_of(&tombstone_of(version_directory));
 }
 
 /// The name a version directory is moved to when its deletion begins.
@@ -519,6 +529,7 @@ pub fn deleting_of(directory: &Path) -> PathBuf {
 /// ```ts
 /// export function treeFacts(path: string, deadline: Instant): TreeFacts
 /// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct TreeFacts {
     /// The space the tree weighs,
     /// in bytes.
@@ -582,6 +593,175 @@ pub fn tree_facts(path: &Path, deadline: Instant) -> TreeFacts {
         }
     }
     return facts;
+}
+
+/// What:
+/// What a pass judged of one version's whole tree:
+/// the identity that tells that tree from any other at the same name,
+/// and the facts that change whenever anything inside it is written.
+/// Why:
+/// A record beside a removal name is the only thing a later pass has to tell a tree a removal moved aside whole
+/// from one a deletion has begun inside;
+/// the identity in it is what keeps a record that outlived its tree from describing a newer one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type JudgedTree = { inode: [number, number] | undefined; written: number; facts: TreeFacts };
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct JudgedTree {
+    /// The device and inode number of the tree's root when it was judged,
+    /// when the platform reports them.
+    pub inode: Option<(u64, u64)>,
+    /// The root's own write time when it was judged.
+    pub written: SystemTime,
+    /// What a walk of the whole tree read when it was judged.
+    pub facts: TreeFacts,
+}
+
+/// The methods of `JudgedTree`.
+impl JudgedTree {
+    /// What:
+    /// The record's own text:
+    /// `device inode files bytes newest_ns written_ns`,
+    /// or `-` for the inode pair a platform does not report.
+    /// Why:
+    /// The record is read by a later run of this program only,
+    /// and numbers keep it independent of any locale or format change.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function textOf(judged: JudgedTree): string
+    /// ```
+    pub fn text(&self) -> String {
+        let inode: String = match self.inode {
+            Some((device, number)) => format!("{device} {number}"),
+            None => "- -".to_string(),
+        };
+        return format!(
+            "{inode} {} {} {} {}\n",
+            self.facts.files,
+            self.facts.bytes,
+            written_ns(self.facts.newest),
+            written_ns(self.written)
+        );
+    }
+
+    /// What:
+    /// The judgement `text` records,
+    /// or `None` when it is not a record this program wrote.
+    /// Why:
+    /// A record a person or another program wrote says nothing about the tree,
+    /// and a half-written one must not be read as a whole one.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function parseJudged(text: string): JudgedTree | undefined
+    /// ```
+    pub fn parse(text: &str) -> Option<JudgedTree> {
+        let mut parts = text.split_ascii_whitespace();
+        let device: &str = parts.next()?;
+        let number: &str = parts.next()?;
+        let inode: Option<(u64, u64)> = if device == "-" && number == "-" {
+            None
+        } else {
+            Some((device.parse().ok()?, number.parse().ok()?))
+        };
+        let files: u64 = parts.next()?.parse().ok()?;
+        let bytes: u64 = parts.next()?.parse().ok()?;
+        let newest_ns: u64 = parts.next()?.parse().ok()?;
+        let written_ns: u64 = parts.next()?.parse().ok()?;
+        if parts.next().is_some() {
+            return None;
+        }
+        return Some(JudgedTree {
+            inode,
+            written: UNIX_EPOCH + std::time::Duration::from_nanos(written_ns),
+            facts: TreeFacts {
+                bytes,
+                files,
+                newest: UNIX_EPOCH + std::time::Duration::from_nanos(newest_ns),
+                complete: true,
+            },
+        });
+    }
+
+    /// What:
+    /// Whether `standing` is the tree this judgement was made of,
+    /// as a whole tree.
+    /// Why:
+    /// The identity alone says which entry it is;
+    /// the file count, the bytes and the newest write are what change when anything inside it is written,
+    /// and a walk that did not reach the end proves nothing either way.
+    ///
+    /// In TS you'd write (pseudocode):
+    /// ```ts
+    /// function matches(judged: JudgedTree, standing: JudgedTree): boolean
+    /// ```
+    pub fn matches(&self, standing: &JudgedTree) -> bool {
+        if self.inode != standing.inode || self.written != standing.written {
+            return false;
+        }
+        if !self.facts.complete || !standing.facts.complete {
+            return false;
+        }
+        return self.facts.files == standing.facts.files
+            && self.facts.bytes == standing.facts.bytes
+            && self.facts.newest == standing.facts.newest;
+    }
+}
+
+/// What:
+/// What a pass judges of the tree at `path` right now,
+/// or `None` when it cannot be read whole or its root's write time cannot be read.
+/// Why:
+/// A removal records what it holds before anything may delete inside it,
+/// and a control that builds such a state by hand writes the same record through this function.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function judgedOfTree(path: string, deadline: Instant): JudgedTree | undefined
+/// ```
+pub fn judged_of_tree(path: &Path, deadline: Instant) -> Option<JudgedTree> {
+    let metadata: fs::Metadata = fs::symlink_metadata(path).ok()?;
+    let written: SystemTime = metadata.modified().ok()?;
+    let facts: TreeFacts = tree_facts(path, deadline);
+    if !facts.complete {
+        return None;
+    }
+    return Some(JudgedTree { inode: inode_of(&metadata), written, facts });
+}
+
+/// What:
+/// The judgement recorded for the tree at `version_tree`,
+/// or `None` when no record stands beside it or it cannot be read.
+/// Why:
+/// A record that is missing, unreadable or written by something else proves nothing about the tree.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function readJudged(versionTree: string): JudgedTree | undefined
+/// ```
+pub fn read_judged(version_tree: &Path) -> Option<JudgedTree> {
+    let text: String = fs::read_to_string(record_of(version_tree)).ok()?;
+    return JudgedTree::parse(&text);
+}
+
+/// What:
+/// Records `judged` as what the removal of `version_tree` holds,
+/// writing it beside the removal name.
+/// Why:
+/// A later pass that finds the tree under a removal name needs this record to put it back as the finished copy it
+/// was instead of as a copy nothing may take for finished;
+/// a record that cannot be written leaves that later pass with the safe answer, so the failure is reported and not
+/// fatal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// export function writeJudged(versionTree: string, judged: JudgedTree): void  // throws
+/// ```
+pub fn write_judged(version_tree: &Path, judged: &JudgedTree) -> std::io::Result<()> {
+    return fs::write(record_of(version_tree), judged.text());
 }
 
 /// What:
