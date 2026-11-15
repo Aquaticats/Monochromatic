@@ -133,9 +133,10 @@ export type RecordOfPiRunRequest = {
    The masking every feed line goes through, which is one boundary for every record a run writes: a tool's arguments, a tool's
    result, an inbox preview, a problem, and Pi's own event detail all pass it.
 
-   A run whose values are not read yet, and a test of this record alone, pass nothing and every line is written as it came.
+   The field has no default: a caller that writes a run's feed has to say what masks it, so a line nobody thought about cannot be
+   written as it came. A caller that holds no values passes {@link MASKING_NOTHING} and says so.
    */
-  readonly mask?: TextMasking;
+  readonly mask: TextMasking;
 };
 
 /**
@@ -144,6 +145,8 @@ export type RecordOfPiRunRequest = {
  @param feedFile - file that receives one JSON line per noted event
 
  @param now - where the record reads the time
+
+ @param mask - the masking every feed line goes through
 
  @returns the record
 
@@ -155,7 +158,7 @@ export type RecordOfPiRunRequest = {
 export function startRecordOfPiRun({
   feedFile,
   now = Date.now,
-  mask = MASKING_NOTHING,
+  mask,
 }: RecordOfPiRunRequest,): RecordOfPiRun {
   /**
    When the run started.

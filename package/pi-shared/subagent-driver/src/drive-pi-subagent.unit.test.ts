@@ -237,8 +237,11 @@ const TEST_TEARDOWN_ALLOWANCE_SECONDS = 120;
 /**
  Seconds a run may last when its subject is work that outlives it: above the start-up and the turn that leaves the work, and
  short so the test is quick. The work itself is set far beyond this, so only the wall clock can end the run.
+
+ The start-up on a loaded host is several times a quiet one's, and a run whose clock is gone before Pi answers its command list
+ sends no prompt at all, so this leaves the start about three times the room a quiet host needs rather than the same second.
  */
-const WORK_OUTLASTED_WALL_SECONDS = 3;
+const WORK_OUTLASTED_WALL_SECONDS = 8;
 /** Characters in a file name that leave no room for a prefix, which most file systems cap at 255 bytes. */
 const LONGEST_FILE_NAME_CHARACTERS = 250;
 /**
