@@ -663,12 +663,13 @@ fn a_memory_limit_close_to_exhaustion_on_the_wrapper_leaves_a_recoverable_reposi
         panic!("a commit landed at none of the address-space sizes from 1 to {MOST_MEBIBYTES} MiB that the search probed, so this control has no landing to be close to exhaustion");
     };
     let values: Vec<u64> = spread(1, lands_at, MEMORY_STEPS);
-    let (landed, refused): (usize, usize) = sweep("as-wrapper", values.as_slice(), wrapper_memory, true);
+    let (swept_landed, swept_refused): (usize, usize) = sweep("as-wrapper", values.as_slice(), wrapper_memory, true);
     let room: u64 = lands_at.saturating_add(mebibytes_of_the_search_step_and_one_thread_pair());
     let (service, wrapper): (Vec<Limit>, Vec<Limit>) = wrapper_memory(room);
     let above: Case = run_case(format!("as-wrapper-above-the-smallest-landing-{room}").as_str(), service.as_slice(), wrapper.as_slice(), true, true);
     assert!(above.verdict.is_ok(), "a limit {room} MiB above the smallest landing left the repository unrecovered: {:?}", above.verdict);
-    let (landed, refused): (usize, usize) = (landed + usize::from(above.landed), refused + usize::from(!above.landed));
+    let landed: usize = swept_landed + usize::from(above.landed);
+    let refused: usize = swept_refused + usize::from(!above.landed);
     assert!(refused > 0, "no address-space limit stopped a commit, so the limits tested nothing (smallest landing limit {lands_at})");
     assert!(
         landed > 0,
@@ -871,10 +872,10 @@ const BAND_STARTS: usize = 100;
 fn a_limit_that_lets_the_service_bind_but_not_run_is_never_counted_as_starting() {
     let starts_at: u64 = smallest_service_limit(LimitKind::AddressSpace, MOST_MEBIBYTES);
     let room: u64 = mebibytes_of_the_search_step_and_one_thread_pair();
-    let Some(below): Option<u64> = starts_at.checked_sub(room) else {
+    let Some(below_mebibytes): Option<u64> = starts_at.checked_sub(room) else {
         panic!("the search answered {starts_at} MiB, which is not above the {room} MiB this control sets its limit by, so it has no limit at which a service binds and cannot run");
     };
-    let below: u64 = below * MEBIBYTE;
+    let below: u64 = below_mebibytes * MEBIBYTE;
     let probes: Fixture = fixture("limit-band");
     let outcomes: Vec<StartOutcome> = std::thread::scope(|scope| {
         return scope
