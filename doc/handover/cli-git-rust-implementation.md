@@ -1594,6 +1594,112 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Integration pass 51 is in `main` and `0.6.1-alpha.39` is dispatched; what stopped the service manager for three minutes is found: a review's stand-in Git (2026-11-15T05:53:33-05:00)
+
+Not final and not approved:
+what one pass and two authors report,
+a cause found,
+and what the coordinating session did.
+
+- **Integration pass 51 reports fit and is merged** as `50a05dc552` (05:51:07):
+  the commit service of a unit the manager no longer holds is asked to start by name.
+  Its tip `ad54c15981` held `main` to `7ee64c07ea`;
+  the four commits `main` had beyond it touch no file of the wrapper and no lock.
+  What the pass showed:
+  - against a real manager in a container,
+    the wrapper at the merged tip handed a merge's push over and left the unit loaded and active;
+    a wrapper built from `main` before the merge printed the wait,
+    declined the hand-over with "the commit service did not start" and left the remote behind `HEAD`.
+    The arrangement tells the two apart.
+  - library suite 7,900 of 7,903,
+    binary suite 1,208 of 1,215.
+    Of the 22 tests the gate on `7edb782568` failed,
+    8 fail on this machine and 14 pass.
+    Failing and on no gate list:
+    `subvolume::the_command_migrates_a_checkout_previews_repeats_and_deletes_the_old_tree`
+    (the lock-holders folder,
+    with its author),
+    and `child_bound::a_git_step_past_its_bound_fails_the_commit_and_names_the_class`,
+    which failed in the suite after 27.0 s and passed alone in 7.5 s.
+    No run owns the second.
+  - it met its own subject live at 05:35:
+    the installed `0.6.1-alpha.38` printed the wait for a unit the manager did not hold,
+    in its own worktree.
+  **Release `0.6.1-alpha.39` dispatched** at 05:51:35 through the repository's workflow
+  (run 43706095626).
+  The install on this machine,
+  the sample commit,
+  the container gate and the fuzz sidecar's type check follow.
+- **What stopped the user's service manager from 05:23:38 to 05:26:43 is found.**
+  The review of the lock-holders folder built a stand-in Git whose script ran
+  `wrapper=$PPID; ( sleep 0.2; kill -CONT "$wrapper" ) & kill -STOP "$wrapper"`
+  (written 05:23:10).
+  The number was the manager's:
+  process 5289 was in state `T` with no tracer.
+  The reviewer looked for the manager at 05:26:22,
+  read its status at 05:26:30 and sent `kill -CONT 5289` at 05:26:41;
+  the manager's journal begins again at 05:26:43.
+  Found by searching the commands of the 29 runs whose feeds were written in those minutes,
+  none of them named by the credential scan
+  (`find-the-commands-of-runs-that-stop-or-freeze-a-process-in-a-window-of-time.ts`,
+  kept in the scripts' folder).
+  Integration pass 51 saw the same state from its side.
+  The review's reproduction as it stands delays its parent with `strace` and stops nothing,
+  so its author can run it.
+  **Against a repeat**:
+  the rules every Pi brief carries say now that a run signals only a process it started,
+  by the number its own command got back,
+  never a number from `$PPID`,
+  and that a probe which stops its parent runs in a process namespace of its own
+  (`1b899ad61c`;
+  the namespace command was run here first and showed its own three processes and no others).
+  The CPU pressure of 05:23:49 was a neighbour in time and no cause.
+- **The drawn shadow tree**,
+  its author's sixth run,
+  ended 05:45:07 at `2c9848ce0a`:
+  both of the review's findings reproduced and answered
+  (a partly removed shadow is recognised at the three points a build reads it,
+  for 52.9 µs against 4.5 µs per attempt;
+  the service keeps the connection its answer went out on until the client holds its own claim).
+  Its review is queued eighth
+  (`main...2c9848ce0a`,
+  fifteen code files that are not tests).
+- **The commit that waited behind the service's writes to another drive**,
+  a fresh run,
+  ended 05:46:51 at `70486fc752`.
+  The two slow commits of 2026-11-15 00:54 and 00:57 waited inside one step that is no Git child:
+  the landing board wrote a decision file into the service's state directory,
+  on the home drive,
+  before its group was landed.
+  Which of two writes held the first is not established,
+  because the service wrote no line in those minutes;
+  a wait past five seconds now names its step.
+  The fix claims the group in memory.
+  Control:
+  5,975 ms queued with the write held,
+  0 ms at the fix.
+  Cost with nothing slow:
+  median ratio 0.986 over 25 interleaved pairs.
+  Its review is queued ninth
+  (`main...70486fc752`,
+  eight code files that are not tests).
+- **The temperature**,
+  read at 05:49:40:
+  56.9 degrees,
+  budget 32.0 threads,
+  13.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 05:49:40:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 05:36;
+  one entry in the file of entries taken out of the queue,
+  the one already handled;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  The queue held 82 entries at 05:53:33.
+
 ##### A review dropped from the queue without a word is found and put back; three reviews send the lock-holders folder, the stop of a push and the bounded Git helper back (2026-11-15T05:45:58-05:00)
 
 Not final and not approved:
@@ -1828,8 +1934,10 @@ and what the coordinating session queued.
   It followed the end of the wall-clock run's unit at 05:23:04 by a minute.
   `systemctl --user list-units --all` took 19 ms at 05:27:30,
   and three starts have succeeded since.
-  Looked into at 05:36,
-  and the cause is still not found:
+  Looked into at 05:36 without finding the cause,
+  which was found at 05:51 and is in the section of 2026-11-15T05:53:33-05:00
+  (a review's stand-in Git stopped the manager with a signal);
+  what the first look read:
   - the manager's own journal lines stop at 05:23:38 and begin again at 05:26:43,
     three minutes and five seconds,
     with six units started in that one second,
