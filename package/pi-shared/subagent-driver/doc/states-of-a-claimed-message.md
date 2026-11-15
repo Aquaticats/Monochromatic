@@ -37,7 +37,7 @@ A claim says that delivery had begun and never whether Pi took the message.
 
 ### Published
 
-The claimed message and a kept name are one file:
+The claimed message and a kept name are one file, and on a filesystem that refuses hard links the kept name is a copy of it:
 `<run folder>/inbox/.failed-<name>[.<n>]` when Pi refused it while it rested or never answered,
 `<run folder>/inbox/.orphaned-<name>[.<n>]` when the driver that claimed it died before it knew whether Pi took it.
 The `<n>` counts up over names already taken, so publication never replaces an earlier kept message.
@@ -81,7 +81,9 @@ or, on a filesystem that refuses hard links, makes a copy created exclusively un
 A kill between the link and the removal below leaves both names, one file.
 
 The next recovery pass reads the claim and the kept name and finds them one file, so it knows the publication is already
-made: it removes the claim and makes no second copy.
+made: it removes the claim and makes no second copy. Where hard links are refused, the kept name is a copy and cannot be told
+from the claim by which file it is; there a pass that finds the claim gone knows the publication was made, and a kept name that
+holds another file is taken as another message's.
 
 ### 3. Remove the claim: published to kept
 
