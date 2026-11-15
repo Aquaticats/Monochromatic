@@ -45,7 +45,8 @@ which `doc/lint/sequential-awaits.md` records as the design the watch depends on
 One read of one file of a few hundred bytes,
 taken once for each process a `process` tool answer names,
 which is a handful per run and never on the watch's own tick.
-The file is on `/proc`, which is memory,
+The file is on `/proc`,
+which is memory,
 not a disk.
 
 ## What was measured
