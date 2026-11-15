@@ -149,6 +149,32 @@ which the `pi-as-subagent` skill now does
 (`.agents/skills/pi-as-subagent/SKILL.md`,
 "give that run its own `HOME` and `XDG_RUNTIME_DIR` under its run folder").
 
+Unsetting `DBUS_SESSION_BUS_ADDRESS` alone does not keep a commit off the account's manager either,
+which this run measured on 2026-11-15:
+the wrapper looks for the account's bus at the address it was given
+and then at `${XDG_RUNTIME_DIR}/bus`
+(`src/native/landing/service_route.rs`,
+`choose_route`),
+and `/run/user/<uid>/bus` is there whether a caller names it or not.
+With the address unset and the account's runtime directory inherited,
+one run of `package/git-policy/cli/bin/native-gate-main-tip.unit.test.ts`
+asked the manager for four instances,
+one per throwaway checkout it built,
+and left four notes naming `git-policy-gate-main-tip-*/repo/.git`
+under `/run/user/<uid>/systemd/user/monochromatic-git-policy-cli-worktree-notes`
+(the notes of nine such runs were there by then).
+With an empty `XDG_RUNTIME_DIR` the same commits are refused instead,
+with the words of `service_messages.rs`
+("This computer cannot start the commit service on demand")
+for a machine that has no user service manager,
+so a probe that must not provision has to point that variable at a directory of its own,
+not only unset the address.
+A test that builds a checkout has neither problem:
+the fixture runs the system Git by its own path
+(`package/git-policy/cli/bin/fixture-git-that-is-never-the-wrapper-for-tests.ts`),
+so the wrapper is asked for the commit of a fixture never,
+and the suite passes under both conditions.
+
 ## How to list the units whose worktree is gone
 
 Read-only,
