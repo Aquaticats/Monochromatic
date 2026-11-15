@@ -371,12 +371,12 @@ await describe({
           body: `printf '%s\\n' "$*" >> '${miseLog}'\ncase "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
-         The unit manager the launcher must never reach.
+         The unit manager, which records every unit the launcher asks for and starts none.
          */
         await writeProgram({
           folder: launcherBin,
           name: 'systemd-run',
-          body: `printf '%s\\n' "$*" > '${unitMarker}'\nexit 0\n`,
+          body: `printf '%s\\n' "$*" >> '${unitMarker}'\nexit 0\n`,
         },);
         /**
          The manager this test reads a unit's name from, which is free because no unit holds it.
@@ -507,12 +507,12 @@ await describe({
           body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
-         The unit manager the launcher must never reach.
+         The unit manager, which records every unit the launcher asks for and starts none.
          */
         await writeProgram({
           folder: launcherBin,
           name: 'systemd-run',
-          body: `printf '%s\\n' "$*" > '${unitMarker}'\nexit 0\n`,
+          body: `printf '%s\\n' "$*" >> '${unitMarker}'\nexit 0\n`,
         },);
         /**
          The manager this test reads a unit's name from, which is free because no unit holds it.
@@ -615,7 +615,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    printf '%s\\n' 'a-commit'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
@@ -743,11 +743,11 @@ await describe({
           'pi-refused',
         );
         /**
-         The marker a unit would leave, which must never appear.
+         Where the stand-in manager records every unit it is asked for.
          */
-        const unitMarker = join(
+        const unitLog = join(
           folder.path,
-          'unit-started',
+          'units-started',
         );
         await mkdir(
           checkout,
@@ -765,7 +765,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    exit 0 ;;\n  *'rev-parse --verify --quiet'*)\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    exit 0 ;;\n  *'rev-parse --verify --quiet'*)\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
@@ -776,12 +776,12 @@ await describe({
           body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
-         The unit manager the launcher must never reach.
+         The unit manager, which records every unit the launcher asks for and starts none.
          */
         await writeProgram({
           folder: launcherBin,
           name: 'systemd-run',
-          body: `printf '%s\\n' "$*" > '${unitMarker}'\nexit 0\n`,
+          body: `printf '%s\\n' "$*" >> '${unitLog}'\nexit 0\n`,
         },);
         /**
          The manager this test reads a unit's name from, which is free because no unit holds it.
@@ -825,8 +825,9 @@ await describe({
         expect(ended.stderr,).toContain('another start of the name refused',);
         expect(ended.stderr,).toContain(join(runs, 'refused-1',),);
         expect(ended.stderr,).toContain('Start the run again',);
-        // The words are the refusal, not a status from the manager: no unit was asked for at all.
-        await expect(readFile(unitMarker,),).rejects.toThrow('ENOENT',);
+        // No unit is asked for at all, the install step first: a worktree that is gone cannot hold a start's dependencies either,
+        // and the words are the refusal rather than a status from the manager.
+        await expect(readFile(unitLog,),).rejects.toThrow('ENOENT',);
       },
     },),
     it({
@@ -910,12 +911,12 @@ await describe({
           body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
-         The unit manager the launcher must never reach.
+         The unit manager, which records every unit the launcher asks for and starts none.
          */
         await writeProgram({
           folder: launcherBin,
           name: 'systemd-run',
-          body: `printf '%s\\n' "$*" > '${unitMarker}'\nexit 0\n`,
+          body: `printf '%s\\n' "$*" >> '${unitMarker}'\nexit 0\n`,
         },);
         /**
          The manager this test reads a unit's name from, which is free because no unit holds it.
@@ -1009,6 +1010,13 @@ await describe({
           'worktrees',
           'pi-refused',
         );
+        /**
+         Where the stand-in manager records every unit the launcher asks for, in the order it asks.
+         */
+        const unitLog = join(
+          folder.path,
+          'units-started',
+        );
         await mkdir(
           checkout,
           { recursive: true, },
@@ -1029,7 +1037,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
@@ -1040,12 +1048,13 @@ await describe({
           body: `case "$*" in\n  'exec -- printenv PATH')\n    printf '%s\\n' '${sessionBin}${delimiter}/usr/bin'\n    exit 0 ;;\n  *'command -v node')\n    printf '%s\\n' '${process.execPath}'\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
-         The unit manager, which removes the worktree and refuses the unit the way systemd does when a writable path is not there.
+         The unit manager: it starts the dependencies' unit, and removes the worktree and refuses the driver's unit the way systemd
+         does when a writable path is not there. It records each unit it is asked for.
          */
         await writeProgram({
           folder: launcherBin,
           name: 'systemd-run',
-          body: `rmdir '${worktree}'\nprintf '%s\\n' 'Failed to set up mount namespacing: No such file or directory' >&2\nprintf '%s\\n' 'Main processes terminated with: code=exited, status=226/NAMESPACE' >&2\nexit 226\n`,
+          body: `printf '%s\\n' "$*" >> '${unitLog}'\ncase "$*" in\n  *'--unit=refused-dependencies'*)\n    exit 0 ;;\nesac\nrmdir '${worktree}'\nprintf '%s\\n' 'Failed to set up mount namespacing: No such file or directory' >&2\nprintf '%s\\n' 'Main processes terminated with: code=exited, status=226/NAMESPACE' >&2\nexit 226\n`,
         },);
         /**
          The manager this test reads a unit's name from, which is free because no unit holds it.
@@ -1090,6 +1099,14 @@ await describe({
         expect(ended.stderr,).toContain('the unit did not start',);
         expect(ended.stderr,).toContain(worktree,);
         expect(ended.stderr,).toContain('Start the run again',);
+        /**
+         Every unit the launcher asked the manager for, in the order it asked.
+         */
+        const askedUnits = (await readFile(unitLog, 'utf8',)).trim()
+          .split('\n',);
+        expect(askedUnits,).toHaveLength(2,);
+        expect(askedUnits[0],).toContain('--unit=refused-dependencies');
+        expect(askedUnits[1],).toContain('--unit=pi-refused.service');
       },
     },),
     it({
@@ -1162,7 +1179,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'git',
-          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
+          body: `case "$*" in\n  'rev-parse --show-toplevel')\n    printf '%s\\n' '${checkout}'\n    exit 0 ;;\n  *'rev-parse --path-format=absolute'*)\n    printf '%s\\n%s\\n' '${checkout}/.git' '${checkout}/.git'\n    exit 0 ;;\n  *'rev-parse --verify'*)\n    exit 0 ;;\n  *'worktree add'*)\n    mkdir --parents '${worktree}'\n    exit 0 ;;\n  *'symbolic-ref'*)\n    printf 'refs/heads/probe-branch\\n'\n    exit 0 ;;\n  *'status --porcelain'*)\n    exit 0 ;;\nesac\nexit 1\n`,
         },);
         /**
          The mise the launcher itself uses, which answers the session's PATH and the node the unit runs.
@@ -1179,7 +1196,7 @@ await describe({
         await writeProgram({
           folder: launcherBin,
           name: 'systemd-run',
-          body: `printf '%s\\n' '{"endReason":"pi-exited"}' > '${runFolder}/summary.json'\nprintf '%s\\n' '{"t":0,"kind":"turn_start","n":1}' > '${runFolder}/feed.jsonl'\nrmdir '${worktree}'\nprintf '%s\\n' 'Finished with result: exit-code' >&2\nexit 1\n`,
+          body: `case "$*" in\n  *'--unit=refused-dependencies'*)\n    exit 0 ;;\nesac\nprintf '%s\\n' '{"endReason":"pi-exited"}' > '${runFolder}/summary.json'\nprintf '%s\\n' '{"t":0,"kind":"turn_start","n":1}' > '${runFolder}/feed.jsonl'\nrmdir '${worktree}'\nprintf '%s\\n' 'Finished with result: exit-code' >&2\nexit 1\n`,
         },);
         /**
          The manager this test reads a unit's name from, which is free because no unit holds it.

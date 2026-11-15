@@ -28,13 +28,55 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   FolderAToolMakesCannotBeMadeError,
+  type GitRunner,
+  GitFoldersUnreadableError,
   WorktreeGoneError,
   fileSystemOfARun,
   fileSystemPropertiesOf,
   foldersAToolMakesIn,
+  gitFoldersTheFilesName,
   makeTheFoldersAToolMakesIn,
   refuseUnlessTheWorktreeIsThere,
 } from '../dist/final/node/index.mjs';
+
+/**
+ A git that answers a checkout's two Git directories as Git would, for a fixture whose layout a test knows.
+
+ @param request - the Git directory of the checkout and the one every worktree of it shares
+
+ @param request.gitDirectory - what `--absolute-git-dir` answers
+
+ @param request.commonDirectory - what `--git-common-dir` answers
+
+ @returns a runner that answers that, and refuses anything else
+
+ @example
+ ```ts
+ const git = gitAnswering({ gitDirectory: '/repo/.git', commonDirectory: '/repo/.git', });
+ ```
+ */
+function gitAnswering({
+  gitDirectory,
+  commonDirectory,
+}: {
+  readonly gitDirectory: string;
+  readonly commonDirectory: string;
+},): GitRunner {
+  return async function answered(request,) {
+    if (request.words.slice(0, 2,).join(' ',) !== 'rev-parse --path-format=absolute') {
+      return {
+        status: 1,
+        stdout: '',
+        stderr: `a test's git answers no ${request.words.join(' ',)}`,
+      };
+    }
+    return {
+      status: 0,
+      stdout: `${gitDirectory}\n${commonDirectory}\n`,
+      stderr: '',
+    };
+  };
+}
 
 /**
  `execFile` with a promise result, typed through Node's own adapter contract.
@@ -298,6 +340,10 @@ await describe({
              What the run's unit may and may not write.
              */
             const fileSystem = await fileSystemOfARun({
+              git: gitAnswering({
+                gitDirectory: made.commonDirectory,
+                commonDirectory: made.commonDirectory,
+              },),
               checkoutFolder: made.checkoutFolder,
               worktree,
               runFolder,
@@ -310,7 +356,6 @@ await describe({
               ...foldersAToolMakesIn({ checkoutFolder: made.checkoutFolder, },),
               runFolder,
             ],);
-            expect(fileSystem.foldersAUnitMustWriteWhenTheyAreThere,).toEqual([],);
           },
         },),
         it({
@@ -329,6 +374,10 @@ await describe({
              What the run's unit may and may not write.
              */
             const fileSystem = await fileSystemOfARun({
+              git: gitAnswering({
+                gitDirectory: made.commonDirectory,
+                commonDirectory: made.commonDirectory,
+              },),
               checkoutFolder: made.checkoutFolder,
               worktree: made.checkoutFolder,
               runFolder,
@@ -404,6 +453,10 @@ await describe({
              What the run's unit may and may not write.
              */
             const fileSystem = await fileSystemOfARun({
+              git: gitAnswering({
+                gitDirectory,
+                commonDirectory,
+              },),
               checkoutFolder,
               worktree: checkoutFolder,
               runFolder,
@@ -415,26 +468,22 @@ await describe({
               ...foldersAToolMakesIn({ checkoutFolder, },),
               runFolder,
             ],);
-            expect(fileSystem.foldersAUnitMustWriteWhenTheyAreThere,).toEqual([],);
           },
         },),
         it({
-          name: 'names a marker a checkout does not have among the folders that may be absent, so a start is not refused for it',
+          name: 'refuses a checkout Git cannot describe, naming the folder, rather than guessing writable folders for it',
           fn: async () => {
             await using folder = await makeFolder();
             /**
-             A checkout that holds no marker at all.
+             A checkout whose Git cannot answer about its directories.
              */
             const checkoutFolder = join(
               folder.path,
               'checkout',
             );
-            await mkdir(
-              checkoutFolder,
-              { recursive: true, },
-            );
+            await mkdir(checkoutFolder, { recursive: true, },);
             /**
-             Where the run works.
+             Where the run works and where its driver writes.
              */
             const worktree = join(
               checkoutFolder,
@@ -442,33 +491,31 @@ await describe({
               'worktrees',
               'pi-a',
             );
-            await mkdir(
-              worktree,
-              { recursive: true, },
-            );
-            /**
-             The run's own folder.
-             */
+            await mkdir(worktree, { recursive: true, },);
             const runFolder = await makeRunFolder({ folder: folder.path, },);
-            /**
-             What the run's unit may and may not write.
-             */
-            const fileSystem = await fileSystemOfARun({
-              checkoutFolder,
-              worktree,
-              runFolder,
-              worksInTheCheckoutItself: false,
-            },);
-            expect(fileSystem.foldersAUnitCannotWrite,).toEqual([checkoutFolder,],);
-            expect(fileSystem.foldersAUnitMustWrite,).toEqual([
-              worktree,
-              ...foldersAToolMakesIn({ checkoutFolder, },),
-              runFolder,
-            ],);
-            expect(fileSystem.foldersAUnitMustWriteWhenTheyAreThere,).toEqual([join(
-              checkoutFolder,
-              '.git',
-            ),],);
+            try {
+              await fileSystemOfARun({
+                git: async function refuses() {
+                  return {
+                    status: 128,
+                    stdout: '',
+                    stderr: 'fatal: not a git repository\n',
+                  };
+                },
+                checkoutFolder,
+                worktree,
+                runFolder,
+                worksInTheCheckoutItself: false,
+              },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(GitFoldersUnreadableError,);
+              expect(String(error,),).toContain(checkoutFolder,);
+              expect(String(error,),).toContain('fatal: not a git repository',);
+              expect(String(error,),).toContain('--checkout-folder',);
+              return;
+            }
+            throw new Error('a checkout Git cannot describe answered with folders a unit may write',);
           },
         },),
       ],
@@ -477,16 +524,15 @@ await describe({
       name: fileSystemPropertiesOf.name,
       children: [
         it({
-          name: 'writes each folder as the systemd property it belongs to, the read-only ones first and the ones that may be absent last',
+          name: 'writes each folder as the systemd property it belongs to, the read-only ones first',
           fn: async () => {
             expect(fileSystemPropertiesOf({
               foldersAUnitCannotWrite: ['/repo',],
-              foldersAUnitMustWrite: ['/repo/.git',],
-              foldersAUnitMustWriteWhenTheyAreThere: ['/repo/.cache',],
+              foldersAUnitMustWrite: ['/repo/.git', '/repo/.cache',],
             },),).toEqual([
               '--property=ReadOnlyPaths="/repo"',
               '--property=ReadWritePaths="/repo/.git"',
-              '--property=ReadWritePaths=-"/repo/.cache"',
+              '--property=ReadWritePaths="/repo/.cache"',
             ],);
           },
         },),
@@ -524,6 +570,10 @@ await describe({
              What the run's unit may and may not write.
              */
             const fileSystem = await fileSystemOfARun({
+              git: gitAnswering({
+                gitDirectory: made.commonDirectory,
+                commonDirectory: made.commonDirectory,
+              },),
               checkoutFolder: made.checkoutFolder,
               worktree,
               runFolder,
@@ -544,7 +594,6 @@ await describe({
             expect(fileSystemPropertiesOf({
               foldersAUnitCannotWrite: [],
               foldersAUnitMustWrite: [],
-              foldersAUnitMustWriteWhenTheyAreThere: [],
             },),).toEqual([],);
           },
         },),
@@ -676,7 +725,7 @@ await describe({
       name: 'a checkout whose Git marker is a named pipe',
       children: [
         it({
-          name: 'is refused at once, naming the marker, instead of waiting for a writer that may never come before any unit exists',
+          name: 'is refused at once by the walk that reads Git files, naming the marker, instead of waiting for a writer that may never come',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -689,27 +738,12 @@ await describe({
             await mkdir(checkout,);
             await execFileAsync('mkfifo', [join(checkout, '.git',),], { encoding: 'utf8', timeout: 5_000, },);
             /**
-             Where the run works, which this read never reaches.
-             */
-            const worktree = join(
-              checkout,
-              '.claude',
-              'worktrees',
-              'pi-a',
-            );
-            await mkdir(worktree, { recursive: true, },);
-            /**
-             What the read answered, or the fact that it was still waiting when the test stopped waiting.
+             What the walk answered, or the fact that it was still waiting when the test stopped waiting.
              */
             const answer = await Promise.race([
               settledBy({
                 call: async function read() {
-                  return await fileSystemOfARun({
-                    checkoutFolder: checkout,
-                    worktree,
-                    runFolder: join(folder.path, 'runs', 'a-1',),
-                    worksInTheCheckoutItself: false,
-                  },);
+                  return await gitFoldersTheFilesName({ folder: checkout, },);
                 },
               },),
               waitForTheTest({ milliseconds: 2_000, },),

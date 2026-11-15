@@ -6,9 +6,11 @@
  main-checkout path to read does not stop the same path from being written, and nothing in the unit refused it. A run's own
  worktree is copied from the checkout, so a run that edits the checkout edits the copy every later worktree is made from.
 
- What stays writable is read from the checkout the launcher works in and from Git's own record of it: the run's worktree, the Git
- directory its commits, fetches and pushes write, the Git directory every worktree of the repository shares, the checkout's
- `.cache` (the folder this repository's tools install their launchers and guards into), and the run's own folder. Everything else
+ What stays writable is Git's own answer about the checkout the launcher works in, and the folders this package knows a run
+ needs beside it: the run's worktree, the Git directory its commits, fetches and pushes write, the Git directory every worktree of
+ the repository shares, the checkout's `.cache` (the folder this repository's tools install their launchers and guards into), and
+ the run's own folder. A Git folder that holds the checkout is refused rather than granted, and so is a checkout Git cannot
+ describe. Everything else
  under the checkout is refused by the operating system, which is what the agent sees.
 
  Read-only folders are systemd's `ReadOnlyPaths=`; the folders that must stay writable are its `ReadWritePaths=`, which
@@ -32,13 +34,9 @@ import {
   mkdir,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
-import {
-  CHECKOUT_MARKER,
-  CheckoutNotFoundError,
-  gitFoldersOf,
-} from './checkout-of-a-command.ts';
+import { gitFoldersOf, } from './checkout-of-a-command.ts';
 import { errorCodeOf, } from './error-code-of.ts';
-import { NotAnOrdinaryFileError, } from './read-ordinary-file.ts';
+import type { GitRunner, } from './worktree-of-a-run.ts';
 import { pathInAUnitProperty, } from './path-in-a-unit-property.ts';
 
 /**
@@ -69,70 +67,7 @@ export type FileSystemOfARun = {
    The folders a unit of this run must write, which systemd makes writable inside the read-only ones.
    */
   readonly foldersAUnitMustWrite: readonly string[];
-
-  /**
-   The folders a unit of this run must write when they are there, which systemd leaves out rather than refusing the unit.
-   */
-  readonly foldersAUnitMustWriteWhenTheyAreThere: readonly string[];
 };
-
-/**
- Reads the Git folders a run's commits, fetches and pushes write, from the checkout its launcher works in.
-
- A checkout Git cannot read still gets its own `.git` named among the folders that may be absent, so a start is not refused for
- it, and the checkout stays read-only around whatever it does hold.
-
- @param checkoutFolder - the checkout the launcher works in
-
- @returns the Git directories that are there, and the marker to name when the checkout holds none
-
- @throws Error when the checkout's marker is there but unreadable, which is a failure this reads nothing about
-
- @example
- ```ts
- const folders = await gitFoldersToWrite({ checkoutFolder: '/repo', },);
- ```
- */
-async function gitFoldersToWrite({ checkoutFolder }: { readonly checkoutFolder: string },): Promise<{
-  readonly folders: readonly string[];
-  readonly whenTheyAreThere: readonly string[];
-}> {
-  try {
-    /**
-     The Git directory of the checkout and the one every worktree of its repository shares.
-     */
-    const {
-      gitDirectory,
-      commonDirectory,
-    } = await gitFoldersOf({ folder: checkoutFolder, },);
-    return {
-      folders: [
-        gitDirectory,
-        commonDirectory,
-      ],
-      whenTheyAreThere: [],
-    };
-  }
-  catch (error) {
-    if (!(error instanceof CheckoutNotFoundError)) {
-      throw error;
-    }
-    // A marker that is a named pipe or a device is no checkout this start can name Git folders for: the read that would say which
-    // folders they are waits for a writer that may never come, which no unit exists yet to bound.
-    if (error.cause instanceof NotAnOrdinaryFileError) {
-      throw error;
-    }
-    return {
-      folders: [],
-      whenTheyAreThere: [
-        join(
-          checkoutFolder,
-          CHECKOUT_MARKER,
-        ),
-      ],
-    };
-  }
-}
 
 /**
  The folders a run's tools make inside the checkout, outside the run's own worktree and run folder, and which therefore have to
@@ -243,19 +178,27 @@ async function makeTheFolder({ folder, }: { readonly folder: string },): Promise
 
  @returns the folders the unit cannot write and the folders it must write
 
- @throws CheckoutNotFoundError when the run's worktree names no Git directory, in which case nothing says where its commits go
+ @throws GitFoldersUnreadableError when Git does not answer about the checkout's Git directories
+
+ @throws GitFolderAboveTheCheckoutError when Git names a folder that holds the checkout, which a start must not make writable
 
  @example
  ```ts
- const fileSystem = await fileSystemOfARun({ checkoutFolder: '/repo', worktree: '/repo/.claude/worktrees/pi-a', runFolder: '/runs/a-1', worksInTheCheckoutItself: false },);
+ const fileSystem = await fileSystemOfARun({ git, checkoutFolder: '/repo', worktree: '/repo/.claude/worktrees/pi-a', runFolder: '/runs/a-1', worksInTheCheckoutItself: false },);
  ```
  */
 export async function fileSystemOfARun({
+  git,
   checkoutFolder,
   worktree,
   runFolder,
   worksInTheCheckoutItself,
 }: {
+  /**
+   How one git question is run, which Git's own answers about the checkout come through.
+   */
+  readonly git: GitRunner;
+
   /**
    The checkout the run's launcher works in, which its run must not change.
    */
@@ -277,33 +220,27 @@ export async function fileSystemOfARun({
   readonly worksInTheCheckoutItself: boolean;
 },): Promise<FileSystemOfARun> {
   /**
-   The Git folders of the checkout, which are there unless the checkout keeps no marker Git can read.
+   The Git folders of the checkout, as Git itself names them.
    */
-  const git = await gitFoldersToWrite({ checkoutFolder, },);
+  const gitFolders = await gitFoldersOf({
+    git,
+    folder: checkoutFolder,
+  },);
   /**
    The folders this run must write, in the order a reader needs them: where it works, where its Git data is, where this
    repository's tools install themselves, and where the driver writes it.
    */
   const wanted: readonly string[] = [
     ...(worksInTheCheckoutItself ? [] : [worktree,]),
-    ...git.folders,
+    gitFolders.gitDirectory,
+    gitFolders.commonDirectory,
     ...foldersAToolMakesIn({ checkoutFolder, },),
     runFolder,
-  ];
-  /**
-   The folders this run must write when they are there: a marker for a checkout Git cannot read.
-   */
-  const wantedWhenTheyAreThere: readonly string[] = [
-    ...git.whenTheyAreThere,
   ];
   return {
     foldersAUnitCannotWrite: [checkoutFolder,],
     foldersAUnitMustWrite: namedOnce({
       folders: wanted,
-      butNot: [checkoutFolder,],
-    },),
-    foldersAUnitMustWriteWhenTheyAreThere: namedOnce({
-      folders: wantedWhenTheyAreThere,
       butNot: [checkoutFolder,],
     },),
   };
@@ -342,21 +279,18 @@ function namedOnce({
 
  @param foldersAUnitMustWrite - the folders the unit must write
 
- @param foldersAUnitMustWriteWhenTheyAreThere - the folders the unit must write when they are there
-
  @returns one `--property=` word per folder, the read-only ones first
 
  @throws PathThatIsNotAbsoluteError when a folder is not an absolute path, which systemd cannot take
 
  @example
  ```ts
- const words = fileSystemPropertiesOf({ foldersAUnitCannotWrite: ['/repo'], foldersAUnitMustWrite: ['/repo/.git'], foldersAUnitMustWriteWhenTheyAreThere: ['/repo/.cache'] },);
+ const words = fileSystemPropertiesOf({ foldersAUnitCannotWrite: ['/repo'], foldersAUnitMustWrite: ['/repo/.git', '/repo/.cache'] },);
  ```
  */
 export function fileSystemPropertiesOf({
   foldersAUnitCannotWrite,
   foldersAUnitMustWrite,
-  foldersAUnitMustWriteWhenTheyAreThere,
 }: FileSystemOfARun,): readonly string[] {
   return [
     ...foldersAUnitCannotWrite.map(function readOnlyWord(path,) {
@@ -364,12 +298,6 @@ export function fileSystemPropertiesOf({
     },),
     ...foldersAUnitMustWrite.map(function writableWord(path,) {
       return `--property=ReadWritePaths=${pathInAUnitProperty({ path, },)}`;
-    },),
-    ...foldersAUnitMustWriteWhenTheyAreThere.map(function writableWhenThereWord(path,) {
-      return `--property=ReadWritePaths=${pathInAUnitProperty({
-        path,
-        ignoredWhenMissing: true,
-      },)}`;
     },),
   ];
 }

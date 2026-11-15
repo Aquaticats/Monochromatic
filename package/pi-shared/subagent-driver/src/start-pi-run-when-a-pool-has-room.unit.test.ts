@@ -302,6 +302,7 @@ async function writeStandIns({
       // The policy namespace help is what the launcher asks for before it starts a session, and only the wrapper answers it.
       `  *'monochromatic-git-policy-cli --help'*) printf '%s\\n' 'Usage: git monochromatic-git-policy-cli <command> [options]' ;;`,
       `  *'rev-parse --show-toplevel'*) printf '%s\\n' "$FAKE_CHECKOUT" ;;`,
+      `  *'rev-parse --path-format=absolute'*) printf '%s\\n%s\\n' "$FAKE_CHECKOUT/.git" "$FAKE_CHECKOUT/.git" ;;`,
       `  *'rev-parse --verify'*) exit 0 ;;`,
       `  *'worktree add'*) mkdir --parents "$FAKE_CHECKOUT/.claude/worktrees/pi-copy-route" ;;`,
       `  *'symbolic-ref'*) printf 'refs/heads/feat/a\\n' ;;`,
@@ -630,10 +631,10 @@ await describe({
          */
         const asked = await programsAsked(folder,);
         /**
-         The unit command the launcher ran.
+         The driver's unit command the launcher ran, which follows the unit the worktree's dependencies are linked in.
          */
         const unit = asked.find(function isTheUnit(line,) {
-          return line.startsWith('systemd-run --user --wait',);
+          return line.startsWith('systemd-run --user --wait',) && line.includes('--unit=pi-copy-route.service',);
         },);
         expect(unit,).toContain('--unit=pi-copy-route.service',);
         expect(unit,).toContain(`--run-folder=${join(folder.runs, 'copy-route-2',)}`,);
@@ -643,8 +644,9 @@ await describe({
         expect(asked.some(function addedAWorktree(line,) {
           return line.startsWith('git worktree add',);
         },),).toBe(true,);
+        // The dependencies are linked inside a unit of the run's own, which carries the same read-only checkout.
         expect(asked.some(function linkedDependencies(line,) {
-          return line.startsWith('mise ') && line.includes('pnpm install --offline --frozen-lockfile',);
+          return line.startsWith('systemd-run --user --wait',) && line.includes('--unit=copy-route-dependencies',) && line.includes('--working-directory=');
         },),).toBe(true,);
       },
     },),

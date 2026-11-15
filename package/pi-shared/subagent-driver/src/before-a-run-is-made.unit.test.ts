@@ -215,7 +215,7 @@ await describe({
           },
         },),
         it({
-          name: 'answers the repository of a worktree whose Git directory names no shared one, from the place Git keeps it',
+          name: 'refuses a Git directory that names no shared one, which is a layout this walk cannot place, and says how to name the checkout',
           fn: async () => {
             await using folder = await makeFolder();
             /**
@@ -223,7 +223,8 @@ await describe({
              */
             const repository = join(folder.path, 'checkout',);
             /**
-             A worktree, whose Git directory names no shared one.
+             A worktree, whose Git directory names no shared one: a checkout kept apart or a submodule, and never a folder this
+             walk can read the repository from.
              */
             const worktree = join(folder.path, 'pi-b',);
             await mkdir(join(repository, '.git', 'worktrees', 'pi-b',), { recursive: true, },);
@@ -232,7 +233,16 @@ await describe({
               join(worktree, CHECKOUT_MARKER,),
               `gitdir: ${join(repository, '.git', 'worktrees', 'pi-b',)}\n`,
             );
-            expect(await checkoutFolderOf({ from: worktree, },),).toBe(repository,);
+            try {
+              await checkoutFolderOf({ from: worktree, },);
+            }
+            catch (error) {
+              expect(error,).toBeInstanceOf(CheckoutNotFoundError,);
+              expect(String(error,),).toContain('--checkout-folder',);
+              expect(String(error,),).toContain('commondir',);
+              return;
+            }
+            throw new Error('a Git directory that names no shared one was guessed into a repository',);
           },
         },),
         it({

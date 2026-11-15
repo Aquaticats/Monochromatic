@@ -282,7 +282,6 @@ async function askOneAwkwardPath({
     properties: fileSystemPropertiesOf({
       foldersAUnitCannotWrite: [root,],
       foldersAUnitMustWrite: [inside,],
-      foldersAUnitMustWriteWhenTheyAreThere: [],
     },),
     words: [
       '/bin/sh',
@@ -383,6 +382,24 @@ await describe({
             const ended = await askTheManager({
               unit: nextUnitName(),
               properties: fileSystemPropertiesOf(await fileSystemOfARun({
+                git: async function answers(request,) {
+                  /**
+                   The two directories this fixture's Git would name, which are the checkout's own `.git` folder.
+                   */
+                  const gitDirectory = join(checkout, '.git',);
+                  const [first, second,] = request.words.slice(0, 4,);
+                  return ((first === 'rev-parse') && (second === '--path-format=absolute'))
+                    ? {
+                      status: 0,
+                      stdout: `${gitDirectory}\n${gitDirectory}\n`,
+                      stderr: '',
+                    }
+                    : {
+                      status: 1,
+                      stdout: '',
+                      stderr: 'a test s git answers nothing else',
+                    };
+                },
                 checkoutFolder: checkout,
                 worktree,
                 runFolder,
@@ -400,42 +417,6 @@ await describe({
             expect(ended.status,).toBe(0,);
             expect(await readFile(join(insideTheCache, 'tool',), 'utf8',),).toBe('installed\n',);
             expect(await readFile(protectedFile, 'utf8',),).toBe('seed\n',);
-          },
-        },),
-        it({
-          name: 'starts a unit whose dash-prefixed writable path is not there, which is the checkout cache a run may find absent',
-          fn: async () => {
-            if (NO_MANAGER_REASON !== undefined) {
-              console.log(`[the paths a unit is given on this machine] dash-prefixed-missing: skipped: ${NO_MANAGER_REASON}`,);
-              return;
-            }
-            await using folder = await makeFolder();
-            /**
-             The checkout root, which the unit reads only.
-             */
-            const root = join(
-              folder.path,
-              'root',
-            );
-            await mkdir(root, { recursive: true, },);
-            /**
-             The marker the unit writes when it starts at all.
-             */
-            const ran = join(folder.path, 'ran',);
-            /**
-             What the manager answered for a writable path that carries a space and is not there.
-             */
-            const ended = await askTheManager({
-              unit: nextUnitName(),
-              properties: fileSystemPropertiesOf({
-                foldersAUnitCannotWrite: [root,],
-                foldersAUnitMustWrite: [],
-                foldersAUnitMustWriteWhenTheyAreThere: [join(root, 'a cache that is not there',),],
-              },),
-              words: ['/bin/sh', '-c', 'echo ran > "$1"', 'sh', ran,],
-            },);
-            expect(ended.status,).toBe(0,);
-            expect(await readFile(ran, 'utf8',),).toBe('ran\n',);
           },
         },),
       ],

@@ -12,6 +12,10 @@
  repository or from any of its worktrees: a worktree that answered itself would put a run's worktree inside a worktree, and a
  checkout default read in one place would name a different folder than the same default read in another.
 
+ Where a run's unit is told which Git directories it may write, the files are not walked at all: `gitFoldersOf` asks Git itself,
+ because a Git directory kept elsewhere (`git init --separate-git-dir`, a submodule) carries no `commondir` to read, and a layout
+ that is guessed is a folder granted by mistake. A layout the walk meets and does not know is refused, never guessed.
+
  @module
  */
 
@@ -21,10 +25,13 @@ import {
 } from 'node:fs/promises';
 import {
   dirname,
+  isAbsolute,
   join,
   resolve,
+  sep,
 } from 'node:path';
 import { errorCodeOf, } from './error-code-of.ts';
+import type { GitRunner, } from './worktree-of-a-run.ts';
 import {
   NotAnOrdinaryFileError,
   readOrdinaryFile,
@@ -208,14 +215,19 @@ async function ordinaryFileAt({ path }: { readonly path: string },): Promise<str
 }
 
 /**
- Reads the Git directory every worktree of a repository shares.
+ Reads the Git directory every worktree of a repository shares, from the file Git writes for a linked worktree, and refuses a
+ Git directory that names none.
 
- Git writes the shared directory's path into the worktree's own Git directory, and a worktree whose directory names none keeps it
- the way Git always has: two folders above the worktree's own.
+ Why it refuses rather than answers: a Git directory with no `commondir` is a checkout whose Git directory is kept elsewhere
+ (`git init --separate-git-dir`) or a submodule, and this walk has no way to name the repository those belong to; two folders
+ above the Git directory is the layout of a linked worktree only, and answering it for the others names a folder nobody asked
+ about. Where this walk is used, to find the repository a command runs in, the answer is the checkout the caller names instead.
 
  @param gitDirectory - the Git directory of the worktree, or of the repository itself
 
  @returns the shared Git directory's path
+
+ @throws CheckoutNotFoundError when the Git directory names no shared directory, which is a layout this walk does not know
 
  @example
  ```ts
@@ -224,22 +236,20 @@ async function ordinaryFileAt({ path }: { readonly path: string },): Promise<str
  */
 async function commonDirectoryOf({ gitDirectory, }: { readonly gitDirectory: string },): Promise<string> {
   /**
-   The file naming the shared Git directory, when Git wrote one.
+   The file naming the shared Git directory, which only a linked worktree's Git directory has.
    */
   const named = join(
     gitDirectory,
     COMMONDIR_FILE_NAME,
   );
-  if (await isThere(named,)) {
-    return resolve(
-      gitDirectory,
-      (await ordinaryFileAt({ path: named, },)).trim(),
+  if (!(await isThere(named,))) {
+    throw new CheckoutNotFoundError(
+      `${gitDirectory} names no ${COMMONDIR_FILE_NAME}, so it belongs to no linked worktree as this walk reads them: a checkout whose Git directory is kept elsewhere and a submodule both keep theirs without one. Name the checkout with --checkout-folder, or run the command from inside it.`,
     );
   }
   return resolve(
     gitDirectory,
-    '..',
-    '..',
+    (await ordinaryFileAt({ path: named, },)).trim(),
   );
 }
 
@@ -280,23 +290,24 @@ async function markerIsAFolder({
 }
 
 /**
- Reads the Git directory of the checkout at a folder, and the Git directory every worktree of the repository shares.
+ Reads the Git directory of the checkout at a folder from the files Git writes there, and the Git directory every worktree of the
+ repository shares.
 
- A run's unit cannot write the checkout its launcher works in, and Git writes both of these folders for a commit, a fetch or a
- push, so both are named from the worktree Git made rather than guessed from the layout Git uses.
+ This walk is what finds the repository a command was started in, where asking Git is the thing the `require-root` guard refuses.
+ A unit's writable folders are asked of Git instead, by {@link gitFoldersOf}.
 
  @param folder - the checkout or the linked worktree to read, which must be its own root
 
  @returns the Git directory of that folder, and the one every worktree of its repository shares
 
- @throws CheckoutNotFoundError when the folder marks no checkout, or when the Git directory it names cannot be read
+ @throws CheckoutNotFoundError when the folder marks no checkout, or when the marker names a layout this walk does not know
 
  @example
  ```ts
- const folders = await gitFoldersOf({ folder: '/repo/.claude/worktrees/pi-a', },);
+ const folders = await gitFoldersTheFilesName({ folder: '/repo/.claude/worktrees/pi-a', },);
  ```
  */
-export async function gitFoldersOf({ folder }: { readonly folder: string },): Promise<{
+export async function gitFoldersTheFilesName({ folder }: { readonly folder: string },): Promise<{
   readonly gitDirectory: string;
   readonly commonDirectory: string;
 }> {
@@ -326,6 +337,140 @@ export async function gitFoldersOf({ folder }: { readonly folder: string },): Pr
   return {
     gitDirectory,
     commonDirectory: await commonDirectoryOf({ gitDirectory, },),
+  };
+}
+
+/**
+ A Git folder an answer named that a start cannot make writable, because it holds the checkout itself.
+
+ @example
+ ```ts
+ throw new GitFolderAboveTheCheckoutError("the folder /repo is above the checkout",);
+ ```
+ */
+export class GitFolderAboveTheCheckoutError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'GitFolderAboveTheCheckoutError';
+}
+
+/**
+ A Git question about a checkout's folders that Git did not answer as this package needs it to.
+
+ @example
+ ```ts
+ throw new GitFoldersUnreadableError("git rev-parse answered nothing",);
+ ```
+ */
+export class GitFoldersUnreadableError extends Error {
+  /**
+   The name printed with the message.
+   */
+  override readonly name = 'GitFoldersUnreadableError';
+}
+
+/**
+ Asks Git for the Git directory of the checkout at a folder, and the Git directory every worktree of the repository shares.
+
+ Why Git and not the files: a Git directory kept elsewhere (`git init --separate-git-dir`) and a submodule keep theirs without a
+ `commondir`, so a walk that reads files either guesses and grants a folder nobody asked about, or refuses a layout Git knows.
+ Git's own answers are the ones a run's commits, fetches and pushes write to.
+
+ @param git - how one git question is run
+
+ @param folder - the checkout to ask about, which must be its own root
+
+ @returns the Git directory of that folder, and the one every worktree of its repository shares
+
+ @throws GitFoldersUnreadableError when Git does not answer, or answers with something that is not two absolute paths
+
+ @throws GitFolderAboveTheCheckoutError when an answer is a folder that holds the checkout, which a start must not make writable
+
+ @example
+ ```ts
+ const folders = await gitFoldersOf({ git, folder: '/repo', },);
+ ```
+ */
+export async function gitFoldersOf({
+  git,
+  folder,
+}: {
+  /**
+   How one git question is run.
+   */
+  readonly git: GitRunner;
+
+  /**
+   The checkout to ask about, which must be its own root.
+   */
+  readonly folder: string;
+},): Promise<{
+  readonly gitDirectory: string;
+  readonly commonDirectory: string;
+}> {
+  /**
+   What git answered about the two directories.
+   */
+  const answered = await git({
+    folder,
+    words: [
+      'rev-parse',
+      '--path-format=absolute',
+      '--absolute-git-dir',
+      '--git-common-dir',
+    ],
+  },);
+  if (answered.status !== 0) {
+    throw new GitFoldersUnreadableError(
+      `git rev-parse asked in ${folder} for its Git directories answered ${String(answered.status,)}${((answered.problem ?? answered.stderr).trim() === '') ? '' : `: ${(answered.problem ?? answered.stderr).trim()}`}, so a run's unit cannot be told which folders its commits write. Name a checkout Git can describe with --checkout-folder.`,
+    );
+  }
+  /**
+   The two paths, one per line, in the order they were asked for.
+   */
+  const lines = answered.stdout
+    .split('\n',)
+    .map(function withoutTrailingSpace(line,) {
+      return line.trim();
+    },)
+    .filter(function holdsSomething(line,) {
+      return line !== '';
+    },);
+  if ((lines.length !== 2) || (!lines.every(function namesAnAbsolutePath(line,) {
+    return isAbsolute(line,);
+  },))) {
+    throw new GitFoldersUnreadableError(
+      `git rev-parse asked in ${folder} for its Git directories answered ${JSON.stringify(answered.stdout
+        .trim(),)}, which is not two absolute paths, so a run's unit cannot be told which folders its commits write. Name a checkout Git can describe with --checkout-folder.`,
+    );
+  }
+  /**
+   The Git directory of the checkout and the one every worktree of its repository shares.
+   */
+  const [gitDirectory, commonDirectory,] = [
+    resolve(lines[0] ?? '',),
+    resolve(lines[1] ?? '',),
+  ];
+  for (const answeredFolder of [
+    gitDirectory,
+    commonDirectory,
+  ]) {
+    /**
+     Whether that folder holds the checkout, which would be granted writable and make the checkout writable with it.
+     */
+    const aboveTheCheckout = (answeredFolder !== folder)
+      && (resolve(folder,)
+        .startsWith(`${answeredFolder}${sep}`,));
+    if (aboveTheCheckout) {
+      throw new GitFolderAboveTheCheckoutError(
+        `Git names ${answeredFolder} as a Git directory of ${folder}, and that folder holds the checkout, so a unit given it writable would make the checkout writable with it. Name the checkout with --checkout-folder, or unset GIT_DIR if it names a repository above it.`,
+      );
+    }
+  }
+  return {
+    gitDirectory,
+    commonDirectory,
   };
 }
 

@@ -120,9 +120,20 @@ export {
 export {
   CHECKOUT_MARKER,
   CheckoutNotFoundError,
+  GitFolderAboveTheCheckoutError,
+  GitFoldersUnreadableError,
   checkoutFolderOf,
+  gitFoldersOf,
+  gitFoldersTheFilesName,
 } from './checkout-of-a-command.ts';
 export * from './index-of-a-runs-file-system.ts';
+export {
+  DEPENDENCIES_UNIT_SECONDS,
+  type DependenciesUnitRequest,
+  dependenciesUnitCommandOf,
+  dependenciesUnitNameOf,
+  linkDependenciesInAUnit,
+} from './dependencies-linked-in-a-unit.ts';
 export {
   PI_LOAD_FAILURE_TEXT,
   PI_START_CHECK_MEMORY_SECONDS,

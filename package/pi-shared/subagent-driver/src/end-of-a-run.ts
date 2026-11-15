@@ -177,7 +177,13 @@ export async function statusOf({
     };
   }
   /**
-   What git said about the worktree's files.
+   What git said about the worktree's files, which the caller turns into a removal when it is clean.
+
+   A clean status here is what lets `worktreeOutcomeOf` remove the worktree, and that removal takes the files Git ignores with it:
+   `git status` without `--ignored` does not name them. The owner decided that on 2026-11-12T11:58:45-05:00, in
+   `doc/handover/cli-git-rust-implementation.md`'s section "Worktree removal and ignored files": "Delete ignored, spare busy", and
+   the wrapper logs each deletion it makes. So an ignored file gone with a removed worktree is the decision, not a defect here;
+   the words a launcher prints about a worktree that went say what is not there any more.
    */
   const shown = await run({
     command: 'git',

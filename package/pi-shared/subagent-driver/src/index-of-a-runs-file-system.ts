@@ -27,3 +27,12 @@ export {
   theRunThatOutlivedItsWorktreeLineOf,
   theWorktreeThatWentLineIn,
 } from './the-run-a-unit-left.ts';
+
+export {
+  type OpenAFile,
+  NotAnOrdinaryFileError,
+  ORDINARY_FILE_READ_MILLISECONDS,
+  ReadThatTookTooLongError,
+  readOrdinaryFile,
+  readOrdinaryFileWithin,
+} from './read-ordinary-file.ts';

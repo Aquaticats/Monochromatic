@@ -364,6 +364,37 @@ so a relative `--checkout-folder` or `--runs-folder` refuses the start,
 naming the folder and what systemd takes,
 before anything is made.
 
+The folders a unit may write are Git's own answers about the checkout,
+asked with `git rev-parse --path-format=absolute --absolute-git-dir --git-common-dir`,
+never rebuilt from the files Git writes there:
+a checkout whose Git directory is kept elsewhere and a submodule both carry no `commondir`,
+and a walk that guesses names the folder above the checkout,
+which would grant the checkout writable with it.
+A Git folder that holds the checkout is refused,
+and so is a checkout Git cannot describe,
+because a start that cannot say which folders a run writes does not start.
+Where the repository is found by reading files,
+a marker whose Git directory names no shared one is refused,
+with words saying to name the checkout.
+
+The worktree's dependencies are linked inside a unit of the run's own:
+`pnpm install --offline --frozen-lockfile` runs the branch's own lifecycle scripts,
+and neither `--offline` nor `--frozen-lockfile` switches them off,
+so the step carries the same read-only checkout as the run's unit.
+Its unit is named `<run name>-dependencies`,
+never `pi-*`,
+which the slot count reads as a run.
+Every step of a start that runs code from the worktree or the base runs inside a unit:
+this install,
+the driver in the run's own unit,
+and a resumed run,
+which is a start of its own and gets the same.
+What runs outside those units runs no branch code:
+the git questions,
+the mise environment questions,
+and the question about Pi,
+each a tool of this machine.
+
 The run's worktree is read once more immediately before the launcher asks for the unit,
 because a launcher of another start of the same name removes a finished worktree,
 and it can do so in the moment between the first read and the unit.
@@ -391,9 +422,16 @@ before the unit exists,
 and the run's summary and feed after it has ended.
 `readOrdinaryFile` opens without waiting,
 so a named pipe is refused rather than waited on,
-and a read that has not finished inside the bound says so instead of holding the launcher;
+and the bound is made before anything is opened,
+so it covers the open and the metadata read as well as the read itself,
+and a read that has not finished inside it says so instead of holding the launcher;
 the unit's `RuntimeMaxSec` covers none of those reads,
 since the unit exists for none of them.
+What the bound cannot reach is work the kernel has already been asked for:
+when it fires,
+the open,
+the metadata read or the read it interrupted stays the kernel's until the filesystem answers,
+and nothing here waits for it any more.
 
 The wait for the unit is the launcher's own:
 it starts the waiter,

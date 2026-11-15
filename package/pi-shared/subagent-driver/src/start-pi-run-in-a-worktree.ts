@@ -22,6 +22,7 @@ import {
 } from 'node:process';
 import { setTimeout as wait, } from 'node:timers/promises';
 import { checkoutFolderOf, } from './checkout-of-a-command.ts';
+import { linkDependenciesInAUnit, } from './dependencies-linked-in-a-unit.ts';
 import {
   StartRefusedError,
   startRefusalsIn,
@@ -249,23 +250,24 @@ if (!readOnlyInMain) {
   },),);
 }
 
+// The worktree Git made a moment ago can already be gone: a launcher of another start of this name that has just ended removes a
+// finished worktree. Everything below runs from the worktree, the branch's own install scripts first, so the check comes before
+// them; a removal that lands after this line leaves a unit that cannot start, and the line after the wait names that.
 if (!readOnlyInMain) {
-  /**
-   What linking the worktree's dependencies answered.
-   */
-  const linked = await runCommandWithChildProcess({
-    command: 'mise',
-    words: [
-      'exec',
-      '--',
-      'pnpm',
-      'install',
-      '--offline',
-      '--frozen-lockfile',
-    ],
-    folder: worktree,
-  },);
-  console.log(`dependencies: status ${String(linked.status,)}`,);
+  try {
+    await refuseUnlessTheWorktreeIsThere({
+      worktree,
+      runName: options.name,
+      runFolder,
+    },);
+  }
+  catch (error) {
+    if (!(error instanceof WorktreeGoneError)) {
+      throw error;
+    }
+    console.error(`${options.name}: refusing to start: ${error.message}`,);
+    process.exit(1,);
+  }
 }
 
 await mkdir(
@@ -279,11 +281,34 @@ await mkdir(
  start's checks made before this), and the run's own folder.
  */
 const fileSystem = await fileSystemOfARun({
+  git,
   checkoutFolder: options.checkoutFolder,
   worktree,
   runFolder,
   worksInTheCheckoutItself: readOnlyInMain,
 },);
+
+if (!readOnlyInMain) {
+  // The branch's own install scripts run here, so they run inside a unit with this same read-only checkout: a `postinstall` that
+  // writes the checkout is refused by the operating system rather than done with the launcher's access.
+  /**
+   What linking the worktree's dependencies answered, inside a unit of its own.
+   */
+  const linked = await linkDependenciesInAUnit({
+    runName: options.name,
+    checkoutFolder: options.checkoutFolder,
+    worktree,
+    runFolder,
+    fileSystem,
+    cpuPercent: options.cpuPercent,
+    memory: options.memory,
+    taskCount: options.taskCount,
+    pathOfMiseEnvironment: sessionPath,
+    home: env.HOME ?? '',
+    run: runCommandWithChildProcess,
+  },);
+  console.log(`dependencies: status ${String(linked.status,)}`,);
+}
 
 /**
  How many model turns the run may start.
@@ -329,25 +354,6 @@ const unit = unitCommandOf({
   fileSystem,
   ...(options.session === undefined ? {} : { session: options.session, }),
 },);
-
-// The worktree was read a moment ago and several questions were asked since. A launcher of another start of this name that has
-// just ended removes a finished worktree in that window, and the unit would then fail in the manager's own words (a
-// `ReadWritePaths=` folder that is not there refuses the unit with exit 226), which says nothing about what happened. Asking once
-// more, as late as this launcher can, turns that into a line a reader can act on before any unit is asked for.
-try {
-  await refuseUnlessTheWorktreeIsThere({
-    worktree,
-    runName: options.name,
-    runFolder,
-  },);
-}
-catch (error) {
-  if (!(error instanceof WorktreeGoneError)) {
-    throw error;
-  }
-  console.error(`${options.name}: refusing to start: ${error.message}`,);
-  process.exit(1,);
-}
 
 /**
  The process that follows the unit, which this launcher ends once the unit has ended rather than waiting on the manager's own
