@@ -1445,8 +1445,19 @@ and what the coordinating session queued.
   two on the lock-holders folder,
   three push controls with pass 48's author,
   one runtime control in a fresh run;
-  that is 21 of the 25 with a named run,
-  and the other four are counted by name when the next gate is read.
+  that is 21 of the 25.
+  The other four,
+  read by name from the gate's list at 00:28:
+  `landing::service_round::…a_lane_that_panics_stops_its_lane_and_the_round_says_so`,
+  `push::child_watch_output_watched_on_the_runtime::…a_step_left_running_on_the_runtime_is_collected…` and `push::push_slow_server_tests::a_server_that_takes_the_connection_and_answers_nothing…`,
+  which the queued brief on library tests that pass alone and fail inside the suite names,
+  and `lock::abandoned_lock_proving_tests::a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown`,
+  which a queued fresh run of its own has.
+  Neither had started;
+  both were moved up at 00:28:35,
+  to third and fourth in the queue
+  (from fortieth and fifteenth).
+  So each of the 25 has a run named for it.
 - Read at 00:25:53:
   no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
   no launcher had outlived a run;
