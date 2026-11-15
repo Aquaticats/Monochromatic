@@ -1652,6 +1652,104 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Measured: no commit lands while its wrapper fails under an address-space limit; the landing that never waits and the lock-holders folder answer their reviews, and both go to review (2026-11-15T13:52:18-05:00)
+
+Not final and not approved:
+what three authors report,
+how the coordinating session weighed it,
+what it queued,
+and one thing it deferred.
+
+- **The open question of 12:02:14 is answered by measurement.**
+  The address-space controls' author,
+  seventh run,
+  ended 13:50:13 at `aee5c756a2`,
+  read the branch's commit count before and after the limited attempt and before the recovery,
+  two rounds at each room,
+  with the search answering 50 MiB:
+  at 42,
+  44,
+  47,
+  48 and 49 MiB the count stayed at one and the service answered nothing;
+  at 50,
+  51 and 56 MiB the commit landed and the wrapper returned success.
+  **No commit landed while its wrapper failed, at any room tried.**
+  The `outcome=landed` both earlier reviews read was the recovery's.
+  What stands for the owner is the other half:
+  below the boundary the wrapper ends on `SIGSEGV` (42 and 44),
+  on exit status 127 (47 and 48)
+  or on `SIGABRT` (49),
+  with nothing landed and the repository recoverable.
+  The control now keeps the two facts apart
+  (`returned_success` from the wrapper's exit;
+  `landed` from the commit count),
+  and labels the limited attempt's log apart from the recovery's.
+  One test file;
+  16 of 16 `fault_limits::` controls pass.
+  **Its review is deferred, and why**:
+  the range against `main` still holds the whole branch,
+  which pass 54 brings in at `d2ff69077b`;
+  once that is merged the same range is these two commits alone,
+  and it is queued then.
+  Its report says its checks ran "on the budgeted, power-saver CPU";
+  neither was in force
+  (the section of 13:45:24).
+- **The landing that never waits**,
+  its author's fifth run,
+  ended 13:47:12 at `dbee36149c`:
+  all four claims held,
+  all four the branch's own and none `main`'s.
+  Three have a control that failed first:
+  a prewarm record naming a folder the wrapper did not stage is refused before anything is read or removed;
+  dropping a child that leads no group ends every process it started,
+  read before the leader is signalled;
+  a routing retry waits for a place and not for silence
+  (`none_alive` is deleted).
+  The fourth,
+  `ServiceGoneUnconfirmed` skipping the landed look,
+  is fixed by one match with no catch-all over all 38 failures,
+  and **has no control**,
+  which the author names as the round's gap.
+  A landing costs the same
+  (paired median −1.2 ms of 56,
+  inside the spread).
+  Its review is queued second
+  (`main...dbee36149c`,
+  47 files listed),
+  with paragraphs asking the reviewer to drive that fourth case through a real client and service,
+  and to say whether "every process the child started" can name one it did not.
+  Passes 29 and 34 wait on that review.
+- **The lock-holders folder**,
+  its author's sixth run,
+  ended 13:47:50 at `551084db3c`:
+  the review's five findings answered,
+  each control shown failing with its fix out
+  (a linked `refs` root is not walked;
+  a record that cannot name a Git that has already become Git does not fail the command;
+  a link or a named pipe at the record's path fails the start before a Git runs;
+  nothing between `fork` and `exec` allocates,
+  held by a source control of its own).
+  Asked to run the linked-`refs` case against `main`,
+  it says `main` has neither the first nor the second finding in the review's shapes,
+  and has the same window between spawning and naming for the third.
+  No measurable cost
+  (a commit 59.5 against 60.0 ms).
+  1,017 of 1,017 tests of its modules.
+  Its review is queued sixth
+  (`main...551084db3c`,
+  20 code files that are not tests).
+  It is what answers the two `cli-git-lock-holders` controls that still fail in the gate and in pass 54.
+- Read at 13:51:33:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 13:42;
+  no launcher had outlived a run
+  (one review's launcher printed "not understood",
+  which a review's launcher does);
+  no process worked inside a worktree whose run was not going;
+  19 runs going,
+  none silent for twenty minutes.
+
 ##### Integration pass 54 is not fit as it stood, for one guard control; it goes on with the repair and one more branch, and no release is made; three authors report (2026-11-15T13:45:24-05:00)
 
 Not final and not approved:
