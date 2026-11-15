@@ -312,6 +312,17 @@ Status words:
     and `push_ms=30443` where the whole stop is 18.1 s and the window 7 s,
     `package/git-policy/cli/src/native/push/stop_of_a_push_and_sweep_of_its_locks_tests.rs`,
     `a_member_the_kernel_does_not_release_does_not_hold_the_stop_past_its_ceiling`).
+    AMENDED 2026-11-16 again,
+    after the review of `374f34c4b9`:
+    the waiting for a member that cannot be interrupted is cut at the ceiling less two parts kept back
+    (`REAP_AFTER_THE_KILL` 50 ms and `SWEEP_AFTER_THE_STOP` 200 ms),
+    the reap after the kill is always tried out of its part,
+    and the sweep of the locks is awaited no longer than what is left of the bound:
+    a root it gives no place, or a job that does not answer, leaves the sweep owed and says so,
+    and the judgement before the next fetch or push clears what it left.
+    The child and the ledger stay with the stop until a task has truly taken them,
+    so a runtime with no worker leaves neither lost
+    (findings 1 and 2 of that review).
     Built.
 24. `src/native/bounded_query.rs` read-only queries (120 s ceiling,
     `doc/planning/cli-git-shipped-limits-audit.md`).

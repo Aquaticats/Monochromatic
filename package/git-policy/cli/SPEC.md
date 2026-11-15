@@ -9747,6 +9747,21 @@ in-process reader can) gives every value of the multi-valued keys.
   release made a stop report 1.334 s where its ceiling was 1.000 s before those waits shared the bound and 1.086 s after,
   `src/native/push/stop_of_a_push_and_sweep_of_its_locks_tests.rs`,
   `a_member_the_kernel_does_not_release_does_not_hold_the_stop_past_its_ceiling`).
+  Three of the stop's own jobs are taken out of that one bound rather than added to it:
+  the waiting for a member that cannot be interrupted
+  (the ceiling less `REAP_AFTER_THE_KILL` and `SWEEP_AFTER_THE_STOP`),
+  the reap after the kill (`REAP_AFTER_THE_KILL`, 50 ms),
+  and the sweep of the locks
+  (whatever is left of the bound, and at least `SWEEP_AFTER_THE_STOP`, 200 ms),
+  each with its measurement beside it in `src/native/push/stop_of_a_push_and_sweep_of_its_locks.rs`.
+  The stop owns the child and the ledger to the end:
+  a child the kernel has not released goes to the list a later round
+  reaps,
+  and a sweep that the blocking pool could not run or that did not answer inside the bound is recorded as owed
+  (`sweeps_owed`) and said in a line naming the repositories whose next fetch or push judges the locks
+  (`lock/push_lock_clearing.rs`).
+  Neither lives only inside a task of the runtime, which a thread or memory limit may refuse to start
+  (finding 1 of the review of `374f34c4b9`).
   The report names what was cut short,
   says that the remote may or may not have taken the push,
   and says whether a retry is planned;
