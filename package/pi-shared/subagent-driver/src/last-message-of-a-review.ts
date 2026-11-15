@@ -37,14 +37,13 @@ import {
 } from './material-of-a-review.ts';
 import {
   type ReviewCoverage,
-  coverageOfAReview,
-  sentenceOfCoverage,
+  answerOfAReview,
 } from './what-a-review-says-it-covered.ts';
 import {
   SessionFileUnreadableError,
   sessionFileInSummary,
 } from './session-file-of-a-run.ts';
-import { wholeLinesOf, } from './whole-lines-of-a-feed.ts';
+import { lastAssistantTextIn, } from './last-assistant-text-of-a-session.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -78,60 +77,17 @@ export type SavedReview = {
   readonly coverage?: ReviewCoverage;
 
   /**
+   Whether the review covers the change it was given: the one answer both commands that read a finished review act on. False when
+   the review wrote no file, because nothing states what it read.
+   */
+  readonly covers: boolean;
+
+  /**
    The line to print.
    */
   readonly line: string;
 };
 
-/**
- Reads the text of the last assistant message in a session's records.
-
- The session file is Pi's own, and it is read while a resumed Pi may still be appending to it, so the record it ends with may be
- one the writer has not finished: that cut text is no record and is left alone rather than parsed.
-
- @param shown - the session file, one JSON record per line
-
- @returns the message's text parts joined, or empty text when the session holds no assistant message
-
- @example
- ```ts
- const text = lastAssistantTextIn({ shown: '{"type":"message","message":{"role":"assistant","content":[{"type":"text","text":"a"}]}}', },);
- ```
- */
-export function lastAssistantTextIn({ shown, }: { readonly shown: string },): string {
-  /**
-   The last assistant message found so far.
-   */
-  const parts: string[][] = [];
-  for (const line of wholeLinesOf({ shown, },)) {
-    if (line === '') {
-      continue;
-    }
-    /**
-     One record of the session.
-     */
-    const record: unknown = JSON.parse(line,);
-    if ((!isRecord(record,)) || (record.type !== 'message')) {
-      continue;
-    }
-    /**
-     The message the record carries.
-     */
-    const message = fieldsOf(record.message,);
-    if (message.role !== 'assistant') {
-      continue;
-    }
-    parts.push((Array.isArray(message.content) ? message.content : [])
-      .flatMap(function textOf(part,) {
-        return (isRecord(part,) && (part.type === 'text')
-          && ((typeof part.text) === 'string'))
-          ? [part.text,]
-          : [];
-      },));
-  }
-  return (parts.at(-1) ?? []).join('\n',)
-    .trim();
-}
 
 /**
  Reads a folder's entries, or nothing when the folder is not there.
@@ -396,9 +352,9 @@ async function reviewAsRead({
     review,
   },);
   /**
-   What the review's own file is read as.
+   What the review's own file is answered as, which is the one answer both commands that read a finished review act on.
    */
-  const coverage = coverageOfAReview({
+  const answer = answerOfAReview({
     shown: await readFile(
       reviewFile,
       'utf8',
@@ -409,8 +365,9 @@ async function reviewAsRead({
   return {
     review,
     saved,
-    coverage,
-    line: `${review}: ${state}, ${sentenceOfCoverage({ coverage, },)}`,
+    coverage: answer.coverage,
+    covers: answer.covers,
+    line: `${review}: ${state}, ${answer.sentence}`,
   };
 }
 
@@ -469,6 +426,7 @@ export async function saveTheLastMessage({
     return {
       review,
       saved: false,
+      covers: false,
       line: `${review}: no review.md and no finished run`,
     };
   }
@@ -498,6 +456,7 @@ export async function saveTheLastMessage({
     return {
       review,
       saved: false,
+      covers: false,
       line: `${review}: no review.md, and its newest run ended ${((typeof endReason) === 'string') ? endReason : 'without a reason its summary names'}, so it wrote no review and its last message is not one`,
     };
   }
@@ -514,6 +473,7 @@ export async function saveTheLastMessage({
     return {
       review,
       saved: false,
+      covers: false,
       line: session.line,
     };
   }
@@ -525,6 +485,7 @@ export async function saveTheLastMessage({
     return {
       review,
       saved: false,
+      covers: false,
       line: `${review}: no review.md and an empty last message in ${newest.run}`,
     };
   }

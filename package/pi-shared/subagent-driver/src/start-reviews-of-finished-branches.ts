@@ -35,7 +35,10 @@ import {
   reviewFileOfAReview,
   runNameOfAReview,
 } from './reviewer-of-a-change.ts';
-import { startReviews, } from './reviews-of-finished-branches.ts';
+import {
+  startReviews,
+  statusOfStartedReviews,
+} from './reviews-of-finished-branches.ts';
 import { rulesFileIn, } from './rules-every-pi-brief-carries.ts';
 import { reportOnStandardOutput, } from './standard-output-of-a-command.ts';
 import { runCommandWithChildProcess, } from './run-command.ts';
@@ -221,10 +224,7 @@ const started = await startReviews({
   },
 },);
 
-// The lines were shown as they happened, so only the status this command answers with is left.
-process.exitCode = started.statuses
-  .every(function endedWell(status,) {
-    return status === '0';
-  },)
-  ? 0
-  : 1;
+// The lines were shown as they happened, so only the status this command answers with is left: it is 0 only when every start
+// ended 0 and every review covers the change it was given, which is the one answer the command that saves a review answers from
+// too.
+process.exitCode = statusOfStartedReviews({ started, },);

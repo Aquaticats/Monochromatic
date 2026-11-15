@@ -19,6 +19,7 @@ import {
   type StartedEntry,
 } from './batch-list.ts';
 import { rangeOfABranch, } from './material-of-a-review.ts';
+import type { SavedReview, } from './last-message-of-a-review.ts';
 import {
   branchOfAReview,
   changeNameOfBranch,
@@ -70,7 +71,13 @@ type StartWithItsReview = {
 };
 
 /**
- What starting the reviews answered: the lines every step printed, and the status each start ended with.
+ What saving one review answered, which is the part of `SavedReview` this module reads.
+ */
+export type SavedReviewAnswer = Pick<SavedReview, 'line' | 'covers'>;
+
+/**
+ What starting the reviews answered: the lines every step printed, the status each start ended with, and how many reviews do not
+ cover the change they were given.
  */
 export type StartedReviews = {
   /**
@@ -82,6 +89,12 @@ export type StartedReviews = {
    The status each start ended with, or `none` when it could not be started at all.
    */
   readonly statuses: readonly string[];
+
+  /**
+   How many of the reviews started do not cover the change they were given, which is what the command that starts them answers `1`
+   for as well as a start that did not end `0`.
+   */
+  readonly reviewsWithoutCoverage: number;
 };
 
 /**
@@ -153,9 +166,9 @@ export type ReviewStartingSeams = {
   }) => Promise<StartOfOneReview>;
 
   /**
-   Saves a review that ended without its review file, answering the line to print.
+   Saves a review that ended without its review file, answering the line to print and whether the review covers its change.
    */
-  readonly save: (request: { readonly review: string }) => Promise<{ readonly line: string }>;
+  readonly save: (request: { readonly review: string }) => Promise<SavedReviewAnswer>;
 
   /**
    How the starter passes time between one start and the next.
@@ -349,6 +362,10 @@ export async function startReviews({
   const statuses = settled.map(function statusOf(entry: { readonly start: StartOfOneReview },) {
     return statusTextOf(entry.start,);
   },);
+  /**
+   Whether each review covers the change it was given, in the order the reviews were started.
+   */
+  const coverage: boolean[] = [];
   for (const {
     review,
     start,
@@ -364,16 +381,74 @@ export async function startReviews({
         ...((start.keptAt === undefined) ? {} : { keptAt: start.keptAt, }),
       },),);
     }
+    /**
+     What saving that review answered: its line, and whether the review covers the change it was given.
+     */
     // oxlint-disable-next-line eslint/no-await-in-loop -- one review after another, because a saved file is read from that review's own run; see doc/lint/sequential-awaits.md
-    note((await seams.save({ review, },)).line,);
+    const saved = await seams.save({ review, },);
+    note(saved.line,);
+    coverage.push(saved.covers,);
   }
+  /**
+   How many of the reviews started do not cover the change they were given.
+   */
+  const reviewsWithoutCoverage = coverage.filter(function doesNotCover(covers,) {
+    return !covers;
+  },)
+    .length;
   if (statuses.length > 0) {
-    note(`reviews ended with statuses ${statuses.join(' ',)}`,);
+    note(`reviews ended with statuses ${statuses.join(' ',)}${coverageWordsOf({ reviewsWithoutCoverage, },)}`,);
   }
   return {
     lines,
     statuses,
+    reviewsWithoutCoverage,
   };
+}
+
+/**
+ Writes the words that follow the statuses a starter prints, so that the last line a caller reads says whether every review covers
+ the change it was given.
+
+ @param reviewsWithoutCoverage - how many of the reviews started do not cover the change they were given
+
+ @returns the words, beginning with the comma that joins them to the statuses
+
+ @example
+ ```ts
+ const words = coverageWordsOf({ reviewsWithoutCoverage: 1, },);
+ ```
+ */
+function coverageWordsOf({ reviewsWithoutCoverage }: { readonly reviewsWithoutCoverage: number },): string {
+  if (reviewsWithoutCoverage === 0) {
+    return ', and every review covers its change';
+  }
+  return `, and ${String(reviewsWithoutCoverage,)} `
+    + `${(reviewsWithoutCoverage === 1) ? 'does' : 'do'} not cover ${(reviewsWithoutCoverage === 1) ? 'its' : 'their'} change`;
+}
+
+/**
+ Reads the status a command that started reviews answers with: `0` only when every start ended `0` and every review covers the
+ change it was given.
+
+ @param started - what starting the reviews answered
+
+ @returns the status the command exits with
+
+ @example
+ ```ts
+ const status = statusOfStartedReviews({ started, },);
+ ```
+ */
+export function statusOfStartedReviews({ started, }: { readonly started: StartedReviews },): number {
+  /**
+   Whether every start ended `0` and every review covers its change.
+   */
+  const everyStartEndedWell = started.statuses
+    .every(function endedWell(status,) {
+      return status === '0';
+    },);
+  return (everyStartEndedWell && (started.reviewsWithoutCoverage === 0)) ? 0 : 1;
 }
 
 /**

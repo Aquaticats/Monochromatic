@@ -408,6 +408,7 @@ await describe({
             },),).toEqual({
               review: 'a-round-1',
               saved: true,
+              covers: false,
               coverage: {
                 kind: 'cannot-be-told',
                 why: `nothing kept in ${join(reviewFolder, 'a-round-1', 'what-the-review-read.json',)} can be read as what this review was given`,
@@ -430,6 +431,7 @@ await describe({
             },),).toEqual({
               review: 'a-round-1',
               saved: false,
+              covers: false,
               coverage: {
                 kind: 'cannot-be-told',
                 why: `nothing kept in ${join(folder.path, 'a-round-1', 'what-the-review-read.json',)} can be read as what this review was given`,
@@ -462,6 +464,7 @@ await describe({
             },),).toEqual({
               review: 'a-round-1',
               saved: false,
+              covers: true,
               coverage: {
                 kind: 'covers',
                 ranges: theRangesGiven(),
@@ -502,10 +505,12 @@ await describe({
               review: 'a-round-1',
             },);
             expect(saved.coverage,).toEqual({
-              kind: 'does-not-cover',
-              why: `it states \`${stated}\`, and the ranges it was given are \`${theRangesGiven().join('`, `',)}\``,
+              kind: 'another-range',
+              stated: [stated,],
+              given: theRangesGiven(),
             },);
-            expect(saved.line,).toContain('which does not cover its change: it states',);
+            expect(saved.covers,).toBe(false,);
+            expect(saved.line,).toContain(`which does not cover its change: it states \`${stated}\``,);
           },
         },),
         it({
@@ -527,10 +532,45 @@ await describe({
               review: 'a-round-1',
             },);
             expect(saved.coverage,).toEqual({
-              kind: 'does-not-cover',
-              why: `it states no range, and the ranges it was given are \`${theRangesGiven().join('`, `',)}\``,
+              kind: 'no-range',
+              given: theRangesGiven(),
             },);
+            expect(saved.covers,).toBe(false,);
             expect(saved.line,).toContain('which does not cover its change: it states no range',);
+          },
+        },),
+        it({
+          name: 'reads a review that states it read fewer files than the brief listed as one that did not cover its change, and says a part is not the whole',
+          fn: async () => {
+            await using folder = await makeFolder();
+            await recordWhatTheReviewWasGiven({
+              reviewFolder: folder.path,
+              review: 'a-round-1',
+              files: theFilesGiven(),
+            },);
+            await writeFile(
+              join(folder.path, 'a-round-1', 'review.md',),
+              reviewOfAChange({
+                ranges: theRangesGiven(),
+                filesRead: 1,
+                filesListed: theFilesGiven().length,
+              },),
+            );
+            /**
+             What saving that review answered.
+             */
+            const saved = await saveTheLastMessage({
+              runsFolder: join(folder.path, 'runs',),
+              reviewFolder: folder.path,
+              review: 'a-round-1',
+            },);
+            expect(saved.coverage,).toEqual({
+              kind: 'fewer-files',
+              filesRead: 1,
+              filesListed: theFilesGiven().length,
+            },);
+            expect(saved.covers,).toBe(false,);
+            expect(saved.line,).toContain(`it states 1 of ${String(theFilesGiven().length,)} listed files read in full`,);
           },
         },),
         it({
@@ -728,6 +768,121 @@ await describe({
             expect(ended.status,).toBe(1,);
             expect(ended.stdout,).toContain('saved its last message as review.md',);
             expect(ended.stdout,).toContain('which does not cover its change: it states no range',);
+          },
+        },),
+        it({
+          name: 'ends with a status of 1 and says a review that states it read fewer files than the brief listed did not cover its change',
+          fn: async () => {
+            await using folder = await makeFolder();
+            await recordWhatTheReviewWasGiven({
+              reviewFolder: join(folder.path, 'reviews',),
+              review: 'a-round-1',
+              files: theFilesGiven(),
+            },);
+            await writeFile(
+              join(folder.path, 'reviews', 'a-round-1', 'review.md',),
+              reviewOfAChange({
+                ranges: theRangesGiven(),
+                filesRead: theFilesGiven().length - 1,
+                filesListed: theFilesGiven().length,
+              },),
+            );
+            /**
+             What the command answered.
+             */
+            const ended = runSaveReviewCommand({
+              reviewFolder: join(folder.path, 'reviews',),
+              runsFolder: join(folder.path, 'runs',),
+              review: 'a-round-1',
+            },);
+            expect(ended.status,).toBe(1,);
+            expect(ended.stdout,).toContain('which does not cover its change: it states 1 of 2 listed files read in full',);
+          },
+        },),
+        it({
+          name: 'ends with a status of 1 when no record can be read, because a review whose coverage cannot be told is not covering',
+          fn: async () => {
+            await using folder = await makeFolder();
+            // The brief writer writes the brief and then the record, and a process killed between the two leaves a review with
+            // no record at all.
+            /**
+             The session file the run's summary names.
+             */
+            const sessionFile = join(folder.path, 'session.jsonl',);
+            await writeFile(sessionFile, `${sessionLine('assistant', ['Not final.\n\nNo concrete defects found.'],)}\n`,);
+            /**
+             The run's folder.
+             */
+            const runFolder = join(folder.path, 'runs', `${runNameOfAReview({ review: 'a-round-1', },)}-1`,);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(join(runFolder, 'summary.json',), JSON.stringify({
+              endReason: 'idle',
+              sessionStats: { sessionFile, },
+            },),);
+            /**
+             What the command answered.
+             */
+            const ended = runSaveReviewCommand({
+              reviewFolder: join(folder.path, 'reviews',),
+              runsFolder: join(folder.path, 'runs',),
+              review: 'a-round-1',
+            },);
+            expect(ended.status,).toBe(1,);
+            expect(ended.stdout,).toContain('whether it covers its change cannot be told',);
+          },
+        },),
+        it({
+          name: 'ends with a status of 0 again when the same save that succeeded is repeated, because the review still covers its change',
+          fn: async () => {
+            await using folder = await makeFolder();
+            await recordWhatTheReviewWasGiven({
+              reviewFolder: join(folder.path, 'reviews',),
+              review: 'a-round-1',
+              files: theFilesGiven(),
+            },);
+            /**
+             The session file the run's summary names.
+             */
+            const sessionFile = join(folder.path, 'session.jsonl',);
+            await writeFile(
+              sessionFile,
+              `${sessionLine('assistant', [
+                reviewOfAChange({
+                  ranges: theRangesGiven(),
+                  filesRead: theFilesGiven().length,
+                  filesListed: theFilesGiven().length,
+                },),
+              ],)}\n`,
+            );
+            /**
+             The run's folder.
+             */
+            const runFolder = join(folder.path, 'runs', `${runNameOfAReview({ review: 'a-round-1', },)}-1`,);
+            await mkdir(runFolder, { recursive: true, },);
+            await writeFile(join(runFolder, 'summary.json',), JSON.stringify({
+              endReason: 'idle',
+              sessionStats: { sessionFile, },
+            },),);
+            /**
+             What the command answered the first time.
+             */
+            const first = runSaveReviewCommand({
+              reviewFolder: join(folder.path, 'reviews',),
+              runsFolder: join(folder.path, 'runs',),
+              review: 'a-round-1',
+            },);
+            /**
+             What it answered when the same save was repeated over the file it had written.
+             */
+            const second = runSaveReviewCommand({
+              reviewFolder: join(folder.path, 'reviews',),
+              runsFolder: join(folder.path, 'runs',),
+              review: 'a-round-1',
+            },);
+            expect([first.status, second.status,],).toEqual([0, 0,],);
+            expect(first.stdout,).toContain('saved its last message as review.md',);
+            expect(second.stdout,).toContain('has its review.md',);
+            expect(second.stdout,).toContain('which states the ranges it was given',);
           },
         },),
         it({

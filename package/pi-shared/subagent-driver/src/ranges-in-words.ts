@@ -9,6 +9,8 @@
  @module
  */
 
+import { codeSpanOf, } from './markdown-code-spans.ts';
+
 /**
  How many characters the three dots of a three-dot range are.
  */
@@ -27,7 +29,7 @@ const TWO_DOTS_LENGTH = '..'.length;
 
  @param range - the range, as `git diff` takes one
 
- @returns the range in backticks followed by what it holds
+ @returns the range as a code span, followed by what it holds
 
  @example
  ```ts
@@ -48,7 +50,8 @@ export function rangeInWords({ range, }: { readonly range: string },): string {
       threeDots,
     );
     if (range.length > (threeDots + THREE_DOTS_LENGTH)) {
-      return `\`${range}\`, which is everything the commit you start on holds that \`${from}\` does not`;
+      return `${codeSpanOf({ text: range, },)}, which is everything the commit you start on holds that `
+        + `${codeSpanOf({ text: from, },)} does not`;
     }
   }
   /**
@@ -68,10 +71,11 @@ export function rangeInWords({ range, }: { readonly range: string },): string {
      */
     const to = range.slice(twoDots + TWO_DOTS_LENGTH,);
     if (to !== '') {
-      return `\`${range}\`, the difference between \`${from}\` and \`${to}\``;
+      return `${codeSpanOf({ text: range, },)}, the difference between ${codeSpanOf({ text: from, },)} `
+        + `and ${codeSpanOf({ text: to, },)}`;
     }
   }
-  return `\`${range}\`, as \`git diff\` takes it`;
+  return `${codeSpanOf({ text: range, },)}, as \`git diff\` takes it`;
 }
 
 /**
@@ -114,7 +118,7 @@ export function rangesInWords({ ranges, }: { readonly ranges: readonly string[] 
 }
 
 /**
- Writes the ranges as the list a review copies into its own file: each in backticks, separated by commas.
+ Writes the ranges as the list a review copies into its own file: each as a code span, separated by commas.
 
  @param ranges - what changed, each as `git diff` takes one
 
@@ -126,8 +130,8 @@ export function rangesInWords({ ranges, }: { readonly ranges: readonly string[] 
  ```
  */
 export function rangesInALine({ ranges, }: { readonly ranges: readonly string[] },): string {
-  return ranges.map(function inBackticks(range,) {
-    return `\`${range}\``;
+  return ranges.map(function asACodeSpan(range,) {
+    return codeSpanOf({ text: range, },);
   },)
     .join(', ',);
 }

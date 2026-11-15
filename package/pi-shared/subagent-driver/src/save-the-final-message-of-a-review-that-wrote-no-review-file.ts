@@ -5,9 +5,11 @@
  the options.
 
  A review worktree is kept until `review.md` exists, so a review whose run wrote no file is saved here rather than left unread. A
- review whose own file states a range it was not given, or states none, is answered as a review that did not cover its change and
- the command exits `1`: a review of a part of a change that answers "nothing found" is worse than no review, because its verdict
- is taken for the whole.
+ review whose own file states a range it was not given, states fewer files read than its brief listed, or states no range at all is
+ answered as a review that did not cover its change, and the command exits `1`, as it does when the record of what the review was
+ given is missing or unreadable: a review of a part of a change that answers "nothing found" is worse than no review, because its
+ verdict is taken for the whole. `src/what-a-review-says-it-covered.ts` holds the one table of answers both commands read, and the
+ status is the same the first time and when a save that already succeeded is repeated.
 
  @module
  */
@@ -57,10 +59,10 @@ for (const one of saved) {
   process.stdout
     .write(`${one.line}\n`,);
 }
-process.exitCode = saved.every(function isReadable(one,) {
-  return one.saved && (one.coverage
-    ?.kind
-    !== 'does-not-cover');
+// The status says whether every review it was asked about covers its change, the first time a save is run and again when the same
+// save is repeated: a review whose file already holds the statement covers it as much as one this run wrote.
+process.exitCode = saved.every(function coversItsChange(one,) {
+  return one.covers;
 },)
   ? 0
   : 1;

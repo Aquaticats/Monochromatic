@@ -578,13 +578,24 @@ Ranges reviewed: `main...fix/a`
 Files read in full: 12 of 12
 ```
 
-That statement is what `save-the-final-message-of-a-review-that-wrote-no-review-file` judges a finished review by:
-a review that states another range than the one it was given,
-or states none,
-is answered as a review that did not cover its change and the command exits `1`,
-so a review of a part of a change is never taken for a review of the whole.
-A review whose `what-the-review-read.json` names no listed files was written before the brief asked for the statement,
-and the line says whether it covers its change cannot be told rather than that it does not.
+The ranges of that statement are read from the code spans the brief writes them in,
+so a branch whose name holds a comma, a semicolon, an underscore or a backtick comes back byte for byte:
+`src/ranges-a-review-states.unit.test.ts` asks `git check-ref-format` which bytes a reference may hold
+and proves the round trip for every one of them,
+at the start, in the middle and at the end of a branch's name.
+
+That statement is what both commands that read a finished review judge it by,
+through the one function `src/what-a-review-says-it-covered.ts` holds,
+whose module doc is the table every answer and both commands' statuses are written from:
+a review covers its change only when it states the ranges it was given and that it read every file the brief listed.
+A review that states another range,
+states fewer files read than the brief listed,
+states no range at all,
+or whose record is missing, unreadable or was written before a brief asked for the statement,
+is answered as a review that did not cover its change:
+a save exits `1`, and `start-reviews-of-finished-branches` exits `1` even when every review process ended `0`.
+The status is the same the first time a save is run and when a save that already succeeded is repeated,
+so a part of a change is never taken for the whole and a repeated save is never a failure.
 
 The brief also gives the command that builds and tests a package under the disposable `HOME` it requires,
 because this checkout's `.config/mise/conf.d/20-env.toml` declares an age-encrypted environment file
@@ -650,11 +661,16 @@ and two reviews of round 231 were lost that way with no line anyone read.
 
 When a review ends,
 the command saves its last assistant message as its `review.md` when the review wrote none,
-through `save-the-final-message-of-a-review-that-wrote-no-review-file`.
+through `save-the-final-message-of-a-review-that-wrote-no-review-file`,
+and prints the line that says what the review covered.
 It ends with `reviews ended with statuses <status>...`,
-one status per review,
+one status per start,
 `none` for a start that could not be run at all,
-and exits `0` only when every start ended `0`.
+followed by `, and every review covers its change`
+or `, and <n> does not cover its change`,
+and it exits `0` only when every start ended `0` and every review covers the change it was given
+(`statusOfStartedReviews` reads that answer from the one function `src/what-a-review-says-it-covered.ts` holds,
+so this command and the save command cannot disagree).
 
 ### `write-a-fix-brief-for-each-review`
 
@@ -1324,13 +1340,15 @@ it is cut to 900 characters.
 A review that wrote its own file is left alone.
 It then judges what the review's own file states against `what-the-review-read.json`:
 a review that states another range than the one it was given,
-that states none,
-or that states a count of files contradicting the brief's list,
+that states fewer files read than the brief listed,
+that states no range,
+that states a count of files contradicting the brief's list,
+or whose record is missing or unreadable,
 is printed as a review that did not cover its change,
-and the command exits non-zero,
-as it does when any review it was asked for was not saved.
-A review whose record names no listed files was written before the brief asked for the statement,
-and the line says whether it covers its change cannot be told.
+and the command exits `1`.
+The status is `0` only when every review it was asked about covers its change,
+so a save that already succeeded is answered `0` again when it is repeated,
+and a review whose coverage cannot be told is answered `1` rather than `0`.
 The lines name the ranges the review stated and the ranges it was given,
 so a review of a part of a change is read as one rather than taken for the whole.
 

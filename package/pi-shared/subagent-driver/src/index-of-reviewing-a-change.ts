@@ -73,10 +73,12 @@ export {
   REVIEW_WALL_SECONDS,
   type BriefOfOneReview,
   type ReviewStartingSeams,
+  type SavedReviewAnswer,
   type StartedReviews,
   type StartOfOneReview,
   retryWordsOfAReview,
   startReviews,
+  statusOfStartedReviews,
 } from './reviews-of-finished-branches.ts';
 export { writeReviewBrief, } from './writing-a-review-brief.ts';
 export {
@@ -85,14 +87,21 @@ export {
   rangesInWords,
 } from './ranges-in-words.ts';
 export {
+  type ReviewAnswer,
+  type ReviewCoverage,
+  answerOfAReview,
+  coverageOfAReview,
+} from './what-a-review-says-it-covered.ts';
+export {
   FILES_READ_LABEL,
   RANGES_REVIEWED_LABEL,
-  type ReviewCoverage,
   type ReviewStatement,
-  coverageOfAReview,
-  sentenceOfCoverage,
   statementIn,
-} from './what-a-review-says-it-covered.ts';
+} from './a-review-statement-lines.ts';
+export {
+  codeSpanOf,
+  codeSpansIn,
+} from './markdown-code-spans.ts';
 export {
   keepFailedOutput,
   reportOnStandardError,

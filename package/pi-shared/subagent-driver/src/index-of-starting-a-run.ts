@@ -258,10 +258,10 @@ export { optionIn, } from './option-in.ts';
 export {
   SAVED_REVIEW_NOTE,
   type SavedReview,
-  lastAssistantTextIn,
   newestRunOf,
   saveTheLastMessage,
 } from './last-message-of-a-review.ts';
+export { lastAssistantTextIn, } from './last-assistant-text-of-a-session.ts';
 export {
   SAVE_REVIEW_USAGE,
   SaveReviewOptionsError,

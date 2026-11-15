@@ -29,6 +29,7 @@ import {
   retryWordsOfAReview,
   runNameOfAReview,
   startReviews,
+  statusOfStartedReviews,
 } from '../dist/final/node/index.mjs';
 
 /**
@@ -187,7 +188,7 @@ function seamsAnswering({
 }: {
   readonly briefs: ReadonlyMap<string, BriefOfOneReview>;
   readonly starts: ReadonlyMap<string, StartOfOneReview>;
-  readonly saves: ReadonlyMap<string, { readonly line: string }>;
+  readonly saves: ReadonlyMap<string, { readonly line: string; readonly covers: boolean }>;
   readonly written: readonly string[];
   readonly merges: readonly string[];
 }): { readonly seams: ReviewStartingSeams; readonly asked: Asked } {
@@ -248,7 +249,10 @@ function seamsAnswering({
       save: async function save({ review, },) {
         asked.saves.push(review,);
         return saves.get(review,)
-          ?? { line: `${runNameOfAReview({ review, },)}: has its review.md`, };
+          ?? {
+            line: `${runNameOfAReview({ review, },)}: has its review.md`,
+            covers: true,
+          };
       },
       wait: async function wait(milliseconds,) {
         asked.waits.push(milliseconds,);
@@ -399,6 +403,68 @@ await describe({
               return start.review;
             },),).toEqual([anotherChange(),],);
             expect(started.statuses,).toEqual(['0',],);
+            expect(started.reviewsWithoutCoverage,).toBe(0,);
+            expect(started.lines.at(-1,),).toBe('reviews ended with statuses 0, and every review covers its change',);
+          },
+        },),
+        it({
+          name: 'counts a review that does not cover its change, says so on its last line, and answers the status a caller acts on with 1',
+          fn: async () => {
+            /**
+             The seams, whose saved review states a range it was not given.
+             */
+            const { seams } = seamsAnswering({
+              briefs: new Map([[aChange(), { written: true, line: 'brief written', },],]),
+              starts: new Map(),
+              saves: new Map([[aChange(), {
+                line: `${runNameOfAReview({ review: aChange(), },)}: saved its last message as review.md, `
+                  + 'which does not cover its change',
+                covers: false,
+              },],]),
+              written: [],
+              merges: [],
+            },);
+            /**
+             What the starter answered.
+             */
+            const started = await startReviews(aStartRequest({ changes: [aChange(),], seams, },),);
+            expect(started.statuses,).toEqual(['0',],);
+            expect(started.reviewsWithoutCoverage,).toBe(1,);
+            expect(started.lines.at(-1,),).toBe('reviews ended with statuses 0, and 1 does not cover its change',);
+            expect(statusOfStartedReviews({ started, },),).toBe(1,);
+          },
+        },),
+        it({
+          name: 'answers the status a caller acts on with 0 only when every start ended 0 and every review covers its change',
+          fn: async () => {
+            expect(statusOfStartedReviews({
+              started: {
+                lines: [],
+                statuses: ['0',],
+                reviewsWithoutCoverage: 0,
+              },
+            },),).toBe(0,);
+            expect(statusOfStartedReviews({
+              started: {
+                lines: [],
+                statuses: ['0',],
+                reviewsWithoutCoverage: 1,
+              },
+            },),).toBe(1,);
+            expect(statusOfStartedReviews({
+              started: {
+                lines: [],
+                statuses: ['0', '1',],
+                reviewsWithoutCoverage: 0,
+              },
+            },),).toBe(1,);
+            expect(statusOfStartedReviews({
+              started: {
+                lines: [],
+                statuses: [],
+                reviewsWithoutCoverage: 0,
+              },
+            },),).toBe(0,);
           },
         },),
         it({
@@ -472,8 +538,14 @@ await describe({
                 [anotherChange(), { output: '', startProblem: 'no such command', },],
               ],),
               saves: new Map([
-                [aChange(), { line: `${runNameOfAReview({ review: aChange(), },)}: saved its last message`, },],
-                [anotherChange(), { line: `${runNameOfAReview({ review: anotherChange(), },)}: no finished run`, },],
+                [aChange(), {
+                  line: `${runNameOfAReview({ review: aChange(), },)}: saved its last message`,
+                  covers: false,
+                },],
+                [anotherChange(), {
+                  line: `${runNameOfAReview({ review: anotherChange(), },)}: no finished run`,
+                  covers: false,
+                },],
               ],),
               written: [],
               merges: [],
@@ -497,8 +569,10 @@ await describe({
                 startProblem: 'no such command',
               },
             },),);
-            expect(started.lines,).toContain(`reviews ended with statuses ${String(failedStatus,)} none`,);
+            expect(started.lines,).toContain(`reviews ended with statuses ${String(failedStatus,)} none, `
+              + `and ${String(2,)} do not cover their change`,);
             expect(started.statuses,).toEqual([String(failedStatus,), 'none',],);
+            expect(started.reviewsWithoutCoverage,).toBe(2,);
           },
         },),
       ],

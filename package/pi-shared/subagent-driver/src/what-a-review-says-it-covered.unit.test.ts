@@ -1,8 +1,7 @@
 /**
  What a review's own file says it covered, read against what the review was given: the ranges its brief named, and the files that
- brief listed.
-
- @module
+ brief listed. The one answer both commands that read a finished review act on is `answerOfAReview`, so this file checks the
+ coverage it reports and whether each row of its table covers the change.
  */
 
 import {
@@ -13,8 +12,8 @@ import {
 import {
   type ReviewCoverage,
   type ReviewReading,
+  answerOfAReview,
   coverageOfAReview,
-  sentenceOfCoverage,
   statementIn,
 } from '../dist/final/node/index.mjs';
 
@@ -63,7 +62,7 @@ function theFilesGiven(): readonly string[] {
 /**
  What a review was given, as the record beside its brief keeps it.
 
- @param files - the files the brief listed, or nothing for a record written before a brief listed them
+ @param files - the files the brief listed, absent for a record written before a brief listed them
 
  @returns what the review was given
 
@@ -118,9 +117,9 @@ function aReviewStating({
 
  @param shown - the review's own file
 
- @param reading - what the review was given, or nothing when no record can be read
+ @param reading - what the review was given, absent when no record can be read
 
- @returns what the review is read as
+ @returns what the review is answered as
 
  @example
  ```ts
@@ -139,6 +138,39 @@ function coverageOf({
     readingFile: theReadingFile(),
     ...((reading === undefined) ? {} : { reading, }),
   },);
+}
+
+/**
+ Says whether a review covers the change it was given, and what its sentence reads.
+
+ @param request - the review's own file and what it was given
+
+ @returns the answer both commands act on
+
+ @example
+ ```ts
+ const answer = answerOf({ shown: 'Not final.\n' },);
+ ```
+ */
+function answerOf({
+  shown,
+  reading,
+}: {
+  readonly shown: string;
+  readonly reading?: ReviewReading;
+},): { readonly covers: boolean; readonly sentence: string } {
+  /**
+   The whole answer, of which this test reads what a command acts on.
+   */
+  const answer = answerOfAReview({
+    shown,
+    readingFile: theReadingFile(),
+    ...((reading === undefined) ? {} : { reading, }),
+  },);
+  return {
+    covers: answer.covers,
+    sentence: answer.sentence,
+  };
 }
 
 await describe({
@@ -190,13 +222,23 @@ await describe({
             },);
           },
         },),
+        it({
+          name: 'reads a range in a code span byte for byte, so an underscore inside a reference survives',
+          fn: async () => {
+            expect(statementIn({ shown: 'Ranges reviewed: `main...fix/a_b`\nFiles read in full: 1 of 1\n', },),).toEqual({
+              ranges: ['main...fix/a_b',],
+              filesRead: 1,
+              filesTotal: 1,
+            },);
+          },
+        },),
       ],
     },),
     describe({
       name: coverageOfAReview.name,
       children: [
         it({
-          name: 'reads a review that states the ranges it was given and the count of the files the brief listed as one that covers its change',
+          name: 'reads a review that states the ranges it was given and that it read every listed file as one that covers its change',
           fn: async () => {
             expect(coverageOf({
               shown: aReviewStating({
@@ -209,24 +251,6 @@ await describe({
               kind: 'covers',
               ranges: theRangesGiven(),
               filesRead: theFilesGiven().length,
-              filesListed: theFilesGiven().length,
-            },);
-          },
-        },),
-        it({
-          name: 'counts a review that read a part of the listed files as one that covers its change, because it says so',
-          fn: async () => {
-            expect(coverageOf({
-              shown: aReviewStating({
-                ranges: theRangesGiven(),
-                filesRead: 1,
-                filesListed: theFilesGiven().length,
-              },),
-              reading: theReadingGiven({ files: theFilesGiven(), },),
-            },),).toEqual({
-              kind: 'covers',
-              ranges: theRangesGiven(),
-              filesRead: 1,
               filesListed: theFilesGiven().length,
             },);
           },
@@ -260,8 +284,43 @@ await describe({
               },),
               reading: theReadingGiven({ files: theFilesGiven(), },),
             },),).toEqual({
-              kind: 'does-not-cover',
-              why: `it states \`main...fix/b\`, and the ranges it was given are \`${theRangesGiven().join('`, `',)}\``,
+              kind: 'another-range',
+              stated: ['main...fix/b',],
+              given: theRangesGiven(),
+            },);
+          },
+        },),
+        it({
+          name: 'says a review that states it read fewer files than the brief listed does not cover its change, even when it read some',
+          fn: async () => {
+            expect(coverageOf({
+              shown: aReviewStating({
+                ranges: theRangesGiven(),
+                filesRead: 1,
+                filesListed: theFilesGiven().length,
+              },),
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },),).toEqual({
+              kind: 'fewer-files',
+              filesRead: 1,
+              filesListed: theFilesGiven().length,
+            },);
+          },
+        },),
+        it({
+          name: 'says a review that states it read none of the listed files does not cover its change',
+          fn: async () => {
+            expect(coverageOf({
+              shown: aReviewStating({
+                ranges: theRangesGiven(),
+                filesRead: 0,
+                filesListed: theFilesGiven().length,
+              },),
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },),).toEqual({
+              kind: 'fewer-files',
+              filesRead: 0,
+              filesListed: theFilesGiven().length,
             },);
           },
         },),
@@ -272,8 +331,20 @@ await describe({
               shown: 'Not final.\n\nNo concrete defects found.\n',
               reading: theReadingGiven({ files: theFilesGiven(), },),
             },),).toEqual({
-              kind: 'does-not-cover',
-              why: `it states no range, and the ranges it was given are \`${theRangesGiven().join('`, `',)}\``,
+              kind: 'no-range',
+              given: theRangesGiven(),
+            },);
+          },
+        },),
+        it({
+          name: 'says a review that states no count of the files it read does not cover its change',
+          fn: async () => {
+            expect(coverageOf({
+              shown: `Ranges reviewed: \`${theRangesGiven().join('`, `',)}\`\n`,
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },),).toEqual({
+              kind: 'no-count',
+              filesListed: theFilesGiven().length,
             },);
           },
         },),
@@ -288,20 +359,10 @@ await describe({
               },),
               reading: theReadingGiven({ files: theFilesGiven(), },),
             },),).toEqual({
-              kind: 'does-not-cover',
-              why: `it states 1 of ${String(theFilesGiven().length + 1,)} files read, and the brief listed ${String(theFilesGiven().length,)}`,
-            },);
-          },
-        },),
-        it({
-          name: 'says a review that states no count of the files it read does not cover its change',
-          fn: async () => {
-            expect(coverageOf({
-              shown: `Ranges reviewed: \`${theRangesGiven().join('`, `',)}\`\n`,
-              reading: theReadingGiven({ files: theFilesGiven(), },),
-            },),).toEqual({
-              kind: 'does-not-cover',
-              why: `it states no count of the files it read, and the brief listed ${String(theFilesGiven().length,)}`,
+              kind: 'other-count',
+              filesRead: 1,
+              filesTotal: theFilesGiven().length + 1,
+              filesListed: theFilesGiven().length,
             },);
           },
         },),
@@ -329,41 +390,50 @@ await describe({
       ],
     },),
     describe({
-      name: sentenceOfCoverage.name,
+      name: answerOfAReview.name,
       children: [
         it({
-          name: 'says a whole review states the ranges it was given and how many of the listed files it read',
+          name: 'covers the change only for a review that states the ranges it was given and that it read every listed file',
           fn: async () => {
-            expect(sentenceOfCoverage({
-              coverage: {
-                kind: 'covers',
+            expect(answerOf({
+              shown: aReviewStating({
                 ranges: theRangesGiven(),
                 filesRead: theFilesGiven().length,
                 filesListed: theFilesGiven().length,
-              },
-            },),).toBe(`which states the ranges it was given (\`${theRangesGiven().join('`, `',)}\`) and ${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)} listed files read in full`,);
+              },),
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },),).toEqual({
+              covers: true,
+              sentence: `which states the ranges it was given (\`${theRangesGiven().join('`, `',)}\`) and `
+                + `${String(theFilesGiven().length,)} of ${String(theFilesGiven().length,)} listed files read in full`,
+            },);
           },
         },),
         it({
-          name: 'says a review that did not cover its change does not cover it, and why',
+          name: 'does not cover the change for a review that read fewer files, and says why a part is not the whole',
           fn: async () => {
-            expect(sentenceOfCoverage({
-              coverage: {
-                kind: 'does-not-cover',
-                why: 'it states no range',
-              },
-            },),).toBe('which does not cover its change: it states no range',);
+            expect(answerOf({
+              shown: aReviewStating({
+                ranges: theRangesGiven(),
+                filesRead: 1,
+                filesListed: theFilesGiven().length,
+              },),
+              reading: theReadingGiven({ files: theFilesGiven(), },),
+            },),).toEqual({
+              covers: false,
+              sentence: `which does not cover its change: it states 1 of ${String(theFilesGiven().length,)} listed files read in `
+                + 'full, and a review covers its change only when it read every one of them',
+            },);
           },
         },),
         it({
-          name: 'says whether a review written before the statement cannot be told, rather than that it failed',
+          name: 'does not cover the change when nothing can be told, and says that rather than calling the review clean',
           fn: async () => {
-            expect(sentenceOfCoverage({
-              coverage: {
-                kind: 'cannot-be-told',
-                why: 'nothing is kept',
-              },
-            },),).toBe('and whether it covers its change cannot be told: nothing is kept',);
+            expect(answerOf({ shown: 'Not final.\n', },),).toEqual({
+              covers: false,
+              sentence: `and whether it covers its change cannot be told: nothing kept in ${theReadingFile()} can be read as `
+                + 'what this review was given',
+            },);
           },
         },),
       ],
