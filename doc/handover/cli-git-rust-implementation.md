@@ -1575,8 +1575,22 @@ a measurement by the coordinating session and one deletion.
   no higher than before to the gigabyte:
   either the copies shared their data with the checkout they were copied from,
   or the filesystem had not yet given the space back.
-  Which of the two is not measured;
-  the next round reads free space again.
+  Read again at 03:38:35,
+  a minute after the deletion returned:
+  2,044,118 MiB free,
+  1,544,534 MiB used,
+  so the space had not come back,
+  and a deletion of plain files on this filesystem is settled within a transaction.
+  The deletion therefore freed close to nothing on the drive.
+  The filesystem is btrfs with `compress=zstd:3`
+  (`findmnt`),
+  where `du` counts a file's size before compression and counts data shared between copies once per copy;
+  so the 354 GiB that `du` gives for the scratch root is an upper bound,
+  not what the drive would get back.
+  The drive's own figure is 1.37 TiB of data used of 2.98 TiB allocated
+  (`btrfs filesystem df`).
+  Which share of the difference is compression and which is sharing was not measured,
+  since the copies are gone.
 - **Kept on purpose**:
   the build trees of three reviews whose authors' resumes are queued and may run the reviews' reproductions against them
   (long runtime directory 4,727 MiB,
