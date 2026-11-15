@@ -15,7 +15,7 @@ use super::{
     MetadataOutput, path_from_git_bytes, read_stopped_text, run_metadata_git, run_metadata_git_within,
     strip_git_line,
 };
-use crate::test_support::{REAL_GIT, executable, fixture, remove};
+use crate::test_support::{FIXTURE_GIT_BOUND, QueryAnswer, QueryEnding, REAL_GIT, executable, fixture, real_git_within, remove};
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::path::{Path, PathBuf};
@@ -53,11 +53,48 @@ fn path_bytes_round_trip_without_decoding() {
     );
 }
 
+/// The bytes the Git at `git` prints for `--version`,
+///  run under `bound` seconds so a Git that never answers ends this control
+///  with a verdict that names the query and the bound.
+fn version_bytes_of_the_git_under_test(git: &Path, bound: std::time::Duration) -> Vec<u8> {
+    let answer: QueryAnswer = real_git_within(git, None, &[], &[OsString::from("--version")], None, bound);
+    assert_eq!(answer.ending, QueryEnding::Itself, "the `git --version` query did not answer within {} s: the bound ended it", bound.as_secs());
+    assert!(!answer.held_open, "the `git --version` query ended, and a descendant of it still holds its output");
+    assert!(answer.output.status.success(), "the `git --version` query failed: {}", String::from_utf8_lossy(&answer.output.stderr));
+    return answer.output.stdout;
+}
+
+/// A Git that never answers ends the version query at its bound,
+///  and the verdict names the query and the bound.
+///  The script sleeps five seconds, past the bound of one,
+/// so the control against a query without a bound fails with a verdict of its own instead of hanging.
+#[test]
+fn a_version_query_that_never_answers_ends_at_its_bound() {
+    let root: PathBuf = fixture("metadata-version-bound");
+    let hanging: PathBuf = root.join("hanging-git");
+    executable(hanging.as_path(), b"#!/bin/sh\nsleep 5\n");
+    let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        return version_bytes_of_the_git_under_test(hanging.as_path(), std::time::Duration::from_secs(1));
+    }));
+    let payload = caught.expect_err("the bound must end the query");
+    let message: String = match payload.downcast_ref::<String>() {
+        Some(text) => text.clone(),
+        None => String::from("<the verdict was not text>"),
+    };
+    assert!(message.contains("the `git --version` query did not answer within 1 s"), "{message}");
+    remove(root.as_path());
+}
+
 /// A successful query returns exact stdout bytes;
 ///  a failed one is an answer,
 ///  not an error.
+///  The version bytes expected here are the ones the Git under test printed when this control asked it directly,
+/// so no release is stated and a newer Git moves both sides together.
+///  That direct query runs under the control's own bound, so a Git that never answers ends this control with a verdict
+/// instead of holding the suite.
 #[test]
 fn queries_capture_output_and_exit_state() {
+    let asked_directly: Vec<u8> = version_bytes_of_the_git_under_test(Path::new(REAL_GIT), FIXTURE_GIT_BOUND);
     let version: MetadataOutput =
         run_metadata_git(Path::new(REAL_GIT), &[OsString::from("--version")], &[])
             .expect("Git starts");
@@ -66,7 +103,7 @@ fn queries_capture_output_and_exit_state() {
         MetadataOutput {
             success: true,
             code: Some(0),
-            stdout: b"git version 2.56.0\n".to_vec(),
+            stdout: asked_directly,
             stderr: Vec::<u8>::new(),
         }
     );

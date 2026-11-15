@@ -6220,7 +6220,9 @@ mise run //package/git-policy/cli:native:install -- --dry-run <version>
   - The path-crate layer copies the JSONC crate and the scanner with its engine and compiles them (the scanner's
     build script precompiles the embedded baseline),
     so it is rebuilt only when one of them changes.
-  - The subject layer copies the wrapper's `src/native` and `README.md` (the tests include it) and compiles only the
+  - The subject layer copies the wrapper's `src/native`,
+    `README.md` (the tests include it) and `SPEC.md` (a control reads it),
+    and compiles only the
     wrapper,
     so a test sidecar edit or a source edit recompiles one crate.
   - The linter stage follows the same split:

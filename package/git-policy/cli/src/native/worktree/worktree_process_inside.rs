@@ -38,8 +38,9 @@
 //!  so a scan is what the truth costs.
 //!  A process that ended while it was being read is skipped:
 //!  it cannot be working there any more.
-//!  A process of this account whose working folder cannot be read keeps the worktree only when it could have been there:
-//!  a program can hide its working folder from every other reader
+//!  A process of this account whose working folder cannot be read keeps the worktree
+//!  when nothing shows it started before the worktree was made,
+//!  because a program can hide its working folder from every other reader
 //!  (`PR_SET_DUMPABLE` 0 makes `/proc/<pid>/cwd` unreadable to the account that owns the process),
 //!  and skipping it removed a worktree under a live process,
 //!  which a cross-vendor review of the landed sweep reproduced
@@ -49,13 +50,37 @@
 //!  (measured here:
 //! `systemd --user`,
 //! `(sd-pam)` and four more),
-//!  so keeping every worktree they might be in would remove none.
-//!  A process that started before the worktree was made cannot be working inside it,
-//!  which is what its start time proves:
-//!  a folder can only lead into a directory that already existed.
-//!  So a hidden process of this account keeps the worktree only while its age is shorter than the worktree's,
-//!  or while either age cannot be read,
-//!  and the reason names the process.
+//!  so an answer that kept every worktree a hidden process might be in would remove none.
+//!  What decides instead is the process's start:
+//!  a process of this account whose working folder cannot be read is taken to be working inside the worktree
+//!  when it started after the worktree was made,
+//!  or when its start cannot be read,
+//!  and taken to be outside when it started before the worktree was made,
+//!  and the reason names the process when the answer is that it may be inside.
+//!  That is a guess at which processes change into a worktree,
+//!  not a proof:
+//!  a process that started before the worktree was made can change into it afterwards,
+//!  and one that does is the miss this rule leaves.
+//!  Whether that miss is accepted is an open question for the owner
+//!  (`doc/handover/cli-git-rust-implementation.md`,
+//! `Questions kept for the owner's return`,
+//!  the item added 2026-11-15T03:06:17-05:00).
+//!  A refused read of the files a process holds open is never none either:
+//!  a program can keep its working folder readable and stop every other reader of its descriptor table
+//!  (measured on this host with a password manager that runs from login:
+//! its working folder read as the account's home folder,
+//! and its descriptor table refused with `EACCES`),
+//!  so a file it holds in a worktree would be invisible.
+//!  The same ages decide that answer as decide a working folder that cannot be read:
+//!  the process is taken to be working inside when it is younger than the worktree,
+//!  or when its age cannot be read,
+//!  and taken to be outside when it is older.
+//!  The miss is larger there than it is for a working folder,
+//!  because a program can open a file in a worktree long after it started:
+//!  an older program that opens one after the worktree was made is taken to be outside all the same.
+//!  The rule is as it is because without it every walk of this host stops at that password manager,
+//!  which keeps every worktree and removes none,
+//!  and whether its miss is accepted is the same open question for the owner as the folder's.
 //!  A process of another account is skipped:
 //!  its folder is unreadable to this account by design,
 //!  and `git worktree remove` has never waited for one.
@@ -80,7 +105,9 @@
 use std::path::Path;
 use std::time::Duration;
 
-/// What a read of a process's working folder showed.
+/// What the reads of one process showed:
+/// where it works,
+/// and what it holds open.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WorkingFolder {
     /// It is the worktree or a folder below it.
@@ -88,10 +115,15 @@ pub enum WorkingFolder {
     /// Its working folder is elsewhere,
     /// and it holds a file open inside the worktree.
     OpenFile,
-    /// It could not be read,
+    /// Its working folder could not be read,
     /// and the process is this account's,
     /// so nothing proves it is outside the worktree.
     Unreadable,
+    /// Its working folder is elsewhere,
+    /// and the files it holds open could not be read,
+    /// and the process is this account's,
+    /// so nothing proves it holds none inside the worktree.
+    OpenFilesUnreadable,
 }
 
 /// One process that keeps a worktree.
@@ -99,7 +131,7 @@ pub enum WorkingFolder {
 pub struct WorkingProcess {
     /// Its process id.
     pub pid: u32,
-    /// What the read of its working folder showed.
+    /// What the reads of this process showed.
     pub folder: WorkingFolder,
 }
 
@@ -108,7 +140,7 @@ impl WorkingProcess {
     ///  The words that say why this process keeps the worktree.
     /// Why:
     ///   A person reads the reason and decides,
-    ///  so it names the process and says whether its folder was seen there or could not be read at all,
+    ///  so it names the process and says whether its folder or the files it holds could not be read at all,
     ///  and this command's own process is named as itself:
     ///  "process 4242 is working in it" about the command a person just ran says nothing to them.
     ///
@@ -127,6 +159,10 @@ impl WorkingProcess {
                 "process {} belongs to this account, hides its working folder, and nothing shows it started before this worktree was made, so nothing proves it is outside it",
                 self.pid
             ),
+            WorkingFolder::OpenFilesUnreadable => format!(
+                "process {} belongs to this account, works elsewhere, and the files it holds open could not be read, and nothing shows it started before this worktree was made, so nothing proves it holds none in it",
+                self.pid
+            ),
         };
     }
 }
@@ -142,8 +178,10 @@ impl WorkingProcess {
 ///  a command started in a worktree is a process working there,
 ///  and `-C` names the repository rather than that folder.
 ///  `worktree_age` is how long `root` has existed,
-///  which is what a hidden folder is judged by:
-///  a process older than the folder cannot have its working folder inside it.
+///  which is what a process this account could not see into is judged by:
+///  one older than the folder is taken to be outside it,
+///  though one can change into it or open a file in it after the folder was made,
+///  which is the miss the module doc names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -161,24 +199,68 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
             Ok(working) if working.starts_with(root) => return Some(WorkingProcess { pid, folder: WorkingFolder::Inside }),
             Ok(_elsewhere) => {
                 // A folder outside the worktree can still hold a file open in it, and that process is working there.
-                if holds_a_file_inside(entry.path().as_path(), root, git_dir) {
-                    return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile });
+                match open_files_in(entry.path().as_path(), root, git_dir) {
+                    OpenFiles::Inside => return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFile }),
+                    OpenFiles::Outside => {}
+                    // A descriptor table this account may not read hides what the process holds, so the age of the
+                    // process decides it as it decides a hidden working folder: one younger than the worktree keeps
+                    // it, one older is taken to hold nothing there, and an older one that opened a file there after
+                    // the worktree was made is the miss the module doc names.
+                    OpenFiles::Unreadable => {
+                        if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
+                            return Some(WorkingProcess { pid, folder: WorkingFolder::OpenFilesUnreadable });
+                        }
+                    }
                 }
             }
             // The process went while it was being read, so it cannot be working in the worktree any more.
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(_refused) => {
-                if !owned_by_this_account(entry.path().as_path()) {
-                    continue;
+                if could_be_working_inside(entry.path().as_path(), proc_root, pid, uptime, worktree_age) {
+                    return Some(WorkingProcess { pid, folder: WorkingFolder::Unreadable });
                 }
-                if started_before(started_ago(proc_root, pid, uptime), worktree_age) {
-                    continue;
-                }
-                return Some(WorkingProcess { pid, folder: WorkingFolder::Unreadable });
             }
         }
     }
     return None;
+}
+
+/// What a read of one process's open files showed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OpenFiles {
+    /// A descriptor names a file of the worktree.
+    Inside,
+    /// Every descriptor was read and none names one.
+    Outside,
+    /// The descriptor table,
+    /// or one descriptor's target,
+    /// could not be read,
+    /// so nothing proves what it holds.
+    Unreadable,
+}
+
+/// What:
+///  Whether a process this account could not see into may still be working in the worktree.
+/// Why:
+///   Two reads can be refused for the same reason,
+///  a working folder and a descriptor table,
+///  and both are judged by the same two facts:
+///  another account's process is not this account's to wait for,
+///  and a process that started before the worktree was made is taken to be outside it,
+///  though one can change into it or open a file in it afterwards,
+///  which is the miss the module doc names.
+///  An age that cannot be read excuses nothing,
+///  so the worktree stays.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// couldBeWorkingInside(entry, procRoot, pid, uptime, worktreeAge) // boolean
+/// ```
+fn could_be_working_inside(entry: &Path, proc_root: &Path, pid: u32, uptime: Option<Duration>, worktree_age: Option<Duration>) -> bool {
+    if !owned_by_this_account(entry) {
+        return false;
+    }
+    return !started_before(started_ago(proc_root, pid, uptime), worktree_age);
 }
 
 /// What:
@@ -190,30 +272,45 @@ pub fn process_working_inside(root: &Path, git_dir: &Path, proc_root: &Path, wor
 ///  The worktree's Git directory is left out because this program's own commit service
 ///  holds its marker file there for as long as it lives,
 ///  and a rule that counted it would keep every landed worktree a service runs for.
-///  A descriptor directory this account cannot read says nothing,
-///  and its process's working folder could not be read either,
-///  which the caller has already decided by the process's age.
+///  A process that ended while it was being read is not inside:
+///  the kernel closed its descriptors with it,
+///  and a descriptor that went between the listing and its link is no descriptor any more.
+///  A table or a link that could not be read for another reason says nothing,
+///  and none is never the answer to a read that did not happen:
+///  a program can keep its working folder readable and stop every other reader of its descriptors
+///  (measured on this host:
+/// a password manager that runs from login),
+///  and a refused read answering none takes the worktree out from under a file such a program holds.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// holdsAFileInside(entry, worktree, gitDir) // boolean
+/// openFilesIn(entry, worktree, gitDir) // 'inside' | 'outside' | 'unreadable'
 /// ```
-fn holds_a_file_inside(entry: &Path, worktree: &Path, git_dir: &Path) -> bool {
-    let Ok(descriptors) = std::fs::read_dir(entry.join("fd")) else {
-        return false;
+fn open_files_in(entry: &Path, worktree: &Path, git_dir: &Path) -> OpenFiles {
+    let descriptors: std::fs::ReadDir = match std::fs::read_dir(entry.join("fd")) {
+        Ok(found) => found,
+        // The process went while it was being read, and its descriptors went with it.
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return OpenFiles::Outside,
+        Err(_refused) => return OpenFiles::Unreadable,
     };
-    for descriptor in descriptors.flatten() {
-        let Ok(target) = std::fs::read_link(descriptor.path()) else {
-            continue;
+    for listed in descriptors {
+        let descriptor: std::fs::DirEntry = match listed {
+            Ok(one) => one,
+            Err(_unread) => return OpenFiles::Unreadable,
+        };
+        let target: std::path::PathBuf = match std::fs::read_link(descriptor.path()) {
+            Ok(found) => found,
+            // The descriptor closed between the listing and the read, so it holds no file now.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_refused) => return OpenFiles::Unreadable,
         };
         // The kernel appends this to a path whose file is already deleted, and the file itself is what a removal takes.
         let named: &Path = without_deleted_suffix(target.as_path());
-        if !named.starts_with(worktree) || named.starts_with(git_dir) {
-            continue;
+        if named.starts_with(worktree) && !named.starts_with(git_dir) {
+            return OpenFiles::Inside;
         }
-        return true;
     }
-    return false;
+    return OpenFiles::Outside;
 }
 
 /// What:
@@ -242,12 +339,15 @@ fn without_deleted_suffix(target: &Path) -> &Path {
 const DELETED_SUFFIX: &str = " (deleted)";
 
 /// What:
-///  Whether a process that started this long ago cannot be working in a folder this young.
+///  Whether a process that started this long ago is taken to be outside a folder this young.
 /// Why:
-///   A working folder can only be a directory that existed when the process changed into it,
-///  so a process older than the worktree is outside it,
-///  and one younger may be inside,
-/// as may one whose age cannot be read.
+///   A working folder is a directory the process changed into,
+///  and a process that started before the worktree was made can change into it afterwards,
+///  so this answers by a guess at which processes do that and not by a proof:
+///  what it assumes is that a process works in the folder it started in.
+///  A process younger than the worktree may be inside,
+///  as may one whose age cannot be read,
+///  and one that started before and came in anyway is the miss the module doc names.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
