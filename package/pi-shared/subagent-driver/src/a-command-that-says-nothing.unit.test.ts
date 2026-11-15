@@ -82,6 +82,12 @@ const NO_SUCH_PROCESS_CODE = 'ESRCH';
 const RUN_MILLISECONDS = 600 * MILLISECONDS_PER_SECOND;
 
 /**
+ Milliseconds at which a command of the watch's own tests reports one chunk of output, well past its start, so a silence measured
+ from the report is unmistakably shorter than one measured from the command's start.
+ */
+const OUTPUT_REPORTED_AT_MILLISECONDS = 60 * MILLISECONDS_PER_SECOND;
+
+/**
  Seconds of silence after which a settled run ends, in the runs that go through the bin: shorter than the silence bounds those
  runs state, so the run ends as one that finished its turn rather than on its wall clock.
  */
@@ -109,26 +115,28 @@ const NOTICE_SECONDS = 0.1;
 const ENDING_SECONDS = 0.2;
 
 /**
- Seconds of silence the command that reports output steadily never reaches. Its output reports every third of a look, so a host
- that delivers one of them a whole look late is still inside this bound.
+ Seconds of silence the command that reports output steadily never reaches. Its output reports thirty to a look, and this bound is
+ twenty looks, so a host that delivers one report twenty looks late is still inside it.
  */
-const STEADY_NOTICE_SECONDS = (POLL_MILLISECONDS * 5) / MILLISECONDS_PER_SECOND;
+const STEADY_NOTICE_SECONDS = (POLL_MILLISECONDS * 20) / MILLISECONDS_PER_SECOND;
 
 /**
  Seconds the driver may wait before it ends a command that reports output steadily, above the notice so a silence there would be
  both named and ended if it came.
  */
-const STEADY_ENDING_SECONDS = (POLL_MILLISECONDS * 7) / MILLISECONDS_PER_SECOND;
+const STEADY_ENDING_SECONDS = (POLL_MILLISECONDS * 25) / MILLISECONDS_PER_SECOND;
 
 /**
- Seconds a run is given when the driver's silence end, and not the wall clock, is expected to move it on.
+ Seconds a run is given when the driver's silence end, and not the wall clock, is expected to move it on. It sits above every
+ stretch a stand-in takes on a loaded host, so the run ends on what a test asks about rather than on its own limit.
  */
-const ENDING_RUN_WALL_SECONDS = 20;
+const ENDING_RUN_WALL_SECONDS = 60;
 
 /**
- Seconds a run is given when its subject is the notice alone: the command never ends, so the wall clock is what ends the run.
+ Seconds a run is given when its subject is the notice alone: the command never ends, so the wall clock is what ends the run. It
+ sits far above the start-up a loaded host may spend, so the watch is reached before the run's own limit.
  */
-const NOTICE_RUN_WALL_SECONDS = 3;
+const NOTICE_RUN_WALL_SECONDS = 8;
 
 /**
  Status of a run that ended on its own terms.
@@ -942,6 +950,52 @@ await describe({
         expect(kept.at(-1,)?.command?.tool,).toBe('bash',);
         // The ending is the driver talking, so the clock starts again from it rather than staying hours behind.
         expect(run.record.silentMilliseconds(),).toBe(0,);
+      },
+    },),
+    it({
+      name: 'counts a command output report as the run saying something, so a silence is measured from that report',
+      fn: async () => {
+        await using run = await startRunAtAClock();
+        /**
+         Every command the watch sent Pi, which this silence must leave empty.
+         */
+        const sent: Record<string, unknown>[] = [];
+        const watch = watchOf({
+          run,
+          connection: recordingConnection({ sent, },),
+          silentSeconds: SILENT_NOTICE_SECONDS,
+          silentEndSeconds: SILENT_ENDING_SECONDS,
+        },);
+        observe(run, { type: 'agent_start', },);
+        observeCommandStart(run,);
+        // The command reports one chunk of output, which is the run saying something rather than the command being silent.
+        run.clock.at = OUTPUT_REPORTED_AT_MILLISECONDS;
+        observe(run, {
+          type: 'tool_execution_update',
+          toolName: 'bash',
+          args: COMMAND_ARGS,
+          partialResult: { content: [], },
+        },);
+        /**
+         When the report is old enough to be a silence the notice names, which is the notice counted from that report.
+         */
+        const noticeAt = OUTPUT_REPORTED_AT_MILLISECONDS
+          + (SILENT_NOTICE_SECONDS * MILLISECONDS_PER_SECOND);
+        // A silence measured from the command's start is far past the notice here; measured from its output it is not.
+        run.clock.at = noticeAt - 1;
+        expect(await aSilenceInTheRun({
+          watch,
+          waited: {},
+        },),).toBe('still-running',);
+        expect(linesOfKind(await feedOf(join(run.folder, 'feed.jsonl',),), 'silence',),).toHaveLength(0,);
+        // One millisecond past the notice is a silence, so the check above is a bound rather than a notice that never comes.
+        run.clock.at = noticeAt;
+        await aSilenceInTheRun({
+          watch,
+          waited: {},
+        },);
+        expect(await linesOfKindWhenWritten(join(run.folder, 'feed.jsonl',), 'silence',),).toHaveLength(1,);
+        expect(sent,).toHaveLength(0,);
       },
     },),
     it({

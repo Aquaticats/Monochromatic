@@ -35,9 +35,10 @@ export const SILENT_COMMAND = 'rg -l --fixed-strings something .';
 export const WENT_ON = 'read what the command left and went on';
 
 /**
- How many output reports the command that works makes for every look at a run, so each look finds it having just said something.
+ How many output reports the command that works makes for every look at a run, so a report is never the reason a look sees a
+ silence: a host that delivers one ten looks late still leaves the run inside the bound a test states.
  */
-const OUTPUT_REPORTS_PER_LOOK = 3;
+const OUTPUT_REPORTS_PER_LOOK = 30;
 
 /**
  Milliseconds between two output reports of the command that works.
@@ -45,9 +46,11 @@ const OUTPUT_REPORTS_PER_LOOK = 3;
 const OUTPUT_UPDATE_MILLISECONDS = Math.floor(POLL_MILLISECONDS / OUTPUT_REPORTS_PER_LOOK,);
 
 /**
- How many output reports that command makes, so it outlasts the silence bounds a test states and ends well inside its wall clock.
+ Milliseconds the command that works keeps reporting output for, measured on the clock rather than counted in reports: a loaded
+ host delivers fewer reports over the same stretch, so its own life stays what the test states and ends inside the run's wall
+ clock.
  */
-const OUTPUT_UPDATES = 25;
+const OUTPUT_MILLISECONDS = 4_000;
 
 /**
  Seconds the descendant that holds this process's output open lives, so a test that fails before it ends the descendant leaves
@@ -240,8 +243,12 @@ async function playDescendantHoldingThePipe(id: unknown,): Promise<void> {
  */
 async function playASteadyCommand(id: unknown,): Promise<void> {
   startTheCommand(id,);
+  /**
+   When this command began reporting output, which is the clock its life is measured on.
+   */
+  const beganAt = Date.now();
   /* oxlint-disable eslint/no-await-in-loop -- one output report after another, at the pace a tool reports them. */
-  for (let sent = 0; sent < OUTPUT_UPDATES; sent += 1) {
+  for (let sent = 0; (Date.now() - beganAt) < OUTPUT_MILLISECONDS; sent += 1) {
     await wait(OUTPUT_UPDATE_MILLISECONDS,);
     emit({
       type: 'tool_execution_update',

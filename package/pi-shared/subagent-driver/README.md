@@ -1283,7 +1283,10 @@ a `rg` search of a folder holding several hundred gigabytes,
 and the matching `tool_end` at 57 600 250 ms saying `Command aborted`:
 the wall clock was the only thing that ended it,
 and its branch never moved.
-Three runs going that day had written no feed line for 105, 378 and 724 minutes,
+Three runs going that day had written no feed line for three long stretches:
+105 minutes,
+378 minutes,
+and 724 minutes,
 each inside one command;
 a `SIGTERM` to the process that held it brought all three back within a minute.
 
@@ -1296,15 +1299,18 @@ and a model's reply arrives as `message_update` deltas.
 A build printing progress or a search printing matches is never silent,
 and no second clock is needed to tell the two apart.
 
-Two times bound that silence, and both are options of the run.
+Two times bound that silence,
+and both are options of the run.
 
 `--silent-seconds` is the first,
 ten minutes by default.
-The first time a silence passes it the driver writes one `silence` line naming the command it is sitting in and how long,
+The first time a silence passes it the driver writes one `silence` line,
+naming the command it is sitting in and how long it has said nothing,
 and one entry in the summary's `silences`,
 and ends nothing:
 a whole-suite run that prints nothing for a while is noticed rather than cut.
-One line per stretch is written, not one per look.
+One line per stretch is written,
+not one per look.
 
 `--silent-end-seconds` is the second,
 one hour by default.
@@ -1326,7 +1332,8 @@ and an agent that knows a command may run long says so in advance by giving the 
 in seconds.
 Pi enforces that bound itself by killing the command's process tree,
 and the driver does not end the command before the bound has passed.
-A bound buys time, never immunity:
+A bound buys time,
+never immunity:
 a command whose own bound could not end it,
 which is a descendant holding the pipe after the command's process went,
 is ended by the driver a minute past that bound,
@@ -1342,7 +1349,8 @@ A command's p99 was 316 seconds and its p99.9 1 500,
 16 ran past an hour,
 and the longest honest one was 5 512 seconds;
 the longest stretch with no command open was 1 205 seconds.
-96 147 commands did declare a bound, at 30 seconds to 7 300,
+96 147 commands did declare a bound,
+at 30 seconds to 7 300,
 and 334 of them ran past it,
 302 of those within a minute.
 The numbers and the sentence each value rests on are in `src/driver-constants.ts`.

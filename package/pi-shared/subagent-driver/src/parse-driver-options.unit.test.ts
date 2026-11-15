@@ -14,6 +14,8 @@ import {
   MODEL_ERROR_RETRY_BASE_SECONDS,
   MODEL_ERROR_RETRY_CAP,
   parseDriverOptions,
+  SILENT_ENDING_SECONDS,
+  SILENT_NOTICE_SECONDS,
   START_PAUSE_MILLISECONDS,
 } from '../dist/final/node/index.mjs';
 
@@ -66,6 +68,8 @@ await describe({
           piArguments: [],
           wallSeconds: 60,
           idleSeconds: 1.5,
+          silentSeconds: SILENT_NOTICE_SECONDS,
+          silentEndSeconds: SILENT_ENDING_SECONDS,
           turnCap: 80,
           retryCap: MODEL_ERROR_RETRY_CAP,
           retryBaseSeconds: MODEL_ERROR_RETRY_BASE_SECONDS,
@@ -131,6 +135,19 @@ await describe({
         expect(parseDriverOptions([...COMPLETE, '--start-pause-seconds=0.25',],).startPauseSeconds,).toBe(0.25,);
         for (const value of ['0', '-1', 'soon', 'Infinity',]) {
           expect(errorOf([...COMPLETE, `--start-pause-seconds=${value}`,],),).toContain('must be a number above zero',);
+        }
+      },
+    },),
+    it({
+      name: 'reads both silence bounds, and refuses one that is no number above zero',
+      fn: async () => {
+        const options = parseDriverOptions([...COMPLETE, '--silent-seconds=30', '--silent-end-seconds=90',],);
+        expect(options.silentSeconds,).toBe(30,);
+        expect(options.silentEndSeconds,).toBe(90,);
+        for (const name of ['silent-seconds', 'silent-end-seconds',]) {
+          for (const value of ['0', '-1', 'soon', 'Infinity',]) {
+            expect(errorOf([...COMPLETE, `--${name}=${value}`,],),).toContain('must be a number above zero',);
+          }
         }
       },
     },),
