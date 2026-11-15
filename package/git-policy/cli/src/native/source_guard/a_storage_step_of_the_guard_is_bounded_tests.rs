@@ -41,7 +41,6 @@ const GUARD_FILES: &[&str] = &[
     "command/rule_clean_interactive_nested_repositories.rs",
     "command/rule_linked_worktree.rs",
     "command/rule_worktree_dirty.rs",
-    "conflict/discarded_nested_repository.rs",
     "foundation/metadata_of_a_path_within_a_ceiling.rs",
     "invocation/forwarded_command.rs",
     "invocation/guarded_forwarded_command.rs",
@@ -60,8 +59,7 @@ const GUARD_FILES: &[&str] = &[
 /// and the guard's own helpers that reach them.
 /// Why:
 ///  A helper is the same wait with another name:
-///  `fresh_saved_directory` makes a directory and `create_private_directory_all` makes them
-///  all the way down,
+///  `create_private_directory_all` makes a directory and every parent of it,
 ///  and each is a kernel call that never returns on a stopped mount.
 ///
 /// In TS you'd write (pseudocode):
@@ -94,7 +92,6 @@ const STORAGE_CALLS: &[&str] = &[
     ".sync_all()",
     ".sync_data(",
     "create_private_directory_all(",
-    "fresh_saved_directory(",
     "fresh_directory(",
     "sync_directory(",
     "read_plain_file",
@@ -219,36 +216,6 @@ const UNDER_A_CEILING: &[UnderACeiling] = &[
         file: "command/rule_worktree_dirty.rs",
         call: "through_a_link: std::sync::Arc::new(|path: &Path| return std::fs::metadata(path)),",
         why: "the same `work_within` job: the reading `is_dir` makes of the Git directory",
-    },
-    UnderACeiling {
-        file: "conflict/discarded_nested_repository.rs",
-        call: "return std::fs::symlink_metadata(named.as_path());",
-        why: "the job of `work_within` in `the_saved_copy_is_gone`, bounded by `WORKTREE_LOOKUP_CEILING`: a rename back's `ENOENT` is proved to be the copy's absence only by asking the copy",
-    },
-    UnderACeiling {
-        file: "conflict/discarded_nested_repository.rs",
-        call: "return fresh_saved_directory(common.as_path(), milliseconds);",
-        why: "the job of `work_within` that makes the folder of saved copies, under `WORKTREE_LOOKUP_CEILING`; no answer stops the save naming the place",
-    },
-    UnderACeiling {
-        file: "conflict/discarded_nested_repository.rs",
-        call: "return create_private_directory_all(make.as_path());",
-        why: "the job of `work_within` that makes the directory a copy goes in; no answer stops the save naming the repository",
-    },
-    UnderACeiling {
-        file: "conflict/discarded_nested_repository.rs",
-        call: "return std::fs::rename(source.as_path(), destination.as_path());",
-        why: "the rename job of `work_within` that moves a repository into the saved copies; no answer leaves the move to the put-back, which says the repository may be at either place",
-    },
-    UnderACeiling {
-        file: "conflict/discarded_nested_repository.rs",
-        call: "return std::fs::rename(from.as_path(), to.as_path());",
-        why: "the rename job of `work_within` that puts a saved repository back (`move_back_within_a_ceiling`); a destination that is not there is a move that never happened",
-    },
-    UnderACeiling {
-        file: "conflict/discarded_nested_repository.rs",
-        call: "return sync_directory(named.as_path());",
-        why: "the job of `work_within` in `synced_within_a_ceiling`; no answer stops the save naming the directory",
     },
     UnderACeiling {
         file: "foundation/metadata_of_a_path_within_a_ceiling.rs",

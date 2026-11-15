@@ -74,12 +74,8 @@ use std::path::{Path, PathBuf};
 /// ```ts
 /// function pathsInTheWay(facts, written, shellDirectory): Promise<string[]>; // throws
 /// ```
-pub(super) fn paths_in_the_way(
-    facts: &mut GitFacts,
-    written: &WrittenPaths,
-    shell_directory: Option<&Path>,
-) -> Result<Vec<String>, String> {
-    let run_in: PathBuf = crate::command_run_directory::command_run_directory(facts.global_prefix.as_slice(), shell_directory)?;
+pub(super) fn paths_in_the_way(facts: &mut GitFacts, written: &WrittenPaths) -> Result<Vec<String>, String> {
+    let run_in: PathBuf = crate::command_run_directory::command_run_directory(facts.global_prefix.as_slice())?;
     let mut asked: Vec<Vec<u8>> = paths_the_tree_writes(facts, written, run_in.as_path())?;
     if asked.is_empty() {
         return Ok(Vec::<String>::new());

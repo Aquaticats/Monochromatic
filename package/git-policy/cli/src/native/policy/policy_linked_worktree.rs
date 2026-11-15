@@ -14,7 +14,7 @@
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const outcome = checkLinkedWorktree({ facts, forwarded, allowedDirs, limits, notices });
+//! // const outcome = checkLinkedWorktree({ facts, forwarded, allowedDirs, notices });
 //! ```
 
 /// What:
@@ -46,8 +46,6 @@ use crate::guarded_forwarded_command::GuardedForwarded;
 use crate::discard_audit_facts::AuditFact;
 /// The record of every decision.
 use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_facts};
-/// The limits of the folder of saved copies of conflicted files.
-use crate::discarded_prune::Limits;
 /// The conflicted files a `checkout` or `restore` would replace,
 ///  read before the command is refused.
 use crate::conflict_side_guard::{SideVerdict, judge_conflict_sides};
@@ -78,9 +76,7 @@ use crate::rule_linked_worktree::{
     resolve_linked_worktree,
 };
 /// The refusal of a command one of whose words no option table of its subcommand holds.
-use crate::rule_linked_worktree_refused_overwrite_messages::{
-    PathspecUnderAShellAlias, UnreadOption, pathspec_under_a_shell_alias_message, unread_option_message,
-};
+use crate::rule_linked_worktree_refused_overwrite_messages::{UnreadOption, unread_option_message};
 /// Whether a `git remote` or `git config` command writes the settings every worktree shares.
 use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange};
 /// The text that refusal prints.
@@ -168,7 +164,6 @@ fn names_the_shared_file(named: &Path, directory: &Path, shared_file: &Path) -> 
 fn refuse_shared_remote_settings(
     facts: &mut dyn RepositoryFacts,
     change: &SharedRemoteChange,
-    shell_directory: Option<&Path>,
     allowed_worktree_dirs: &[ToolCacheDirectory],
 ) -> PolicyOutcome {
     let location: RepositoryLocation = match facts.location() {
@@ -193,14 +188,10 @@ fn refuse_shared_remote_settings(
     };
     // A `--file` write names its own file: only the path that resolves to this repository's shared file is one.
     if let Some(named) = &change.named_file {
-        // Where the writing command runs: a `!` alias's shell starts at the top of the working tree Git changed to,
-        //  while every other command starts where the caller's `-C` chain ends.
-        let directory: PathBuf = match shell_directory {
-            Some(found) => found.to_path_buf(),
-            None => match command_run_directory(facts.transaction_context().global_prefix.as_slice(), None) {
-                Ok(found) => found,
-                Err(message) => return fact_unavailable(message),
-            },
+        // Where the writing command runs: where the caller's `-C` chain ends.
+        let directory: PathBuf = match command_run_directory(facts.transaction_context().global_prefix.as_slice()) {
+            Ok(found) => found,
+            Err(message) => return fact_unavailable(message),
         };
         if !names_the_shared_file(named.as_path(), directory.as_path(), shared_file.as_path()) {
             return clean();
@@ -213,61 +204,6 @@ fn refuse_shared_remote_settings(
     return rejected(
         SHARED_REMOTE_SETTINGS_CODE,
         shared_remote_settings_message(&change.setting, shared_file.as_path(), main_checkout.as_path()),
-    );
-}
-
-/// What:
-///  The form and the file of a region whose paths the guard would read from a pathspec file,
-///  or nothing for a region that names none.
-///  `&[u8]` borrows the subcommand word.
-/// Why:
-///  A pathspec file is read twice unless the wrapper hands its bytes over,
-///  and under a `!` shell alias it cannot:
-///  the words Git's shell runs are the alias's own and are forwarded unchanged.
-///  Only the two commands whose tables hold the option can name one.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// pathspecFileAShellAliasReads('restore', ['--pathspec-from-file=list']) === ['restore-worktree', 'list'];
-/// ```
-fn pathspec_file_a_shell_alias_reads(word: &[u8], region: &[OsString]) -> Option<(GuardedCommand, OsString)> {
-    let occurrence: crate::command_options::Occurrence = crate::command_written_paths::pathspec_file_occurrence(word, region)?;
-    let value: crate::command_options::OptionValue = occurrence.value?;
-    let command: GuardedCommand = match word {
-        b"restore" => GuardedCommand::RestoreWorktree,
-        _ => GuardedCommand::CheckoutPaths,
-    };
-    return Some((command, crate::path_bytes::os_from_path_bytes(crate::command_options_query::value_bytes(region, value))));
-}
-
-/// What:
-///  Refuse a `!` shell alias whose own words read a pathspec file,
-///  record the refusal,
-///  and name the file and the opt-out.
-/// Why:
-///  The guard read the file and cannot give Git the same bytes,
-///  so the command stops with a sentence a person can act on instead of a second read that waits
-///  for a writer which is gone.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// refuseAPathspecFileUnderAShellAlias(facts, 'restore-worktree', ['--pathspec-from-file=list'], 'list', seen);
-/// ```
-fn refuse_a_pathspec_file_under_a_shell_alias(
-    facts: &mut dyn RepositoryFacts,
-    command: GuardedCommand,
-    region: &[OsString],
-    file: &std::ffi::OsStr,
-    seen: &[OsString],
-) -> PolicyOutcome {
-    let location: RepositoryLocation = match facts.location() {
-        Ok(found) => found,
-        Err(message) => return fact_unavailable(message),
-    };
-    record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
-    return rejected(
-        LINKED_WORKTREE_REQUIRED_CODE,
-        pathspec_under_a_shell_alias_message(PathspecUnderAShellAlias { command, region, file }),
     );
 }
 
@@ -350,12 +286,11 @@ fn ends_an_operation(command: GuardedCommand) -> bool {
 fn clean_deletes_a_path_only_its_exclusions_ignore(
     facts: &mut dyn RepositoryFacts,
     region: &[OsString],
-    shell_directory: Option<&Path>,
 ) -> Result<bool, String> {
     // The global options come before every start of Git, so they are read once for both dry runs.
     let prefix: Vec<OsString> = facts.transaction_context().global_prefix;
     // Both dry runs start where the clean runs, which is where Git measures its prefix from.
-    let run_in: PathBuf = command_run_directory(prefix.as_slice(), shell_directory)?;
+    let run_in: PathBuf = command_run_directory(prefix.as_slice())?;
     // A region Git would refuse deletes nothing, and Git refuses it in its own words when the command runs.
     //  The dry runs are rebuilt from this one reading, so their force count and their paths are the ones Git's own
     //  table gives the typed clean.
@@ -397,46 +332,17 @@ pub(crate) fn check_linked_worktree(
     facts: &mut dyn RepositoryFacts,
     forwarded: &GuardedForwarded,
     allowed_worktree_dirs: &[ToolCacheDirectory],
-    discarded_limits: Limits,
     notices: &mut Vec<String>,
 ) -> PolicyOutcome {
     // An alias reaches the command Git really runs, so the guard reads the expansion and every record names it.
+    //  The words Git receives are the words the guard decided about: a `!` shell alias is forwarded as it is and
+    //  judged by nothing, so no second list of words exists here.
     let seen: &[OsString] = forwarded.arguments.as_slice();
-    // What:
-    //  The words the guard decided about:
-    //  the caller's own for a built-in word,
-    //  an alias's expansion,
-    //  or the command the shell of a `!` alias runs.
-    // Why:
-    //  Every reading below names the flags, the paths and the revision of the command Git runs,
-    //  and for a `!` alias those are the shell's words,
-    //  not the alias name the wrapper forwards.
-    //  A record of the invocation itself still names what the person typed, which is `seen`.
-    let decided: &[OsString] = forwarded.decided_words.as_slice();
-    // What:
-    //  A `!` shell alias whose own words read a pathspec file is refused before anything is read.
-    // Why:
-    //  The guard reads that file to know which paths the command writes,
-    //  and the shell Git starts reads it again;
-    //  under a `!` alias the wrapper forwards the alias's value unchanged,
-    //  so it cannot put the bytes it read in the file's place,
-    //  and a pipe would have no writer left for Git.
-    //  The guard decides on the shell's words, so the question is asked of those.
-    if let Some((word, region)) = command_tokens(decided)
-        && let Some((command, file)) = pathspec_file_a_shell_alias_reads(word.as_encoded_bytes(), region)
-        && forwarded.shell_directory.is_some()
-    {
-        return refuse_a_pathspec_file_under_a_shell_alias(facts, command, region, file.as_os_str(), seen);
-    }
+    let decided: &[OsString] = seen;
     // The settings every worktree shares are decided first: no guarded form below is about them,
-    // and the guard read them from the command Git will run, a shell alias included.
+    // and the guard read them from the command Git will run, an ordinary alias included.
     if let LinkedWorktreeDecision::SharedRemote(change) = &forwarded.decision {
-        return refuse_shared_remote_settings(
-            facts,
-            change,
-            forwarded.shell_directory.as_deref(),
-            allowed_worktree_dirs,
-        );
+        return refuse_shared_remote_settings(facts, change, allowed_worktree_dirs);
     }
     // `let Variant(x) = ... else { ... };` unwraps the guarded command or returns.
     let (command, moves_head_only): (GuardedCommand, bool) = match &forwarded.decision {
@@ -586,10 +492,7 @@ pub(crate) fn check_linked_worktree(
             location: &location,
             region,
             seen,
-            shell_directory: forwarded.shell_directory.as_deref(),
             dirty: None,
-            discarded_limits,
-            notices,
         });
     };
     // A stash drop deletes an entry of the one stash the repository shares, so the running worktree's status says
@@ -599,7 +502,7 @@ pub(crate) fn check_linked_worktree(
         // A clean that names its own exclusions is measured by what Git would delete only because of them, which is
         //  the one reading that applies those patterns.
         DirtyQuestion::CleanDryRun => (
-            clean_deletes_a_path_only_its_exclusions_ignore(facts, region, forwarded.shell_directory.as_deref()),
+            clean_deletes_a_path_only_its_exclusions_ignore(facts, region),
             dirty_worktree_message(command),
         ),
         DirtyQuestion::RepositoryStash => (facts.repository_holds_a_stash(), repository_stash_message(command)),
@@ -632,10 +535,7 @@ pub(crate) fn check_linked_worktree(
                 location: &location,
                 region,
                 seen,
-                shell_directory: forwarded.shell_directory.as_deref(),
                 dirty: Some(false),
-                discarded_limits,
-                notices,
             });
         }
         Err(message) => return fact_unavailable(message),

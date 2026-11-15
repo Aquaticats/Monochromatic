@@ -1504,9 +1504,9 @@ fn ignored_repository(name: &str, bare: bool) -> (Fixture, PathBuf, PathBuf) {
     std::fs::write(nested.join("uncommitted.txt"), b"the person's work inside it\n").expect("untracked work");
     return (fixture, repo, linked);
 }
-
 /// An interactive clean whose menu would offer a repository Git's one force keeps is capped and says so;
-/// one whose menu would offer a bare repository, which one force deletes, stops instead with the repository named.
+/// one whose menu would offer a bare repository, which one force deletes, stops instead with the repository named,
+/// and the same clean without a menu names the bare repository in its record instead of copying it.
 #[test]
 fn an_interactive_clean_that_would_offer_a_bare_repository_is_refused() {
     // The bare shape: refused, with the repository named and the two ways forward.
@@ -1543,39 +1543,45 @@ fn an_interactive_clean_that_would_offer_a_bare_repository_is_refused() {
         "the non-bare repository is kept, as one force keeps it: {}",
         stderr_of(&capped)
     );
-    // The control that the non-interactive clean still saves the bare repository whole.
-    let (saving_fixture, saving_repo, saving_linked): (Fixture, PathBuf, PathBuf) = ignored_repository("discard-menu-saves-bare", true);
-    let saved: Observed = run_wrapped(&saving_fixture, saving_linked.as_path(), &["clean", "-f", "-f", "-X", "-d"]);
-    assert_eq!(saved.code, Some(0), "{}", stderr_of(&saved));
-    assert!(!saving_linked.join("ignored/bare").exists(), "the clean deleted the repository as typed");
-    assert!(!saved_files(saving_repo.as_path()).is_empty(), "the repository is below the saved copies");
-    remove(&saving_fixture);
+    // The control: the same clean without a menu deletes the bare repository as typed and names it in
+    //  the record, keeping no copy.
+    let (deleting_fixture, deleting_repo, deleting_linked): (Fixture, PathBuf, PathBuf) = ignored_repository("discard-menu-deletes-bare", true);
+    let deleted: Observed = run_wrapped(&deleting_fixture, deleting_linked.as_path(), &["clean", "-f", "-f", "-X", "-d"]);
+    assert_eq!(deleted.code, Some(0), "{}", stderr_of(&deleted));
+    assert!(!deleting_linked.join("ignored/bare").exists(), "the clean deleted the repository as typed");
+    assert!(saved_files(deleting_repo.as_path()).is_empty(), "the clean kept a copy the owner's answer refuses");
+    let audit: std::path::PathBuf = deleting_repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
+    let lines: String = std::fs::read_to_string(audit.as_path()).unwrap_or_default();
+    assert!(
+        lines.contains("\"nestedRepositories\":[\"ignored/bare\"]"),
+        "no line names the repository the clean took: {lines}"
+    );
+    remove(&deleting_fixture);
     remove(&nested_fixture);
 }
-
-/// An interactive clean a `!` shell alias runs is stopped rather than run with a menu offering a repository:
-/// the cap's token has no place in an alias's own words, and Git deletes from that menu unsaved.
+/// An interactive clean a `!` shell alias runs is forwarded as Git receives it and judged by nothing:
+/// the menu is Git's own, and the wrapper writes no line.
 #[test]
-fn an_interactive_clean_a_shell_alias_runs_is_refused() {
+fn an_interactive_clean_a_shell_alias_runs_is_forwarded() {
     let (fixture, repo, linked): (Fixture, PathBuf, PathBuf) = ignored_repository("discard-menu-alias", false);
     git(&fixture, repo.as_path(), &["config", "alias.wipe", "!git clean -i -f -f -X -d"]);
-    let observed: Observed = run_wrapped(&fixture, linked.as_path(), &["wipe"]);
-    let said: String = stderr_of(&observed);
-    assert!(said.contains("core-incomplete"), "the alias was not stopped: {said}");
-    assert!(said.contains("ignored/inner") || said.contains("inner"), "the refusal names the repository: {said}");
-    assert!(said.contains("no-enforce-worktree"), "the refusal names the way past it: {said}");
+    let audit: std::path::PathBuf = repo.join(".git/monochromatic-git-policy-cli-audit.jsonl");
+    let before: String = std::fs::read_to_string(audit.as_path()).unwrap_or_default();
+    let mut quitting: std::process::Command = bounded_for(
+        &fixture,
+        fixture.root.join("bin/git").as_path(),
+        wrapper_first_path(&fixture).as_os_str(),
+        COMMAND_BOUND_SECONDS,
+    );
+    quitting.current_dir(linked.as_path()).args(["wipe"]);
+    let quit: Observed = observe(&mut quitting, b"q\n");
+    assert_eq!(quit.code, Some(0), "the alias runs as Git runs it: {}", stderr_of(&quit));
     assert!(
         linked.join("ignored/inner/uncommitted.txt").exists(),
-        "the work inside the repository is still there"
+        "quitting the menu deletes nothing"
     );
-    // The control: the same alias without a menu saves the repository, so the alias route works everywhere else.
-    let (control_fixture, control_repo, control_linked): (Fixture, PathBuf, PathBuf) = ignored_repository("discard-menu-alias-control", false);
-    git(&control_fixture, control_repo.as_path(), &["config", "alias.sweep", "!git clean -f -f -X -d"]);
-    let swept: Observed = run_wrapped(&control_fixture, control_linked.as_path(), &["sweep"]);
-    assert_eq!(swept.code, Some(0), "{}", stderr_of(&swept));
-    assert!(!control_linked.join("ignored/inner").exists(), "the clean deleted it as typed");
-    assert!(!saved_files(control_repo.as_path()).is_empty(), "the repository is below the saved copies");
-    remove(&control_fixture);
+    let after: String = std::fs::read_to_string(audit.as_path()).unwrap_or_default();
+    assert_eq!(after, before, "the wrapper recorded a decision about a command it does not read");
     remove(&fixture);
 }
 

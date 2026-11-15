@@ -35,7 +35,7 @@ use std::path::{Path, PathBuf};
 fn transform(values: &[&str], facts: ScriptedFacts) -> (TransformResult, Vec<String>) {
     let mut scripted: ScriptedFacts = facts;
     let result: TransformResult =
-        apply_fixed_transforms(os_arguments(values).as_slice(), os_arguments(values).as_slice(), None, false, false, &mut scripted);
+        apply_fixed_transforms(os_arguments(values).as_slice(), false, false, &mut scripted);
     return (result, scripted.asked);
 }
 
@@ -93,14 +93,7 @@ fn the_bytes_of_a_pathspec_file_the_guard_read_are_what_git_is_given() {
     std::fs::write(copy.as_path(), b"a.txt\n").expect("the copy the guard makes");
     // The stage itself does it: the attached spelling is rewritten in its own token.
     let attached: Vec<std::ffi::OsString> = os_arguments(&["restore", "--source=HEAD", "--pathspec-from-file=list.txt"]);
-    let handed: TransformResult = apply_fixed_transforms(
-        attached.as_slice(),
-        attached.as_slice(),
-        None,
-        false,
-        false,
-        &mut facts,
-    );
+    let handed: TransformResult = apply_fixed_transforms(attached.as_slice(), false, false, &mut facts);
     let mut wanted: Vec<u8> = Vec::from(b"--pathspec-from-file=".as_slice());
     wanted.extend_from_slice(copy.as_os_str().as_encoded_bytes());
     assert_eq!(
@@ -337,7 +330,7 @@ fn the_commit_hatch_skips_the_transform() {
     ] {
         let mut facts: ScriptedFacts = unanswerable();
         assert_eq!(
-            apply_fixed_transforms(os_arguments(values.as_slice()).as_slice(), os_arguments(values.as_slice()).as_slice(), None, true, false, &mut facts),
+            apply_fixed_transforms(os_arguments(values.as_slice()).as_slice(), true, false, &mut facts),
             forwards(values.as_slice()),
             "{values:?}"
         );
@@ -346,11 +339,11 @@ fn the_commit_hatch_skips_the_transform() {
     // The hatch belongs to commit-only: the other transforms still run.
     let mut facts: ScriptedFacts = unanswerable();
     assert_eq!(
-        apply_fixed_transforms(os_arguments(&["push"]).as_slice(), os_arguments(&["push"]).as_slice(), None, true, false, &mut facts),
+        apply_fixed_transforms(os_arguments(&["push"]).as_slice(), true, false, &mut facts),
         forwards(&["push", "--atomic"])
     );
     assert_eq!(
-        apply_fixed_transforms(os_arguments(&["status"]).as_slice(), os_arguments(&["status"]).as_slice(), None, true, false, &mut facts),
+        apply_fixed_transforms(os_arguments(&["status"]).as_slice(), true, false, &mut facts),
         forwards(&["-c", "advice.statusHints=false", "status"])
     );
 }

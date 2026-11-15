@@ -149,7 +149,7 @@ pub trait RepositoryFacts {
     ///  never "nothing stands in the way".
     /// The `Option<&Path>` is the directory Git runs the shell of a `!` alias in,
     ///  because the form's relative words mean that directory and not the caller's.
-    fn paths_in_the_way(&mut self, written: &WrittenPaths, shell_directory: Option<&Path>) -> Result<Vec<String>, String>;
+    fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String>;
     /// Whether the repository holds a stash entry.
     /// Asked for `git stash drop` and `git stash clear`,
     /// which delete entries of the one stash every worktree shares.
@@ -619,9 +619,9 @@ impl RepositoryFacts for GitFacts {
         return crate::repository_facts_untracked_files::untracked_files_the_tree_tracks(self, revision);
     }
 
-    fn paths_in_the_way(&mut self, written: &WrittenPaths, shell_directory: Option<&Path>) -> Result<Vec<String>, String> {
+    fn paths_in_the_way(&mut self, written: &WrittenPaths) -> Result<Vec<String>, String> {
         // The queries over the written paths live beside this provider for the same reason.
-        return crate::repository_facts_paths_in_the_way::paths_in_the_way(self, written, shell_directory);
+        return crate::repository_facts_paths_in_the_way::paths_in_the_way(self, written);
     }
 
     fn sequencer_state(&mut self) -> Result<SequencerState, String> {

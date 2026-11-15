@@ -7,9 +7,12 @@
 //!  and the folder the copies go to.
 //! Why:
 //!  An abort form restores the state before its operation and keeps nothing,
-//!  and a clean that would delete a nested repository deletes it whole,
 //!  so the work that is not the operation's own is copied beside the audit log first
 //!  and the copy is named.
+//!  A clean that deletes a nested Git repository keeps no copy:
+//!  the owner decided on 2026-11-15 that it deletes the repository as real Git does and that the
+//!  wrapper logs the command and what went
+//!  (`doc/handover/cli-git-rust-implementation.md`, "Answers on waking, third round").
 //!  Everything here is read in process:
 //! the operation from the state files in the Git directory,
 //! the conflicted paths from
@@ -23,8 +26,6 @@
 //! ```
 
 use crate::conflict_side_source::{copy_located, locate};
-/// The limits of the folder of saved copies of conflicted files.
-use crate::discarded_prune::{Limits, Problem, directory_name_of, prune};
 use crate::iso_time::format_iso_milliseconds;
 use crate::private_storage::{create_private_directory, create_private_directory_all, sync_directory};
 use std::collections::BTreeSet;
@@ -84,24 +85,6 @@ fn fresh_directory(saved_root: &Path, name: &str) -> std::io::Result<PathBuf> {
         }
     }
     return Err(std::io::Error::other("a thousand copies were saved in this second"));
-}
-
-/// What:
-///  A fresh directory for the copies one invocation saves,
-///  named for `milliseconds`.
-/// Why:
-///  The conflicted files and the nested repositories a command saves go under the same folder,
-/// so both name a place beside the audit log the same way and both leave the age and size limits one folder to prune.
-///  A directory that already exists is never reused,
-///  so no copy overwrites another.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function freshSavedDirectory(commonDir: string, milliseconds: number): string; // throws
-/// ```
-pub(crate) fn fresh_saved_directory(common_dir: &Path, milliseconds: i64) -> std::io::Result<PathBuf> {
-    let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
-    return fresh_directory(saved_root.as_path(), stamp(milliseconds).as_str());
 }
 
 /// What:
@@ -178,48 +161,7 @@ pub fn save_copies(root: &Path, common_dir: &Path, paths: &[Vec<u8>], millisecon
     return Ok(copies);
 }
 
-/// What:
-///  Applies the age and size limits to the folder of saved copies,
-/// now that a new save is complete and durable,
-/// and gives
-///  the sentences for whatever the pass could not do (empty when it did all it should).
-/// Why:
-///   Pruning after the save,
-/// never before,
-/// means a kill while copying costs no older copy;
-/// the directory just written is
-///  never chosen,
-/// whatever its name says.
-/// Nothing waits on the pass (another pass holding the folder makes this one do
-///  nothing),
-/// and a failure of it never changes the verdict;
-/// it is said in the notice,
-/// so the person sees that the limits
-///  did not apply and why.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// await pruneAfterSave(commonDir, copies, milliseconds, limits)
-/// ```
-pub fn prune_after_save(common_dir: &Path, copies: &[SavedCopy], milliseconds: i64, limits: Limits) -> String {
-    let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
-    let mut keep: Option<String> = None;
-    for copy in copies {
-        if let Some(place) = copy.saved_to.as_deref() {
-            keep = directory_name_of(saved_root.as_path(), place);
-            if keep.is_some() {
-                break;
-            }
-        }
-    }
-    if keep.is_none() {
-        return String::new();
-    }
-    let outcome = prune(common_dir, milliseconds, limits, keep.as_deref());
-    return outcome.problems.iter().map(Problem::message).collect();
-}
-
-/// The copies and the limits applied after one.
+/// The copies and the places they go.
 #[cfg(test)]
 #[path = "conflict_sides_tests.rs"]
 mod tests;

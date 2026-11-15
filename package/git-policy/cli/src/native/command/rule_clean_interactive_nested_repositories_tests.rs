@@ -84,12 +84,7 @@ fn an_interactive_clean_runs_with_one_force_and_names_the_repository_it_keeps() 
         ),
     ] {
         facts.asked.clear();
-        match keep_nested_repositories_out_of_an_interactive_menu(
-            os_arguments(spelling.as_slice()).as_slice(),
-            os_arguments(spelling.as_slice()).as_slice(),
-            None,
-            &mut facts,
-        ) {
+        match keep_nested_repositories_out_of_an_interactive_menu(os_arguments(spelling.as_slice()).as_slice(), &mut facts) {
             CapDecision::Capped { arguments, repositories } => {
                 assert_eq!(arguments, os_arguments(expected.as_slice()), "{spelling:?}");
                 assert_eq!(repositories, vec![b"cache/nested".to_vec()], "{spelling:?}");
@@ -121,12 +116,7 @@ fn a_clean_that_offers_no_menu_reaches_git_untouched() {
     ] {
         facts.asked.clear();
         let decision: CapDecision =
-            keep_nested_repositories_out_of_an_interactive_menu(
-            os_arguments(spelling.as_slice()).as_slice(),
-            os_arguments(spelling.as_slice()).as_slice(),
-            None,
-            &mut facts,
-        );
+            keep_nested_repositories_out_of_an_interactive_menu(os_arguments(spelling.as_slice()).as_slice(), &mut facts);
         assert!(matches!(decision, CapDecision::Unchanged), "{spelling:?}");
         assert!(facts.asked.is_empty(), "{spelling:?} asked {:?}", facts.asked);
     }
@@ -155,12 +145,7 @@ fn an_interactive_clean_at_one_force_is_still_read() {
         vec!["clean", "-ifdX"],
     ] {
         facts.asked.clear();
-        match keep_nested_repositories_out_of_an_interactive_menu(
-            os_arguments(spelling.as_slice()).as_slice(),
-            os_arguments(spelling.as_slice()).as_slice(),
-            None,
-            &mut facts,
-        ) {
+        match keep_nested_repositories_out_of_an_interactive_menu(os_arguments(spelling.as_slice()).as_slice(), &mut facts) {
             CapDecision::Capped { arguments, repositories } => {
                 let mut expected: Vec<&str> = spelling.clone();
                 expected.extend(ONE_FORCE);
@@ -187,12 +172,7 @@ fn an_interactive_clean_without_descent_asks_what_it_would_delete() {
     let found: Worktree = worktree("rule-interactive-nested-pathspec", true);
     let mut facts: ScriptedFacts = found.facts.clone();
     facts.asked.clear();
-    let decision: CapDecision = keep_nested_repositories_out_of_an_interactive_menu(
-        os_arguments(&["clean", "-i", "-f", "-f", "-X", "--", "cache"]).as_slice(),
-        os_arguments(&["clean", "-i", "-f", "-f", "-X", "--", "cache"]).as_slice(),
-        None,
-        &mut facts,
-    );
+    let decision: CapDecision = keep_nested_repositories_out_of_an_interactive_menu(os_arguments(&["clean", "-i", "-f", "-f", "-X", "--", "cache"]).as_slice(), &mut facts);
     assert!(!facts.asked.is_empty(), "the clean asked nothing, so its menu was never read");
     match decision {
         CapDecision::Capped { repositories, .. } => assert_eq!(repositories, vec![b"cache/nested".to_vec()]),
@@ -228,12 +208,7 @@ fn an_interactive_clean_names_a_repository_below_the_command() {
         prefix: b"sub/".to_vec(),
     });
     facts.clean_deletes = Ok(vec![b"Would remove ./container".to_vec()]);
-    match keep_nested_repositories_out_of_an_interactive_menu(
-        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
-        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
-        None,
-        &mut facts,
-    ) {
+    match keep_nested_repositories_out_of_an_interactive_menu(os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(), &mut facts) {
         CapDecision::Capped { repositories, .. } => assert_eq!(repositories, vec![b"sub/container/nested".to_vec()]),
         CapDecision::Unchanged => panic!("the repository below the command was not found"),
         CapDecision::Stopped { message } => panic!("the reading stopped: {message}"),
@@ -254,7 +229,7 @@ fn nothing_to_keep_and_gits_own_refusal_leave_the_clean_alone() {
     let mut facts: ScriptedFacts = empty.facts.clone();
     let arguments = os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]);
     assert!(matches!(
-        keep_nested_repositories_out_of_an_interactive_menu(arguments.as_slice(), arguments.as_slice(), None, &mut facts),
+        keep_nested_repositories_out_of_an_interactive_menu(arguments.as_slice(), &mut facts),
         CapDecision::Unchanged
     ));
     let found: Worktree = worktree("rule-interactive-nested-refused", true);
@@ -263,7 +238,7 @@ fn nothing_to_keep_and_gits_own_refusal_leave_the_clean_alone() {
     refused.asked.clear();
     let both_modes: Vec<std::ffi::OsString> = os_arguments(&["clean", "-i", "-f", "-f", "-d", "-x", "-X"]);
     assert!(matches!(
-        keep_nested_repositories_out_of_an_interactive_menu(both_modes.as_slice(), both_modes.as_slice(), None, &mut refused),
+        keep_nested_repositories_out_of_an_interactive_menu(both_modes.as_slice(), &mut refused),
         CapDecision::Unchanged
     ));
     assert!(refused.asked.is_empty(), "a clean Git refuses was read anyway: {:?}", refused.asked);
@@ -284,12 +259,7 @@ fn a_failed_reading_stops_the_command() {
     let mut facts: ScriptedFacts = found.facts.clone();
     let sentence: &str = "Git could not read what the clean would delete: fatal: transient dry-run read failure";
     facts.clean_deletes = Err(String::from(sentence));
-    match keep_nested_repositories_out_of_an_interactive_menu(
-        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
-        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
-        None,
-        &mut facts,
-    ) {
+    match keep_nested_repositories_out_of_an_interactive_menu(os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(), &mut facts) {
         CapDecision::Stopped { message } => assert_eq!(message, sentence),
         CapDecision::Unchanged => panic!("a failed reading was read as Git's refusal"),
         CapDecision::Capped { .. } => panic!("a failed reading was capped"),
@@ -309,12 +279,7 @@ fn a_reading_that_never_answered_stops_the_command() {
     let sentence: &str =
         "Git never answered what the clean would delete: the read ended without an exit status, so the clean was not judged";
     facts.clean_deletes = Err(String::from(sentence));
-    match keep_nested_repositories_out_of_an_interactive_menu(
-        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
-        os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(),
-        None,
-        &mut facts,
-    ) {
+    match keep_nested_repositories_out_of_an_interactive_menu(os_arguments(&["clean", "-i", "-f", "-f", "-d", "-X"]).as_slice(), &mut facts) {
         CapDecision::Stopped { message } => assert_eq!(message, sentence),
         CapDecision::Unchanged => panic!("a reading that never answered was read as nothing to keep"),
         CapDecision::Capped { .. } => panic!("a reading that never answered was capped"),

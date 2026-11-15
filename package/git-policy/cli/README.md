@@ -2637,27 +2637,23 @@ The rule is:
   and the command is refused while only the patterns call a path ignored,
   because that path is an untracked file the clean would lose.
   Both dry runs start where the clean runs,
-  which is the top of the working tree for a clean a `!` alias starts,
-  so a pattern that reaches a file above the directory you stood in is still measured.
-- A clean in a linked worktree that deletes ignored files keeps every nested Git repository whole
-  before it runs, whatever force count it carries,
-  and the clean then runs as typed:
-  the repository is moved to
-  `<common Git directory>/monochromatic-git-policy-cli/discarded/<stamp>/<path>` and the notice names
-  where, before Git starts.
+  which is the directory your `-C` chain ends in.
+- A clean in a linked worktree that deletes ignored files deletes every nested Git repository with the
+  rest and names each one in the audit line it writes before Git starts,
+  whatever force count it carries.
+  The owner decided on 2026-11-15 that such a clean deletes the repository as real Git does and that the
+  wrapper logs the command and what went, with no saved copy:
+  the line's `facts` hold `nestedRepositories`, the paths Git named below the worktree root.
   The force count is no exception because one force is Git's hold on a folder with a `.git` entry
   and not on a bare repository, whose whole history is deleted there
   (`git clean -fXd` prints `Removing ignored-bare/` and `Skipping repository ignored-inner`,
   measured on this host with native Git 2.56.0, 2026-11-14);
-  a clean with no `-f` under `clean.requireForce=false` deletes the same repository and is kept the
+  a clean with no `-f` under `clean.requireForce=false` deletes the same repository and is named the
   same way,
   and a clean with no `-f` while that setting is on is one Git refuses:
-  nothing is moved for it, Git prints `clean.requireForce is true and -f not given: refusing to clean`
+  nothing is named for it, Git prints `clean.requireForce is true and -f not given: refusing to clean`
   as it would without this wrapper,
   and your repository is where you left it.
-  A clean looks again after every repository it saves, so a repository made while the first one was
-  being moved is saved too, and one that keeps appearing stops the clean and puts back everything it
-  moved.
   An edit hidden by an `assume-unchanged` or `skip-worktree` mark is compared by its bytes, not by its
   size and time, so a same-length edit with its time put back is still found and refused.
   An option given twice is read as Git reads it, the last spelling: `git checkout --no-guess --guess
@@ -2747,8 +2743,8 @@ The rule is:
   among them, and an edit hidden by `assume-unchanged` is read in every forced form's question.
   An interactive clean that would offer a bare Git repository is stopped instead of capped: one
   force keeps a folder with a `.git` entry and deletes a bare repository, so the cap cannot keep it.
-  A `!` shell alias whose own words run an interactive clean is stopped the same way, because the
-  cap's token has no place in an alias's words.
+  A `!` shell alias is forwarded as it is and judged by nothing, so an interactive clean inside one is
+  Git's own menu.
   The refusal names each entry (five, then a count),
   says that nothing else holds them,
   that nothing in the worktree was changed,
@@ -2863,38 +2859,21 @@ A shell alias (`!...`) is a shell command,
 which no reading of its text can judge,
 and Git runs it with its own `git-core` directory first on `PATH`,
 so the `git` inside it is real Git rather than this wrapper.
-One plain form of it is read,
-only so the guard can decide:
-a value written `!git <words>` whose bytes hold no quote,
-backslash,
-`$`,
-backtick,
-glob,
-brace or separator,
-and whose words name no global option of their own.
-Git appends your own words to that value,
-so `-c 'alias.wipe=!git' wipe reset --hard` is refused where `git reset --hard` is,
-and so is `-c 'alias.wipe=!git reset --hard' wipe`.
-Every other shell alias runs as Git runs it,
-with no guard:
-`!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
-An alias the guard reads is still forwarded as you wrote it,
-because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it.
-What the rules read is the command inside the shell,
-its flags and its paths included,
-and what they read a relative path from,
-and measure on its behalf,
-is the top of the working tree Git starts that shell in,
-which is not the directory you stood in.
-A clean an alias runs is therefore measured over what it really deletes:
-an untracked file an `-e` pattern names above you,
-and a nested repository above you,
-are kept or refused before Git runs.
-Every other reading of a form's own paths is measured from that directory too,
-and each answer is written as the worktree root spells it,
-so a path form an alias runs over a file at the top is refused from a subdirectory,
-and an `assume-unchanged` edit at the top is read by a `git reset --hard` you run in `sub`
-(measured on this host with native Git 2.56.0, 2026-11-14).
+Every `!` alias is forwarded as you wrote it and judged by nothing:
+the owner decided on 2026-11-15 that all aliases keep working, with no opt-out
+(`doc/handover/cli-git-rust-implementation.md`,
+"Owner decisions in force",
+"Answers on waking, second round" and "third round").
+That is the hole of this guard and of the guard on a worktree's removal,
+and `SPEC.md` states it once:
+`-c 'alias.wipe=!git reset --hard' wipe` and `-c 'alias.wipe=!git' wipe reset --hard` run a hard reset
+with no refusal, no notice and no line,
+and so does every other `!` alias.
+The wrapper forwards your own words byte for byte,
+because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it,
+which a substituted argument list would lose.
+The rules read the flags and paths of a built-in command or of an ordinary alias's expansion,
+and they read them from the directory your own `-C` chain ends in.
 
 Two commands are never rejected and always leave one audit line (outcome `logged`,
 with `writtenBeforeGitRuns` `true`,

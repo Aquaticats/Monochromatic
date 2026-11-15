@@ -30,13 +30,15 @@ use crate::json_record::quote;
 ///  has to
 ///       name what the decision saw (a worktree,
 ///  a branch,
-///  the variable that exempted it),
+///  the variable that exempted it,
+///  or the repositories a clean takes),
 /// and a typed pair keeps the
 ///  line valid JSON without a second reader.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AuditFact = { kind: 'text'; name: string; value: string } | { kind: 'flag'; name: string; value: boolean };
+/// type AuditFact = { kind: 'text'; name: string; value: string } | { kind: 'flag'; name: string; value: boolean }
+///   | { kind: 'list'; name: string; value: string[] };
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AuditFact {
@@ -47,13 +49,18 @@ pub enum AuditFact {
     /// A yes-or-no answer,
     ///  written as JSON `true` or `false`.
     Flag(&'static str, bool),
+    /// A list of values,
+    ///  written as a JSON array:
+    ///  the repositories one clean takes,
+    ///  each as Git named it.
+    List(&'static str, Vec<String>),
 }
 
 impl AuditFact {
     /// The field's name.
     pub fn name(&self) -> &'static str {
         match self {
-            AuditFact::Text(name, _) | AuditFact::Flag(name, _) => return name,
+            AuditFact::Text(name, _) | AuditFact::Flag(name, _) | AuditFact::List(name, _) => return name,
         }
     }
 
@@ -62,6 +69,10 @@ impl AuditFact {
         match self {
             AuditFact::Text(_, value) => return quote(value),
             AuditFact::Flag(_, value) => return String::from(if *value { "true" } else { "false" }),
+            AuditFact::List(_, values) => {
+                let quoted: Vec<String> = values.iter().map(|value| return quote(value)).collect();
+                return format!("[{}]", quoted.join(","));
+            }
         }
     }
 }

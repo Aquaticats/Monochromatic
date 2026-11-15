@@ -1,177 +1,23 @@
 //! What:
-//!  The notice that names where a clean's nested Git repository went,
-//!  and the rejection when it could not be moved there.
+//!  The sentences an interactive clean leaves when its menu would offer a nested Git repository.
 //! Why:
-//!  A person who ran `git clean -f -f -d -X` and then looks for the repository that was in
-//!  that ignored directory has only these words to find it;
-//!  they name the repository,
-//!  the place it is now,
-//!  and how to look at it,
-//!  and the rejection names where it still is and every way forward.
+//!  A menu is answered after Git starts,
+//!  so the wrapper cannot ask the person before Git deletes;
+//!  the clean runs with one force,
+//!  which keeps a repository with a `.git` entry where it is,
+//!  and the person is told which repository that is and how to run the clean the other way.
+//!  A forced clean that is not a menu keeps nothing and deletes the repository as Git does:
+//!  its audit line names the repositories it takes
+//!  (`policy_linked_worktree_nested_repositories.rs`, and the owner's answer of 2026-11-15,
+//!  "Answers on waking, third round").
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // savedNestedRepositoryNotice([{ path: 'nested', savedTo: '/r/.git/.../discarded/2026-11-11T03-00-00/nested' }])
+//! // keptOutOfAnInteractiveMenuNotice([Buffer.from('nested')])
 //! ```
 
-use crate::conflict_sides::{SavedCopy, SaveFailure};
 /// The paths a message names before it counts the rest.
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
-use std::path::Path;
-
-/// The sentence the rejection ends with:
-/// the one deliberate way to delete a nested repository with the rest.
-const HATCH_ADVICE: &str = "If you have decided to delete that repository on purpose, pass --no-enforce-worktree directly after `clean` (for example `git clean --no-enforce-worktree -f -f -d -X`) and it is deleted with the rest.";
-
-/// What:
-///  Everything the rejection of a clean names.
-///  A `struct` is a record with named fields.
-/// Why:
-///   The failure alone names whichever path it reached,
-///  which is the place the copies go when the saved folder itself could not be made;
-///  the repositories are what the person loses when a move fails,
-///  so the record carries them beside it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// type NotSaved = { repositories: Buffer[]; failure: SaveFailure; savedRoot: string; stillMoved: SavedCopy[] };
-/// ```
-pub struct NotSaved<'a> {
-    /// The repositories the clean would delete,
-    /// as Git named them.
-    pub repositories: &'a [Vec<u8>],
-    /// What stopped the save.
-    pub failure: &'a SaveFailure,
-    /// The directory the copies live under.
-    pub saved_root: &'a Path,
-    /// The repositories the stopped save moved and could not put back,
-    ///  each with the place it is.
-    pub still_moved: &'a [SavedCopy],
-    /// The repositories whose move gave no answer within its ceiling,
-    ///  each with the place it may be.
-    ///  A rename that was given up on is not known to have failed, so these are named as possible places.
-    pub unanswered: &'a [SavedCopy],
-}
-
-/// What:
-///  The plain-language notice for the repositories a clean's save moved,
-///  one block per repository,
-///  written before the clean runs.
-/// Why:
-///   The place is a directory under the common Git directory,
-///  which nobody finds by looking at the worktree;
-///  the notice says where it is and how to see what the repository holds.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function savedNestedRepositoryNotice(copies: SavedCopy[]): string;
-/// ```
-pub fn saved_nested_repository_notice(copies: &[SavedCopy]) -> String {
-    let mut text: String = String::new();
-    for copy in copies {
-        let Some(place) = copy.saved_to.as_deref() else {
-            continue;
-        };
-        text.push_str(
-            format!(
-                "monochromatic-git-policy-cli: this clean would delete the Git repository {} and everything in it, so it was moved \
-                 whole to\n  {}\n  before the clean runs; the rest of the clean runs as typed. Look at what it holds with `git -C {} \
-                 status`, and delete it yourself when you no longer need it.\n",
-                copy.path,
-                place.display(),
-                place.display()
-            )
-            .as_str(),
-        );
-    }
-    return text;
-}
-
-/// What:
-///  The rejection of a clean whose nested repositories could not be moved to the saved copies.
-///  `NotSaved<'_>` borrows the repositories,
-///  the failure and the place the copies go.
-/// Why:
-///   A save that stops puts every repository it moved back,
-///  so "nothing was changed" is true;
-///  the one exception is a repository a put-back could not return,
-///  and that one is named with the place it is.
-///  The person is told which repositories are still where they were,
-///  what stopped the move in the system's own words,
-///  every way forward,
-///  and the deliberate way to delete them anyway.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function nestedRepositoryNotSavedMessage(notSaved: NotSaved): string;
-/// ```
-pub fn nested_repository_not_saved_message(not_saved: NotSaved<'_>) -> String {
-    let mut named: Vec<String> = Vec::<String>::new();
-    for path in not_saved.repositories.iter().take(SHARED_PATHS_NAMED) {
-        named.push(String::from_utf8_lossy(path).into_owned());
-    }
-    let mut listed: String = named.join(", ");
-    if not_saved.repositories.len() > SHARED_PATHS_NAMED {
-        listed.push_str(format!(", and {} more", not_saved.repositories.len() - SHARED_PATHS_NAMED).as_str());
-    }
-    let one: bool = not_saved.repositories.len() == 1;
-    let (what, them, where_they_are): (&str, &str, &str) = if one {
-        ("the Git repository", "it", "The repository is still where it was.")
-    } else {
-        ("the Git repositories", "them", "The repositories are still where they were.")
-    };
-    // A put-back that could not return a repository leaves it below the saved copies, and the person is told exactly
-    //  where, because nothing else names that place.
-    let mut kept: String = String::new();
-    for copy in not_saved.still_moved {
-        let Some(place) = copy.saved_to.as_deref() else {
-            continue;
-        };
-        kept.push_str(format!("\n  {} => {}", copy.path, place.display()).as_str());
-    }
-    // A move that gave no answer is not known to have failed: the repository may be at its own place or below the saved
-    //  copies, and the rejection says both rather than claiming nothing changed.
-    let mut may_be: String = String::new();
-    for copy in not_saved.unanswered {
-        let place: String = match copy.saved_to.as_deref() {
-            Some(saved) => saved.display().to_string(),
-            None => not_saved.saved_root.display().to_string(),
-        };
-        may_be.push_str(format!("\n  {} may be at its own place in the worktree, or here: {}", copy.path, place).as_str());
-    }
-    if !may_be.is_empty() {
-        return format!(
-            "monochromatic-git-policy-cli: this clean would delete {what} {listed} and everything in {them}, but {them} could not \
-             all be saved first ({}: {}), so the command is rejected and the clean did not run. One or more moves gave no answer \
-             within their ceiling, so the wrapper cannot tell whether {them} moved:{may_be}{kept}\nEvery other repository is \
-             still where it was. Look where each one may be before you run the clean again, and free the space under {}, or fix \
-             its permissions, or move {them} out of the way yourself. {HATCH_ADVICE}",
-            not_saved.failure.subject,
-            not_saved.failure.reason,
-            not_saved.saved_root.display()
-        );
-    }
-    if !kept.is_empty() {
-        return format!(
-            "monochromatic-git-policy-cli: this clean would delete {what} {listed} and everything in {them}, but {them} could not \
-             all be saved first ({}: {}), so the command is rejected and the clean did not run. These repositories could not be \
-             put back where they were and are kept here:{kept}\nEvery other repository is still where it was. Free the space under \
-             {}, or fix its permissions, or move {them} out of the way yourself, and run the command again. {HATCH_ADVICE}",
-            not_saved.failure.subject,
-            not_saved.failure.reason,
-            not_saved.saved_root.display()
-        );
-    }
-    return format!(
-        "monochromatic-git-policy-cli: this clean would delete {what} {listed} and everything in {them}, but nothing of {them} \
-         could be saved first ({}: {}), so the command is rejected and nothing was changed. {where_they_are} Free the space under \
-         {}, or fix its permissions, or move {them} out of the way yourself, and run the command again. {HATCH_ADVICE}",
-        not_saved.failure.subject,
-        not_saved.failure.reason,
-        not_saved.saved_root.display()
-    );
-}
-
 
 /// What:
 ///  The sentence for an interactive clean that runs with one force so its menu offers no nested repository.
@@ -182,9 +28,9 @@ pub fn nested_repository_not_saved_message(not_saved: NotSaved<'_>) -> String {
 ///  the menu offers exactly what the clean deletes,
 ///  and the person is told which repository that is and the two ways to delete it deliberately:
 ///  the same clean without `-i`,
-/// which saves it whole first,
+/// where Git deletes it with the rest and the audit line names it,
 /// and the escape hatch,
-/// which deletes it with the rest.
+/// which deletes it with the rest and keeps no line.
 ///  Nothing is written to the audit for this,
 ///  because the line already names the command the person typed.
 ///
@@ -211,9 +57,9 @@ pub fn kept_out_of_an_interactive_menu_notice(repositories: &[Vec<u8>]) -> Strin
     return format!(
         "monochromatic-git-policy-cli: this interactive clean would offer {what} {listed} and everything inside it, and a menu \
          is answered after Git starts. So the clean runs with one force instead: {what} {stays} where {subject} {is}, and the \
-         menu offers nothing of {object}. The rest of the clean runs as typed. Run the same clean without `-i` and the wrapper \
-         moves {object} whole to a saved copy before Git deletes {object}, or pass --no-enforce-worktree directly after `clean` \
-         and {object} {is} deleted with the rest.\n"
+         menu offers nothing of {object}. The rest of the clean runs as typed. Run the same clean without `-i` and Git \
+         deletes {object} with the rest while the wrapper's audit line names {object}, or pass --no-enforce-worktree directly \
+         after `clean` and {subject} {is} deleted with the rest and no line is written.\n"
     );
 }
 
@@ -225,7 +71,8 @@ pub fn kept_out_of_an_interactive_menu_notice(repositories: &[Vec<u8>]) -> Strin
 ///  (`git clean -fXd` at one force: `Skipping repository inner` against `Removing bare/` and `bare/` gone,
 ///  measured on this host with native Git 2.56.0, 2026-11-13),
 ///  so the cap this wrapper uses for the other shape protects nothing here.
-///  The person decides: the clean without a menu moves the repository to a saved copy first,
+///  The person decides: the clean without a menu deletes the repository as Git does and the audit
+///  line names it,
 ///  and the opt-out runs the menu and the deletion they choose.
 ///
 /// In TS you'd write (pseudocode):
@@ -244,47 +91,13 @@ pub fn bare_repository_in_a_menu_message(repositories: &[Vec<u8>]) -> String {
     return format!(
         "monochromatic-git-policy-cli: this interactive clean's menu would offer the bare Git repository {listed} and everything \
          inside it, and one force does not keep a bare repository: Git deletes it while the menu is answered after Git \
-         started, so the work inside it would be gone with no copy. Nothing was run. Run the same clean without `-i` and the \
-         wrapper moves it whole to a saved copy before Git deletes it, or pass --no-enforce-worktree directly after `clean` \
-         and the menu and whatever you choose run as real Git runs them.\n"
+         started, so nothing could name it before it went. Nothing was run. Run the same clean without `-i` and Git deletes it \
+         with the rest while the audit line names it, or pass --no-enforce-worktree directly after `clean` and the menu and \
+         whatever you choose run as real Git runs them.\n"
     );
 }
 
-/// What:
-///  The sentence an interactive clean stops with when this transform cannot write its cap into the words the
-///  wrapper forwards,
-///  which is the case of a `!` shell alias whose own words Git runs.
-/// Why:
-///  The cap is one token inserted after the clean's options,
-///  and a shell alias's words are inside the alias value,
-///  not in what the wrapper forwards;
-///  an inserted token would land after any path the person typed instead.
-///  A menu that would offer a repository this transform cannot keep out of it is one Git deletes from,
-///  so the command stops and the person is told the two ways to run it.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// menuCapNotReachableMessage(['nested']);
-/// ```
-pub fn menu_cap_not_reachable_message(repositories: &[Vec<u8>]) -> String {
-    let mut named: Vec<String> = Vec::<String>::new();
-    for path in repositories.iter().take(SHARED_PATHS_NAMED) {
-        named.push(String::from_utf8_lossy(path).into_owned());
-    }
-    let mut listed: String = named.join(", ");
-    if repositories.len() > SHARED_PATHS_NAMED {
-        listed.push_str(format!(", and {} more", repositories.len() - SHARED_PATHS_NAMED).as_str());
-    }
-    return format!(
-        "monochromatic-git-policy-cli: this `!` shell alias runs an interactive clean whose menu would offer the Git \
-         repository {listed}, and the one force that keeps it cannot be written into an alias's own words. Nothing was \
-         run. Run `git clean -i` itself, or the same clean without `-i` so the repository is moved to a saved copy \
-         first, or pass --no-enforce-worktree directly after the alias word to run the menu and whatever you choose as \
-         real Git runs them.\n"
-    );
-}
-
-/// The notices and the rejection,
+/// The notices of an interactive clean,
 /// and the paths they name.
 #[cfg(test)]
 #[path = "rule_linked_worktree_nested_repository_messages_tests.rs"]

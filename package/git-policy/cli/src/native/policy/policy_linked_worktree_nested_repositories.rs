@@ -1,22 +1,32 @@
 //! What:
-//!  Keeping every nested Git repository a clean in a linked worktree would delete,
-//!  and the one place a discarding form is refused or let through.
+//!  What a clean in a linked worktree takes when it deletes a nested Git repository,
+//!  and the one audit line that names it,
+//!  beside the one place a discarding form is refused or let through.
 //! Why:
 //!  Git's clean removes a nested repository whole,
 //!  with its own history and its uncommitted files,
 //!  at a second `-f` for a repository with a `.git` entry and at one force for a bare one,
 //!  and the outer worktree reports it as one ignored directory,
 //!  so nothing else the policy reads can see the work inside it.
-//!  The owner's answer for uncommitted work is "save,
-//! then allow" (`conflict_side_guard.rs`),
-//!  so the repository is moved beside the audit log and the clean runs as typed;
-//!  a move that fails stops the command with the worktree as it was.
+//!  The owner decided on 2026-11-15 that such a clean deletes the repository as real Git does
+//!  and that the wrapper logs the command and what went,
+//!  with no saved copy
+//!  (`doc/handover/cli-git-rust-implementation.md`,
+//!  "Owner decisions in force",
+//!  "Answers on waking, third round"):
+//!  a copy is a thing the person makes,
+//!  and the line is what a later reader uses to attribute the loss.
+//!  The reading below therefore asks Git what the clean would delete at the force count the person
+//!  typed,
+//!  looks inside those paths and nowhere else,
+//!  and writes the repositories it finds into the record before Git starts.
 //!  The file also holds the two points a discarding form is let through,
 //!  because both must ask this question before Git starts.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // const saved = keepTheNestedRepositoriesACleanWouldDelete(facts, location, region, limits);
+//! // const taken = nestedRepositoriesACleanTakes(facts, location, region);
+//! // recordAudit({ outcome: 'logged', facts: [{ kind: 'list', name: 'nestedRepositories', value: taken }] });
 //! ```
 
 /// The builder of the clean's own dry run,
@@ -24,359 +34,171 @@
 use crate::command_clean::{clean_dry_run_arguments, parse_clean_region};
 /// Which nested Git repositories that answer says the clean would delete.
 use crate::command_clean_nested_repositories::nested_repositories_the_clean_deletes;
-/// The bound on the folder of saved copies applied after a save,
-///  and the place saved copies live.
-use crate::conflict_sides::{SAVED_DIRECTORY, SavedCopy, prune_after_save};
-/// The record of every decision.
-use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_copies};
-/// The limits of the folder of saved copies.
-use crate::discarded_prune::Limits;
-/// The move of a nested repository the clean would delete.
-use crate::discarded_nested_repository::set_nested_repositories_aside;
+/// The directory a command runs in,
+///  which a relative path of a clean is read from.
+use crate::command_run_directory::command_run_directory;
+/// The record of every decision,
+///  and the named facts a line carries.
+use crate::discard_audit::{AuditOutcome, record_audit, record_audit_with_facts};
+use crate::discard_audit_facts::AuditFact;
+/// The engine's findings and outcomes.
+use crate::policy_engine::PolicyOutcome;
 /// Every worktree entry a form would write over or delete,
 ///  which nothing else holds.
 use crate::policy_linked_worktree_refused_overwrite::{WrittenOverRequest, entries_a_form_would_write_over};
-/// The refusal that names those entries and the option that runs the command anyway.
-use crate::rule_linked_worktree_refused_overwrite_messages::{
-    Overwritten, overwritten_refusal_message, tree_reading_failed_message,
-};
-/// The engine's findings and outcomes.
-use crate::policy_engine::PolicyOutcome;
 /// The facts interface every check asks.
 use crate::repository_facts::RepositoryFacts;
-/// The linked-worktree check's answer to where a clean runs,
-///  which both dry runs start in.
-use crate::command_run_directory::command_run_directory;
 use crate::repository_location::RepositoryLocation;
 use crate::policy_checks::{clean, rejected};
 /// The linked-worktree rule core.
 use crate::rule_linked_worktree::{GuardedCommand, LINKED_WORKTREE_REQUIRED_CODE};
-/// The notice that names where a saved nested repository went,
-///  and the rejection when it could not be moved there.
-use crate::rule_linked_worktree_nested_repository_messages::{
-    NotSaved, nested_repository_not_saved_message, saved_nested_repository_notice,
+/// The refusal that names those entries and the option that runs the command anyway.
+use crate::rule_linked_worktree_refused_overwrite_messages::{
+    Overwritten, overwritten_refusal_message, tree_reading_failed_message,
 };
 /// The Git directories of an identity,
-///  for naming the place saved copies live and the worktree the paths are below.
-use crate::worktree_identity::{common_directory, worktree_root};
+///  for naming the worktree the paths are below.
+use crate::worktree_identity::worktree_root;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-/// `Path`/`PathBuf` are borrowed/owned filesystem paths.
-use std::path::{Path, PathBuf};
-
-/// The clock reading the conflict copies are named with,
-/// in milliseconds since the Unix epoch.
-pub(crate) fn now_milliseconds() -> i64 {
-    let elapsed: std::time::Duration = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
-    return i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX);
-}
+/// `PathBuf` is an owned filesystem path.
+use std::path::PathBuf;
 
 /// What:
-///  What keeping the nested repositories of a clean left to do.
-///  An `enum` is a closed set of named alternatives.
+///  The name the record gives the repositories a clean takes.
 /// Why:
-///   The three answers are handled differently:
-///  nothing to keep lets the command run as it always did,
-///  a save lets it run with a notice and an audit line naming the places,
-///  and a refusal stops it with nothing changed.
+///  A reader looking for what a clean deleted finds one list under one name,
+///  and the line says in its own field that it was written before Git ran.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type NestedRepositories = { kind: 'nothing' } | { kind: 'saved'; copies; notice } | { kind: 'refused'; message };
+/// const NESTED_REPOSITORIES = 'nestedRepositories';
 /// ```
-enum NestedRepositories {
-    /// The clean deletes no nested repository,
-    /// or Git deletes none of what it names.
-    Nothing,
-    /// Each repository is below the saved copies,
-    /// and the notice names where.
-    Saved {
-        /// Where each repository went,
-        /// for the audit line.
-        copies: Vec<SavedCopy>,
-        /// What the person reads before Git runs.
-        notice: String,
-    },
-    /// A repository could not be kept,
-    ///  the sentence says why and what to do,
-    ///  and `copies` names every repository a stopped save left below the saved copies.
-    Refused {
-        /// What the person reads instead of the clean running.
-        message: String,
-        /// The repositories the stopped save moved and could not put back,
-        ///  each with the place it is.
-        copies: Vec<SavedCopy>,
-    },
-}
+pub const NESTED_REPOSITORIES: &str = "nestedRepositories";
 
 /// What:
-///  Keep every nested Git repository the clean would delete,
-/// whole,
-/// before it runs.
-///  `&RepositoryLocation` borrows where the command runs and which worktree it runs in.
+///  Every repository one clean in this worktree takes,
+///  as Git named it below the worktree root,
+///  or the sentence saying why the reading could not name them.
+///  `&[OsString]` borrows the clean's own tokens after the subcommand.
 /// Why:
-///   A second `-f` removes a nested repository with its own history and its uncommitted files,
-///  which no other copy of the surrounding repository holds;
-///  the owner's answer for uncommitted work is to save it and let the command run
-///  (`conflict_side_guard.rs`),
-///  and refusing would only move the same loss to `rm -rf`.
-///  Git itself says which paths the clean removes,
-///  and the repository the clean deletes is the one below one of those paths,
-///  found by looking inside the names Git printed and nowhere else.
-///  That reading carries the directory the clean runs in (`command_run_directory`)
-///  and is started there,
-///  so a repository above the directory the wrapper stands in is one it sees.
-///  `Option<&Path>` is the directory Git runs the shell of a `!` alias in,
-///  when the clean is the command that shell runs.
-///  The one clean Git refuses itself,
-///  `-x` written with `-X`,
-///  is known from the region before any reading:
-///  it deletes nothing,
-///  so Git's own refusal is the answer the person gets.
-///  A dry run that did not answer was read by nobody,
-///  and a nonzero exit is no proof that the clean which runs afterwards refuses,
-///  so that clean stops instead of running on a guess.
-///  How many forces the person wrote is no part of the question:
-///  Git's hold at one force keeps a repository with a `.git` entry only,
-///  and it deletes a bare one at one force and at none
-///  (`git clean -fXd` printed `Removing ignored-bare/` and kept `ignored-inner/`,
-///  measured on this host with native Git 2.56.0,
-///  2026-11-13),
-///  so the dry run is asked at the force count typed and it names the truth for
-///  every one of them.
-///  An interactive clean is not moved here at all:
-///  its menu is answered after Git starts,
-///  so the fixed transform keeps the repositories out of that menu by one force
-///  (`rule_clean_interactive_nested_repositories.rs`),
-///  and a repository moved before a menu is one the person never chose to delete.
-///
+///  Git's own dry run is what says which paths the clean deletes,
+///  and the walk inside them is what finds the repositories Git's answer cannot name
+///  (`is_git_directory`'s bare shape included).
+///  A clean that deletes nothing,
+///  one Git refuses itself,
+///  and an interactive clean whose menu is answered after Git starts are all no list:
+///  the first two delete nothing and the third's outcome is the person's.
+///  A clean Git may refuse for want of a force is asked about `clean.requireForce` first,
+///  because the wrapper must not name repositories a command Git never runs deletes.
+///  A dry run that did not answer,
+///  a directory the look could not read and a name that could not be read are failures and never
+///  "nothing goes":
+///  a quiet line about a repository that went is worse than a stopped command,
+///  and the sentence says which reading failed.
+
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function keepTheNestedRepositoriesACleanWouldDelete(facts, location, region, shellDirectory, limits): NestedRepositories;
+/// nestedRepositoriesACleanTakes(facts, location, ['-f', '-f', '-d', '-X']) === ['nested'];
 /// ```
-fn keep_the_nested_repositories_a_clean_would_delete(
+fn nested_repositories_a_clean_takes(
     facts: &mut dyn RepositoryFacts,
     location: &RepositoryLocation,
     region: &[OsString],
-    shell_directory: Option<&Path>,
-    discarded_limits: Limits,
-) -> NestedRepositories {
-    // A clean removes a nested repository whatever its force count: one force is Git's own hold on a repository with a
-    //  `.git` entry, and a bare one has no `.git`, so Git deletes it at one force and at none
-    //  (`git clean -fXd` printed `Removing ignored-bare/` and kept the `.git` shape, measured on this host with native
-    //  Git 2.56.0, 2026-11-13; the same clean with `clean.requireForce=false` printed the same line).
-    //  What the clean really deletes is Git's own dry run, read below, so the force count is not asked about at all.
-    //  The ignored modes are: an entry the worktree's rules cover is the one the policy's dirty question cannot see,
-    //  while an untracked one is refused there before this point.
-    //  `-d` is not part of the question either: it is how a clean reaches an untracked directory, while a pathspec names
-    //  one Git deletes without it (`clean -ffX -- vendor`), so a reading that waited for `-d` let that clean delete a
-    //  repository unsaved.
+) -> Result<Vec<Vec<u8>>, String> {
+    // What:
+    //  The forms that delete nothing, or whose deletion is the person's own choice in a menu.
+    // Why:
+    //  `-x` together with `-X` is Git's own refusal before it reads anything (`cmd_clean`),
+    //  and an interactive clean answers its menu after Git starts,
+    //  so neither has a set of repositories this reading can name before the command runs.
     let Ok(parsed) = parse_clean_region(region, &[]) else {
-        return NestedRepositories::Nothing;
+        return Ok(Vec::<Vec<u8>>::new());
     };
-    if !parsed.deletes_ignored {
-        return NestedRepositories::Nothing;
+    if !parsed.deletes_ignored || parsed.both_ignored_modes || parsed.interactive {
+        return Ok(Vec::<Vec<u8>>::new());
     }
-    // Git refuses `-x` together with `-X` before it reads anything (`cmd_clean`), so this clean deletes nothing and
-    //  Git's own refusal is the answer the person gets. A dry run would only say so with a nonzero exit, which is no
-    //  proof about the clean that runs afterwards.
-    if parsed.both_ignored_modes {
-        return NestedRepositories::Nothing;
-    }
-    // A menu is answered after Git starts, so nothing here can ask the person first; the transform that runs the clean
-    //  with one force keeps the repositories where they are instead of moving them before a decision.
-    if parsed.interactive {
-        return NestedRepositories::Nothing;
-    }
-    // Git refuses a clean with no force while `clean.requireForce` is on, and it refuses before it deletes anything
-    //  (`cmd_clean`: `if (!interactive && !dry_run && force == 0 && clean_require_force) die(...)`):
-    //  `git clean -Xd` exits 128 and keeps the bare repository, while `git clean -n -X` lists it without a word
-    //  (measured on this host with native Git 2.56.0, 2026-11-14),
-    //  so the dry run cannot tell this refusal from a clean that runs.
-    //  Git's own answer is read here instead, and nothing is moved for a command Git never runs:
-    //  the command is forwarded and Git's own refusal answers the person.
-    //  `-i` is left out of Git's condition, and the transform above already keeps every interactive clean here.
+    // What:
+    //  A clean with no force under the default `clean.requireForce` is Git's own refusal.
+    // Why:
+    //  `cmd_clean` refuses it before it deletes anything
+    //  (`if (!interactive && !dry_run && force == 0 && clean_require_force) die(...)`),
+    //  so the dry run that follows cannot tell this refusal from a clean that runs:
+    //  `git clean -Xd` exits 128 and keeps the bare repository, while `git clean -n -X` lists it
+    //  without a word (measured on this host with native Git 2.56.0, 2026-11-14).
     if parsed.forces == 0 {
         match facts.clean_require_force() {
-            Ok(true) => return NestedRepositories::Nothing,
+            Ok(true) => return Ok(Vec::<Vec<u8>>::new()),
             Ok(false) => {}
-            // The answer that was not read is no proof that the clean runs, so the clean stops with the reason.
-            Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
+            // The answer that was not read is no proof that the clean runs, and a line about
+            //  repositories the command never reached would be a lie either way.
+            Err(message) => return Err(message),
         }
     }
     let Some(root) = worktree_root(&location.identity) else {
-        return NestedRepositories::Nothing;
-    };
-    let Some(common_dir) = common_directory(&location.identity) else {
-        return NestedRepositories::Nothing;
+        return Ok(Vec::<Vec<u8>>::new());
     };
     let prefix: Vec<OsString> = facts.transaction_context().global_prefix;
-    // A directory that cannot be named stops the clean: a dry run started anywhere else could hide a repository.
-    let run_in: PathBuf = match command_run_directory(prefix.as_slice(), shell_directory) {
-        Ok(found) => found,
-        Err(message) => return NestedRepositories::Refused { message, copies: Vec::<SavedCopy>::new() },
+    // A directory that cannot be named stops the reading: a dry run started anywhere else could hide
+    //  a repository, and the line would then be silent about it.
+    let run_in: PathBuf = command_run_directory(prefix.as_slice())?;
+    // The names are printed relative to the directory the dry run started in,
+    //  so that directory's own prefix is the one read here.
+    let command_prefix: Vec<u8> =
+        crate::command_run_directory::run_directory_prefix(root, run_in.as_path(), location.prefix.as_slice());
+    let Some(as_typed) = clean_dry_run_arguments(prefix.as_slice(), &parsed, run_in.as_path()) else {
+        // A region Git would refuse deletes nothing, and Git refuses it in its own words when it runs.
+        return Ok(Vec::<Vec<u8>>::new());
     };
-    // The names are printed relative to the directory the dry run started in, which is not the caller's own directory
-    //  when Git runs the clean inside a `!` alias's shell, so that directory's own prefix is the one read here.
-    let command_prefix: Vec<u8> = crate::command_run_directory::run_directory_prefix(root, run_in.as_path(), location.prefix.as_slice());
-    // What the clean deletes is asked again after every save, and a repository that appeared in between is saved too:
-    //  the clean runs after the saves, so a selection made once would let a repository made in that window be deleted
-    //  with the folder.
-    //  A bounded number of looks keeps a repository made in a loop from holding the command: after the last one the
-    //  clean is refused and everything already moved is put back.
-    let mut saved: Vec<Vec<u8>> = Vec::<Vec<u8>>::new();
-    let mut copies: Vec<SavedCopy> = Vec::<SavedCopy>::new();
-    // Every move this reading made, byte-exact, so a refusal can put each one back where it was.
-    let mut moves: Vec<(Vec<u8>, PathBuf, SavedCopy)> = Vec::<(Vec<u8>, PathBuf, SavedCopy)>::new();
-    for _look in 1..=LOOKS_BEFORE_REFUSING {
-        let Some(as_typed) = clean_dry_run_arguments(prefix.as_slice(), &parsed, run_in.as_path()) else {
-            return NestedRepositories::Nothing;
-        };
-        let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(as_typed) {
-            Ok(answer) => answer,
-            // What the clean would delete was not read, so a repository it would delete was not seen; a nonzero exit
-            //  is no proof that the later clean refuses, and running on it deleted a repository no copy held.
-            Err(message) => return refuse_after_a_failed_look(root, moves.as_slice(), message),
-        };
-        let found: Vec<Vec<u8>> = match nested_repositories_the_clean_deletes(deleted.as_slice(), root, command_prefix.as_slice()) {
-            Ok(found) => found,
-            Err(message) => return refuse_after_a_failed_look(root, moves.as_slice(), message),
-        };
-        // A repository this reading already moved aside is gone from the walk, and one it names now is new.
-        let appearing: Vec<Vec<u8>> = found.into_iter().filter(|path| return !saved.contains(path)).collect();
-        if appearing.is_empty() {
-            if copies.is_empty() {
-                return NestedRepositories::Nothing;
-            }
-            let milliseconds: i64 = now_milliseconds();
-            let unpruned: String = prune_after_save(common_dir, copies.as_slice(), milliseconds, discarded_limits);
-            return NestedRepositories::Saved {
-                notice: format!("{}{unpruned}", saved_nested_repository_notice(copies.as_slice())),
-                copies,
-            };
-        }
-        // Every look keeps its own folder of saved copies, so a repository saved in one look and one saved in the next
-        //  are both named with the place each is.
-        match set_nested_repositories_aside(common_dir, root, appearing.as_slice(), now_milliseconds()) {
-            Ok(more) => {
-                for (index, each) in more.iter().enumerate() {
-                    if let Some(place) = each.saved_to.clone() {
-                        let path: Vec<u8> = appearing.get(index).cloned().unwrap_or_default();
-                        moves.push((path, place, each.clone()));
-                    }
-                }
-                saved.extend(appearing);
-                copies.extend(more);
-            }
-            Err(stopped) => {
-                let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
-                let message: String = nested_repository_not_saved_message(NotSaved {
-                    repositories: appearing.as_slice(),
-                    failure: &stopped.failure,
-                    saved_root: saved_root.as_path(),
-                    still_moved: stopped.still_moved.as_slice(),
-                    unanswered: stopped.unanswered.as_slice(),
-                });
-                // The looks before this one moved repositories aside, and a refused clean must leave the worktree as
-                //  it found it: those copies go back too.
-                let mut not_returned: Vec<SavedCopy> = put_every_move_back(root, moves.as_slice());
-                not_returned.extend(stopped.still_moved);
-                return NestedRepositories::Refused {
-                    message: if not_returned.is_empty() {
-                        message
-                    } else {
-                        format!("{message}\nSome repositories could not be put back and are kept under {}.", saved_root.display())
-                    },
-                    copies: not_returned,
-                };
-            }
-        }
-    }
-    // A repository kept appearing after every look: nothing here may delete what was not looked at, so the clean stops
-    //  and every move this reading made is put back.
-    let not_returned: Vec<SavedCopy> = put_every_move_back(root, moves.as_slice());
-    let saved_root: PathBuf = common_dir.join(SAVED_DIRECTORY);
-    return NestedRepositories::Refused {
-        message: format!(
-            "monochromatic-git-policy-cli: this clean would delete Git repositories, and a repository appeared in the paths \
-             it deletes after every one of the {LOOKS_BEFORE_REFUSING} looks, so the command is rejected and the clean did not \
-             run. Every repository this reading had already moved aside was put back where it was{}. Run the clean again \
-             when nothing else is writing there. If you have decided to delete that repository on purpose, pass \
-             --no-enforce-worktree directly after `clean` (for example `git clean --no-enforce-worktree -f -f -d -X`).",
-            if not_returned.is_empty() {
-                String::new()
-            } else {
-                format!(", except {} kept under {}", not_returned.len(), saved_root.display())
-            }
-        ),
-        copies: not_returned,
-    };
-}
-
-/// How many looks at what the clean deletes are taken before the clean is refused.
-/// Why:
-///  Every look saves what it finds, so a repository made while the save runs is saved by the next one;
-///  a repository made in a loop, or a program writing into the ignored folder all the time, would otherwise hold the
-///  command with no end, which the owner's rule forbids.
-///  Three looks leave room for one more repository to appear while a large repository is renamed aside.
-const LOOKS_BEFORE_REFUSING: usize = 3;
-
-/// What:
-///  Refuse the clean after a look failed or a save stopped, and put back every move earlier looks made.
-///  `&Path` borrows the worktree root, `&[SavedCopy]` and the moves the copies of those looks.
-/// Why:
-///  A refused clean must leave the worktree as it found it;
-///  a copy that cannot be put back is named by the rejection, because nothing else would.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function refuseAfterAFailedLook(root, copies, moves, message): NestedRepositories;
-/// ```
-fn refuse_after_a_failed_look(
-    root: &Path,
-    moves: &[(Vec<u8>, PathBuf, SavedCopy)],
-    message: String,
-) -> NestedRepositories {
-    let not_returned: Vec<SavedCopy> = put_every_move_back(root, moves);
-    return NestedRepositories::Refused { message, copies: not_returned };
+    let deleted: Vec<Vec<u8>> = facts.clean_deleted_paths(as_typed)?;
+    return nested_repositories_the_clean_deletes(deleted.as_slice(), root, command_prefix.as_slice());
 }
 
 /// What:
-///  Put every move this reading made back where the worktree had it,
-///  and answer with the ones that could not be returned.
+///  Record what one clean takes,
+///  naming each repository Git will delete below the worktree root,
+///  or refuse the clean when the reading that would name them failed.
+///  `&[OsString]` borrows the command as Git receives it.
 /// Why:
-///  A refused clean must leave the worktree as it found it,
-///  and a copy whose return gave no answer may be at either place, so the rejection names it.
+///  The line is written before Git runs,
+///  so a reader sees what was about to go even when the command is killed half-way,
+///  and its `writtenBeforeGitRuns` field says so in words a reader cannot take for the result.
+///  A reading that failed stops the command instead:
+///  a clean whose line cannot name the repositories it takes would delete them silently,
+///  and nothing else the policy reads can see inside a nested repository.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function putEveryMoveBack(root, moves): SavedCopy[];
+/// recordWhatACleanTakes(facts, location, form, seen, ['nested']) -> clean();
 /// ```
-fn put_every_move_back(root: &Path, moves: &[(Vec<u8>, PathBuf, SavedCopy)]) -> Vec<SavedCopy> {
-    let mut not_returned: Vec<SavedCopy> = Vec::<SavedCopy>::new();
-    for (path, destination, copy) in moves.iter().rev() {
-        let source: PathBuf = root.join(crate::path_bytes::os_from_path_bytes(path));
-        if matches!(
-            crate::discarded_nested_repository::move_back_within_a_ceiling(source.as_path(), destination.as_path()),
-            crate::discarded_nested_repository::Back::NotAnswered
-        ) {
-            not_returned.push(copy.clone());
-        }
-    }
-    return not_returned;
+fn record_what_a_clean_takes(
+    form: &AllowedForm<'_>,
+    taken: &[Vec<u8>],
+    seen: &[OsString],
+) -> PolicyOutcome {
+    let named: Vec<String> = taken.iter().map(|path| return String::from_utf8_lossy(path).into_owned()).collect();
+    let facts: [AuditFact; 1] = [AuditFact::List(NESTED_REPOSITORIES, named)];
+    record_audit_with_facts(
+        &form.location.identity,
+        form.command,
+        AuditOutcome::Logged,
+        seen,
+        form.dirty,
+        facts.as_slice(),
+    );
+    return clean();
 }
 
 /// What:
 ///  Every part of the decision to let one form run.
 ///  A `struct` is a record with named fields.
 /// Why:
-///   The saved nested repositories of a clean are kept at the one point a form is let through,
-///  and both such points hold the same eight things;
+///   Both points a discarding form is let through hold the same things;
 ///  one record keeps them from drifting apart.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// type AllowedForm = { facts; command; location; region; seen; shellDirectory; dirty; discardedLimits; notices };
+/// type AllowedForm = { facts; command; location; region; seen; shellDirectory; dirty };
 /// ```
 pub(crate) struct AllowedForm<'a> {
     /// The facts every question is asked.
@@ -390,34 +212,26 @@ pub(crate) struct AllowedForm<'a> {
     /// The command as Git will run it,
     /// aliases included.
     pub(crate) seen: &'a [OsString],
-    /// The directory Git runs the shell of a `!` alias in,
-    ///  when the clean is the command that shell runs;
-    ///  nothing for a direct command and an ordinary alias.
-    pub(crate) shell_directory: Option<&'a Path>,
     /// What the policy measured,
     ///  or nothing when it asked no question.
     pub(crate) dirty: Option<bool>,
-    /// The age and size limits of the folder of saved copies.
-    pub(crate) discarded_limits: Limits,
-    /// The notices the person reads before Git runs.
-    pub(crate) notices: &'a mut Vec<String>,
 }
 
 /// What:
 ///  Refuse a form that writes over an entry nothing else holds,
-///  keep every nested repository a clean would delete,
+///  record what a clean takes,
 ///  and leave the one audit line that says what happened.
 /// Why:
 ///  The entries a forced tree write or a path form would lose are refused before Git starts,
 ///  and the refusal names them and the option that runs the command as Git runs it;
 ///  the clean forms are the only ones whose second force removes another repository,
-///  and that one is moved aside and the clean runs as typed,
+///  and that one is named in the record and the clean runs as typed,
 ///  so every other form reaches the same allowed line it always left,
 ///  and a refusal stops the command with the worktree exactly as it was.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function allowADiscardingForm(form: AllowedForm): PolicyOutcome;
+/// allowADiscardingForm(form): PolicyOutcome;
 /// ```
 pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
     // Every form that writes a tree or a path of one is refused while an entry nothing else holds stands in its way.
@@ -425,7 +239,6 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
         facts: form.facts,
         command: form.command,
         region: form.region,
-        shell_directory: form.shell_directory,
     }) {
         Ok(found) => found,
         // A listing Git could not read says nothing about what the command writes over, so it stops the command.
@@ -450,28 +263,12 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
         );
     }
     if matches!(form.command, GuardedCommand::CleanIgnored | GuardedCommand::CleanIgnoredOnly) {
-        match keep_the_nested_repositories_a_clean_would_delete(
-            form.facts,
-            form.location,
-            form.region,
-            form.shell_directory,
-            form.discarded_limits,
-        ) {
-            NestedRepositories::Nothing => {}
-            NestedRepositories::Saved { copies, notice } => {
-                form.notices.push(notice);
-                record_audit_with_copies(
-                    &form.location.identity,
-                    form.command,
-                    AuditOutcome::SavedNestedRepository,
-                    form.seen,
-                    form.dirty,
-                    places_of(copies.as_slice()).as_slice(),
-                );
-                return clean();
-            }
-            NestedRepositories::Refused { message, copies } => {
-                return refuse_a_stopped_save(form.location, form.command, form.seen, &message, copies.as_slice());
+        match nested_repositories_a_clean_takes(form.facts, form.location, form.region) {
+            Ok(taken) if taken.is_empty() => {}
+            Ok(taken) => return record_what_a_clean_takes(&form, taken.as_slice(), form.seen),
+            Err(message) => {
+                record_audit(&form.location.identity, form.command, AuditOutcome::Rejected, form.seen, None);
+                return rejected(LINKED_WORKTREE_REQUIRED_CODE, message);
             }
         }
     }
@@ -479,57 +276,7 @@ pub(crate) fn allow_a_discarding_form(form: AllowedForm<'_>) -> PolicyOutcome {
     return clean();
 }
 
-/// What:
-///  Each saved copy as `<path> => <place>`,
-///  which is how an audit line names where a copy is.
-/// Why:
-///   A copy with no place is one the save found nothing at,
-///  and the record has to say that rather than leave the field to look like a failure.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const placesOf = (copies) => copies.map((c) => `${c.path} => ${c.savedTo ?? 'none'}`);
-/// ```
-fn places_of(copies: &[SavedCopy]) -> Vec<String> {
-    let mut places: Vec<String> = Vec::<String>::new();
-    for copy in copies {
-        let saved_to: String = match copy.saved_to.as_ref() {
-            Some(place) => place.display().to_string(),
-            None => String::from("none"),
-        };
-        places.push(format!("{} => {}", copy.path, saved_to));
-    }
-    return places;
-}
-
-/// What:
-///  Stop a command whose save could not keep everything,
-///  and record what the save had already kept.
-/// Why:
-///  A rejection that left copies below the saved folder names where they are;
-///  one that left none is a worktree nobody can tell apart from the one before the command.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// function refuseAStoppedSave(location, command, seen, message, copies): PolicyOutcome;
-/// ```
-fn refuse_a_stopped_save(
-    location: &RepositoryLocation,
-    command: GuardedCommand,
-    seen: &[OsString],
-    message: &str,
-    copies: &[SavedCopy],
-) -> PolicyOutcome {
-    let places: Vec<String> = places_of(copies);
-    if places.is_empty() {
-        record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
-    } else {
-        record_audit_with_copies(&location.identity, command, AuditOutcome::Rejected, seen, None, places.as_slice());
-    }
-    return rejected(LINKED_WORKTREE_REQUIRED_CODE, message.to_string());
-}
-
-/// The two looks of a clean, and what a repository made between them meets.
+/// What a clean takes, and the line that names it.
 #[cfg(test)]
 #[path = "policy_linked_worktree_nested_repositories_tests.rs"]
 mod tests;

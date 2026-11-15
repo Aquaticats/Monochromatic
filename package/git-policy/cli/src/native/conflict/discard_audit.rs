@@ -96,10 +96,15 @@ pub enum AuditOutcome {
     /// and a repository an earlier release ran still holds the lines:
     ///  `discard_audit_pins.rs` keeps a generation whose copy is still on disk.
     SavedConflict,
-    /// The command would have deleted a nested Git repository,
-    ///  and the wrapper moved it whole beside the audit log first.
-    SavedNestedRepository,
 
+    /// The command would have deleted a nested Git repository,
+    ///  and a release up to `0.6.1-alpha.42` moved it whole beside the audit log first.
+    /// No command writes this word now: the owner decided on 2026-11-15 that such a clean deletes
+    /// the repository and the wrapper logs the command and what went
+    /// (`doc/handover/cli-git-rust-implementation.md`, "Answers on waking, third round").
+    /// A repository an earlier release ran still holds the lines and the copies beside them,
+    /// and `discard_audit_pins.rs` keeps a generation whose copy is still on disk.
+    SavedNestedRepository,
     /// The form is recorded and was never refused:
     ///  it runs as Git runs it,
     ///  by the owner's decision,
@@ -117,8 +122,8 @@ impl AuditOutcome {
             AuditOutcome::Exempt => return "exempt",
             AuditOutcome::Hatch => return "hatch",
             AuditOutcome::SavedConflict => return "saved-conflict",
-            AuditOutcome::SavedNestedRepository => return "saved-nested-repository",
 
+            AuditOutcome::SavedNestedRepository => return "saved-nested-repository",
             AuditOutcome::Logged => return "logged",
         }
     }

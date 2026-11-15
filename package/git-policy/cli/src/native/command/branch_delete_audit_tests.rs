@@ -44,6 +44,7 @@ fn value(facts: &[AuditFact], name: &'static str) -> String {
         return match fact {
             AuditFact::Text(_, text) => text.clone(),
             AuditFact::Flag(_, flag) => String::from(if *flag { "true" } else { "false" }),
+            AuditFact::List(_, values) => values.join(", "),
         };
     }
     return String::new();

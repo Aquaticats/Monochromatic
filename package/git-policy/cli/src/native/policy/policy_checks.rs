@@ -444,7 +444,6 @@ impl<F: RepositoryFacts> PolicyChecks for ShippedChecks<F> {
                     &mut self.facts,
                     &forwarded,
                     self.allowed_worktree_dirs.as_slice(),
-                    self.discarded_limits,
                     &mut self.notices,
                 );
             }

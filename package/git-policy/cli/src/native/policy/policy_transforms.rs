@@ -79,8 +79,8 @@ use crate::rule_status_hints::status_hints_off;
 /// // string, but byte-preserving.
 /// ```
 use std::ffi::OsString;
-/// `Path` is a borrowed filesystem path.
-use std::path::{Path, PathBuf};
+/// `PathBuf` is an owned filesystem path.
+use std::path::PathBuf;
 
 /// What:
 ///  The identifier of the commit-only transform in its events.
@@ -282,14 +282,12 @@ fn commit_only_stage(
 ///  which reads a region Git's own reading already knows and adds one token
 ///       the caller's own options still override.
 ///  A rejection or failure of commit-only ends the stage with the stage's input unchanged.
-///  `decided` is what the policy decided about: the caller's own words for a built-in,
-///  the expansion for an ordinary alias,
-///  and the words of the shell for a `!` alias,
-///  whose forwarded list is the alias word alone.
-///  A transform that must add a token reads `decided` and writes `arguments`;
-///  where the two lists are not the same, the token has no place to go,
-///  and the transform either stops (a menu that would offer a repository) or adds nothing
-///  (`--no-overwrite-ignore`, whose loss is the ignored-file case the owner allowed).
+///  `arguments` is what the policy decided about and what Git receives:
+///  the caller's own words for a built-in,
+///  and the expansion for an alias,
+///  and never the words of a `!` alias's shell,
+///  which the wrapper forwards as they are and judges by nothing.
+///  A transform that must add a token writes it into that one list.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
@@ -297,8 +295,6 @@ fn commit_only_stage(
 /// ```
 pub fn apply_fixed_transforms(
     arguments: &[OsString],
-    decided: &[OsString],
-    shell_directory: Option<&Path>,
     commit_only_escaped: bool,
     worktree_escaped: bool,
     facts: &mut dyn RepositoryFacts,
@@ -325,10 +321,8 @@ pub fn apply_fixed_transforms(
     };
     // A person who asked for the worktree enforcement to be skipped gets the command real Git runs, so the token
     //  that makes Git itself refuse an ignored file in the way is not added for that call.
-    // The token that keeps an ignored file is written into the words the wrapper forwards, and a `!` shell alias's
-    //  own words are not among them; the loss it protects against is the ignored-file case the owner allowed to run.
-    let after_ignored: Vec<OsString> = match keep_ignored_files(decided) {
-        ArgumentRewrite::Rewritten(rewritten) if !worktree_escaped && decided == after_status.as_slice() => rewritten,
+    let after_ignored: Vec<OsString> = match keep_ignored_files(after_status.as_slice()) {
+        ArgumentRewrite::Rewritten(rewritten) if !worktree_escaped => rewritten,
         ArgumentRewrite::Rewritten(_) | ArgumentRewrite::Unchanged => after_status,
     };
     // An interactive clean cannot be asked what it will delete, so a nested repository it would offer is kept out of the
@@ -353,15 +347,7 @@ pub fn apply_fixed_transforms(
     //  names the guard never saw.
     //  A command run with the guard's opt-out read nothing, finds no copy, and is forwarded exactly as typed.
     let after_handover: Vec<OsString> = hand_the_pathspec_file_to_git(after_ignored.as_slice(), facts);
-    // The cap reads the words the policy decided on, which for a `!` shell alias are the shell's words and not the
-    //  alias word the wrapper forwards; a clean whose cap cannot be written into the forwarded words stops instead.
-    let decided_after: &[OsString] = decided;
-    return match keep_nested_repositories_out_of_an_interactive_menu(
-        decided_after,
-        after_handover.as_slice(),
-        shell_directory,
-        facts,
-    ) {
+    return match keep_nested_repositories_out_of_an_interactive_menu(after_handover.as_slice(), facts) {
         CapDecision::Unchanged => TransformResult {
             arguments: after_handover,
             events: Vec::<PolicyEvent>::new(),

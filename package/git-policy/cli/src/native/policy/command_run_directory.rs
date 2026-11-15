@@ -4,19 +4,18 @@
 //!  and where a measurement made on the command's behalf must start.
 //! Why:
 //!  `-C` moves Git before it runs the subcommand,
-//!  and Git moves again before it starts the shell of a `!` alias
-//!  (`git.c:388` to `git.c:407`),
 //!  so the directory a rule must use is not always the one the wrapper stands in.
 //!  One answer serves every rule that reads such a path or starts such a measurement,
 //!  so no rule can measure from a directory Git never goes to.
+//!  A `!` shell alias is forwarded as it is and judged by nothing, so no rule here reads a
+//!  directory for one.
 //!  A directory that cannot be named is an error,
 //!  never the caller's own directory by default:
 //!  a rule that guessed there would judge a command that never runs.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts
-//! // commandRunDirectory(globalPrefix, shellDirectory)
-//! //   === shellDirectory ?? chainDirectory(process.cwd(), globalPrefix)
+//! // commandRunDirectory(globalPrefix) === chainDirectory(process.cwd(), globalPrefix)
 //! ```
 
 use crate::repository_link_paths::chain_directory;
@@ -27,30 +26,20 @@ use std::path::{Path, PathBuf};
 
 /// What:
 ///  The directory Git runs a command in.
-///  `&[OsString]` borrows the global options before the subcommand,
-///  and `Option<&Path>` the directory Git runs the shell of a `!` alias in,
-///  when the command is the one that shell runs.
+///  `&[OsString]` borrows the global options before the subcommand.
 /// Why:
-///  A built-in or an ordinary alias runs where the caller's `-C` chain ends,
+///  A built-in or an alias expansion runs where the caller's `-C` chain ends,
 ///  which is this process's own directory moved by every `-C` in order,
 ///  and a relative value read from the directory the move before it left.
-///  The command inside a `!` alias's shell runs where Git put that shell,
-///  which the guard already asked Git for:
-///  a relative path or a clean's prefix is read from there,
-///  and reused here rather than asked twice,
-///  so the two answers cannot drift apart.
 ///  A directory this cannot name stops the rule that asked:
 ///  a path read from the wrong directory names another file,
 ///  and a measurement started there covers a subtree the command does not touch.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// function commandRunDirectory(globalPrefix: string[], shellDirectory?: string): string; // throws
+/// function commandRunDirectory(globalPrefix: string[]): string; // throws
 /// ```
-pub fn command_run_directory(global_prefix: &[OsString], shell_directory: Option<&Path>) -> Result<PathBuf, String> {
-    if let Some(found) = shell_directory {
-        return Ok(found.to_path_buf());
-    }
+pub fn command_run_directory(global_prefix: &[OsString]) -> Result<PathBuf, String> {
     // The caller's own directory, which no option changes: Git moves it only for `-C`.
     let Ok(cwd) = std::env::current_dir() else {
         return Err(String::from(
@@ -69,9 +58,8 @@ pub fn command_run_directory(global_prefix: &[OsString], shell_directory: Option
 ///  and `&[u8]` the prefix the location query answered.
 /// Why:
 ///  Git prints each name relative to the directory the command runs in,
-///  and a command a `!` alias runs starts at the top of the working tree,
-///  so the prefix of such a reading is the one that goes before those names,
-///  which is not the caller's prefix when the caller stood below the top;
+///  which is where this reading started,
+///  so that directory's own prefix goes before those names;
 ///  a reading rooted with the caller's prefix names a file in another directory,
 ///  and a guard that then finds the entry in the way there refuses a command
 ///  that writes nothing of the sort.

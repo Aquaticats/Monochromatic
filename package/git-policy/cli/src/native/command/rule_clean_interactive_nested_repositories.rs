@@ -49,14 +49,10 @@ use crate::repository_facts::RepositoryFacts;
 use crate::rule_argument_rewrite::insert_tokens;
 /// The directory the paths Git prints are below.
 use crate::worktree_identity::worktree_root;
-/// The two sentences a clean this transform cannot cap gives instead of the menu.
-use crate::rule_linked_worktree_nested_repository_messages::{
-    bare_repository_in_a_menu_message, menu_cap_not_reachable_message,
-};
+/// The sentence a clean this transform cannot cap gives instead of the menu.
+use crate::rule_linked_worktree_nested_repository_messages::bare_repository_in_a_menu_message;
 /// `OsString` is owned operating-system text of raw bytes (sibling `String` must be UTF-8).
 use std::ffi::OsString;
-/// `Path` is a borrowed filesystem path.
-use std::path::Path;
 
 /// The tokens that make a clean run with exactly one force,
 ///  whatever it was typed with.
@@ -149,12 +145,10 @@ struct InteractiveClean {
 /// function keepNestedRepositoriesOutOfAnInteractiveMenu(args, facts): CapDecision;
 /// ```
 pub fn keep_nested_repositories_out_of_an_interactive_menu(
-    reading: &[OsString],
-    forwarded: &[OsString],
-    shell_directory: Option<&Path>,
+    arguments: &[OsString],
     facts: &mut dyn RepositoryFacts,
 ) -> CapDecision {
-    let Some(clean) = plan_interactive_clean(reading, shell_directory) else {
+    let Some(clean) = plan_interactive_clean(arguments) else {
         return CapDecision::Unchanged;
     };
     let deleted: Vec<Vec<u8>> = match facts.clean_deleted_paths(clean.query) {
@@ -195,15 +189,8 @@ pub fn keep_nested_repositories_out_of_an_interactive_menu(
     if !bare.is_empty() {
         return CapDecision::Stopped { message: bare_repository_in_a_menu_message(bare.as_slice()) };
     }
-    // The cap is written into the words the wrapper forwards, and a `!` shell alias's own words are not among them:
-    //  Git appends the caller's words to the value the shell runs, so a token inserted here would land after any path
-    //  the person typed. A clean this transform cannot cap stops instead of running with a menu that offers the
-    //  repository.
-    if reading != forwarded {
-        return CapDecision::Stopped { message: menu_cap_not_reachable_message(kept.as_slice()) };
-    }
     return CapDecision::Capped {
-        arguments: insert_tokens(forwarded, clean.insertion, ONE_FORCE),
+        arguments: insert_tokens(arguments, clean.insertion, ONE_FORCE),
         repositories: kept,
     };
 }
@@ -225,7 +212,7 @@ pub fn keep_nested_repositories_out_of_an_interactive_menu(
 /// ```ts
 /// function planInteractiveClean(args): InteractiveClean | undefined;
 /// ```
-fn plan_interactive_clean(arguments: &[OsString], shell_directory: Option<&Path>) -> Option<InteractiveClean> {
+fn plan_interactive_clean(arguments: &[OsString]) -> Option<InteractiveClean> {
     let layout: GlobalLayout = global_layout(arguments);
     if layout.outcome != GlobalOutcome::Command {
         return None;
@@ -252,7 +239,7 @@ fn plan_interactive_clean(arguments: &[OsString], shell_directory: Option<&Path>
         query: clean_dry_run_arguments(
             &arguments[..layout.prefix_len],
             &facts,
-            command_run_directory(&arguments[..layout.prefix_len], shell_directory).ok()?.as_path(),
+            command_run_directory(&arguments[..layout.prefix_len]).ok()?.as_path(),
         )?,
         insertion: layout.prefix_len + 1 + option_region_end(&parsed, region.len()),
     });

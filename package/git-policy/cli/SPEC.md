@@ -18404,7 +18404,8 @@ and the whole history of an ordinary audit log
 (782,685 bytes in 1,619 lines over twenty days).
 The audit log's generations are the only ones whose lines name something outside the log,
 so before the pass removes one it reads it,
-and a generation holding a `saved-conflict` or `saved-nested-repository` line whose copy place exists stays past the bound;
+and a generation holding a `saved-conflict` or `saved-nested-repository` line
+(written by a release up to `0.6.1-alpha.42`) whose copy place exists stays past the bound;
 so does one that cannot be read,
 one with either of those lines that cannot be parsed,
 and one that names a place the line could not show as text,
@@ -19019,62 +19020,40 @@ so the tokens a transform adds land on the command Git runs
 and the wrapper forwards that expansion).
 A built-in word is decided without reading any configuration,
 so no process is started for it.
-A shell alias (`!...`) and an undefined name are forwarded as they are:
-a shell command cannot be judged by reading it,
+A shell alias (`!...`) is forwarded as it is and judged by nothing, in this guard and in the guard on a
+worktree's removal:
+the owner decided on 2026-11-15 that every `!` alias is passed to real Git as it is,
+that all aliases keep working with no opt-out,
+and that a `git <alias>` whose shell ends in a guarded command is therefore not guarded
+(`doc/handover/cli-git-rust-implementation.md`,
+"Owner decisions in force",
+"Answers on waking, second round" and "third round").
+This is the hole of both guards, stated once here:
+`-c 'alias.wipe=!git reset --hard' wipe` and
+`-c 'alias.wipe=!git' wipe reset --hard` run a hard reset with no refusal, no notice and no line,
+and so does every other `!` alias,
+`!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included.
+A shell command cannot be judged by reading it,
 and Git runs it with its own `git-core` directory first on `PATH`,
 so a `git` inside it is real Git and not this wrapper,
 which a control measures (`alias.fixup=!command -v git` prints Git's own `git`,
 not the wrapper first on `PATH`).
-One plain form of it is read,
-only so the guard can decide:
-a value written `!git <words>` whose bytes hold no quote,
-backslash,
-`$`,
-backtick,
-glob,
-brace or separator,
-and whose words name no global option of their own.
-Git appends the caller's own words to the value before the shell reads it
-(`git.c:401` to `git.c:402`),
-so the command followed is the value's words and then the caller's:
-a value of exactly `!git` starts that command with the caller's first word,
-and `!git` with `reset --hard` after it is refused where `git reset --hard` is refused.
-The Git inside the shell also reads the configuration and the exec path the caller passed,
-which Git exports to what it starts
-(`config.c:469` to `config.c:504`,
-`exec-cmd.c:303` to `exec-cmd.c:310`),
-so `-c 'alias.outer=!git inner' -c 'alias.inner=reset --hard' outer` is decided on the inner reset.
-`!git reset --hard` is then refused where `git reset --hard` is refused,
-and the alias itself is still forwarded unchanged,
+The wrapper forwards the caller's own words, byte for byte,
 because the shell keeps the `GIT_DIR` and `GIT_PREFIX` Git gives it,
 which a substituted argument list would lose.
-Everything else,
-`!sh -c 'git reset --hard'` and `!git -C <directory> reset --hard` included,
-runs as Git runs it:
-through real Git,
-with no guard and no index-writer coordination,
-because the wrapper never sees that command start.
-`git by the word Git will run` is the boundary of this guard.
+An undefined name is the other word no configuration defines:
+it is forwarded with `-c help.autocorrect=0` so Git prints its own error and runs nothing.
+`git by the word Git will run` is the boundary of this guard,
+and for a `!` alias that word is inside a shell the wrapper never sees start.
 The rules below read the flags,
 the paths and the revision of the command the guard decided about,
-which for a `!` alias is the command inside its shell
-(`GuardedForwarded::decided_words` in `src/native/invocation/guarded_forwarded_command.rs`).
-A rule that read the alias name instead asked a clean with no `-ffdX` and no `-e` pattern what it would delete,
-measured nothing,
-saved nothing,
-and Git then deleted a nested repository and an untracked file unsaved;
-the audit line still names the command the person typed,
-which is what Git receives.
+which are the words Git receives: a built-in word,
+or an ordinary alias's expansion.
 The directory a command's own paths are read from,
 and the one a measurement on its behalf starts in,
 come from `command_run_directory`
 (`src/native/policy/command_run_directory.rs`):
-the shell's directory for a command a `!` alias runs,
-and the directory the caller's `-C` chain ends in for every other one.
-The conflicted-file carve-out still reads the caller's own words,
-because it resolves those paths against the caller's prefix,
-so a `!` alias keeps the usual rejection there,
-which refuses rather than saves the wrong file.
+the directory the caller's `-C` chain ends in.
 
 A form is rejected in the main worktree and outside any worktree always,
 and in a linked worktree while `git status --porcelain=v1 --untracked-files=no` is non-empty.
@@ -19172,12 +19151,15 @@ A `-x` clean needs no such reading:
 it deletes every untracked file whether a pattern calls it ignored or not,
 and a plain `-f` clean only loses files from that set when a pattern moves them out of it,
 which the status measurement over-reports rather than under-reports.
-A clean in a linked worktree that deletes ignored files keeps every nested Git repository first,
-whatever force count it carries,
-because Git's hold at one force sees a `.git` entry and not a bare repository:
+A clean in a linked worktree that deletes ignored files names every nested Git repository it takes in
+its record, whatever force count it carries,
+and Git then deletes them as it does
+(the owner's answer of 2026-11-15: delete and log, no saved copy).
+One force sees a `.git` entry and not a bare repository:
 `git clean -fXd` at one force prints `Removing ignored-bare/` and `Skipping repository ignored-inner`
 (measured on this host with native Git 2.56.0, 2026-11-14),
-and with `clean.requireForce=false` a clean with no `-f` does the same.
+and with `clean.requireForce=false` a clean with no `-f` does the same,
+so the record follows what Git's dry run names and not a force count.
 The dry run is asked at the force count the person typed,
 with no `-f` of the wrapper's own,
 so it names the truth for every count,
@@ -19191,46 +19173,28 @@ and that refusal is invisible to the dry run:
 So the guard reads `clean.requireForce` itself for a clean with no force
 (`RepositoryFacts::clean_require_force`, the default true, and `-c` is part of the global options Git
 reads),
-and answers "nothing to do" when Git will refuse:
-nothing is moved,
+and writes no such fact when Git will refuse:
 the command is forwarded,
 and Git's own sentence answers the person.
 An answer that was not read stops the clean with the reason,
 and `-i` is outside that condition in Git and outside it here.
-The reading also looks again after every save.
-The dry run and the walk that name the repositories to save run before the clean does,
-so a repository made between them was deleted with the folder:
-the seventh review delayed the first save rename by ten seconds, made a second repository in the
-ignored directory, and the wrapped `git clean -ffXd` exited 0 with that repository gone and only the
-first one saved.
-So the dry run and the walk are asked again after each save and whatever they name that no earlier
-look saved is saved too
-(`LOOKS_BEFORE_REFUSING` is three looks).
-A repository that keeps appearing refuses the clean, with every move this reading made put back where
-it was, because a program writing into that directory all the time would otherwise hold the command
-with no end.
+The reading takes one look, and a repository made after it is one the line does not name:
+the line is what the wrapper saw before Git started, not a promise about what Git then finds,
+and no number of looks closes the time between the last one and Git's start.
 What a repository made in the last instant meets is Git itself:
-the wrapper forwards the clean and cannot see an entry made after its last look,
-and the window is now the time between that look and Git's first `rmdir`, not the whole save and its
-notices.
-Every one of those dry runs is started in the directory the clean runs in
+the wrapper forwards the clean and cannot see an entry made after its look,
+and the window is the time between that look and Git's first `rmdir`.
+That dry run is started in the directory the clean runs in
 (`CleanDryRun` in `src/native/command/command_clean.rs`,
 whose directory comes from `command_run_directory` in `src/native/policy/command_run_directory.rs`
-and whose process is started by `run_metadata_git_in` in `src/native/repo_read/git_metadata.rs`):
-Git changes to the top of the working tree before it runs the shell of a `!` alias
-(`git.c:388` to `git.c:407`),
-so a clean the person's alias runs deletes from that top,
-and a dry run started in the caller's directory below it measures a narrower subtree,
-names no repository and no file above the caller,
-and the clean then deletes them unsaved.
+and whose process is started by `run_metadata_git_in` in `src/native/repo_read/git_metadata.rs`).
 The caller's own `-C` chain is left out of the arguments
 (`without_directory_changes`),
 because Git reads a command's prefix from the directory it was started in:
 `git -C <top> clean -ffdX` from a subdirectory still names the caller's own prefix and refuses to remove it,
 while the same clean started at the top names the subdirectory and removes it.
 A directory that cannot be named
-(no shell directory Git could answer with,
-and no readable process directory)
+(no readable process directory)
 is a `fact-unavailable` finding,
 never a measurement from the caller's directory.
 `-d` is not part of that question:
@@ -19275,7 +19239,7 @@ because a second `-f` deletes a bare repository as an ordinary ignored directory
 The wrapper walks only the paths Git named,
 never the worktree,
 and it opens no directory below a repository it found,
-because moving that one takes everything inside it.
+because everything inside that one goes with it.
 The look inside those paths runs on an awaited thread for no longer than the read ceiling a Git query has,
 because a directory read or a metadata lookup on a mount whose server stopped answering never returns;
 a look that gives no answer in that time stops the command and names the directory.
@@ -19287,14 +19251,15 @@ which is what the sixth review found (`a_bare_repository_is` outside the walk).
 A `HEAD` is read the way Git reads it (`validate_headref`, `setup.c:350-368`):
 the entry itself, never through a link,
 and a link whose target begins `refs/` is a repository's `HEAD` although no such ref exists,
-which is why a bare clone whose `HEAD` points at a missing branch is saved and not deleted with its
-directory
+which is why a bare clone whose `HEAD` points at a missing branch is named in the record and not passed
+over in silence
 (`a_head_git_reads`, the seventh review, 2026-11-15).
 The dry run is read at the force count typed,
 and it names what Git deletes at that count:
 at one force the directory walk skips a repository with a `.git` entry (`DIR_SKIP_NESTED_GIT`,
 `msg_would_skip_git_dir`) and names a bare one as an ordinary ignored directory (`Removing ignored-bare/`),
-so the bare one is saved and the `.git` shape is left where Git keeps it.
+so the bare one is named in the record and the `.git` shape is not,
+because Git keeps that one.
 A path Git had to quote (a name holding a newline,
 a quote or another byte it cannot print) is decoded
 before anything reads it as a path,
@@ -19303,74 +19268,58 @@ A path that is not a plain relative path names nothing the wrapper may look insi
 a path reached through a symbolic link is removed as the link alone,
 and a directory the wrapper cannot open stops the command,
 because what it holds was not seen.
-Only the outermost of two repositories is kept,
-because moving a repository takes everything inside it.
-Each repository is moved whole to
-`<common git dir>/monochromatic-git-policy-cli/discarded/<stamp>/<path below the worktree>`,
-the clean then runs as typed,
-the person is told where each one is before Git starts,
-and the audit line carries `outcome` `saved-nested-repository` with one `copies` entry per repository,
-written `<path> => <place>`.
-A rename back that the system refused because a path was missing says only that:
-`ENOENT` names one of the two paths and not which,
-so the reading asks the copy itself under the same ceiling,
-and only a copy that is not there is a move that never happened
-(`the_saved_copy_is_gone` in `src/native/conflict/discarded_nested_repository.rs`;
-the seventh review found that every `ENOENT` was read as a source that is gone, and a repository still
-below the saved copies was dropped from the record of a stopped save).
-A move that was given up on at its ceiling is not known to have failed.
-The save keeps that move, so the rollback tries to return it and finds a rename that went through late,
-and a rejection after such a move names the repository as possibly at its own place or below the saved
-copies rather than saying nothing was changed
-(the seventh review, found by reading; `MoveAside` is the seam its control stalls).
-The folder of saved copies and the directory each copy goes in are made on threads the save waits for only
-until the same ceiling,
-and a creation that gives no answer stops the save naming the place and the repository,
-as the renames and the directory syncs already did.
-A rename keeps every byte and the repository's own `.git` without copying anything,
-the place is the folder the age and size limits already prune,
-and a generation whose line names a copy still on disk outlives those limits like a saved conflicted file's.
-A move the system refuses stops the command and puts back every repository that save had already moved,
-so the worktree is exactly as it was;
-a put-back the system refuses in turn is the one exception,
-and the rejection names that repository and the place it is,
-because nothing else would.
-The deliberate way to delete such a repository with the rest is the escape hatch,
-which the rejection names.
-An interactive clean is not moved at all:
+Only the outermost of two repositories is named,
+because everything inside it goes with it.
+The clean then runs as typed and deletes the repository as real Git deletes it:
+the owner decided on 2026-11-15 that such a clean deletes the nested repository and that the wrapper
+logs the command and what went, with no saved copy
+(`doc/handover/cli-git-rust-implementation.md`,
+"Owner decisions in force",
+"Answers on waking, third round";
+the three records that disagreed are named there).
+The line is written before Git starts,
+carries `outcome` `logged` and `writtenBeforeGitRuns`,
+and names the repositories under one fact,
+`"nestedRepositories":["<path below the worktree>", ...]`
+(`NESTED_REPOSITORIES` in `src/native/policy/policy_linked_worktree_nested_repositories.rs`),
+so a later reader attributes the loss to that command;
+a clean that takes no repository keeps its one `allowed` line and that fact is absent.
+Nothing is copied, moved or noticed:
+the worktree is exactly what Git leaves,
+and nothing the wrapper keeps holds a repository a clean took.
+A clean Git itself refuses with no force writes no such fact, because it deletes nothing.
+An interactive clean is not measured this way:
 its menu is answered after Git starts,
-so nothing can ask the person before Git deletes,
-and a repository moved before the menu is one the person never chose to delete,
-while a person who then quits has a worktree a command that deleted nothing has changed.
+so nothing can name the repository before it goes,
+and a person who then quits has a worktree a command that deleted nothing has changed.
 Such a clean runs with `--no-force -f` written at the end of its own options when its menu would offer a nested repository,
 which lands Git on the one force at which it keeps a repository with a `.git` entry,
 the menu then offers exactly what the clean deletes,
 and the notice names the repository that stayed,
-the same clean without `-i` (which saves it whole first) and the escape hatch (which deletes it with the rest).
+the same clean without `-i` (which deletes it and names it in the record) and the escape hatch (which
+deletes it with the rest and writes no line).
 That one force does not keep a bare repository:
 `git clean -fXd` at one force prints `Skipping repository inner` for the `.git` shape and
 `Removing ignored/` for a bare one, which is then gone (measured on this host with native Git 2.56.0,
 2026-11-13).
 A menu that would offer a bare repository is therefore one no cap keeps,
 so that clean stops before Git starts, naming the repository and the two ways to run it:
-without `-i`, so it is moved whole to a saved copy first, or with `--no-enforce-worktree`,
+without `-i`, so Git deletes it and the record names it, or with `--no-enforce-worktree`,
 so the menu and the choice run as real Git runs them.
 The notice the `.git` shape gets says only what is true of it.
-The cap reads the words the policy decided on, which for a `!` shell alias are the words of the shell
-and not the alias word the wrapper forwards;
-an alias's own words are not the forwarded list,
-so a token inserted for the cap would land after any path the person typed,
-and an interactive clean a `!` alias runs is stopped the same way, naming the repository.
-The other fixed transforms read the typed words and add nothing on that route,
+The cap is written into the words the wrapper forwards, which are the words Git receives.
+A `!` shell alias reaches none of these transforms:
+the wrapper forwards it as it is and Git's shell runs it,
+so its `git`, its `--atomic`, its `-o` and its `--no-overwrite-ignore` are Git's own business.
+The other fixed transforms read the words of a built-in command or of an ordinary alias's expansion,
 each for its own reason:
 `--atomic` on `push`, `-o` on `commit` and `-c advice.statusHints=false` on `status` rewrite a start
-the wrapper makes, and a shell alias's `git` is real Git, which the wrapper never starts;
-`--no-overwrite-ignore` protects an ignored file against a write Git makes itself,
-which is the case the owner allowed to run, so it is left to Git rather than refusing the alias.
+the wrapper makes,
+and `--no-overwrite-ignore` protects an ignored file against a write Git makes itself.
 The pair is not written where the person asked for the worktree enforcement to be skipped.
 A dry run that did not answer stops the command instead of reading as Git's refusal of the clean:
 a nonzero exit is no proof that the clean which runs afterwards refuses,
-and a failed read followed by that clean deleted a repository no copy held.
+and a failed read followed by that clean deleted a repository no line named.
 The one clean Git refuses itself is the one that writes `-x` together with `-X`,
 which `cmd_clean` refuses before it reads anything;
 that region says so before any reading,
@@ -19391,18 +19340,17 @@ so a rejection says which files that spelling deletes.
 
 Two windows stay open, and no number of looks closes either,
 because the rule is about what the command a person typed would destroy at the moment it is asked:
-the guard looks, and Git starts after that last look.
-A file made between the guard's last look and Git's start is one the command writes over or deletes with
+the guard looks, and Git starts after that look.
+A file made between the guard's look and Git's start is one the command writes over or deletes with
 no refusal and no saved copy,
-and a nested repository made in that interval is one a `clean` deletes with its directory
-(`policy/policy_linked_worktree_nested_repositories.rs`, the second look after every save, and the
-single written-path check of `policy/policy_linked_worktree.rs`).
+and a nested repository made in that interval is one a `clean` deletes with its directory and without a
+line naming it
+(`policy/policy_linked_worktree_nested_repositories.rs`).
 Closing either would mean the wrapper deleting or writing the paths itself instead of forwarding the
 command, which is a different design and not this branch's;
 this section says so here, where a reader meets the refusal,
 rather than leaving the window to be discovered as a loss.
-The same reading is why a repository made in the last instant meets Git itself
-(the paragraph above on the clean's three looks says the same for the save).
+A clean's record says what the wrapper saw and not what Git found for the same reason.
 
 Two places where this guard and Git still differ, written here as limits with their reason:
 `git checkout-index --stdin` reads its paths from standard input,
@@ -19591,11 +19539,9 @@ finds no copy,
 and is forwarded exactly as typed.
 A copy that cannot be written is a refusal naming the file and the opt-out,
 because Git would read the file again.
-A `!` shell alias whose own words read a pathspec file is refused before anything is read:
-the wrapper forwards an alias's value unchanged,
-so it cannot put the bytes it read in the file's place,
-and the shell would read the file a second time
-(`pathspec_under_a_shell_alias_message`).
+A `!` shell alias reads its own pathspec file in its own shell:
+the wrapper forwards the alias as it is and reads nothing,
+so there are no bytes of the wrapper's to give Git and no refusal for being one.
 `--pathspec-from-file=-` reads standard input in Git,
 which a guard cannot read without consuming it,
 so that spelling is refused with the reason and the opt-out,
@@ -19833,9 +19779,7 @@ and the marked paths of a hidden edit are listed from the top and given back to 
 `:(top,literal)` pathspecs, while the bytes of one are hashed from its full path below the
 worktree root
 (`repo_read/repository_facts_edits_the_status_hides.rs`).
-Before this, a path form inside a `!` alias was looked for below the caller
-(`git wipe` in `wt/sub` wrote the top-level `b.txt` over an untracked file the guard never named),
-an `assume-unchanged` edit at the top was invisible to a `reset --hard` run in `sub`,
+Before this, an `assume-unchanged` edit at the top was invisible to a `reset --hard` run in `sub`,
 and a pathspec file's relative name was read from the wrong directory when `-C` moved the command
 (measured on this host with native Git 2.56.0, 2026-11-14).
 A name with a component below a file (`a.txt/.`) is Git's own `bad source`,
@@ -20589,9 +20533,13 @@ and the record then says `hatch`.
 
 #### The folder of saved copies
 
-A clean that would delete a nested Git repository
-("Nested Git repositories a clean would delete")
-copies what it would otherwise discard into
+No command of this release copies anything into this folder:
+a clean that deletes a nested Git repository deletes it and names it in the record
+("Discarding commands"), and the forms that would discard a conflicted file are refused instead.
+What follows describes the folder itself,
+which a release up to `0.6.1-alpha.42` filled with the file or the folder it was about to replace,
+and which the pruning pass and the doctor still read.
+A copy is written into
 `<common-git-dir>/monochromatic-git-policy-cli/discarded/<UTC time as YYYY-MM-DDTHH-MM-SS>/<path from the top of the worktree>`,
 next to `monochromatic-git-policy-cli-audit.jsonl`;
 a second invocation in the same second gets `-1`,
@@ -20760,9 +20708,18 @@ the two-field form every other record of a path takes (`path_bytes_in_records.rs
 so a command whose working directory or argument is not UTF-8 is still the command the line names:
 the line exists to attribute a loss to it.
 The text fields hold what a reader of an earlier release read.
-A `saved-nested-repository` line also has `copies`,
+A line a release up to `0.6.1-alpha.42` wrote for a clean that saved a nested Git repository also has
+`copies`,
 a list of `<path> => <place>` (`none` when there was nothing to copy),
-whose places hold the repositories a clean would have deleted.
+whose places hold the repositories that release moved aside.
+A repository that ran that release still holds those lines and those folders,
+and the pruning pass and the doctor still read them;
+no command of this release writes that outcome any more
+(the owner decided on 2026-11-15 that such a clean deletes the repository and the record names it).
+A `logged` line that names the repositories a clean takes carries
+`"nestedRepositories":["<path below the worktree>", ...]`
+(`NESTED_REPOSITORIES` in `src/native/policy/policy_linked_worktree_nested_repositories.rs`),
+written before Git runs, which is what `writtenBeforeGitRuns` says.
 No outcome of this release copies anything before an abort,
 a skip or a conflict-side line:
 those forms are refused instead.
@@ -20898,11 +20855,9 @@ moved by its `-C` chain:
 never the directory a relative `--file` path is read from,
 and `git config` does not move into it,
 so a relative path under a `--work-tree` elsewhere is read from the same place as without one.
-The Git a `!` alias's shell runs starts somewhere else again:
-Git changes to the top of the working tree before it starts that shell
-(`git.c:388` to `git.c:407`),
-so a relative `--file` path written there is read from that top,
-while the caller's `-C` chain moves neither.
+A `!` alias is forwarded as it is and judged by nothing, so a `git remote` or `git config` inside one
+writes whatever Git writes, with no line and no refusal
+(the hole of both guards, stated once under "Discarding commands").
 A `-c` global option is one command's override,
 changes no file and is not a write to the shared settings.
 The main checkout,
@@ -20954,7 +20909,9 @@ so the change is attributable;
 a rejection leaves no audit line,
 because nothing was written.
 The refusal is the guard's decision on the command Git will run,
-so a shell alias (`git -c 'alias.su=!git remote set-url' su origin <url>`) is refused as the command is.
+and a `!` alias is forwarded as it is and judged by nothing,
+so `git -c 'alias.su=!git remote set-url' su origin <url>` writes what Git writes (the hole stated once
+under "Discarding commands").
 
 `src/native/binary/binary_shared_remote_tests.rs` runs every refused form in a linked worktree made inside and
 one made outside the repository folder,
@@ -20968,9 +20925,8 @@ and both editor forms,
 requires the shared bytes unchanged and the editor never started,
 and keeps the positive control that the same editor on the same worktree does change the shared file when Git
 itself runs it.
-A `--file` write from the Git a `!` alias's shell runs is refused from the top of the working tree that Git
-changed to,
-with the same real-Git control writing the shared file through the same relative spelling.
+A `!` alias that writes the shared file, through `--file` or a plain setting, runs as Git runs it:
+the wrapper reads no words of an alias's shell.
 The decision is `src/native/command/rule_shared_remote.rs`,
 the path a `--file` region names is read by `src/native/command/command_config.rs`,
 and the comparison with `$GIT_COMMON_DIR/config` is `src/native/policy/policy_linked_worktree.rs`.
