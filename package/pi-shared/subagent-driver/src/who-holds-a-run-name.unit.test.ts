@@ -12,6 +12,7 @@ import {
   mkdir,
   mkdtemp,
   rm,
+  utimes,
   writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
@@ -173,19 +174,24 @@ async function writeFinishedRun({
 }: {
   readonly runs: string;
   readonly name: string;
-},): Promise<void> {
+},): Promise<string> {
+  /**
+   The summary's path, which a test may give a time of its own.
+   */
+  const summary = join(
+    runs,
+    `${name}-1`,
+    'summary.json',
+  );
   await mkdir(join(
     runs,
     `${name}-1`,
   ), { recursive: true, },);
   await writeFile(
-    join(
-      runs,
-      `${name}-1`,
-      'summary.json',
-    ),
+    summary,
     '{"endReason":"idle"}\n',
   );
+  return summary;
 }
 
 /**
@@ -300,6 +306,59 @@ await describe({
     describe({
       name: goingRunsNow.name,
       children: [
+        it({
+          name: 'counts a launcher whose name holds only the summary of an earlier attempt, which says nothing about this launcher',
+          fn: async () => {
+            await using folder = await makeFolder();
+            await writeProcess({
+              folder: folder.processes,
+              pid: '31',
+              words: [
+                '/usr/bin/node',
+                `/pkg/src/${LAUNCHER_ENTRY_NAMES[0] ?? ''}`,
+                '--name=a',
+              ],
+            },);
+            /**
+             The summary of the attempt that had ended before this launcher began.
+             */
+            const summary = await writeFinishedRun({
+              runs: folder.runs,
+              name: 'a',
+            },);
+            /**
+             A moment an hour before the launcher began, which is all that summary can speak for.
+             */
+            const anHourBefore = new Date(Date.now() - 3_600_000,);
+            await utimes(
+              summary,
+              anHourBefore,
+              anHourBefore,
+            );
+            /**
+             What the manager answers.
+             */
+            const systemd = manager({
+              facts: new Map([['pi-a.service', 'LoadState=loaded\nActiveState=inactive\n',],],),
+              units: '',
+            },);
+            /**
+             The runs going now.
+             */
+            const going = await goingRunsNow({
+              run: systemd.run,
+              processFolder: folder.processes,
+              runsFolder: folder.runs,
+              launcherEntryNames: LAUNCHER_ENTRY_NAMES,
+              onProblem: function onProblem(problem,) {
+                throw new Error(`nothing was expected to be a problem: ${problem}`);
+              },
+            },);
+            expect(going.map(function nameOf(run,) {
+              return run.name;
+            },),).toEqual(['a',],);
+          },
+        },),
         it({
           name: 'counts a launcher whose run ended as no run at all, which is what lets a start of that name go ahead',
           fn: async () => {

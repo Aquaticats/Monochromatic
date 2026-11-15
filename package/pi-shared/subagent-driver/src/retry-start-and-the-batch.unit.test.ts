@@ -639,6 +639,45 @@ await describe({
           },
         },),
         it({
+          name: 'answers each entry own start as a field, saying whether the launcher gave up waiting for a place, which no line of its output decides',
+          fn: async () => {
+            /**
+             What the batch answered, as anything it holds.
+             */
+            const batch: unknown = await startBatch({
+              entries: [{
+                name: 'a',
+                branch: 'feat/a',
+              },],
+              runsFolder: '/runs',
+              deadlineSeconds: 7_200,
+              start: async function startOne() {
+                return {
+                  status: NO_SLOT_EXIT_STATUS,
+                  output: 'WAITING: a asks for a pool\nno slot freed before the deadline: --name=a\n',
+                };
+              },
+              wait: async function passTime() {
+                // One entry, so there is nothing to stagger.
+              },
+            },);
+            /**
+             The answers the batch now gives for each entry, which the settling reads instead of a printed line.
+             */
+            const { answers, } = (batch ?? {}) as {
+              readonly answers?: readonly {
+                readonly name: string;
+                readonly status?: number;
+                readonly gaveUpWaitingForAPlace: boolean;
+              }[]
+            };
+            expect(answers,).toHaveLength(1,);
+            expect(answers?.[0]?.name,).toBe('a',);
+            expect(answers?.[0]?.status,).toBe(NO_SLOT_EXIT_STATUS,);
+            expect(answers?.[0]?.gaveUpWaitingForAPlace,).toBe(true,);
+          },
+        },),
+        it({
           name: 'keeps the whole of what a failed start printed, and names that file on the entry line',
           fn: async () => {
             /**

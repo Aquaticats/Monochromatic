@@ -24,6 +24,7 @@ import {
 import { scratchRoot, } from '@monochromatic-dev/test-harness-core/ts/scratch-root.ts';
 import {
   WATCHED_START_FILE_SUFFIX,
+  NO_SET_ASIDE_RECORD,
   type QueueRecord,
   type RunCommand,
   gaveUpAtItsDeadline,
@@ -563,6 +564,87 @@ await describe({
               return entry.name;
             },),).toEqual(['a',],);
             expect(await watchedStartsIn({ runsFolder: folder.runs, },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'keeps the record of a start whose batch is going and takes its entry out of the queue, so one batch is started for it',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: '',
+            },);
+            // The state a kill leaves: the record, the entry and the batch's unit all remain.
+            await putAQueueEntryIn({
+              queueFile: folder.queueFile,
+              entry: anEntry({ name: 'a', },),
+              position: 0,
+            },);
+            /**
+             What settling found.
+             */
+            const settled = await settleWatchedStarts({
+              runsFolder: folder.runs,
+              queueFile: folder.queueFile,
+              run: unitsInTheStates(new Map([[
+                'launch-batch-2026-11-14T162841-queue-entry-a.service',
+                'active',
+              ],],),),
+              now: Date.now,
+              report: function report(problem,) {
+                throw new Error(`nothing was expected to be reported: ${problem}`);
+              },
+            },);
+            expect(settled[0]?.outcome,).toBe('still-going',);
+            // The record stays, because the start it watches has not settled.
+            expect(await watchedStartsIn({ runsFolder: folder.runs, },),).toHaveLength(1,);
+            // The entry leaves the queue, which is what the filling that was killed meant to do.
+            expect(await readQueueOfRuns({ queueFile: folder.queueFile, },),).toEqual([],);
+          },
+        },),
+        it({
+          name: 'puts an entry back at the head when the launcher answer says it gave up waiting for a place, whatever the batch output last said',
+          fn: async () => {
+            await using folder = await makeFolder([],);
+            await writeStartOf({
+              folder,
+              name: 'a',
+              printed: 'a: status 3 no slot freed before the deadline: --name=a\n1 of 1 entries failed: a\n',
+            },);
+            // Why the start failed is a field the launcher writes, and the batch's last line decides nothing.
+            await writeFile(
+              join(
+                folder.runs,
+                'a-start-answer.json',
+              ),
+              `${JSON.stringify({
+                name: 'a',
+                status: 3,
+                gaveUpWaitingForAPlace: true,
+                line: 'a: status 3 no slot freed before the deadline: --name=a',
+              },)}\n`,
+            );
+            /**
+             What settling found.
+             */
+            const settled = await settleWatchedStarts({
+              runsFolder: folder.runs,
+              queueFile: folder.queueFile,
+              run: unitsInTheStates(new Map(),),
+              now: Date.now,
+              report: function report(problem,) {
+                throw new Error(`nothing was expected to be reported: ${problem}`);
+              },
+            },);
+            expect(settled[0]?.outcome,).toBe('put-back',);
+            expect((await readQueueOfRuns({ queueFile: folder.queueFile, },)).map(function nameOf(entry,) {
+              return entry.name;
+            },),).toEqual(['a',],);
+            expect(await setAsideRecordOf({
+              runsFolder: folder.runs,
+              name: 'a',
+            },),).toBe(NO_SET_ASIDE_RECORD,);
           },
         },),
         it({
