@@ -1663,6 +1663,98 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The credential masking answers its second review and goes to a third, with made-up values only; the address-space assertion's message goes back (2026-11-15T10:08:02-05:00)
+
+Not final and not approved:
+what one author and one review report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The credential masking**,
+  its author's third run,
+  ended 10:05:58 at `03efc1467b`:
+  all ten reproductions of the second review ran against the old tip,
+  and the three shapes asked for are built.
+  The mask is applied to data
+  (the value serialised once as Pi does,
+  masked,
+  parsed back,
+  its shape compared),
+  and where it fails nothing of the original is handed on,
+  with `details` set explicitly because Pi reads an omitted one as unchanged.
+  One matcher for every stream holds back the longest tail that may still become an armed value.
+  Every source and every kept place answers covered,
+  not there,
+  or could not,
+  and "could not" stops the run before Pi starts or ends it as `session-unmasked`.
+  A table of every road from an armed value to a provider or a kept file is in the troubleshooting doc,
+  with how more were looked for in Pi's installed source;
+  two writes are named and not covered
+  (Pi's crash log;
+  bash messages that the RPC mode never makes).
+  Ten controls fail with their fix out.
+  37 values are armed here before and after,
+  the shortest of ten characters.
+  The cost on a transcript of 400 messages went from 0.181 to 0.517 ms.
+  198 suites pass.
+  The author states that no credential's value reached its tool results.
+- **Its third review** is queued second,
+  on Kimi,
+  with the brief written by the package's writer
+  (31 files to read)
+  and extended by the same three paragraphs as the second
+  (the range;
+  made-up secrets in a disposable home only,
+  no real Pi and no provider;
+  what the change must hold).
+  **The masking is still not merged,
+  the canary is not run,
+  and the owner's rotation still waits.**
+- **The assertion added to the address-space control** (`2616009887`),
+  its review,
+  ended 10:01:55,
+  the one file read in full,
+  the control run unchanged
+  (it passed)
+  and with the room planted below the boundary
+  (the assertion fired),
+  the totals found right,
+  one thing,
+  reproduced:
+  the new message says "the commit there did not" land,
+  while the service's log quoted in the same failure says `outcome=landed`.
+  The field it asserts is the wrapper's own exit,
+  not whether the service made the commit.
+- **Weighed**:
+  it goes back,
+  as words and one field:
+  a failing control says what happened,
+  and what happened is that the wrapper did not return success.
+  The author's sixth run is queued first
+  (`~/temp/agent/pi-runs/controls-of-a-service-under-an-address-space-limit-make-the-new-assertions-message-true-prompt.md`);
+  the review after it reads what is added after `2616009887`.
+  What the planted case showed is worth its own line:
+  at a room below the boundary the service landed the commit and the wrapper,
+  ended by its limit,
+  did not report it.
+  That is what the control is about,
+  and the repository recovered.
+- **The temperature**,
+  read at 10:06:35:
+  58.6 degrees,
+  budget 32.0 threads,
+  20.8 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:06:39:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 09:52;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+
 ##### The wrapper under the gate container's Git: the helper's words now state its two limits; the review of that delta is queued first (2026-11-15T09:53:05-05:00)
 
 Not final and not approved:
