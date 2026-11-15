@@ -42,7 +42,8 @@ fn path_of(fixture: &Fixture, entries: &[&str]) -> OsString {
     return path;
 }
 
-/// The line the Git under test prints for `--version`, which is the first line the wrapper passes on.
+/// The line the Git under test prints for `--version`,
+///  which is the first line the wrapper passes on.
 fn git_version_line() -> String {
     let output: std::process::Output = Command::new(REAL_GIT).arg("--version").output().expect("Git starts");
     assert!(output.status.success(), "{REAL_GIT} --version answered nothing");
