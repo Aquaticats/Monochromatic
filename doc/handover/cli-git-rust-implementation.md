@@ -1530,6 +1530,65 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The scratch root measures 354 GiB; four repository copies that ended reviews left are deleted (2026-11-15T03:37:51-05:00)
+
+Not final and not approved:
+a measurement by the coordinating session and one deletion.
+
+- **Measured at 03:30** with `du` at depth one:
+  `~/temp/agent` 354,154 MiB.
+  Its largest folders:
+  `change-reviews` 136,281;
+  `pkgrepair-repair-off-the-path` 65,966;
+  `sonnet-audits` 45,612;
+  `record-of-another-boot-control-passes-in-a-container-scratch` 26,722;
+  `kimi-trials` 16,476;
+  `module-test-logs` 11,106;
+  `pkgrepair-verify` 7,084;
+  `pi-runs` 6,756.
+  The scratch root is on the repository's drive,
+  which had 1,997 GiB free of 3,727.
+- **Inside `change-reviews`**,
+  four folders of about 27 GiB each were whole copies of the repository that driver reviews made to build in:
+  the start gate's cap from one file (third review),
+  the start gate's machine-wide cap,
+  the settled run that never ends as failed,
+  and the brief writer for tests (third review).
+- **Checked before deleting** each copy:
+  the review's report,
+  brief and reproductions stand outside it;
+  no review unit of that name was going;
+  no process had its working folder inside
+  (464 processes read);
+  Git does not have it registered as a worktree;
+  the reviewed commit is held by a branch
+  (`33bda3e7d2`,
+  `7faa687169`,
+  `8f9b026bdc`),
+  and the fourth copy's `.git` file points at its review worktree's own Git folder in the repository.
+  All four reviews are superseded by later reviews or by what is in `main`.
+- **Deleted at 03:37:36**,
+  those four paths by name,
+  at disk weight 1.
+  `change-reviews` then measured 27,800 MiB.
+  Free space on the drive read 2,044,230 MiB right after,
+  no higher than before to the gigabyte:
+  either the copies shared their data with the checkout they were copied from,
+  or the filesystem had not yet given the space back.
+  Which of the two is not measured;
+  the next round reads free space again.
+- **Kept on purpose**:
+  the build trees of three reviews whose authors' resumes are queued and may run the reviews' reproductions against them
+  (long runtime directory 4,727 MiB,
+  add-never-skips 8,189 MiB,
+  issue 6293's fifth review 3,839 MiB);
+  each goes when its author's answer is in.
+- **Not looked at yet**:
+  whether `pkgrepair-repair-off-the-path`,
+  `sonnet-audits`,
+  the record-of-another-boot scratch and `kimi-trials` hold anything superseded.
+  The record-of-another-boot scratch belongs to a run that is queued or going.
+
 ##### The long-runtime-directory controls go back to their author: one still fails by the width of a process number, and two let a one-byte change through (2026-11-15T03:30:00-05:00)
 
 Not final and not approved:
