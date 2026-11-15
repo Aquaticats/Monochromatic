@@ -10271,8 +10271,10 @@ The list of what the watch reports, and what it does with each:
   watched in its turn;
   the object store and the reflog folders are skipped only directly below a Git directory
   (the folder carries a `HEAD` file, and a root is one),
+  in this walk and in the pass that meets the locks (`src/native/lock/abandoned_locks.rs`),
   because Git accepts a reference named `refs/heads/objects/topic` and its lock stands in a folder that
-  name gives (a review of `6a506fc03f`,
+  name gives,
+  so a record of it must be one the pass acts on (a review of `6a506fc03f`,
   finding 5);
   and a folder the count bound leaves unwatched reports nothing, so a lock there keeps the bounded
   wait instead of a record (a review of `fee5557595`, finding 1);

@@ -59,6 +59,16 @@ const MOST_ENTRIES: usize = 8192;
 /// whose `*.lock` files are a pack writer's own temporary names,
 /// and the logs,
 /// which hold no lock at all.
+/// Why the skip is only for a folder directly below a Git directory:
+///  Git accepts a reference called `refs/heads/objects/topic`,
+///  and a lock taken for it stands in the folder that name gives.
+///  A walk that skipped the name at every depth never found that lock,
+///  so a record of it had nothing that would act on it
+///  (a review of `6a506fc03f`,
+/// finding 5).
+///  The object stores and the reflog folders are the ones directly below a Git directory,
+///  including a linked worktree's own and a submodule's,
+///  and each of those folders carries a `HEAD` file.
 const SKIPPED_FOLDERS: [&str; 2] = ["objects", "logs"];
 
 /// The folder of the common Git directory that holds each linked worktree's own administrative directory.
@@ -180,6 +190,10 @@ pub fn walked(roots: &[PathBuf]) -> Walked {
                 complete = false;
                 continue;
             };
+            // What: Whether this folder is a Git directory, which its own `HEAD` file says.
+            // Why:  The object store and the reflog folders of a Git directory hold no lock of the worktree's state,
+            //       and a reference namespace of the same name does (a review of `6a506fc03f`, finding 5).
+            let is_a_git_directory: bool = depth == 0 || directory.join("HEAD").is_file();
             for entry in entries.flatten() {
                 seen += 1;
                 if seen > MOST_ENTRIES {
@@ -191,7 +205,7 @@ pub fn walked(roots: &[PathBuf]) -> Walked {
                     continue;
                 };
                 if kind.is_dir() {
-                    if SKIPPED_FOLDERS.contains(&entry.file_name().to_string_lossy().as_ref()) {
+                    if is_a_git_directory && SKIPPED_FOLDERS.contains(&entry.file_name().to_string_lossy().as_ref()) {
                         continue;
                     }
                     if depth < MOST_DEPTH {

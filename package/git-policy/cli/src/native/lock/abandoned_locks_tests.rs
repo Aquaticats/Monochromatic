@@ -77,3 +77,38 @@ fn a_linked_worktrees_command_meets_its_own_administrative_directory_and_the_sha
 fn a_lock_no_worktree_explains_is_named() {
     assert!(stands_in_the_way(Path::new("/elsewhere/index.lock"), Path::new(COMMON), Path::new(COMMON)), "a lock outside the Git directories is named rather than hidden");
 }
+
+/// What:
+///  A lock of a reference whose namespace is named `objects` or `logs` is found by the pass,
+///  as one in any other namespace is.
+/// Why:
+///  Git accepts `refs/heads/objects/topic` and `refs/heads/logs/topic`,
+///  and a lock taken for one stands in the folder that name gives.
+///  A walk that skipped those names at every depth never found such a lock,
+///  so a record of it was a licence nothing acted on,
+///  and the command that met the lock could not clear it
+///  (a review of `6a506fc03f`,
+/// finding 5).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// for (const ns of ['ordinary', 'objects', 'logs']) write(refs/heads/ns/topic.lock)
+/// expect(walked([root]).locks).toEqual(all three)
+/// ```
+#[test]
+fn a_lock_in_a_reference_namespace_named_objects_is_found() {
+    let root: std::path::PathBuf = crate::test_support::fixture("abandoned-locks-objects-namespace");
+    let mut expected: Vec<std::path::PathBuf> = Vec::new();
+    for namespace in ["ordinary", "objects", "logs"] {
+        let folder: std::path::PathBuf = root.join("refs/heads").join(namespace);
+        std::fs::create_dir_all(folder.as_path()).expect("the reference namespace");
+        let lock: std::path::PathBuf = folder.join("topic.lock");
+        std::fs::write(lock.as_path(), b"a reference update\n").expect("the reference lock");
+        expected.push(lock);
+    }
+    let found: Vec<std::path::PathBuf> = super::walked(std::slice::from_ref(&root)).locks;
+    crate::test_support::remove(root.as_path());
+    for lock in expected {
+        assert!(found.contains(&lock), "the pass finds the lock of {}: {found:?}", lock.display());
+    }
+}
