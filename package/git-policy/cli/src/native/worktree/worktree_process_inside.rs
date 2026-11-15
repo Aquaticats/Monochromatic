@@ -703,7 +703,10 @@ const DELETED_SUFFIX: &str = " (deleted)";
 /// groupOf('/proc', 4242) // '/user.slice/user-1000.slice/user@1000.service/app.slice/x.scope'
 /// ```
 fn group_of(proc_root: &Path, pid: u32) -> Option<String> {
-    let text: String = std::fs::read_to_string(proc_root.join(pid.to_string()).join("cgroup")).ok()?;
+    // This command reads its own group through `self`, which is the name the kernel always holds for it and the one a
+    //  control writes in its stand-in table.
+    let name: String = if pid == std::process::id() { String::from("self") } else { pid.to_string() };
+    let text: String = std::fs::read_to_string(proc_root.join(name).join("cgroup")).ok()?;
     for line in text.lines() {
         // The unified hierarchy's own line; a host with the older hierarchies names more than one and this reads the one
         //  every process of this machine is in.
