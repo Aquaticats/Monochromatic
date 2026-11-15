@@ -18,7 +18,7 @@ use crate::subvolume_error::Interrupt;
 use crate::subvolume_preflight::layout_of;
 use crate::subvolume_anchor::Anchor;
 use crate::subvolume_sync::{SyncOptions, SyncStats, sync_tree, watch_entries};
-use crate::subvolume_sync_pass_state_and_checks::{Directory, PARTIAL_NAME, Pass, Published};
+use crate::subvolume_sync_pass_state_and_checks::{Directory, PARKED_SUFFIX, PARTIAL_NAME, Pass, Published, watch_the_freed_name};
 use crate::subvolume_wrapper_bookkeeping::{OwnBookkeeping, notice_kinds, own_bookkeeping_of};
 use crate::subvolume_test_support::{PlainPlatform, checkout_with_worktree, migrate_arguments, run_command};
 use crate::test_support::{fixture, remove};
@@ -629,6 +629,185 @@ fn a_name_the_pass_found_free_is_created_and_one_it_saw_is_replaced_only_as_the_
     std::fs::write(directory.partial().as_path(), b"the copy").expect("the finished copy");
     assert_eq!(pass.publish(&directory, Path::new("file.txt"), Some(&seen)).expect("a publish"), Published::Placed);
     assert_eq!(std::fs::read(destination.join("file.txt")).expect("replaced"), b"the copy", "the object the pass saw is replaced");
+    remove(parent.as_path());
+}
+//endregion
+
+//region The three tests of the review of cd7206407c, reproduced as they were written
+// They were applied to a disposable clone of that tip and run first; each failed there.
+
+/// The review, finding 1:
+/// an in-place write to a destination file survives a concurrent copy.
+#[test]
+fn review_repro_destination_written_in_place_during_copy_is_kept() {
+    let (parent, source, destination) = trees("review-repro-in-place-destination");
+    let source_note: PathBuf = source.join("person-notes.txt");
+    let destination_note: PathBuf = destination.join("person-notes.txt");
+    std::fs::write(source_note.as_path(), b"source words\n").expect("source note");
+    std::fs::write(destination_note.as_path(), b"original destination\n").expect("destination note");
+    set_mtime(destination_note.as_path(), BEFORE_EVERY_CUTOFF);
+    set_mtime(source_note.as_path(), BEFORE_EVERY_CUTOFF + 1);
+    let concurrent_text: &[u8] = b"words written in place during the copy\n";
+    let written_into: PathBuf = destination_note.clone();
+    let platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(move |_calls| {
+        std::fs::write(written_into.as_path(), concurrent_text).expect("in-place destination write");
+    }));
+    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never()).expect("a pass");
+    println!("destination after publication: {:?}; kept report: {:?}", std::fs::read(destination_note.as_path()), stats.kept_at_the_destination);
+    assert_eq!(std::fs::read(destination_note.as_path()).expect("destination after publication"), concurrent_text);
+    remove(parent.as_path());
+}
+
+/// The review, finding 2:
+/// replacing the source path while its old inode is copied cannot lose the replacement.
+#[test]
+fn review_repro_source_replaced_during_copy_is_not_deleted() {
+    let (parent, root) = checkout_with_worktree("review-repro-source-replacement");
+    let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(|_calls| {}));
+    let (migration_code, migration_said) = run_hooked(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migration_code, DONE, "{migration_said}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let note: PathBuf = layout.old_path.join("person-notes.txt");
+    std::fs::write(note.as_path(), b"the inode the pass opened\n").expect("source note");
+    let replacement: PathBuf = layout.old_path.join("replacement.txt");
+    let replaced_note: PathBuf = note.clone();
+    let replacement_text: &[u8] = b"the replacement written while the old inode was copied\n";
+    platform.on_clone = Box::new(move |_calls| {
+        std::fs::write(replacement.as_path(), replacement_text).expect("replacement note");
+        std::fs::rename(replacement.as_path(), replaced_note.as_path()).expect("replace the source path");
+    });
+    let (code, said) = run_hooked(&platform, &remove_old_arguments(), root.as_path());
+    let checkout_text: String = std::fs::read_to_string(root.join("person-notes.txt")).unwrap_or_else(|error| format!("unreadable: {error}"));
+    println!("removal code {code}; old tree exists {}; checkout holds {checkout_text:?}; output: {said}", layout.old_path.exists());
+    assert_eq!(checkout_text, String::from_utf8(replacement_text.to_vec()).expect("replacement text"));
+    remove(parent.as_path());
+}
+
+/// The review, finding 3:
+/// drop a run after its left-out list is durable, then rerun the real removal.
+#[test]
+fn review_repro_rerun_reads_the_durable_left_out_list() {
+    let (parent, root) = checkout_with_worktree("review-repro-left-out-resume");
+    let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(|_calls| {}));
+    let (migration_code, migration_said) = run_hooked(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migration_code, DONE, "{migration_said}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    let note: PathBuf = layout.old_path.join("person-notes.txt");
+    std::fs::write(note.as_path(), b"source words that still exist only in the old tree\n").expect("source note");
+    let destination_note: PathBuf = root.join("person-notes.txt");
+    let concurrent_text: &[u8] = b"a newer destination file created during the copy\n";
+    let written_into: PathBuf = destination_note.clone();
+    platform.on_clone = Box::new(move |_calls| {
+        std::fs::write(written_into.as_path(), concurrent_text).expect("concurrent destination file");
+    });
+    let interrupt: Interrupt = Interrupt::never();
+    let mut lines: Vec<String> = Vec::new();
+    let mut say = |text: &str| lines.push(text.to_string());
+    let mut first_run: crate::subvolume_run::Run<'_> = crate::subvolume_run::Run::open(&platform, &layout, &interrupt, &mut say).expect("open the first run");
+    let first_stats: SyncStats = first_run.pass_late("late writes", layout.old_path.as_path(), layout.root.as_path(), i64::MIN).expect("the late pass");
+    assert_eq!(first_stats.kept_at_the_destination, vec![PathBuf::from("person-notes.txt")], "{first_stats:#?}");
+    drop(first_run);
+    drop(say);
+    assert!(std::fs::read_to_string(layout.left_out_path.as_path()).expect("durable left-out list").contains("person-notes.txt"));
+    platform.on_clone = Box::new(|_calls| {});
+    let (code, said) = run_hooked(&platform, &remove_old_arguments(), root.as_path());
+    println!("first pass kept {:?}; second removal code {code}; old tree exists {}; output: {said}", first_stats.kept_at_the_destination, layout.old_path.exists());
+    assert_eq!(code, REFUSED, "the persisted uncopied entry must hold back deletion: {said}");
+    assert!(layout.old_path.exists());
+    remove(parent.as_path());
+}
+//endregion
+
+//region What the four findings are held by, beside the review's own tests
+
+/// The review, finding 4:
+/// a file put at the name while the pass held it freed stays,
+/// and the entry the pass had examined is not lost from the tree.
+#[test]
+fn review_repro_a_file_put_at_the_freed_name_is_kept() {
+    let (parent, source, destination) = trees("review-repro-freed-name");
+    let source_note: PathBuf = source.join("person-notes.txt");
+    let destination_note: PathBuf = destination.join("person-notes.txt");
+    std::fs::write(source_note.as_path(), b"source words\n").expect("source note");
+    std::fs::write(destination_note.as_path(), b"original destination\n").expect("destination note");
+    set_mtime(destination_note.as_path(), BEFORE_EVERY_CUTOFF);
+    set_mtime(source_note.as_path(), BEFORE_EVERY_CUTOFF + 1);
+    let concurrent_text: &[u8] = b"a file put there while the name stood free\n";
+    let placed_into: PathBuf = destination_note.clone();
+    let once: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    {
+        let once = once.clone();
+        watch_the_freed_name(Some(Box::new(move |freed: &Path| {
+            if once.swap(true, Ordering::SeqCst) {
+                return;
+            }
+            std::fs::write(freed, concurrent_text).expect("a file at the freed name");
+        })));
+    }
+    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: true, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&PlainPlatform::new(), source.as_path(), destination.as_path(), options, &Interrupt::never()).expect("a pass");
+    watch_the_freed_name(None);
+    assert_eq!(std::fs::read(destination_note.as_path()).expect("the destination after the pass"), concurrent_text, "the file put at the freed name is not replaced: {stats:#?}");
+    assert!(!stats.kept_at_the_destination.is_empty(), "the pass says it did not place the source's copy: {stats:#?}");
+    assert_eq!(std::fs::read(placed_into.with_file_name(format!("person-notes.txt{PARKED_SUFFIX}"))).expect("the entry the pass examined"), b"original destination\n", "the entry the pass had examined is not lost");
+    remove(parent.as_path());
+}
+
+/// A parked entry a killed pass left behind is named by the next command and never deleted:
+/// the deletion of the old tree waits for it.
+#[test]
+fn a_parked_entry_left_by_a_kill_holds_the_deletion_back() {
+    let (parent, root) = checkout_with_worktree("parked-entry-left");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (migration_code, migration_said) = run(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migration_code, DONE, "{migration_said}");
+    let parked: PathBuf = root.join(format!("person-notes.txt{PARKED_SUFFIX}"));
+    std::fs::write(parked.as_path(), b"what a killed replacement had parked\n").expect("a parked entry");
+    let (code, said) = run(&platform, &remove_old_arguments(), root.as_path());
+    assert_eq!(code, REFUSED, "{said}");
+    assert!(said.contains("person-notes.txt") && said.contains(PARKED_SUFFIX), "the refusal names the parked entry: {said}");
+    assert!(parked.is_file(), "nothing deletes a parked entry");
+    remove(parent.as_path());
+}
+
+/// A record an earlier run wrote is read by a run that has passed nothing:
+/// the deletion asks the durable record, not only its own memory.
+#[test]
+fn the_deletion_reads_the_durable_record_of_an_earlier_run() {
+    let (parent, root) = checkout_with_worktree("durable-record-fresh-run");
+    let platform: PlainPlatform = PlainPlatform::new();
+    let (migration_code, migration_said) = run(&platform, &migrate_arguments(), root.as_path());
+    assert_eq!(migration_code, DONE, "{migration_said}");
+    let layout = layout_of(root.as_path()).expect("layout");
+    std::fs::write(layout.old_path.join("person-notes.txt"), b"only in the old tree\n").expect("a note in the old tree");
+    std::fs::write(layout.left_out_path.as_path(), b"person-notes.txt\n").expect("the record an earlier run wrote");
+    let (code, said) = run(&platform, &remove_old_arguments(), root.as_path());
+    assert_eq!(code, REFUSED, "a run that passed nothing must still read the record: {said}");
+    assert!(said.contains("person-notes.txt"), "{said}");
+    assert!(layout.old_path.join("person-notes.txt").is_file(), "nothing was deleted");
+    remove(parent.as_path());
+}
+
+/// A source path replaced while its inode is copied is reported by the pass,
+/// so the entry that changed while passing keeps the old tree.
+#[test]
+fn a_source_path_replaced_during_the_copy_is_counted_as_another_kind() {
+    let (parent, source, destination) = trees("source-replaced-pass");
+    let note: PathBuf = source.join("person-notes.txt");
+    std::fs::write(note.as_path(), b"the inode the pass opens\n").expect("source note");
+    let replacement: PathBuf = source.join("replacement.txt");
+    let replaced: PathBuf = note.clone();
+    let mut platform: crate::subvolume_test_support::Hooked = crate::subvolume_test_support::Hooked::new(Box::new(move |_calls| {
+        std::fs::write(replacement.as_path(), b"the replacement written during the copy\n").expect("replacement");
+        std::fs::rename(replacement.as_path(), replaced.as_path()).expect("replace the source path");
+    }));
+    let options: SyncOptions<'_> = SyncOptions { delete: false, update_only: false, excluded: &[], created_since: None };
+    let stats: SyncStats = sync_tree(&platform, source.as_path(), destination.as_path(), options, &Interrupt::never()).expect("a pass");
+    platform.on_clone = Box::new(|_calls| {});
+    assert_eq!(stats.changed_while_passing, vec![PathBuf::from("person-notes.txt")], "{stats:#?}");
+    assert!(!destination.join("person-notes.txt").exists(), "the copy of the inode that no longer stands there is not placed: {stats:#?}");
+    assert_eq!(std::fs::read(note.as_path()).expect("the replacement at the source path"), b"the replacement written during the copy\n");
     remove(parent.as_path());
 }
 //endregion

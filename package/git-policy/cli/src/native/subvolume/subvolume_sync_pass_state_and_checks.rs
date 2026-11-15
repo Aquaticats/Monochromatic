@@ -36,6 +36,34 @@ pub(crate) const PARTIAL_NAME: &str = ".cli-git-migrate-partial";
 /// How many times a file that keeps changing under the copy is copied before the pass gives up.
 pub(crate) const COPY_ATTEMPTS: u32 = 3;
 
+/// The end of the name an entry the pass replaces is parked under while its own copy takes the name.
+/// A name ending in it is never deleted by a later pass:
+/// what it holds is somebody's until the pass that parked it judged it.
+pub(crate) const PARKED_SUFFIX: &str = ".cli-git-migrate-displaced";
+
+/// What:
+///  The name an entry is parked under while the pass replaces it:
+///  its own name with the parked suffix,
+///  so a person who meets one reads which path it stood at.
+/// Why:
+///   The name is derived, not chosen,
+///  because a later pass must be able to recognise a parked entry without a journal.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const parkedName = (name) => `${name}.cli-git-migrate-displaced`;
+/// ```
+pub(crate) fn parked_name(name: &OsStr) -> OsString {
+    let mut text: OsString = name.to_os_string();
+    text.push(PARKED_SUFFIX);
+    return text;
+}
+
+/// Whether a destination name is one a pass parked an entry under.
+pub(crate) fn is_a_parked_name(name: &OsStr) -> bool {
+    return name.as_encoded_bytes().ends_with(PARKED_SUFFIX.as_bytes());
+}
+
 /// What:
 ///  What one pass may do.
 ///  `&'a [PathBuf]` borrows the list of excluded paths for the pass.
@@ -305,6 +333,45 @@ pub(crate) fn vanished_is_counted<T>(outcome: std::io::Result<T>, vanished: &mut
         Err(error) => Err(error),
     };
 }
+
+//region A test-only seam: one callback at the instant a replaced name stands free
+#[cfg(test)]
+thread_local! {
+    // The callback a control installs to act while a replaced name stands free, between the parking of the entry the
+    // pass examined and the creation of its copy; nothing in a release build reads or sets it.
+    static FREED_NAME_WATCH: std::cell::RefCell<Option<Box<dyn FnMut(&Path)>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// What:
+///  Install `watch` to run for the destination name a pass has just freed by parking what stood there,
+///  or clear the callback with `None`.
+/// Why:
+///   The window between parking an entry and creating its copy is the one a control of the replacement has to stand in.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// watchTheFreedName((path) => { ... });
+/// ```
+#[cfg(test)]
+pub(crate) fn watch_the_freed_name(watch: Option<Box<dyn FnMut(&Path)>>) {
+    FREED_NAME_WATCH.with(|slot| {
+        *slot.borrow_mut() = watch;
+    });
+}
+
+/// Run the installed callback for the freed name at `path`,
+/// if a control installed one.
+#[cfg(test)]
+fn note_the_freed_name(path: &Path) {
+    FREED_NAME_WATCH.with(|slot| {
+        // The borrow ends before the callback runs nothing of this module's, so it cannot re-enter the slot.
+        let mut installed = slot.borrow_mut();
+        if let Some(watch) = installed.as_mut() {
+            watch(path);
+        }
+    });
+}
+//endregion
 
 impl Pass<'_> {
     /// The destination path of a relative path,
