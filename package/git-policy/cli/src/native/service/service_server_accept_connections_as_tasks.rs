@@ -19,8 +19,7 @@
 //! server.on('connection', (socket) => handleConnection(socket, shared));
 //! ```
 
-use crate::service_main::EXIT_NO_WORKER;
-use crate::service_runtime_build_report::{no_worker_words, say_how_the_runtime_was_built, start_what_the_service_cannot_serve_without};
+use crate::service_runtime_build_report::{EXIT_NO_WORKER, no_worker_words, say_how_the_runtime_was_built, start_what_the_service_cannot_serve_without};
 use crate::service_server_connection_handling::{ConnectionShared, handle_connection};
 use std::os::unix::net::UnixListener;
 use std::time::Duration;
