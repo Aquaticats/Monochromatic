@@ -1670,6 +1670,80 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### `0.6.1-alpha.42` is installed and its sample commit took 1,123 ms; the gate on it is started; the stale launchers answer their eighth review (2026-11-15T10:28:31-05:00)
+
+Not final and not approved:
+what the release and one author report,
+and what the coordinating session started.
+
+- **`0.6.1-alpha.42`** was published 10:27:29 and installed on this machine at 10:28:16
+  (lock commit `522e865c9d`).
+  The sample commit took **1,123 ms**;
+  its timing line reads 1,085 ms in all,
+  721 ms to submit,
+  131 ms to reach the service and 590 ms waiting for the answer,
+  `outcome` landed.
+  The sample under `0.6.1-alpha.41` had taken 5,612 ms,
+  of which 3,628 ms passed in a new service's start-up.
+  This sample also met a new service,
+  read in the user journal:
+  started 10:28:15.909,
+  ready 2 ms later,
+  rules warmed in 10 ms,
+  "removed the records of 24 old finished batches" 31 ms after the start,
+  answered `outcome=landed` at 10:28:16.502.
+  So the same start-up steps took about 31 ms here,
+  with more records to prune than the 10 of the slow start;
+  the slow start is one sighting,
+  not reproduced by this one,
+  and its cause is still not known.
+  The author's run that carries the sighting is still queued.
+- **The container gate** on `522e865c9d` was started 10:28:31
+  (unit `gpc-gate-wrapper-next-alpha-on-522e865c9d-20261115T102831-0500.service`);
+  its verdict is waited for.
+  It answers what pass 53 could not:
+  whether `a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown` passes in the gate's image.
+  The fuzz sidecar's type check on `main` is running.
+- **mpm-shadow's stale launchers**,
+  a fresh run's second,
+  ended 10:23:03 at `d6f52428e3`:
+  one claim now orders every maker of a launcher against its retirement.
+  Seven controls,
+  each failing with its fix out,
+  pass together;
+  835 of 835 tests pass and Clippy is clean.
+  Measured with both binaries on the fixtures' own file system,
+  seven rounds,
+  ranges disjoint:
+  an install with nothing to do takes 0.55 times the base's time
+  (58.58 to 32.35 ms),
+  one that retires a launcher 0.77 times
+  (104.35 to 80.03 ms).
+  A first round with the tip's binary on another file system had read 2.19 times,
+  because a launcher cannot be hard-linked across file systems and is copied;
+  both logs are kept.
+  The stated limit:
+  a process that already holds a descriptor can write through it after the last look,
+  which no order of steps closes;
+  a write before the last judgement is seen and the entry put back.
+  Its review is queued seventh
+  (`main...d6f52428e3`,
+  13 code files that are not tests).
+- **The temperature**,
+  read at 10:27:44:
+  54.3 degrees,
+  budget 32.0 threads,
+  3.4 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:27:47:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 10:19;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+
 ##### Integration pass 53 is in `main` and `0.6.1-alpha.42` is dispatched; the brief writer for every kind of code file goes back with two findings (2026-11-15T10:20:50-05:00)
 
 Not final and not approved:
