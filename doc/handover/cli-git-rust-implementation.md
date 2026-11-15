@@ -1559,6 +1559,66 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The landing's author shows three of the four claims hold and one cannot be reached, fixes them, and goes to review again (2026-11-15T04:49:50-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The landing that never waits**,
+  its author's second run,
+  ended 04:45:02 at `a7a6958f9d`,
+  `main` merged.
+  The review that had not run made four claims;
+  the author gave each a control first.
+  - Two fillings of one workspace:
+    held,
+    and worse than claimed,
+    since the first filling then meets the second's file and its error arm removes the shared staging,
+    target and marker.
+    Now the marker file is held by the filling that claims it,
+    under an exclusive `flock` taken in the open that publishes it and released by the kernel when that filling ends;
+    a filling that cannot take it stages under its own name and touches nothing of the other's.
+    Every removal is listed with whose folder it can be.
+  - The lane's deadline leaves a tool's descendants:
+    held,
+    with a real `sleep` in the tool's group still running after the owning future was dropped.
+    Now the drop of the child ends the whole group it leads.
+  - An elapsed wait for a place answered as cancelled:
+    the arm is wrong by reading and **no state reaches it**;
+    the control passes at the old tip and with the fix out,
+    because the job path answers "no place" before the fallback is entered.
+    The author did not reword it;
+    the next change removes the arm with the fallback.
+  - A refused thread runs the storage call on the runtime's task:
+    held.
+    Now a refused thread is "no place",
+    never work on the task.
+  It also found that merging `0.6.1-alpha.38` made two controls red that counted the whole bound where this branch keeps one place back,
+  and changed them to count the places.
+  Clippy 0;
+  both guards;
+  the fourteen changed modules with no failed run;
+  the binary landing controls all pass.
+  No cost measured this round;
+  it says nothing here touches a commit's path.
+  It uses a lock
+  (`flock` on the marker),
+  with its reason written beside it,
+  where the project's rule asks for lock-free first;
+  the review weighs that.
+  Its review is queued second
+  (`main...a7a6958f9d`,
+  46 code files that are not tests).
+  Integration passes 29 and 34 wait on it.
+- Read at 04:49:22:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 04:43;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  The queue held 81 entries at 04:49:50.
+
 ##### The stop of a stopped push has its cause and a fix; three library tests that failed in the suite are green; a migration that refuses its own repository gets a fresh run (2026-11-15T04:44:34-05:00)
 
 Not final and not approved:
