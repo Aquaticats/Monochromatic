@@ -1615,6 +1615,40 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The driver's brief writer for every kind of code file answers its third review; its review is queued (2026-11-15T12:08:39-05:00)
+
+Not final and not approved:
+what one author reports and what the coordinating session queued.
+
+- **The brief writer that reads every kind of code file**,
+  its author's fourth run,
+  ended 12:03:41 at `2b6532d992`:
+  both findings answered.
+  One answer per row now feeds the plan,
+  the brief's text and the status line;
+  a path is under the files to read or under the files left out,
+  never both;
+  code of an unlisted kind beside a test gets the requirements for code and its notice.
+  The table's test now drives `writeReviewBrief` for each of the 64 rows and checks the brief's own text and the line.
+  Three controls,
+  each failing with its fix out;
+  199 suites pass,
+  the linter and the type check are clean.
+  It did not touch `review-brief.ts` or the template,
+  so the coverage branch meets no change of this one there.
+  Its review is queued eighth
+  (`main...2b6532d992`,
+  11 code files that are not tests).
+- Read at 12:08:20:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 12:00;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### A correction: nothing shown says a commit landed while its wrapper failed under an address-space limit; the log two reviews and this session read holds the recovery's commit (2026-11-15T12:02:14-05:00)
 
 Not final and not approved:
