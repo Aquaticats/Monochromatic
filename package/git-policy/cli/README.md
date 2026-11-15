@@ -3688,12 +3688,13 @@ the last `--git-dir` wins over `GIT_DIR`,
 `GIT_COMMON_DIR` names the common directory,
 `GIT_INDEX_FILE`, `GIT_SHALLOW_FILE` and `GIT_OBJECT_DIRECTORY` move the files Git locks outside the Git directory,
 and without a named Git directory the repository is found by walking up.
-The pass searches every directory that answer names:
-the Git and common directories and everything below them,
-and the index file's own directory, the shallow file's, and the object store with its `info` and `pack`,
-which Git locks nothing below.
-A lock outside all of them,
-in the per-user or system config, a `--file` config, the credential store, a bundle or a marks file,
+The pass opens only the names Git writes:
+each lock is named exactly where Git names it,
+and a whole folder is read only where nothing but Git's state can be in it,
+which is `refs` and the sequencer's three folders.
+A file of a person's named `something.lock` beside an alternate index, or in a Git directory, is never opened or
+unlinked.
+A lock in the per-user or system config, a `--file` config, the credential store, a bundle or a marks file
 lies outside the repository and is none of this pass's;
 the doc comment of `src/native/lock/abandoned_locks.rs` has the table of every file Git locks for the commands the
 wrapper forwards, with Git's own file and line for each.
@@ -3707,10 +3708,16 @@ Any other command's pass removes it only when the record names its writer,
 that writer is proved gone,
 every process the record names is proved gone,
 and a walk of the lock files made after the record was read names none of them.
-A record is named after the process that wrote it,
-so the proof reads the record a lock's PID file asks about by that number rather than out of a bounded listing of the
-folder,
+Every record that can name a process number takes part in the verdict whatever its name,
+because a person may rename one:
+the proof reads every record when the folder fits in its bound and answers unknown when it does not,
+which keeps the lock,
 and the sweep's bound on how many records it reads is said in the log and never read as "there is no record".
+A Git the wrapper starts is named in the record before it is waited for,
+and its birth is read even when it already ended,
+so a Git that took a lock and died at once is still named;
+a record that cannot be written stops and reaps the child.
+Every open in the folder is a plain-file open that cannot wait and follows no link.
 A writer proved gone cannot append,
 so that reading is of a file nothing can change,
 and the walk made after it sees every lock the reading could not know about.

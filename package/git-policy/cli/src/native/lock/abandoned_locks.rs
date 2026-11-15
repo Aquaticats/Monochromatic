@@ -24,7 +24,16 @@
 //!
 //! Every file Git can lock for the commands the wrapper forwards,
 //! where it lies under each setting that moves it,
-//! and the root of the one answer (`CommandRepository::lock_roots`) that covers it.
+//! and the candidate of the one answer (`CommandRepository::lock_candidates`) that names it.
+//!  A candidate is the exact name Git writes,
+//!  or a folder that holds nothing but Git's own state and is read whole:
+//!  `refs`,
+//!  whose reference names Git forbids to end in `.lock`,
+//!  and the sequencer's three folders.
+//!  Nothing else is read, so a file of a person's named `something.lock` beside a selected index or in a Git directory
+//!  is never opened or unlinked
+//!  (a review of `429503238b`,
+//! finding 3).
 //!  A lock lies beside the file it protects, as `<file>.lock` with `<file>~pid.lock` beside it
 //!  (`lockfile.c`,
 //! lines 99 to 110;
@@ -35,27 +44,27 @@
 //!    `<git-dir>/index`,
 //!    or `GIT_INDEX_FILE` (`repository.c`,
 //! lines 191 and 192);
-//!    root:
-//!    the index file's own directory,
-//!    which is the Git directory unless the variable names another.
+//!    candidate:
+//!    `<index file>.lock` itself,
+//!    named exactly.
 //!  - the references (files backend):
 //!    `<common-dir>/refs/**`
 //!    (`refs/files-backend.c`,
 //! lines 855, 1276 and 3609);
-//!    root:
-//!    the common directory and the Git directory.
+//!    candidate:
+//!    `refs` below the common directory, read whole.
 //!  - `packed-refs`:
 //!    `<common-dir>/packed-refs`
 //!    (`refs/packed-backend.c`,
 //! line 1258);
-//!    root:
-//!    the common directory.
+//!    candidate:
+//!    `<common-dir>/packed-refs.lock`.
 //!  - the reftable backend's list of tables:
 //!    `<common-dir>/reftable/tables.list`
 //!    (`reftable/system.c`,
 //! line 71);
-//!    root:
-//!    the common directory.
+//!    candidate:
+//!    `<common-dir>/reftable/tables.list.lock`.
 //!  - the shallow file:
 //!    `<git-dir>/shallow`,
 //!    or `GIT_SHALLOW_FILE` or `--shallow-file` (`path.c`,
@@ -64,80 +73,90 @@
 //! line 17;
 //! `git.c`,
 //! lines 306 to 311);
-//!    root:
-//!    the shallow file's own directory.
+//!    candidate:
+//!    `<shallow file>.lock` itself.
 //!  - the repository's config:
 //!    `<common-dir>/config`,
 //!    or the file `GIT_CONFIG` names (`config.c`,
 //! lines 3090 and 3436);
-//!    root:
-//!    the common directory when it is the repository's config;
-//!    a file the person names with `--file`, the per-user file and the system file are outside every root.
+//!    candidate:
+//!    `<common-dir>/config.lock`;
+//!    a file the person names with `--file`, the per-user file and the system file are named by no candidate.
+//!  - `HEAD`, `ORIG_HEAD`, the rerere cache, the sparse-checkout file and garbage collection's own files:
+//!    `<git-dir>/HEAD`,
+//!    `<git-dir>/ORIG_HEAD`,
+//!    `<git-dir>/MERGE_RR`,
+//!    `<git-dir>/info/sparse-checkout`,
+//!    `<git-dir>/gc.pid` and `<git-dir>/gc.log`
+//!    (`refs/files-backend.c`,
+//! lines 855 and 1276;
+//! `rerere.c`,
+//! line 944;
+//! `builtin/sparse-checkout.c`,
+//! line 344;
+//! `builtin/gc.c`,
+//! lines 440 and 710);
+//!    candidates:
+//!    `HEAD.lock`,
+//!    `ORIG_HEAD.lock`,
+//!    `MERGE_RR.lock`,
+//!    `info/sparse-checkout.lock`,
+//!    `gc.pid.lock` and `gc.log.lock`.
 //!  - the sequencer's state and the index it stages into:
 //!    `<git-dir>/sequencer/*`,
-//!    `<git-dir>/rebase-merge/*`,
-//!    `<git-dir>/rebase-apply/*` and `<git-dir>/next-index-<pid>`
+//!    `<git-dir>/rebase-merge/*` and `<git-dir>/rebase-apply/*`
 //!    (`sequencer.c`,
 //! lines 578, 3745, 4018 and 4543;
 //! `builtin/commit.c`,
 //! line 543);
-//!    root:
-//!    the Git directory.
-//!  - the rerere cache's `MERGE_RR`:
-//!    `<git-dir>/MERGE_RR`
-//!    (`rerere.c`,
-//! line 944);
-//!    root:
-//!    the Git directory.
-//!  - the sparse-checkout file:
-//!    `<git-dir>/info/sparse-checkout`
-//!    (`builtin/sparse-checkout.c`,
-//! line 344);
-//!    root:
-//!    the Git directory.
-//!  - garbage collection's own files:
-//!    `<git-dir>/gc.pid` and `<git-dir>/gc.log`
-//!    (`builtin/gc.c`,
-//! lines 440 and 710);
-//!    root:
-//!    the Git directory.
+//!    candidates:
+//!    those three folders, read whole,
+//!    because Git's transient state is all they hold.
 //!  - the maintenance and schedule locks:
-//!    `<object-dir>/maintenance` and `<object-dir>/schedule`
+//!    `<object-dir>/maintenance`,
+//!    `<object-dir>/schedule`
 //!    (`builtin/gc.c`,
-//! lines 1404 and 2979),
+//! lines 1404 and 2979)
 //!    and the loose object index `<object-dir>/loose-object-idx` (`loose.c`,
 //! line 191);
-//!    root:
-//!    the object directory itself, listed and not descended.
+//!    candidates:
+//!    `<object-dir>/maintenance.lock`,
+//!    `<object-dir>/schedule.lock` and `<object-dir>/loose-object-idx.lock`.
 //!  - the alternates file:
 //!    `<object-dir>/info/alternates`
 //!    (`odb/source-files.c`,
 //! line 116);
-//!    root:
-//!    `<object-dir>/info`.
+//!    candidate:
+//!    `<object-dir>/info/alternates.lock`.
 //!  - the commit-graph:
 //!    `<object-dir>/info/commit-graph`
 //!    (`commit-graph.c`,
 //! lines 2133 and 2152);
-//!    root:
-//!    `<object-dir>/info`.
+//!    candidate:
+//!    `<object-dir>/info/commit-graph.lock`.
 //!  - the multi-pack index and its chain:
 //!    `<object-dir>/pack/multi-pack-index` and `<object-dir>/pack/multi-pack-index-chain`
 //!    (`midx-write.c`,
 //! lines 1629 and 1649;
 //! `repack-midx.c`,
 //! line 957);
-//!    root:
-//!    `<object-dir>/pack`.
-//!  - a linked worktree's own index:
-//!    `<common-dir>/worktrees/<id>/index`
+//!    candidates:
+//!    `<object-dir>/pack/multi-pack-index.lock` and `<object-dir>/pack/multi-pack-index-chain.lock`.
+//!  - a linked worktree's own state:
+//!    `<common-dir>/worktrees/<id>/…`
 //!    (`repository.c`,
 //! line 192 with the worktree's Git directory);
-//!    root:
-//!    the worktree's Git directory,
-//!    which is the Git directory of a command run in it.
+//!    candidates:
+//!    that worktree's `HEAD.lock`,
+//!    `ORIG_HEAD.lock`,
+//!    `MERGE_RR.lock`,
+//!    `gc.pid.lock`,
+//!    `gc.log.lock`,
+//!    `info/sparse-checkout.lock`,
+//!    its `index.lock` and its three sequencer folders,
+//!    found by listing the entries of `<common-dir>/worktrees`.
 //!
-//! A lock no root covers is a lock this pass can never clear:
+//! A lock no candidate names is a lock this pass can never clear:
 //!  the per-user and system config files,
 //!  a config file named with `--file`,
 //!  the credential store (`builtin/credential-store.c`,
@@ -151,7 +170,7 @@
 //!  Those lie outside the repository the pass is defined over,
 //!  and Git's own tools refuse or clear them;
 //!  a record whose Git only ever locked one of them explains nothing this pass could do,
-//!  which is why the removal of records is bounded by roots that cover every lock inside the repository.
+//!  which is why the removal of records is bounded by candidates that name every lock inside the repository.
 //!
 //! In TS you'd write (pseudocode):
 //! ```ts

@@ -10273,10 +10273,16 @@ The one answer reads those settings (`repository_a_command_works_on`,
   `GIT_OBJECT_DIRECTORY`,
   else `<common-dir>/objects`.
 
-The walk lists the Git and common directories and everything below them,
-and lists the other four without descending,
-because Git locks nothing in their subdirectories and the object store's fanout holds loose objects by the hundred
-thousand.
+The pass opens and unlinks only the names Git writes, never "a folder's files with a suffix":
+each lock is named exactly where Git names it,
+and a whole folder is read only where nothing but Git's own state can be in it,
+which is `refs` below the common directory (a reference name cannot end in `.lock`) and the sequencer's three folders
+(a review of `429503238b`,
+finding 3).
+The directory of an alternate index or a shallow file is read by no walk at all: the one lock there is the selected
+file's own.
+The table of every locked file, with the exact candidate that names it and Git's own file and line, is the doc comment
+of `src/native/lock/abandoned_locks.rs`.
 The table of every file Git can lock for the commands the wrapper forwards,
 with the file and line of Git's source that locks it,
 is the doc comment of `src/native/lock/abandoned_locks.rs`.
@@ -10291,15 +10297,31 @@ Those lie outside the repository the pass is defined over,
 and a record whose Git only locked one of them explains nothing this pass could do,
 which is why the removal of records is bounded by roots that cover every lock inside the repository.
 
-A record is named after the process that wrote it,
-`<pid>.<digest of its identity>`,
-so the record a lock's PID file asks about is read by that number and not out of a listing of the folder:
-a bound on how many records a sweep reads may never turn "there is a record" into "there is none"
-(`records_of_number`,
-`proved_gone_writer`).
-The sweep still reads at most `MOST_RECORDS` files,
+Every record that can speak about a process number takes part in the verdict,
+whatever its name,
+because a person may rename one and a renamed record can name any number in its own lines:
+the proof reads every record of the repository when the folder fits in `MOST_RECORDS` and answers unknown when it does
+not,
+which keeps the lock
+(`records_that_can_name`,
+`proved_gone_writer`;
+a review of `429503238b`,
+finding 2).
+The sweep reads at most `MOST_RECORDS` files,
 and says so in the log when it stops at that bound,
 which costs the folder some litter and decides nothing about a lock.
+
+A Git the wrapper starts is named in the record before it is waited for,
+and its birth is read whatever state it is in by then:
+a Git that took a lock and ended in the instruction after its start is still in the process table as a zombie,
+and its birth is readable there.
+When even that record cannot be written the child is stopped and reaped and the error is returned,
+so no Git runs unaccounted for.
+Every open in the lock-holders folder is a plain-file open:
+it cannot wait,
+follows no link,
+and refuses a pipe, a device or a folder at the name,
+so a named pipe at a record's path cannot hold a Git start.
 The two together are the whole proof:
 a removal decided on a reading of the records but on an older sight of the locks loses the record of a lock made in
 between (a review of `2af2ecb879`,
