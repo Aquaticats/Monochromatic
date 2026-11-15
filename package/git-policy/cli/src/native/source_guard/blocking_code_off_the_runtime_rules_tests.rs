@@ -251,6 +251,18 @@ pub(super) const ALLOWED: &[Allowed] = &[
               awaits the build",
     },
     Allowed {
+        file: "foundation/own_thread_for_work_that_can_stall.rs",
+        rule: "thread-start",
+        why: "a look that says whose a commit's request is and a beat's note read are calls into storage that cannot be taken \
+              back once made, and a job of the blocking pool whose caller stops waiting keeps its thread, and the place of the \
+              bound it took, until its work ends; enough of them take every thread a commit's own path and a withdrawal's answer \
+              wait on (the reviews of `0b847be249` and `e1a615aab0`, F3, F4 and F5). So each kind of such work runs on a thread \
+              of its own with a stated number alive at once (`WorkThatCanStall`), takes no place of the bound, and its place goes \
+              back when its work ends and never when its caller stops waiting. The entry goes when a started storage call can be \
+              ended rather than left running, which a process that can be killed per kind of work would give and no job of the \
+              blocking pool does",
+    },
+    Allowed {
         file: "foundation/log_generations_kept_to_a_bound.rs",
         rule: "thread-start",
         why: "one thread trims the log generations; a job of the blocking pool replaces it",
