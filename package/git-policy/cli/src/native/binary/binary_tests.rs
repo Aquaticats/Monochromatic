@@ -71,6 +71,12 @@ mod support_fixture_directories;
 #[path = "binary_support_observation.rs"]
 mod support_observation;
 
+/// The bound one observed command is given,
+/// who ended it,
+/// and the two pipes its output came through.
+#[path = "binary_support_observation_bound.rs"]
+mod support_observation_bound;
+
 /// The one place a control says that it needs a btrfs fixture root,
 /// and what it does where there is none.
 #[path = "binary_support_btrfs_controls.rs"]
