@@ -191,6 +191,46 @@ pub fn install_directory_name(route: Route, id: &str) -> Option<String> {
     };
 }
 
+/// What:
+/// The two numbers that name one entry on its file system:
+/// the device and the inode, or zeros where the platform has none.
+/// Why:
+/// A write time tells two writes apart only as finely as the file system's clock,
+/// so two files written in the same tick look alike;
+/// the inode is what proves the entry standing at a name is the one that was judged,
+/// which is what a removal needs before it deletes or moves anything.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type EntryNaming = { device: number; inode: number };
+/// ```
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct EntryNaming {
+    /// The file system the entry is on.
+    pub device: u64,
+    /// The entry's number on that file system.
+    pub inode: u64,
+}
+
+/// The methods of `EntryNaming`.
+impl EntryNaming {
+    /// The numbers that name the entry `metadata` describes.
+    #[cfg(unix)]
+    pub fn of(metadata: &fs::Metadata) -> EntryNaming {
+        /// Imports `MetadataExt` from `std::os::unix::fs`,
+        /// for the two numbers that name an entry.
+        use std::os::unix::fs::MetadataExt;
+        return EntryNaming { device: metadata.dev(), inode: metadata.ino() };
+    }
+
+    /// The numbers that name the entry `metadata` describes;
+    /// no platform but Unix has them.
+    #[cfg(not(unix))]
+    pub fn of(_metadata: &fs::Metadata) -> EntryNaming {
+        return EntryNaming::default();
+    }
+}
+
 /// One version directory of a tool in a store.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VersionDirectory {
@@ -209,6 +249,9 @@ pub struct VersionDirectory {
     pub bytes: u64,
     /// When the version directory was last written.
     pub written: SystemTime,
+    /// The numbers that name the version directory,
+    /// as the scan read them.
+    pub naming: EntryNaming,
 }
 
 /// A download an earlier layout left directly under the store's `downloads` directory.
@@ -223,6 +266,9 @@ pub struct LeftoverDownload {
     pub bytes: u64,
     /// When it was last written.
     pub written: SystemTime,
+    /// The numbers that name the file,
+    /// as the scan read them.
+    pub naming: EntryNaming,
 }
 
 /// What:
@@ -430,7 +476,7 @@ pub fn version_directories(
                 }
             };
             measured.insert(key, SizeRecord { written_ns: recorded_ns, bytes });
-            found.push(VersionDirectory { tool: tool.clone(), version, directory, downloads, bytes, written });
+            found.push(VersionDirectory { tool: tool.clone(), version, directory, downloads, bytes, written, naming: EntryNaming::of(&metadata) });
         }
         if stopped.is_some() {
             break;
@@ -494,7 +540,13 @@ pub fn leftover_downloads(toolchain_root: &Path, tools: &BTreeSet<String>) -> Ve
             if !name.starts_with(&format!("{tool}-")) {
                 continue;
             }
-            found.push(LeftoverDownload { tool: tool.clone(), file: file.clone(), bytes: metadata.len(), written });
+            found.push(LeftoverDownload {
+                tool: tool.clone(),
+                file: file.clone(),
+                bytes: metadata.len(),
+                written,
+                naming: EntryNaming::of(&metadata),
+            });
             break;
         }
     }

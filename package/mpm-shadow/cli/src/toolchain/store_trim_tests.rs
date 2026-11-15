@@ -64,6 +64,7 @@ fn candidate(tool: &str, version: &str, bytes: u64, written_seconds_ago: u64) ->
         downloads: None,
         bytes,
         written: SystemTime::now() - Duration::from_secs(written_seconds_ago),
+        naming: crate::toolchain::store_versions::EntryNaming::default(),
         leftover: false,
     };
 }
@@ -1051,28 +1052,62 @@ fn a_recovery_gives_a_version_back_with_its_downloads() {
 }
 
 /// What:
-/// A downloads tombstone whose version a live claim holds is left for that claim,
-/// and goes once the claim is gone.
+/// A downloads tombstone a live removal holds is left for that removal,
+/// and goes once the removal is done.
 /// Why:
-/// The review showed the live order too: removal A moves the archives aside, a concurrent pass deletes the tombstone,
-/// and A's restore then finds nothing to put back, so the version it keeps has no archives.
+/// A removal moves the archives aside before it takes the version,
+/// and in that window the downloads claim is the only record of it;
+/// the review showed a concurrent pass deleting the tombstone there and the removal's restore then finding nothing
+/// to put back, so the version it kept had no archives.
 #[test]
-fn a_downloads_tombstone_a_claim_holds_is_not_deleted() {
+fn a_downloads_tombstone_a_live_removal_holds_is_not_deleted() {
     let fixture = Fixture::new();
-    let tool_directory: PathBuf = fixture.root.join("node");
     let downloads: PathBuf = fixture.root.join("downloads/node/26.12.0");
     fs::create_dir_all(&downloads).expect("make the downloads");
     fs::write(downloads.join("node.tar.gz"), b"archive").expect("write the archive");
+    // Removal A takes the right and moves the archives aside, which is the step before its version claim.
+    let right = crate::toolchain::download_ownership::take_removal_right(&fixture.root, "node", "26.12.0")
+        .expect("take the right to remove");
+    let held = match right {
+        crate::toolchain::download_ownership::RemovalRight::Held { claim } => claim,
+        _ => panic!("a removal that asked first did not get the right"),
+    };
     let downloads_marker: PathBuf = tombstone_of(&downloads);
     fs::rename(&downloads, &downloads_marker).expect("removal A moves the archives aside");
-    // Removal A is alive and is between its downloads move and its version claim.
-    let maker: ProcessIdentity = this_process().expect("this process's start time is readable");
-    let claimed: PathBuf = tool_directory.join(claimed_name_made_by("26.12.0", maker));
-    fs::create_dir_all(&claimed).expect("a directory standing in for the live claim");
     let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
 
     let _ = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
     assert!(downloads_marker.is_dir(), "a pass deleted the archives a live removal had moved aside");
+
+    // Control: with the right given up, the same pass finishes the tombstone.
+    drop(held);
+    let (lines, _unfinished) = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    assert!(!downloads_marker.exists(), "the tombstone stayed with no removal over it: {lines:?}");
+}
+
+/// What:
+/// A downloads tombstone whose version a claim holds is left too,
+/// because giving the version back restores the archives with it.
+/// Why:
+/// The claim pass runs before the tombstone pass in one root,
+/// so a version it gave back has its archives back by the time the tombstones are looked at;
+/// a claim it left (a live removal's) still names work the archives belong to.
+#[test]
+fn a_downloads_tombstone_a_version_claim_holds_is_not_deleted() {
+    let fixture = Fixture::new();
+    let tool_directory: PathBuf = fixture.root.join("node");
+    let downloads: PathBuf = fixture.root.join("downloads/node/26.13.1");
+    fs::create_dir_all(&downloads).expect("make the downloads");
+    fs::write(downloads.join("node.tar.gz"), b"archive").expect("write the archive");
+    let downloads_marker: PathBuf = tombstone_of(&downloads);
+    fs::rename(&downloads, &downloads_marker).expect("a removal moved the archives aside");
+    let maker: ProcessIdentity = this_process().expect("this process's start time is readable");
+    let claimed: PathBuf = tool_directory.join(claimed_name_made_by("26.13.1", maker));
+    fs::create_dir_all(&claimed).expect("a directory standing in for the live claim");
+    let tools: BTreeSet<String> = ["node".to_string()].into_iter().collect();
+
+    let _ = finish_removals(std::slice::from_ref(&fixture.root), &tools, &fixture.run());
+    assert!(downloads_marker.is_dir(), "a pass deleted the archives of a version a live claim holds");
 
     // Control: with the claim gone, the same pass finishes the tombstone.
     fs::remove_dir_all(&claimed).expect("drop the stand-in claim");
@@ -1099,6 +1134,8 @@ fn a_flat_download_replaced_after_the_plan_is_not_deleted() {
     let archive: PathBuf = downloads.join("node-26.11.0-node-v26.11.0-linux-x64.tar.gz");
     fs::write(&archive, b"old archive").expect("write the old archive");
     let judged: SystemTime = SystemTime::now() - Duration::from_secs(2 * 24 * 60 * 60);
+    let naming: crate::toolchain::store_versions::EntryNaming =
+        crate::toolchain::store_versions::EntryNaming::of(&fs::symlink_metadata(&archive).expect("read the old archive"));
     fs::File::options()
         .write(true)
         .open(&archive)
@@ -1113,6 +1150,7 @@ fn a_flat_download_replaced_after_the_plan_is_not_deleted() {
         downloads: None,
         bytes: 11,
         written: judged,
+        naming,
         leftover: true,
     };
     let plan: TrimPlan = TrimPlan { total_bytes: 11, over_bound: true, steps: vec![TrimStep::Remove(candidate)] };
@@ -1171,6 +1209,7 @@ fn a_marker_that_cannot_be_written_stops_the_removal() {
         downloads: None,
         bytes: 1_000,
         written,
+        naming: crate::toolchain::store_versions::EntryNaming::default(),
         leftover: false,
     };
     let plan: TrimPlan = TrimPlan { total_bytes: 1_000, over_bound: true, steps: vec![TrimStep::Remove(candidate)] };

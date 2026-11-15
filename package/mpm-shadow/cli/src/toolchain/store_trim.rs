@@ -75,8 +75,8 @@ use super::scope::{EnvMap, ScopeKind, global_scope};
 use super::store_path_holders::{StoreHolders, held_reason, holders_of, opaque_reason};
 /// Imports what this module uses from `super::store_versions`.
 use super::store_versions::{
-    DOWNLOADS_DIRECTORY_NAME, TOMBSTONE_PREFIX, VersionDirectory, downloads_in_use, downloads_of, install_directory_name,
-    leftover_downloads, tombstone_of, tombstones, tree_size, version_directories,
+    DOWNLOADS_DIRECTORY_NAME, EntryNaming, TOMBSTONE_PREFIX, VersionDirectory, downloads_in_use, downloads_of,
+    install_directory_name, leftover_downloads, tombstone_of, tombstones, tree_size, version_directories,
 };
 /// Imports `worktree_lock_files` from `super::worktrees`.
 use super::worktrees::worktree_lock_files;
@@ -322,6 +322,9 @@ pub struct TrimCandidate {
     pub bytes: u64,
     /// When it was last written.
     pub written: SystemTime,
+    /// The numbers that name the entry,
+    /// as the scan read them: what proves at the act that it is the entry that was judged.
+    pub naming: EntryNaming,
     /// Whether this is a download file and not a version directory.
     pub leftover: bool,
 }
@@ -358,6 +361,7 @@ pub fn candidates_of(roots: &[PathBuf], tools: &BTreeSet<String>, deadline: Inst
                 downloads: None,
                 bytes: leftover.bytes,
                 written: leftover.written,
+                naming: leftover.naming,
                 leftover: true,
             });
         }
@@ -376,6 +380,7 @@ fn candidate_of_version(root: &Path, version: VersionDirectory) -> TrimCandidate
         downloads: version.downloads,
         bytes: version.bytes,
         written: version.written,
+        naming: version.naming,
         leftover: false,
     };
 }
@@ -702,8 +707,11 @@ fn remove_leftover(candidate: &TrimCandidate) -> Removal {
         Err(error) if error.kind() == ErrorKind::NotFound => return Removal::Gone,
         Err(error) => return Removal::Kept(format!("it cannot be moved aside: {error}")),
     }
-    let moved: Option<SystemTime> = fs::symlink_metadata(&set_aside).ok().and_then(|metadata| return metadata.modified().ok());
-    if moved != Some(candidate.written) {
+    let moved: Option<fs::Metadata> = fs::symlink_metadata(&set_aside).ok();
+    let judged_still_there: bool = moved.as_ref().is_some_and(|metadata| {
+        return metadata.modified().ok() == Some(candidate.written) && EntryNaming::of(metadata) == candidate.naming;
+    });
+    if !judged_still_there {
         // What: a file another run published after the scan goes back to the name it had.
         // Why: it is not the file that was judged, and the install that wrote it is about to unpack it.
         return match fs::rename(&set_aside, &candidate.directory) {
