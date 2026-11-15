@@ -738,6 +738,22 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-14T23:29:43-05:00,
+  from the run on two starts of one run name
+  (driver,
+  branch tip `719876dd2b`,
+  in review),
+  neither blocking work:
+  - The start of a run now proves a worktree is its own before it removes it.
+    Are the removals at a run's end
+    (`finish-a-run.ts`,
+    `remove-finished-worktrees.ts`)
+    given the same proof,
+    or is their unforced `git worktree remove` enough?
+  - A start whose caller pinned a run number with `--run=<n>` is refused when that folder is there.
+    Is that refusal right where it stands,
+    or is it made earlier,
+    when the batch list is read?
 - Added 2026-11-14T22:57:44-05:00,
   from the landed removal's author
   (branch tip `5a2bd4bb6c`,
@@ -1357,6 +1373,82 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The landed removal loses a commit three more ways, each a read that failed taken for nothing there; the add's append race and the two starts of one run name are answered and go to review (2026-11-14T23:29:43-05:00)
+
+Not final and not approved:
+what one review and two authors report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The landed removal's guard** (`5a2bd4bb6c`),
+  its sixth review,
+  ended 23:24:21,
+  twenty of twenty files and the whole diff,
+  the wrapper built with the package's task.
+  Nothing against the refusal,
+  the operation records or the reachability rule.
+  Three things,
+  each reproduced through the built program with `git gc --prune=now` and the object gone after:
+  an annotated tag among a worktree's own references is not peeled,
+  so the commit it tags is not protected;
+  an operation record that cannot be read
+  (`ORIG_HEAD` at mode `000`)
+  is taken for an absent one;
+  and a nested registration whose `gitdir` cannot be read is skipped,
+  so the removal of the outer worktree deletes the nested one with its uncommitted bytes,
+  where the same removal was refused a moment before.
+- **Weighed**:
+  all three worth their fix.
+  Two are one rule the branch's own reflog reader keeps and its neighbours do not:
+  what could not be read is not absent.
+  The author is resumed,
+  its tenth report whole
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-sixth-review-of-2026-11-14-prompt.md`,
+  queued sixth),
+  asked for every read on the guard's path with what each failure becomes,
+  and whether the 64 ms it measured can be left out where a worktree's own names hold no candidate.
+  It is told that the busy-worktree branch changes the same registrations reader.
+- **An add never skips the Cargo repair**,
+  its author's ninth run,
+  ended 23:24:55 at `22c55524a6`.
+  The review's script reproduced at the old tip and does not at the new.
+  Both appends to `info/exclude` now begin with a line end whatever was read and are written in one `write`;
+  the step appends only when its pattern is missing,
+  so a repository pays one blank line once
+  (a control of a thousand calls:
+  one write).
+  Seven appends to shared files are listed with what each decides on;
+  two controls place the second writer by the code's own seam and are quoted failing with the old decision put back.
+  It also found and deleted a test file of its own earlier round that no module reached,
+  which had eleven guard tests refusing the crate.
+  Clippy clean;
+  277 tests passing.
+  Its review is queued second
+  (`main...22c55524a6`,
+  thirteen code files).
+- **Two starts of one run name never share a run folder or remove each other's worktree**,
+  a fresh run,
+  ended 23:28:42 at `719876dd2b`
+  (driver).
+  Its report is long and whole;
+  the part read here:
+  type check and lint clean,
+  190 unit tests passing,
+  its three new controls named,
+  the review's script and a two-start script run before and after.
+  It asks two things,
+  now in "Questions kept for the owner's return".
+  Its review is queued third
+  (`main...719876dd2b`,
+  six code files).
+- Read at 23:28:53:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  19 runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 74 entries at 23:29:43.
 
 ##### The fix for the gate's Git version takes `-0` where Git refuses it; the author is resumed to ask Git for every numeric key (2026-11-14T23:22:09-05:00)
 
