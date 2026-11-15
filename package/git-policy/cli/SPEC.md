@@ -2929,7 +2929,9 @@ an interrupted or failed add keeps naming the same worktree and stage in every c
 runs the recovery,
 until the person finishes or removes it.
 
-`git worktree remove <directory>` with at most one `-f`/`--force` and a non-empty directory name,
+`git worktree remove <directory>` with the force Git's own table reads,
+wherever in the words it stands,
+and a non-empty directory name,
 for an unlocked linked worktree
 that is a subvolume root,
 clean unless the person forced the removal,
@@ -3029,6 +3031,29 @@ worktree changed.
 
 The wrapper serves the removal only when real Git would remove the same directory,
 with the same force:
+- The words are read as Git's `parse_options` reads them (`src/native/worktree/worktree_remove_plan.rs`,
+  `removal_shape`):
+  every word before a `--` that starts with a hyphen is an option,
+  a `--` ends the options,
+  the words that are not options are its arguments,
+  and the command removes a worktree only when exactly one of them stands,
+  wherever among the options it stands.
+  A word that asks for the usage,
+  any other count of arguments,
+  and an empty argument are the answers Git gives with its usage,
+  which remove nothing,
+  so those words stay Git's.
+  A word this program does not read is refused rather than called a non-removal,
+  because an option a later Git adds could be one it accepts without a force,
+  and the refusal names the word it stopped at.
+  The force is Git's `-f` and `--force`,
+  at every length of either name that still names it alone,
+  in a cluster of `f`s,
+  and with the `no-` prefix that turns it off;
+  the last spelling of it in the words is the one Git keeps.
+  The walk in `worktree_remove_plan_tests.rs` holds every spelling of that option in every position
+  against real Git,
+  and the property it holds is that Git removes the worktree if and only if the wrapper reads a removal.
 - The worktree is registered in the repository the command runs in:
   its administrative directory is one of that
   repository's `worktrees/<id>`,
