@@ -1594,6 +1594,84 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Two reviews: mpm's removal of old versions deletes in more places than it judges, and a boot part in capitals makes a live holder gone (2026-11-15T06:11:15-05:00)
+
+Not final and not approved:
+what two reviews report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **mpm-shadow, removal of old versions** (`e9af93e68a`),
+  its eighth review,
+  ended 06:05:01,
+  seven of seven files,
+  eight things,
+  each reproduced with a test of its own:
+  a downloads folder replaced after the inventory is deleted unjudged,
+  under a proof that is always true;
+  a moved-aside copy that changed after its record is deleted as a duplicate;
+  recovery finishes a deletion while a live process works inside the tree;
+  an open leftover download is not protected;
+  a partly deleted downloads tree is put back beside a replacement version;
+  a permission error is taken as proof that downloads are orphaned;
+  the work limit cannot end the pass's Git child;
+  and the order of removal reads the root's time,
+  not the newest write inside.
+  All worth their fix.
+  **Weighed**:
+  the rule the author wrote last round,
+  that what the pass cannot see is protected,
+  was applied where the pass judges,
+  and the pass deletes in more places than it judges
+  (a version's downloads,
+  the recovery of a killed pass,
+  leftovers).
+  The author is resumed,
+  its third run,
+  and asked for a list of every removal and rename with its proof first,
+  then one function through which everything goes
+  (`~/temp/agent/pi-runs/mpm-shadow-removal-of-old-versions-answers-its-eighth-review-of-2026-11-15-prompt.md`,
+  queued tenth).
+  This code is not in `main` and not in a release:
+  `store_trim.rs` is absent from `main`.
+- **The record of another boot** (`1c3a90ddaa`),
+  its review,
+  ended 06:06:29,
+  four of four files,
+  one thing,
+  reproduced:
+  a marker whose boot part is the current boot's digits in capitals passes the new validation,
+  is then compared as text,
+  and a live holder is judged gone and its `index.lock` unlinked.
+  **Weighed**:
+  the wrapper writes that part itself in the kernel's spelling,
+  so it needs a marker written by something else;
+  it is worth its fix all the same,
+  because a second spelling of one boot is no proof of another,
+  and a lock goes only on proof.
+  The author is resumed,
+  its second run,
+  for that and for the same question of every other part of the identity
+  (`~/temp/agent/pi-runs/record-of-another-boot-answers-its-review-of-2026-11-15-prompt.md`,
+  queued fourth).
+  One gate failure waits on it.
+- **The gate** on `f82fc29fc3` was active at 06:09:46.
+- **The temperature**,
+  read at 06:09:46 with the gate running:
+  60.5 degrees,
+  budget 32.0 threads,
+  29.7 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 06:09:46:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 05:57;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  No resumed session is named by the credential scan.
+  The queue held 83 entries at 06:11:15.
+
 ##### `0.6.1-alpha.39` is published and installed on this machine; its container gate is running (2026-11-15T06:00:29-05:00)
 
 Not final and not approved:
