@@ -62,7 +62,7 @@ use super::context::Context;
 use super::model::Route;
 /// Imports what this module uses from `super::download_ownership`,
 /// which says who owns a version's downloads while an install writes them and who may remove them.
-use super::download_ownership::{RemovalClaim, RemovalRight, live_owner, take_removal_right};
+use super::download_ownership::{RemovalClaim, RemovalRight, live_owner, removal_held, take_removal_right};
 /// Imports `remove_orphan_downloads` from `super::published_archive`,
 /// which owns where a version's archives are kept and what tells an install's use of them.
 use super::published_archive::remove_orphan_downloads;
@@ -1189,10 +1189,12 @@ fn claimed_versions(root: &Path, tools: &BTreeSet<String>) -> BTreeSet<String> {
 /// A downloads tombstone sits in `<root>/downloads/<tool>/` and a version's in `<root>/<tool>/`,
 /// and only the first is tied to a claim under the tool directory: the second is a version the store has already
 /// taken out of its name and nothing else may use.
-fn downloads_tombstone_version(root: &Path, marker: &Path) -> Option<String> {
+fn downloads_tombstone(root: &Path, marker: &Path) -> Option<(String, String)> {
     // A downloads tombstone sits under `<root>/downloads/<tool>/`, and a version's under `<root>/<tool>/`.
     let downloads_directory: PathBuf = root.join(DOWNLOADS_DIRECTORY_NAME);
-    if !marker.starts_with(&downloads_directory) {
+    let inside: &Path = marker.strip_prefix(&downloads_directory).ok()?;
+    let tool: String = inside.parent()?.to_string_lossy().to_string();
+    if tool.is_empty() {
         return None;
     }
     let name: String = file_name_text(marker);
@@ -1200,7 +1202,7 @@ fn downloads_tombstone_version(root: &Path, marker: &Path) -> Option<String> {
     if version.is_empty() {
         return None;
     }
-    return Some(version.to_string());
+    return Some((tool, version.to_string()));
 }
 
 /// What:
@@ -1252,12 +1254,13 @@ pub fn finish_removals(
                 unfinished.insert(root.clone());
                 break;
             }
-            // What: a downloads tombstone whose version is still claimed is left where it is.
-            // Why: that claim is a removal still using its archives, or one this pass gave back above and restored
-            // the archives with; deleting it would take the archives from the install or from the version just
-            // restored.
-            if let Some(version) = downloads_tombstone_version(root, &marker)
-                && claimed_here.contains(&version)
+            // What: a downloads tombstone a removal still holds is left where it is.
+            // Why: that removal moved the archives aside and has not judged the version yet,
+            // or this pass gave the version back above and restored the archives with it;
+            // deleting the tombstone would take the archives from that removal or from the version just restored,
+            // and a claim whose maker has ended does not hold it.
+            if let Some((tool, version)) = downloads_tombstone(root, &marker)
+                && (claimed_here.contains(&version) || removal_held(root, &tool, &version))
             {
                 continue;
             }

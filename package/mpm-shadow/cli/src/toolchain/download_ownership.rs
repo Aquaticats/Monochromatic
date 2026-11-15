@@ -253,6 +253,21 @@ pub fn take_removal_right(root: &Path, tool: &str, version: &str) -> Result<Remo
 }
 
 /// What:
+/// Whether a live command holds the right to remove `version`'s archives now.
+/// Why:
+/// A removal moves the archives aside before it takes the version,
+/// so between those two steps the only record of it is the downloads claim;
+/// another pass must not finish the tombstone the removal is about to restore.
+/// The claim names its maker, so one a kill left answers no and its tombstone is finished by the pass.
+pub(crate) fn removal_held(root: &Path, tool: &str, version: &str) -> bool {
+    let claim: PathBuf = removal_claim_of(root, tool, version);
+    if fs::symlink_metadata(&claim).is_err() {
+        return false;
+    }
+    return claim_is_held(&claim);
+}
+
+/// What:
 /// Whether a live command still holds the removal claim at `claim`,
 /// clearing a claim whose maker has ended before answering.
 /// Why:
