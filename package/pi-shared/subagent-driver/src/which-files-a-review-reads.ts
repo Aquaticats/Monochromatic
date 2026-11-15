@@ -18,8 +18,8 @@
  An extension in neither list is a kind this writer does not know. `whatAReviewDoesWithAFile` answers
  `reads-it-as-code-of-an-unlisted-kind` for it, so a review reads it instead of dropping it, and the line the brief writer
  prints names the file, because a change nobody listed must not go unread. That answer is also why a `.cjs` source and the
- `.d.cts` types beside it are read: before 2026-11-14 both were in no list, so a range that changed them, their test and their
- note was answered `nothing to review`, and that branch stood unreviewed until someone wrote its brief by hand.
+ `.d.cts` types beside it are read: both were in no list until this change, so a range that changed them, their test and their
+ note was answered `nothing to review` on 2026-11-14, and that branch stood unreviewed until someone wrote its brief by hand.
 
  @module
  */

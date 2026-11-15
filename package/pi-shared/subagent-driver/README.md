@@ -587,7 +587,7 @@ on 2026-11-14 the tree this section's lists were measured on named 23845 files i
 and 7792 left out in 64,
 with each group's kind named beside its list.
 That is why a change of a shim's `index.cjs` and `index.d.cts` is reviewed:
-neither extension is a language a review was believed to read,
+neither extension was a language the writer read,
 and a range that changed them, their test and their note was answered `nothing to review` on 2026-11-14.
 
 An extension in neither list is a kind this writer does not know.
