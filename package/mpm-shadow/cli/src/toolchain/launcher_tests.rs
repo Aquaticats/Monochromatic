@@ -481,3 +481,28 @@ fn a_late_record_from_an_install_the_lock_no_longer_names_leaves_the_newer_recor
 }
 
 //endregion
+
+#[test]
+fn a_record_that_cannot_take_the_folders_lock_is_not_written() {
+    let rig = Rig::new();
+    // The folder's record lock is held by an install that is inside its write, which the test stands in for.
+    fs::create_dir_all(&rig.scope.launcher_dir).expect("make the launcher folder");
+    let lock_path: PathBuf = rig.scope.launcher_dir.join(".launch-records.lock");
+    let guard: fs::File = fs::OpenOptions::new().create(true).truncate(false).write(true).open(&lock_path).expect("open the record lock");
+    guard.lock().expect("hold the record lock");
+    let real = rig.scope.toolchain_root.join("cargo").join("x").join("current").join("bin").join("x");
+
+    let outcome = ensure_launcher(&rig.scope, TOOL, "git", &real);
+
+    let record: PathBuf = record_path(&rig.scope.launcher_dir.join("git"));
+    assert!(
+        outcome.is_err(),
+        "a record write that cannot take the folder s lock must refuse rather than write: {outcome:?}"
+    );
+    assert!(
+        fs::symlink_metadata(&record).is_err(),
+        "no record was written without the lock ({} is there)",
+        record.display()
+    );
+    drop(guard);
+}
