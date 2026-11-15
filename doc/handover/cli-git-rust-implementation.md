@@ -1396,6 +1396,83 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The gate on `0.6.1-alpha.37` fails 25: the six pass 48 was for pass, and four fail that did not before, three of them push controls that point at pass 48's own change (2026-11-15T00:08:53-05:00)
+
+Not final and not approved:
+what the coordinating session ran,
+read,
+weighed and queued.
+
+- **The gate on `5a012ba094`** (`0.6.1-alpha.37`),
+  started 23:48:02,
+  log written until 00:07:08:
+  `9109 tests run: 9084 passed (8 slow), 25 failed, 28 skipped`,
+  `gate-exit-status=1`,
+  893 s where the four gates before it took 788 to 814 s.
+- **The six controls pass 48 was for pass**:
+  no `fault_remote::` control and no `package_repair::` control is among the 25.
+  The control of two adds at once and `owed_push` pass too.
+- **Four fail that failed in none of the four gates before**:
+  - `push_minimum_rate::a_server_whose_hook_never_answers_is_ended_at_the_connected_window`,
+    `…a_server_that_drips_its_answer…` and `…a_server_that_reads_the_upload_slowly…`,
+    of the binary target.
+    In the gate before,
+    without pass 48,
+    they passed in 14.4 to 18.3 s;
+    here each failed after about 38 s with "the service never finished the push",
+    the service's own lines saying `outcome=retrying`,
+    a push of 30.8 to 31.1 s,
+    "push will be tried again",
+    and once "moving push-… to failed failed … its lease probably ran out and another instance took the work over".
+  - `foundation::lazy_runtime::tests::a_build_that_finishes_while_the_caller_gives_up_is_kept`,
+    after 0.469 s:
+    "the runtime the build finished with was dropped with the channel the caller closed after its last read".
+- **Weighed**:
+  the three push controls point at pass 48's change,
+  since nothing else of the wrapper lies between the two gates and the lines are of work tried again;
+  that is an order of events and not a measurement,
+  and the gate as a whole ran slower.
+  Pass 48's whole suites on this machine did not show them.
+  `0.6.1-alpha.37` stays installed:
+  what the lines show is a failed push tried again sooner and for longer,
+  and one work item moved by two hands,
+  neither of which loses a commit;
+  the owner's rule is that a gate failure goes to an author and holds no release.
+  The author of that change is resumed at the head of the queue
+  (`~/temp/agent/pi-runs/after-commit-work-three-push-controls-fail-in-the-gate-since-the-slow-lane-serves-a-wake-prompt.md`),
+  asked first to run the three in the gate's image at the merge and at its parent,
+  alternating,
+  and to stop with the counts if they fail at the parent too.
+  The runtime's control failed once in five gates and nothing under `foundation/` changed;
+  its message says the code did the opposite of what the control's name promises,
+  so a fresh run has it
+  (`~/temp/agent/pi-runs/runtime-a-build-finished-with-is-kept-when-the-caller-gave-up-in-the-gate-container-too-prompt.md`,
+  queued ninth).
+- **The 21 others** failed in each of the four gates before.
+  Of them,
+  by the fixes this handover records:
+  seven wait on the Git-version branch,
+  three on the refused service start,
+  two on the lock-holders folder,
+  each back with its author;
+  the rest are counted when those land.
+- **`0.6.1-alpha.37`**,
+  the user journal from 23:47:50 to 23:53:50:
+  no manager-wide reload,
+  no wrapper service failing at the EXEC step,
+  none at its start limit,
+  three starts saying `0.6.1-alpha.37`,
+  each the installed program.
+- Pass 49,
+  going,
+  was sent the new list.
+- Read at 00:01:46:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going.
+  The queue held 71 entries at 00:08:53.
+
 ##### Three authors answer and go to review (the drawn tree, mpm-shadow's install, the discarding commands); the brief writer for tests goes back; this session's own check stopped a launcher that was ending (2026-11-14T23:58:21-05:00)
 
 Not final and not approved:
