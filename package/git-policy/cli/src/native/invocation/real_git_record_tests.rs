@@ -76,5 +76,41 @@ fn a_git_whose_path_is_not_text_is_remembered_as_itself() {
     std::fs::write(&git, "# a program").expect("a program");
     super::remember(root.as_path(), git.as_path()).expect("the note is written");
     assert_eq!(read_recorded_git(record_file(root.as_path()).as_path()), Some(git.clone()), "the path is read back as the bytes it has");
+
+///  Two starts that remember different Gits in one runtime directory both succeed,
+///  and the record names one of them.
+/// Why:
+///  The sixth review of issue 6293 (finding 4):
+///  every start wrote the same temporary file before its rename,
+///  so one start published the other's path while that one's rename failed and was only logged.
+/// The temporary file is each writer's own, so neither write can take the other's name away.
+#[test]
+fn two_starts_that_remember_at_once_both_succeed() {
+    let root: PathBuf = fixture("record-race");
+    let runtime: PathBuf = root.join("run");
+    let first: PathBuf = PathBuf::from("/usr/bin/git");
+    let second: PathBuf = PathBuf::from("/opt/another/git");
+    for round in 0..8 {
+        let round_runtime: PathBuf = runtime.join(format!("round-{round}"));
+        let barrier: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let mut threads: Vec<std::thread::JoinHandle<(PathBuf, std::io::Result<()>)>> = Vec::new();
+        for git in [first.clone(), second.clone()] {
+            let gate: std::sync::Arc<std::sync::Barrier> = std::sync::Arc::clone(&barrier);
+            let runtime: PathBuf = round_runtime.clone();
+            threads.push(std::thread::spawn(move || {
+                gate.wait();
+                return (git.clone(), super::remember(runtime.as_path(), git.as_path()));
+            }));
+        }
+        for thread in threads {
+            let (git, result): (PathBuf, std::io::Result<()>) = thread.join().expect("the remember thread");
+            assert!(result.is_ok(), "the start that remembers {} must not lose its write: {result:?}", git.display());
+        }
+        let recorded: Option<PathBuf> = read_recorded_git(record_file(round_runtime.as_path()).as_path());
+        assert!(
+            recorded == Some(first.clone()) || recorded == Some(second.clone()),
+            "the record names one of the two Gits that were remembered: {recorded:?}"
+        );
+    }
     remove(root.as_path());
 }

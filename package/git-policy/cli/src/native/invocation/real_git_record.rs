@@ -111,7 +111,11 @@ pub fn read_recorded_git(record: &Path) -> Option<PathBuf> {
 ///  The service runs this Git,
 /// so it is the one path that is certainly right for this account.
 /// The write is a temporary file and a rename,
-/// so a reader never sees half a path.
+/// so a reader never sees half a path,
+/// and the temporary file is this process's own:
+/// every start in one runtime directory remembers the Git it runs,
+/// so a name two of them shared let one publish the other's path while that one's rename failed
+/// (the sixth review of issue 6293, finding 4).
 ///
 ///  What it holds is the path's bytes, written as its bytes:
 /// the record is read by a command that has no Git on `PATH` and only this file to go by,
@@ -128,11 +132,33 @@ pub fn remember(runtime_dir: &Path, git: &Path) -> std::io::Result<()> {
     let directory: PathBuf = runtime_dir.join(SOCKET_DIRECTORY);
     std::fs::create_dir_all(&directory)?;
     let record: PathBuf = directory.join(RECORD_NAME);
-    let temporary: PathBuf = directory.join(format!("{RECORD_NAME}.writing"));
+    let temporary: PathBuf = directory.join(format!("{RECORD_NAME}.{}.{}.writing", std::process::id(), next_temporary_number()));
     let mut content: Vec<u8> = git.as_os_str().as_bytes().to_vec();
     content.push(b'\n');
     std::fs::write(&temporary, content)?;
-    return std::fs::rename(&temporary, record);
+    let published: std::io::Result<()> = std::fs::rename(&temporary, record);
+    // A rename that did not happen leaves this writer's file behind, and no record of a Git is the person's to read.
+    if published.is_err() {
+        let _left = std::fs::remove_file(&temporary);
+    }
+    return published;
+}
+
+/// What:
+///  A number no other write of this process has taken,
+///  so two writes at once never share a temporary file.
+/// Why:
+///   The process's own number tells two processes apart and does not tell two writes of one process apart,
+/// and a start in a command and an after-commit write in a service can meet in one runtime directory
+/// (the sixth review of issue 6293, finding 4).
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// nextTemporaryNumber() // a counter this process increments
+/// ```
+fn next_temporary_number() -> u64 {
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    return COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Controls of the record stay out of the release executable.
