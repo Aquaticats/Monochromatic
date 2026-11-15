@@ -43,6 +43,9 @@ pub(crate) const ALLOWED_TRIGGER_LINES: &[(&str, &str)] = &[
     ("binary/binary_fixture_tests.rs", "journald_native::STREAM_VARIABLE),"),
     // The one control that stands a journal of its own in.
     ("binary/binary_commit_timing_tests.rs", "STREAM_VARIABLE"),
+    // The routing control's child gives its sink a standard error of its own, the pipe its parent made: the line names the
+    //  variable to hand that pipe's identity over, and nothing of the journal's.
+    ("service/client_journal_tests.rs", "set_var(crate::journald_native::STREAM_VARIABLE"),
     // The log support names the variable it reads, and reads it to ask about its own standard error: no child is given it.
     ("binary/binary_support_fixture_service_log.rs", "pub const STREAM_VARIABLE"),
     ("binary/binary_support_fixture_service_log.rs", "std::env::var(STREAM_VARIABLE)"),

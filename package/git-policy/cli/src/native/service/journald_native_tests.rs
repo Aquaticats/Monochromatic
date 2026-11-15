@@ -639,8 +639,8 @@ fn a_fallback_line_is_written_under_the_identifier_the_entry_was_given() {
             "the journal's stream names the entry under its own identifier"
         );
         let plain: Sink = Sink::choose(Some(variable().as_str()), Some((DEVICE, INODE + 1)), &nobody);
-        let mut written: Vec<u8> = Vec::new();
-        assert_eq!(plain.deliver_as(identifier, Priority::Warning, "m", &[], "m at_ms=1\n", &mut written), Delivery::Stderr);
-        assert_eq!(String::from_utf8(written).expect("text"), format!("{prefix}m at_ms=1\n"), "a plain standard error names it too");
+        let mut plain_written: Vec<u8> = Vec::new();
+        assert_eq!(plain.deliver_as(identifier, Priority::Warning, "m", &[], "m at_ms=1\n", &mut plain_written), Delivery::Stderr);
+        assert_eq!(String::from_utf8(plain_written).expect("text"), format!("{prefix}m at_ms=1\n"), "a plain standard error names it too");
     }
 }
