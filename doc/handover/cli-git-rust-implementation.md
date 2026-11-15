@@ -1330,6 +1330,64 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The control of two adds at once fails on a one-millisecond tick and has its fix; the run kept out of the main checkout answers its third review; both go to review (2026-11-14T22:33:22-05:00)
+
+Not final and not approved:
+what two authors report,
+and what the coordinating session queued.
+
+- **An add finishes while another add's real Git holds the index lock**,
+  a fresh run,
+  ended 22:28:25 at `98fcc243fa`.
+  By its report the two gate failures are one state,
+  word for word:
+  the wrapper's arm for a lock whose PID file names a live process,
+  printed for a lock in another linked worktree's administrative directory.
+  The cause is measured:
+  real Git creates the lock and then its PID file 150 to 208 µs apart
+  (eight traced runs in the gate's image),
+  birth times advance in ticks of about one millisecond,
+  and the PID file's birth fell one tick later in 62 of 2,000 back-to-back pairs in the gate's container and 13 of 2,000 on this machine.
+  The arm that prints the line is in `main` since `0866ecf950` of 2026-11-13,
+  so only the six gates of 2026-11-14 could show it:
+  two failed and four passed.
+  The fix:
+  a lock in another linked worktree's administrative directory is never named by this worktree's command,
+  while an abandoned one there is still cleared and a live one in the command's own worktree is still named.
+  The control passes seven of seven,
+  with the lock module 23 of 23 at four CPUs.
+  Its review is queued second
+  (`main...98fcc243fa`,
+  two code files).
+- **A Pi run cannot write into the main checkout**,
+  its author's fourth run,
+  ended 22:30:22 at `49afd371a4`,
+  its report whole.
+  The one folder a run's tools make inside the checkout is `.cache`
+  (measured in a capped unit with the checkout read-only);
+  it is now made before the unit and named as a folder the unit must write.
+  The launcher's reads outside its unit open without blocking,
+  refuse what is not an ordinary file and are bounded at 30 s;
+  a marker that is a named pipe is refused before anything is made.
+  The two messages about a removed worktree no longer say nothing was lost.
+  Four controls quoted failing before their fixes;
+  build,
+  type check and lint clean;
+  201 unit tests passing.
+  It reports one slip of its own:
+  a probe took its `PATH` with `mise exec -- printenv PATH`,
+  a form its brief forbids,
+  the value going to a scratch file it then deleted and to no tool result.
+  Its review is queued third
+  (`main...49afd371a4`,
+  fourteen code files).
+- Read at 22:32:57:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  22 runs going.
+  The queue held 70 entries at 22:33:22.
+
 ##### The filling unit is restarted between two of its rounds, for eight hours more, with no entry lost (2026-11-14T22:32:37-05:00)
 
 Not final and not approved:
