@@ -108,7 +108,10 @@ fn held_for_ever(_member: &TreeMember) -> bool {
 /// The ceiling and the grace are the control's own,
 /// as in
 ///  `a_member_held_for_ever_is_ended_at_the_ceiling_and_its_lock_is_left`,
-/// so this control runs in about a second instead of eighteen.
+/// so this control runs in about a second instead of eighteen;
+/// what the waiting for the held member may use is the ceiling less the parts kept back for the reap and the sweep,
+/// and the
+///  stop's own answer still lies inside the ceiling.
 #[test]
 fn a_member_the_kernel_does_not_release_does_not_hold_the_stop_past_its_ceiling() {
     const CEILING: Duration = Duration::from_millis(1000);
@@ -147,7 +150,13 @@ fn a_member_the_kernel_does_not_release_does_not_hold_the_stop_past_its_ceiling(
     let began: Instant = Instant::now();
     crate::lazy_runtime::run_on_runtime(stop_push(adopt(child), GRACE, LockLedger::none())).expect("the runtime runs the stop");
     let took: Duration = began.elapsed();
-    assert!(took >= CEILING, "the stop gave a member that cannot be interrupted its whole ceiling: {took:?}");
+    // The part of the ceiling the waiting for a held member may use: the ceiling less the parts the stop keeps for the reap
+    //  it needs after the kill and for the sweep of the locks it leaves.
+    let escalation_part: Duration = CEILING.saturating_sub(REAP_AFTER_THE_KILL).saturating_sub(SWEEP_AFTER_THE_STOP);
+    assert!(
+        took >= escalation_part,
+        "the stop gave a member that cannot be interrupted the whole of the bound its escalation may use ({escalation_part:?}): {took:?}"
+    );
     assert!(
         took < CEILING + SLACK,
         "the stop ended within its ceiling instead of waiting for the member it killed once more: {took:?}"
@@ -177,6 +186,157 @@ fn traced_by(pid: i32, tracer: i32) -> bool {
         return false;
     };
     return status.lines().any(|line| { return line == format!("TracerPid:\t{tracer}"); });
+}
+
+//endregion
+
+//region A stop keeps its child and its ledger whatever the runtime does
+
+/// What:
+///  Whether `id` is a zombie of this process in the next `bound`.
+/// Why:
+///  A child whose handle was dropped is not reaped when it ends,
+/// so it stays in the process table as a zombie for the life of the
+///  process,
+/// and that is what the two findings of the review of `374f34c4b9` left behind.
+fn is_zombie(id: u32, bound: Duration) -> bool {
+    let watching: Instant = Instant::now();
+    while watching.elapsed() < bound {
+        match std::fs::read_to_string(format!("/proc/{id}/stat")) {
+            Ok(stat) => {
+                let after_name: &str = stat.rfind(')').and_then(|at| { return stat.get(at + 2..); }).unwrap_or_default();
+                if after_name.starts_with("Z ") {
+                    return true;
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return false,
+            Err(_) => {}
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    return false;
+}
+
+/// What:
+///  A ledger over one disposable Git directory with an orphan staging file,
+/// whose judgement looks at an empty process table of its own.
+/// Why:
+///   The sweep's own removal is what a control must see,
+/// and the real judgement refuses to decide from the processes of the whole
+///  machine (a Git of another account vetoes it),
+/// so the control gives it a table with nothing in it.
+fn ledger_over_an_orphan_staging_file(root: &std::path::Path) -> (LockLedger, std::path::PathBuf) {
+    let git_dir: std::path::PathBuf = root.join("git-dir");
+    let proc_root: std::path::PathBuf = root.join("proc");
+    std::fs::create_dir_all(git_dir.as_path()).expect("a disposable Git directory");
+    std::fs::create_dir_all(proc_root.as_path()).expect("an empty disposable process table");
+    let staging: std::path::PathBuf = git_dir.join("packed-refs.new");
+    std::fs::write(staging.as_path(), b"an orphan staging file of a killed Git").expect("the staging file");
+    let mut command: std::process::Command = std::process::Command::new("true");
+    command.env("GIT_DIR", git_dir.as_os_str());
+    let judge: crate::stale_ref_lock_judge::Judge = crate::stale_ref_lock_judge::Judge {
+        proc_root,
+        margin: Duration::ZERO,
+        boot: None,
+        local_file_systems: ["btrfs", "ext4", "xfs", "f2fs", "tmpfs", "overlay", "zfs", "bcachefs"].into_iter().map(String::from).collect(),
+        scan_scope: Some(Vec::new()),
+    };
+    return (LockLedger::before_start(&command).with_judge(judge), staging);
+}
+
+/// What:
+///  A stop whose bound is spent and whose runtime has no worker still reaps its child and still judges the locks it left.
+/// Why:
+///   The last handle of the child and the ledger used to travel into the sweeping task's future,
+/// and `spawn_on_runtime`
+///  drops that future where the runtime has no worker,
+/// which a thread or a memory limit leaves (finding 1 of the review of
+///  `374f34c4b9`:
+/// `zombie=true, staging_left=true, abandoned_round_collected=0`).
+/// Both are kept by the stop
+///  itself here:
+/// the child is reaped out of the part of the bound kept for the reap,
+/// and the sweep runs inline out of the part
+///  kept for it,
+/// so neither depends on a task the runtime may refuse.
+#[test]
+fn a_stop_with_no_worker_still_reaps_its_child_and_judges_the_locks_it_left() {
+    const CEILING: Duration = Duration::from_millis(100);
+    const GRACE: Duration = Duration::from_millis(25);
+    const SLACK: Duration = Duration::from_millis(400);
+    const ZOMBIE_BOUND: Duration = Duration::from_secs(10);
+    let _rules = crate::stop_waits_while_a_member_cannot_be_interrupted::rules_for_this_thread(
+        crate::stop_waits_while_a_member_cannot_be_interrupted::ControlRules { blocked: held_for_ever, ceiling: CEILING },
+    );
+    // What a thread or a memory limit leaves: a runtime whose tasks cannot run.
+    let _no_worker = crate::lazy_runtime::a_control_refuses_every_task();
+    let root: std::path::PathBuf = crate::test_support::fixture("stop-with-no-worker");
+    let (locks, staging): (LockLedger, std::path::PathBuf) = ledger_over_an_orphan_staging_file(root.as_path());
+    let owed_before: usize = sweeps_owed();
+    let child: std::process::Child = std::process::Command::new("sh").args(["-c", "trap '' TERM; exec sleep 30"]).spawn().expect("a child that ignores the polite stop");
+    let id: u32 = child.id();
+    let began: Instant = Instant::now();
+    crate::lazy_runtime::run_on_runtime(stop_push(adopt(child), GRACE, locks)).expect("the runtime runs the stop");
+    let took: Duration = began.elapsed();
+    assert!(took < CEILING + SLACK, "the stop answered inside its bound: {took:?}");
+    assert!(!is_zombie(id, ZOMBIE_BOUND), "the child of a stop with no worker was reaped, not left a zombie for the life of this process");
+    assert!(!staging.exists(), "the sweep ran inside the stop without a task of the runtime");
+    assert_eq!(sweeps_owed(), owed_before, "and no sweep was recorded as owed, because none was");
+    let _collected: usize = reap_abandoned_children();
+    crate::test_support::remove(root.as_path());
+}
+
+/// What:
+///  A stop answers inside its bound while the blocking pool cannot run the sweep,
+/// and the sweep it could not run is recorded as owed.
+/// Why:
+///   The inline sweep read `run_blocking_job`'s answer with no bound of its own,
+/// so a pool held by jobs that have not returned held the stop
+///  past its ceiling for as long as that job lasted
+/// (finding 2 of the review of `374f34c4b9`:
+/// `stop_push` was still waiting
+///  at 301 ms under a ceiling of 100 ms).
+/// The part of the bound kept for the sweep is what its answer is awaited for,
+/// and what does not run
+///  inside it is said to be owed (`sweeps_owed`),
+/// because the judgement before the next fetch or push clears what it left.
+#[test]
+fn a_stop_answers_inside_its_bound_while_the_blocking_pool_cannot_sweep() {
+    const CEILING: Duration = Duration::from_millis(100);
+    const GRACE: Duration = Duration::from_millis(25);
+    const OUTER_BOUND: Duration = Duration::from_millis(300);
+    const BLOCKER_BOUND: Duration = Duration::from_secs(10);
+    crate::lazy_runtime::cap_workers(1);
+    let _rules = crate::stop_waits_while_a_member_cannot_be_interrupted::rules_for_this_thread(
+        crate::stop_waits_while_a_member_cannot_be_interrupted::ControlRules { blocked: held_for_ever, ceiling: CEILING },
+    );
+    let (holding_send, holding_receive) = std::sync::mpsc::channel();
+    let (release_send, release_receive) = std::sync::mpsc::channel();
+    let holder = crate::lazy_runtime::run_on_runtime(async move {
+        return tokio::task::spawn_blocking(move || {
+            holding_send.send(()).expect("the control waits for the holder");
+            let _held = release_receive.recv_timeout(BLOCKER_BOUND);
+        });
+    })
+    .expect("the runtime starts the job that holds the pool");
+    holding_receive.recv_timeout(BLOCKER_BOUND).expect("the only blocking thread is held");
+    let owed_before: usize = sweeps_owed();
+    // The child answers the polite stop, so the stop reaches its sweep with the whole of its bound still to spend.
+    let child: std::process::Child = std::process::Command::new("sleep").arg("30").spawn().expect("a child that accepts the polite stop");
+    let began: Instant = Instant::now();
+    let answered = crate::lazy_runtime::run_on_runtime(async {
+        return tokio::time::timeout(OUTER_BOUND, stop_push(adopt(child), GRACE, LockLedger::none())).await;
+    })
+    .expect("the runtime runs the bounded outer control");
+    let took: Duration = began.elapsed();
+    let owed_after: usize = sweeps_owed();
+    release_send.send(()).expect("the holder still waits");
+    crate::lazy_runtime::run_on_runtime(async {
+        let _joined = tokio::time::timeout(BLOCKER_BOUND, holder).await;
+    })
+    .expect("the runtime releases the holder");
+    assert!(answered.is_ok(), "the stop answered inside its bound of {CEILING:?} and did not wait for the queued sweep: {took:?}");
+    assert!(owed_after > owed_before, "the sweep the pool could not run is recorded as owed ({owed_before} before, {owed_after} after)");
 }
 
 //endregion

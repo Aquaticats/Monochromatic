@@ -13,16 +13,53 @@
 //!  each file stays within the line limit.
 //! The names are re-exported from `bounded_push.rs`.
 //!
+//! What:
+//!  Every wait and every blocking call between the moment a stop is asked and the moment `stop_push` answers,
+//!  and the bound each one is under.
+//! Why:
+//!   The bound of a stop is what a person waits, so no wait of a stop may read it afresh
+//!  (`process/stop_waits_while_a_member_cannot_be_interrupted.rs`,
+//! `STOP_CEILING`),
+//!   and no wait outside it may hold the answer.
+//!  Every line here names the figure that ends it:
+//!  - reading the tree: `descendants_of` and `member_of` read one file per process of `/proc`
+//!  (a blocking read, bounded by the size of the table, with no clock of its own);
+//!  - the two signals to the tree, and the kill:
+//!    `ask_to_stop`,
+//!    `terminate_members` and `kill_members`
+//!  send and answer, they never wait;
+//!  - the polite wait, looked at every `POLL_PAUSE`:
+//!  `escalation_deadline`,
+//!    which is `STOP_CEILING` less the parts kept back below,
+//!  and inside the grace it always waits,
+//!    past it only while a member sits in an uninterruptible call;
+//!  - the reap after the kill: `REAP_AFTER_THE_KILL`,
+//!    which is part of the same bound and not an addition to it;
+//!  - the wait for what the push started: `escalation_deadline` again;
+//!  - the wait for the rest of the tree in `settle_locks`: what is left of `escalation_deadline`;
+//!  - the sweep of the locks, when the tree has gone: what is left of `STOP_CEILING`,
+//!    which is at least
+//!  `SWEEP_AFTER_THE_STOP`,
+//!    and a sweep that does not run or does not answer inside it is kept as owed (below);
+//!  - the task `settle_locks` and `sweep_after_exit` may start:
+//!    its own waits are `STOP_CEILING` each,
+//!  and nobody waits for them,
+//!    so they are never the bound a person or the service is held by.
+//!  Ownership:
+//!   the child of a stop is reaped here or kept in the abandoned list here,
+//!   and the ledger is swept here or kept as owed here,
+//!  so neither ever lives only inside a future the runtime may refuse to start or cancel before its first poll.
+//!
 //! In TS you'd write (pseudocode):
 //! ```ts
 //! child.kill('SIGTERM'); await Promise.race([exited, delay(graceMs)]) || child.kill('SIGKILL'); locks.sweep(tree);
 //! ```
 
 /// The diagnostic log of the wrapper.
-use crate::diagnostic_log::debug;
-/// The blocking pool,
-/// for the sweep that reads directories.
-use crate::blocking_job::run_blocking_job;
+use crate::diagnostic_log::{debug, warn};
+/// A blocking job awaited no longer than a ceiling,
+/// and what its answer says about the work it took.
+use crate::blocking_jobs_within_the_budget::{TheAnswerOfAJobAwaited, run_a_job_once_awaited_no_longer_than};
 /// A child owned until it is reaped,
 /// awaited through its pidfd.
 use crate::child_awaited_through_a_pidfd::{OwnedChild, adopt};
@@ -40,6 +77,8 @@ use crate::member_signalled_through_its_pidfd::{kill_members, terminate_members}
 use crate::stopped_git_locks::LockLedger;
 /// `Child` is a push handed to the sweeper.
 use std::process::Child;
+/// `Arc` and `Mutex` keep what a stop hands over where the stop can reach it until a task has taken it.
+use std::sync::{Arc, Mutex};
 /// Time spans and the monotonic clock.
 use std::time::{Duration, Instant};
 
@@ -48,6 +87,69 @@ const TAG: &str = "monochromatic-git-policy-cli";
 
 /// Pause between two looks at the running push.
 pub(crate) const POLL_PAUSE: Duration = Duration::from_millis(10);
+
+/// What:
+///  How long the reap after the kill gets,
+/// out of the stop's own bound.
+/// Why:
+///   A process sent `SIGKILL` ends as soon as the kernel runs it once more,
+/// so a stop that has spent its whole bound waiting for one still collects it
+///  in a moment;
+/// a process the kernel holds in an uninterruptible call is not collected by waiting at all
+///  (`doc/troubleshooting/sigkill-does-not-end-a-process-in-uninterruptible-sleep.md`)
+/// and is kept for a later round instead.
+/// Citation:
+/// partial.
+/// Measured on 2026-11-16: every stop of a fast run reaped its killed push in 1 ms
+/// (`stop after the kill and its wait` of the
+///  instrumented service),
+/// and a killed process whose tracer was stopped was not collected in a second of waiting
+///  (`traced-holder-experiment`),
+/// so this covers a scheduler round trip on a loaded host many times over.
+/// An open question for the owner.
+pub(crate) const REAP_AFTER_THE_KILL: Duration = Duration::from_millis(50);
+
+/// What:
+///  How long the sweep of a stopped push's locks is guaranteed out of the stop's own bound.
+/// Why:
+///   The sweep reads the reference directories of one repository and,
+/// for a lock old enough to be judged,
+///  the descriptors of every process;
+/// the bound a stop has is what a person waits,
+/// so the sweep must fit inside it and not be
+///  the wait that passes it.
+/// Citation:
+/// partial.
+/// `SPEC.md` ("Reference locks left by a Git that was killed",
+/// "Where it applies") measured that judgement at a median 53 ms (47 to 63 ms)
+///  with 1,182 processes on this host,
+/// and this run measured 0 ms in every stop of a fast run and 0 ms in the gate's container
+///  (`settle after the awaited sweep` of the instrumented service).
+/// Three times the longest of those is the owner's margin
+///  for a bound taken from a measurement (`foundation/worst_delay_seen_on_this_host.rs`,
+/// `OWNER_MARGIN`),
+/// rounded up.
+/// An open question for the owner.
+pub(crate) const SWEEP_AFTER_THE_STOP: Duration = Duration::from_millis(200);
+
+/// What:
+///  The ledgers of stopped pushes whose locks were not judged inside the bound of their stop.
+/// Why:
+///   A sweep that could not run,
+/// or did not answer inside the bound,
+/// removed nothing,
+/// and the judgement before every
+///  fetch and push of the wrapper's own (`push_lock_clearing.rs`) is what clears what a lock left that way holds;
+/// the
+///  ledger is kept here so that the line `keep_the_sweep_owed` writes is not the only place it can be read,
+/// and so a
+///  control can say how many sweeps a run owed.
+static OWED_SWEEPS: Mutex<Vec<LockLedger>> = Mutex::new(Vec::new());
+
+/// How many sweeps of stopped pushes this process owes a judgement.
+pub fn sweeps_owed() -> usize {
+    return OWED_SWEEPS.lock().map(|owed| owed.len()).unwrap_or(0);
+}
 
 /// Ask a running push to end,
 ///  so Git can stop the helper processes it started.
@@ -105,6 +207,115 @@ async fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
 }
 
 /// What:
+///  What a stop hands a task when its tree has not ended:
+/// the child it could not collect,
+/// the tree,
+///  and the ledger of the locks it left.
+/// Why:
+///   The child and the ledger outlive the stop,
+/// and both must stay reachable by the stop until a task has truly taken them
+///  (`HandedOver`):
+/// a child dropped here is a zombie of this process for its life,
+/// and a ledger dropped here is a
+///  sweep nothing owes and nothing judges.
+struct AStopHandedToATask {
+    /// The child the stop could not collect.
+    child: Option<Child>,
+    /// What the push started and has not ended.
+    tree: Vec<TreeMember>,
+    /// The locks the stopped push may have left.
+    locks: LockLedger,
+}
+
+/// What:
+///  A stopped push's child and ledger,
+/// kept where the stop can still reach them until a task has taken them.
+/// Why:
+///   `spawn_on_runtime` drops the future it is given where the runtime has no worker
+/// (`foundation/lazy_runtime.rs`),
+/// and a task cancelled before
+///  its first poll drops it too,
+/// so whatever lives only inside that future is lost with nothing done about it:
+/// the child is never
+///  reaped and the locks are never judged.
+/// The task takes what it needs at its first poll,
+/// and what is still here when the last holder
+///  goes is settled here instead,
+/// the child into the abandoned list and the ledger into the sweeps owed.
+struct HandedOver {
+    /// What has not been taken yet.
+    kept: Mutex<Option<AStopHandedToATask>>,
+}
+
+impl HandedOver {
+    /// The handover of `sweep`,
+    /// one reference for the task and one for the stop that hands it over.
+    fn of(sweep: AStopHandedToATask) -> Arc<HandedOver> {
+        return Arc::new(HandedOver { kept: Mutex::new(Some(sweep)) });
+    }
+
+    /// What the task takes at its first poll,
+    /// and nothing when the handover was settled here already.
+    fn take(&self) -> Option<AStopHandedToATask> {
+        return self.kept.lock().ok()?.take();
+    }
+}
+
+impl Drop for HandedOver {
+    /// Settles what no task took while it is still reachable:
+    /// the child for the round that reaps abandoned children,
+    /// and the
+    ///  ledger as a sweep this process owes.
+    fn drop(&mut self) {
+        let Ok(mut slot) = self.kept.lock() else {
+            return;
+        };
+        let Some(sweep) = slot.take() else {
+            return;
+        };
+        if let Some(unreleased) = sweep.child {
+            keep_abandoned(unreleased);
+        }
+        keep_the_sweep_owed(sweep.locks, NO_TASK_TOOK_THE_SWEEP);
+    }
+}
+
+/// What a sweep owed says when no task took it,
+/// so nothing was even started.
+const NO_TASK_TOOK_THE_SWEEP: &str = "the runtime gave the task no worker";
+
+/// What a sweep owed says when its job was given no thread and will not run.
+const THE_SWEEP_WAS_GIVEN_NO_THREAD: &str = "the blocking pool gave the job no thread";
+
+/// What a sweep owed says when its job started,
+/// or was queued,
+/// and did not answer inside the bound.
+const THE_SWEEP_DID_NOT_ANSWER: &str = "the job did not answer inside the bound";
+
+/// What:
+///  Keep `locks` as a sweep this process owes,
+/// and say so where the service's journal and a person read it.
+/// Why:
+///   The reference locks of a repository are judged before every fetch and push of the wrapper's own
+/// (`lock/push_lock_clearing.rs`),
+/// so a lock this sweep
+///  would have removed is cleared by the next command that needs that repository;
+/// nothing says so unless this line
+///  is written,
+/// and a person who reads a stop and then silence cannot tell an empty sweep from a missing one.
+fn keep_the_sweep_owed(locks: LockLedger, why: &str) {
+    let roots: Vec<String> = locks.roots().iter().map(|root| { return root.display().to_string(); }).collect();
+    let of: String = if roots.is_empty() { String::from("that repository") } else { roots.join(", ") };
+    warn(
+        TAG,
+        &format!("the locks of a stopped push were not judged inside the bound of its stop ({why}); the next fetch or push of {of} judges them"),
+    );
+    if let Ok(mut owed) = OWED_SWEEPS.lock() {
+        owed.push(locks);
+    }
+}
+
+/// What:
 ///  Collect a killed child that the kernel has not released,
 /// and sweep the locks it leaves,
 /// as a task of the runtime.
@@ -118,29 +329,42 @@ async fn wait_for_tree(tree: &[TreeMember], grace: Duration) {
 ///  the child is collected here,
 /// and its locks are swept when it is gone.
 /// The task holds no lock and ends with the child.
-///  The child is handed over as the standard library's value and adopted inside the task,
-/// so a task that never runs
-///  leaves it as it was and never waits for it.
+///  The child and the ledger stay reachable by the caller until the task has taken them (`HandedOver`),
+/// so a runtime that refuses the task
+///  leaves neither lost:
+/// the child goes to the round that reaps abandoned children and the sweep is said to be owed.
 /// The wait for the child has the ceiling every stop has:
 /// past it the child is left to the
 ///  kernel and said here,
 /// never waited for,
 /// because a task nobody waits for must not be held by a process the
 ///  kernel may never release.
-/// Returns nothing where the runtime has no worker to run the task.
+/// Returns nothing where the runtime has no worker to run the task,
+/// having kept what the task was for.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// void Promise.race([child.exited, delay(ceiling)]).then(() => locks.sweep(tree));
 /// ```
 pub fn sweep_after_exit(child: Child, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
-    return sweep_task(Some(child), tree, locks);
+    return start_the_sweep_task(AStopHandedToATask { child: Some(child), tree, locks });
 }
 
-/// `sweep_after_exit` for a push that may already have been collected:
-/// with no child there is only the tree to wait for.
-fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) -> Option<tokio::task::JoinHandle<()>> {
-    let started = spawn_on_runtime(async move {
+/// What:
+///  Start the task that waits for the rest of a stopped push's tree and judges the locks it left,
+///  keeping what it is given where the stop can reach it until the task has taken it.
+/// Why:
+///   The task is the only caller of the sweep when the tree has not ended,
+/// and the runtime may refuse to start it,
+///  so
+/// what it works on cannot travel only inside its future (`HandedOver`).
+fn start_the_sweep_task(sweep: AStopHandedToATask) -> Option<tokio::task::JoinHandle<()>> {
+    let handed: Arc<HandedOver> = HandedOver::of(sweep);
+    let for_the_task: Arc<HandedOver> = Arc::clone(&handed);
+    let started: Option<tokio::task::JoinHandle<()>> = spawn_on_runtime(async move {
+        let Some(AStopHandedToATask { child, tree, locks }) = for_the_task.take() else {
+            return;
+        };
         // Whatever an earlier stop left behind and the kernel has released is collected first, so no sweep waits on that list.
         let _earlier: usize = reap_abandoned_children();
         if let Some(uncollected) = child {
@@ -166,14 +390,22 @@ fn sweep_task(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger) ->
         if !gone {
             debug(TAG, "a process of the stopped push did not end within the ceiling of a stop; its locks are left to the stale-lock judgement");
         }
-        // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
-        if let Err(error) = run_blocking_job(move || { locks.sweep(); }).await {
-            debug(TAG, &format!("the sweep of a stopped push's locks did not run: {error}"));
+        // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks, and even here
+        //  where nobody waits for it its job is awaited no longer than a stop's ceiling: a job that does not answer leaves the
+        //  ledger owed rather than a task waiting for good.
+        let owed_if_no_answer: LockLedger = locks.clone();
+        match run_a_job_once_awaited_no_longer_than(STOP_CEILING, move || { locks.sweep(); }).await {
+            TheAnswerOfAJobAwaited::Ran(_removed) => {}
+            TheAnswerOfAJobAwaited::NotRun => keep_the_sweep_owed(owed_if_no_answer, THE_SWEEP_WAS_GIVEN_NO_THREAD),
+            TheAnswerOfAJobAwaited::NoAnswer => keep_the_sweep_owed(owed_if_no_answer, THE_SWEEP_DID_NOT_ANSWER),
         }
     });
     if started.is_none() {
         debug(TAG, "the runtime has no worker to sweep a stopped push's locks");
     }
+    // The last holder that goes settles what no task took, so the answer is the same where the runtime refused the task:
+    //  nothing of the stop is left inside a future nobody polls.
+    drop(handed);
     return started;
 }
 
@@ -312,11 +544,15 @@ async fn wait_until_gone(tree: &[TreeMember], ceiling: Duration) -> bool {
 ///  and judge the reference locks it may have left.
 /// The whole stop is bounded by the ceiling of a stop,
 /// measured from the moment it asks:
-///  a wait that would start past it does not start,
-///  and what is left of it is what the kill's own wait and the tree's are given.
-/// A process the kernel does
-///  not release is handed to a task before the bound passes,
-/// so the person and the service wait the bound and no more.
+///  the waiting for a member that cannot be interrupted,
+/// the reap after the kill and the sweep of the locks are all taken out
+///  of that one bound,
+/// so a wait that would start past it does not start and a wait that does not answer inside it is
+///  kept as owed.
+/// A child the kernel has not released by then is kept in the abandoned list here,
+/// and a sweep that did not run is
+///  recorded here,
+/// so neither travels only inside a task the runtime may refuse to start.
 /// Why:
 ///   Git's own signal handling ends the helpers it started and removes its lock files,
 ///  and a push that ignores the request cannot outlive the kill.
@@ -336,36 +572,44 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
     ask_to_stop(child.id());
     terminate_members(below.as_slice());
     let asked: Instant = Instant::now();
+    // The reap after the kill and the sweep are part of the stop's own work, and their parts of the bound are kept back here so
+    //  that the waiting for a member that cannot be interrupted cannot spend them: a stop that gave every one of them to that
+    //  wait answered past its bound with a child it never reaped and a sweep it never ran.
+    let bound: Duration = bound_left(Duration::ZERO);
+    let reap_part: Duration = REAP_AFTER_THE_KILL.min(bound);
+    let sweep_part: Duration = SWEEP_AFTER_THE_STOP.min(bound.saturating_sub(reap_part));
+    let escalation_deadline: Duration = bound.saturating_sub(reap_part.saturating_add(sweep_part));
     let mut ended: bool = false;
     // Past the grace the wait goes on while a member of the tree is in uninterruptible sleep, up to the stop's ceiling, because a kill
     //  then only cuts the cleanup that follows the call (Git removes a lock's pid file, then the lock).
     //  The exit is awaited on the pidfd; the pause is the look at the tree's state, made at the interval the loop always used.
-    while !ended && escalation_waits(asked.elapsed(), grace, tree.as_slice()) {
+    while !ended && asked.elapsed() < escalation_deadline && escalation_waits(asked.elapsed(), grace, tree.as_slice()) {
         ended = tokio::time::timeout(POLL_PAUSE, child.wait()).await.is_ok();
     }
     if !ended {
         // The child is being abandoned; its exit is not reported, only the cause.
         let _killed = child.kill();
-        // A killed process that sits in an uninterruptible call (a stalled disk, a file system writing back) cannot be
-        //  collected until the kernel releases it. Whatever is left of the stop's bound is what that wait gets: a stop whose
-        //  first wait spent the bound hands the child to the task that collects it instead of waiting a second time.
-        let left: Duration = bound_left(asked.elapsed());
-        if !left.is_zero() {
-            // Whether it ended in time shows below: a collected child has nothing left to hand over.
-            let _ended_in_time = tokio::time::timeout(left, child.wait()).await;
-        }
+        // A killed process ends as soon as the kernel runs it once more unless it sits in a call that does not end, so this reap
+        //  is always tried, out of the part of the bound kept for it. What it does not collect is kept below, here, and never
+        //  inside a task the runtime may refuse to start.
+        let _reaped: bool = tokio::time::timeout(reap_part, child.wait()).await.is_ok();
     }
     // What the push started outlives it: its transport helper holds the connection and its hook may never exit
     // (measured: 60 seconds for a helper, for good for a `git-lfs` that never answers). They were asked to end with
     // the push, so they get what is left of the grace and are then killed.
-    while escalation_waits(asked.elapsed(), grace, below.as_slice()) && below.iter().any(still_running) {
+    while asked.elapsed() < escalation_deadline && escalation_waits(asked.elapsed(), grace, below.as_slice()) && below.iter().any(still_running) {
         tokio::time::sleep(POLL_PAUSE).await;
     }
     kill_members(below.as_slice());
-    // A child that was collected is gone; one that was not goes on to the task that waits for it.
+    // A child that was collected is gone; one the kernel has not released is kept here, where the round that reaps abandoned
+    //  children collects it, whatever the runtime does afterwards.
     let remaining: Option<Child> = child.into_std_when_unreaped();
-    let left: Duration = bound_left(asked.elapsed());
-    let _sweeper = settle_locks(remaining, tree, claimed_ledger, left).await;
+    if let Some(unreleased) = remaining {
+        keep_abandoned(unreleased);
+    }
+    let tree_left: Duration = escalation_deadline.saturating_sub(asked.elapsed());
+    let sweep_left: Duration = bound_left(asked.elapsed());
+    let _sweeper = settle_locks(tree, claimed_ledger, tree_left, sweep_left).await;
 }
 
 /// What:
@@ -379,34 +623,46 @@ pub async fn stop_push(mut child: OwnedChild, grace: Duration, locks: LockLedger
 /// and nothing would try again.
 /// The task waits for
 ///  the whole tree and then sweeps.
-/// `child` is the stopped push when it was not collected,
-/// and nothing when it was.
-/// `left` is what is left of the stop's bound,
-/// and the whole of what this wait for the tree may take:
-///  a tree the stop has already spent its bound on is handed to the task at once,
-/// because the bound is what a person waits.
+/// `tree_left` is what is left of the part of the stop's bound the escalation may use,
+/// and the whole of what this wait
+///  for the tree may take;
+/// `sweep_left` is what is left of the whole bound,
+/// and the inline sweep is awaited no longer than
+///  what remains of it after the tree's wait.
+/// A sweep that does not run or does not answer inside that removes nothing now and is kept as owed
+///  (`keep_the_sweep_owed`),
+/// so a stop answers inside its bound whether the blocking pool moves or not.
 /// Returns the
 ///  task,
 /// if one was started.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// if (child === undefined && allEnded(tree)) { locks.sweep(tree); return undefined; } return sweepAfterExit(child, tree, locks);
+/// waitForTree(tree, treeLeft); if (allEnded(tree)) { sweepWithin(sweepLeft); return undefined; } return sweepAfterExit(tree, locks);
 /// ```
-pub async fn settle_locks(child: Option<Child>, tree: Vec<TreeMember>, locks: LockLedger, left: Duration) -> Option<tokio::task::JoinHandle<()>> {
-    let Some(uncollected) = child else {
-        wait_for_tree(tree.as_slice(), left).await;
-        if !tree.iter().any(still_running) {
-            // The sweep reads directories, so it runs on the blocking pool and not on the worker that polls tasks.
-            if let Err(error) = run_blocking_job(move || { locks.sweep(); }).await {
-                debug(TAG, &format!("the sweep of a stopped push's locks did not run: {error}"));
+pub async fn settle_locks(tree: Vec<TreeMember>, locks: LockLedger, tree_left: Duration, sweep_left: Duration) -> Option<tokio::task::JoinHandle<()>> {
+    let waited: Instant = Instant::now();
+    wait_for_tree(tree.as_slice(), tree_left).await;
+    if !tree.iter().any(still_running) {
+        // The sweep reads directories and the process table, so it runs on the blocking pool and not on the worker that polls
+        //  tasks; what is left of the stop's bound is what its answer is awaited for, and no place of the pool or thread to run
+        //  it leaves it owed rather than waited for.
+        let inside: Duration = sweep_left.saturating_sub(waited.elapsed());
+        let owed_if_no_answer: LockLedger = locks.clone();
+        return match run_a_job_once_awaited_no_longer_than(inside, move || { locks.sweep(); }).await {
+            TheAnswerOfAJobAwaited::Ran(_removed) => None,
+            TheAnswerOfAJobAwaited::NotRun => {
+                keep_the_sweep_owed(owed_if_no_answer, THE_SWEEP_WAS_GIVEN_NO_THREAD);
+                None
             }
-            return None;
-        }
-        // The push was collected and the tree is still running: the task waits for the tree alone.
-        return sweep_task(None, tree, locks);
-    };
-    return sweep_task(Some(uncollected), tree, locks);
+            TheAnswerOfAJobAwaited::NoAnswer => {
+                keep_the_sweep_owed(owed_if_no_answer, THE_SWEEP_DID_NOT_ANSWER);
+                None
+            }
+        };
+    }
+    // The push was collected and the tree is still running: the task waits for the tree alone.
+    return start_the_sweep_task(AStopHandedToATask { child: None, tree, locks });
 }
 
 /// The sweep's wait and its bound are controlled in the test module.

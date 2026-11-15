@@ -135,6 +135,16 @@ impl LockLedger {
         return Self { roots: roots_of_command(command), judge: None };
     }
 
+    /// What:
+    ///  The Git directories whose reference locks this ledger judges.
+    /// Why:
+    ///   A sweep that did not run inside the bound of a stop is said in a line that must name the repositories a person's
+    ///  next command will judge,
+    /// so the owed sweep is findable without reading the ledger itself.
+    pub fn roots(&self) -> &[PathBuf] {
+        return self.roots.as_slice();
+    }
+
     /// The same ledger with another judge,
     /// so a control does not wait out the margin of a real one.
     #[cfg(test)]
