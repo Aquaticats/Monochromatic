@@ -323,6 +323,89 @@ await describe({
           },
         },),
         it({
+          name: 'takes a dead start\'s folder once when both takers are held and the one that looked first is let go first, so the other is refused',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             Where the dead start left its record.
+             */
+            const ownerFile = ownerFileOfAReview({ reviewsFolder: folder.path, review: REVIEW, },);
+            await writeOwner({
+              ownerFile,
+              record: aRecord({ commit: 'dead-commit', claim: 'the-dead-claim', process: aDeadStart(), },),
+            },);
+            const manager = aManagerAnswering({ state: 'inactive', },);
+            const identity = await processIdentityOfThisProcess();
+            /**
+             What each start answered.
+             */
+            const answers: string[] = [];
+            /**
+             Claims the folder for one claim after the test lets its look go on.
+             */
+            async function takeWithHold({
+              claim,
+              looked,
+              release,
+            }: {
+              readonly claim: string;
+              readonly looked: PromiseWithResolvers<void>;
+              readonly release: Promise<void>;
+            },): Promise<void> {
+              try {
+                await takeReviewFolder({
+                  reviewFolder: dirname(ownerFile,),
+                  ownerFile,
+                  branch: BRANCH,
+                  unit: UNIT,
+                  manager,
+                  owner: aRecord({ commit: claim, claim, process: identity, },),
+                  seams: {
+                    async afterLookingAtADeadOwner() {
+                      looked.resolve();
+                      await release;
+                    },
+                  },
+                },);
+                answers.push(`${claim}: took`,);
+              }
+              catch (error) {
+                answers.push(`${claim}: ${(error instanceof ReviewFolderTakenError) ? 'refused' : String(error,)}`,);
+              }
+            }
+            /**
+             The look of the start let go first.
+             */
+            const firstLooked = Promise.withResolvers<void>();
+            /**
+             The look of the start let go second.
+             */
+            const secondLooked = Promise.withResolvers<void>();
+            /**
+             The moment the first start goes on.
+             */
+            const releaseFirst = Promise.withResolvers<void>();
+            /**
+             The moment the second start goes on.
+             */
+            const releaseSecond = Promise.withResolvers<void>();
+            const first = takeWithHold({ claim: 'claim-a', looked: firstLooked, release: releaseFirst.promise, },);
+            const second = takeWithHold({ claim: 'claim-b', looked: secondLooked, release: releaseSecond.promise, },);
+            await Promise.all([firstLooked.promise, secondLooked.promise,],);
+            releaseFirst.resolve();
+            await first;
+            releaseSecond.resolve();
+            await second;
+            expect(answers.filter(function took(answer,) {
+              return answer.endsWith(': took',);
+            },),).toHaveLength(1,);
+            expect(answers.filter(function wasRefused(answer,) {
+              return answer.endsWith(': refused',);
+            },),).toHaveLength(1,);
+            expect((await theOwnerShown({ ownerFile, },)).claim,).toBe('claim-a',);
+          },
+        },),
+        it({
           name: 'refuses a second start of one branch while the first start of it still runs, so a live start never loses its folder',
           fn: async () => {
             await using folder = await makeFolder();
