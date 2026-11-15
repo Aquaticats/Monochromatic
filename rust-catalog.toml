@@ -126,7 +126,7 @@ vello = ">=0.12.0"
 webpki-roots = ">=1.0.12"
 windows = ">=0.62.2"
 winresource = ">=0.1.34"
-zbus = ">=6.2.1"
+zbus = ">=6.3.0"
 zbus_xml = ">=6.0.0"
 zruntime = ">=0.2.3"
 
