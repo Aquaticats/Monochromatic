@@ -726,10 +726,10 @@ fn two_waits_on_one_fixture_never_answer_that_a_running_copy_ended() {
     let waited_on: &FixtureService = &service;
     std::thread::scope(|scope| {
         for _ in 0..TWO_WAITS {
-            let (at_the_seam, collected, service): (&std::sync::Barrier, &Mutex<Vec<bool>>, &FixtureService) = (&together, &answers, waited_on);
+            let (at_the_seam, collected, waited): (&std::sync::Barrier, &Mutex<Vec<bool>>, &FixtureService) = (&together, &answers, waited_on);
             scope.spawn(move || {
                 let _released: std::sync::BarrierWaitResult = at_the_seam.wait();
-                let answered: bool = service.settle_the_service_log(A_WAIT_GIVES_UP_AFTER);
+                let answered: bool = waited.settle_the_service_log(A_WAIT_GIVES_UP_AFTER);
                 collected.lock().expect("the answers").push(answered);
             });
         }
