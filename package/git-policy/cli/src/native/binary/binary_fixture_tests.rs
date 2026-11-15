@@ -3,8 +3,9 @@
 //! (issue 1809).
 
 use super::support::{
-    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, ServiceLaunch, NOBODY_JOURNAL_ADDRESS, fixture, missing_fixture_root_report, give_service_environment, remove, remove_patiently, repository,
-    service_command, service_log, service_runtime, service_is_serving, settle_fixture, spawn_owned, start_fixture_service,
+    FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, SERVICE_LOG_FILE, ServiceLaunch, NOBODY_JOURNAL_ADDRESS, fixture, log_file_failure_note, missing_fixture_root_report,
+    give_service_environment, names_the_stream, remove, remove_patiently, repository, service_command, service_log, service_runtime, service_is_serving, settle_fixture, spawn_owned,
+    start_fixture_service,
 };
 use git_policy_cli::service_server::Bind;
 use std::path::{Path, PathBuf};
@@ -538,4 +539,69 @@ fn a_fixture_service_says_its_release_into_the_fixture_s_log() {
     }
     drop(service);
     remove(&created);
+}
+
+/// What:
+///  A fixture whose `service.log` cannot be written keeps what its service said anyway,
+///  and says why the file holds nothing.
+/// Why:
+///   A review of 2026-11-14 found the copy losing every word when the file could not be opened:
+/// the open error became nothing,
+/// the copier drained the pipe and wrote nothing,
+/// and a failure was left with `the service logged (0 bytes kept)`.
+///  One failure of logging must cost a diagnostic its file but never its words,
+/// so the words are kept in this process and `service_log` hands them on with the reason.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// mkdirSync(join(root, 'service.log')); serve(); await eventually(() => serviceLog(root).includes('started release=') && serviceLog(root).includes('Is a directory'));
+/// ```
+#[test]
+fn a_service_s_log_survives_a_log_file_that_cannot_be_written() {
+    let created: Fixture = fixture("service-log-file-is-a-directory");
+    let git_dir: PathBuf = created.root.join("repo/.git");
+    std::fs::create_dir_all(&git_dir).expect("a Git directory to serve");
+    // A directory where the log file belongs: opening it for append fails, and it fails the same way every run.
+    std::fs::create_dir(created.root.join(SERVICE_LOG_FILE)).expect("a directory blocking the log file");
+    let service: FixtureService = start_fixture_service(&created);
+    service.serve(&created, git_dir.as_path());
+    let began: Instant = Instant::now();
+    while !service_log(created.root.as_path()).contains("started release=") {
+        assert!(
+            began.elapsed() < SERVICE_LOG_PATIENCE,
+            "the words of the service were lost with the file that could not hold them: {}",
+            service_log(created.root.as_path())
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let said: String = service_log(created.root.as_path());
+    assert!(said.contains("holds nothing"), "the failure says the file holds nothing: {said}");
+    assert!(said.contains("Is a directory") || said.contains("directory"), "the failure names why: {said}");
+    drop(service);
+    remove(&created);
+}
+
+/// What:
+///  The note that leaves the fixture names the file and the reason,
+///  and the reading that decides whether it is written at all is `systemd.exec(5)`'s:
+///  the variable names a device and an inode, and that pair is the stream.
+/// Why:
+///  The one line this support writes on a stream the fixture does not own must not reach the journal,
+/// and a run whose standard error is the journal must get nothing;
+/// the decision is the service's own reading of `$JOURNAL_STREAM`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(namesTheStream(Some('12:34'), 12, 34)).toBe(true); expect(namesTheStream(Some('12:34'), 12, 35)).toBe(false); expect(namesTheStream(None, 12, 34)).toBe(false);
+/// ```
+#[test]
+fn the_note_names_the_file_and_the_failure_and_the_reading_is_the_stream_s_own() {
+    let note: String = log_file_failure_note(Path::new("/fixtures/x/service.log"), "Is a directory (os error 21)");
+    assert!(note.contains("/fixtures/x/service.log"), "{note}");
+    assert!(note.contains("Is a directory (os error 21)"), "{note}");
+    assert!(names_the_stream(Some("12:34"), 12, 34), "the pair is the stream");
+    assert!(!names_the_stream(Some("12:34"), 12, 35), "another inode is another stream");
+    assert!(!names_the_stream(Some("12:34"), 13, 34), "another device is another stream");
+    assert!(!names_the_stream(None, 12, 34), "a run with no variable is no journal to the reading");
+    assert!(!names_the_stream(Some("not a pair"), 12, 34), "a value that is no pair names no stream");
 }
