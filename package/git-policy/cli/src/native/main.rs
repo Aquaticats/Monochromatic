@@ -72,14 +72,18 @@ fn main() {
 }
 
 /// What:
-///  Waits, bounded, for the lines this process handed to its log thread, then ends it.
+///  Waits,
+///  bounded,
+///  for the lines this process handed to its log thread,
+///  then ends it.
 /// Why:
 ///   A line written by a thread of its own is not written yet when the exit arrives,
 /// and `std::process::exit` ends that thread where it stands:
 /// the refusals of 2026-11-14 printed no byte at all in most runs,
 /// so a person saw a status and no reason (`service_log_lines_off_the_calling_thread.rs`).
 /// The bound keeps the promise a stream nobody drains was given in the first place:
-/// no caller waits for the reader, and the end of the process waits at most this once.
+/// no caller waits for the reader,
+/// and the end of the process waits at most this once.
 /// Nothing is started or waited for when no line was ever handed over,
 /// which is every ordinary wrapper command.
 ///

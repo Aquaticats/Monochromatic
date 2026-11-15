@@ -111,10 +111,10 @@ fn a_line_handed_before_the_end_waits_and_reaches_the_stream() {
 
     // The arm that proves the bound: a stream already full, and a line the thread takes and stands in.
     let capacity: usize = one_pipe_s_holding();
-    let (reader, writer) = std::io::pipe().expect("a pipe");
-    let mut filled: Box<dyn Write + Send> = Box::new(writer.try_clone().expect("a second write end"));
+    let (unread_end, write_end) = std::io::pipe().expect("a pipe");
+    let mut filled: Box<dyn Write + Send> = Box::new(write_end.try_clone().expect("a second write end"));
     filled.write_all(vec![b'.'; capacity].as_slice()).expect("the stream fills");
-    give_the_thread(Box::new(writer));
+    give_the_thread(Box::new(write_end));
     assert!(hand("a line nobody can read\n"), "the queue has room");
     let began: std::time::Instant = std::time::Instant::now();
     let written: bool = write_what_waits(WAIT_BEFORE_AN_EXIT);
@@ -122,6 +122,6 @@ fn a_line_handed_before_the_end_waits_and_reaches_the_stream() {
     assert!(began.elapsed() < WAIT_BEFORE_AN_EXIT.saturating_mul(8), "the end waited its bound ({} ms) and no longer: {:?}", WAIT_BEFORE_AN_EXIT.as_millis(), began.elapsed());
     // The stream is closed behind the standing write, so the thread that waits there ends with this stream rather than
     //  with the process.
-    drop(reader);
+    drop(unread_end);
     drop(filled);
 }

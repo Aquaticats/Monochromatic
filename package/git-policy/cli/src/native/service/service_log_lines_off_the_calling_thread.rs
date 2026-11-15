@@ -24,7 +24,9 @@
 //!  The stream's own file description is shared,
 //! so the thread writes to the same descriptor the caller would have written to,
 //! and nothing about where the lines go changes.
-//!  A process about to end waits, once and bounded, for the lines it handed over,
+//!  A process about to end waits,
+//! once and bounded,
+//! for the lines it handed over,
 //! because `std::process::exit` ends the thread where it stands
 //! and a refusal's last line is the whole of what a person gets.
 //!
@@ -62,8 +64,8 @@ const DROPPED_NOTICE_TAIL: &str = " log entries were dropped before this one bec
 
 /// How long the end of a process waits for the lines it handed over.
 ///
-/// Measured on 2026-11-14 on this host over sixty rounds of one refusal, the arm with this wait and the arm
-/// without it alternating in every round:
+/// Measured on 2026-11-14 on this host over sixty rounds of one refusal,
+/// the arm with this wait and the arm without it alternating in every round:
 /// the whole process took 3.16 ms at the median with the wait and 3.05 ms without it,
 /// and the spread of either arm alone (2.8 to 3.7 ms between the tenth and ninetieth percentiles)
 /// is larger than that difference,
@@ -73,7 +75,9 @@ const DROPPED_NOTICE_TAIL: &str = " log entries were dropped before this one bec
 /// it is also the service's own answer deadline (`DRAWN_ANSWER_DEADLINE`,
 /// `src/native/service/service_client_shadow_hand_out.rs`),
 /// so no script that runs the wrapper notices the end of one,
-/// and a stream nobody drains costs this at most once, at the end, never per line.
+/// and a stream nobody drains costs this at most once,
+/// at the end,
+/// never per line.
 pub const WAIT_BEFORE_AN_EXIT: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// What the queue of one process holds,
@@ -98,12 +102,16 @@ struct Queue {
 
 /// The one queue of this process and the condition its thread waits on.
 /// Lock kept:
-///  the lines waiting for the service's own log stream, and how many found no room,
+///  the lines waiting for the service's own log stream,
+///  and how many found no room,
 ///  because a caller hands a line and goes on while one thread takes lines and waits on the stream,
 ///  so the hand and the take are the two ends of one queue and neither may see the other's half.
 ///  Under it one line is pushed or popped and the writer is handed out or given back;
-///  the write itself, which may wait for the reader as long as the reader takes, runs outside it,
-///  and no Git process, no file and no other lock runs under it.
+///  the write itself,
+///  which may wait for the reader as long as the reader takes,
+///  runs outside it,
+///  and no Git process,
+///  no file and no other lock runs under it.
 static QUEUE: OnceLock<&'static (Mutex<Queue>, Condvar)> = OnceLock::new();
 
 /// The queue,
@@ -244,21 +252,26 @@ pub fn dropped_so_far() -> u64 {
 }
 
 /// What:
-///  Waits, bounded, for every line handed over to reach the stream,
+///  Waits,
+///  bounded,
+///  for every line handed over to reach the stream,
 ///  and says whether it did.
 /// Why:
 ///   A process that ends at once after its last line loses that line otherwise:
 /// the line is out of the queue and in a thread of its own,
 /// and `std::process::exit` ends every thread where it stands.
 /// The wrapper's service mode refuses a start with one line and returns its exit status,
-/// and the refusals of 2026-11-14 (a `--git` that is the wrapper, a start with no socket and no address)
+/// and the refusals of 2026-11-14 (a `--git` that is the wrapper,
+/// a start with no socket and no address)
 /// printed no byte at all in most runs:
-/// the person was owed the reason and the way forward, and the words never arrived.
-/// The wait belongs at the end of the process, once,
+/// the person was owed the reason and the way forward,
+/// and the words never arrived.
+/// The wait belongs only at the end of the process,
 /// and never to a caller that hands a line and goes on.
 /// A process that never handed a line starts no thread and waits for nothing,
 /// so this costs an ordinary wrapper command nothing at all.
-/// The bound is the promise: a stream a reader drains is written at once,
+/// The bound is the promise:
+/// a stream a reader drains is written at once,
 /// and a stream nobody drains holds the end of the process for `within` and no longer,
 /// which is what keeps this safe where the 7.35 second wait of 2026-11-12 came from.
 ///
@@ -280,7 +293,7 @@ pub fn write_what_waits(within: std::time::Duration) -> bool {
             return false;
         };
         held = match ready.wait_timeout(held, left) {
-            Ok((held, _its_time_was_up)) => held,
+            Ok((woken, _its_time_was_up)) => woken,
             Err(poisoned) => poisoned.into_inner().0,
         };
     }

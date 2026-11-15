@@ -890,7 +890,8 @@ fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the
 }
 
 /// What:
-///  A runtime directory no socket path can carry costs no wait: on this system the address is an abstract name,
+///  A runtime directory no socket path can carry costs no wait:
+/// on this system the address is an abstract name,
 ///  so the refusal that comes is the one whose cause is here,
 /// named at once and with the repository unchanged.
 /// Why:
@@ -899,10 +900,11 @@ fn a_running_per_user_service_is_retired_and_the_worktrees_own_service_lands_the
 /// waited two minutes before the command said only that the service did not start.
 ///  The wait was the defect,
 /// and it is what this control holds down.
-///  The runtime directory stopped being a cause of its own on 2026-11-13
-/// (`83b4707231`: where a path does not carry the address,
-/// `@monochromatic-git-policy-cli/<account>/<digest of the place>/<instance>` does),
-///  so with a bus address nothing answers on,
+///  The runtime directory stopped being a cause of its own on 2026-11-13,
+/// when `83b4707231` made the address
+/// `@monochromatic-git-policy-cli/<account>/<digest of the place>/<instance>`
+/// where a path does not carry it.
+///  So with a bus address nothing answers on,
 /// the setting that has to change is the one that starts the service,
 /// and the words for a path too long are the words for a system with no abstract namespace.
 ///  Every part below is read from the arrangement rather than written as a number:
@@ -926,7 +928,6 @@ fn a_runtime_directory_no_path_can_carry_is_refused_at_once_naming_the_setting()
     assert!(took < PATIENCE / 6, "the refusal takes {took:?}, not the start ceiling: {stderr}");
     // The address form this system has is what makes the runtime directory carry the service's address,
     // so the words for a path too long are not the words for this arrangement.
-    assert!(git_policy_cli::service_address_of_a_worktree::AN_ABSTRACT_NAME_IS_AVAILABLE, "this control states the arrangement of a system whose addresses need no path: {stderr}");
     let address: git_policy_cli::service_server::Bind = git_policy_cli::service_address_of_a_worktree::socket_address_of(runtime.as_path(), git_policy_cli::service_instance::instance_of(repo.join(".git").as_path()).as_str());
     assert!(matches!(address, git_policy_cli::service_server::Bind::Abstract(_)), "a runtime directory this long is named without a path here: {}", git_policy_cli::service_server::address_text(&address));
     assert!(stderr.contains(LINGER_COMMAND), "the setting that starts the service is the one that has to change, and its remedy is named: {stderr}");
