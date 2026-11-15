@@ -1663,6 +1663,47 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The wrapper under the gate container's Git: the review of the words finds two sentences left that still say who ended a query (2026-11-15T10:13:11-05:00)
+
+Not final and not approved:
+what one review reports and what the coordinating session queued.
+
+- **The review** of the words added after `d73a209b3e`,
+  ended 10:08:05,
+  two of two files read whole,
+  by reading
+  (which its brief allowed for a change of comments alone):
+  what the author changed is true of the code.
+  Two sentences the author did not change still promise what the stated limits take back:
+  the module's overview says the helper "says who ended" the query;
+  and the doc of `QueryEnding::Itself` says the query "ended by itself",
+  while the code answers `Itself` for every status a wait saw before the bound ran out,
+  a signal from another process among them.
+  No other defect in the two files.
+- **Weighed**:
+  both are what the brief asked the review to look for,
+  and both go back,
+  as two sentences and nothing else.
+  The author's eighth run is queued first
+  (`~/temp/agent/pi-runs/wrapper-under-the-gate-containers-git-two-sentences-that-still-say-who-ended-the-query-prompt.md`),
+  asked also to read both files once more for the same promise and to list what it finds.
+  The review after it reads what is added after `aeae08fa24`.
+- **The temperature**,
+  read at 10:12:27:
+  59.8 degrees,
+  budget 32.0 threads,
+  17.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 10:12:30:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 10:06;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+
 ##### The credential masking answers its second review and goes to a third, with made-up values only; the address-space assertion's message goes back (2026-11-15T10:08:02-05:00)
 
 Not final and not approved:
