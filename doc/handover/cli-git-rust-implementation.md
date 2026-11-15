@@ -1396,8 +1396,10 @@ and what it queued.
 - **For the next review of this branch**:
   it must build.
   Other reviews of this evening built under a disposable home by naming the key file to `mise` or by passing `--skip-tools`;
-  the package's rules file for briefs is where that belongs,
-  and no run has it yet.
+  neither the package's rules file for briefs nor its review brief says how
+  (searched at 23:13).
+  Added at 23:14 as a fourth sighting to the queued brief of the run for the review brief's template,
+  which had not started.
 - Read at 23:12:09:
   no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
   no launcher had outlived a run;
