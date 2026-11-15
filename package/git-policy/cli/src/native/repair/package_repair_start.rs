@@ -553,9 +553,8 @@ fn pause_for(held: Option<Duration>) {
 /// process.kill(-child.pid, 'SIGKILL');
 /// ```
 pub(crate) fn stop_group(leader_id: u32) {
-    let Ok(leader) = libc::pid_t::try_from(leader_id) else { return };
-    // SAFETY: `kill` takes a process-group id and a signal number and touches no memory; the group was made by this process.
-    let _stopped = unsafe { libc::kill(-leader, libc::SIGKILL) };
+    // The one implementation of the group's end is the child value's own, so a drop and this path end the same work.
+    crate::child_awaited_through_a_pidfd::stop_the_group_of(leader_id);
 }
 
 #[cfg(test)]

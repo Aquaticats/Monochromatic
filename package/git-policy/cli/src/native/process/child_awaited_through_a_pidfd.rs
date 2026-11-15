@@ -296,10 +296,40 @@ impl OwnedChild {
     }
 }
 
+/// What:
+///  Stop every process of the group a child leads,
+///  by the signal the normal ceiling path sends.
+/// Why:
+///   A child started in a group of its own (`process_group(0)`) may have started helpers of its own,
+///  and a deadline that gives up on the work must end what it started:
+///  the slow lane's `LANE_LOOK_CEILING` drops the future that owns the child, so the end belongs to that value and not to
+///  one path that happens to be taken (the review of `fc620ef950`, F2).
+/// The group id is the leader's own number while the leader is alive; a number that names no group answers `ESRCH`,
+/// nothing happens, so a child that was never a leader is safe here.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// process.kill(-leaderId, 'SIGKILL');
+/// ```
+pub(crate) fn stop_the_group_of(leader_id: u32) {
+    let Ok(leader) = libc::pid_t::try_from(leader_id) else { return };
+    // SAFETY: `kill` takes a process-group id and a signal number and touches no memory; the group was made by this process.
+    let _stopped = unsafe { libc::kill(-leader, libc::SIGKILL) };
+}
+
 impl Drop for OwnedChild {
-    /// A live child is ended and reaped,
-    /// so the caller's cleanup never runs beside a child that is still writing.
+    /// A live child ends with the whole group it leads, and is reaped,
+    /// so the caller's cleanup never runs beside a child that is still writing and no helper of it outlives the value
+    /// that owned it.
+    /// Why the group and not the leader alone:
+    ///  a future can be dropped anywhere, and the drop is the only end some paths reach; a leader killed alone leaves
+    ///  what it started running against the same files (the review of `fc620ef950`, F2).
+    /// The signal is only sent while this value still owns the child: a child that was reaped or handed over has no
+    /// number this process may signal, because the kernel may have given it to another process since.
     fn drop(&mut self) {
+        if self.child.is_some() {
+            stop_the_group_of(self.id());
+        }
         self.end_and_reap();
     }
 }
