@@ -28,8 +28,8 @@ use crate::rule_linked_worktree::GuardedCommand;
 use crate::rule_worktree_dirty::SHARED_PATHS_NAMED;
 /// The quoting a command printed for a person to run needs.
 use crate::shell_quote::shell_quote;
-/// `OsString` is owned operating-system text of raw bytes.
-use std::ffi::OsString;
+/// `OsStr`/`OsString` are borrowed/owned operating-system text of raw bytes.
+use std::ffi::{OsStr, OsString};
 
 /// What:
 ///  Everything one refusal names:
@@ -239,6 +239,54 @@ pub fn unread_option_message(unread: UnreadOption<'_>) -> String {
         subcommand(unread.command),
         String::from_utf8_lossy(unread.written),
         hatch_command(unread.command, unread.region),
+    );
+}
+
+/// What:
+///  The refusal of a `!` shell alias whose own words read a pathspec file,
+///  naming the file and the command that runs it anyway.
+///  `&[OsString]` borrows the words the shell runs and the command the person types.
+/// Why:
+///  The guard reads that file to know which paths the command writes,
+///  and the shell Git starts reads it again:
+///  a pipe has one writer, so the second read waits for one that is gone,
+///  and a file changed in between makes Git act on names the guard never judged.
+///  The wrapper forwards a `!` alias's value unchanged, because the shell keeps the `GIT_DIR` and
+///  `GIT_PREFIX` Git gives it,
+///  so it cannot put the bytes it read in place of the file's name.
+///  The person reads which file stopped it and how to run the command as real Git runs it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pathspecUnderAShellAliasMessage({ command: 'restore', region: ['--source=HEAD', '--pathspec-from-file=list'], file: 'list' });
+/// ```
+pub struct PathspecUnderAShellAlias<'a> {
+    /// The guarded form the alias runs.
+    pub command: GuardedCommand,
+    /// The words the shell runs, after the subcommand.
+    pub region: &'a [OsString],
+    /// The file the alias reads its pathspecs from.
+    pub file: &'a OsStr,
+}
+
+/// What:
+///  The sentence that refusal prints.
+/// Why:
+///  It has to name the file Git would read a second time,
+///  why the wrapper cannot hand over the bytes it read,
+///  that nothing ran,
+///  and the one command that runs it anyway.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function pathspecUnderAShellAliasMessage(refusal): string;
+/// ```
+pub fn pathspec_under_a_shell_alias_message(refusal: PathspecUnderAShellAlias<'_>) -> String {
+    return format!(
+        "monochromatic-git-policy-cli: git {} is rejected because the `!` shell alias you ran reads its pathspecs from `{}`, and the wrapper reads that file before Git does: under a shell alias the wrapper cannot put the bytes it read in the file's place, so Git would read them again (a pipe waits for a writer that is gone). Nothing in your worktree was changed. If you have decided to run it anyway, run `{}`, and the command runs exactly as real Git runs it.",
+        subcommand(refusal.command),
+        refusal.file.to_string_lossy(),
+        hatch_command(refusal.command, refusal.region),
     );
 }
 

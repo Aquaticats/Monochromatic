@@ -35,6 +35,11 @@ use crate::rule_worktree_dirty::nul_separated_paths;
 /// The ceiling one metadata lookup of the worktree is read under,
 ///  and the bound on the bytes of a pathspec file.
 use crate::wait_ceilings::{PATHSPEC_FILE_READ_LIMIT, WORKTREE_LOOKUP_CEILING};
+/// The private directory the wrapper keeps short-lived files in,
+///  which the copy it hands Git is written to.
+use crate::scratch_location::prepare_repository_scratch;
+/// The common directory of a location.
+use crate::worktree_identity::common_directory;
 /// The worktree a path is named from.
 use crate::worktree_identity::worktree_root;
 /// The caller's global options without the `-C` chain a query started elsewhere already reached.
@@ -84,7 +89,7 @@ pub(super) fn paths_the_tree_writes(facts: &mut GitFacts, written: &WrittenPaths
         WrittenPaths::MoveInto { sources, destination } => move_paths(facts, sources.as_slice(), destination, run_in),
         WrittenPaths::ReadTree { revisions, prefix, .. } => read_tree_paths(facts, revisions.as_slice(), prefix.as_deref(), run_in),
         WrittenPaths::PathspecFile { target, file, nul_separated, entries: _, guesses_a_remote_branch } => {
-            let pathspecs: Vec<OsString> = pathspecs_in_the_file(file, *nul_separated, run_in)?;
+            let pathspecs: Vec<OsString> = pathspecs_in_the_file(facts, file, *nul_separated, run_in)?;
             if !pathspecs.is_empty() {
                 return match target {
                     PathspecTarget::Tree(revision) => tree_paths(facts, revision.as_deref(), pathspecs.as_slice(), false, run_in),
@@ -451,7 +456,12 @@ fn read_at_most(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
 /// ```ts
 /// function pathspecsInTheFile(file, nulSeparated, directory): string[]; // throws
 /// ```
-fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: &Path) -> Result<Vec<OsString>, String> {
+fn pathspecs_in_the_file(
+    facts: &mut GitFacts,
+    file: &OsStr,
+    nul_separated: bool,
+    directory: &Path,
+) -> Result<Vec<OsString>, String> {
     // Git itself waits for a writer on a FIFO and for a mount that stopped answering
     //  (`timeout 10 git checkout --pathspec-from-file=<fifo>` was still waiting when the probe ended it,
     //  measured on this host with native Git 2.56.0, 2026-11-13),
@@ -493,6 +503,17 @@ fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: &Path) ->
             return Err(format!("Git could not read the pathspecs `{}` names: {error}", absolute.display()));
         }
     };
+    // What:
+    //  The bytes read here are the bytes Git is given.
+    // Why:
+    //  Git opens the file a second time,
+    //  and a pipe has one writer:
+    //  the guard consumed `a.txt\n` from a named pipe and forwarded the same name, and Git then waited
+    //  for a second writer until the run was killed at its deadline
+    //  (the seventh review, reproduced here).
+    //  A file changed between the two reads is the other half:
+    //  Git would act on names the guard never saw.
+    hand_the_bytes_to_git(facts, bytes.as_slice(), file.as_encoded_bytes(), absolute.as_path())?;
     // A zero-byte file is no pathspec at all, which Git reads as "none were given"
     //  (`git checkout -f other --pathspec-from-file=<empty>` switches the branch by force,
     //  measured on this host with native Git 2.56.0, 2026-11-13);
@@ -532,6 +553,163 @@ fn pathspecs_in_the_file(file: &OsStr, nul_separated: bool, directory: &Path) ->
         pathspecs.push(path_from_bytes(unquoted.as_slice()));
     }
     return Ok(pathspecs);
+}
+
+/// What:
+///  The instant this wrapper process began,
+///  captured once,
+///  in nanoseconds since the Unix epoch.
+/// Why:
+///  The copy the guard hands Git is named by the invocation that wrote it,
+///  and two stages of one invocation must compute the same name while an earlier run must not:
+///  a name carrying this value is never shared with a process that started another time,
+///  so a later run cannot find a stale copy and hand Git bytes it never read.
+///  A process that started in the same nanosecond as this one and read the same file name would
+///  share the name, and that needs both to happen at once.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const startedAt = (() => { let once; return () => once ??= BigInt(Date.now()) * 1_000_000n; })();
+/// ```
+pub(crate) fn this_invocation_started_at() -> u128 {
+    static STARTED_AT: std::sync::OnceLock<u128> = std::sync::OnceLock::new();
+    return *STARTED_AT.get_or_init(|| {
+        return std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+    });
+}
+
+/// What:
+///  The name of the copy one pathspec file's bytes are handed to Git under,
+///  inside the wrapper's private scratch directory.
+///  `&[u8]` borrows the file's name as the person wrote it.
+/// Why:
+///  Both stages of one invocation build this name from the same two things,
+///  and neither reads the file:
+///  the guard writes the copy when it reads the bytes,
+///  and the transform substitutes the name in the words Git receives,
+///  so Git reads the bytes the guard read.
+///  The file's own name is hashed rather than embedded,
+///  because a path may hold any bytes and a name that is too long is not a name.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const copyName = (directory, written) => join(directory, `pathspec-from-file-${process.pid}-${startedAt()}-${fnv1a(written)}`);
+/// ```
+pub(crate) fn a_pathspec_copy_the_guard_hands_to_git(scratch: &Path, written: &[u8]) -> PathBuf {
+    // FNV-1a, 64 bits: one pass, no allocation, and stable across processes.
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in written {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    return scratch.join(format!(
+        "pathspec-from-file-{}-{}-{hash:016x}",
+        std::process::id(),
+        this_invocation_started_at()
+    ));
+}
+
+/// What:
+///  The copy one pathspec file's bytes were handed to Git under,
+///  when this invocation wrote one,
+///  asked of the place itself under the worktree lookup ceiling.
+///  `&[u8]` borrows the file's name as the person wrote it.
+/// Why:
+///  The transform substitutes the copy only when the guard read that file,
+///  and the file's presence under this invocation's own name is that answer:
+///  a command run with the guard's opt-out read nothing and finds no copy,
+///  so it is forwarded exactly as the person typed it.
+///  A lookup that gives no answer is no copy.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const there = (scratch, written) => workWithin(CEILING, () => stat(copyName(scratch, written))).ok ? path : undefined;
+/// ```
+pub(crate) fn the_pathspec_copy_that_is_there(scratch: &Path, written: &[u8]) -> Option<PathBuf> {
+    let copy: PathBuf = a_pathspec_copy_the_guard_hands_to_git(scratch, written);
+    let named: PathBuf = copy.clone();
+    let found = crate::work_awaited_within_a_ceiling::work_within(WORKTREE_LOOKUP_CEILING, move || {
+        return std::fs::symlink_metadata(named.as_path());
+    });
+    return match found {
+        Some(Ok(_)) => Some(copy),
+        Some(Err(_)) | None => None,
+    };
+}
+
+/// What:
+///  Write the bytes one pathspec file held into the copy Git will read,
+///  so that the file is read once,
+///  or refuse the command when the copy cannot be written.
+///  `&mut GitFacts` asks the repository's common directory,
+///  the first `&[u8]` borrows the bytes,
+///  the second the file's name as the person wrote it
+///  (the copy's name is built from it, so both stages agree without reading anything),
+///  and `&Path` the file they came from, for the sentence.
+/// Why:
+///  A pipe has one writer,
+///  and a file can change between two reads:
+///  handing Git the bytes is what makes its reading of them the guard's reading.
+///  A copy that cannot be written means Git would read the file again,
+///  which is the wait and the divergence this exists to prevent,
+///  so the command is refused and the sentence names the file and the opt-out runs it as Git runs it.
+///  Both the directory and the write run on threads this process waits for only until the worktree
+///  lookup ceiling,
+///  because a `mkdir` or a write on a mount whose server stopped answering never returns.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// function handTheBytesToGit(facts, bytes, file): void; // throws a refusal naming `file`
+/// ```
+fn hand_the_bytes_to_git(facts: &mut GitFacts, bytes: &[u8], written: &[u8], file: &Path) -> Result<(), String> {
+    let location: crate::repository_location::RepositoryLocation = facts.location()?;
+    let Some(common) = common_directory(&location.identity) else {
+        return Err(format!(
+            "the guard read the pathspecs `{}` names and could not name the place it gives Git the same bytes from, so it cannot tell which paths this command writes over",
+            file.display()
+        ));
+    };
+    let common_owned: PathBuf = common.to_path_buf();
+    let prepared = crate::work_awaited_within_a_ceiling::work_within(WORKTREE_LOOKUP_CEILING, move || {
+        return prepare_repository_scratch(common_owned.as_path());
+    });
+    let scratch: PathBuf = match prepared {
+        Some(Ok(directory)) => directory,
+        Some(Err(error)) => {
+            return Err(format!(
+                "the guard read the pathspecs `{}` names and could not make the place it gives Git the same bytes from ({error}), so it cannot tell which paths this command writes over",
+                file.display()
+            ));
+        }
+        None => {
+            return Err(format!(
+                "the guard read the pathspecs `{}` names and the place it gives Git the same bytes from did not answer within {} seconds, so it cannot tell which paths this command writes over",
+                file.display(),
+                WORKTREE_LOOKUP_CEILING.as_secs()
+            ));
+        }
+    };
+    let copy: PathBuf = a_pathspec_copy_the_guard_hands_to_git(scratch.as_path(), written);
+    let handed: Vec<u8> = bytes.to_vec();
+    let written_path: PathBuf = copy.clone();
+    let written = crate::work_awaited_within_a_ceiling::work_within(WORKTREE_LOOKUP_CEILING, move || {
+        return std::fs::write(written_path.as_path(), handed);
+    });
+    return match written {
+        Some(Ok(())) => Ok(()),
+        Some(Err(error)) => Err(format!(
+            "the guard read the pathspecs `{}` names and could not write the copy it gives Git instead ({error}), so it cannot tell which paths this command writes over",
+            file.display()
+        )),
+        None => Err(format!(
+            "the guard read the pathspecs `{}` names and writing the copy it gives Git instead did not answer within {} seconds, so it cannot tell which paths this command writes over",
+            file.display(),
+            WORKTREE_LOOKUP_CEILING.as_secs()
+        )),
+    };
 }
 
 /// What:

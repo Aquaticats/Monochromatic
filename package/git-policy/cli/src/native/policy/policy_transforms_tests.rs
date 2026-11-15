@@ -24,6 +24,12 @@ use crate::policy_test_support::{ScriptedFacts, scripted_facts};
 use crate::rule_commit_index::IndexVsHead;
 use crate::rule_commit_only_message::{ALL_FLAG_MESSAGE, NO_PATHSPEC_MESSAGE};
 use crate::rule_commit_sequencer::SequencerState;
+/// The handover of a pathspec file's bytes, the facts it asks, and the copy it looks for.
+use crate::command_test_support::{git, remove, repository_with_tracked_file};
+use crate::repo_read::repository_facts::{GitFacts, git_facts};
+use crate::repository_facts::RepositoryFacts;
+use crate::test_support::{REAL_GIT, isolated_overlay};
+use std::path::{Path, PathBuf};
 
 /// Apply the transforms without the commit hatch and return the result with the facts asked for.
 fn transform(values: &[&str], facts: ScriptedFacts) -> (TransformResult, Vec<String>) {
@@ -55,6 +61,68 @@ fn rejects(values: &[&str], code: &'static str, message: &str) -> TransformResul
         complete: true,
         notices: Vec::<String>::new(),
     };
+}
+
+/// What:
+///  The bytes of a pathspec file the guard read are what the words Git receives name.
+/// Why:
+///  Git would otherwise open the file a second time,
+///  and a pipe has one writer:
+///  a wrapped `restore --pathspec-from-file=<fifo>` waited for a second writer until the run killed
+///  it, while direct Git answered (the seventh review, reproduced here).
+///  The copy exists only when this invocation read that file,
+///  so a command run with the guard's opt-out, and a file the guard never read, are forwarded
+///  exactly as the person typed them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// handThePathspecFileToGit(['restore', '--pathspec-from-file=list.txt'], facts) === ['restore', `--pathspec-from-file=${copy}`];
+/// ```
+#[test]
+fn the_bytes_of_a_pathspec_file_the_guard_read_are_what_git_is_given() {
+    let (directory, repository): (PathBuf, PathBuf) = repository_with_tracked_file("transform-pathspec-handover");
+    let mut facts: GitFacts = git_facts(
+        Path::new(REAL_GIT),
+        &[std::ffi::OsString::from("-C"), repository.clone().into_os_string()],
+        isolated_overlay().as_slice(),
+    );
+    facts.location().expect("the repository's location");
+    let scratch: PathBuf = repository.join(".git").join(crate::scratch_location::REPOSITORY_SCRATCH_NAME);
+    std::fs::create_dir_all(scratch.as_path()).expect("the private scratch directory");
+    let copy: PathBuf = crate::repository_facts_written_paths::a_pathspec_copy_the_guard_hands_to_git(scratch.as_path(), b"list.txt");
+    std::fs::write(copy.as_path(), b"a.txt\n").expect("the copy the guard makes");
+    // The stage itself does it: the attached spelling is rewritten in its own token.
+    let attached: Vec<std::ffi::OsString> = os_arguments(&["restore", "--source=HEAD", "--pathspec-from-file=list.txt"]);
+    let handed: TransformResult = apply_fixed_transforms(
+        attached.as_slice(),
+        attached.as_slice(),
+        None,
+        false,
+        false,
+        &mut facts,
+    );
+    let mut wanted: Vec<u8> = Vec::from(b"--pathspec-from-file=".as_slice());
+    wanted.extend_from_slice(copy.as_os_str().as_encoded_bytes());
+    assert_eq!(
+        handed.arguments,
+        os_arguments(&["restore", "--source=HEAD", &String::from_utf8_lossy(wanted.as_slice())]),
+        "the words Git receives name the bytes the guard read"
+    );
+    // The separated spelling has its own token replaced, and nothing else changes.
+    let detached: Vec<std::ffi::OsString> = os_arguments(&["restore", "--pathspec-from-file", "list.txt", "--", "a.txt"]);
+    let handed_detached: Vec<std::ffi::OsString> = super::hand_the_pathspec_file_to_git(detached.as_slice(), &mut facts);
+    let mut expected: Vec<std::ffi::OsString> = os_arguments(&["restore", "--pathspec-from-file"]);
+    expected.push(copy.clone().into_os_string());
+    expected.extend(os_arguments(&["--", "a.txt"]));
+    assert_eq!(handed_detached, expected);
+    // A file this invocation did not read is left to Git, which is what an opt-out run needs.
+    let other: Vec<std::ffi::OsString> = os_arguments(&["restore", "--pathspec-from-file=missing.txt"]);
+    assert_eq!(super::hand_the_pathspec_file_to_git(other.as_slice(), &mut facts), other);
+    // A command with no pathspec file at all is untouched.
+    let plain: Vec<std::ffi::OsString> = os_arguments(&["restore", "--", "a.txt"]);
+    assert_eq!(super::hand_the_pathspec_file_to_git(plain.as_slice(), &mut facts), plain);
+    git(repository.as_path(), &["status", "--porcelain"]);
+    remove(directory.as_path());
 }
 
 /// Facts that fail every question,

@@ -28,7 +28,7 @@ use crate::command_discard::{
     READ_TREE_UPDATE,
 };
 /// Git's own option grammar, for where a region's options end and its paths begin.
-use crate::command_options::{Boundary, DEFAULT_MODE, ParsedOptions, parse_options};
+use crate::command_options::{Boundary, DEFAULT_MODE, Occurrence, OptionSpec, ParsedOptions, parse_options};
 /// The token indices that are positionals rather than options,
 ///  the final state of one option, and the exact bytes of its value.
 use crate::command_options_query::{is_enabled, last_occurrence, positional_tokens, value_bytes};
@@ -725,6 +725,35 @@ fn pathspec_file_written_paths(
         entries: if forced { WrittenEntries::EveryEntry } else { WrittenEntries::OnlyIgnored },
         guesses_a_remote_branch: guess_is_not_switched_off(parsed),
     };
+}
+
+/// What:
+///  The pathspec file a guarded region reads its paths from,
+///  as the occurrence Git takes that file's name from,
+///  read from the command's own table.
+///  `Option<Occurrence>` is the option's last use or nothing.
+/// Why:
+///  The guard hands Git the bytes it read from that file,
+///  and the name Git would read has to be found in the words Git receives:
+///  the occurrence says whether the value sits inside the option's own token or in the token after
+///  it,
+///  which is the difference between rewriting one token and replacing the next.
+///  An option written twice is the last one, as it is for Git.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const occurrence = (word, region) => word === 'restore' ? last(parse(region, RESTORE_TABLE), RESTORE_PATHSPEC_FROM_FILE) : last(parse(region, CHECKOUT_TABLE), PATHSPEC_FROM_FILE);
+/// ```
+pub fn pathspec_file_occurrence(word: &[u8], region: &[OsString]) -> Option<Occurrence> {
+    let (table, row_id): (&[OptionSpec], u16) = if word == b"restore" {
+        (RESTORE_TABLE, RESTORE_PATHSPEC_FROM_FILE)
+    } else if word == b"checkout" {
+        (CHECKOUT_TABLE, PATHSPEC_FROM_FILE)
+    } else {
+        return None;
+    };
+    let parsed: ParsedOptions = parse_options(region, table, DEFAULT_MODE, &[]).ok()?;
+    return last_occurrence(&parsed, row_id).filter(|occurrence| return occurrence.value.is_some());
 }
 
 /// Reading the forms' words into the paths they write,

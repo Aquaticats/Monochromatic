@@ -585,3 +585,9 @@ pub fn skip_discard(region: &[OsString]) -> Discard {
 #[cfg(test)]
 #[path = "command_discard_tests.rs"]
 mod tests;
+
+/// The generated comparison of every guarded table with the binary itself:
+///  its own option list, and whether each row takes a value.
+#[cfg(test)]
+#[path = "command_discard_tables_git_tests.rs"]
+mod tables_git_tests;

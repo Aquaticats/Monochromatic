@@ -78,7 +78,9 @@ use crate::rule_linked_worktree::{
     resolve_linked_worktree,
 };
 /// The refusal of a command one of whose words no option table of its subcommand holds.
-use crate::rule_linked_worktree_refused_overwrite_messages::{UnreadOption, unread_option_message};
+use crate::rule_linked_worktree_refused_overwrite_messages::{
+    PathspecUnderAShellAlias, UnreadOption, pathspec_under_a_shell_alias_message, unread_option_message,
+};
 /// Whether a `git remote` or `git config` command writes the settings every worktree shares.
 use crate::rule_shared_remote::{SHARED_REMOTE_SETTINGS_CODE, SharedRemoteChange};
 /// The text that refusal prints.
@@ -211,6 +213,61 @@ fn refuse_shared_remote_settings(
     return rejected(
         SHARED_REMOTE_SETTINGS_CODE,
         shared_remote_settings_message(&change.setting, shared_file.as_path(), main_checkout.as_path()),
+    );
+}
+
+/// What:
+///  The form and the file of a region whose paths the guard would read from a pathspec file,
+///  or nothing for a region that names none.
+///  `&[u8]` borrows the subcommand word.
+/// Why:
+///  A pathspec file is read twice unless the wrapper hands its bytes over,
+///  and under a `!` shell alias it cannot:
+///  the words Git's shell runs are the alias's own and are forwarded unchanged.
+///  Only the two commands whose tables hold the option can name one.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// pathspecFileAShellAliasReads('restore', ['--pathspec-from-file=list']) === ['restore-worktree', 'list'];
+/// ```
+fn pathspec_file_a_shell_alias_reads(word: &[u8], region: &[OsString]) -> Option<(GuardedCommand, OsString)> {
+    let occurrence: crate::command_options::Occurrence = crate::command_written_paths::pathspec_file_occurrence(word, region)?;
+    let value: crate::command_options::OptionValue = occurrence.value?;
+    let command: GuardedCommand = match word {
+        b"restore" => GuardedCommand::RestoreWorktree,
+        _ => GuardedCommand::CheckoutPaths,
+    };
+    return Some((command, crate::path_bytes::os_from_path_bytes(crate::command_options_query::value_bytes(region, value))));
+}
+
+/// What:
+///  Refuse a `!` shell alias whose own words read a pathspec file,
+///  record the refusal,
+///  and name the file and the opt-out.
+/// Why:
+///  The guard read the file and cannot give Git the same bytes,
+///  so the command stops with a sentence a person can act on instead of a second read that waits
+///  for a writer which is gone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// refuseAPathspecFileUnderAShellAlias(facts, 'restore-worktree', ['--pathspec-from-file=list'], 'list', seen);
+/// ```
+fn refuse_a_pathspec_file_under_a_shell_alias(
+    facts: &mut dyn RepositoryFacts,
+    command: GuardedCommand,
+    region: &[OsString],
+    file: &std::ffi::OsStr,
+    seen: &[OsString],
+) -> PolicyOutcome {
+    let location: RepositoryLocation = match facts.location() {
+        Ok(found) => found,
+        Err(message) => return fact_unavailable(message),
+    };
+    record_audit(&location.identity, command, AuditOutcome::Rejected, seen, None);
+    return rejected(
+        LINKED_WORKTREE_REQUIRED_CODE,
+        pathspec_under_a_shell_alias_message(PathspecUnderAShellAlias { command, region, file }),
     );
 }
 
@@ -356,6 +413,21 @@ pub(crate) fn check_linked_worktree(
     //  not the alias name the wrapper forwards.
     //  A record of the invocation itself still names what the person typed, which is `seen`.
     let decided: &[OsString] = forwarded.decided_words.as_slice();
+    // What:
+    //  A `!` shell alias whose own words read a pathspec file is refused before anything is read.
+    // Why:
+    //  The guard reads that file to know which paths the command writes,
+    //  and the shell Git starts reads it again;
+    //  under a `!` alias the wrapper forwards the alias's value unchanged,
+    //  so it cannot put the bytes it read in the file's place,
+    //  and a pipe would have no writer left for Git.
+    //  The guard decides on the shell's words, so the question is asked of those.
+    if let Some((word, region)) = command_tokens(decided)
+        && let Some((command, file)) = pathspec_file_a_shell_alias_reads(word.as_encoded_bytes(), region)
+        && forwarded.shell_directory.is_some()
+    {
+        return refuse_a_pathspec_file_under_a_shell_alias(facts, command, region, file.as_os_str(), seen);
+    }
     // The settings every worktree shares are decided first: no guarded form below is about them,
     // and the guard read them from the command Git will run, a shell alias included.
     if let LinkedWorktreeDecision::SharedRemote(change) = &forwarded.decision {

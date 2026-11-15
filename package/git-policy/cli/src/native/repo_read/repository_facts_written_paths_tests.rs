@@ -396,6 +396,28 @@ fn a_pipe_the_form_names_is_read() {
     );
     let _ = writer.wait();
     assert_eq!(answer, Ok(vec![b"b.txt".to_vec()]), "a pipe's bytes are the pathspecs Git reads");
+    // What:
+    //  The bytes read from the pipe are also the bytes Git is given, under this invocation's own name.
+    // Why:
+    //  Git opens the file a second time and the pipe's only writer is gone,
+    //  so a wrapped `restore --pathspec-from-file=<fifo>` waited for a second writer until the run
+    //  killed it, while direct Git answered (the seventh review, reproduced here).
+    //  The copy is written where the transform looks for it, which is what this asserts.
+    let scratch: PathBuf = repository.join(".git").join(crate::scratch_location::REPOSITORY_SCRATCH_NAME);
+    let copy: PathBuf = crate::repository_facts_written_paths::a_pathspec_copy_the_guard_hands_to_git(
+        scratch.as_path(),
+        pipe.to_str().expect("utf-8 path").as_bytes(),
+    );
+    assert_eq!(
+        std::fs::read(copy.as_path()).expect("the copy the guard hands Git"),
+        b"b.txt\n",
+        "the copy holds exactly the bytes the guard read"
+    );
+    assert_eq!(
+        crate::repository_facts_written_paths::the_pathspec_copy_that_is_there(scratch.as_path(), b"another.txt"),
+        None,
+        "a file this invocation did not read has no copy"
+    );
     remove(directory.as_path());
 }
 

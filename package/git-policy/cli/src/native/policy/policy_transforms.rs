@@ -41,7 +41,17 @@
 /// ```ts
 /// import { atomicPush } from '../rule/atomic-push.ts';
 /// ```
-use crate::command_options::OptionError;
+use crate::command_options::{OptionError, OptionValue};
+/// The occurrence of a pathspec file in the words Git receives, the copy the guard made of it,
+///  and the bytes of that file.
+use crate::command_written_paths::pathspec_file_occurrence;
+use crate::command_options_query::value_bytes;
+/// The words of the command Git runs.
+use crate::global_arguments::command_tokens;
+/// The private scratch directory the copy of a pathspec file lives in.
+use crate::scratch_location::REPOSITORY_SCRATCH_NAME;
+/// Asking whether this invocation handed that copy to Git.
+use crate::repository_facts_written_paths::the_pathspec_copy_that_is_there;
 use crate::diagnostics::EngineFailureCode;
 use crate::policy_events::PolicyEvent;
 use crate::repository_facts::RepositoryFacts;
@@ -70,7 +80,7 @@ use crate::rule_status_hints::status_hints_off;
 /// ```
 use std::ffi::OsString;
 /// `Path` is a borrowed filesystem path.
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// What:
 ///  The identifier of the commit-only transform in its events.
@@ -332,6 +342,18 @@ pub fn apply_fixed_transforms(
             notices,
         };
     }
+    // What:
+    //  The bytes of a pathspec file the guard read are the bytes Git is given.
+    // Why:
+    //  Git opens the file a second time, and a pipe has one writer:
+    //  a wrapped `restore --pathspec-from-file=<fifo>` waited for a writer until the run killed it,
+    //  while direct Git answered (the seventh review, reproduced here).
+    //  The guard wrote the bytes it read under this invocation's own name, and this step puts that
+    //  name where Git reads it, so neither a pipe nor a file changed in between can make Git act on
+    //  names the guard never saw.
+    //  A command run with the guard's opt-out read nothing, finds no copy, and is forwarded exactly as typed.
+    let after_handover: Vec<OsString> = hand_the_pathspec_file_to_git(after_ignored.as_slice(), facts);
+    let after_ignored: Vec<OsString> = after_handover;
     // The cap reads the words the policy decided on, which for a `!` shell alias are the shell's words and not the
     //  alias word the wrapper forwards; a clean whose cap cannot be written into the forwarded words stops instead.
     let decided_after: &[OsString] = decided;
@@ -353,6 +375,67 @@ pub fn apply_fixed_transforms(
         }
         CapDecision::Stopped { message } => incomplete(after_ignored.as_slice(), message),
     };
+}
+
+/// What:
+///  Replace the name of a pathspec file with the copy of its bytes the guard read,
+///  when this invocation read that file.
+///  `&[OsString]` borrows the words Git receives;
+///  `&mut dyn RepositoryFacts` asks whether the copy is there.
+/// Why:
+///  The guard reads the file to know which paths the form writes,
+///  and Git would otherwise read it a second time:
+///  the second reading is a different moment,
+///  a pipe has no writer left,
+///  and a file changed in between makes Git act on names the guard never judged.
+///  The copy holds exactly the bytes the guard read, so Git's reading of them is the guard's reading,
+///  and the words the person's command is recorded by are untouched.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// handThePathspecFileToGit(['restore', '--source=other', '--pathspec-from-file=list.txt'], facts);
+/// // ['restore', '--source=other', '--pathspec-from-file=<scratch>/pathspec-from-file-...']
+/// ```
+fn hand_the_pathspec_file_to_git(arguments: &[OsString], facts: &mut dyn RepositoryFacts) -> Vec<OsString> {
+    let Some((word, region)) = command_tokens(arguments) else {
+        return arguments.to_vec();
+    };
+    let Some(occurrence) = pathspec_file_occurrence(word.as_encoded_bytes(), region) else {
+        return arguments.to_vec();
+    };
+    let Some(value) = occurrence.value else {
+        return arguments.to_vec();
+    };
+    let Some(common) = facts.known_common_dir() else {
+        return arguments.to_vec();
+    };
+    let scratch: PathBuf = common.join(REPOSITORY_SCRATCH_NAME);
+    let written: &[u8] = value_bytes(region, value);
+    let Some(copy) = the_pathspec_copy_that_is_there(scratch.as_path(), written) else {
+        return arguments.to_vec();
+    };
+    // The region's own indexes start one token after the command word, and the global options before
+    //  that word shift it again, so the offset is what the two lists differ by.
+    let offset: usize = arguments.len().saturating_sub(region.len());
+    let mut handed: Vec<OsString> = arguments.to_vec();
+    match value {
+        OptionValue::Attached { token, .. } => {
+            // The value sits inside the option's own token, so the token is written again in full:
+            //  `--pathspec-from-file=<copy>` and `--pathspec=<copy>` reach the same option in Git.
+            let mut spelled: Vec<u8> = Vec::<u8>::with_capacity(b"--pathspec-from-file=".len() + copy.as_os_str().as_encoded_bytes().len());
+            spelled.extend_from_slice(b"--pathspec-from-file=");
+            spelled.extend_from_slice(copy.as_os_str().as_encoded_bytes());
+            if let Some(slot) = handed.get_mut(offset + token) {
+                *slot = crate::path_bytes::os_from_path_bytes(spelled.as_slice());
+            }
+        }
+        OptionValue::Detached { token } => {
+            if let Some(slot) = handed.get_mut(offset + token) {
+                *slot = copy.into_os_string();
+            }
+        }
+    }
+    return handed;
 }
 
 /// Order,
