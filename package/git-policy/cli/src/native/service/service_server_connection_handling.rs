@@ -186,14 +186,18 @@ impl NoteSource for StuckNotice {
             //  ones, and a read that outlives its beat answers only beats later.
             let last: Option<String> = self.last.clone();
             // What:
-            //  The note is read by an unbudgeted job of the blocking pool and awaited no longer than one ceiling,
-            //  and it takes none of the places kept for the answers a client waits for.
+            //  The note is read on a thread of its own kind, of which one may be alive at once, awaited no longer than one
+            //  ceiling, and it takes no place of the process's bound.
             // Why:
-            //  A note read that stopped on stopped journal storage would hold that place until its work ended,
-            //  and a withdrawal queued behind it would lose the early decision the place exists for
-            //  (the review of `0b847be249`, F3); so the note waits on its own thread and the withdrawal keeps the place.
-            //  A read that gives no answer is left behind on its thread, as any stuck job of the pool is, and the beat after
-            //  it asks once more; the beat itself is written first.
+            //  A note read that stopped on stopped journal storage would hold a place kept for the answers a client waits
+            //  for until its work ended, and a withdrawal queued behind it would lose the early decision the place exists
+            //  for (the review of `0b847be249`, F3); and a read started on the blocking pool took a pool thread that a
+            //  commit's own work needs, one more with every beat while the storage stayed stuck
+            //  (the review of `e1a615aab0`, F3). So the note waits on a thread of its own kind, and the kind's count is
+            //  what bounds how many of them a storage that never answers can hold.
+            //  A read that gives no answer is left behind on that thread, and the beat after it asks once more and, while
+            //  the first is still alive, is told that no place of the kind came instead of starting a second read; the beat
+            //  itself is written first.
             self.still_reading = Some(Box::pin(crate::own_thread_for_work_that_can_stall::run_on_its_own_thread(
                 crate::own_thread_for_work_that_can_stall::WorkThatCanStall::ReadingABeatNote,
                 crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING,

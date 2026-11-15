@@ -563,3 +563,82 @@ fn the_routing_retry_waits_for_its_own_kind_and_never_starts_a_second_look() {
     );
     assert_eq!(looks_alive, 1, "exactly the one look that never answered was alive, and no retry added another");
 }
+
+/// How long this control watches for a second read of a beat's note:
+/// a tenth of the ceiling one ask is granted.
+/// Why:
+///  A read that started reaches its first instruction at once,
+///  while an ask that found no place of its kind gives up only when its whole ceiling has passed,
+///  so a window this long separates the two without waiting the ceiling out.
+/// It is a function because a duration cannot be divided in a constant.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const aMomentInsideTheCeiling = () => CLIENT_ANSWER_PLACE_CEILING / 10
+/// ```
+fn a_moment_inside_the_ceiling() -> Duration {
+    return crate::wait_ceilings::CLIENT_ANSWER_PLACE_CEILING / 10;
+}
+
+/// What:
+///  A beat's note read that stopped on storage keeps the one thread of its kind,
+///  and the beat behind it starts no second read,
+///  so the reads cannot add up until they hold every thread a commit's own work needs.
+/// Why:
+///  The read was an unbudgeted job of the blocking pool, one more with every beat while the storage stayed stuck, and
+///  enough of them took every thread the pool had: a commit's routing look and a withdrawal's decision then waited behind
+///  reads that were thought to be bounded (the review of `e1a615aab0`, F3).
+///  The read now runs on a thread of its own kind, whose count is stated, so this control holds the first read inside the
+///  storage it reads and asks for a second:
+///  no second read may start, and the look of the other kind must still run beside it.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// holdTheNoteRead(); note(); await reached; note(); expect(secondReadStarted).toBe(false); expect(lookRuns()).toBe(true)
+/// ```
+#[test]
+fn a_beat_note_read_that_stopped_on_storage_keeps_the_one_thread_of_its_kind() {
+    let (shared, _journal, _jobs) = shared_in_a_control("connection-a-note-that-stopped-on-storage");
+    // The first read is held inside the storage it reads, so it is the stuck read the review named and not a duration.
+    let (reached_first, let_go_first) = hooks::hold_the_point(IN_THE_NOTE_READ);
+    let board_for_the_first: Arc<LandingBoard> = Arc::clone(&shared.board);
+    let first = crate::lazy_runtime::spawn_on_runtime(async move {
+        let mut notice: StuckNotice = stuck_notice(board_for_the_first, Some(String::from(A_REQUEST)));
+        let _words = notice.note().await;
+    })
+    .expect("a worker for the first note read");
+    let (the_first_read_is_stuck, the_second_read_started, a_look_ran): (bool, bool, bool) = crate::lazy_runtime::run_on_runtime(async move {
+        let stuck: bool = tokio::time::timeout(A_BOUND, reached_first).await.is_ok_and(|heard| { return heard.is_ok(); });
+        // The second read of the same kind would take the one hold left, so reaching it is what says it started.
+        let (reached_second, let_go_second) = hooks::hold_the_point(IN_THE_NOTE_READ);
+        let board_for_the_second: Arc<LandingBoard> = Arc::clone(&shared.board);
+        let second = crate::lazy_runtime::spawn_on_runtime(async move {
+            let mut notice: StuckNotice = stuck_notice(board_for_the_second, Some(String::from(A_REQUEST)));
+            let _words = notice.note().await;
+        })
+        .expect("a worker for the second note read");
+        let started: bool = tokio::time::timeout(a_moment_inside_the_ceiling(), reached_second).await.is_ok_and(|heard| { return heard.is_ok(); });
+        // The other kind of work that can stall is untouched by a stuck note: a look runs and answers beside it.
+        let look: bool = matches!(
+            crate::own_thread_for_work_that_can_stall::run_on_its_own_thread(
+                crate::own_thread_for_work_that_can_stall::WorkThatCanStall::RoutingALook,
+                A_BOUND,
+                || 7_u8,
+            )
+            .await,
+            TheAnswerOfAJobAwaited::Ran(7_u8)
+        );
+        second.abort();
+        let _let_the_second_go = let_go_second.send(());
+        return (stuck, started, look);
+    })
+    .expect("the runtime");
+    let _let_the_first_go = let_go_first.send(());
+    first.abort();
+    assert!(the_first_read_is_stuck, "no note read was held inside its storage, so this control did not reach the state it needs");
+    assert!(
+        !the_second_read_started,
+        "a second read of a beat's note started beside the one that stopped on storage: the reads would add up one beat at a time"
+    );
+    assert!(a_look_ran, "a look of the other kind did not run beside the note that stopped on storage");
+}
