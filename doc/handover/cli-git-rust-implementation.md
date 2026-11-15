@@ -1615,6 +1615,73 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### A correction: nothing shown says a commit landed while its wrapper failed under an address-space limit; the log two reviews and this session read holds the recovery's commit (2026-11-15T12:02:14-05:00)
+
+Not final and not approved:
+a claim of the coordinating session's that is withdrawn,
+what one review shows,
+and what was queued.
+
+- **Withdrawn.**
+  The sections of 10:08:02 and 10:53:13 say that,
+  with the room planted below the boundary,
+  the service landed the commit and the wrapper did not return success,
+  and the owner was told at about 11:01 that a wrapper "ended on `SIGSEGV` after the service had already landed the commit".
+  That rested on an `outcome=landed` line in the log a failing assertion quoted.
+  The review of the changed message,
+  ended 11:56:22,
+  one of one file,
+  the control run unchanged
+  (it passed)
+  and planted one mebibyte below the search's answer,
+  shows where that line comes from:
+  `run_case` runs the recovery,
+  which always makes one more commit,
+  before it reads the service's log,
+  so the log holds both.
+  In its planted run the limited attempt's service logged `started`,
+  `ready` and `exiting`,
+  and no answer;
+  the `outcome=landed` is the recovery's.
+  **Whether a limited attempt's commit ever lands while its wrapper fails is open.**
+  Both earlier sentences carry a correction in place.
+- **What stands**:
+  the wrapper ended on `SIGSEGV` at 44 MiB in the author's planted run and on `SIGABRT`
+  ("memory allocation of 144 bytes failed")
+  at 49 MiB in this review's;
+  the repository recovered in both.
+  The first review's finding of 10:01,
+  that the message said the commit did not land while the log said it had,
+  rested on the same combined log,
+  and the message it faulted is not shown to have been untrue.
+- **The review's two findings**,
+  both in the one test file:
+  the message now says the quoted log "answers whether a commit landed",
+  and that log is the combined one;
+  and every other use of `landed` in the file
+  (the search's predicate,
+  the sweeps' tallies,
+  two negative assertions)
+  speaks of a commit while reading the wrapper's exit alone.
+- **Queued**,
+  seventh:
+  the author's seventh run,
+  told plainly that last round's message to it rested on a misreading,
+  to take the limited attempt's log before the recovery and keep the two apart,
+  to make each use of `landed` read the fact it speaks of,
+  and to answer the open question with the control itself at both planted rooms.
+  The branch is in pass 54 as it stands;
+  this is test code and follows it.
+- Read at 12:01:00:
+  the main checkout shows its six changed files;
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 11:56;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going,
+  the cap,
+  none silent for twenty minutes.
+
 ##### The lock-holders folder's sixth review: the step between `fork` and `exec` keeps the rule against self-invocation, and five things are found around it; the author goes back (2026-11-15T11:57:05-05:00)
 
 Not final and not approved:
@@ -2231,8 +2298,13 @@ and what the coordinating session did.
   sixth run,
   ended 10:47:59 at `d2ff69077b`:
   the message now names the wrapper's ending and its standard error.
-  With the room planted below the boundary the wrapper ended on **signal 11** (`SIGSEGV`) at 44 MiB after the service had landed the commit,
+  With the room planted below the boundary the wrapper ended on **signal 11** (`SIGSEGV`) at 44 MiB,
   and the repository recovered.
+  (Corrected 2026-11-15T12:02:14-05:00:
+  this sentence first said "after the service had landed the commit".
+  The `outcome=landed` line it rested on can be the recovery's own commit,
+  which the control always makes before it reads the log;
+  see the section of that time.)
   How a wrapper ends when its address space runs out is what the control is about;
   a segmentation fault there has no owner and no record yet.
 - **The file-holder author**,
@@ -2661,6 +2733,12 @@ and what it queued.
   the review after it reads what is added after `2616009887`.
   What the planted case showed is worth its own line:
   at a room below the boundary the service landed the commit and the wrapper did not return success.
+  (Corrected 2026-11-15T12:02:14-05:00:
+  that the limited attempt's commit landed is not shown.
+  The log the failure quotes is read after the recovery,
+  which always makes a commit of its own,
+  so its `outcome=landed` can be the recovery's;
+  see the section of that time.)
   How the wrapper ended there is what the message does not say,
   and so is not known from this run.
   The assertion before it,
