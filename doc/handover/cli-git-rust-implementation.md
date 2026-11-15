@@ -1330,6 +1330,51 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The lock-holders folder's review finds three ways a lock loses the record that would clear it; the author is resumed (2026-11-14T22:08:13-05:00)
+
+Not final and not approved:
+what one review reports,
+how the coordinating session weighed it,
+and what it queued.
+
+- **The lock-holders folder of a repository** (`2af2ecb879`),
+  its review,
+  ended 22:03:23,
+  six of six files,
+  three things:
+  a relative `-C` is applied twice,
+  so with `--git-dir` the lock pass looks in another repository,
+  makes its folder there and leaves the abandoned lock where Git works,
+  and the next `add` fails on `index.lock`
+  (reproduced from one end to the other,
+  with an absolute-path control that clears the lock);
+  a lock made after the lock walk loses its record to a sweep that runs on the walk's older list
+  (the loss reproduced with the crate's functions,
+  the order by reading);
+  and a sweep can unlink a record after its owner appended a live child's line to it
+  (by reading).
+- **Weighed**:
+  all three worth their fix.
+  The change made records go when no longer needed,
+  and each finding is a record going while still needed,
+  which turns a lock the wrapper could clear into a failed command.
+  The author is resumed
+  (`~/temp/agent/pi-runs/lock-holders-folder-answers-its-review-of-2026-11-14-prompt.md`,
+  queued fourth),
+  asked first to write down who may remove a record and on what proof,
+  and to resolve the repository a command works on once,
+  the way Git does,
+  with a table over real Git.
+  It is told that the killed-Git lock's branch changes the same `lock/` files and is not in `main`.
+- **Two of the gate's standing failures therefore stay** until this branch is clean.
+- Read at 22:07:36:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  twenty runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 73 entries at 22:08:13.
+
 ##### The add's mirror design stands under review, with one race in an append left; mpm-shadow's stale launchers are answered with their controls not yet shown failing (2026-11-14T22:01:32-05:00)
 
 Not final and not approved:
