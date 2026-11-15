@@ -248,19 +248,19 @@ const RECORD_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
 const RECORD_LOCK_POLL: std::time::Duration = std::time::Duration::from_millis(10);
 
 /// What:
-/// Writes the `<name>.launch` record beside `launcher`, under the folder's record lock,
-/// and only when the lock on disk asks for it.
+/// Writes the `<name>.launch` record beside `launcher` when the lock on disk asks for it,
+/// and returns without writing anything when the record already says what this run would write.
 /// Why:
 /// Two installs can hold different locks that assign one bin name to different tools,
 /// and the older install can finish after the newer one wrote its record
 /// (the seventh review reproduced exactly that, and the launcher then started the older tool).
-/// So the record is written only while the folder's record lock is held,
-/// and the lock on disk is asked, at that instant, whether it assigns this bin name to a tool other than this one:
-/// if it does, the newer record that stands is what the tree's own lock asks for, and this run leaves it alone.
+/// So a write is made only while the folder's record lock is held,
+/// and the lock on disk is asked inside it, at that instant, whether it assigns this bin name to a tool other than this
+/// one: if it does, the newer record that stands is what the tree's own lock asks for, and this run leaves it alone.
 /// The launcher is a copy of the same `mpm-shadow` program either way, so nothing a person sees is wrong.
 /// A lock that cannot be read says nothing about another tool, and then this run writes what its own lock says.
-/// The standing record is read first, and an identical one is not written again:
-/// an install with nothing to do replaces no file.
+/// A record that already says what this run would write is not written again, and no lock is taken for it:
+/// an install with nothing to do replaces no file, which is what keeps it as cheap as it was.
 /// A file at the record's name that is not a launcher record is left and named, never replaced.
 fn write_the_record_the_lock_asks_for(
     scope: &Scope,
@@ -269,22 +269,21 @@ fn write_the_record_the_lock_asks_for(
     launcher: &Path,
     record: &LaunchRecord,
 ) -> Result<(), ToolchainError> {
+    let path: PathBuf = record_path(launcher);
+    let text: String = render_record(record);
+    // The common case of an install with nothing to do: the record already says what this run would write, so nothing is
+    // replaced and no lock is taken. A reader needs no lock; only a writer does.
+    if the_record_at(&path)?.as_deref() == Some(text.as_str()) {
+        return Ok(());
+    }
     let lock_path: PathBuf = scope.launcher_dir.join(RECORD_LOCK_NAME);
     let _guard: fs::File = take_the_records_lock(&lock_path)?;
+    // Under the lock the record is read again, because another install may have written it between the read above and
+    // this instant, and the lock on disk is asked which tool it gives this name now.
+    let standing: Option<String> = the_record_at(&path)?;
     if current_lock(scope).is_some_and(|lock| return another_tool_declares(&lock, name, tool_id)) {
         return Ok(());
     }
-    let path: PathBuf = record_path(launcher);
-    let text: String = render_record(record);
-    let standing: Option<String> = match read_ordinary_text(&path) {
-        Ok(standing) => Some(standing),
-        Err(_reason) if fs::symlink_metadata(&path).is_err_and(|error| return error.kind() == std::io::ErrorKind::NotFound) => None,
-        Err(reason) => {
-            return Err(ToolchainError::failure(format!(
-                "{reason}, so no launcher record was written and it was left where it is"
-            )));
-        }
-    };
     if standing.as_deref() == Some(text.as_str()) {
         return Ok(());
     }
@@ -298,6 +297,23 @@ fn write_the_record_the_lock_asks_for(
         )));
     }
     return write_atomically(&path, text.as_bytes());
+}
+
+/// What:
+/// The text standing at the record's path,
+/// `None` when nothing stands there,
+/// and the sentence when something that is not an ordinary file does.
+/// Why:
+/// The record is a file this tool writes, so a read of it never waits and takes nothing but an ordinary file;
+/// a file a person put there is left and named rather than replaced.
+fn the_record_at(path: &Path) -> Result<Option<String>, ToolchainError> {
+    return match read_ordinary_text(path) {
+        Ok(text) => Ok(Some(text)),
+        Err(_reason) if fs::symlink_metadata(path).is_err_and(|error| return error.kind() == std::io::ErrorKind::NotFound) => Ok(None),
+        Err(reason) => Err(ToolchainError::failure(format!(
+            "{reason}, so no launcher record was written and it was left where it is"
+        ))),
+    };
 }
 
 /// What:
