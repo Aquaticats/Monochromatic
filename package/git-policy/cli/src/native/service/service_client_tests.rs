@@ -241,7 +241,7 @@ fn a_request_that_was_never_sent_keeps_the_answer_that_nothing_was_reached() {
         .expect_err("nothing listens at this address");
     assert_eq!(
         failure,
-        ClientFailure::DidNotStart { unit: None, answer: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::ManagerLastWords::Silent, asked: crate::service_messages_of_a_start_that_was_asked_and_did_not_come::RequestedStart::Nothing },
+        ClientFailure::DidNotStart,
         "nothing was sent, so nothing landed"
     );
 }
