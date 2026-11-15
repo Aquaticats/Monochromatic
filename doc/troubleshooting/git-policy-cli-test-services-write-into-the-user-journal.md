@@ -230,12 +230,12 @@ Measured over this crate's sources compiled for tests only at 2026-11-14T22:00-0
 with the reader itself:
 
 - 171 starts of a child inherit the run's standard error;
-- 52 of them are the counted entries:
+- 54 of them are the counted entries:
   29 shell starts in fifteen entries,
-  21 starts whose program the reader cannot name in twelve entries,
+  23 starts whose program the reader cannot name in fourteen entries,
   a `/usr/bin/timeout`,
   and a script a test wrote;
-- the other 119 are children of the programs the list names
+- the other 122 are children of the programs the list names
   (`sleep`,
   `true`,
   `mkfifo`,
@@ -338,11 +338,13 @@ The command's clauses are followed through the binding it is configured on,
 a binding whose own first act is a start is a child and not followed,
 and a start the reader cannot classify is a finding:
 
-- 21 entries of counted starts carry a reason each
-  (shells,
-  starts whose program the reader cannot name,
+- 31 entries of counted starts carry a reason each and hold 54 starts
+  (29 shell starts,
+  23 starts whose program the reader cannot name,
+  a `/usr/bin/timeout`,
+  a script a test wrote,
   and two calls on a value a start handed back),
-- 26 program expressions carry one each,
+- 24 program expressions carry one each,
 - and one helper whose shape its own body cannot show (`output_retrying`) is listed as the capture it is.
 
 Nothing in the release program changes:
