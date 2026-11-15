@@ -160,6 +160,67 @@ const EXITED_LINUX_STATES: [&str; 2] = ["Z", "X"];
 ///  the state.
 const LINUX_START_FIELD_INDEX: usize = 19;
 
+/// The prefix every Linux birth identity carries before its start tick.
+pub(crate) const LINUX_IDENTITY_PREFIX: &str = "linux:";
+
+/// What:
+///  Whether `text` is the kernel's spelling of a process's start tick:
+///  decimal digits with no sign,
+///  no space and no leading zero.
+/// Why:
+///   The kernel prints the tick one way,
+///  and a reader that compared one number's two spellings would read the second as another process.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// /^(0|[1-9][0-9]*)$/.test(text)
+/// ```
+#[cfg(target_os = "linux")]
+fn is_kernel_tick(text: &str) -> bool {
+    let no_leading_zero: bool = text.len() == 1 || !text.starts_with('0');
+    return !text.is_empty() && text.bytes().all(|byte| { return byte.is_ascii_digit(); }) && no_leading_zero;
+}
+
+/// What:
+///  Whether `birth` is a birth identity in the one spelling this platform writes it:
+///  on Linux,
+///  `linux:` and the kernel's start tick;
+///  on the platforms whose inspector prints its own words,
+///  any text.
+/// Why:
+///   A reader compares a recorded birth with the identity of the process that has the number now,
+///  and a text that is not one spelling of one tick reads as another process,
+///  which is proof that the holder is gone and loses a live holder's lock.
+///  So a text that names this platform's start tick in any other spelling is no identity this reader can compare,
+///  and its caller answers unknown;
+///  a text that names something else is compared as the text it is,
+///  as this reader always did,
+///  because macOS and Windows have no grammar here that this reader could respell.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// isBirthIdentity('linux:8423337') // true
+/// isBirthIdentity('linux:08423337') // false, the same tick written with a leading zero
+/// isBirthIdentity(' linux:8423337') // false, the same tick behind a space
+/// isBirthIdentity('gone') // true, a text this reader has no grammar for
+/// ```
+pub(crate) fn is_birth_identity(birth: &str) -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        let Some(tick) = birth.strip_prefix(LINUX_IDENTITY_PREFIX) else {
+            // A birth that carries this platform's start tick behind a space names it too, in another spelling.
+            let named_behind_space: bool = birth.trim_start_matches(|character: char| { return character.is_ascii_whitespace(); }).starts_with(LINUX_IDENTITY_PREFIX);
+            return !named_behind_space;
+        };
+        return is_kernel_tick(tick);
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = birth;
+        return true;
+    }
+}
+
 /// What:
 ///  The birth identity in one `/proc/<pid>/stat` text,
 ///  or nothing for an exited process.
@@ -195,7 +256,7 @@ pub fn linux_identity_from_stat(stat: &str) -> Result<Option<String>, MalformedS
         return Ok(None);
     }
     match fields.get(LINUX_START_FIELD_INDEX) {
-        Some(tick) if !tick.is_empty() => return Ok(Some(format!("linux:{tick}"))),
+        Some(tick) if !tick.is_empty() => return Ok(Some(format!("{LINUX_IDENTITY_PREFIX}{tick}"))),
         Some(_) | None => return Err(MalformedStat),
     }
 }
