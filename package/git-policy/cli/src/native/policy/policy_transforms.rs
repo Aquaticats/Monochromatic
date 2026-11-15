@@ -353,18 +353,17 @@ pub fn apply_fixed_transforms(
     //  names the guard never saw.
     //  A command run with the guard's opt-out read nothing, finds no copy, and is forwarded exactly as typed.
     let after_handover: Vec<OsString> = hand_the_pathspec_file_to_git(after_ignored.as_slice(), facts);
-    let after_ignored: Vec<OsString> = after_handover;
     // The cap reads the words the policy decided on, which for a `!` shell alias are the shell's words and not the
     //  alias word the wrapper forwards; a clean whose cap cannot be written into the forwarded words stops instead.
     let decided_after: &[OsString] = decided;
     return match keep_nested_repositories_out_of_an_interactive_menu(
         decided_after,
-        after_ignored.as_slice(),
+        after_handover.as_slice(),
         shell_directory,
         facts,
     ) {
         CapDecision::Unchanged => TransformResult {
-            arguments: after_ignored,
+            arguments: after_handover,
             events: Vec::<PolicyEvent>::new(),
             complete: true,
             notices,
@@ -373,7 +372,7 @@ pub fn apply_fixed_transforms(
             notices.push(kept_out_of_an_interactive_menu_notice(repositories.as_slice()));
             TransformResult { arguments: capped, events: Vec::<PolicyEvent>::new(), complete: true, notices }
         }
-        CapDecision::Stopped { message } => incomplete(after_ignored.as_slice(), message),
+        CapDecision::Stopped { message } => incomplete(after_handover.as_slice(), message),
     };
 }
 

@@ -695,10 +695,10 @@ fn hand_the_bytes_to_git(facts: &mut GitFacts, bytes: &[u8], written: &[u8], fil
     let copy: PathBuf = a_pathspec_copy_the_guard_hands_to_git(scratch.as_path(), written);
     let handed: Vec<u8> = bytes.to_vec();
     let written_path: PathBuf = copy.clone();
-    let written = crate::work_awaited_within_a_ceiling::work_within(WORKTREE_LOOKUP_CEILING, move || {
+    let answer = crate::work_awaited_within_a_ceiling::work_within(WORKTREE_LOOKUP_CEILING, move || {
         return std::fs::write(written_path.as_path(), handed);
     });
-    return match written {
+    return match answer {
         Some(Ok(())) => Ok(()),
         Some(Err(error)) => Err(format!(
             "the guard read the pathspecs `{}` names and could not write the copy it gives Git instead ({error}), so it cannot tell which paths this command writes over",
