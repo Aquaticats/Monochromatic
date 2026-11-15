@@ -258,8 +258,8 @@ fn a_link_beside(runtime: &Path, name: &str) -> PathBuf {
 
 /// What:
 ///  A link beside `runtime`,
-/// named so that its own socket path is one byte past what a path form carries,
-/// whatever folder the two stand in.
+/// whose whole path, the folder and the separator and the name, is one byte past the longest runtime directory a path
+/// carries.
 /// Why:
 ///   The control's sentence is that the manager's abstract socket answers every spelling of one place,
 /// and a link whose own socket path still fit would be reached at a file address instead,
@@ -267,16 +267,18 @@ fn a_link_beside(runtime: &Path, name: &str) -> PathBuf {
 /// with a home directory of two hundred bytes and a process number of two digits the folder was `/r/pr10`,
 /// the link `link-to-a-long-runtime-directory` took exactly 107 bytes with the socket's suffix,
 /// and this control failed where the same control passed with a seven-digit process number.
-/// The name is padded from the limit,
-/// so the side is the control's to choose and no folder's length decides it.
+/// The name is counted from the whole path, so it is one byte past the limit and not two:
+/// the separator between the folder and the name was left out of that count once, and the link landed a byte further
+/// past than the control said.
+/// Its folder is the one the runtime directory stands in, which the helper that made it held inside the limit.
 fn a_link_past_the_path_limit(runtime: &Path, instance: &str) -> PathBuf {
     let folder: &Path = runtime.parent().expect("a runtime directory stands in a folder");
-    // The name that fills one socket address exactly is this long; one byte more puts the address past it.
-    let name_length: usize = longest_runtime_directory(instance).saturating_sub(folder.as_os_str().len()) + 1;
+    // The name that fills one address's path exactly is this long; one byte more puts the whole path past it.
+    let name_length: usize = (longest_runtime_directory(instance) + 1).saturating_sub(folder.as_os_str().len() + 1);
     let words: &str = "link";
     let name: String = match name_length > words.len() {
         true => format!("{words}{}", "x".repeat(name_length - words.len())),
-        false => words.get(..name_length).expect("the words are at least as long as the name").to_string(),
+        false => words.get(..name_length.max(1)).expect("the words are at least as long as the name").to_string(),
     };
     return a_link_beside(runtime, name.as_str());
 }
