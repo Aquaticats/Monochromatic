@@ -228,3 +228,8 @@ fn the_commit_of(record: &Intent, id: &str) -> Option<String> {
 #[cfg(test)]
 #[path = "service_commit_looking_for_what_landed_tests.rs"]
 mod tests;
+
+/// The look's own cost measurement stays out of the release executable.
+#[cfg(test)]
+#[path = "service_commit_looking_for_what_landed_cost_measurement_tests.rs"]
+mod cost_measurement_tests;
