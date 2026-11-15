@@ -1639,6 +1639,92 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The lock-holders folder answers its four findings and goes to review; the push of a branch that is not checked out goes back with four races (2026-11-15T08:15:00-05:00)
+
+Not final and not approved:
+what one author and one review report,
+how the coordinating session weighed them,
+and what it did.
+
+- **The lock-holders folder**,
+  its author's fourth run,
+  ended 08:09:23 at `3ac1254a73`:
+  the four findings answered,
+  each control failing with its fix out
+  (the fourth hangs until an outer bound of 90 s without its fix and answers in 48 ms with it).
+  A Git child whose record cannot be written is stopped and reaped before it can take a lock;
+  a child that already died is still named,
+  from `/proc/<pid>/stat`,
+  which keeps its start tick until its parent reaps it;
+  this holds at every place the wrapper starts a Git that may take a lock.
+  The walk goes over exact lock names;
+  every record is opened as a plain file;
+  above 4,096 records the proof answers "unknown".
+  The author first built the other shape
+  (the child held in `pre_exec` until the record is written)
+  and found that it deadlocks every start,
+  because `Command::spawn` waits for the child to reach `execve`.
+  No cost is measurable
+  (ratio 0.98 over eight interleaved rounds).
+  The author confirms by its own run that `main` still has the first finding's window.
+  639 library tests and 38 binary tests pass at four CPUs.
+  Its review is queued fourth
+  (`main...3ac1254a73`,
+  nineteen code files that are not tests).
+- **That run's summary carries a work problem**,
+  `ESRCH: no such process, read '/proc/1111152/comm'`:
+  one more sighting of the driver's scan of leftover work reading a process that ended meanwhile,
+  which has an author.
+- **That run left one process**,
+  found by the round's check and stopped by the coordinating session at 08:14:19:
+  scope `run-p1632651-i89661822.scope`,
+  started 06:33:55,
+  one task,
+  the branch's own test binary run with `--exact` for its new control
+  `a_git_that_dies_before_its_identity_is_read_is_still_named_and_its_lock_is_cleared`,
+  3 min 30 s of CPU,
+  asleep since.
+  It is the deadlock the author describes,
+  left from the shape it gave up.
+  The author's own check for leftovers filtered `ps` by the names of its tools and did not see a test binary.
+- **The push of a branch that is not checked out** (`4ca7aebcdb`),
+  its seventh review,
+  ended 08:08:56,
+  19 of 19 files,
+  four things,
+  each reproduced against the production functions at the branch's own test windows,
+  none a repeat:
+  an edit staged between the list of stale paths and their write is overwritten in the index and the file;
+  a record whose writer is alive is skipped and the commit that follows records the old tip's tree as a child of the merge;
+  an `update-ref` whose answer comes after its deadline leaves the record naming the resident service for its whole life;
+  a checkout that publishes its `HEAD` after the listing of holders loses its only record.
+- **Weighed**:
+  all four go back;
+  each loses a person's edit or makes a commit that reverses a merge.
+  All four are one shape,
+  looked and then acted,
+  as the findings of the six reviews before were.
+  The author is asked for a table of every such place in the range and which kind each now is,
+  before the code;
+  what a command does when another owner's repair outlasts its bound is left to it,
+  to come back as a question for the owner where the project's sentences cannot all hold.
+  Its ninth run is queued seventh
+  (`~/temp/agent/pi-runs/push-of-a-branch-that-is-not-checked-out-answers-its-seventh-review-of-2026-11-15-prompt.md`).
+- **The temperature**,
+  read at 08:13:21:
+  56.6 degrees,
+  budget 32.0 threads,
+  15.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:13:24:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 08:09;
+  no launcher had outlived a run;
+  16 runs going,
+  none silent for twenty minutes.
+  The resumed session is not named by the credential scan.
+  The queue held 86 entries at 08:15:00.
+
 ##### The landing that never waits has one finding left; the driver's brief writer for every kind of code file answers and goes to review (2026-11-15T08:10:33-05:00)
 
 Not final and not approved:
