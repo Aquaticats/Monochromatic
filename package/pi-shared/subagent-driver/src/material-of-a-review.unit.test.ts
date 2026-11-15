@@ -153,18 +153,17 @@ await describe({
       name: rangeOfABranch.name,
       children: [
         it({
-          name: 'reads a branch the integration has not merged as the integration against its own branch, so the range excludes what both share',
+          name: 'reads a branch the integration has not merged as the integration against the tip\'s object name, so the range excludes what both share and later reads cannot see another tip',
           fn: async () => {
             expect(rangeOfABranch({
-              branch: aBranch(),
               tip: aCommit(),
               integration: anIntegrationBranch(),
               merges: [],
-            },),).toBe(`${anIntegrationBranch()}...${aBranch()}`,);
+            },),).toBe(`${anIntegrationBranch()}...${aCommit()}`,);
           },
         },),
         it({
-          name: 'reads a branch a merge already took as that merge\'s first parent against the branch, because the integration range would be empty',
+          name: 'reads a branch a merge already took as that merge\'s first parent against the tip\'s object name, because the integration range would be empty',
           fn: async () => {
             /**
              The merge that took the branch's tip.
@@ -175,11 +174,10 @@ await describe({
              */
             const parents = '789abc';
             expect(rangeOfABranch({
-              branch: aBranch(),
               tip: aCommit(),
               integration: anIntegrationBranch(),
               merges: [`${merge} ${parents} ${aCommit()}`,],
-            },),).toBe(`${merge}^1...${aBranch()}`,);
+            },),).toBe(`${merge}^1...${aCommit()}`,);
           },
         },),
       ],

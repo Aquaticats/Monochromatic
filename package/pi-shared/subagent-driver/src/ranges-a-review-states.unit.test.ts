@@ -401,6 +401,51 @@ await describe({
           },
         },),
         it({
+          name: 'reads the brief\'s line for a branch of a byte above ASCII that Git allows, at the start, in the middle and at the end of its name',
+          fn: async () => {
+            // A non-breaking space is a byte `String.trim()` calls space and Git allows inside a reference: a range ending in
+            // one is copied from the brief byte for byte, and nothing inside the code span may be cut.
+            /**
+             The bytes above ASCII that Git allows in a branch name, which this test asks Git about first.
+             */
+            const bytes = ['\u00A0', '\u00AD',];
+            /**
+             Every case that did not come back as it was written.
+             */
+            const failures: string[] = [];
+            /**
+             How many cases Git accepted, which shows the test was not empty.
+             */
+            let cases = 0;
+            for (const byte of bytes) {
+              for (const place of PLACES) {
+                /**
+                 The branch this byte is tried in.
+                 */
+                const branch = branchNameOf({
+                  byte,
+                  place,
+                },);
+                // A byte Git refuses is not this test's case; the proof above asks Git for the ASCII ones, and this asks for
+                // these, so a byte Git would refuse cannot be read as covered here.
+                if (!gitAccepts({ name: `refs/heads/${branch}`, },)) {
+                  continue;
+                }
+                cases += 1;
+                /**
+                 What went wrong for this case, if anything.
+                 */
+                const failure = failureOfOneRange({ range: `main...${branch}`, },);
+                if (failure !== '') {
+                  failures.push(`${JSON.stringify(byte,)} at ${place}: ${failure}`);
+                }
+              }
+            }
+            expect(failuresNamed({ failures, },),).toBe('',);
+            expect(cases,).toBeGreaterThan(0,);
+          },
+        },),
+        it({
           name: 'can fail: a review that states a range with a byte Git refuses in place of a letter does not cover its change, and neither does one an underscore lighter',
           fn: async () => {
             // The control that shows the two tests above can fail: the comparison reads every byte, so a range that differs from

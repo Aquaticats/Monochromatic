@@ -13,7 +13,6 @@ import {
   mkdir,
   readdir,
   readFile,
-  writeFile,
 } from 'node:fs/promises';
 import { join, } from 'node:path';
 import {
@@ -44,6 +43,10 @@ import {
   sessionFileInSummary,
 } from './session-file-of-a-run.ts';
 import { lastAssistantTextIn, } from './last-assistant-text-of-a-session.ts';
+import {
+  type ReviewPut,
+  putAReviewInPlace,
+} from './a-review-file-in-place.ts';
 
 /**
  The code the operating system gives a path that is not there.
@@ -489,18 +492,34 @@ export async function saveTheLastMessage({
       line: `${review}: no review.md and an empty last message in ${newest.run}`,
     };
   }
+  /**
+   The review's own folder, which the text is written in before it is put in place.
+   */
+  const folder = join(
+    reviewFolder,
+    review,
+  );
   await mkdir(
-    join(
-      reviewFolder,
-      review,
-    ),
+    folder,
     { recursive: true, },
   );
-  await writeFile(
+  /**
+   What putting the text in place did: whole or not at all, and nothing replaced when another command wrote a review in between.
+   */
+  const put: ReviewPut = await putAReviewInPlace({
+    folder,
     reviewFile,
-    `<!-- ${SAVED_REVIEW_NOTE} ${newest.run} -->\n\n${text}\n`,
-    { encoding: 'utf8', },
-  );
+    text: `<!-- ${SAVED_REVIEW_NOTE} ${newest.run} -->\n\n${text}\n`,
+  },);
+  if (put.kind === 'already-there') {
+    return await reviewAsRead({
+      review,
+      reviewFolder,
+      reviewFile,
+      saved: false,
+      state: 'has its review.md',
+    },);
+  }
   return await reviewAsRead({
     review,
     reviewFolder,

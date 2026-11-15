@@ -605,10 +605,14 @@ A review whose file still carries the line that opens one whose runs are going w
 and its file does not cover its change.
 
 The ranges of that statement are read from the code spans the brief writes them in,
-so a branch whose name holds a comma, a semicolon, an underscore or a backtick comes back byte for byte:
+so a branch whose name holds a comma, a semicolon, an underscore, a backtick or a non-breaking space
+comes back byte for byte:
 `src/ranges-a-review-states.unit.test.ts` asks `git check-ref-format` which bytes a reference may hold
 and proves the round trip for every one of them,
 at the start, in the middle and at the end of a branch's name.
+Nothing inside a copied span is trimmed, lower-cased or otherwise normalised:
+a code span is copied text, and the only characters the reader drops are the fence and the one padding space
+CommonMark adds for a range that begins or ends with a backtick.
 
 Those lines are what both commands that read a finished review judge it by,
 through the one function `src/what-a-review-says-it-covered.ts` holds,
@@ -663,8 +667,12 @@ the branch a branch's change is read against;
 `--reviews-folder`;
 and `--runs-folder`.
 
-For each branch it writes the brief through the command above,
-then starts its review through the retrying start,
+For each branch it resolves the branch's tip once,
+and from that commit writes the brief of the range `<integration>...<the tip's object name>`,
+or `<merge>^1...<the tip's object name>` for a branch a merge took,
+so the diff, the tree listing, the record and the reviewer's base all speak of one commit
+and no later read can see another tip.
+It then starts its review through the retrying start,
 so the review waits for a slot of the review pool instead of refusing.
 The run's words are fixed here,
 with the reasons beside them in `src/reviews-of-finished-branches.ts`:
@@ -694,8 +702,9 @@ One that covers its change is said in one line, `review-<change>: already review
 One that does not cover its change, a file its reviewer was killed before finishing included,
 is said in that review's own line, which names the review and why it does not cover,
 and is counted in the status the command exits with;
-the last line then reads `no review was started, and <n> does not cover its change`
-when it started none.
+the last line then names it, reading `no review was started, and <change> does not cover its change`
+when it started none, or `reviews ended with statuses <...>, and <change>, <change> do not cover their change`
+when it started others.
 The command does not start such a review again:
 a review's branch is fixed by its name,
 and the launcher adds a branch that already exists as it is,
@@ -1378,6 +1387,15 @@ This reads the last assistant message whole from the Pi session file the newest 
 `review-<review>-<n>` run names,
 and writes it as `<review-folder>/<review>/review.md` with a note saying which run it came from.
 The review folder is `$HOME/temp/agent/change-reviews` unless the caller names another.
+
+The file is written whole or not at all (`src/a-review-file-in-place.ts`):
+the text goes to a dot name inside the review's own folder and `link` puts it at `review.md`,
+which fails when a review is already there where `rename` would replace it.
+A second writer whose link fails keeps its own text and puts none of it in place,
+and answers for the review the first writer left, reading it as any other reader does.
+A writer killed before its link leaves a dot name that is never a review,
+so the next call finds no `review.md`, writes the whole message and links it in.
+No reader meets half a review, and no command loses what another one wrote.
 The summary's own `lastAssistantText` cannot be the source:
 it is cut to 900 characters.
 A review that wrote its own file is left alone.

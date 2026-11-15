@@ -347,33 +347,35 @@ export function readingIn({
 }
 
 /**
- Reads the range that names what a branch changed, from the integration branch that holds it.
+ Reads the range that names what a branch changed, from the integration branch that holds it, by the object name of the commit
+ under review.
 
  A branch the integration already merged has an empty `integration...branch`, and a reviewer given it reads nothing. Its own
  change is then the range from the merge that took it: the merge's first parent to the branch's tip.
 
- @param branch - the branch under review
+ The range's right side is the tip's object name, never the branch's name: a branch moves on as soon as anyone commits to it, and a
+ range that still says `main...fix/a` is evaluated again by every later git question, so the diff, the tree listing and the
+ reviewer's checkout can come from three different commits. This side and the commit the caller resolved are the same commit only
+ when one git question names it, and this function is handed that one.
 
- @param tip - the branch's tip commit
+ @param tip - the branch's tip commit, which the range names and which the merge is found by
 
  @param integration - the integration branch the change was or will be merged into
 
  @param merges - the integration's own first-parent merges, each as `<merge> <parent>...`
 
- @returns the range, as `git diff` and `git log` take one
+ @returns the range, as `git diff` and `git log` take one, with the tip's object name on its right
 
  @example
  ```ts
- const range = rangeOfABranch({ branch: 'fix/a', tip, integration: 'main', merges: [], },);
+ const range = rangeOfABranch({ tip, integration: 'main', merges: [], },);
  ```
  */
 export function rangeOfABranch({
-  branch,
   tip,
   integration,
   merges,
 }: {
-  readonly branch: string;
   readonly tip: string;
   readonly integration: string;
   readonly merges: readonly string[];
@@ -392,8 +394,8 @@ export function rangeOfABranch({
         .includes(tip,);
     },)?.[0];
   return (takingMerge === undefined)
-    ? `${integration}...${branch}`
-    : `${takingMerge}^1...${branch}`;
+    ? `${integration}...${tip}`
+    : `${takingMerge}^1...${tip}`;
 }
 
 /**

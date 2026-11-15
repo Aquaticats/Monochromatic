@@ -403,7 +403,7 @@ await describe({
             // The caller reads which review and why, the status counts it, and nothing is started again for it.
             expect(started.lines,).toEqual([
               notCovering,
-              'no review was started, and 1 does not cover its change',
+              `no review was started, and ${aChange()} does not cover its change`,
             ],);
             expect(started.statuses,).toEqual([],);
             expect(started.reviewsWithoutCoverage,).toBe(1,);
@@ -467,7 +467,8 @@ await describe({
             const started = await startReviews(aStartRequest({ changes: [aChange(),], seams, },),);
             expect(started.statuses,).toEqual(['0',],);
             expect(started.reviewsWithoutCoverage,).toBe(1,);
-            expect(started.lines.at(-1,),).toBe('reviews ended with statuses 0, and 1 does not cover its change',);
+            expect(started.lines.at(-1,),)
+              .toBe(`reviews ended with statuses 0, and ${aChange()} does not cover its change`,);
             expect(statusOfStartedReviews({ started, },),).toBe(1,);
           },
         },),
@@ -505,6 +506,29 @@ await describe({
           },
         },),
         it({
+          name: 'hands the brief a range that names the reviewed commit, so no later git question can see another tip',
+          fn: async () => {
+            /**
+             The seams, whose branch the integration has not merged.
+             */
+            const { seams, asked } = seamsAnswering({
+              briefs: new Map([[aChange(), { written: true, line: 'brief written', },],]),
+              starts: new Map(),
+              saves: new Map(),
+              written: [],
+              merges: [],
+            },);
+            await startReviews(aStartRequest({ changes: [aChange(),], seams, },),);
+            // The range's right side is the object name the brief records, never the branch name, which moves on as soon as
+            // anyone commits to it.
+            expect(asked.briefs,).toEqual([{
+              review: aChange(),
+              commit: aTip({ change: aChange(), },),
+              range: `${anIntegrationBranch()}...${aTip({ change: aChange(), },)}`,
+            },],);
+          },
+        },),
+        it({
           name: 'reads the range of a branch the integration already merged from the merge that took it, and hands the reviewed commit to the brief',
           fn: async () => {
             /**
@@ -528,7 +552,7 @@ await describe({
             expect(asked.briefs,).toEqual([{
               review: aChange(),
               commit: aTip({ change: aChange(), },),
-              range: `${merge}^1...${branchOf({ change: aChange(), },)}`,
+              range: `${merge}^1...${aTip({ change: aChange(), },)}`,
             },],);
           },
         },),
@@ -607,7 +631,7 @@ await describe({
               },
             },),);
             expect(started.lines,).toContain(`reviews ended with statuses ${String(failedStatus,)} none, `
-              + `and ${String(2,)} do not cover their change`,);
+              + `and ${aChange()}, ${anotherChange()} do not cover their change`,);
             expect(started.statuses,).toEqual([String(failedStatus,), 'none',],);
             expect(started.reviewsWithoutCoverage,).toBe(2,);
           },

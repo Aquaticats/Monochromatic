@@ -263,6 +263,11 @@ export {
 } from './last-message-of-a-review.ts';
 export { lastAssistantTextIn, } from './last-assistant-text-of-a-session.ts';
 export {
+  type ReviewFileWrite,
+  type ReviewPut,
+  putAReviewInPlace,
+} from './a-review-file-in-place.ts';
+export {
   SAVE_REVIEW_USAGE,
   SaveReviewOptionsError,
   parseSaveReviewOptions,

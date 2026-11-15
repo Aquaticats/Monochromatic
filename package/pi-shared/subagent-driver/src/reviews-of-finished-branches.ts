@@ -297,10 +297,10 @@ export async function startReviews({
     readonly start: Promise<StartOfOneReview>
   }[] = [];
   /**
-   Whether each review this call judges covers the change it was given: one for every review already written, and one for every
-   start it made.
+   Every review this call judged that does not cover the change it was given, named in the order it judged them, which is what its
+   last line names and what its status counts.
    */
-  const coverage: boolean[] = [];
+  const reviewsThatDoNotCover: string[] = [];
   /* oxlint-disable eslint/no-await-in-loop -- one branch after another, because each brief and start is written and made before
      the next, and the stagger is what keeps their slots in the order given. See doc/lint/sequential-awaits.md. */
   for (const branch of branches) {
@@ -322,7 +322,9 @@ export async function startReviews({
        */
       // oxlint-disable-next-line eslint/no-await-in-loop -- one branch after another, and this review's own file is read before the next branch is looked at; see doc/lint/sequential-awaits.md
       const alreadyWritten = await seams.save({ review, },);
-      coverage.push(alreadyWritten.covers,);
+      if (!alreadyWritten.covers) {
+        reviewsThatDoNotCover.push(review,);
+      }
       note(alreadyWritten.covers
         ? `${run}: already reviewed`
         : alreadyWritten.line,);
@@ -336,7 +338,6 @@ export async function startReviews({
      The range that names what the branch changed.
      */
     const range = rangeOfABranch({
-      branch,
       tip: commit,
       integration,
       merges: await seams.integrationMerges(),
@@ -406,19 +407,18 @@ export async function startReviews({
     // oxlint-disable-next-line eslint/no-await-in-loop -- one review after another, because a saved file is read from that review's own run; see doc/lint/sequential-awaits.md
     const saved = await seams.save({ review, },);
     note(saved.line,);
-    coverage.push(saved.covers,);
+    if (!saved.covers) {
+      reviewsThatDoNotCover.push(review,);
+    }
   }
   /**
-   How many of the reviews started do not cover the change they were given.
+   How many of the reviews this call judged do not cover the change they were given.
    */
-  const reviewsWithoutCoverage = coverage.filter(function doesNotCover(covers,) {
-    return !covers;
-  },)
-    .length;
-  if ((statuses.length > 0) || (reviewsWithoutCoverage > 0)) {
+  const reviewsWithoutCoverage = reviewsThatDoNotCover.length;
+  if ((statuses.length > 0) || (reviewsThatDoNotCover.length > 0)) {
     note(statusSummaryOf({
       statuses,
-      reviewsWithoutCoverage,
+      reviewsThatDoNotCover,
     },),);
   }
   return {
@@ -429,58 +429,62 @@ export async function startReviews({
 }
 
 /**
- Writes the last line a starter prints, so that a caller reads which starts ended how and whether every review covers the change it
- was given.
+ Writes the last line a starter prints, so that a caller reads which starts ended how and which review, if any, does not cover the
+ change it was given.
 
  A call that started nothing still prints it when a review it judged does not cover its change, because that answer is the one its
- caller acts on.
+ caller acts on, and a review that was killed mid-work leaves exactly that state.
 
  @param statuses - the status each start ended with, in the order the starts were made
 
- @param reviewsWithoutCoverage - how many of the reviews it judged do not cover the change they were given
+ @param reviewsThatDoNotCover - the reviews it judged that do not cover the change they were given
 
  @returns the line
 
  @example
  ```ts
- const line = statusSummaryOf({ statuses: ['0',], reviewsWithoutCoverage: 0, },);
+ const line = statusSummaryOf({ statuses: ['0',], reviewsThatDoNotCover: [], },);
  ```
  */
 function statusSummaryOf({
   statuses,
-  reviewsWithoutCoverage,
+  reviewsThatDoNotCover,
 }: {
   readonly statuses: readonly string[];
-  readonly reviewsWithoutCoverage: number;
+  readonly reviewsThatDoNotCover: readonly string[];
 }): string {
   /**
    What the line says about coverage.
    */
-  const coverageWords = coverageWordsOf({ reviewsWithoutCoverage, },);
+  const coverageWords = coverageWordsOf({ reviewsThatDoNotCover, },);
   return (statuses.length === 0)
     ? `no review was started${coverageWords}`
     : `reviews ended with statuses ${statuses.join(' ',)}${coverageWords}`;
 }
 
 /**
- Writes the words that follow the statuses a starter prints, so that the last line a caller reads says whether every review covers
- the change it was given.
+ Writes the words that follow the statuses a starter prints, so that the last line a caller reads names the review that does not
+ cover its change and whether every review covers one.
 
- @param reviewsWithoutCoverage - how many of the reviews started do not cover the change they were given
+ @param reviewsThatDoNotCover - the reviews it judged that do not cover the change they were given
 
  @returns the words, beginning with the comma that joins them to the statuses
 
  @example
  ```ts
- const words = coverageWordsOf({ reviewsWithoutCoverage: 1, },);
+ const words = coverageWordsOf({ reviewsThatDoNotCover: ['a',], },);
  ```
  */
-function coverageWordsOf({ reviewsWithoutCoverage }: { readonly reviewsWithoutCoverage: number },): string {
-  if (reviewsWithoutCoverage === 0) {
+function coverageWordsOf({ reviewsThatDoNotCover }: { readonly reviewsThatDoNotCover: readonly string[] },): string {
+  if (reviewsThatDoNotCover.length === 0) {
     return ', and every review covers its change';
   }
-  return `, and ${String(reviewsWithoutCoverage,)} `
-    + `${(reviewsWithoutCoverage === 1) ? 'does' : 'do'} not cover ${(reviewsWithoutCoverage === 1) ? 'its' : 'their'} change`;
+  /**
+   Whether the line speaks of one review, which decides the verb and the pronoun.
+   */
+  const one = reviewsThatDoNotCover.length === 1;
+  return `, and ${reviewsThatDoNotCover.join(', ',)} ${(one) ? 'does' : 'do'} not cover `
+    + `${(one) ? 'its' : 'their'} change`;
 }
 
 /**

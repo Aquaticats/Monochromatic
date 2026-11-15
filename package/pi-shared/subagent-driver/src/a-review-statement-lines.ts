@@ -405,13 +405,13 @@ function endBeforeSentenceEndings(text: string,): number {
  ```
  */
 function rangesStatedIn(text: string,): readonly string[] {
+  // A code span is copied text: the only characters this may drop are the fence and the one padding space CommonMark adds for a
+  // text that begins or ends with a backtick, both of which `codeSpansIn` has already removed. A reference may end in any byte
+  // Git allows, U+00A0 included, and `trim()` would eat it, so nothing inside a span is cut.
   /**
    The code spans the text holds, which are the ranges the brief wrote.
    */
   const spans = codeSpansIn({ text, },)
-    .map(function trimmed(span,) {
-      return span.trim();
-    },)
     .filter(function isARange(span,) {
       return span !== '';
     },);

@@ -108,7 +108,10 @@ function closingRunIn({
 
 /**
  Reads the content of a code span, as CommonMark gives it: one space is removed from each end when the content begins and ends
- with one and holds something else.
+ with one and is not all spaces.
+
+ The test is the space character alone, never `String.trim()`: a range may begin or end with a byte `trim()` calls space, such as
+ U+00A0, and that byte is part of the range.
 
  @param text - the text between the two fences
 
@@ -130,7 +133,28 @@ function contentOf(text: string,): string {
     1,
     -1,
   );
-  return (inner.trim() === '') ? text : inner;
+  return isAllSpaces({ text: inner, },) ? text : inner;
+}
+
+/**
+ Says whether a text is nothing but the space character.
+
+ @param text - the text to read
+
+ @returns whether every character of it is a space, and false for a text that holds none
+
+ @example
+ ```ts
+ const allSpaces = isAllSpaces({ text: '   ', },);
+ ```
+ */
+function isAllSpaces({ text, }: { readonly text: string },): boolean {
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charAt(index,) !== A_SPACE) {
+      return false;
+    }
+  }
+  return text.length > 0;
 }
 
 /**
