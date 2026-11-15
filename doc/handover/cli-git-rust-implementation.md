@@ -738,6 +738,35 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T17:06:41-05:00,
+  the one that holds the most:
+  `main` and the installed release land a commit with the empty tree,
+  exit 0,
+  when the commit's private index goes from its scratch at a pause
+  (shown on `main` by the fix's author;
+  none seen among the commits of any ref).
+  The branch that closes it for an ordinary commit has had eight reviews,
+  and each found further ways it can still happen or fail
+  (the eighth:
+  `--fixup=amend:`,
+  a damaged reftable store,
+  removals that outlive their claim;
+  read from the code,
+  not run).
+  By the rule in force a wrapper branch goes into a pass only when a review finds no defect in its code that is not a test.
+  Does that hold here,
+  or may a branch go in when it is shown to narrow a way of losing data that `main` has,
+  with what its reviews still find recorded and following?
+- Added 2026-11-15T17:06:41-05:00,
+  from the author of the driver's two starts of one run name
+  (tip `16166773fb`,
+  review queued),
+  not blocking work:
+  whether run numbers stay in unit names;
+  whether a worktree with no proof of who made it is removed after a bound or blocks starts of its name until a person removes it;
+  and what a start does when the run number its caller pinned is taken
+  (it refuses now).
+
 
 - Added 2026-11-15T12:39:01-05:00,
   from the author of mpm-shadow's install that removes no version in use
@@ -1640,6 +1669,108 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Integration pass 54 is in `main`, `0.6.1-alpha.43` is released and installed, its gate runs; the fix for the empty-tree commit goes back with six claims; pass 55 is queued (2026-11-15T17:06:41-05:00)
+
+Not final and not approved:
+what the coordinating session merged,
+released and installed,
+what two reviews report,
+and what it queued.
+
+- **The review of pass 54's repair**,
+  ended 17:00:14:
+  no defect.
+  6 of 6 files read;
+  the package built;
+  the guard control run unchanged
+  (passed)
+  and with a reach into `service_main` planted in a disposable copy
+  (failed,
+  naming the server file);
+  the fault-limit control that reads the status passed;
+  `EXIT_NO_WORKER` has one definition and no use of the old path anywhere in the repository,
+  the fuzz sidecar included.
+- **Merged**:
+  `main` held nothing in the wrapper that the tip lacked
+  (measured at the merge).
+  Integration pass 54 is `b22cecc955`,
+  2026-11-15T16:57:36-05:00,
+  33 files.
+- **Released**:
+  `0.6.1-alpha.43`,
+  dispatched 16:57:47 through the repository's workflow
+  (run 43766557759;
+  its bump is `85111e751c` on `main`;
+  the build and publish ran as `cargo-publish.yml` run 43766654186),
+  published by 17:05:48 with archives for both Linux targets.
+- **Installed on this machine** at 17:06:33
+  (lock commit `fe2d0c9b52`,
+  then the merge of `origin/main`,
+  `145d6a1484`).
+  The sample commit took 1,674 ms;
+  the service journal shows no entry since it began.
+- **The gate** runs on `145d6a1484`
+  (unit `gpc-gate-wrapper-next-alpha-on-145d6a1484-20261115T170641-0500`),
+  and the fuzz sidecar's type check beside it.
+- **The drawn shadow tree, the fix for the commit with the empty tree** (`7cf716d791`),
+  its eighth review,
+  ended 17:03:45,
+  18 of 18 files,
+  six things it calls blockers.
+  **It built no wrapper and ran none of the package**
+  (a listing of the tests ran out its own bound while compiling);
+  for two it showed real Git's behaviour.
+  By the reading adopted here it clears nothing and its six are claims:
+  `--fixup=amend:` classed with `reword` and so left out of the tree guard;
+  a reftable store with one table gone called whole;
+  a sweep letting its claim go while its removal thread still runs;
+  a second attempt building in a path whose removal is not finished;
+  two waits on a file system that does not answer.
+  The author's ninth run is queued second,
+  a control first for each.
+  **`main` and the release installed at 17:06 still carry the window** in which a commit lands with the empty tree.
+  This branch has now had eight reviews,
+  each of which found further ways;
+  whether a branch that narrows a window `main` has may go in while reviews still find what is left of it is a question for the owner,
+  kept.
+- **Pass 55** is queued first:
+  the shared wait of the binary controls at `e12b36fd81` and the three gate controls at `8182b750e7`,
+  both test support.
+  It makes no release.
+- **Four follow-up reviews** are queued
+  (the address-space controls `aee5c756a2`,
+  the file holder `12942c99dd`,
+  the long runtime directory `ac8e10f27a`,
+  the Git-version author `b8ad219841`).
+  **A premise of the section of 16:28:15 was wrong, and measured here**:
+  with the pass merged,
+  the range of each against `main` is not its follow-up alone.
+  Each branch merged `main` after the tip the pass took,
+  Git finds more than one merge base and uses the older `main`,
+  and the ranges change 9,
+  2,
+  14 and 10 files.
+  So three of the four are reviews of the whole branch again;
+  they were left queued,
+  since a whole review covers the follow-up too and a reviewer's hour costs less than another round of hand-written briefs.
+- **The two starts of one run name**,
+  its author's second run,
+  ended 16:52:31 at `16166773fb`;
+  review queued.
+  It asks three things that are decisions
+  (numbers in unit names;
+  a bound after which a worktree with no proof of its maker is removed;
+  what a pinned run number that is taken does),
+  kept with its report.
+- **The run that sat in a named pipe sat in another.**
+  After the first signal its command went on to `strings` of `…/service-standard-error.pipe`,
+  again in `wait_for_partner`,
+  for 36 minutes.
+  At 16:57:05 the session sent `SIGTERM` to that reader and to the command's own shell,
+  process 2151757,
+  so that the run's tool call returns and it reads its notes.
+  At 17:04:51 no run was silent.
 
 ##### The driver's launcher that ends with its run answers its four findings; the main checkout is back to its six changed files (2026-11-15T16:33:12-05:00)
 
