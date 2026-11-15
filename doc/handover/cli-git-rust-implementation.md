@@ -738,6 +738,17 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T07:17:57-05:00,
+  from the author of the stop of a stopped push
+  (branch tip `2da23e4478`,
+  in review),
+  not blocking work:
+  two shipped limits it added have a citation in the code and no decision behind them,
+  50 ms to reap a child after the kill and 200 ms kept back for the sweep of its locks,
+  both taken out of the stop's ceiling of 18.1 s.
+  Do those values stand,
+  or does a measurement of real stops decide them?
+
 - Added 2026-11-15T05:45:58-05:00,
   from the author of the review brief's coverage check
   (branch tip `0e676c38da`,
@@ -1593,6 +1604,102 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The gate on `0.6.1-alpha.40` fails 18 of 9,124, every one a standing failure; two authors answer; a reading about the held push's holder gets a run (2026-11-15T07:17:57-05:00)
+
+Not final and not approved:
+what the gate printed,
+what two authors report,
+and what the coordinating session queued.
+
+- **The gate** on `8e48a7a853` ended 07:17:54:
+  9,124 run,
+  9,106 passed,
+  18 failed,
+  28 skipped,
+  741 s,
+  under the CPU budget and the power-saver profile as the gate before it.
+  All 18 failed in each of the four gates before
+  (`~/temp/agent/gate/keep/failing-tests-of-the-gate-on-8e48a7a853-against-the-four-gates-before-it.txt`;
+  panics in `panics-of-the-failing-tests-of-the-gate-on-8e48a7a853-2026-11-15T065910.txt`).
+  Against the gate on `0.6.1-alpha.39`
+  (26 failed):
+  - the three refused-start controls pass,
+    as pass 50 showed in the gate's images
+    (`service_mode::` twice,
+    and the provisioning control under its new name);
+  - **the three that failed for the first time there pass here**
+    (`an_idle_service_runs_no_work`,
+    `a_service_on_the_journal_stream…`,
+    `real_cargo_leaves_a_stale_lockfile…`),
+    on the same held-down machine and with pass 51's code still in.
+    So they come and go from run to run;
+    one passing gate does not say why,
+    and the fresh run that looks for their cause stays queued;
+  - `lazy_runtime`'s control and `worktree_process_inside`'s pass here as well.
+  What stands:
+  seven of the Git version
+  (review queued),
+  five of the long runtime directory
+  (review going),
+  three library tests
+  (pass 52 queued),
+  two of the lock-holders folder
+  (with its author),
+  one of the record of another boot
+  (review queued).
+  All owed steps of this release are done.
+- **The stop of a stopped push**,
+  its author's second run,
+  ended 07:12:27 at `2da23e4478`:
+  a stop with no worker still reaps its child and judges the locks it left;
+  a stop answers inside its bound while the blocking pool cannot sweep,
+  and the sweep is recorded as owed with the repositories named.
+  Every wait of a stop is listed with its bound in the module's doc.
+  Both controls fail with the fix out
+  (a zombie;
+  300.6 ms against a bound of 100 ms).
+  Two new constants,
+  50 ms for the reap after the kill and 200 ms for the sweep after the stop,
+  are marked by the author as questions for the owner;
+  kept.
+  Its review is queued eighth
+  (`main...2da23e4478`,
+  four code files that are not tests).
+- **The record of another boot**,
+  its author's second run,
+  ended 07:13:25 at `5879fd0613`:
+  the review's capitals reproduced,
+  and two more respellings made a live holder gone
+  (a leading zero on the start tick,
+  a space before the birth).
+  A part not in the one spelling the wrapper writes now answers "unknown";
+  a control of five arms fails with the fix out.
+  Its review is queued ninth
+  (`main...5879fd0613`,
+  five code files that are not tests).
+- **From that author, a reading about `main`**:
+  `landing/held_push_holder_and_verdict.rs` compares the held push's `boot/pid/birth` text the same way.
+  Read by this session on `main`:
+  `boot != current_boot_id()` answers "gone",
+  and a live process whose birth differs as text answers "gone".
+  What a wrong "gone" costs there is not known.
+  A fresh run is queued twentieth to show it by controls and close it
+  (`~/temp/agent/pi-runs/held-push-holder-spelled-another-way-is-never-taken-for-gone-prompt.md`).
+- **The temperature**,
+  read at 07:17:05 with the gate near its end:
+  54.5 degrees,
+  budget 32.0 threads,
+  7.6 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 07:17:06:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 07:11;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going;
+  the long runtime directory's review 25 minutes into a build under its own thirty-minute bound.
+  The queue held 87 entries at 07:17:55.
 
 ##### The driver's handling of an empty last answer is answered a seventh time and goes to review (2026-11-15T07:12:02-05:00)
 
