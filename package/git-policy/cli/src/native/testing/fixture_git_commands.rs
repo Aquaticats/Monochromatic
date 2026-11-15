@@ -145,8 +145,12 @@ fn draining<R: Read + Send + 'static>(mut reader: R) -> (std::sync::Arc<std::syn
 /// and at the bound ends that group and reaps the query;
 /// `QueryEnding::AtTheBound` is true exactly when it did that,
 /// and a query that ended by itself comes back with its own status and output.
-/// Nothing waits without a bound,
-/// and the caller answers each ending with its own sentence,
+/// Nothing waits without a bound, the input included:
+/// the write of the input runs on a thread of its own,
+/// so a query that keeps its standard input open and reads none of it fills the pipe and is ended at the bound
+/// like any other,
+/// and the write the ending broke is part of that ending rather than a failure.
+/// The caller answers each ending with its own sentence,
 /// because only it knows which query it made and what the query is for.
 ///
 /// In TS you'd write (pseudocode):
@@ -178,11 +182,23 @@ pub(crate) fn real_git_within(
     let group: libc::pid_t = libc::pid_t::try_from(child.id()).expect("a pid fits the pid type");
     let (standard_output, output_reached_its_end) = draining(child.stdout.take().expect("piped standard output"));
     let (standard_error, error_reached_its_end) = draining(child.stderr.take().expect("piped standard error"));
-    if let Some(bytes) = input {
-        let mut standard_input: std::process::ChildStdin = child.stdin.take().expect("piped standard input");
-        standard_input.write_all(bytes).expect("the query's input");
-        // Dropping the handle here is what gives the query its end of file.
-    }
+    // The input is written on a thread of its own, under the same bound as the wait:
+    // a query that keeps its standard input open and reads none of it fills the pipe,
+    // and a write on this thread would wait there with nothing watching the clock.
+    let (input_sender, input_receiver) = std::sync::mpsc::channel::<std::io::Result<()>>();
+    let input_writer: Option<std::thread::JoinHandle<()>> = match input {
+        Some(bytes) => {
+            let mut standard_input: std::process::ChildStdin = child.stdin.take().expect("piped standard input");
+            let kept: Vec<u8> = bytes.to_vec();
+            Some(std::thread::Builder::new().spawn(move || {
+                let written: std::io::Result<()> = standard_input.write_all(kept.as_slice());
+                // Dropping the handle in this thread is what gives the query its end of file.
+                let _sent = input_sender.send(written);
+            }).expect("the writer of a query's input starts"))
+        }
+        // Without an input the query's standard input is the null device, and nothing is written.
+        None => None,
+    };
     // The wait blocks on the query instead of looking at the clock, so a query that ends in a millisecond costs a
     // millisecond; the bound is the wait's own deadline, not a poll's.
     let (status_sender, status_receiver) = std::sync::mpsc::channel::<std::io::Result<std::process::ExitStatus>>();
@@ -206,6 +222,20 @@ pub(crate) fn real_git_within(
         Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => panic!("the waiter of the query {program:?} ended without its status"),
     };
     let _joined = waiter.join();
+    // The write ends with the query, and the ending is what judges it:
+    // a write the query's death broke is part of that ending and no failure,
+    // and any other failure of it is said.
+    if let Some(writer) = input_writer {
+        let written: std::io::Result<()> = input_receiver
+            .recv_timeout(REAPING)
+            .unwrap_or_else(|_| panic!("the input of the query {program:?} was still being written {REAPING:?} after the query was gone"));
+        let _joined = writer.join();
+        match written {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::BrokenPipe => {}
+            Err(error) => panic!("the input of the query {program:?} could not be written: {error}"),
+        }
+    }
     // What the pipes gave, under one grace for both, and never a wait past it.
     let grace_ends: std::time::Instant = std::time::Instant::now() + PIPE_GRACE;
     let output_ended: bool = output_reached_its_end.recv_timeout(grace_ends.saturating_duration_since(std::time::Instant::now())).is_ok();
