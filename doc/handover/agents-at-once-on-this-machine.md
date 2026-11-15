@@ -7,7 +7,31 @@ and the search for the number the drives carry.
 
 ## The cap now
 
-At most **24** agents run on this machine at once since 2026-11-14T08:54:33-05:00,
+At most **18** agents run on this machine at once since 2026-11-15T00:50:55-05:00.
+Level twenty-four failed its criterion at 00:31:09
+(the home drive's write-and-sync took 14,892 ms and then 7,722 ms,
+with 23 agents going and `snapper-cleanup.service` running since 00:00:11),
+and the rule under "What counts as the ceiling" gave twenty;
+level twenty failed at 00:44:03
+(6,277 ms and then 21,599 ms,
+20 agents going,
+the cleanup still running),
+and the same rule gives eighteen.
+No run that was going is stopped;
+nothing new starts until fewer than eighteen are going.
+The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-18-20261115T005055`
+(eight hours)
+and the probe `disk-ceiling-probe-level-18-20261115T004453`.
+Should eighteen fail,
+the same rule gives seventeen and then sixteen,
+the last level that held,
+and the cap goes no lower than sixteen without the owner.
+Not final and not approved;
+the readings are under
+"Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00" and
+"Level 20 fails twelve minutes after it began, the cleanup still running, 2026-11-15T00:32:17-05:00 to 00:50:55-05:00".
+What stood before:
+at most 24 agents ran at once from 2026-11-14T08:54:33-05:00,
 by the owner's answer of that morning
 ("Resume at 24":
 halve the gap between 16, which held, and 32 again,
@@ -1016,3 +1040,98 @@ measured by the coordinating session.
   So the cleanup is not the only thing that stalls this drive.
   In the minutes before it this session installed a wrapper release and made several commits in the main checkout;
   nothing was measured that ties the reading to either.
+
+#### Level 24 fails forty minutes into the nightly snapshot cleanup, 2026-11-14T16:54:54-05:00 to 2026-11-15T00:31:09-05:00
+
+Not final and not approved:
+readings of the probe's second eight hours at twenty-four,
+taken by the coordinating session from `keep/probe-readings.jsonl`
+of `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/`.
+
+- **Level twenty-four fails at 00:31:09**:
+  the home drive's write-and-sync took 14,892 ms at 00:29:54 and 7,722 ms at 00:31:09,
+  with 23 agents going at both,
+  load average 25 over one minute,
+  the kernel's `some` I/O pressure 5 percent over a minute.
+  The reading before the pair,
+  at 00:27:39,
+  took 1,563 ms.
+  `snapper-cleanup.service` had been running since 00:00:11
+  (`systemctl show`,
+  read at 00:31)
+  and had last ended at 05:15:35 the morning before.
+- **The seven and a half hours before it held, with single long stalls**:
+  450 readings at this level from 16:54:54,
+  47 of them a second or more on either drive,
+  eight of those after the cleanup began.
+  The three slowest were all on the home drive and all before the cleanup:
+  24,101 ms at 17:42:07 with 22 agents,
+  16,289 ms at 22:37:11 with 23,
+  15,519 ms at 19:33:43 with 24.
+  None was followed by a second slow reading,
+  so none ended the level.
+- **What this does and does not show**:
+  the one failing pair of this level's sixteen hours came with the cleanup running,
+  as the failing pairs of the night before did;
+  single stalls of fifteen to twenty-four seconds came without it.
+  One night's pair does not separate the cleanup from the count:
+  the probe counted 18 to 24 agents across the 450 readings
+  (24 at 126 of them,
+  23 at 89,
+  22 at 55,
+  21 at 74,
+  20 at 57,
+  19 at 37,
+  18 at ten;
+  at two the count timed out),
+  and 23 at the failing pair.
+- **What was done**:
+  the filling unit was stopped between two of its rounds and started at level twenty at 00:32:16,
+  the probe with it.
+  22 agents were going at 00:32:29;
+  none was stopped.
+  The owner's rule of 2026-11-14 covers this step
+  ("Resume at 24",
+  with the probe ending the level on two slow readings in a row);
+  whether the cap returns to twenty-four once the cleanup has ended is the owner's to say
+  and is kept in `doc/handover/cli-git-rust-implementation.md`,
+  "Questions kept for the owner's return".
+
+#### Level 20 fails twelve minutes after it began, the cleanup still running, 2026-11-15T00:32:17-05:00 to 00:50:55-05:00
+
+Not final and not approved:
+the twelve readings of level twenty,
+taken by the coordinating session from the same file.
+
+- **Level twenty fails at 00:44:03**:
+  the home drive took 2,198 ms at 00:41:54,
+  6,277 ms at 00:42:57
+  and 21,599 ms at 00:44:03,
+  with 20 agents going at all three.
+  Earlier in the same twelve minutes it took 8,480 ms at 00:33:17 and 21,214 ms at 00:35:25,
+  with 22 going,
+  each followed by a reading of one millisecond.
+  The build drive took 6 to 13 ms throughout.
+  `snapper-cleanup.service` was still running at 00:44:34.
+- **The stalls came with low I/O pressure, not high**:
+  the kernel's `some` pressure over ten seconds read 0.27 to 0.45 percent at the three last readings
+  and 2 to 3 percent at the two earlier slow ones,
+  against 5 to 12 percent at the fast readings between.
+  So little was waiting on the drive when a write-and-sync took its longest,
+  which fits a drive or a filesystem that stops answering for a stretch
+  better than agents queueing writes behind each other.
+  That is a reading of twelve lines,
+  not a cause shown.
+- **What was done**:
+  the probe was started at level eighteen at 00:44:53.
+  The filling unit was restarted at eighteen at 00:50:55,
+  six minutes later than the probe:
+  the restart script looks for the moment between two of the unit's rounds by the age of its last journal line,
+  and a unit with no free place to fill writes none,
+  so its first try gave up after six minutes with nothing stopped.
+  The script now reads the unit's control group when the journal is silent
+  (one process there is the unit asleep).
+  In those six minutes the unit at level twenty started nothing,
+  since twenty were going.
+  20 agents were going at 00:45:45;
+  none was stopped.
