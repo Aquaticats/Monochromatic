@@ -738,6 +738,22 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T08:06:19-05:00,
+  about the removal of a worktree,
+  not blocking work:
+  "Delete ignored, spare busy" of 2026-11-12 was asked about files Git ignores.
+  A review deleted,
+  by an unforced `git worktree remove`,
+  an independent repository inside an ignored folder,
+  with the only name of its commit.
+  Adopted meanwhile:
+  the removal refuses where it would delete a Git directory holding a commit no other repository names,
+  with the opt-out;
+  a plain ignored folder is deleted and logged as decided.
+  Does the owner's pick reach such a repository
+  (delete it as real Git does),
+  or does the adopted reading stand?
+
 - Added 2026-11-15T07:55:03-05:00,
   about the credentials shown to model providers,
   not blocking work:
@@ -1622,6 +1638,109 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### Three reviews, each with reproduced findings: the landed removal, the journal branch, the long runtime directory's controls (2026-11-15T08:06:19-05:00)
+
+Not final and not approved:
+what three reviews report,
+how the coordinating session weighed each finding,
+and what it queued.
+
+- **The landed removal** (`746040080c`),
+  its ninth review,
+  ended 07:58:56,
+  22 of 22 files,
+  three things,
+  each reproduced through the built wrapper,
+  none a repeat:
+  - a shell alias with an inner `-C` is checked in the command's repository and removes in another,
+    where the direct removal had been refused;
+  - an alias whose shell builds the words
+    (`!action=remove; git worktree $action`)
+    passes the check of its text and deletes a worktree with its hidden edit;
+  - an independent repository inside an ignored folder of the worktree is in none of the checks,
+    and the unforced removal deleted it with the only name of its commit.
+- **Weighed**:
+  all three go back.
+  The first two are one thing:
+  nine reviews have each found an alias its text's reader does not cover,
+  and a text a shell will run cannot be read to the end.
+  The author is asked to say why its shape leaves no such spelling,
+  with a suggestion,
+  marked as one,
+  that the guard stand where the removal is asked for
+  (the Git a shell alias reaches being the wrapper).
+  The third meets the owner's "Delete ignored, spare busy" of 2026-11-12,
+  which was asked and answered about files Git ignores.
+  **Adopted,
+  open to veto,
+  and kept as a question**:
+  a Git directory holding a commit no other repository names is Git work and not an ignored file,
+  so the removal refuses,
+  names it,
+  and has the opt-out;
+  an ignored folder with no repository in it is deleted and logged as decided.
+  The author is also asked for the cost of that look on a worktree with a large ignored tree,
+  with a bound.
+  Its fourteenth run is queued third
+  (`~/temp/agent/pi-runs/landed-removal-answers-its-ninth-review-of-2026-11-15-prompt.md`).
+  The removal guard stays held behind it.
+- **The service a test starts and the user journal** (`d6219a98ee`),
+  its fourth review,
+  ended 08:00:12,
+  8 of 8 files,
+  three things,
+  each reproduced at a seam,
+  none in what the service does:
+  the panic for a service that left early can quote nothing because it does not wait for the copy;
+  letting the copy seam go sends 64 permits and leaves a sixty-fifth copier waiting;
+  the source guard's mask does not read an escaped character literal,
+  so `'\"'` hides a start with inherited streams from both layers of the guard.
+  **Weighed**:
+  all three go back,
+  each small;
+  the third is a guard that a legal spelling walks past.
+  Its fifth run is queued tenth.
+- **The long runtime directory's controls** (`0bcc1fc7fc`,
+  a change to tests,
+  their support and the image),
+  its second review,
+  ended 08:02:09,
+  8 of 8 files,
+  built into an image and run over homes of three lengths and process numbers of two widths,
+  four things,
+  all reproduced:
+  - **dismissed**:
+    the boundary controls take their lengths from the code's own constants,
+    so a planted one-byte error leaves them passing.
+    Both planted errors did fail a control in the same run,
+    one of them the control that binds against the kernel,
+    and the project's rule for tests is that values come from the named constant;
+  - the helper that picks a parent leaves a directory wherever it picks,
+    this machine's `~/temp/agent` among the places;
+  - the control for a runtime directory that cannot be made leaves its file and link,
+    and the next run with the same process number fails on them;
+  - two binary controls still pass or fail by the length of `HOME`.
+  Its third run is queued sixth.
+  The author is asked to count,
+  and not remove,
+  what earlier runs of these controls left directly under `~/temp/agent`.
+  Five of the gate's standing failures wait on this branch.
+- **The temperature**,
+  read at 08:03:08:
+  53.8 degrees,
+  budget 32.0 threads,
+  7.0 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 08:03:11:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 07:53;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  None of the three resumed sessions is named by the credential scan.
+  The queue held 86 entries at 08:06:19.
 
 ##### `0.6.1-alpha.41` is installed; its sample commit took 5.6 s behind the new service's start-up reads of its state directory (2026-11-15T08:00:08-05:00)
 
