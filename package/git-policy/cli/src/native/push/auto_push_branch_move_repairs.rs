@@ -33,7 +33,7 @@
 //! The questions below are asked of the checkout, in this order.
 
 use crate::auto_push_branch_move_record::{
-    BRANCH_MOVE_SCHEMA_VERSION, list_branch_moves, parse_branch_move, remove_branch_move,
+    BRANCH_MOVE_SCHEMA_VERSION, list_branch_moves, parse_branch_move,
 };
 use crate::auto_push_reconcile_basics_and_limits::argv;
 use crate::json_record::{ObjectWriter, parse_object, safe_integer_field, string_field};
@@ -81,6 +81,8 @@ const REPAIR_OWNER_FILE: &str = "monochromatic-git-policy-cli-repair-owner.json"
 pub struct ARepairInHand {
     /// The record's place.
     path: PathBuf,
+    /// The transaction this command gave the place, which is what makes giving it back this holder's own act.
+    mine: String,
     /// Whether it was given back already.
     done: bool,
 }
@@ -91,9 +93,17 @@ impl ARepairInHand {
         return self.path.as_path();
     }
 
-    /// Give the place back: the repair this command ran is over.
+    /// What:
+    ///  Give the place back, and only if the record there still names this command.
+    /// Why:
+    ///  A taker that lost its place to a successor must not remove the successor's record:
+    /// the removal is the holder's own act, and the name it writes is what identifies the holder
+    ///  (a review of commit `777c491325`, its finding 2).
     pub fn finish(&mut self) {
-        let _removed: std::io::Result<()> = std::fs::remove_file(self.path.as_path());
+        let mine: &str = self.mine.as_str();
+        if the_owner_named_by(self.path.as_path()).is_some_and(|named| return named.transaction_id == mine) {
+            let _removed: std::io::Result<()> = std::fs::remove_file(self.path.as_path());
+        }
         self.done = true;
     }
 
@@ -109,7 +119,7 @@ impl Drop for ARepairInHand {
         if self.done {
             return;
         }
-        let _removed: std::io::Result<()> = std::fs::remove_file(self.path.as_path());
+        self.finish();
     }
 }
 
@@ -137,25 +147,58 @@ pub fn the_repair_owner(git_dir: &Path, owner: &TransactionOwner) -> Option<ARep
         .string("createdAt", owner.created_at.as_str());
     let text: String = format!("{}\n", writer.finish());
     write_exclusive_synced(path.as_path(), text.as_bytes()).ok()?;
-    return Some(ARepairInHand { path, done: false });
+    return Some(ARepairInHand {
+        path,
+        mine: owner.transaction_id.clone(),
+        done: false,
+    });
 }
 
 /// What:
 ///  Take a repair place whose owner is gone,
-/// by removing its record and taking the place again.
+/// by moving that very record aside and taking the place, in one compare-and-take.
 /// Why:
 ///   A repair whose command was killed leaves its record; the next command must be able to take it
 /// without a person's help,
-///  and two commands doing that at once both remove the same name harmlessly and one of them wins the
-/// exclusive creation.
+///  and two commands that both read the dead record must not both take the place:
+/// the rename of the record each of them read succeeds for exactly one of them,
+///  so the one that renamed it away is the one that takes the place, and the other finds the record gone
+/// and takes nothing
+///  (a review of commit `777c491325`, its finding 2).
+///  A taker that renamed the dead record away and then could not create its own puts the record back,
+/// so the place is not left free with no owner named.
 ///
 /// In TS you'd write (pseudocode):
 /// ```ts
-/// rmSync(path, { force: true }); return writeExclusiveSynced(path, bytes);
+/// const aside = `${dead}.taken-${owner.transactionId}`; try { renameSync(dead, aside) } catch { return undefined } const taken = writeExclusiveSynced(path, bytes); if (!taken) renameSync(aside, dead); else rmSync(aside, { force: true }); return taken;
 /// ```
-pub fn the_repair_owner_after_its_owner_died(git_dir: &Path, owner: &TransactionOwner, dead: &Path) -> Option<ARepairInHand> {
-    let _removed: std::io::Result<()> = std::fs::remove_file(dead);
-    return the_repair_owner(git_dir, owner);
+pub fn the_repair_owner_after_its_owner_died(
+    git_dir: &Path,
+    owner: &TransactionOwner,
+    dead: &Path,
+    the_dead_owner: &TransactionOwner,
+) -> Option<ARepairInHand> {
+    let aside: PathBuf = dead.with_extension(format!("taken-{}", owner.transaction_id));
+    // The rename is the compare: exactly one taker of this dead record can move it.
+    std::fs::rename(dead, aside.as_path()).ok()?;
+    // What: the record that was moved aside must be the very dead one this command judged.
+    // Why: another command may have moved the dead record out and put its own live one in the place this
+    // command read a moment ago; taking that one away would give two commands the same place
+    //  (a review of commit `777c491325`, its finding 2).
+    let moved: Option<TransactionOwner> = the_owner_named_by(aside.as_path());
+    if !moved.is_some_and(|found| return found.transaction_id == the_dead_owner.transaction_id) {
+        // A live owner's record was in that place when this command renamed it: it goes back and nothing is taken.
+        let _restored: std::io::Result<()> = std::fs::rename(aside.as_path(), dead);
+        return None;
+    }
+    let taken: Option<ARepairInHand> = the_repair_owner(git_dir, owner);
+    if taken.is_none() {
+        // The place was taken by another command in the instant since; the dead record goes back where it was.
+        let _restored: std::io::Result<()> = std::fs::rename(aside.as_path(), dead);
+        return None;
+    }
+    let _removed: std::io::Result<()> = std::fs::remove_file(aside.as_path());
+    return taken;
 }
 
 /// What:
@@ -242,11 +285,14 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
                 continue;
             }
         };
-        if tip != movement.new_oid {
-            // What: the branch is not at the tip this record names, so its move is void.
-            // Why: that is the proof a later command needs, read at the moment the record goes
-            //      (a review of commit `4ca7aebcdb`, its finding 4).
-            let _removed = remove_branch_move(record.as_path());
+        if tip == movement.old_oid {
+            // What: the branch is still where it was, so the compare-and-swap never moved it.
+            // Why: that is the proof of a void move, read at the moment the record goes, and it is the only
+            //      tip comparison that may end a record: a branch that moved on leaves the checkout this record
+            //      names still to be brought forward, to the tip the branch has now
+            //      (a review of commit `777c491325`, its finding 1).
+            crate::auto_push_branch_move_record::AMoveInHand::adopt(record, movement)
+                .finish(crate::auto_push_branch_move_record::AFinishedRecord::NeverMoved);
             continue;
         }
         // What: one repair of this checkout at a time, taken by one exclusively created record.
@@ -257,89 +303,64 @@ pub async fn finish_branch_moves_awaiting<W: Write + ?Sized>(
             settled = Settled::AnotherCommandAtWork;
             continue;
         };
-        let brought = crate::auto_push_reconcile_branch_checkout::bring_the_checkout_to_its_branch_awaiting(
-            git,
-            movement.target_ref.as_str(),
-            movement.old_oid.as_str(),
-            movement.new_oid.as_str(),
-        )
-        .await;
+        let brought: crate::auto_push_reconcile_branch_checkout::Brought =
+            crate::auto_push_reconcile_branch_checkout::bring_the_checkout_to_its_branch_awaiting(
+                git,
+                movement.target_ref.as_str(),
+                movement.old_oid.as_str(),
+                tip.as_str(),
+            )
+            .await;
         match brought {
-            Ok(crate::auto_push_reconcile_branch_checkout::Brought::Right) => {
+            crate::auto_push_reconcile_branch_checkout::Brought::NoOldTip { a_persons } => {
+                // What: the repair answered that no path of the move holds what the branch moved from, and that
+                // is the proof the record ends on.
+                // Why: the person's own changes, if any, are theirs to commit, which is the rule the gate keeps too
+                //      (a review of commit `777c491325`, its findings 3 to 5).
                 repair.finish();
-                let _removed = remove_branch_move(record.as_path());
-                // What: a copy of the line the merge recovery prints, for a state change the person did not ask for.
-                // Why: a push that stopped left this checkout holding the older files, and an unrelated command may have
-                //      written the merge into it; a person who learns of it only by a changed file would be right to ask
-                //      what wrote it.
+                crate::auto_push_branch_move_record::AMoveInHand::adopt(record, movement.clone())
+                    .finish(crate::auto_push_branch_move_record::AFinishedRecord::TheCheckoutHoldsTheTip(
+                        crate::auto_push_branch_move_record::TheCheckoutHoldsTheTip::from_the_checkout(
+                            movement.target_ref.as_str(),
+                            tip.as_str(),
+                        ),
+                    ));
                 let _noted = writeln!(
                     out,
                     "monochromatic-git-policy-cli: the checkout at this worktree now holds {branch} at {merge}, which a push that stopped \
                      before it finished that checkout left behind; the edits you made elsewhere are kept.",
                     branch = movement.target_ref,
-                    merge = movement.new_oid
+                    merge = tip
                 );
-            }
-            Ok(crate::auto_push_reconcile_branch_checkout::Brought::Left { paths, reason, write_refused }) => {
-                let old_tip_left: bool = left_the_old_tip(git, movement.old_oid.as_str(), paths.as_slice()).await?;
-                if write_refused || old_tip_left {
-                    // What: a path the record's move wrote still holds what the branch moved from, so the record stays.
-                    // Why: a commit here would record that tree over the published merge, and the next command may
-                    //      finish the write
-                    //      (a review of commit `4ca7aebcdb`, findings 2 and 4).
-                    repair.hand_on();
-                    debug_line(out, &format!("the checkout here was not written ({reason}), so the record {} is left", record.display()));
-                    settled = Settled::OldTipLeft {
-                        branch: movement.target_ref.clone(),
-                        paths: paths.clone(),
-                    };
-                    continue;
+                if !a_persons.is_empty() {
+                    let _said = writeln!(
+                        out,
+                        "monochromatic-git-policy-cli: {} there hold a change of your own and were left as they are.",
+                        crate::auto_push_dirty_paths::listed(&a_persons)
+                    );
                 }
-                // The repair has run and told what it left; a record kept would only tell it again at every command.
-                repair.finish();
-                let _removed = remove_branch_move(record.as_path());
-                let _noted = writeln!(
-                    out,
-                    "monochromatic-git-policy-cli: the checkout at this worktree still differs from {} on {} and was left as it is ({reason}); \
-                     a commit there would record those files.",
-                    movement.target_ref,
-                    crate::auto_push_dirty_paths::listed(&paths)
-                );
             }
-            Err(error) => {
-                repair.hand_on();
-                debug_line(out, &format!("the checkout here was not brought to {} ({error}), so the record {} is left", movement.target_ref, record.display()));
-                settled = Settled::Unknown {
-                    why: format!("the checkout could not be read: {error}"),
+            crate::auto_push_reconcile_branch_checkout::Brought::OldTipLeft { paths, why } => {
+                // What: a path of the move still holds what the branch moved from, so the record stays.
+                // Why: a commit here would record that tree, and a later command may finish the write.
+                let _kept = repair;
+                debug_line(out, &format!("the checkout here was not written ({why}), so the record {} is left", record.display()));
+                settled = Settled::OldTipLeft {
+                    branch: movement.target_ref.clone(),
+                    paths,
                 };
+            }
+            crate::auto_push_reconcile_branch_checkout::Brought::CouldNotTell { why } => {
+                // What: the checkout could not be read or written, so nothing follows from it and the record stays.
+                // Why: a read that failed is not a proof that the checkout is right
+                //      (a review of commit `777c491325`, its findings 4 and 5).
+                let _kept = repair;
+                debug_line(out, &format!("the checkout here could not be read or written ({why}), so the record {} is left", record.display()));
+                settled = Settled::Unknown { why };
             }
         }
     }
     return Ok(settled);
-}
-
-/// What:
-///  Whether any of `paths` still holds what the branch moved from,
-/// asked again after the repair ran.
-/// Why:
-///   The answer the startup gate needs is whether a commit here could record the tree the record exists to
-/// prevent,
-///  and that is exactly this question, asked at the moment it is answered
-///  (a review of commit `4ca7aebcdb`, its finding 2).
-async fn left_the_old_tip(git: &PushGit, old_oid: &str, paths: &[Vec<u8>]) -> Result<bool, String> {
-    if paths.is_empty() {
-        return Ok(true);
-    }
-    let differing = crate::auto_push_reconcile_branch_checkout_files::the_paths_the_checkout_disagrees_with_its_branch_awaiting(git, paths)
-        .await
-        .map_err(|error| format!("the files of the checkout could not be read: {error}"))?;
-    if differing.is_empty() {
-        return Ok(false);
-    }
-    let holding = crate::auto_push_reconcile_branch_checkout_files::the_paths_still_holding_the_old_tip_awaiting(git, old_oid, differing.as_slice())
-        .await
-        .map_err(|error| format!("the files of the checkout could not be read: {error}"))?;
-    return Ok(!holding.is_empty());
 }
 
 /// What:
@@ -416,7 +437,7 @@ fn this_commands_repair_of_the_checkout<W: Write + ?Sized>(git_dir: &Path, out: 
         return None;
     };
     match crate::transaction_owner::classify_transaction_owner_record(&theirs, place.as_path()) {
-        Ok(crate::transaction_owner::OwnerLiveness::Dead) => return the_repair_owner_after_its_owner_died(git_dir, &owner, place.as_path()),
+        Ok(crate::transaction_owner::OwnerLiveness::Dead) => return the_repair_owner_after_its_owner_died(git_dir, &owner, place.as_path(), &theirs),
         // A probe that cannot be made reads as alive, as it does for the merge records.
         Ok(crate::transaction_owner::OwnerLiveness::Alive) | Err(_) => return None,
     }

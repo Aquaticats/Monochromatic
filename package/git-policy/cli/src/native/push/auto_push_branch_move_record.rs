@@ -411,6 +411,67 @@ pub fn record_branch_move(common_dir: &Path, target_ref: &str, old_oid: &str, ne
 /// ```ts
 /// class AMoveInHand { [Symbol.dispose]() { if (!this.done) leaveTheBranchMoveToAnyone(this.record) } }
 /// ```
+/// What:
+///  The proof that a record may end.
+/// Why:
+///   A record ends on proof and on nothing else, and there are exactly two proofs:
+///  the move never happened, which the compare-and-swap's own refusal shows;
+///  or the checkout that shows the branch holds none of what the branch moved from, which is a question
+///  that had to be answered to hold this value.
+///  Every other outcome a repair can give (a path still at the old tip, a write Git refused, a read that
+///  failed, another command at work) cannot be turned into one of these, so a caller cannot read a
+///  half-answer as leave to delete.
+///  `TheCheckoutHoldsTheTip` is made only by the one question that answers it, in
+///  `auto_push_branch_move_repairs.rs`.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// type AFinishedRecord = { kind: 'never-moved' } | { kind: 'checkout-holds-the-tip'; worktree: string; branch: string; tip: string };
+/// ```
+pub enum AFinishedRecord {
+    /// The compare-and-swap refused, so the branch never moved and no checkout can need repair.
+    NeverMoved,
+    /// The checkout that shows the branch holds the branch's own entries, and none of the moved-from tree.
+    TheCheckoutHoldsTheTip(TheCheckoutHoldsTheTip),
+}
+
+/// What:
+///  The proof that the checkout a record names holds the branch's own entries on every path of the move.
+/// Why:
+///   It is what the question that asks the index and the files answers, and its fields are private so no
+/// other value can stand in for that answer.
+pub struct TheCheckoutHoldsTheTip {
+    /// The branch whose checkout was asked.
+    branch: String,
+    /// The tip it holds.
+    tip: String,
+}
+
+impl TheCheckoutHoldsTheTip {
+    /// What:
+    ///  Build the proof from the one question that may: the paths of the move hold none of the tree the
+    ///  branch moved from, in the index or in the files.
+    /// Why:
+    ///   The constructor is private to this file's owner, so a value of this type exists only where that
+    ///  question was asked and answered.
+    pub(crate) fn from_the_checkout(branch: &str, tip: &str) -> TheCheckoutHoldsTheTip {
+        return TheCheckoutHoldsTheTip {
+            branch: branch.to_owned(),
+            tip: tip.to_owned(),
+        };
+    }
+
+    /// The branch whose checkout was asked.
+    pub fn branch(&self) -> &str {
+        return self.branch.as_str();
+    }
+
+    /// The tip it holds.
+    pub fn tip(&self) -> &str {
+        return self.tip.as_str();
+    }
+}
+
 pub struct AMoveInHand {
     /// Where the record is.
     record: PathBuf,
@@ -436,6 +497,19 @@ impl AMoveInHand {
         });
     }
 
+    /// What:
+    ///  Hold a record this command found, so that ending it needs the same proof as ending its own.
+    /// Why:
+    ///   The sweep meets records it did not write, and the one function that ends a record must serve both,
+    ///  or one of the two paths would end a record without a proof.
+    pub fn adopt(record: PathBuf, movement: BranchMove) -> AMoveInHand {
+        return AMoveInHand {
+            record,
+            movement,
+            done: false,
+        };
+    }
+
     /// Where this move's record is.
     pub fn record_path(&self) -> &Path {
         return self.record.as_path();
@@ -447,11 +521,14 @@ impl AMoveInHand {
     }
 
     /// What:
-    ///  This command finished what the record named: the checkout it names was repaired, or the move
-    ///  never happened, so the record goes.
+    ///  End the record, which only a proof allows: the move never happened, or the checkout holds the
+    ///  branch's own entries.
     /// Why:
-    ///   A record that outlives its move tells a later command to write a checkout that is already right.
-    pub fn finish(&mut self) {
+    ///   A record that outlives its move tells a later command to write a checkout that is already right,
+    /// and one that ends before its move leaves a checkout nothing finishes:
+    ///  this function is the only place a record is removed, and its argument is what says which of those
+    /// two states the checkout is in.
+    pub fn finish(mut self, _proof: AFinishedRecord) {
         let _removed = remove_branch_move(self.record.as_path());
         self.done = true;
     }

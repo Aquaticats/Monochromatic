@@ -159,8 +159,10 @@ pub(crate) async fn move_the_ref_only_awaiting(
     )
     .await?;
     if moved.code != Some(0) {
-        // Nothing moved, so nothing is left to finish.
-        in_hand.finish();
+        // What: the compare-and-swap refused, which is the proof that the branch never moved.
+        // Why: nothing can need repair then, and no other outcome of this move may end the record
+        //      (a review of commit `777c491325`, its findings 4 and 5).
+        in_hand.finish(crate::auto_push_branch_move_record::AFinishedRecord::NeverMoved);
         return Ok(NowhereMove::Answered(Advanced::Not {
             reason: refusal_of(&moved.stderr),
             advice: advice_to_move(merge_oid, where_to),
@@ -193,16 +195,17 @@ pub(crate) async fn move_the_ref_only_awaiting(
     };
     let repaired: Repaired =
         finish_the_checkout_that_raced_the_move(git, took_it.as_path(), branch_ref, local, merge_oid).await?;
-    if repaired.write_refused {
-        // What: the record stays when Git refused a write, because a later command may finish it.
-        // Why: the checkout still holds the older files on paths the merge changes, and the person was not asked anything:
-        //      the move writes them by the proof, so a lock is all that stood in the way.
-        debug(TAG, &format!("the checkout at {} was not written, so the record stays for a later command", took_it.display()));
-        in_hand.hand_on();
-    } else {
-        // The repair has run and told what it left, so the record has nothing more to finish: a record kept would only
-        //  tell it again at every command. A stop inside the repair left it, and the next command finishes the rest.
-        in_hand.finish();
+    match repaired.proof {
+        // What: the repair answered that no path of the move holds what the branch moved from.
+        // Why: that is the one proof of a finished checkout, and the record ends only on it
+        //      (a review of commit `777c491325`, its findings 4 and 5).
+        Some(proof) => in_hand.finish(crate::auto_push_branch_move_record::AFinishedRecord::TheCheckoutHoldsTheTip(proof)),
+        None => {
+            // What: a path still holds the moved-from tree, or the checkout could not be read, so the record stays.
+            // Why: a later command may finish the write, and a commit here would record the older tree.
+            debug(TAG, &format!("the checkout at {} is not proved to hold the merge, so the record stays for a later command", took_it.display()));
+            in_hand.hand_on();
+        }
     }
     return Ok(NowhereMove::Answered(repaired.advanced));
 }
@@ -241,8 +244,8 @@ pub(crate) async fn move_the_ref_only_awaiting(
 struct Repaired {
     /// The report's answer.
     advanced: Advanced,
-    /// Whether Git refused a write of the branch's own content.
-    write_refused: bool,
+    /// The proof that the checkout holds the branch's own entries, when the repair answered that it does.
+    proof: Option<crate::auto_push_branch_move_record::TheCheckoutHoldsTheTip>,
 }
 
 async fn finish_the_checkout_that_raced_the_move(
@@ -269,7 +272,7 @@ async fn finish_the_checkout_that_raced_the_move(
                 paths: Vec::new(),
                 reason: format!("{named} checked another branch out while {branch_ref} moved, so it holds nothing of the merge"),
             },
-            write_refused: false,
+            proof: None,
         });
     }
     let head = run_query_awaiting(&there, &argv(&["rev-parse", "--verify", "HEAD^{commit}"])).await?;
@@ -281,32 +284,46 @@ async fn finish_the_checkout_that_raced_the_move(
                 paths: Vec::new(),
                 reason: format!("{named} moved off the merge while {branch_ref} was moved, so it holds nothing of it"),
             },
-            write_refused: false,
+            proof: None,
         });
     }
     // What: the record of the move in the common Git directory stays until the repair finished.
     // Why: the repair writes the merge's content path by path, so a kill inside it leaves some paths written and the
     //      rest holding the pushed tip; the next command in that worktree reads the record and finishes them
     //      (`a_stop_inside_the_repair_leaves_a_record_the_next_command_finishes`).
-    let brought: Brought = match bring_the_checkout_to_its_branch_awaiting(&there, branch_ref, local, merge_oid).await {
-        Ok(brought) => brought,
-        Err(error) => Brought::Left { paths: Vec::new(), reason: format!("{named} could not be read: {error}"), write_refused: false },
-    };
+    let brought: Brought = bring_the_checkout_to_its_branch_awaiting(&there, branch_ref, local, merge_oid).await;
     // What: the branch the checkout shows is read again, after the repair, and never reused from before it.
     // Why: a switch landing inside the repair leaves the report naming a branch the worktree no longer shows
     //      (a review of commit `c15fc5a7b1`, its finding 5).
     let shows_now: Option<String> = shown_branch_awaiting(&there).await?;
-    if let Brought::Left { paths, reason, write_refused } = brought {
-        return Ok(Repaired {
-            advanced: Advanced::WorktreeHolding {
-                worktree: place.to_path_buf(),
-                shows: shows_now,
-                paths,
-                reason: format!("{named} took {branch_ref} while its reference moved, and its files there are older than the merge: {reason}"),
-            },
-            write_refused,
-        });
-    }
+    let proof: Option<crate::auto_push_branch_move_record::TheCheckoutHoldsTheTip> = match brought {
+        // What: the repair answered that no path of the move holds what the branch moved from.
+        // Why: the proof of a finished checkout is taken from that answer and from nothing else
+        //      (a review of commit `777c491325`, its findings 4 and 5).
+        Brought::NoOldTip { .. } => Some(crate::auto_push_branch_move_record::TheCheckoutHoldsTheTip::from_the_checkout(branch_ref, merge_oid)),
+        Brought::OldTipLeft { paths, why } => {
+            return Ok(Repaired {
+                advanced: Advanced::WorktreeHolding {
+                    worktree: place.to_path_buf(),
+                    shows: shows_now,
+                    paths,
+                    reason: format!("{named} took {branch_ref} while its reference moved, and its files there are older than the merge: {why}"),
+                },
+                proof: None,
+            });
+        }
+        Brought::CouldNotTell { why } => {
+            return Ok(Repaired {
+                advanced: Advanced::WorktreeHolding {
+                    worktree: place.to_path_buf(),
+                    shows: shows_now,
+                    paths: Vec::new(),
+                    reason: format!("{named} could not be read after it took {branch_ref}: {why}"),
+                },
+                proof: None,
+            });
+        }
+    };
     let status_arguments = argv(&["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=no"]);
     let status = run_query_awaiting(&there, &status_arguments).await?;
     if status.code != Some(0) {
@@ -317,16 +334,29 @@ async fn finish_the_checkout_that_raced_the_move(
                 paths: Vec::new(),
                 reason: format!("the status of {named} could not be read after its files were brought to the merge"),
             },
-            write_refused: false,
+            proof: None,
         });
     }
     let kept: bool = !status_paths(&status.stdout).is_empty();
+    // What: a checkout that shows another branch is said to show it, and never that it is at the merge.
+    // Why: the repair put that branch's own tree back, so the worktree followed its own branch and not this
+    // merge; the report that said it was at the merge named the wrong thing
+    //  (a review of commit `777c491325`, its finding 3, and commit `c15fc5a7b1`, its finding 5).
+    if shows_now.as_deref() != Some(branch_ref) {
+        return Ok(Repaired {
+            advanced: Advanced::WorktreeWentTo {
+                worktree: place.to_path_buf(),
+                shows: shows_now,
+            },
+            proof,
+        });
+    }
     return Ok(Repaired {
         advanced: Advanced::Elsewhere {
             worktree: place.to_path_buf(),
             kept,
         },
-        write_refused: false,
+        proof,
     });
 }
 

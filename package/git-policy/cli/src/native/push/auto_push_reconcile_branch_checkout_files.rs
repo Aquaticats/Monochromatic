@@ -130,6 +130,45 @@ pub(crate) async fn the_paths_still_holding_the_old_tip_awaiting(
 }
 
 /// What:
+///  The paths of `paths` whose index entry is the entry `tree` holds.
+/// Why:
+///   A path the branch moved from may be stale in the index or in the file, and the write that brings it
+/// forward is one or the other:
+///  an index that still holds the moved-from entry is written together with the file, and an index already
+/// at the branch's entry is written in the file alone.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// paths.filter((path) => !diffPaths((await git(['--no-optional-locks','diff-index','--cached','--name-only','-z','--no-renames',tree,'--',...paths])).stdout).includes(path))
+/// ```
+pub(crate) async fn the_paths_whose_index_holds_awaiting(
+    git: &PushGit,
+    tree: &str,
+    paths: &[Vec<u8>],
+) -> Result<Vec<Vec<u8>>, SingleFlightError> {
+    let arguments: Vec<OsString> = naming(
+        paths,
+        argv(&["--no-optional-locks", "diff-index", "--cached", "--name-only", "-z", "--no-renames", tree, "--"]),
+    );
+    let listed = run_query_awaiting(git, &arguments).await?;
+    if listed.code != Some(0) {
+        return Err(SingleFlightError::Git {
+            arguments: format!("diff-index --cached --name-only -z --no-renames {tree}"),
+            code: listed.code,
+            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
+        });
+    }
+    let differing: Vec<Vec<u8>> = diff_paths(&listed.stdout);
+    let mut holding: Vec<Vec<u8>> = Vec::new();
+    for path in paths {
+        if !differing.contains(path) {
+            holding.push(path.clone());
+        }
+    }
+    return Ok(holding);
+}
+
+/// What:
 ///  Write the branch's own entry over the paths whose content is the old tip's,
 /// path by path, by applying the patch between the two trees to the file alone.
 /// Why:
@@ -152,127 +191,39 @@ pub(crate) async fn the_branchs_own_entries_written_awaiting(
     git: &PushGit,
     old_oid: &str,
     merge_oid: &str,
-    paths: &[Vec<u8>],
+    in_the_index_too: &[Vec<u8>],
+    in_the_file_only: &[Vec<u8>],
 ) -> Result<Vec<String>, SingleFlightError> {
     let mut refusals: Vec<String> = Vec::new();
-    for path in paths {
-        let arguments: Vec<OsString> = naming(std::slice::from_ref(path), argv(&["--no-optional-locks", "diff", "--binary", old_oid, merge_oid, "--"]));
-        let patch = run_query_awaiting(git, &arguments).await?;
-        if patch.code != Some(0) {
-            refusals.push(format!("the patch between the two tips could not be read: {}", crate::auto_push_reconcile_branch_advance::refusal_of(&patch.stderr)));
-            continue;
+    let mut asked: Vec<(&[Vec<u8>], bool)> = vec![(in_the_index_too, true), (in_the_file_only, false)];
+    for (paths, also_the_index) in asked.drain(..) {
+        for path in paths {
+            let arguments: Vec<OsString> = naming(std::slice::from_ref(path), argv(&["--no-optional-locks", "diff", "--binary", old_oid, merge_oid, "--"]));
+            let patch = run_query_awaiting(git, &arguments).await?;
+            if patch.code != Some(0) {
+                refusals.push(format!("the patch between the two tips could not be read: {}", crate::auto_push_reconcile_branch_advance::refusal_of(&patch.stderr)));
+                continue;
+            }
+            if patch.stdout.is_empty() {
+                // The path holds the same content in both trees, so there is nothing this move wrote there.
+                continue;
+            }
+            // What: the patch applied to the file, and to the index as well where the index still holds the
+            // moved-from entry.
+            // Why: `git apply --index` refuses unless the index holds the patch's own pre-image, which is the
+            // second proof this write needs, and it takes Git's index lock for the write.
+            let apply_arguments: Vec<OsString> = if also_the_index {
+                argv(&["apply", "--index", "--whitespace=nowarn"])
+            } else {
+                argv(&["apply", "--whitespace=nowarn"])
+            };
+            let applied = crate::auto_push_single_flight::run_query_with_input_awaiting(git, &apply_arguments, patch.stdout.clone()).await?;
+            if applied.code != Some(0) {
+                refusals.push(crate::auto_push_reconcile_branch_advance::refusal_of(&applied.stderr));
+                continue;
+            }
+            crate::inner_git_words::record_streams(&["apply"], &applied.stdout, &applied.stderr);
         }
-        if patch.stdout.is_empty() {
-            // The path holds the same content in both tips, so there is nothing this move wrote there.
-            continue;
-        }
-        let applied = crate::auto_push_single_flight::run_query_with_input_awaiting(git, &argv(&["apply", "--whitespace=nowarn"]), patch.stdout.clone()).await?;
-        if applied.code != Some(0) {
-            refusals.push(crate::auto_push_reconcile_branch_advance::refusal_of(&applied.stderr));
-            continue;
-        }
-        crate::inner_git_words::record_streams(&["apply"], &applied.stdout, &applied.stderr);
     }
     return Ok(refusals);
-}
-
-/// What:
-///  The paths of `paths` where the merge's content and the tree of the branch the checkout shows
-/// differ, or all of them when `HEAD` names no commit.
-/// Why:
-///   These are the paths of the move that the branch the checkout shows does not hold,
-/// so a worktree holding the merge's bytes there is the state a reset of the index can hide.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// diffPaths((await git(['--no-optional-locks','diff','--name-only','-z','--no-renames',merge,'HEAD','--',...paths])).stdout)
-/// ```
-async fn the_paths_the_branch_lacks_awaiting(
-    git: &PushGit,
-    merge_oid: &str,
-    paths: &[Vec<u8>],
-) -> Result<Vec<Vec<u8>>, SingleFlightError> {
-    let arguments: Vec<OsString> = naming(
-        paths,
-        argv(&["--no-optional-locks", "diff", "--name-only", "-z", "--no-renames", merge_oid, "HEAD", "--"]),
-    );
-    let listed = run_query_awaiting(git, &arguments).await?;
-    if listed.code != Some(0) {
-        return Err(SingleFlightError::Git {
-            arguments: format!("diff --name-only -z --no-renames {merge_oid} HEAD"),
-            code: listed.code,
-            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
-        });
-    }
-    return Ok(diff_paths(&listed.stdout));
-}
-
-/// What:
-///  The paths of `paths` whose worktree file holds the merge's own content.
-/// Why:
-///   A byte in a worktree is replaced only where the code shows what it is,
-/// and this is the question that shows it:
-///  `git diff <merge> -- <paths>` lists the paths whose worktree content differs from the merge's.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// paths.filter((path) => !differingFromTheMerge.includes(path))
-/// ```
-async fn the_worktree_paths_holding_the_merge_awaiting(
-    git: &PushGit,
-    merge_oid: &str,
-    paths: &[Vec<u8>],
-) -> Result<Vec<Vec<u8>>, SingleFlightError> {
-    let arguments: Vec<OsString> =
-        naming(paths, argv(&["--no-optional-locks", "diff", "--name-only", "-z", "--no-renames", merge_oid, "--"]));
-    let listed = run_query_awaiting(git, &arguments).await?;
-    if listed.code != Some(0) {
-        return Err(SingleFlightError::Git {
-            arguments: format!("diff --name-only -z --no-renames {merge_oid}"),
-            code: listed.code,
-            stderr: String::from_utf8_lossy(&listed.stderr).into_owned(),
-        });
-    }
-    let differing: Vec<Vec<u8>> = diff_paths(&listed.stdout);
-    let mut holding: Vec<Vec<u8>> = Vec::new();
-    for path in paths {
-        if !differing.contains(path) {
-            holding.push(path.clone());
-        }
-    }
-    return Ok(holding);
-}
-
-/// What:
-///  The paths of the move whose worktree holds the merge's own bytes while the branch the checkout shows does not,
-///  which is the state a mixed reset leaves.
-/// Why:
-///   The index can be made to agree with anything by a reset,
-/// so the answer "nothing of the merge is in this checkout" rests on the files and not on the index
-///  (a review of commit `36cae084ae`, its finding 4).
-/// Only the paths the branch lacks are asked about,
-/// and on a checkout that shows the pushed branch there are none,
-///  which is why a move whose checkout followed pays no query here.
-///
-/// In TS you'd write (pseudocode):
-/// ```ts
-/// const lacking = await thePathsTheBranchLacks({ git, merge, paths });
-/// return lacking.length === 0 ? [] : (await theWorktreePathsHoldingTheMerge({ git, merge, paths: lacking })).filter((path) => lacking.includes(path));
-/// ```
-pub(crate) async fn the_merge_bytes_left_on_the_branch_awaiting(
-    git: &PushGit,
-    branch_ref: &str,
-    merge_oid: &str,
-    paths: &[Vec<u8>],
-) -> Result<Vec<Vec<u8>>, SingleFlightError> {
-    let shows: Option<String> = shows_awaiting(git).await?;
-    if shows.as_deref() == Some(branch_ref) {
-        // The branch the checkout shows is at the merge, so its own file is the merge's and nothing is hidden.
-        return Ok(Vec::new());
-    }
-    let lacking: Vec<Vec<u8>> = the_paths_the_branch_lacks_awaiting(git, merge_oid, paths).await?;
-    if lacking.is_empty() {
-        return Ok(Vec::new());
-    }
-    return the_worktree_paths_holding_the_merge_awaiting(git, merge_oid, lacking.as_slice()).await;
 }

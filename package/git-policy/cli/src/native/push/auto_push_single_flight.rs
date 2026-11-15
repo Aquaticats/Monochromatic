@@ -342,11 +342,12 @@ pub async fn run_query_with_input_awaiting(
     arguments: &[OsString],
     input: Vec<u8>,
 ) -> Result<QueryOutput, SingleFlightError> {
+    let window = query_window(&git.environment);
     return crate::bounded_query::run_bounded_git_awaiting(
         git_command(git, arguments),
         describe_arguments(arguments).as_str(),
-        query_window(&git.environment),
-        None,
+        window,
+        crate::bounded_query::query_ceiling(&git.environment),
         STOP_GRACE,
         git.environment.as_slice(),
         Some(input),

@@ -163,7 +163,7 @@ impl GitRunner for PushRunner<'_> {
             }
             let shown: String = arguments.join(" ");
             let cap: u64 = answer_cap(arguments, input);
-            let ceiling: Option<std::time::Duration> = Some(merge_ceiling(self.git.environment.as_slice()));
+            let ceiling: std::time::Duration = merge_ceiling(self.git.environment.as_slice());
             let output: QueryOutput = match run_bounded_git_awaiting(
                 command,
                 shown.as_str(),

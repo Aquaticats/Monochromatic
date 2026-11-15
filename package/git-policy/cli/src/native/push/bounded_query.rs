@@ -105,6 +105,32 @@ pub fn query_window(environment: &[(OsString, OsString)]) -> Duration {
     return push_deadline(environment);
 }
 
+/// How many quiet windows a read-only query may take in all before it is ended.
+/// Why:
+///   The quiet window ends a child that shows no sign of work, and never one that keeps printing:
+/// a query that keeps working must still end, and the planning document's own bound for read-only
+/// queries is 120 seconds,
+///  which is four of the default 30-second window
+///  (`doc/planning/cli-git-no-unbounded-waits.md`,
+/// entry 24).
+///  A control shortens the window and this bound follows it.
+pub const QUERY_CEILING_WINDOWS: u32 = 4;
+
+/// What:
+///  The whole time a read-only query may run,
+/// whatever it prints.
+/// Why:
+///   It is the window's own number of windows, so a setting that shortens the window for a control shortens
+/// this bound with it, and the shipped default lands on the 120 seconds the planning document records.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const ceiling = windowMs * QUERY_CEILING_WINDOWS
+/// ```
+pub fn query_ceiling(environment: &[(OsString, OsString)]) -> Duration {
+    return query_window(environment) * QUERY_CEILING_WINDOWS;
+}
+
 /// What:
 ///  The clock a read-only query's wait runs under.
 /// Why:
@@ -171,7 +197,8 @@ pub fn run_bounded_query(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, window, None, grace, environment, None, MAX_PUSH_OUTPUT)) {
+    let ceiling: Duration = query_ceiling(environment);
+    return match run_on_runtime(run_bounded_git_awaiting(command, arguments, window, ceiling, grace, environment, None, MAX_PUSH_OUTPUT)) {
         Ok(output) => output,
         Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
     };
@@ -191,7 +218,7 @@ pub fn run_bounded_git(
     command: Command,
     arguments: &str,
     window: Duration,
-    ceiling: Option<Duration>,
+    ceiling: Duration,
     grace: Duration,
     environment: &[(OsString, OsString)],
     input: Option<Vec<u8>>,
@@ -216,7 +243,7 @@ pub(crate) fn run_bounded_git_with_hold(
     input: Option<Vec<u8>>,
     hold: Box<dyn Fn() + Send + 'static>,
 ) -> Result<QueryOutput, SingleFlightError> {
-    return match run_on_runtime(run_bounded_git_held(command, arguments, window, None, grace, environment, input, MAX_PUSH_OUTPUT, Some(hold))) {
+    return match run_on_runtime(run_bounded_git_held(command, arguments, window, query_ceiling(environment), grace, environment, input, MAX_PUSH_OUTPUT, Some(hold))) {
         Ok(output) => output,
         Err(refusal) => Err(SingleFlightError::Start(std::io::Error::other(refusal.to_string()))),
     };
@@ -243,7 +270,7 @@ pub async fn run_bounded_query_awaiting(
     grace: Duration,
     environment: &[(OsString, OsString)],
 ) -> Result<QueryOutput, SingleFlightError> {
-    return run_bounded_git_awaiting(command, arguments, window, None, grace, environment, None, MAX_PUSH_OUTPUT).await;
+    return run_bounded_git_awaiting(command, arguments, window, query_ceiling(environment), grace, environment, None, MAX_PUSH_OUTPUT).await;
 }
 
 /// What:
@@ -269,7 +296,7 @@ pub async fn run_bounded_git_awaiting(
     command: Command,
     arguments: &str,
     window: Duration,
-    ceiling: Option<Duration>,
+    ceiling: Duration,
     grace: Duration,
     environment: &[(OsString, OsString)],
     input: Option<Vec<u8>>,
@@ -285,7 +312,7 @@ async fn run_bounded_git_held(
     mut command: Command,
     arguments: &str,
     window: Duration,
-    ceiling: Option<Duration>,
+    ceiling: Duration,
     grace: Duration,
     environment: &[(OsString, OsString)],
     input: Option<Vec<u8>>,
@@ -328,18 +355,19 @@ async fn run_bounded_git_held(
     // The clock is made from the child's number before the wait borrows it.
     let clock: Clock = query_clock(child.id(), window);
     // The progress window and the total ceiling are two bounds: a silent command is stopped by the first, and one that keeps working without returning only by the second.
-    let ended: Result<ExitStatus, StopCause> = match ceiling {
-        Some(total) => match tokio::time::timeout(total, wait_until_done_up_to(&mut child, &[&stdout, &stderr], clock, cap, &mut quiet, stop.as_ref())).await {
-            Ok(outcome) => outcome?,
-            Err(_passed) => {
-                stop_push(child, grace, locks).await;
-                return Err(SingleFlightError::Ceiling {
-                    arguments: arguments.to_owned(),
-                    seconds: total.as_secs(),
-                });
-            }
-        },
-        None => wait_until_done_up_to(&mut child, &[&stdout, &stderr], clock, cap, &mut quiet, stop.as_ref()).await?,
+    // What: every query has a total ceiling, so no caller can pass none.
+    // Why: a child that keeps printing inside every quiet window never trips that window, and without this
+    // bound it is waited for as long as it likes
+    //  (a review of commit `777c491325`, its finding 8).
+    let ended: Result<ExitStatus, StopCause> = match tokio::time::timeout(ceiling, wait_until_done_up_to(&mut child, &[&stdout, &stderr], clock, cap, &mut quiet, stop.as_ref())).await {
+        Ok(outcome) => outcome?,
+        Err(_passed) => {
+            stop_push(child, grace, locks).await;
+            return Err(SingleFlightError::Ceiling {
+                arguments: arguments.to_owned(),
+                seconds: ceiling.as_secs(),
+            });
+        }
     };
     let step: String = format!("git {}", arguments.split_whitespace().next().unwrap_or_default());
     if let Some(gap) = quiet {

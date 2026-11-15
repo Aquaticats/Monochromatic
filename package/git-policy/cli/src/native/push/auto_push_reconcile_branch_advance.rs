@@ -247,12 +247,17 @@ pub(crate) fn move_the_named_branch<'a>(git: &'a PushGit, branch_ref: &'a str, l
             // Why: the reference has not moved yet, so a refusal here leaves the branch where it was and the checkout as the switch
             //      left it, and the report says the branch is not at the merge.
             if !still_on_the_branch(git, branch_ref, local).await? {
-                match bring_the_checkout_to_its_branch_awaiting(git, branch_ref, local, merge_oid).await? {
-                    Brought::Right => {}
-                    Brought::Left { paths, reason, .. } => {
+                match bring_the_checkout_to_its_branch_awaiting(git, branch_ref, local, merge_oid).await {
+                    Brought::NoOldTip { .. } => {}
+                    Brought::OldTipLeft { paths, why } => {
                         return Ok(Err(format!(
-                            "another command checked out another branch while this fast-forward wrote its files, and the merge's changes to {} are still in that checkout and were left as they are: {reason}",
+                            "another command checked out another branch while this fast-forward wrote its files, and the merge's changes to {} are still in that checkout and were left as they are: {why}",
                             listed(&paths)
+                        )));
+                    }
+                    Brought::CouldNotTell { why } => {
+                        return Ok(Err(format!(
+                            "another command checked out another branch while this fast-forward wrote its files, and that checkout could not be read or written: {why}"
                         )));
                     }
                 }
@@ -329,13 +334,26 @@ pub(crate) async fn fast_forward_recorded(git: &PushGit, branch_ref: &str, local
     if let Some(dir) = git_dir.as_deref() {
         recorded = record_merge_intent(dir, git, branch_ref, local, merge_oid);
     }
-    let moved: Result<Checkout, String> = move_branch.move_branch(git, branch_ref, local, merge_oid).await?;
     let Some((record, intent)) = recorded else {
-        // Without a record the fast-forward runs as it always did, and Git's refusal is the reason.
-        return Ok(moved);
+        // What: the move does not start when its recovery record could not be written.
+        // Why: this move writes the checkout and then the reference, and a stop between them leaves the
+        // other worktree at the merge with its branch where it was and nothing that says so:
+        // a later commit then makes the merge's tree an ordinary commit on the branch
+        //  (a review of commit `777c491325`, its finding 7).
+        // The merge is published either way, so this is a reason the report gives and never a failed push.
+        return Ok(Err(String::from(
+            "the branch was not moved, because the record that finishes a move this one cannot be written here; the merge is published, and the branch follows it when a later push runs",
+        )));
     };
+    let moved: Result<Checkout, String> = move_branch.move_branch(git, branch_ref, local, merge_oid).await?;
     if let Ok(checkout) = &moved {
-        if let Err(error) = remove_merge_intent(record.as_path()) {
+        // What: the record goes only when the checkout is done with, which a holding checkout is not.
+        // Why: a refused cleanup leaves the merge's paths on another branch, and the record is what a later
+        // command finishes it from
+        //      (a review of commit `777c491325`, its finding 6).
+        if !matches!(checkout, Checkout::Holding { .. })
+            && let Err(error) = remove_merge_intent(record.as_path())
+        {
             debug(TAG, &format!("the merge record could not be removed: {error}"));
         }
         return Ok(Ok(checkout.clone()));

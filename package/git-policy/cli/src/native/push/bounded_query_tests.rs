@@ -198,7 +198,8 @@ fn a_query_whose_input_cannot_be_given_is_stopped_within_its_grace() {
         program,
         "hash-object --stdin",
         Duration::from_secs(60),
-        None,
+        // The ceiling every query has: this control's subject is the quiet window.
+        Duration::from_secs(240),
         grace,
         scratch_environment().as_slice(),
         Some(b"x".to_vec()),
@@ -319,7 +320,7 @@ fn a_request_that_could_not_be_written_whole_is_a_failure() {
         Command::new(shim.as_path()),
         "hash-object --stdin",
         Duration::from_secs(2),
-        None,
+        Duration::from_secs(120),
         Duration::from_millis(500),
         scratch_environment().as_slice(),
         Some(vec![b'x'; 1 << 20]),
@@ -362,9 +363,9 @@ fn a_command_that_closes_its_input_early_is_not_an_answer() {
     let failure: SingleFlightError = run_bounded_git(
         Command::new(shim.as_path()),
         "hash-object --stdin",
-        // The window main's control was written against is the only bound it needs: no total ceiling and the push report's cap.
+        // The window main's control was written against, and the ceiling every query has beyond it.
         Duration::from_secs(30),
-        None,
+        Duration::from_secs(120),
         Duration::from_millis(500),
         scratch_environment().as_slice(),
         Some(vec![b'x'; 1 << 20]),

@@ -193,11 +193,12 @@ pub fn registry_note(registry: &Path) -> Option<String> {
 /// ```ts
 /// identity.kind === 'outside-worktree' || identity.kind === 'bare-repository' ? undefined : [identity.gitDir, identity.commonDir]
 /// ```
-fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path)> {
+fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path, &Path)> {
     match identity {
         WorktreeIdentity::OutsideWorktree | WorktreeIdentity::BareRepository { .. } => return None,
-        WorktreeIdentity::MainWorktree { git_dir, common_dir, .. } | WorktreeIdentity::LinkedWorktree { git_dir, common_dir, .. } => {
-            return Some((git_dir.as_path(), common_dir.as_path()));
+        WorktreeIdentity::MainWorktree { git_dir, common_dir, worktree_root }
+        | WorktreeIdentity::LinkedWorktree { git_dir, common_dir, worktree_root } => {
+            return Some((git_dir.as_path(), common_dir.as_path(), worktree_root.as_path()));
         }
     }
 }
@@ -214,7 +215,7 @@ fn worktree_directories(identity: &WorktreeIdentity) -> Option<(&Path, &Path)> {
 /// ```ts
 /// if (await mergeIntentsToRecover(gitDir)) await recoverInterruptedMerges({ place, gitDir, stderr });
 /// ```
-fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &mut dyn Write) -> Result<(), RecoveryError> {
+fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, worktree_root: &Path, out: &mut dyn Write) -> Result<(), RecoveryError> {
     // A copy a merge kept beside a path is decided here too: it is the one thing a worktree with no merge record still has to
     //  look at, and a copy no later merge touches would otherwise be a file no command ever ends.
     // A repository that moved no branch without its checkout pays one failed directory read for this too.
@@ -227,52 +228,53 @@ fn settle_merges(context: &GitContext, git_dir: &Path, common_dir: &Path, out: &
     //      commit records a reversal of the published merge, and the record is what the next command finishes
     //      (a review of commit `36cae084ae`, its finding 3).
     if moves_to_finish {
+        // What: the sweep's own Git starts run in the worktree the identity names, never in the process's directory.
+        // Why: the repair reads and writes that worktree's index and files, and a command started elsewhere writes
+        // another repository's.
         let git: PushGit = PushGit {
             real_git: context.real_git.clone(),
-            cwd: PathBuf::from("."),
+            cwd: worktree_root.to_path_buf(),
             environment: context.overlay.clone(),
             lfs: false,
         };
         // What: a command is cleared only when no path of a move this checkout would commit over still holds
-        // what the branch moved from, or when this command is what made it stop.
+        // what the branch moved from.
         // Why: the sweep's success used to mean only that it had run, and a commit admitted over a stale
-        // checkout records the tree the record exists to prevent
-        //  (a review of commit `4ca7aebcdb`, its finding 2).
-        // A command that finds another command repairing this checkout waits for it, bounded by
-        // `REPAIR_WAIT`, and then clears and keeps the record, so the person is never failed for the wrapper's
-        // own reason: the two states that remain (another program's index lock, a write still going) stop that
-        // commit through Git's own lock.
+        // checkout records the tree the record exists to prevent; the gate then cleared a commit after
+        // naming exactly the paths that would be recorded
+        //  (a review of commit `777c491325`, its finding 3, and commit `4ca7aebcdb`, its finding 2).
+        // The sweep brings every path that still holds the moved-from tree forward by itself, so an answer
+        // that names such a path means the write could not be made: another program holds the index lock, or
+        // another command is repairing it. That command waits for the other one, bounded, and then stops the
+        // command with the paths named rather than clearing it over them.
         let mut waited: std::time::Duration = std::time::Duration::ZERO;
         loop {
             match finish_branch_moves(&git, common_dir, out) {
                 Ok(crate::auto_push_branch_move_repairs::Settled::Yes) => break,
                 Ok(crate::auto_push_branch_move_repairs::Settled::OldTipLeft { branch, paths }) => {
-                    let _said = writeln!(
-                        out,
-                        "monochromatic-git-policy-cli: this checkout still holds {branch}'s files from before its move on {paths}, and the \
-                         write of its own files was refused; a commit here would record them. The record of that move is kept, and a later \
-                         command finishes it once nothing is in the way.",
-                        paths = crate::auto_push_dirty_paths::listed(&paths)
-                    );
-                    break;
+                    return Err(RecoveryError(format!(
+                        "this checkout still holds {branch}'s files from before its move on {}, and this command could not write the branch's \
+                         own files over them, so it stops rather than let a commit record them. The record of that move is kept. Once nothing \
+                         holds the checkout's index, run the command again, or bring those files forward with `git checkout {branch} -- {}` \
+                         (keep a copy of them first: that overwrites what they hold).",
+                        crate::auto_push_dirty_paths::listed(&paths),
+                        crate::auto_push_dirty_paths::listed(&paths)
+                    )));
                 }
                 Ok(crate::auto_push_branch_move_repairs::Settled::Unknown { why }) => {
-                    let _said = writeln!(
-                        out,
-                        "monochromatic-git-policy-cli: the checkout this command runs in could not be checked against a branch move ({why}); \
-                         the record of that move is kept."
-                    );
-                    break;
+                    return Err(RecoveryError(format!(
+                        "the checkout this command runs in could not be checked against a branch move ({why}), so the command stops rather \
+                         than let a commit record files of unknown age. The record of that move is kept."
+                    )));
                 }
                 Ok(crate::auto_push_branch_move_repairs::Settled::AnotherCommandAtWork)
                     if waited >= crate::auto_push_branch_move_repairs::REPAIR_WAIT =>
                 {
-                    let _said = writeln!(
-                        out,
-                        "monochromatic-git-policy-cli: another command is finishing this checkout, and this command goes on after waiting {waited:?}; \
-                         the record of that move is kept."
-                    );
-                    break;
+                    return Err(RecoveryError(format!(
+                        "another command has been finishing this checkout for {waited:?}, so this command stops rather than let a commit \
+                         record files of unknown age. The record of that move is kept, and a command run once that repair has ended \
+                         finishes it."
+                    )));
                 }
                 Ok(crate::auto_push_branch_move_repairs::Settled::AnotherCommandAtWork) => {
                     std::thread::sleep(crate::auto_push_branch_move_repairs::REPAIR_PAUSE);
@@ -331,7 +333,7 @@ pub fn recover_for_command(context: &GitContext, identity: &WorktreeIdentity, en
 /// recoverForCommand({ context, identity, home })
 /// ```
 pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeIdentity, home: Option<&Path>) -> Gate {
-    let Some((git_dir, common_dir)) = worktree_directories(identity) else {
+    let Some((git_dir, common_dir, worktree_root)) = worktree_directories(identity) else {
         return Gate::Clear;
     };
     // The paths the layout resolved (a worktree `.git` file may name the repository through the link while the command runs elsewhere).
@@ -345,7 +347,7 @@ pub fn recover_for_command_with_home(context: &GitContext, identity: &WorktreeId
         Ok(false) => {}
         Err(error) => return stopped(&error),
     }
-    if let Err(error) = settle_merges(context, git_dir, common_dir, &mut std::io::stderr()) {
+    if let Err(error) = settle_merges(context, git_dir, common_dir, worktree_root, &mut std::io::stderr()) {
         return stopped(&error);
     }
     if let Some(note) = registry_note(git_dir.join(REGISTRY_DIRECTORY_NAME).as_path()) {

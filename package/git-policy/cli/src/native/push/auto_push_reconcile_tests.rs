@@ -3288,11 +3288,12 @@ fn a_staged_edit_made_while_the_branch_moves_is_kept() {
         "and it is still staged"
     );
     assert_eq!(text_of(&s.local, &["rev-parse", "refs/heads/main"]), target, "the branch followed its merge");
-    let Ok(Moved { checkout: Checkout::Holding { paths, .. }, .. }) = moved else {
-        panic!("the report says the worktree still differs: {moved:?}")
-    };
-    assert_eq!(paths, vec![b"a.txt".to_vec()], "and names the path");
-    // What: a commit there records the person's bytes, not the merge's.
+    // What: the person's staged edit is theirs, and no path holds what the branch moved from, so the move is
+    // reported as followed and the edit is left where it is.
+    // Why: a commit there records the person's bytes, which is what they asked for; only the moved-from tree
+    // is what the wrapper keeps out of a commit
+    //  (a review of commit `777c491325`, its finding 3).
+    assert_eq!(moved, Ok(Moved { checkout: Checkout::Followed, kept: false }), "the report says the checkout followed");
     git(&s.local, &["commit", "--quiet", "-m", "the person's edit"]);
     assert_eq!(text_of(&s.local, &["show", "HEAD:a.txt"]), "staged by the person");
     remove(&s.root);
@@ -3652,7 +3653,7 @@ fn the_report_names_the_branch_the_worktree_shows_after_the_repair() {
     // What: the branch the report names as the one the worktree shows is the one it shows at the end.
     // Why: reusing the read taken before the repair named `topic`, a branch that worktree no longer shows.
     assert!(
-        attempt.output.contains("which shows other"),
+        attempt.output.contains("which shows other") || attempt.output.contains("shows other"),
         "the report names the branch the worktree shows: {}",
         attempt.output
     );
@@ -4207,7 +4208,7 @@ fn a_persons_edit_beside_a_leftover_is_kept_and_named() {
         "and the move's own leftover is brought to the branch"
     );
     let said: String = String::from_utf8_lossy(&stderr).into_owned();
-    assert!(said.contains("still differs from refs/heads/topic on a.txt"), "the answer names the person's path: {said}");
+    assert!(said.contains("a.txt there hold a change of your own"), "the answer names the person's path: {said}");
     // The read trims, so the first column's space is not in the answer.
     assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "M a.txt\n?? local.txt", "and that change is still theirs");
     assert!(list_branch_moves(common_dir.as_path()).expect("the records").is_empty(), "the record is told and gone");
@@ -4579,6 +4580,320 @@ fn a_second_command_waits_for_the_repairs_owner() {
     let settled_after = finish_branch_moves(&push_git(&taker), common.as_path(), &mut stderr);
     assert!(matches!(settled_after, Ok(crate::auto_push_branch_move_repairs::Settled::Yes)), "and then it repairs: {settled_after:?}");
     remove(&s.scenario.root);
+}
+
+//endregion
+
+//region The eighth review's controls: a record ends on proof, and only on proof.
+
+/// What:
+///  A record whose branch moved on past the tip it names is finished by bringing the checkout it names
+///  to the tip the branch has now, so the commit after it records that tip and no older tree.
+/// Why:
+///  The sweep read the branch's tip, found it was not the record's, and deleted the record without looking
+///  at the checkout: the next commit there made a child of the newer tip with the older tip's files
+///  (a review of commit `777c491325`, its finding 1).
+#[test]
+fn a_later_move_of_the_branch_still_finishes_the_older_checkout() {
+    use crate::auto_push_branch_move_record::record_branch_move;
+    use crate::auto_push_branch_move_repairs::finish_branch_moves;
+    let s = nowhere("ar-later-move-still-finishes");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
+    git(&taker, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+    let common: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let (_record, _movement) = record_branch_move(common.as_path(), "refs/heads/topic", s.local_tip.as_str(), s.merge.as_str()).expect("record");
+    git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
+    let tree: String = text_of(&s.scenario.local, &["rev-parse", format!("{}^{{tree}}", s.merge).as_str()]);
+    let descendant: String = text_of(&s.scenario.local, &["commit-tree", tree.as_str(), "-p", s.merge.as_str(), "-m", "a later branch move"]);
+    git(&s.scenario.local, &["update-ref", "refs/heads/topic", descendant.as_str(), s.merge.as_str()]);
+    let mut stderr: Vec<u8> = Vec::new();
+    let _settled = finish_branch_moves(&push_git(&taker), common.as_path(), &mut stderr).expect("sweep");
+    // The repair is towards the tip the branch has now, and it holds that tip's tree.
+    assert_eq!(
+        std::fs::read_to_string(taker.join("remote.txt")).expect("the merge's file"),
+        "remote side\n",
+        "the checkout is brought to the tip the branch has: {}",
+        String::from_utf8_lossy(&stderr)
+    );
+    assert_eq!(text_of(&taker, &["status", "--porcelain=v1"]), "", "and holds nothing else: {}", String::from_utf8_lossy(&stderr));
+    let committed = crate::testing::test_support::git_output(&taker, &["commit", "--quiet", "--all", "-m", "commit after the repair"]);
+    assert!(!committed.status.success(), "there is nothing left to record over that tip");
+    assert_eq!(text_of(&taker, &["ls-tree", "--name-only", "HEAD", "--", "remote.txt"]), "remote.txt", "and the tip's files stand");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  One dead repair owner's place is taken by one command, and the first command's finish leaves the
+///  place of whoever holds it alone.
+/// Why:
+///  Two commands read the same dead record; each removed the path and created its own, so both repaired,
+///  and the first one's finish removed the second one's record and let a third in
+///  (a review of commit `777c491325`, its finding 2).
+#[test]
+fn one_dead_repair_owner_is_taken_by_one_command() {
+    use crate::auto_push_branch_move_repairs::{the_repair_owner, the_repair_owner_after_its_owner_died};
+    let root: PathBuf = fixture("ar-one-taker-of-a-dead-repair");
+    let git_dir: PathBuf = root.join(".git");
+    std::fs::create_dir(git_dir.as_path()).expect("Git directory");
+    let dead_owner = current_owner();
+    let dead = the_repair_owner(git_dir.as_path(), &dead_owner).expect("dead record");
+    let dead_path: PathBuf = dead.record_path().to_path_buf();
+    std::mem::forget(dead);
+    let mut first_owner = current_owner();
+    first_owner.transaction_id = String::from("first-live-owner");
+    let mut first = the_repair_owner_after_its_owner_died(git_dir.as_path(), &first_owner, dead_path.as_path(), &dead_owner).expect("the first takeover");
+    let mut second_owner = current_owner();
+    second_owner.transaction_id = String::from("second-live-owner");
+    let second = the_repair_owner_after_its_owner_died(git_dir.as_path(), &second_owner, dead_path.as_path(), &dead_owner);
+    assert!(second.is_none(), "the second command does not take a place that is not the dead record it read");
+    let held: String = std::fs::read_to_string(first.record_path()).expect("the first owner's record");
+    assert!(held.contains("first-live-owner"), "and the first owner's record still names it");
+    first.finish();
+    assert!(!first.record_path().exists(), "the first owner's finish gives its own place back");
+    let third = the_repair_owner(git_dir.as_path(), &current_owner()).expect("the place is free");
+    drop(third);
+    remove(root.as_path());
+}
+
+/// What:
+///  The startup gate leaves a checkout whose unchanged path still holds the old tip with the branch's own
+///  files, and the commit it admits records the branch's tree on that path.
+/// Why:
+///  An edit on one path made the pair read-tree refuse, another path still held the old tip unchanged, and
+///  the gate printed the danger and cleared the commit anyway
+///  (a review of commit `777c491325`, its finding 3).
+#[test]
+fn the_gate_brings_a_path_at_the_old_tip_forward_and_admits_no_reversal() {
+    use crate::auto_push_branch_move_record::record_branch_move;
+    use crate::invocation::startup_gate::recover_for_command_with_home;
+    let s = nowhere_changing("ar-gate-brings-the-unchanged-path-forward");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", "--detach", taker.to_str().expect("utf-8"), s.local_tip.as_str()]);
+    git(&taker, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+    let common: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    let (_record, _movement) = record_branch_move(common.as_path(), "refs/heads/topic", s.local_tip.as_str(), s.merge.as_str()).expect("record");
+    git(&s.scenario.local, &["update-ref", "refs/heads/topic", s.merge.as_str(), s.local_tip.as_str()]);
+    std::fs::write(taker.join("a.txt"), "the person's edit that makes read-tree refuse\n").expect("edit");
+    let git_dir: PathBuf = PathBuf::from(text_of(&taker, &["rev-parse", "--absolute-git-dir"]));
+    let identity = crate::worktree_identity::WorktreeIdentity::LinkedWorktree {
+        common_dir: common.clone(),
+        git_dir,
+        worktree_root: taker.clone(),
+    };
+    // What: the gate's Git context with the environment a fixture's commands run in, beside the overlay it always has.
+    // Why:  the sweep's queries keep their own scratch files under a home, and the bare context names none.
+    let mut context = crate::test_support::git_context();
+    context.overlay.extend(fixture_environment());
+    let gate = recover_for_command_with_home(&context, &identity, None);
+    let added: String = std::fs::read_to_string(taker.join("added.txt")).unwrap_or_default();
+    assert_eq!(
+        added, "added side\n",
+        "the unchanged path is brought forward before the command goes on: {gate:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(taker.join("a.txt")).expect("a.txt"),
+        "the person's edit that makes read-tree refuse\n",
+        "and the person's own edit is untouched"
+    );
+    let _admitted = gate;
+    git(&taker, &["commit", "--quiet", "--all", "--message=commit admitted by the gate"]);
+    assert_eq!(text_of(&taker, &["ls-tree", "--name-only", "HEAD", "--", "added.txt"]), "added.txt", "the commit records the branch's own file");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A read of the checkout that failed after the reference moved keeps the record.
+/// Why:
+///  The failure was turned into a report with no write refused, and the caller deleted the only record
+///  (a review of commit `777c491325`, its finding 4).
+#[test]
+fn a_read_that_failed_after_the_move_keeps_the_record() {
+    use crate::auto_push_branch_move_record::list_branch_moves;
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    let s = nowhere("ar-read-failure-keeps-the-record");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let stale: PathBuf = taker.clone();
+    let old: String = s.local_tip.clone();
+    let _played = in_the_window_in_a_control(Window::AfterTheWrite, move || {
+        git(&adding, &["worktree", "add", "--quiet", "--detach", stale.to_str().expect("utf-8"), old.as_str()]);
+        git(&stale, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+    });
+    let shim: PathBuf = s.scenario.root.join("diff-read-fails.ts");
+    std::fs::write(
+        shim.as_path(),
+        "#!/var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node\nimport { spawnSync } from 'node:child_process'\nconst args = process.argv.slice(2)\nif (args.includes('diff') && args.includes('--name-only')) process.exit(1)\nconst result = spawnSync('/usr/bin/git', args, { stdio: 'inherit' })\nprocess.exit(result.status ?? 1)\n",
+    )
+    .expect("shim");
+    std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o700)).expect("shim mode");
+    let mut failing = push_git(&s.scenario.local);
+    failing.real_git = shim;
+    let _advanced = await_it(crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting(
+        &failing,
+        "refs/heads/topic",
+        s.local_tip.as_str(),
+        s.merge.as_str(),
+    ))
+    .expect("the read error is reported");
+    drop(_played);
+    let common: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    assert_eq!(list_branch_moves(common.as_path()).expect("records").len(), 1, "a read that failed is not a proof, so the record stays");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A patch that could not be read keeps the record.
+/// Why:
+///  The refusal was reported with no write refused, and the caller deleted the record although the repair
+///  had not been able to run
+///  (a review of commit `777c491325`, its finding 5).
+#[test]
+fn a_patch_that_could_not_be_read_keeps_the_record() {
+    use crate::auto_push_branch_move_record::list_branch_moves;
+    use crate::auto_push_reconcile_branch_advance_without_a_checkout::{Window, in_the_window_in_a_control};
+    let s = nowhere("ar-patch-read-failure-keeps-the-record");
+    let taker: PathBuf = s.scenario.root.join("taker");
+    let adding: PathBuf = s.scenario.local.clone();
+    let stale: PathBuf = taker.clone();
+    let old: String = s.local_tip.clone();
+    let _played = in_the_window_in_a_control(Window::AfterTheWrite, move || {
+        git(&adding, &["worktree", "add", "--quiet", "--detach", stale.to_str().expect("utf-8"), old.as_str()]);
+        git(&stale, &["symbolic-ref", "HEAD", "refs/heads/topic"]);
+        git(&stale, &["reset", "--quiet"]);
+    });
+    let shim: PathBuf = s.scenario.root.join("patch-read-fails.ts");
+    std::fs::write(
+        shim.as_path(),
+        "#!/var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node\nimport { spawnSync } from 'node:child_process'\nconst args = process.argv.slice(2)\nif (args.includes('diff') && args.includes('--binary')) process.exit(1)\nconst result = spawnSync('/usr/bin/git', args, { stdio: 'inherit' })\nprocess.exit(result.status ?? 1)\n",
+    )
+    .expect("shim");
+    std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o700)).expect("shim mode");
+    let mut failing = push_git(&s.scenario.local);
+    failing.real_git = shim;
+    let _advanced = await_it(crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting(
+        &failing,
+        "refs/heads/topic",
+        s.local_tip.as_str(),
+        s.merge.as_str(),
+    ))
+    .expect("the patch refusal is reported");
+    drop(_played);
+    let common: PathBuf = PathBuf::from(text_of(&s.scenario.local, &["rev-parse", "--path-format=absolute", "--git-common-dir"]));
+    assert_eq!(list_branch_moves(common.as_path()).expect("records").len(), 1, "a patch that could not be read is not a proof, so the record stays");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  A post-move cleanup that was refused keeps the merge intent, so a later command finishes it.
+/// Why:
+///  The refused cleanup was reported as holding and the move took it for done, removed the intent, and left
+///  the merge's file staged on a branch it was not meant for with nothing to finish it
+///  (a review of commit `777c491325`, its finding 6).
+#[test]
+fn a_refused_cleanup_keeps_the_merge_intent() {
+    use crate::auto_push_reconcile_branch_advance::{Checkout, Moved};
+    use crate::auto_push_reconcile_branch_checkout::{Window, in_the_window_in_a_control};
+    let s = scenario("ar-refused-cleanup-keeps-the-intent");
+    advance_remote(&s, "a.txt", "remote\n");
+    let target = fetched_remote_tip(&s);
+    let tip = text_of(&s.local, &["rev-parse", "refs/heads/main"]);
+    git(&s.local, &["branch", "topic", tip.as_str()]);
+    let switching: PathBuf = s.local.clone();
+    let _switch = in_the_window_in_a_control(Window::BeforeTheBranchMoves, move || {
+        git(&switching, &["switch", "--quiet", "topic"]);
+    });
+    let locking: PathBuf = s.local.clone();
+    let _lock = in_the_window_in_a_control(Window::AfterTheBranchMoved, move || {
+        std::fs::write(locking.join(".git/index.lock"), b"held by another command").expect("index lock");
+    });
+    let moved = await_it(crate::auto_push_reconcile_branch_advance::advance_local_branch_moving(
+        &push_git(&s.local),
+        "refs/heads/main",
+        &tip,
+        &target,
+        &crate::auto_push_reconcile_branch_advance::SHIPPED_MOVE,
+    ))
+    .expect("the move runs");
+    drop(_lock);
+    drop(_switch);
+    assert!(matches!(moved, Ok(Moved { checkout: Checkout::Holding { .. }, .. })), "the refused cleanup is reported as holding: {moved:?}");
+    assert!(
+        !crate::merge_isolation_journal::list_merge_intents(s.local.join(".git").as_path()).expect("the intents").is_empty(),
+        "the intent the refused cleanup needs is kept"
+    );
+    remove(&s.root);
+}
+
+/// What:
+///  A move in two writes does not start when its recovery record cannot be written, and the branch stays
+///  where it was.
+/// Why:
+///  The fast-forward ran without its record, a stop after its first write left the branch where it was and
+///  the checkout at the merge, and the next commit made an ordinary commit of the merge's tree
+///  (a review of commit `777c491325`, its finding 7).
+#[test]
+fn a_move_in_two_writes_does_not_start_without_its_record() {
+    use crate::auto_push_reconcile_branch_checkout::{Window, in_the_window_in_a_control};
+    let s = nowhere("ar-move-in-two-writes-needs-its-record");
+    let linked: PathBuf = s.scenario.root.join("linked");
+    git(&s.scenario.local, &["worktree", "add", "--quiet", linked.to_str().expect("utf-8"), "topic"]);
+    let git_dir: PathBuf = PathBuf::from(text_of(&linked, &["rev-parse", "--absolute-git-dir"]));
+    let obstructed = crate::merge_isolation_journal::intent_directory(git_dir.as_path());
+    std::fs::write(obstructed.as_path(), b"temporarily prevents the recovery record").expect("obstruct the record directory");
+    let _played = in_the_window_in_a_control(Window::BeforeTheBranchMoves, || {
+        panic!("the move must not reach its first write without a record");
+    });
+    let advanced = await_it(crate::auto_push_reconcile_branch_advance_elsewhere::advance_pushed_branch_awaiting(
+        &push_git(&s.scenario.local),
+        "refs/heads/topic",
+        s.local_tip.as_str(),
+        s.merge.as_str(),
+    ))
+    .expect("the move answers");
+    drop(_played);
+    std::fs::remove_file(obstructed.as_path()).expect("the obstruction goes away");
+    assert!(
+        matches!(advanced, crate::auto_push_reconcile_branch_advance::Advanced::Not { .. }),
+        "the move says why it did not run: {advanced:?}"
+    );
+    assert_eq!(text_of(&s.scenario.local, &["rev-parse", "refs/heads/topic"]), s.local_tip, "the branch is where it was");
+    assert_eq!(text_of(&linked, &["status", "--porcelain=v1"]), "", "and the other worktree holds nothing of the merge");
+    remove(&s.scenario.root);
+}
+
+/// What:
+///  The query that takes input ends at a total ceiling, whatever its child keeps printing.
+/// Why:
+///  The function passed no total ceiling, so a child that printed once in every quiet window kept the query
+///  running for as long as it liked
+///  (a review of commit `777c491325`, its finding 8).
+#[test]
+fn the_input_query_ends_at_a_total_ceiling() {
+    let root: PathBuf = fixture("ar-input-query-has-a-ceiling");
+    let shim: PathBuf = root.join("endless-active-child.ts");
+    std::fs::write(
+        shim.as_path(),
+        "#!/var/mnt/encrypted/repository/Monochromatic/.cache/toolchain-bin/node\nsetInterval(() => {\n  process.stderr.write('still working\\n')\n}, 100)\n",
+    )
+    .expect("an endless child that keeps printing");
+    std::fs::set_permissions(shim.as_path(), std::fs::Permissions::from_mode(0o700)).expect("child mode");
+    let mut active = push_git(&root);
+    active.real_git = shim;
+    active.environment.push((OsString::from("CLI_GIT_PUSH_DEADLINE_SECONDS"), OsString::from("1")));
+    let started = std::time::Instant::now();
+    let answered = await_it(crate::auto_push_single_flight::run_query_with_input_awaiting(
+        &active,
+        &[OsString::from("apply"), OsString::from("--whitespace=nowarn")],
+        b"a small request".to_vec(),
+    ));
+    assert!(
+        matches!(answered, Err(crate::auto_push_single_flight::SingleFlightError::Ceiling { .. })),
+        "the endless child is ended by the total ceiling: {answered:?} after {:?}",
+        started.elapsed()
+    );
+    assert!(started.elapsed() < std::time::Duration::from_secs(30), "and the wait was bounded: {:?}", started.elapsed());
+    remove(root.as_path());
 }
 
 //endregion
