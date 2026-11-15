@@ -238,9 +238,7 @@ fn pid_in(path: &std::path::Path) -> i32 {
 /// still write would otherwise race the rollback.
 #[test]
 fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let (workspace, transaction) = delegated_transaction();
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
@@ -275,9 +273,7 @@ fn a_descendant_is_stopped_with_its_parent_at_the_bound() {
 /// is complete.
 #[test]
 fn a_descendant_left_after_a_normal_exit_is_stopped() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let (workspace, transaction) = delegated_transaction();
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
@@ -319,9 +315,7 @@ fn a_descendant_left_after_a_normal_exit_is_stopped() {
 /// that a drain that waits for the pipes to close before the scope is stopped cannot finish inside it.
 #[test]
 fn a_descendant_in_another_session_that_holds_the_pipes_is_stopped_and_the_output_is_complete() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let (workspace, transaction) = delegated_transaction();
     let directory = crate::test_scratch::scratch();
     let pid_file = directory.path().join("pid");
@@ -386,9 +380,7 @@ fn a_timeout_names_the_command_the_user_ran() {
 /// longer bound and the judged attempt is the one in which the payload started and was stopped with its parent.
 #[test]
 fn a_scope_that_starts_slower_than_the_first_bound_is_retried_with_a_longer_bound_and_then_judged() {
-    if crate::cgroup_test_support::delegated_route().is_none() {
-        return;
-    }
+    crate::cgroup_test_support::this_test_needs_a_delegated_scope();
     let (_workspace, transaction) = delegated_transaction();
     let directory = crate::test_scratch::scratch();
     let slow: std::path::PathBuf = directory.path().join("slow-systemd-run");

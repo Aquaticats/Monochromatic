@@ -217,6 +217,13 @@ mod witness_tests;
 #[path = "service_land_hung_write_tests.rs"]
 mod hung_write_tests;
 
+/// Controls for the note a landing writes for the next service,
+/// held on the thread that writes it,
+/// stay out of the release executable.
+#[cfg(test)]
+#[path = "service_land_watch_note_tests.rs"]
+mod watch_note_tests;
+
 /// Controls for the worktree's head around a landing stay out of the release executable.
 #[cfg(test)]
 #[path = "service_land_head_tests.rs"]
