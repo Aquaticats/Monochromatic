@@ -1559,6 +1559,136 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### The owner sleeps and the CPU is held under 80 degrees; six runs are routed, among them two reviews that send mpm's stale launchers and the killed-Git lock back (2026-11-15T05:08:56-05:00)
+
+Not final and not approved:
+an instruction of the owner's,
+what three reviews and four authors report,
+how the coordinating session weighed them,
+and what it queued.
+
+- **The owner's words, about 04:51**:
+  "I need to go to sleep for a few hours.
+  Keep CPU temp lower than 80 degrees until I say I've finished sleeping for today."
+  What was done and measured is in `doc/handover/claude-cpu-cap-and-thermal-watch.md`,
+  "CPU held under 80 degrees while the owner sleeps".
+  For this work it means:
+  **from 04:53 every run's CPU is under a quota that moves with the temperature,
+  and from 05:06 the machine's power profile is power-saver**,
+  so commands run slower and a timing measured in this window is not comparable with one outside it.
+  From 04:55 to 04:59 a mistake of this session's held all work to one and a half threads.
+  A control with a tight deadline that fails in this window is weighed with that in mind;
+  the briefs written since say so to their agents.
+- **mpm-shadow's stale launchers** (`c115e9ec4e`),
+  the eighth review of that work,
+  ended 04:49:42,
+  twelve of twelve files,
+  six things,
+  five by a test compiled against a copy of the source.
+  An install beside another is left with a link to a launcher the other just deleted;
+  the repair of a killed run's leftovers checks and then unlinks,
+  and deletes a file put there between;
+  an entry of the postinstall record that cannot be read is skipped and its launcher deleted;
+  a guard held five seconds makes publishing a lock or plan fail;
+  a growing file is read without bound
+  (read).
+  Those five are worth their fix and go back to the run that owns the branch.
+  The sixth,
+  an edit through a descriptor opened earlier and made after the last judgement,
+  is weighed as a limit to be stated and not chased:
+  a holder of an open descriptor can write after any look.
+  (`~/temp/agent/pi-runs/mpm-shadow-stale-launchers-answers-its-eighth-review-of-2026-11-15-prompt.md`,
+  queued ninth.)
+- **The lock a killed Git left on a reference** (`ca936e0b93`),
+  its second review,
+  ended 04:51:40;
+  the first review's five things are answered.
+  Two new ones reproduced with real Git:
+  the bounded runner's child now gets a binding and still no record of its start,
+  so its lock is never cleared and the next commit fails with status 128;
+  and a reference named `HEAD` makes its folder look like a Git directory,
+  so the `objects` namespace beside it is skipped.
+  The second is the author's own
+  (a Git directory is known from what the wrapper was told,
+  never from what a folder holds).
+  The first needs the record that the lock-holders branch brings
+  (`429503238b`,
+  in review);
+  the author is told to make the review's program its control if `main` holds that record when it merges,
+  and otherwise to record its output and build nothing.
+  (`~/temp/agent/pi-runs/lock-a-killed-git-left-for-a-reference-lock-answers-its-second-review-of-2026-11-15-prompt.md`,
+  queued fourth.)
+- **The controls under an address-space limit** (`7e9e3c2f3c`),
+  their second review,
+  ended 04:57:29:
+  one thing,
+  by reading,
+  and it ran nothing
+  (`mise` could not decrypt under its disposable home).
+  The claim:
+  a wait for the log's copies that gives up drops the receivers it took,
+  so the next wait answers that every copy ended.
+  The author is resumed for a control first
+  (`~/temp/agent/pi-runs/controls-of-a-service-under-an-address-space-limit-answer-their-second-review-of-2026-11-15-prompt.md`,
+  queued fifth),
+  and the journal branch's author,
+  whose run was going and whose brief names that wait as a shape to take,
+  got a note at 05:08.
+- **The wrapper under the gate container's Git**,
+  its author's fourth run,
+  ended 04:59:14 at `f6aaf6d9e5`.
+  The helper keeps its own bound now:
+  the query runs in a process group of its own,
+  is ended and reaped at the bound,
+  and "ended by the bound" is said only when the helper did that;
+  a held pipe is left to its holder after a 250 ms grace and said.
+  It measured the other waits and found the same two defects in `observe`,
+  the shared wait of about 1,200 binary controls
+  (8,005 ms against a one-second bound;
+  a command's own `SIGKILL` reported as the bound),
+  and left it,
+  as one function was its round.
+  Its review is queued second.
+  **A fresh run is queued for `observe`**
+  (`~/temp/agent/pi-runs/shared-wait-of-the-binary-controls-keeps-its-own-bound-and-says-how-a-command-ended-prompt.md`,
+  fifteenth).
+- **The long-runtime-directory controls**,
+  their author's second run,
+  ended 04:55:23 at `0bcc1fc7fc`.
+  The linked-spelling control passes in all four arrangements;
+  both planted comparisons now fail their controls,
+  quoted.
+  It found a third control of the same class outside its range
+  (`service_instance::tests::one_socket_address_holds_a_name_of_the_longest_length_and_no_more` overflows in a home of about 87 bytes or more)
+  and says the two binary controls the review noticed come from the shared fixture maker;
+  neither has an owner yet.
+  The five gate controls pass in two gate images.
+  Its review is queued third;
+  this time the range holds one code file that is not a test,
+  so the package's writer takes it.
+- **The record of another boot**,
+  a fresh run,
+  ended 04:54:17 at `1c3a90ddaa`.
+  The wrapper now answers "unknown" for a boot part that is not 32 hex digits and a namespace part that is not digits,
+  so a record whose shape is no writer's keeps its lock;
+  two new controls failed before the change.
+  It says no build of the branch inside the container exists:
+  the attempt did not finish in 40 minutes under this machine's load.
+  Its review is queued sixth.
+- A launcher named `…second-review-git-policy-cli-push-stopped-at-its-window-ends-within-its-bound` started at 05:02:46 while that review's first run had written no summary and its review file read "NOT FINAL".
+  The launcher check does not understand the name.
+  Whether the first run died in the minutes held to one and a half threads is not yet read;
+  the next round reads it.
+- Read at 05:06:43:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start in the filling unit's journal since 05:00;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  17 runs going,
+  the cap.
+  No resumed session is named by the credential scan.
+  The queue held 83 entries at 05:08:56.
+
 ##### The landing's author shows three of the four claims hold and one cannot be reached, fixes them, and goes to review again (2026-11-15T04:49:50-05:00)
 
 Not final and not approved:
