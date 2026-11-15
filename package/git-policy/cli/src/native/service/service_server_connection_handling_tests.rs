@@ -147,7 +147,7 @@ fn where_no_thread_can_start_the_note_of_a_beat_is_left_out() {
     }
     let (shared, _jobs) = shared_in("connection-no-thread-note");
     let ((), _ticks) = with_a_ticker_beside(async {
-        let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(String::from("a-request")), None);
+        let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(String::from("a-request")), None, None);
         assert_eq!(notice.note().await, None, "no note, and no panic");
     });
 }
@@ -690,4 +690,39 @@ fn a_request_that_waited_past_the_bound_is_told_what_the_wait_is_in() {
     let said: Option<String> = key;
     assert_eq!(note_from_the_board(&shared.board, Some("a-request"), Some(past), said.clone()).0, None, "and they are said once");
     assert_eq!(note_from_the_board(&shared.board, Some("a-request"), None, None), (None, None), "a connection whose wait is not a commit's is told nothing");
+}
+
+/// What:
+///  A connection whose request never reached the landing thread's queue is told nothing of a queue wait,
+///  and one whose request did is told the words once.
+/// Why:
+///   A request refused because another instance serves it,
+///  or withdrawn,
+///  never waited for the landing thread,
+/// and the words of a queue wait would be a claim about a wait that never happened
+/// (`wait_ceilings.rs`, `A_QUEUE_WAIT_NAMED_AFTER`).
+#[test]
+fn a_connection_that_never_reached_the_queue_is_told_nothing_of_a_queue_wait() {
+    let (shared, _jobs) = shared_in("connection-not-queued-words");
+    let past: Instant = Instant::now()
+        .checked_sub(crate::wait_ceilings::A_QUEUE_WAIT_NAMED_AFTER * 2)
+        .expect("a moment past the bound");
+    let not_queued: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let ((), _ticks) = with_a_ticker_beside(async {
+        let mut refused: StuckNotice = stuck_notice(
+            Arc::clone(&shared.board),
+            Some(String::from("a-request")),
+            Some(past),
+            Some(Arc::clone(&not_queued)),
+        );
+        assert_eq!(refused.note().await, None, "a request that never reached the queue is told nothing of a queue wait");
+    });
+    not_queued.store(true, std::sync::atomic::Ordering::SeqCst);
+    let ((), _ticks) = with_a_ticker_beside(async {
+        let mut waiting: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(String::from("a-request")), Some(past), Some(Arc::clone(&not_queued)));
+        let told: Option<ServiceMessage> = waiting.note().await;
+        let Some(ServiceMessage::Waiting { text }) = told else { panic!("the words of the queue wait are said: {told:?}") };
+        assert!(text.contains("had recorded no write"), "{text}");
+        assert_eq!(waiting.note().await, None, "and they are said once");
+    });
 }

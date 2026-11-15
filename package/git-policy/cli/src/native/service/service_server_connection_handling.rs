@@ -93,8 +93,8 @@ pub(crate) struct ConnectionShared {
 /// ```ts
 /// () => { const words = board.describe(); return words !== last ? (last = words, { type: 'waiting', text: words }) : undefined; }
 /// ```
-pub(crate) fn stuck_notice(board: Arc<LandingBoard>, request: Option<String>, accepted: Option<Instant>) -> StuckNotice {
-    return StuckNotice { board, request, accepted, last: None, still_reading: None };
+pub(crate) fn stuck_notice(board: Arc<LandingBoard>, request: Option<String>, accepted: Option<Instant>, queued: Option<Arc<std::sync::atomic::AtomicBool>>) -> StuckNotice {
+    return StuckNotice { board, request, accepted, queued, last: None, still_reading: None };
 }
 
 /// The answer of one read of the journal for a beat's note:
@@ -140,6 +140,10 @@ pub(crate) struct StuckNotice {
     /// which is when the request began to wait,
     /// and nothing for a connection whose wait is not a commit's.
     accepted: Option<Instant>,
+    /// Whether the request of this connection is in the landing thread's queue,
+    /// which is the only state in which a wait is the queue's:
+    /// a request refused or withdrawn never waited for the landing thread at all.
+    queued: Option<Arc<std::sync::atomic::AtomicBool>>,
     /// The key of the words said last.
     last: Option<String>,
     /// The read of this connection's note that is still running,
@@ -196,7 +200,11 @@ impl NoteSource for StuckNotice {
         if self.still_reading.is_none() {
             let board: Arc<LandingBoard> = Arc::clone(&self.board);
             let request: Option<String> = self.request.clone();
-            let accepted: Option<Instant> = self.accepted;
+            // The queue's words are said only while the request is the landing thread's to take.
+            let accepted: Option<Instant> = match self.queued.as_ref() {
+                Some(queued) if !queued.load(std::sync::atomic::Ordering::SeqCst) => None,
+                Some(_) | None => self.accepted,
+            };
             // Cloned rather than taken: the words said last stay the words that were said until a read answers with the next
             //  ones, and a read that outlives its beat answers only beats later.
             let last: Option<String> = self.last.clone();
@@ -428,8 +436,10 @@ where
     let (reply, mut messages) = Reply::new();
     let answering: UnboundedSender<ServiceMessage> = reply.sender();
     let queue: UnboundedSender<Job> = shared.queue.clone();
+    // Whether the request has reached the landing thread's queue, which is what makes a wait the queue's.
+    let queued: Arc<std::sync::atomic::AtomicBool> = Arc::new(std::sync::atomic::AtomicBool::new(false));
     // What a beat asks for before it, held here because the writer borrows it for the whole wait.
-    let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(id.clone()), Some(accepted));
+    let mut notice: StuckNotice = stuck_notice(Arc::clone(&shared.board), Some(id.clone()), Some(accepted), Some(Arc::clone(&queued)));
     // What the check's answer is written with, and what it does with the request it decides about.
     let checking = async move {
         match decide.await {
@@ -447,6 +457,7 @@ where
                 //  so a collection spares it until the service is done with the request (`service_scratch_trees_of_queued_requests.rs`).
                 crate::service_scratch_trees_of_queued_requests::note(request.id.as_str(), request.scratch.as_path());
                 let _queued = queue.send(Job::Commit(request, reply, Arrival { accepted, read: accepted.elapsed() }));
+                queued.store(true, std::sync::atomic::Ordering::SeqCst);
                 crate::service_fault::queued(id.as_str());
             }
         }
@@ -486,7 +497,7 @@ async fn withdraw(id: String, write_half: &mut OwnedWriteHalf, shared: &Connecti
             let _queued = shared.queue.send(Job::Withdraw(id, reply));
             // The connection keeps the identity of the request, so a client that withdrew too early to have been told it is
             // inside the write is told now.
-            write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut stuck_notice(Arc::clone(&shared.board), Some(withdrawing), None)).await;
+            write_until_answered_noting(write_half, &mut messages, HEARTBEAT_EVERY, &mut stuck_notice(Arc::clone(&shared.board), Some(withdrawing), None, None)).await;
         }
     };
 }
