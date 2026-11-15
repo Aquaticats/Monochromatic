@@ -8,7 +8,9 @@
  @module
  */
 
+import { spawnSync, } from 'node:child_process';
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readFile,
@@ -115,6 +117,255 @@ function gitAnswering({ files, }: { readonly files: readonly string[] },): GitQu
       stdout,
       stderr: '',
     };
+  };
+}
+
+
+/**
+ A disposable repository whose `main` a test can advance under the writer, and the commits it asks about.
+
+ It is built with `git fast-import`, so no command of the machine's Git wrapper decides what the commits are, and every commit the
+ test names is one it wrote.
+
+ @param folder - the folder the repository is made in
+
+ @returns where the repository is, and the commits a brief is written for
+
+ @example
+ ```ts
+ const repository = await aDisposableRepository({ folder: '/scratch', },);
+ ```
+ */
+async function aDisposableRepository({ folder, }: { readonly folder: string },): Promise<{
+  readonly checkoutFolder: string;
+  readonly firstChangeCommit: string;
+  readonly firstChangeFile: string;
+  readonly secondChangeCommit: string;
+  readonly secondChangeFile: string;
+  readonly mergedMain: string;
+}> {
+  /**
+   Where the repository is.
+   */
+  const checkoutFolder = join(folder, 'repository',);
+  await mkdir(checkoutFolder, { recursive: true, },);
+  /**
+   Runs one git command in the repository and answers what it printed.
+   */
+  function git({ words, input, }: { readonly words: readonly string[]; readonly input?: string },): string {
+    /**
+     What git answered.
+     */
+    const answered = spawnSync('git', words, {
+      cwd: checkoutFolder,
+      encoding: 'utf8',
+      ...((input === undefined) ? {} : { input, }),
+    },);
+    if ((answered.status !== 0) || (answered.error !== undefined)) {
+      throw new Error(`git ${words.join(' ',)} answered ${String(answered.status,)}: ${answered.stderr}`,);
+    }
+    return answered.stdout.trim();
+  }
+  git({ words: ['init', '--initial-branch=main', '--quiet',], },);
+  /**
+   A blob of a file's text, as fast-import takes it.
+   */
+  function data(text: string,): string {
+    /**
+     The text with the line feed a file ends with.
+     */
+    const raw = text.endsWith('\n',) ? text : `${text}\n`;
+    return `data ${String(Buffer.byteLength(raw,),)}\n${raw}`;
+  }
+  /**
+   One commit of the stream.
+   */
+  function commit({
+    ref,
+    mark,
+    message,
+    from,
+    merge,
+    files,
+  }: {
+    readonly ref: string;
+    readonly mark: string;
+    readonly message: string;
+    readonly from?: string;
+    readonly merge?: string;
+    readonly files: readonly { readonly blob: string; readonly path: string }[];
+  },): string {
+    return `commit ${ref}\nmark ${mark}\ncommitter Disposable Review <disposable@example.invalid> 1700000000 +0000\n`
+      + `${data(message,)}${(from === undefined) ? '' : `from ${from}\n`}`
+      + `${(merge === undefined) ? '' : `merge ${merge}\n`}`
+      + files.map(function added(file,) {
+        return `M 100644 ${file.blob} ${file.path}\n`;
+      },)
+        .join('',);
+  }
+  /**
+   The base file every commit holds, and the one main adds beside it.
+   */
+  const baseFile = { blob: ':1', path: 'package/a/src/base.ts', };
+  /**
+   The file the first change adds.
+   */
+  const firstChangeFile = 'package/a/src/first.ts';
+  /**
+   The file the second change adds.
+   */
+  const secondChangeFile = 'package/a/src/second.ts';
+  /**
+   The file main adds before its merge.
+   */
+  const mainFile = { blob: ':7', path: 'main-only.txt', };
+  git({
+    words: ['fast-import', '--quiet',],
+    input: [
+      `blob\nmark :1\n${data('export const base = 0;\n',)}`,
+      commit({
+        ref: 'refs/heads/main',
+        mark: ':2',
+        message: 'base',
+        files: [baseFile,],
+      },),
+      `blob\nmark :3\n${data('export const first = true;\n',)}`,
+      commit({
+        ref: 'refs/heads/fix/first',
+        mark: ':4',
+        message: 'the first change',
+        from: ':2',
+        files: [baseFile, { blob: ':3', path: firstChangeFile, },],
+      },),
+      `blob\nmark :5\n${data('export const second = true;\n',)}`,
+      commit({
+        ref: 'refs/heads/fix/second',
+        mark: ':6',
+        message: 'the second change',
+        from: ':2',
+        files: [baseFile, { blob: ':5', path: secondChangeFile, },],
+      },),
+      `blob\nmark :7\n${data('independent main change\n',)}`,
+      commit({
+        ref: 'refs/heads/main-before-merge',
+        mark: ':8',
+        message: 'main before its merge',
+        from: ':2',
+        files: [baseFile, mainFile,],
+      },),
+      commit({
+        ref: 'refs/heads/merged-main',
+        mark: ':9',
+        message: 'integrate the first change',
+        from: ':8',
+        merge: ':4',
+        files: [baseFile, mainFile, { blob: ':3', path: firstChangeFile, },],
+      },),
+      'done\n',
+    ].join('',),
+  },);
+  /**
+   The commit main starts at.
+   */
+  const mainBeforeMerge = git({ words: ['rev-parse', 'refs/heads/main-before-merge',], },);
+  git({ words: ['update-ref', 'refs/heads/main', mainBeforeMerge,], },);
+  return {
+    checkoutFolder,
+    firstChangeCommit: git({ words: ['rev-parse', 'refs/heads/fix/first',], },),
+    firstChangeFile,
+    secondChangeCommit: git({ words: ['rev-parse', 'refs/heads/fix/second',], },),
+    secondChangeFile,
+    mergedMain: git({ words: ['rev-parse', 'refs/heads/merged-main',], },),
+  };
+}
+
+/**
+ Answers the writer's questions from a real repository, moving `main` to a commit of its own after every answer.
+
+ Moving `main` between every pair of questions is what a merge into it does on this machine many times an hour; a writer that
+ answers from one moment comes back with the same material whatever happens between its questions.
+
+ @param repository - the repository, and the commit main is moved to
+
+ @param moveMainTo - the commit to move `main` to after every answer, or nothing to leave `main` alone
+
+ @returns the answers
+
+ @example
+ ```ts
+ const git = gitOfTheRepository({ repository, moveMainTo: repository.mergedMain, },);
+ ```
+ */
+function gitOfTheRepository({
+  repository,
+  moveMainTo,
+}: {
+  readonly repository: { readonly checkoutFolder: string };
+  readonly moveMainTo?: string;
+},): GitQuestion {
+  return async function answer({ words, folder, }: {
+    readonly words: readonly string[];
+    readonly folder: string;
+  },): Promise<CommandOutput> {
+    /**
+     What git answered.
+     */
+    const answered = spawnSync('git', words, {
+      cwd: folder,
+      encoding: 'utf8',
+    },);
+    if (moveMainTo !== undefined) {
+      spawnSync('git', ['update-ref', 'refs/heads/main', moveMainTo,], {
+        cwd: repository.checkoutFolder,
+        encoding: 'utf8',
+      },);
+    }
+    return {
+      status: answered.status ?? 1,
+      stdout: answered.stdout ?? '',
+      stderr: answered.stderr ?? '',
+    };
+  };
+}
+
+/**
+ Reads the three files one review folder holds as one generation.
+
+ @param reviewsFolder - the folder that holds one folder per review
+
+ @returns what each file says, with the record's commit and ranges
+
+ @example
+ ```ts
+ const generation = await generationIn('/reviews');
+ ```
+ */
+async function generationIn(reviewsFolder: string,): Promise<{
+  readonly brief: string;
+  readonly diff: string;
+  readonly commit: string;
+  readonly ranges: readonly string[];
+}> {
+  /**
+   The review's own folder.
+   */
+  const folder = join(reviewsFolder, aReview(),);
+  /**
+   What the record says the review was given.
+   */
+  const record: unknown = JSON.parse(await readFile(join(folder, 'what-the-review-read.json',), 'utf8',),);
+  /**
+   The record's fields, which a generation always keeps together.
+   */
+  const fields = (typeof record === 'object') && (record !== null) ? record as {
+    readonly commit: string;
+    readonly ranges: readonly string[];
+  } : { commit: '', ranges: [], };
+  return {
+    brief: await readFile(join(folder, 'brief.md',), 'utf8',),
+    diff: await readFile(join(folder, 'change.diff',), 'utf8',),
+    commit: fields.commit,
+    ranges: fields.ranges,
   };
 }
 
@@ -243,6 +494,134 @@ await describe({
               source: 'package/a/src',
               files: theFilesTouched(),
             },);
+          },
+        },),
+
+        it({
+          name: 'answers one generation whatever the integration does between its questions, so a change with a file is not answered as nothing to review',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The repository, and the commits the two runs are written for.
+             */
+            const repository = await aDisposableRepository({ folder: folder.path, },);
+            /**
+             The request one run makes of the writer.
+             */
+            const aRun = function aRun({ reviewsFolder, }: { readonly reviewsFolder: string },) {
+              return writeReviewBrief({
+                ...aBriefRequest({
+                  reviewsFolder,
+                  git: gitOfTheRepository({
+                    repository,
+                    moveMainTo: repository.mergedMain,
+                  },),
+                },),
+                checkoutFolder: repository.checkoutFolder,
+                commit: repository.firstChangeCommit,
+                ranges: [`main...${repository.firstChangeCommit}`,],
+              },);
+            };
+            /**
+             What the first run answered.
+             */
+            const firstRun = await aRun({ reviewsFolder: join(folder.path, 'reviews',), },);
+            /**
+             What the second run answered, with `main` moving again after every one of its questions.
+             */
+            const secondRun = await aRun({ reviewsFolder: join(folder.path, 'reviews-again',), },);
+            expect(firstRun.written,).toBe(true,);
+            expect(secondRun.written,).toBe(true,);
+            /**
+             The generation each run wrote.
+             */
+            const first = await generationIn(join(folder.path, 'reviews',),);
+            /**
+             The generation the second run wrote from the same answers.
+             */
+            const second = await generationIn(join(folder.path, 'reviews-again',),);
+            // The change has a file in it, and the file is in the diff, the record and the brief's range.
+            expect(first.diff,).toContain(repository.firstChangeFile,);
+            expect(first.ranges,).toHaveLength(1,);
+            expect(first.brief,).toContain(first.ranges[0],);
+            // Neither run names the integration by its name, which is what moves: the range names the commit it was read at.
+            expect(first.ranges[0],).not.toContain('main',);
+            // The same answers from the same commits, whatever main did between the questions.
+            expect(second.ranges,).toEqual(first.ranges,);
+            expect(second.commit,).toBe(first.commit,);
+            expect(second.diff,).toBe(first.diff,);
+          },
+        },),
+        it({
+          name: 'writes one generation whole, so a second writing for another commit never leaves an old brief beside a new diff and record',
+          fn: async () => {
+            await using folder = await makeFolder();
+            /**
+             The repository the two writings are for.
+             */
+            const repository = await aDisposableRepository({ folder: folder.path, },);
+            /**
+             The folder that holds one folder per review.
+             */
+            const reviewsFolder = join(folder.path, 'reviews',);
+            await writeReviewBrief({
+              ...aBriefRequest({
+                reviewsFolder,
+                git: gitOfTheRepository({ repository, },),
+              },),
+              checkoutFolder: repository.checkoutFolder,
+              commit: repository.firstChangeCommit,
+              ranges: [`main...${repository.firstChangeCommit}`,],
+            },);
+            // The second writing cannot replace the brief of the first: the file is read-only, which is the state a process
+            // killed at that write leaves, and the second writing reports it rather than replacing it.
+            await chmod(join(reviewsFolder, aReview(), 'brief.md',), 0o444,);
+            /**
+             What the second writing threw, if it threw: this control judges the folder, not the words of the answer.
+             */
+            let secondWritingThrew = '';
+            try {
+              await writeReviewBrief({
+                ...aBriefRequest({
+                  reviewsFolder,
+                  git: gitOfTheRepository({ repository, },),
+                },),
+                checkoutFolder: repository.checkoutFolder,
+                commit: repository.secondChangeCommit,
+                ranges: [`main...${repository.secondChangeCommit}`,],
+              },);
+            }
+            catch (error) {
+              secondWritingThrew = String(error,);
+            }
+            finally {
+              await chmod(join(reviewsFolder, aReview(), 'brief.md',), 0o644,);
+            }
+            /**
+             What the folder holds after both writings.
+             */
+            const generation = await generationIn(reviewsFolder,);
+            // Whatever the second writing answered, the folder holds one generation: its brief names the range its record keeps,
+            // and its diff is the change of the commit its record names.
+            /**
+             The file the record's commit adds, which the diff of that generation holds.
+             */
+            const expectedFile = (generation.commit === repository.firstChangeCommit)
+              ? repository.firstChangeFile
+              : repository.secondChangeFile;
+            /**
+             The file the other change adds, which the diff of this generation does not hold.
+             */
+            const otherFile = (generation.commit === repository.firstChangeCommit)
+              ? repository.secondChangeFile
+              : repository.firstChangeFile;
+            expect(generation.brief,).toContain(generation.ranges[0],);
+            expect(generation.diff,).toContain(expectedFile,);
+            expect(generation.diff,).not.toContain(otherFile,);
+            // Where the writing threw, it threw on the file it could not replace, which is what a killed writing leaves.
+            if (secondWritingThrew !== '') {
+              expect(secondWritingThrew,).toContain('EACCES',);
+            }
           },
         },),
         it({
