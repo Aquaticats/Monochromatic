@@ -6,7 +6,8 @@ use super::support::{
     FIXTURE_ROOT_VARIABLE, Fixture, FixtureService, NOBODY_JOURNAL_ADDRESS, QUOTED_MARK, SERVICE_LOG_END_BOUND, SERVICE_LOG_FILE, ServiceLaunch, fixture, kept_stderr_pipe,
     log_file_failure_note,
     missing_fixture_root_report, give_service_environment, names_the_stream, remove, remove_patiently, repository, service_command, service_log, service_runtime, service_is_serving,
-    CopySeam, hold_the_copy, quoted, settle_fixture, settle_the_service_log, spawn_owned, start_fixture_service, wait_for_the_copies,
+    CopySeam, hold_the_copy, quoted, settle_fixture, settle_the_service_log, spawn_owned, start_fixture_service,
+    wait_for_the_copies, wait_until_copies_wait_at_the_seam,
 };
 use git_policy_cli::service_server::Bind;
 use std::path::{Path, PathBuf};
@@ -798,6 +799,10 @@ fn a_read_that_races_the_copy_waits_for_it_and_says_the_bound() {
     assert!(services.settle_the_service_log(created.root.as_path(), SERVICE_LOG_END_BOUND), "the copy ended within its bound once released");
     let kept: String = service_log(created.root.as_path());
     assert!(kept.contains("the-seam-said-why"), "the service's words are kept once the copy ended: {kept}");
+    assert!(
+        !kept.contains("had not finished within"),
+        "a read after every copy ended says the words are complete, not that a copy ran out its bound: {kept}"
+    );
     drop(services);
     remove(&created);
 }
@@ -856,5 +861,84 @@ fn the_fixture_s_own_wait_answers_for_a_service_kept_on_the_fixture() {
     services.stop_all();
     *created.service.lock().expect("the fixture's service lock") = Some(services);
     assert!(settle_the_service_log(&created, SERVICE_LOG_END_BOUND), "the copies of the services this fixture started ended within their bound");
+    remove(&created);
+}
+
+/// What:
+///  The failure about a service that ended before it listened waits for the copy of its stream:
+///  while the copy is held it says the bound's end instead of an empty log,
+///  and the service's words are there once the copy is let go.
+/// Why:
+///   A review of 2026-11-15 found this failure reading the log without the wait beside it,
+/// so the diagnostic the failure exists to give was `0 bytes kept` on a legal schedule.
+///  The seam makes that schedule certain: nothing here waits on the machine's speed.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seam = holdTheCopy(root); expect(() => serve()).toThrow(/had not finished within/); seam.release(); expect(serviceLog(root)).toContain('early-exit-said-why')
+/// ```
+#[test]
+fn the_failure_about_an_early_exit_waits_for_the_copy() {
+    let created: Fixture = fixture("service-log-early-exit-waits");
+    std::fs::create_dir_all(created.root.join("repo").join(".git")).expect("a Git directory to serve");
+    *created.service_launch.lock().expect("the service launch") = ServiceLaunch {
+        prefix: vec![
+            std::ffi::OsString::from("/usr/bin/sh"),
+            std::ffi::OsString::from("-c"),
+            std::ffi::OsString::from("printf 'early-exit-said-why\\n' >&2; exit 3"),
+        ],
+        ..ServiceLaunch::default()
+    };
+    let seam: CopySeam = hold_the_copy(created.root.as_path());
+    let services: FixtureService = start_fixture_service(&created);
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| { services.serve(&created, created.root.join("repo").join(".git").as_path()); }));
+    let said: String = match outcome {
+        Ok(()) => panic!("the fixture reported a listening service although the service ended"),
+        Err(payload) => payload.downcast_ref::<String>().cloned().or_else(|| { return payload.downcast_ref::<&str>().map(ToString::to_string); }).unwrap_or_default(),
+    };
+    assert!(said.contains("had not finished within"), "the failure waited for the copy and says the bound's end: {said}");
+    seam.release();
+    assert!(services.settle_the_service_log(created.root.as_path(), SERVICE_LOG_END_BOUND), "the copy ended within its bound once released");
+    let kept: String = service_log(created.root.as_path());
+    assert!(kept.contains("early-exit-said-why"), "the service's words are there once the copy ended: {kept}");
+    drop(services);
+    remove(&created);
+}
+
+/// What:
+///  Letting a seam go lets **every** copy waiting at it go,
+///  however many there are,
+///  and every one of them ends within the fixture's bound.
+/// Why:
+///   A review of 2026-11-15 found the release handing out sixty-four permits,
+/// so a sixty-fifth copy stayed blocked and every read after it ran out its bound.
+///  A fixture may serve more worktrees than that, and no copy count is this interface's to have.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const seam = holdTheCopy(root); …sixty-five pipes…; seam.release(); expect(waitForTheCopies(all, root, 10s)).toBe(true)
+/// ```
+#[test]
+fn letting_the_copy_seam_go_lets_every_held_copy_go() {
+    let created: Fixture = fixture("service-log-seam-every-copy");
+    let root: PathBuf = created.root.clone();
+    let seam: CopySeam = hold_the_copy(root.as_path());
+    let mut copies: Vec<std::sync::mpsc::Receiver<()>> = Vec::new();
+    for index in 0..65 {
+        let (writer, ended) = kept_stderr_pipe(root.as_path()).expect("a pipe for a service's words");
+        let mut file = std::fs::File::from(writer);
+        std::io::Write::write_all(&mut file, format!("seam-marker-{index}\n").as_bytes()).expect("the words enter the pipe");
+        drop(file);
+        copies.push(ended);
+    }
+    // The seam is what holds them, so the count is the proof they are all there: the release is the only thing that may let them go.
+    assert!(
+        wait_until_copies_wait_at_the_seam(root.as_path(), 65, SERVICE_LOG_END_BOUND),
+        "all sixty-five copies reached the seam (they wait there, so the count is what says so)"
+    );
+    seam.release();
+    assert!(wait_for_the_copies(&mut copies, root.as_path(), SERVICE_LOG_END_BOUND), "every held copy ended once the seam let go");
+    assert!(copies.is_empty(), "nothing is left to wait for");
+    assert_eq!(service_log(root.as_path()).matches("seam-marker-").count(), 65, "every one of the sixty-five services' words is kept");
     remove(&created);
 }

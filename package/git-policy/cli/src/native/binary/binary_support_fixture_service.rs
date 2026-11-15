@@ -583,6 +583,7 @@ impl FixtureService {
                 // The copy of the service's stream is an event, not a race: the child ended, the pipe closes with the last
                 //  process holding it, and only then does the log hold what it wrote. The wait is bounded: a descendant that
                 //  inherited the pipe cannot hold this failure past it, and the bound's end is said in the words below.
+                let _settled: bool = self.settle_the_service_log(fixture.root.as_path(), SERVICE_LOG_END_BOUND);
 
                 // The words are quoted, and each line says so: the runner prints this failure on its own stream, which may be
                 //  this machine's journal, and a reader there must be able to tell a quoted service line from a line a

@@ -109,6 +109,86 @@ pub struct Start {
 /// (`source_guard/blocking_code_off_the_runtime_fixture_tests.rs` holds `.spawn()` in a constant on purpose),
 /// and keeping the lengths lets a finding name the line and column it came from.
 ///
+/// What:
+///  Reads one Rust character or byte-character literal whole, escapes included,
+///  and answers where it ends;
+///  a lifetime's quote opens no literal, so there is no answer.
+/// Why:
+///   A quote that opens a literal blinds the mask to every quote after it:
+///  the escaped quote of a character literal taken for three bytes leaves it to open a string,
+///  the code that follows is blanked as that string's contents,
+///  and a service start with `Stdio::inherit()` is then invisible to both scans.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const end = charLiteralEnd(bytes, at) // `'x'`, `'\\''`, `'\\x41'`, `'\\u{1F600}'`, `b'\\''` -> after it; `'a` -> undefined
+/// ```
+fn char_literal_end(bytes: &[u8], at: usize) -> Option<usize> {
+    // `at` is the literal's opening quote; a byte literal's `b` stands before it and is no part of it.
+    let mut cursor: usize = at + 1;
+    match *bytes.get(cursor)? {
+        // A lifetime holds no closing quote, so the quote that closes nothing opens no literal.
+        b'\'' => return None,
+        b'\\' => {
+            cursor += 1;
+            match *bytes.get(cursor)? {
+                b'n' | b'r' | b't' | b'\\' | b'\'' | b'"' | b'0' => cursor += 1,
+                b'x' => {
+                    cursor += 1;
+                    for _ in 0..2 {
+                        if !hex_digit(*bytes.get(cursor)?) {
+                            return None;
+                        }
+                        cursor += 1;
+                    }
+                }
+                b'u' => {
+                    cursor += 1;
+                    if *bytes.get(cursor)? != b'{' {
+                        return None;
+                    }
+                    cursor += 1;
+                    let mut digits: usize = 0;
+                    while *bytes.get(cursor)? != b'}' {
+                        if !hex_digit(*bytes.get(cursor)?) || digits == 6 {
+                            return None;
+                        }
+                        digits += 1;
+                        cursor += 1;
+                    }
+                    cursor += 1;
+                }
+                _ => return None,
+            }
+        }
+        _ => {
+            // One character, which may take more than one byte.
+            cursor += character_width(bytes, cursor)?;
+        }
+    }
+    if *bytes.get(cursor)? != b'\'' {
+        return None;
+    }
+    return Some(cursor + 1);
+}
+
+/// What:
+///  How many bytes the character at `at` takes.
+/// Why:
+///   A character literal may hold any character, and a mask that steps one byte at a time would miss its closing quote.
+fn character_width(bytes: &[u8], at: usize) -> Option<usize> {
+    let rest: &str = std::str::from_utf8(bytes.get(at..)?).ok()?;
+    return rest.chars().next().map(char::len_utf8);
+}
+
+/// What:
+///  Whether `byte` is a hexadecimal digit.
+/// Why:
+///  An escape's hex digits are what says the escape is whole.
+fn hex_digit(byte: u8) -> bool {
+    return byte.is_ascii_hexdigit();
+}
+
 /// In TS you'd write (pseudocode):
 /// ```ts
 /// const masked = source.replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])'/g, (m) => m.replace(/[^\n]/g, ' '));
@@ -126,19 +206,38 @@ pub fn mask(text: &str) -> String {
                 }
             }
             b'/' if bytes.get(at + 1) == Some(&b'*') => {
+                // A block comment ends at the `*/` that matches its opening, and one inside it opens another:
+                //  the depth is kept, so the end of the inner comment is no end of the outer one.
                 out[at] = b' ';
                 out[at + 1] = b' ';
                 at += 2;
-                while at + 1 < bytes.len() && !(bytes[at] == b'*' && bytes[at + 1] == b'/') {
+                let mut depth: usize = 1;
+                while at < bytes.len() {
+                    if bytes[at] == b'/' && bytes.get(at + 1) == Some(&b'*') {
+                        depth += 1;
+                        out[at] = b' ';
+                        if at + 1 < bytes.len() {
+                            out[at + 1] = b' ';
+                        }
+                        at += 2;
+                        continue;
+                    }
+                    if bytes[at] == b'*' && bytes.get(at + 1) == Some(&b'/') {
+                        depth -= 1;
+                        out[at] = b' ';
+                        if at + 1 < bytes.len() {
+                            out[at + 1] = b' ';
+                        }
+                        at += 2;
+                        if depth == 0 {
+                            break;
+                        }
+                        continue;
+                    }
                     if bytes[at] != b'\n' {
                         out[at] = b' ';
                     }
                     at += 1;
-                }
-                if at + 1 < bytes.len() {
-                    out[at] = b' ';
-                    out[at + 1] = b' ';
-                    at += 2;
                 }
             }
             b'r' if matches!(bytes.get(at + 1), Some(b'#' | b'"')) => {
@@ -194,12 +293,18 @@ pub fn mask(text: &str) -> String {
                     }
                 }
             }
-            b'\'' if bytes.get(at + 2) == Some(&b'\'') => {
-                out[at] = b' ';
-                out[at + 1] = b' ';
-                out[at + 2] = b' ';
-                at += 3;
-            }
+            b'\'' => match char_literal_end(bytes, at) {
+                Some(end) => {
+                    for slot in at..end {
+                        if bytes[slot] != b'\n' {
+                            out[slot] = b' ';
+                        }
+                    }
+                    at = end;
+                }
+                // A lifetime (`'a`, `'static`) is no literal, and its quote opens nothing to mask.
+                None => at += 1,
+            },
             _ => at += 1,
         }
     }
@@ -266,19 +371,38 @@ pub fn mask_comments(text: &str) -> String {
                 }
             }
             b'/' if bytes.get(at + 1) == Some(&b'*') => {
+                // A block comment ends at the `*/` that matches its opening, and one inside it opens another:
+                //  the depth is kept, so the end of the inner comment is no end of the outer one.
                 out[at] = b' ';
                 out[at + 1] = b' ';
                 at += 2;
-                while at + 1 < bytes.len() && !(bytes[at] == b'*' && bytes[at + 1] == b'/') {
+                let mut depth: usize = 1;
+                while at < bytes.len() {
+                    if bytes[at] == b'/' && bytes.get(at + 1) == Some(&b'*') {
+                        depth += 1;
+                        out[at] = b' ';
+                        if at + 1 < bytes.len() {
+                            out[at + 1] = b' ';
+                        }
+                        at += 2;
+                        continue;
+                    }
+                    if bytes[at] == b'*' && bytes.get(at + 1) == Some(&b'/') {
+                        depth -= 1;
+                        out[at] = b' ';
+                        if at + 1 < bytes.len() {
+                            out[at + 1] = b' ';
+                        }
+                        at += 2;
+                        if depth == 0 {
+                            break;
+                        }
+                        continue;
+                    }
                     if bytes[at] != b'\n' {
                         out[at] = b' ';
                     }
                     at += 1;
-                }
-                if at + 1 < bytes.len() {
-                    out[at] = b' ';
-                    out[at + 1] = b' ';
-                    at += 2;
                 }
             }
             _ => at += 1,

@@ -240,13 +240,69 @@ fn record_failure(root: &Path, path: &Path, reason: &str) {
 pub struct CopySeam {
     /// The root whose copies this seam holds.
     root: PathBuf,
-    /// The queue the held copies wait on.
-    release: Mutex<std::sync::mpsc::Sender<()>>,
+    /// The queue the held copies wait on;
+    /// closing it, by dropping this end, lets every one of them go.
+    release: Mutex<Option<std::sync::mpsc::Sender<()>>>,
 }
 
 /// The seam each root's copies wait at, while a control holds them:
 /// one root's seam never holds another fixture's copies, because tests run at once in one process.
 static SEAM: OnceLock<Mutex<HashMap<PathBuf, std::sync::Arc<Mutex<std::sync::mpsc::Receiver<()>>>>>> = OnceLock::new();
+
+/// How many of each root's copies sit at its seam right now:
+/// a control reads it to prove every copy it started is held before it lets the seam go,
+/// so the control tests the release and not the machine's speed.
+static WAITING_AT_THE_SEAM: OnceLock<Mutex<HashMap<PathBuf, usize>>> = OnceLock::new();
+
+/// The counts above.
+fn waiting_at_the_seam() -> &'static Mutex<HashMap<PathBuf, usize>> {
+    return WAITING_AT_THE_SEAM.get_or_init(|| { return Mutex::new(HashMap::new()); });
+}
+
+/// What:
+///  Counts one copy of `root` entering (or, with `leaving`, leaving) that root's seam.
+/// Why:
+///  A control that proves its copies are held needs the count to come from the copies themselves, never from a clock.
+fn count_at_the_seam(root: &Path, leaving: bool) {
+    let mut waiting = waiting_at_the_seam().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let count: usize = waiting.get(root).copied().unwrap_or(0);
+    let next: usize = if leaving { count.saturating_sub(1) } else { count + 1 };
+    let _previous = waiting.insert(root.to_path_buf(), next);
+}
+
+/// What:
+///  How many of `root`'s copies wait at its seam now.
+/// Why:
+///  A control proves its copies are held before it releases the seam, so its answer does not depend on the clock.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// const held = copiesWaitingAtTheSeam(root)
+/// ```
+pub fn copies_waiting_at_the_seam(root: &Path) -> usize {
+    let waiting = waiting_at_the_seam().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    return waiting.get(root).copied().unwrap_or(0);
+}
+
+/// What:
+///  Waits, bounded, for `count` of `root`'s copies to sit at its seam, and answers whether they all did.
+/// Why:
+///  The seam holds a copy that has reached it, so the count is the proof a control needs before it releases them.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// expect(waitUntilCopiesWaitAtTheSeam(root, 65, 10_000)).toBe(true)
+/// ```
+pub fn wait_until_copies_wait_at_the_seam(root: &Path, count: usize, bound: std::time::Duration) -> bool {
+    let deadline: std::time::Instant = std::time::Instant::now() + bound;
+    while std::time::Instant::now() < deadline {
+        if copies_waiting_at_the_seam(root) >= count {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    return copies_waiting_at_the_seam(root) >= count;
+}
 
 /// The seams above.
 fn seam() -> &'static Mutex<HashMap<PathBuf, std::sync::Arc<Mutex<std::sync::mpsc::Receiver<()>>>>> {
@@ -266,26 +322,25 @@ fn seam() -> &'static Mutex<HashMap<PathBuf, std::sync::Arc<Mutex<std::sync::mps
 pub fn hold_the_copy(root: &Path) -> CopySeam {
     let (release, held): (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) = std::sync::mpsc::channel();
     let _installed = seam().lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(root.to_path_buf(), std::sync::Arc::new(Mutex::new(held)));
-    return CopySeam { root: root.to_path_buf(), release: Mutex::new(release) };
+    return CopySeam { root: root.to_path_buf(), release: Mutex::new(Some(release)) };
 }
 
 impl CopySeam {
     /// What:
-    ///  Lets the held copies go.
+    ///  Lets the held copies go, however many wait.
     /// Why:
     ///  The seam is one place; releasing it lets every copy that waits there read what its service wrote.
+    ///  A copy waits in `recv`, so closing the queue is what wakes all of them:
+    /// a count of permits would be a limit this interface has no reason to have.
     ///
     /// In TS you'd write (pseudocode):
     /// ```ts
-    /// seam.release()
+    /// seam.release() // closes the queue: every waiting copy answers at once
     /// ```
     pub fn release(&self) {
         let _cleared = seam().lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(self.root.as_path());
-        let release = self.release.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        // One permit for every copy that was waiting; a permit nobody takes costs nothing.
-        for _ in 0..64 {
-            let _sent = release.send(());
-        }
+        let release: Option<std::sync::mpsc::Sender<()>> = self.release.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
+        drop(release);
     }
 }
 
@@ -294,8 +349,10 @@ impl CopySeam {
 fn wait_at_the_seam(root: &Path) {
     let held: Option<std::sync::Arc<Mutex<std::sync::mpsc::Receiver<()>>>> = seam().lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(root).cloned();
     let Some(gate) = held else { return };
+    count_at_the_seam(root, false);
     let receiver = gate.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let _released = receiver.recv();
+    count_at_the_seam(root, true);
 }
 
 /// What:
@@ -342,7 +399,10 @@ pub fn wait_for_the_copies(held: &mut Vec<std::sync::mpsc::Receiver<()>>, root: 
             }
         }
     }
-    if !all_ended {
+    if all_ended {
+        // Every copy ended, so the words are complete: a sentence an earlier give-up left is no longer true of them.
+        forget_the_copy_did_not_end(root);
+    } else {
         say_the_copy_did_not_end(root, bound);
     }
     return all_ended;
@@ -364,6 +424,23 @@ pub fn say_the_copy_did_not_end(root: &Path, bound: std::time::Duration) {
     let mut all = kept().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let entry = all.entry(root.to_path_buf()).or_insert_with(|| { return KeptHere { bytes: Vec::new(), file_failure: None, copy_unfinished: None }; });
     entry.copy_unfinished = Some(format!("the copy of the service's stream had not finished within {bound:?}"));
+}
+
+/// What:
+///  Takes back the sentence a give-up left, because every copy has ended since.
+/// Why:
+///  The sentence says a read ran out its bound and that the log it shows may be incomplete;
+/// once a later wait sees every copy end, the words are complete and the sentence would mislead.
+///
+/// In TS you'd write (pseudocode):
+/// ```ts
+/// entry.copyUnfinished = undefined
+/// ```
+fn forget_the_copy_did_not_end(root: &Path) {
+    let mut all = kept().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some(entry) = all.get_mut(root) {
+        entry.copy_unfinished = None;
+    }
 }
 
 /// What:
