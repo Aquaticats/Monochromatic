@@ -1594,6 +1594,68 @@ written by the coordinating session from the pass's report and its own commands'
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
 
+##### Two authors answer: the push of a branch that is not checked out, and the service a test starts that writes no line into the journal (2026-11-15T06:15:47-05:00)
+
+Not final and not approved:
+what two authors report and what the coordinating session queued.
+
+- **The push of a branch that is not checked out**,
+  its author's eighth run,
+  ended 06:12:18 at `4ca7aebcdb`
+  (the report names `122d34fb6c` as pushed;
+  that commit is inside the tip,
+  and origin holds the tip).
+  The sixth review's three findings are answered:
+  an automatic merge that landed is confirmed before its failure is answered,
+  by a look in the resident service's work loop and never on a command's path
+  (a fetch and an ancestor query,
+  median 11.5 ms against 2.3 ms for one Git query,
+  60 interleaved rounds);
+  a record its writer left is finished by a later command while that writer lives;
+  a checkout a reset left holding the old files is brought to the branch,
+  and a person's edit beside a leftover is kept and named.
+  1,003 tests of the changed modules pass;
+  Clippy 0.
+  Left open by the author and said:
+  the sweep still removes a record whose branch moved past its new commit,
+  so a path a later advance does not touch can keep an earlier leftover.
+  Its review is queued tenth
+  (`main...4ca7aebcdb`,
+  nineteen code files that are not tests).
+  This author is in its eighth run and did not run out;
+  the reading adopted for a sixth run or later concerns an author that says it ran out.
+- **The service a test starts writes no line into the journal**,
+  its author's fourth run,
+  ended 06:10:06 at `d6219a98ee`.
+  The fixture's wait for its log copies keeps what it did not see end,
+  so a wait that gave up does not make the next one answer true
+  (the note of 05:14 said so;
+  a control calls the wait twice across a give-up).
+  The guards read source with comments and strings masked,
+  with an adversarial control.
+  A window of the journal with ten changed controls and one deliberate failure held the fixture's quoted lines on the runner's identifier and no service line.
+  The author records a mistake of its own:
+  a `git restore --source=HEAD` took its uncommitted work with one demo edit,
+  and it applied the work again from its notes.
+  Its review is queued eleventh
+  (`main...d6219a98ee`,
+  eight code files that are not tests).
+- **The gate** on `f82fc29fc3` was active at 06:14:37.
+- **The temperature**,
+  read at 06:14:34:
+  58.5 degrees,
+  budget 32.0 threads,
+  21.0 in use,
+  no event at or over the limit since 05:06:20.
+- Read at 06:14:37:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no failed start and no brief refused since 06:09;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  16 runs going,
+  none silent for twenty minutes.
+  The queue held 83 entries at 06:15:47.
+
 ##### Two reviews: mpm's removal of old versions deletes in more places than it judges, and a boot part in capitals makes a live holder gone (2026-11-15T06:11:15-05:00)
 
 Not final and not approved:
