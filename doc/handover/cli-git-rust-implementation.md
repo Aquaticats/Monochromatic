@@ -738,6 +738,46 @@ by the rules that already stand:
 
 Questions kept for the owner's return:
 
+- Added 2026-11-15T00:51:24-05:00,
+  from the eighth review of the guard on discarding commands,
+  not blocking work:
+  a file or a nested repository that another process makes after the guard's last look and before Git starts is not seen
+  (two findings,
+  read and not run).
+  The coordinating session dismissed both as a limit to state in the SPEC,
+  since the rule is about what the typed command would destroy when it is asked.
+  Is a stated limit right there,
+  or is that window to be closed?
+  And from the same branch:
+  its `git clean` moves a nested repository it would delete to a saved copy and then runs,
+  where the rule of 2026-11-12 says the wrapper refuses with an opt-out and moves nothing aside,
+  and the answer of 2026-11-10 says a clean of ignored files deletes them and logs the command.
+  No record was found that decides the save.
+  Does a clean that would delete a nested repository save it aside as the branch does,
+  refuse with the opt-out,
+  or delete and log?
+  The branch keeps its save until an answer.
+- Added 2026-11-15T00:34:22-05:00 and amended 00:51:24 and 01:03:30,
+  not blocking work:
+  the cap on agents went from 24 to 20 at 00:32:16,
+  from 20 to 18 at 00:50:55 and from 18 to 17 at 01:00:44,
+  by the rule,
+  when the home drive stalled twice in a row during the nightly snapshot cleanup,
+  at each level
+  (`doc/handover/agents-at-once-on-this-machine.md`).
+  None of those levels was tested at its own number:
+  19 to 23 agents were going at every failing reading,
+  since no run is stopped.
+  The longest stall was 109 seconds.
+  Beside it,
+  read once each:
+  the cleanup deleted twenty snapshots of root at 00:23:27 and the stalls began four minutes later;
+  quota groups are on for the home filesystem and off for the repository's;
+  the kernel logged no drive error.
+  Does the cap go back to 24 once the cleanup has ended,
+  or stay where the rule left it until the new drive is in?
+  Until an answer it stays where the rule left it,
+  and never under 16.
 - Added 2026-11-14T23:58:21-05:00,
   from two authors' reports of that hour,
   none blocking work:
@@ -1395,6 +1435,324 @@ written by the coordinating session from the pass's report and its own commands'
   the pass merges `main` again and reruns its build,
   both test compiles and its controls before the merge into `main`.
   Both breaks of this kind today had no textual conflict and sat in a test target alone.
+
+##### The home drive stalls for 109 seconds and the cap steps to 17; two commits wait on their service across the stall; the lock-holders folder goes to review (2026-11-15T01:03:30-05:00)
+
+Not final and not approved:
+what the probe and one author report,
+what the coordinating session read beside them,
+and what it did.
+
+- **The cap is 17 since 01:00:44.**
+  The probe ended level 18 at 00:57:33:
+  the home drive's write-and-sync begun at 00:54:43 took 109,241 ms and the next took 59,474 ms.
+  The filling unit is `fill-free-places-and-put-ended-reviews-back-at-level-17-20261115T010044`
+  (ends about 09:00),
+  the probe `disk-ceiling-probe-level-17-20261115T010046`.
+  Should 17 fail the cap is 16,
+  the probe then only records,
+  and it goes no lower without the owner.
+  No going run was stopped;
+  19 were going.
+  The record of the readings,
+  of what the snapshot cleanup logged,
+  of the quota groups and of the kernel log is
+  `doc/handover/agents-at-once-on-this-machine.md`,
+  "Level 18 fails on stalls of 109 and 59 seconds".
+- **A reading of this session's is withdrawn.**
+  The section of 00:51:24 says the stalls came at the readings with the lowest I/O pressure.
+  The probe samples that figure before it writes,
+  so it says nothing of a stall;
+  the cap record is corrected in place.
+- **Two commits waited on the commit service across the stall**,
+  where the section of 00:51:24 names one and says the cause was not measured.
+  `fd002ed513` landed 00:54:32,
+  eleven seconds before the 109-second reading began,
+  and `5a7c6c0d03` landed 00:57:12;
+  each printed that the service had not answered in ten seconds.
+  The repository's own drive answered in 10 ms and 78 ms at those readings,
+  so what the service waited on was on the home drive.
+  `origin` held `5a7c6c0d03` at 01:00:59.
+  The going run on a commit whose service did not start or stopped answering has both facts by note
+  (the first note cited readings from ten minutes before;
+  a second corrects it).
+- **The lock-holders folder**,
+  its author's second run,
+  ended 00:57:00 at `4e9b9fff1d`.
+  By the part of its report read here:
+  the review's three findings answered,
+  each with a control that fails with its fix out,
+  one placed at the pass's own seam and not by a sleep;
+  sixteen controls pass;
+  both of the gate's controls pass in the gate's image;
+  408 tests of the guards and `lock::` pass;
+  no cost measurable on a commit of one file
+  (one run of sixteen took 10.4 s,
+  which it reports as a disk stall and did not drop).
+  It names the lines of `lock/` it touched for whoever merges second.
+  Its review is queued second
+  (`main...4e9b9fff1d`,
+  twelve code files that are not tests).
+- The queue held 76 entries at 01:01:40.
+
+##### The cap steps down again, to 18; the discarding guard's eighth review goes to a fresh run, and the brief writer for every kind of code file back to its author (2026-11-15T00:51:24-05:00)
+
+Not final and not approved:
+what the probe and two reviews report,
+how the coordinating session weighed them,
+and what it did.
+
+- **The cap is 18 since 00:50:55.**
+  The probe ended level 20 at 00:44:03 on two home-drive readings in a row over five seconds
+  (6,277 ms and 21,599 ms,
+  20 agents going,
+  the snapshot cleanup still running).
+  The probe runs at 18 since 00:44:53,
+  the filling unit as `fill-free-places-and-put-ended-reviews-back-at-level-18-20261115T005055`
+  (ends about 08:50).
+  The restart script's first try stopped nothing and gave up,
+  because it reads the age of the unit's last journal line and an idle unit writes none;
+  it is corrected to read the unit's control group then.
+  No going run was stopped.
+  The stalls came at the readings with the lowest I/O pressure;
+  readings and limits are in `doc/handover/agents-at-once-on-this-machine.md`.
+- **The guard on discarding commands** (`0b67e7ccae`),
+  its eighth review,
+  ended 00:38:24,
+  34 of 34 files,
+  fourteen things,
+  ten of them by a script beside a control run of real Git:
+  - five where the guard reads a word as an option and Git reads it as the value of the option before
+    (`restore -s -h`;
+    pathspec files named `--no-force`,
+    `--no-sparse` and `--staged`;
+    the clean's dry run counting `-f` across a `--no-force`,
+    which moves aside a repository Git would keep);
+  - two where a path written with `./` misses the listing it is compared with
+    (`mv -f`,
+    `checkout-index --prefix`);
+  - two where an edit under `skip-worktree` is not asked about
+    (the pathspec-file forms,
+    the destination of a forced `mv`);
+  - a bare repository with a dangling `HEAD` that the clean does not see;
+  - a pathspec file that is a FIFO,
+    read by the guard and then waited on by Git for good;
+  - a rollback that takes any `ENOENT` for a source that is gone
+    (read,
+    its probe build did not finish);
+  - two windows between the guard's last look and Git's start
+    (read).
+- **Weighed**:
+  twelve are worth their fix.
+  The two windows are dismissed as a limit the SPEC is to state,
+  since the project's rule is to refuse a command by what it would destroy when asked
+  (`package/git-policy/cli/SPEC.md`,
+  "What never discarding a person's data means");
+  that dismissal is kept as a question for the owner.
+  Most of the twelve are one cause at many places,
+  and the review before found the same kind at other options,
+  so the answer asked for is one reading of a command line from Git's own option tables,
+  one spelling of a path,
+  one question about what a written path would lose,
+  and a pathspec file read once;
+  these are this session's suggestion in the brief and are labelled so.
+- **Adopted, open to veto**:
+  the author,
+  after nine runs,
+  is not resumed;
+  a fresh run takes the branch over from its tip
+  (`~/temp/agent/pi-runs/discarding-guard-reads-a-command-line-and-a-path-as-git-does-finished-in-a-fresh-run-prompt.md`,
+  queued eighth,
+  base `0b67e7ccae`).
+  The branch's clean moves a nested repository aside to a saved copy,
+  where the rule's words are that the wrapper moves nothing aside.
+  Read between 00:52:28 and 00:54:32
+  (the commits before and after the read;
+  an earlier wording here gave a minute ahead of the clock)
+  in the branch's `SPEC.md`,
+  "Discarding commands"
+  (lines 18867 to about 19400 at `0b67e7ccae`):
+  the lines there that cite an owner's answer cite the one of 2026-11-10
+  (a clean of ignored files deletes them and logs the command)
+  and the one of 2026-11-12
+  ("Refuse with opt-out"),
+  and the save
+  (about lines 19300 to 19326)
+  is described under neither;
+  a search of this handover for a line with both a nested repository and an owner's answer found none.
+  So no record was found that decides the save.
+  The brief says so,
+  tells the fresh run to leave the save as it is,
+  and the question is kept for the owner.
+- **The review-brief writer for every kind of code file** (`e759dd56fc`),
+  its second review,
+  ended 00:38:05,
+  six of six files,
+  three things reproduced:
+  a Markdown note beside a changed test makes the writer return nothing to review,
+  so the test gets no review;
+  a fixture of a kind no list holds takes the code path and the changed test is left out of the brief;
+  a path Git quotes
+  (`core.quotePath`,
+  a non-ASCII name)
+  is listed with its quotes and escapes and names no file.
+  All weighed as worth their fix;
+  no record decides that a note beside a test refuses the review.
+  The author is resumed
+  (`~/temp/agent/pi-runs/review-brief-writer-for-every-kind-of-code-file-answers-its-second-review-of-2026-11-15-prompt.md`,
+  queued seventh).
+- Read at 00:42:25:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  20 runs going.
+  The resumed session is not named by the credential scan.
+  The queue held 75 entries at 00:45:37.
+- **A sighting under `0.6.1-alpha.37`**:
+  this session's commit `fd002ed513` in the main checkout,
+  landed 00:54:32,
+  printed "The commit service has not said where this commit stands yet; it has waited 10 seconds." and then "This commit is next." before it landed.
+  The home drive was stalling in those minutes
+  (the probe's readings in `doc/handover/agents-at-once-on-this-machine.md`).
+  One commit,
+  its cause not measured;
+  it is over the rule of five seconds or twice real Git,
+  and it goes to the queued run on a commit whose service did not start or stopped answering as a third sighting.
+
+##### The cap steps down to 20 after two stalls in a row on the home drive; the drawn tree and mpm-shadow's install go back to their authors (2026-11-15T00:34:22-05:00)
+
+Not final and not approved:
+what the probe and two reviews report,
+how the coordinating session weighed them,
+and what it did.
+
+- **The cap is 20 since 00:32:16.**
+  The probe ended level 24 at 00:31:09 on two home-drive readings in a row over five seconds
+  (14,892 ms and 7,722 ms,
+  23 agents going,
+  the nightly snapshot cleanup running since 00:00:11).
+  The recorded rule gives 20.
+  The filling unit was restarted between two rounds as `fill-free-places-and-put-ended-reviews-back-at-level-20-20261115T003216`
+  (ends about 08:32),
+  the probe as `disk-ceiling-probe-level-20-20261115T003216`.
+  No going run was stopped;
+  22 were going at 00:32:29.
+  Readings and limits:
+  `doc/handover/agents-at-once-on-this-machine.md`.
+  A first summary this session made of those readings counted no slow one,
+  because it matched the wrong field names;
+  the count in that record,
+  47 of 450,
+  is from the corrected read.
+- **The drawn shadow tree** (`49d93515cf`),
+  its fifth review,
+  ended 00:28:02,
+  thirteen of thirteen files,
+  two things reproduced against a build of the tip:
+  a handed tree whose `HEAD` is gone and whose root still stands makes the commit exit 128 with no second build,
+  since the recovery asks only whether the root is a directory;
+  and a client lost after the hand-out leaves its tree and its lock for as long as the service runs.
+  Both weighed as worth their fix:
+  the first is a commit that fails after a kill,
+  the second a wait with no end.
+  The author is resumed
+  (`~/temp/agent/pi-runs/drawn-shadow-tree-answers-its-fifth-review-of-2026-11-15-prompt.md`,
+  queued fifth).
+- **mpm-shadow's install that removes no version in use** (`392540cb45`),
+  its fourth review,
+  ended 00:31:31,
+  25 of 25 files,
+  seven things,
+  six by a run and one by reading:
+  a recovery gives a version back and deletes its downloads;
+  a flat download replaced after planning is deleted;
+  an emptied root with no `current` gets no forwarding link;
+  a killed remover's claim blocks every later install of that version;
+  a sync that cannot read the locks deletes the marker of unfinished recovery;
+  a marker that cannot be written is ignored before the destructive steps;
+  the runner can call a child stopped that still runs
+  (read only).
+  All weighed as worth their fix.
+  Six share one shape,
+  a thing judged at one instant and acted on at a later one,
+  so the author is asked for a table of everything a removal creates,
+  moves or deletes,
+  with its owner and its proof at each step,
+  before the code
+  (`~/temp/agent/pi-runs/mpm-shadow-install-removes-no-version-answers-its-fourth-review-of-2026-11-15-prompt.md`,
+  queued sixth).
+- Neither resumed session is named by the credential scan.
+  The queue held 73 entries at 00:34:22.
+
+##### Five more of the gate's standing failures have their cause and a fix in review: fixtures that leave a runtime directory too little room, and an image without `SPEC.md` (2026-11-15T00:26:57-05:00)
+
+Not final and not approved:
+what one fresh run reports,
+and what the coordinating session queued.
+
+- **The long-runtime-directory controls in the gate's container**,
+  a fresh run,
+  ended 00:20:53 at `a7f7bfd1df`.
+  By its report five of the gate's standing failures have two causes,
+  each shown by a run,
+  and neither is the wrapper's:
+  four controls build their fixture under `$HOME/temp/agent/<prefix><pid>` whatever room that leaves for a socket's name,
+  and in the container that folder is 32 bytes long,
+  leaving seven where the names need eight to thirteen;
+  the fifth reads `SPEC.md`,
+  which the image's snapshot never listed.
+  It found the same defect in one more control that the gate passed only because that run's process number had five digits.
+  Changed:
+  the test support chooses the longest folder that leaves the room a name needs and names every place it tried when none does;
+  `SPEC.md` joins the snapshot.
+  A control of the helper fails with the shortening planted out,
+  and the five still passed in that planted run,
+  which it gives as the reason the defect stayed unseen.
+  All five pass in the gate's container at the gate's own room.
+  Its review is queued second
+  (`main...a7f7bfd1df`,
+  one code file that is not a test).
+- **It also met two TypeScript unit tests of the package red on `main`**:
+  four planted controls that name source text which is no longer there,
+  and a harness digest that does not match.
+  One agent's reading.
+  These have gone stale and been put right before
+  (two earlier briefs say so);
+  a fresh run is queued to put them right and to say which check at a merge would have caught them
+  (`~/temp/agent/pi-runs/planted-controls-of-the-wrapper-name-current-sources-again-and-say-what-let-them-go-stale-prompt.md`).
+  The integration passes' briefs,
+  which this session writes,
+  ask for the Rust build,
+  tests and Clippy and not for the unit tests of `bin/`;
+  from the next pass on they ask for those too.
+- **Where the gate's 25 stand**,
+  by the fixes this handover records and not by a gate:
+  five here,
+  seven on the Git-version branch,
+  three on the refused service start,
+  two on the lock-holders folder,
+  three push controls with pass 48's author,
+  one runtime control in a fresh run;
+  that is 21 of the 25.
+  The other four,
+  read by name from the gate's list at 00:28:
+  `landing::service_round::…a_lane_that_panics_stops_its_lane_and_the_round_says_so`,
+  `push::child_watch_output_watched_on_the_runtime::…a_step_left_running_on_the_runtime_is_collected…` and `push::push_slow_server_tests::a_server_that_takes_the_connection_and_answers_nothing…`,
+  which the queued brief on library tests that pass alone and fail inside the suite names,
+  and `lock::abandoned_lock_proving_tests::a_record_of_another_boot_is_gone_and_one_of_another_machine_is_unknown`,
+  which a queued fresh run of its own has.
+  Neither had started;
+  both were moved up at 00:28:35,
+  to third and fourth in the queue
+  (from fortieth and fifteenth).
+  So each of the 25 has a run named for it.
+- Read at 00:25:53:
+  no `ELOCKED` and no `rmdir` line in the user journal since the lock shim's merge;
+  no launcher had outlived a run;
+  no process worked inside a worktree whose run was not going;
+  24 runs going,
+  the cap.
+  The queue held 71 entries at 00:26:57.
 
 ##### The brief writer for every kind of code file counts the repository's tests and fixtures and goes to review (2026-11-15T00:16:22-05:00)
 
