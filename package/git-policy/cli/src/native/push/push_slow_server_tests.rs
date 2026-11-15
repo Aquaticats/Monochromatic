@@ -358,8 +358,9 @@ fn a_server_that_takes_the_connection_and_answers_nothing_is_ended_at_the_connec
             "the stop names the server: {}",
             attempt.output
         );
+        // The line names the window that ended it, which is the one this control set and not the stall window beside it.
         assert!(
-            attempt.output.contains(&format!("nothing moving for {CONTROL_WINDOW_SECONDS} seconds")),
+            attempt.output.contains(&format!("open for {CONTROL_WINDOW_SECONDS} seconds with nothing moving")),
             "the stop names the window it was ended by: {}",
             attempt.output
         );
