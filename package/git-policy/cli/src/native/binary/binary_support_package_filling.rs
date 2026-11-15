@@ -39,6 +39,20 @@ pub const A_FILLS_CLEAN_ENDING_VARIABLE: &str = "CLI_GIT_TEST_ONLY_FILL_CLEAN";
 /// which the runner reports exactly as it reports a signal from outside its own bounds.
 pub const ENDED_WITH_SIGKILL: &str = "killed";
 
+/// The other ending a control may name: the filling's clean works for `A_SLOW_FILLS_CLEAN_SECONDS` before it is the real
+/// Cargo.
+/// Why:
+///  A filling that fails at once settles at once, so it cannot say whether a control waits for a filling that is still
+/// working. One that works for seconds can: a run of the control that reads the displaced bytes only after the sleep is a
+/// run whose wait covers a filling in progress,
+/// which is what tells the control's own teardown apart from the machine as the sender of a signal at the gate.
+pub const SLOW_FILLS_CLEAN: &str = "slow";
+
+/// How long a filling's clean is made to work when a run asks for [`SLOW_FILLS_CLEAN`].
+///  Eight seconds is more than every other step of the control takes together, so a run that waited for it is told apart
+/// from one that read the folder while the filling still worked.
+pub const A_SLOW_FILLS_CLEAN_SECONDS: u32 = 8;
+
 /// What:
 ///  How many seconds a reader waits for the service's own words about a filling it did not finish.
 /// Why:
@@ -191,10 +205,6 @@ pub fn end_the_fills_clean(fixture: &Fixture) {
 /// ```
 pub fn end_the_fills_clean_within(fixture: &Fixture, ending: Option<&str>) {
     let Some(asked) = ending else { return };
-    assert_eq!(
-        asked, ENDED_WITH_SIGKILL,
-        "the only ending a control may name for a filling's clean is {ENDED_WITH_SIGKILL}, and {A_FILLS_CLEAN_ENDING_VARIABLE} says {asked:?}"
-    );
     let link: std::path::PathBuf = fixture.root.join("bin/cargo");
     let real: std::path::PathBuf = std::fs::read_link(link.as_path()).unwrap_or_else(|error| {
         panic!("the fixture's Cargo link at {} cannot be replaced, so the control asked for an ending of a filling's clean it never prepared: {error}", link.display());
@@ -202,22 +212,36 @@ pub fn end_the_fills_clean_within(fixture: &Fixture, ending: Option<&str>) {
     let marker: std::path::PathBuf = fixture.root.join("filling-clean-ended");
     // A single quote in a path ends the quoted text, is written as itself, and starts it again.
     let quote = |path: &std::path::Path| -> String { return path.display().to_string().replace('\'', "'\\''"); };
+    // What the filling's own clean does, and what the resolution after it does, which is nothing unless the clean was ended
+    //  with the signal.
+    let (clean, resolution): (String, String) = match asked {
+        ENDED_WITH_SIGKILL => (
+            format!(": > '{}'; kill -9 $$", quote(marker.as_path())),
+            format!(
+                "if [ -f '{0}' ]; then printf 'error: failed to resolve the workspace: the lock file was taken from under this resolution\\n' >&2; exit 101; fi",
+                quote(marker.as_path())
+            ),
+        ),
+        SLOW_FILLS_CLEAN => (format!("sleep {A_SLOW_FILLS_CLEAN_SECONDS}"), String::from(":")),
+        other => panic!(
+            "the endings a control may name for a filling's clean are {ENDED_WITH_SIGKILL} and {SLOW_FILLS_CLEAN}, and {A_FILLS_CLEAN_ENDING_VARIABLE} says {other:?}"
+        ),
+    };
     let script: String = format!(
         "#!/bin/sh\n\
-         # The filling's own clean ends with SIGKILL, and the resolution that follows it fails: what the machine did to the\n\
-         #  filling of the gate of 2026-11-15T06:00-05:00 did the same. Every other run is the real Cargo.\n\
+         # The filling's own clean is ended or made to work, and the resolution after an ended clean fails: what the machine\n\
+         #  did to the filling of the gate of 2026-11-15T06:00-05:00 did the same. Every other run is the real Cargo.\n\
          case \" $* \" in\n\
          \x20 *\" clean \"*)\n\
          \x20   case \"$CARGO_BUILD_BUILD_DIR\" in\n\
-         \x20     *'.monochromatic-prewarm') : > '{marker}'; kill -9 $$ ;;\n\
+         \x20     *'.monochromatic-prewarm') {clean} ;;\n\
          \x20   esac\n\
          \x20   ;;\n\
          \x20 *\" metadata \"*)\n\
-         \x20   if [ -f '{marker}' ]; then printf 'error: failed to resolve the workspace: the lock file was taken from under this resolution\\n' >&2; exit 101; fi\n\
+         \x20   {resolution}\n\
          \x20   ;;\n\
          esac\n\
          exec '{real}' \"$@\"\n",
-        marker = quote(marker.as_path()),
         real = quote(real.as_path()),
     );
     std::fs::remove_file(link.as_path()).expect("the fixture's Cargo link goes before the stand-in takes its name");
