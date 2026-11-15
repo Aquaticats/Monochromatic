@@ -357,8 +357,12 @@ pub fn run(arguments: &[String]) -> i32 {
     };
     let idle: Duration = number_option(arguments, "--idle-seconds").map_or(IDLE_EXIT, Duration::from_secs);
     let mut settings: ServeSettings = ServeSettings::new(idle);
-    // The serving loop asks about this worktree at its own interval, so a removal that no wrapper sees still ends the units.
-    settings.own_git_dir = own_git_dir;
+    // What: The worktree this service is of, from its own journal or from the argument that started it, so the serving loop
+    //       asks about it every `OWN_WORKTREE_CHECK` from the first start.
+    // Why:  On a first start the journal is empty and the note is written by this very service, so the answer from them is
+    //       "nothing maps" and the check never ran for the service's whole life: a removed worktree's service listened for
+    //       hours (the review of `b896c60d97`, finding 2). The argument is what the command that started this service knows.
+    settings.own_git_dir = own_git_dir.or(own_git_dir_of_the_arguments.clone());
     if let Some(release) = option(arguments, "--release") {
         settings.release = release;
     }

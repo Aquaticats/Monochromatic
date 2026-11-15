@@ -36,6 +36,7 @@ use crate::repo_read_layout::{RepoLayout, read_layout_in};
 /// A pathname from the bytes Git printed for it,
 ///  and one answer without its terminating line feed.
 use crate::hooks_path_values::{path_answer, without_the_terminator};
+use crate::service_address_of_a_worktree::{socket_address_of, the_address_is_there};
 use crate::service_instance::{SOCKET_DIRECTORY, socket_path, try_instance_of};
 use crate::service_host_of_a_worktree::{ServiceHost, state_dir_of};
 use crate::service_server::Bind;
@@ -137,12 +138,17 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
     // A Git directory that cannot be resolved (a link to a drive that is not mounted) names no instance: no socket path is made
     //  for it.
     let instance: String = try_instance_of(inputs.git_dir).ok()?;
-    let socket: PathBuf = socket_path(runtime_dir, instance.as_str());
+    // What: The address of this worktree's service, which is a socket file when the runtime directory's path fits one and the
+    //       kernel's own name for it when it does not.
+    // Why:  A runtime directory is the person's to choose, and a path too long for a socket address made every commit there fail
+    //       where real Git made the commit (`service_address_of_a_worktree.rs`; `main`'s pass 42).
+    let socket: Bind = socket_address_of(runtime_dir, instance.as_str());
+    let socket_exists: bool = the_address_is_there(&socket);
     // The service is a mode of the wrapper's own executable (`service_main.rs`); a path that is not a file (a deleted
     //  executable) is no program to start.
     let service_binary: PathBuf = match inputs.own_executable {
         Some(executable) if executable.is_file() => executable.to_path_buf(),
-        _ => return if socket.exists() { Some(Route { address: Bind::Path(socket), host: None }) } else { None },
+        _ => return if socket_exists { Some(Route { address: socket, host: None }) } else { None },
     };
     let state_dir: PathBuf = state_dir_of(inputs.state_home, inputs.home).unwrap_or_else(|| {
         return runtime_dir.to_path_buf();
@@ -161,7 +167,7 @@ pub fn choose_route(inputs: &RouteInputs<'_>) -> Option<Route> {
         }).map(Path::to_path_buf),
         bus_address: inputs.bus_address.map(str::to_string),
     };
-    return Some(Route { address: Bind::Path(socket), host: Some(host) });
+    return Some(Route { address: socket, host: Some(host) });
 }
 
 /// What `git monochromatic-git-policy-cli service status` prints and exits with.
