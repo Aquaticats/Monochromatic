@@ -1067,7 +1067,6 @@ of `~/temp/agent/disk-ceiling-search-by-agent-count-2026-11-13/`.
   as the failing pairs of the night before did;
   single stalls of fifteen to twenty-four seconds came without it.
   One night's pair does not separate the cleanup from the count:
-  the count was 22 to 24 for the whole of the evening.
   the probe counted 18 to 24 agents across the 450 readings
   (24 at 126 of them,
   23 at 89,
